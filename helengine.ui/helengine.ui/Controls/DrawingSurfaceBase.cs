@@ -1,11 +1,10 @@
-using System;
-using System.Diagnostics;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.LogicalTree;
 using Avalonia.Rendering.Composition;
 using Avalonia.VisualTree;
+using System;
+using System.Threading.Tasks;
 
 namespace helengine.ui.Controls;
 

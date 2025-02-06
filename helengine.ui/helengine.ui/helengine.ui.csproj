@@ -30,6 +30,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\engine\helengine.core\helengine.core.csproj" />
+    <ProjectReference Include="..\..\engine\helengine.editor\helengine.editor.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="Controls\D3D\MiniCube.fx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

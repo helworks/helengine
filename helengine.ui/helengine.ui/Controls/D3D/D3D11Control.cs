@@ -87,7 +87,7 @@ public class D3D11Control : DrawingSurfaceBase {
             Resize(pixelSize);
         }
 
-        Pitch += 0.01f;
+        Pitch += 0.05f;
 
         using (_swapchain!.BeginDraw(pixelSize, out var renderView)) {
             _device!.ImmediateContext.OutputMerger.SetTargets(_depthView, renderView);
