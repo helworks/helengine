@@ -21,7 +21,6 @@ class ActionDisposable : IDisposable {
     }
 }
 
-
 /// <summary>
 /// A helper class for composition-backed swapchains, should not be a public API yet
 /// </summary>
@@ -57,7 +56,6 @@ abstract class SwapchainBase<TImage> : IAsyncDisposable where TImage : class, IS
                 else
                     foundMultiple = true;
             }
-
         }
 
         // We are making sure that there was at least one image of the same size in flight

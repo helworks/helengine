@@ -18,7 +18,7 @@ using Vector3 = SharpDX.Vector3;
 
 namespace helengine.ui.Controls;
 
-public class D3D11Control : DrawingSurfaceDemoBase {
+public class D3D11Control : DrawingSurfaceBase {
     D3DDevice? _device;
     D3D11Swapchain? _swapchain;
     DeviceContext? _context;

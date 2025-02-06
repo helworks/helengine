@@ -1,12 +1,11 @@
-using System;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Platform;
 using Avalonia.Rendering;
 using Avalonia.Rendering.Composition;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
-using DxgiFactory1 = SharpDX.DXGI.Factory1;
+using System;
+using System.Threading.Tasks;
 using D3DDevice = SharpDX.Direct3D11.Device;
 using DxgiResource = SharpDX.DXGI.Resource;
 
