@@ -40,8 +40,8 @@ namespace helengine.sharpdx {
                     new Rational(60, 1), // refresh rate
                     Format.R8G8B8A8_UNorm // pixel format, you should resreach this for your specific implementation
                 ),
-                OutputHandle = handle, //the magic 
-                SampleDescription = new SampleDescription(1, 0), //the first number is how many samples to take, anything above one is multisampling.
+                OutputHandle = handle,
+                SampleDescription = new SampleDescription(1, 0),// the first number is how many samples to take, anything above one is multisampling.
                 SwapEffect = SwapEffect.Discard,
                 Usage = Usage.RenderTargetOutput
             };

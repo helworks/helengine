@@ -1,5 +1,5 @@
 ﻿namespace helengine {
-    public class EditorCore: Core {
+    public class EditorCore : Core {
         public ObjectManager EditorObjectManager { get; private set; }
 
         public EditorCore() {

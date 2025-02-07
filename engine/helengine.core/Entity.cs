@@ -1,94 +1,52 @@
 ﻿namespace helengine {
     public class Entity {
-        bool shouldUpdate;
-        bool shouldRender;
-        byte updateOrder;
-        byte renderOrder2D;
-        byte renderOrder3D;
+        bool enabled;
 
         public float3 Position { get; set; }
         public float3 Scale { get; set; }
         public float4 Orientation { get; set; }
 
-        public List<ComponentLineRenderer>? Components { get; set; }
+        /// <summary>
+        /// TODO seal/rework this list, adding directly breaks the system
+        /// </summary>
+        public List<Component>? Components { get; internal set; }
+        public List<Entity>? Children { get; internal set; }
+        public Entity Parent { get; private set; }
 
-        public byte UpdateOrder {
-            get { return updateOrder; } 
+        public bool Enabled {
+            get { return enabled; }
             set {
-                if (updateOrder != value) {
-                    if (shouldUpdate) {
-                        Core.Instance.ObjectManager.RemoveFromUpdate(this);
-                        updateOrder = value;
-                        Core.Instance.ObjectManager.RegisterForUpdate(this);
-                    } else {
-                        updateOrder = value;
+                if (enabled != value) {
+                    if (Components != null) {
+                        for (int i = 0; i < Components.Count; i++) {
+                            Components[i].ParentEnabledChange(value);
+                        }
                     }
                 }
+                enabled = value;
             }
         }
 
-        public byte RenderOrder2D {
-            get { return renderOrder2D; }
-            set {
-                if (renderOrder2D != value) {
-                    if (shouldRender) {
-                        //Core.Instance.ObjectManager.RemoveFromRender2D(this);
-                        //updateOrder = value;
-                        //Core.Instance.ObjectManager.RegisterForRender2D(this);
-                    } else {
-                        updateOrder = value;
-                    }
-                }
-            }
+        public void InitChildren() {
+            Children = new List<Entity>();
         }
 
-        public byte RenderOrder3D {
-            get { return renderOrder3D; }
-            set {
-                if (renderOrder3D != value) {
-                    if (shouldRender) {
-                        //Core.Instance.ObjectManager.RemoveFromRender2D(this);
-                        //updateOrder = value;
-                        //Core.Instance.ObjectManager.RegisterForRender2D(this);
-                    } else {
-                        updateOrder = value;
-                    }
-                }
+        public void AddChild(Entity entity) {
+            if (entity.Parent != null) {
+                throw new Exception("Parent is not empty");
             }
+
+            Children.Add(entity);
+
         }
 
-        public bool ShouldUpdate {
-            get { return shouldUpdate; }
-            set { 
-                shouldUpdate = value; 
-                if (value) {
-                    Core.Instance.ObjectManager.RegisterForUpdate(this);
-                } else {
-                    Core.Instance.ObjectManager.RemoveFromUpdate(this);
-                }
-            }
+        public void InitComponents() {
+            Components = new List<Component>();
         }
 
-        public bool ShouldRender {
-            get { return shouldRender; }
-            set {
-                shouldRender = value;
-                if (value) {
-                    //Core.Instance.ObjectManager.RegisterForRender2D(this);
-                } else {
-                    //Core.Instance.ObjectManager.RemoveFromRender2D(this);
-                }
-            }
-        }
-
-        public virtual void Update() {
-            if (Components == null) {
-                return;
-            }
-
-            for (int i = 0; i < Components.Count; i++) {
-                Components[i].Update();
-            }
+        public void AddComponent(Component comp) {
+            Components.Add(comp);
+            comp.ComponentAdded(this);
         }
     }
 }
