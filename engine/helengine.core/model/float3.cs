@@ -39,6 +39,44 @@ namespace helengine {
             this.Z = z;
         }
 
+        public override string ToString() {
+            return $"{X}, {Y}, {Z}";
+        }
+
+        public static float3 Normalize(float3 value) {
+            float factor = (float)Math.Sqrt((value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z));
+            factor = 1f / factor;
+            return new float3(value.X * factor, value.Y * factor, value.Z * factor);
+        }
+
+        public static float3 Cross(float3 vector1, float3 vector2) {
+            Cross(ref vector1, ref vector2, out vector1);
+            return vector1;
+        }
+
+        /// <summary>
+        /// Computes the cross product of two vectors.
+        /// </summary>
+        /// <param name="vector1">The first vector.</param>
+        /// <param name="vector2">The second vector.</param>
+        /// <param name="result">The cross product of two vectors as an output parameter.</param>
+        public static void Cross(ref float3 vector1, ref float3 vector2, out float3 result) {
+            var x = vector1.Y * vector2.Z - vector2.Y * vector1.Z;
+            var y = -(vector1.X * vector2.Z - vector2.X * vector1.Z);
+            var z = vector1.X * vector2.Y - vector2.X * vector1.Y;
+            result.X = x;
+            result.Y = y;
+            result.Z = z;
+        }
+
+        public static float Dot(float3 value1, float3 value2) {
+            return value1.X * value2.X + value1.Y * value2.Y + value1.Z * value2.Z;
+        }
+
+        public static void Dot(ref float3 value1, ref float3 value2, out float result) {
+            result = value1.X * value2.X + value1.Y * value2.Y + value1.Z * value2.Z;
+        }
+
         public override bool Equals(object? obj) {
             if (obj == null) {
                 return false;
@@ -68,6 +106,10 @@ namespace helengine {
 
         public static float3 operator +(float3 a, float3 b) {
             return new float3(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
+        }
+
+        public static float3 operator -(float3 a, float3 b) {
+            return new float3(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
         }
 
         public static float3 operator *(float3 a, float3 b) {

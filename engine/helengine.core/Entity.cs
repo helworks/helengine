@@ -29,6 +29,8 @@
 
         public Entity() {
             enabled = true;
+            Orientation = float4.Identity;
+            Scale = float3.One;
         }
 
         public void InitChildren() {

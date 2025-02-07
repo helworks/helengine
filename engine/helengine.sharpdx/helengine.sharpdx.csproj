@@ -17,4 +17,10 @@
     <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="shaders\MiniCube.fx">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
