@@ -3,11 +3,15 @@
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <Nullable>disable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\engine\helengine.core\helengine.core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="utils\" />
   </ItemGroup>
 
 </Project>

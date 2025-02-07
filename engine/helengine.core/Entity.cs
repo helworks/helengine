@@ -27,6 +27,10 @@
             }
         }
 
+        public Entity() {
+            enabled = true;
+        }
+
         public void InitChildren() {
             Children = new List<Entity>();
         }

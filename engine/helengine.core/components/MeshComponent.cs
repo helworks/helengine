@@ -5,10 +5,10 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace helengine {
-    public class ComponentMesh : Component, IDrawable3D {
+    public class MeshComponent : Component, IDrawable3D {
         byte renderOrder3D;
 
-        public ModelRenderData? RenderData { get; set; }
+        public RenderModelData? RenderData { get; set; }
 
         public byte RenderOrder3D {
             get { return renderOrder3D; }

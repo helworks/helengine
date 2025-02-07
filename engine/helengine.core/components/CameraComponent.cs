@@ -1,5 +1,5 @@
 ﻿namespace helengine {
-    public class ComponentCamera : Component, ICamera {
+    public class CameraComponent : Component, ICamera {
         byte cameraDrawOrder;
 
         public byte CameraDrawOrder {

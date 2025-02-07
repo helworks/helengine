@@ -6,6 +6,8 @@
         public virtual void AddWindow(IntPtr handle, int width, int height) {
         }
 
+        public abstract RenderModelData BuildFromRaw(RawModelData data);
+
         public virtual void Update() {
         }
 

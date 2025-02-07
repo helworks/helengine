@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace helengine.editor {
-    public class ComponentGrid : ComponentLineRenderer {
+    public class ComponentGrid : LineRendererComponent {
 
     }
 }
