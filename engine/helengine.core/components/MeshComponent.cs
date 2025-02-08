@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace helengine {
+﻿namespace helengine {
     public class MeshComponent : Component, IDrawable3D {
         byte renderOrder3D;
 

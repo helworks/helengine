@@ -8,11 +8,12 @@
         public Core() {
             Instance = this;
 
-            ObjectManager = new ObjectManager();
         }
 
-        public virtual void AssignRenderManager(RenderManager render) {
+        public virtual void Initialize(RenderManager render) {
             this.RenderManager = render;
+        
+            ObjectManager = new ObjectManager();
         }
 
         public virtual void Update() {

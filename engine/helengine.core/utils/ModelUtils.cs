@@ -36,7 +36,6 @@ namespace helengine {
                 new float3(0, -1, 0), new float3(0, -1, 0), new float3(0, -1, 0), new float3(0, -1, 0)
             ];
 
-
             float2[] texCoords = [
                 new float2(0, 0), new float2(1, 0), new float2(1, 1), new float2(0, 1),
                 new float2(0, 0), new float2(1, 0), new float2(1, 1), new float2(0, 1),
@@ -48,11 +47,11 @@ namespace helengine {
 
             ushort[] indices = [
                 0, 1, 2, 2, 3, 0,
-                4, 5, 6, 6, 7, 4,
+                6, 5, 4, 4, 7, 6,
                 8, 9, 10, 10, 11, 8,
-                12, 13, 14, 14, 15, 12,
+                14, 13, 12, 12, 15, 14,
                 16, 17, 18, 18, 19, 16,
-                20, 21, 22, 22, 23, 20
+                22, 21, 20, 20, 23, 22
             ];
 
             for (int i = 0; i < 24; i++) {

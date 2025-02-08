@@ -17,6 +17,12 @@
             }
         }
 
+        public float4 Viewport { get; set; }
+
+        public CameraComponent() {
+            Viewport = new float4(0, 0, 1, 1);
+        }
+
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 

@@ -4,7 +4,6 @@ using SharpDX.D3DCompiler;
 using SharpDX.Direct3D;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
-using System.Drawing;
 using System.Runtime.InteropServices;
 using Buffer = SharpDX.Direct3D11.Buffer;
 using D3DDevice = SharpDX.Direct3D11.Device;
@@ -174,7 +173,7 @@ namespace helengine.sharpdx {
             var drawableBuckets = Core.Instance.ObjectManager.Drawables3D;
 
             float4x4 view;
-            float3 pos = new float3(0, 0, -8);
+            float3 pos = new float3(0, 3, -8);
             float3 target = new float3(0, 0, 0);
             float3 up = new float3(0, 1, 0);
             float4x4.CreateLookAt(ref pos, ref target, ref up, out view);
@@ -193,48 +192,51 @@ namespace helengine.sharpdx {
                 Device.ImmediateContext.Rasterizer.SetViewport(0, 0, 1280, 720);
 
                 for (int j = 0; j < drawableBuckets.Length; j++) {
-                    var drawableList = drawableBuckets[j];
+                    var drawableVariants = drawableBuckets[j];
 
-                    for (int k = 0; k < drawableList.Count; k++) {
-                        var drawable = drawableList[k];
+                    for (int h = 0; h < drawableVariants.Length; h++) {
+                        var drawableList = drawableVariants[h];
 
-                        Entity parent = drawable.Parent;
+                        for (int k = 0; k < drawableList.Count; k++) {
+                            var drawable = drawableList[k];
 
-                        SharpDXModelData data = (SharpDXModelData)drawable.RenderData;
+                            Entity parent = drawable.Parent;
 
-                        // state change
-                        context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-                        context.VertexShader.Set(vertexShader);
-                        context.PixelShader.Set(pixelShader);
-                        context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, 32, 0));
-                        context.InputAssembler.SetIndexBuffer(data.IndexBuffer, Format.R16_UInt, 0);
-                        context.VertexShader.SetConstantBuffer(0, constantBuffer);
+                            SharpDXModelData data = (SharpDXModelData)drawable.RenderData;
+
+                            // state change
+                            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+                            context.VertexShader.Set(vertexShader);
+                            context.PixelShader.Set(pixelShader);
+                            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, 32, 0));
+                            context.InputAssembler.SetIndexBuffer(data.IndexBuffer, Format.R16_UInt, 0);
+                            context.VertexShader.SetConstantBuffer(0, constantBuffer);
 
 
-                        // draw
-                        float4 orientation = parent.Orientation;
-                        float4x4 rotation;
-                        float4x4.CreateFromQuaternion(ref orientation, out rotation);
+                            // draw
+                            float4 orientation = parent.Orientation;
+                            float4x4 rotation;
+                            float4x4.CreateFromQuaternion(ref orientation, out rotation);
 
-                        float3 scale = parent.Scale;
-                        float4x4 size;
-                        float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
+                            float3 scale = parent.Scale;
+                            float4x4 size;
+                            float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
 
-                        float4x4 world;
-                        float4x4.Multiply(ref rotation, ref size, out world);
+                            float4x4 world;
+                            float4x4.Multiply(ref rotation, ref size, out world);
 
-                        float4x4 worldViewProj;
-                        float4x4.Multiply(ref world, ref viewProj, out worldViewProj);
+                            float4x4 worldViewProj;
+                            float4x4.Multiply(ref world, ref viewProj, out worldViewProj);
 
-                        float4x4 worldViewProjTransposed;
-                        float4x4.Transpose(ref worldViewProj, out worldViewProjTransposed);
+                            float4x4 worldViewProjTransposed;
+                            float4x4.Transpose(ref worldViewProj, out worldViewProjTransposed);
 
-                        context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
+                            context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
 
-                        context.DrawIndexed(data.Indices, 0, 0);
-                        context.Flush();
+                            context.DrawIndexed(data.Indices, 0, 0);
+                            context.Flush();
+                        }
                     }
-
                 }
 
                 window.Chain.Present(0, PresentFlags.None);

@@ -8,5 +8,8 @@
 
         public virtual void ParentEnabledChange(bool newEnabled) {
         }
+
+        public virtual void ParentStaticChange(bool newEnabled) {
+        }
     }
 }

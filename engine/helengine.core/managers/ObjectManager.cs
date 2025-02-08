@@ -6,8 +6,9 @@
         public List<IDrawable2D>[] RenderEntities2D { get; private set; }
         public int TotalBuckets2D { get; private set; } = 8;
 
-        public List<IDrawable3D>[] Drawables3D { get; private set; }
-        public int TotalBuckets3D { get; private set; } = 8;
+        public List<IDrawable3D>[][] Drawables3D { get; private set; }
+        public int TotalVariants3D { get; private set; } = 4;
+        public int TotalBuckets3D { get; private set; } = 3;
 
         public List<ICamera>[] Cameras { get; private set; }
         public int TotalCameraBuckets { get; private set; } = 8;
@@ -23,9 +24,12 @@
                 RenderEntities2D[i] = new List<IDrawable2D>();
             }
 
-            Drawables3D = new List<IDrawable3D>[TotalBuckets3D];
-            for (int i = 0; i < TotalBuckets3D; i++) {
-                Drawables3D[i] = new List<IDrawable3D>();
+            Drawables3D = new List<IDrawable3D>[TotalVariants3D][];
+            for (int i = 0; i < TotalVariants3D; i++) {
+                Drawables3D[i] = new List<IDrawable3D>[TotalBuckets3D];
+                for (int j = 0; j < TotalBuckets3D; j++) {
+                    Drawables3D[i][j] = new List<IDrawable3D>();
+                }
             }
 
             Cameras = new List<ICamera>[TotalCameraBuckets];
@@ -54,14 +58,14 @@
             RenderEntities2D[bucket].Remove(drawable);
         }
 
-        public virtual void RegisterForRender3D(IDrawable3D drawable) {
+        public virtual void RegisterForRender3D(IDrawable3D drawable, byte variant = 0) {
             int bucket = drawable.RenderOrder3D / TotalBuckets3D;
-            Drawables3D[bucket].Add(drawable);
+            Drawables3D[variant][bucket].Add(drawable);
         }
 
-        public virtual void RemoveFromRender3D(IDrawable3D drawable) {
+        public virtual void RemoveFromRender3D(IDrawable3D drawable, byte variant = 0) {
             int bucket = drawable.RenderOrder3D / TotalBuckets3D;
-            Drawables3D[bucket].Remove(drawable);
+            Drawables3D[variant][bucket].Remove(drawable);
         }
 
         public virtual void RegisterCamera(ICamera camera) {

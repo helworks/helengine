@@ -1,5 +1,6 @@
 ﻿namespace helengine {
     public abstract class RenderManager : IDisposable {
+
         public RenderManager() {
         }
 
