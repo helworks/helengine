@@ -1,5 +1,5 @@
 ﻿namespace helengine.editor {
     public interface IModelImporter {
-        RawModelData ImportModel(Stream stream);
+        ModelAsset ImportModel(Stream stream);
     }
 }

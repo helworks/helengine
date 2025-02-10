@@ -1,17 +1,17 @@
 ﻿namespace helengine {
     public class ObjectManager {
         public List<IUpdateable>[] UpdateEntities { get; private set; }
-        public int TotalUpdateBuckets { get; private set; } = 8;
+        public byte TotalUpdateBuckets { get; private set; } = 4;
 
-        public List<IDrawable2D>[] RenderEntities2D { get; private set; }
-        public int TotalBuckets2D { get; private set; } = 8;
+        public List<IDrawable2D>[] Drawables2D { get; private set; }
+        public byte TotalBuckets2D { get; private set; } = 4;
 
         public List<IDrawable3D>[][] Drawables3D { get; private set; }
-        public int TotalVariants3D { get; private set; } = 4;
-        public int TotalBuckets3D { get; private set; } = 3;
+        public byte TotalVariants3D { get; private set; } = 4;
+        public byte TotalBuckets3D { get; private set; } = 3;
 
         public List<ICamera>[] Cameras { get; private set; }
-        public int TotalCameraBuckets { get; private set; } = 8;
+        public byte TotalCameraBuckets { get; private set; } = 3;
 
         public ObjectManager() {
             UpdateEntities = new List<IUpdateable>[TotalUpdateBuckets];
@@ -19,9 +19,9 @@
                 UpdateEntities[i] = new List<IUpdateable>();
             }
 
-            RenderEntities2D = new List<IDrawable2D>[TotalBuckets2D];
+            Drawables2D = new List<IDrawable2D>[TotalBuckets2D];
             for (int i = 0; i < TotalBuckets2D; i++) {
-                RenderEntities2D[i] = new List<IDrawable2D>();
+                Drawables2D[i] = new List<IDrawable2D>();
             }
 
             Drawables3D = new List<IDrawable3D>[TotalVariants3D][];
@@ -50,12 +50,12 @@
 
         public virtual void RegisterForRender2D(IDrawable2D drawable) {
             int bucket = drawable.RenderOrder2D / TotalBuckets2D;
-            RenderEntities2D[bucket].Add(drawable);
+            Drawables2D[bucket].Add(drawable);
         }
 
         public virtual void RemoveFromRender2D(IDrawable2D drawable) {
             int bucket = drawable.RenderOrder2D / TotalBuckets2D;
-            RenderEntities2D[bucket].Remove(drawable);
+            Drawables2D[bucket].Remove(drawable);
         }
 
         public virtual void RegisterForRender3D(IDrawable3D drawable, byte variant = 0) {

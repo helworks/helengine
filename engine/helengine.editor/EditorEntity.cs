@@ -6,6 +6,8 @@
 
         public EditorEntity() {
             Name = "Entity";
+
+            InitComponents();
         }
     }
 }

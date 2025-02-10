@@ -18,6 +18,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="shaders\SpriteShader.fx">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="shaders\MiniCube.fx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

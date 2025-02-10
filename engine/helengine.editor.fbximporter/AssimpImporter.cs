@@ -4,7 +4,7 @@ using Assimp;
 
 namespace helengine.editor.fbximporter {
     public class HelengineAssimpImporter : IModelImporter {
-        public RawModelData? ImportModel(Stream stream) {
+        public ModelAsset? ImportModel(Stream stream) {
             AssimpContext importer = new AssimpContext();
             //if (configs != null) {
             //    foreach (PropertyConfig config in configs)

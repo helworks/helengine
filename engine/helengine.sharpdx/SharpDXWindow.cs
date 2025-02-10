@@ -7,6 +7,9 @@ namespace helengine.sharpdx {
         public RenderTargetView RenderTarget;
         public DepthStencilView DepthView;
 
+        public int Width;
+        public int Height;
+
         public void Dispose() {
             Chain.Dispose();
             RenderTarget.Dispose();

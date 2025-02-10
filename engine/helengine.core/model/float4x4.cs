@@ -107,6 +107,35 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Creates a new projection <see cref="Matrix"/> for customized orthographic view.
+        /// </summary>
+        /// <param name="left">Lower x-value at the near plane.</param>
+        /// <param name="right">Upper x-value at the near plane.</param>
+        /// <param name="bottom">Lower y-coordinate at the near plane.</param>
+        /// <param name="top">Upper y-value at the near plane.</param>
+        /// <param name="zNearPlane">Depth of the near plane.</param>
+        /// <param name="zFarPlane">Depth of the far plane.</param>
+        /// <param name="result">The new projection <see cref="Matrix"/> for customized orthographic view as an output parameter.</param>
+        public static void CreateOrthographicOffCenter(float left, float right, float bottom, float top, float zNearPlane, float zFarPlane, out float4x4 result) {
+            result.M11 = (float)(2.0 / ((double)right - (double)left));
+            result.M12 = 0.0f;
+            result.M13 = 0.0f;
+            result.M14 = 0.0f;
+            result.M21 = 0.0f;
+            result.M22 = (float)(2.0 / ((double)top - (double)bottom));
+            result.M23 = 0.0f;
+            result.M24 = 0.0f;
+            result.M31 = 0.0f;
+            result.M32 = 0.0f;
+            result.M33 = (float)(1.0 / ((double)zNearPlane - (double)zFarPlane));
+            result.M34 = 0.0f;
+            result.M41 = (float)(((double)left + (double)right) / ((double)left - (double)right));
+            result.M42 = (float)(((double)top + (double)bottom) / ((double)bottom - (double)top));
+            result.M43 = (float)((double)zNearPlane / ((double)zNearPlane - (double)zFarPlane));
+            result.M44 = 1.0f;
+        }
+
+        /// <summary>
         /// Creates a new projection <see cref="Matrix"/> for perspective view with field of view.
         /// </summary>
         /// <param name="fieldOfView">Field of view in the y direction in radians.</param>
@@ -175,6 +204,54 @@ namespace helengine {
             result.M41 = 0;
             result.M42 = 0;
             result.M43 = 0;
+            result.M44 = 1;
+        }
+
+        /// <summary>
+        /// Creates a new translation <see cref="Matrix"/>.
+        /// </summary>
+        /// <param name="position">X,Y and Z coordinates of translation.</param>
+        /// <param name="result">The translation <see cref="Matrix"/> as an output parameter.</param>
+        public static void CreateTranslation(float x, float y, float z, out float4x4 result) {
+            result.M11 = 1;
+            result.M12 = 0;
+            result.M13 = 0;
+            result.M14 = 0;
+            result.M21 = 0;
+            result.M22 = 1;
+            result.M23 = 0;
+            result.M24 = 0;
+            result.M31 = 0;
+            result.M32 = 0;
+            result.M33 = 1;
+            result.M34 = 0;
+            result.M41 = x;
+            result.M42 = y;
+            result.M43 = z;
+            result.M44 = 1;
+        }
+
+        /// <summary>
+        /// Creates a new translation <see cref="Matrix"/>.
+        /// </summary>
+        /// <param name="position">X,Y and Z coordinates of translation.</param>
+        /// <param name="result">The translation <see cref="Matrix"/> as an output parameter.</param>
+        public static void CreateTranslation(ref float3 position, out float4x4 result) {
+            result.M11 = 1;
+            result.M12 = 0;
+            result.M13 = 0;
+            result.M14 = 0;
+            result.M21 = 0;
+            result.M22 = 1;
+            result.M23 = 0;
+            result.M24 = 0;
+            result.M31 = 0;
+            result.M32 = 0;
+            result.M33 = 1;
+            result.M34 = 0;
+            result.M41 = position.X;
+            result.M42 = position.Y;
+            result.M43 = position.Z;
             result.M44 = 1;
         }
 

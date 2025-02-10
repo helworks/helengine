@@ -1,8 +1,8 @@
 ﻿
 namespace helengine {
     public class ModelUtils {
-        public static RawModelData GenerateCubeMesh(float3 position, float3 scale) {
-            RawModelData modelData = new RawModelData();
+        public static ModelAsset GenerateCubeMesh(float3 position, float3 scale) {
+            ModelAsset modelData = new ModelAsset();
             modelData.Id = new Guid().ToString();
 
             float3[] positions = [
@@ -55,6 +55,40 @@ namespace helengine {
             ];
 
             for (int i = 0; i < 24; i++) {
+                positions[i] = positions[i] * scale + position;
+            }
+
+            modelData.Positions = positions;
+            modelData.TexCoords = texCoords;
+            modelData.Normals = normals;
+            modelData.Indices16 = indices;
+
+            return modelData;
+        }
+
+        public static ModelAsset GeneratePlaneMesh(float3 position, float3 scale) {
+            ModelAsset modelData = new ModelAsset();
+            modelData.Id = new Guid().ToString();
+
+            float3[] positions = [
+                // Bottom face
+                new float3(-1, -1, -1), new float3(1, -1, -1), new float3(1, -1, 1), new float3(-1, -1, 1)
+            ];
+
+            float3[] normals = [
+                // Bottom face (-Y)
+                new float3(0, -1, 0), new float3(0, -1, 0), new float3(0, -1, 0), new float3(0, -1, 0)
+            ];
+
+            float2[] texCoords = [
+                new float2(0, 0), new float2(1, 0), new float2(1, 1), new float2(0, 1)
+            ];
+
+            ushort[] indices = [
+                0, 1, 2, 2, 3, 0,
+            ];
+
+            for (int i = 0; i < positions.Length; i++) {
                 positions[i] = positions[i] * scale + position;
             }
 

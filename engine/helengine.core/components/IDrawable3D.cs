@@ -4,6 +4,6 @@
 
         byte RenderOrder3D { get; set; }
 
-        RenderModelData? RenderData { get; set; }
+        RuntimeModel? Model { get; set; }
     }
 }

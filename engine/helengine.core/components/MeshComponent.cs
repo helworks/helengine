@@ -2,7 +2,7 @@
     public class MeshComponent : Component, IDrawable3D {
         byte renderOrder3D;
 
-        public RenderModelData? RenderData { get; set; }
+        public RuntimeModel? Model { get; set; }
 
         public byte RenderOrder3D {
             get { return renderOrder3D; }
