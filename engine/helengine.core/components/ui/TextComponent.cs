@@ -28,6 +28,8 @@
         public string Text { get; set; }
         public FontAsset Font { get; set; }
 
+        public byte LayerMask { get; set; }
+
         public TextComponent() {
             Text = "";
             Color = new byte4(255, 255, 255, 255);

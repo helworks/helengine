@@ -286,8 +286,7 @@ namespace helengine.sharpdx {
         private void drawCamera(SharpDXWindow window, ICamera camera) {
             var context = Device.ImmediateContext;
 
-            var drawableBuckets = Core.Instance.ObjectManager.Drawables3D;
-            var drawableBuckets2D = Core.Instance.ObjectManager.Drawables2D;
+            var drawables = Core.Instance.ObjectManager.Drawables3D;
 
             float4x4 view;
             float3 cameraPos = camera.Parent.Position;
@@ -310,51 +309,45 @@ namespace helengine.sharpdx {
             float4x4 viewProj;
             float4x4.Multiply(ref view, ref projection, out viewProj);
 
-            for (int j = 0; j < drawableBuckets.Length; j++) {
-                var drawableVariants = drawableBuckets[j];
+            List<int> renderIndices = camera.RenderIndices3D;
+            for (int j = 0; j < renderIndices.Count; j++) {
+                int indice = renderIndices[j];
+                IDrawable3D drawable = drawables[indice];
 
-                for (int h = 0; h < drawableVariants.Length; h++) {
-                    var drawableList = drawableVariants[h];
+                Entity parent = drawable.Parent;
 
-                    for (int k = 0; k < drawableList.Count; k++) {
-                        IDrawable3D drawable = drawableList[k];
+                SharpDXModelRuntimeData data = (SharpDXModelRuntimeData)drawable.Model;
 
-                        Entity parent = drawable.Parent;
+                // state change
+                context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+                context.VertexShader.Set(vertexShader);
+                context.PixelShader.Set(pixelShader);
+                context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, 32, 0));
+                context.InputAssembler.SetIndexBuffer(data.IndexBuffer, Format.R16_UInt, 0);
+                context.VertexShader.SetConstantBuffer(0, constantBuffer);
 
-                        SharpDXModelRuntimeData data = (SharpDXModelRuntimeData)drawable.Model;
+                // draw
+                float4 orientation = parent.Orientation;
+                float4x4 rotation;
+                float4x4.CreateFromQuaternion(ref orientation, out rotation);
 
-                        // state change
-                        context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-                        context.VertexShader.Set(vertexShader);
-                        context.PixelShader.Set(pixelShader);
-                        context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, 32, 0));
-                        context.InputAssembler.SetIndexBuffer(data.IndexBuffer, Format.R16_UInt, 0);
-                        context.VertexShader.SetConstantBuffer(0, constantBuffer);
+                float3 scale = parent.Scale;
+                float4x4 size;
+                float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
 
-                        // draw
-                        float4 orientation = parent.Orientation;
-                        float4x4 rotation;
-                        float4x4.CreateFromQuaternion(ref orientation, out rotation);
+                float4x4 world;
+                float4x4.Multiply(ref rotation, ref size, out world);
 
-                        float3 scale = parent.Scale;
-                        float4x4 size;
-                        float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
+                float4x4 worldViewProj;
+                float4x4.Multiply(ref world, ref viewProj, out worldViewProj);
 
-                        float4x4 world;
-                        float4x4.Multiply(ref rotation, ref size, out world);
+                float4x4 worldViewProjTransposed;
+                float4x4.Transpose(ref worldViewProj, out worldViewProjTransposed);
 
-                        float4x4 worldViewProj;
-                        float4x4.Multiply(ref world, ref viewProj, out worldViewProj);
+                context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
 
-                        float4x4 worldViewProjTransposed;
-                        float4x4.Transpose(ref worldViewProj, out worldViewProjTransposed);
-
-                        context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
-
-                        context.DrawIndexed(data.Indices, 0, 0);
-                        context.Flush();
-                    }
-                }
+                context.DrawIndexed(data.Indices, 0, 0);
+                context.Flush();
             }
 
             context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleStrip;
@@ -366,14 +359,13 @@ namespace helengine.sharpdx {
 
             float4x4.CreateOrthographicOffCenter(0, viewport.Z * window.Width, viewport.W * -window.Height, 0, -10, 10, out projection2D);
 
-            for (int j = 0; j < drawableBuckets2D.Length; j++) {
-                List<IDrawable2D> drawableList = drawableBuckets2D[j];
+            List<int> renderIndices2D = camera.RenderIndices2D;
+            var drawables2D = Core.Instance.ObjectManager.Drawables2D;
+            for (int j = 0; j < renderIndices2D.Count; j++) {
+                int indice = renderIndices2D[j];
+                IDrawable2D drawable = drawables2D[indice];
 
-                for (int k = 0; k < drawableList.Count; k++) {
-                    IDrawable2D drawable = drawableList[k];
-
-                    drawable.Draw();
-                }
+                drawable.Draw();
             }
         }
 

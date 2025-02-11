@@ -21,6 +21,8 @@
 
         public float Rotation { get; set; }
 
+        public byte LayerMask { get; set; }
+
         public float4 SourceRect { get; set; }
         public int2 Size { get; set; }
 

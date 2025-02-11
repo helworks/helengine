@@ -47,6 +47,8 @@
 
         public Entity Parent { get; private set; }
 
+        public byte LayerMask { get; set; }
+
         /// <summary>
         /// TODO seal/rework this list, adding directly breaks the system
         /// </summary>
@@ -81,6 +83,7 @@
             isEnabled = true;
             Orientation = float4.Identity;
             Scale = float3.One;
+            LayerMask = 0b00000001;
         }
 
         public void InitChildren() {

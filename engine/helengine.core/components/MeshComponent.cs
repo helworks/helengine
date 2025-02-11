@@ -19,6 +19,9 @@
             }
         }
 
+        public MeshComponent() {
+        }
+
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
