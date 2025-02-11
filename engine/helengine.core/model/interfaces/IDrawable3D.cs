@@ -5,5 +5,7 @@
         byte RenderOrder3D { get; set; }
 
         RuntimeModel? Model { get; set; }
+
+        byte Variant { get; set; }
     }
 }

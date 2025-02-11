@@ -19,14 +19,24 @@
 
         public float4 Viewport { get; set; }
 
-        public List<int> RenderIndices2D { get; set; }
-        public List<int> RenderIndices3D { get; set; }
+        public List<int>[] RenderIndices2D { get; set; }
+        public List<int>[][] RenderIndices3D { get; set; }
 
         public CameraComponent() {
             Viewport = new float4(0, 0, 1, 1);
 
-            RenderIndices2D = new List<int>();
-            RenderIndices3D = new List<int>();
+            RenderIndices2D = new List<int>[4];
+            for (int i = 0; i < RenderIndices2D.Length; i++) {
+                RenderIndices2D[i] = new List<int>();
+            }
+
+            RenderIndices3D = new List<int>[4][];
+            for (int i = 0; i < RenderIndices3D.Length; i++) {
+                RenderIndices3D[i] = new List<int>[4];
+                for (int j = 0; j < 4; j++) {
+                    RenderIndices3D[i][j] = new List<int>();
+                }
+            }
         }
 
         public override void ComponentAdded(Entity entity) {

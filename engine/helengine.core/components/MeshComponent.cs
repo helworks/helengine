@@ -19,6 +19,8 @@
             }
         }
 
+        public byte Variant { get; set; }
+
         public MeshComponent() {
         }
 

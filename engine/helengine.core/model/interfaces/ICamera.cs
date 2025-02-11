@@ -6,7 +6,7 @@
 
         float4 Viewport { get; set; }
 
-        List<int> RenderIndices2D { get; set; }
-        List<int> RenderIndices3D { get; set; }
+        List<int>[] RenderIndices2D { get; set; }
+        List<int>[][] RenderIndices3D { get; set; }
     }
 }
