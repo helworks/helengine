@@ -23,13 +23,9 @@ namespace helengine.sharpdx {
         private VertexShader vertexShader;
         private PixelShader pixelShader;
 
-        private Buffer quadBuffer;
-        private InputLayout quadLayout;
-        private VertexShader quadVertexShader;
-        private PixelShader quadPixelShader;
-        private SamplerState quadSampler;
-        private Buffer quadConstantBuffer;
         private BlendState blendState;
+
+        private SharpDXRenderManager2D render2D;
 
         public SharpDXRenderManager() {
             windows = new List<SharpDXWindow>();
@@ -68,57 +64,9 @@ namespace helengine.sharpdx {
             constantBuffer = new Buffer(Device, Utilities.SizeOf<float4x4>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
 
-            initSpriteQuad();
-
             blendState = CreateBlendState(BlendOption.SourceAlpha, BlendOption.InverseSourceAlpha, BlendOperation.Add);
-        }
 
-        private void initSpriteQuad() {
-            var vertices = new[]
-            {
-                new VertexPositionUV(new float3(-0.5f, -0.5f, 0), new float2(0, 1)),
-                new VertexPositionUV(new float3(-0.5f, 0.5f, 0), new float2(0, 0)),
-                new VertexPositionUV(new float3(0.5f, -0.5f, 0), new float2(1, 1)),
-                new VertexPositionUV(new float3(0.5f, 0.5f, 0), new float2(1, 0))
-            };
-
-            // Create the vertex buffer
-            quadBuffer = Buffer.Create(Device, BindFlags.VertexBuffer, vertices);
-
-            var vertexShaderByteCode = ShaderBytecode.CompileFromFile("shaders\\SpriteShader.fx", "VS", "vs_4_0");
-            quadVertexShader = new VertexShader(Device, vertexShaderByteCode);
-
-            var pixelShaderByteCode = ShaderBytecode.CompileFromFile("shaders\\SpriteShader.fx", "PS", "ps_4_0");
-            quadPixelShader = new PixelShader(Device, pixelShaderByteCode);
-
-            quadLayout = new InputLayout(Device, vertexShaderByteCode, new[]
-            {
-                new InputElement("POSITION", 0, Format.R32G32B32_Float, 0, 0),
-                new InputElement("TEXCOORD", 0, Format.R32G32_Float, 12, 0)
-            });
-
-            var samplerDesc = new SamplerStateDescription() {
-                Filter = Filter.MinMagMipLinear, // Linear filtering
-                AddressU = TextureAddressMode.Clamp,
-                AddressV = TextureAddressMode.Clamp,
-                AddressW = TextureAddressMode.Clamp,
-                ComparisonFunction = Comparison.Never,
-                MinimumLod = 0,
-                MaximumLod = float.MaxValue
-            };
-
-            quadSampler = new SamplerState(Device, samplerDesc);
-
-            var bufferDesc = new BufferDescription(
-                Marshal.SizeOf<SpriteShaderData>(),
-                ResourceUsage.Default,
-                BindFlags.ConstantBuffer,
-                CpuAccessFlags.None,
-                ResourceOptionFlags.None,
-                0
-            );
-
-            quadConstantBuffer = new Buffer(Device, bufferDesc);
+            render2D = new SharpDXRenderManager2D(this);
         }
 
         public override void Dispose() {
@@ -155,8 +103,9 @@ namespace helengine.sharpdx {
             return new BlendState(Device, blendStateDesc);
         }
 
-
         public override void AddWindow(IntPtr handle, int width, int height) {
+            base.AddWindow(handle, width, height);
+
             using (var factory = Adapter.GetParent<Factory>()) {
                 SharpDXWindow window = new SharpDXWindow();
                 windows.Add(window);
@@ -281,10 +230,12 @@ namespace helengine.sharpdx {
             return model;
         }
 
-        private float4x4 projection2D;
 
         private void drawCamera(SharpDXWindow window, ICamera camera) {
+            Device.ImmediateContext.ClearDepthStencilView(window.DepthView, DepthStencilClearFlags.Depth, 1.0f, 0);
+
             var context = Device.ImmediateContext;
+            context.OutputMerger.SetBlendState(blendState);
 
             int totalVariants = Core.Instance.ObjectManager.TotalVariants3D;
             var drawables = Core.Instance.ObjectManager.Drawables3D;
@@ -298,14 +249,14 @@ namespace helengine.sharpdx {
             float4 viewport = camera.Viewport;
 
             Device.ImmediateContext.Rasterizer.SetViewport(
-                viewport.X * (float)window.Width,
-                viewport.Y * (float)window.Height,
-                viewport.Z * (float)window.Width,
-                viewport.W * (float)window.Height
+                viewport.X,
+                viewport.Y,
+                viewport.Z,
+                viewport.W
             );
 
             float4x4 projection;
-            float4x4.CreatePerspectiveFieldOfView((float)Math.PI / 4.0f, ((viewport.Z * (float)window.Width) / (viewport.W * (float)window.Height)), 0.1f, 100f, out projection);
+            float4x4.CreatePerspectiveFieldOfView((float)Math.PI / 4.0f, (viewport.Z / viewport.W), 0.1f, 100f, out projection);
 
             float4x4 viewProj;
             float4x4.Multiply(ref view, ref projection, out viewProj);
@@ -359,106 +310,15 @@ namespace helengine.sharpdx {
                 }
             }
 
-            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleStrip;
-            context.VertexShader.Set(quadVertexShader);
-            context.PixelShader.Set(quadPixelShader);
-            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(quadBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
-            context.InputAssembler.InputLayout = quadLayout;
-            context.OutputMerger.SetBlendState(blendState);
-
-            float4x4.CreateOrthographicOffCenter(0, viewport.Z * window.Width, viewport.W * -window.Height, 0, -10, 10, out projection2D);
-
-            var drawables2D = Core.Instance.ObjectManager.Drawables2D;
-            List<int>[] renderBuckets2D = camera.RenderIndices2D;
-            for (int bucket = 0; bucket < renderBuckets2D.Length; bucket++) {
-                List<int> indices = renderBuckets2D[bucket];
-
-                for (int j = 0; j < indices.Count; j++) {
-                    int indice = indices[j];
-                    IDrawable2D drawable = drawables2D[indice];
-
-                    drawable.Draw();
-                }
-            }
+            render2D.DrawCamera(window, camera);
         }
 
         public override void DrawSprite(ISpriteDrawable2D drawable) {
-            var context = Device.ImmediateContext;
-            SharpDXTextureRuntimeData data = (SharpDXTextureRuntimeData)drawable.Texture;
-
-            // Bind the texture
-            context.PixelShader.SetShaderResource(0, data.Resource);
-            context.PixelShader.SetSampler(0, quadSampler);
-
-            int2 size = drawable.Size;
-            float3 pos = drawable.Parent.Position;
-            byte4 color = drawable.Color;
-
-            float4x4 transposedWorld;
-            float4x4.Transpose(ref projection2D, out transposedWorld);
-
-            context.VertexShader.SetConstantBuffer(0, quadConstantBuffer);
-            context.PixelShader.SetConstantBuffer(0, quadConstantBuffer);
-
-            SpriteShaderData shaderData = new SpriteShaderData();
-            shaderData.worldViewProj = transposedWorld;
-            shaderData.sourceRect = drawable.SourceRect;
-            shaderData.destRect = new float4(pos.X, pos.Y, size.X, size.Y);
-            shaderData.color = new float4(color.X / 255.0f, color.Y / 255.0f, color.Z / 255.0f, color.W / 255.0f);
-            context.UpdateSubresource(ref shaderData, quadConstantBuffer);
-
-            context.Draw(4, 0);
+            render2D.DrawSprite(drawable);
         }
 
         public override void DrawText(ITextDrawable2D drawable) {
-            var context = Device.ImmediateContext;
-
-            FontAsset font = drawable.Font;
-            SharpDXTextureRuntimeData data = (SharpDXTextureRuntimeData)font.Texture;
-
-            // bind the texture
-            context.PixelShader.SetShaderResource(0, data.Resource);
-            context.PixelShader.SetSampler(0, quadSampler);
-
-            float3 pos = drawable.Parent.Position;
-            byte4 color = drawable.Color;
-
-            float4x4 transposedWorld;
-            float4x4.Transpose(ref projection2D, out transposedWorld);
-
-            context.VertexShader.SetConstantBuffer(0, quadConstantBuffer);
-            context.PixelShader.SetConstantBuffer(0, quadConstantBuffer);
-
-            SpriteShaderData shaderData = new SpriteShaderData();
-            shaderData.worldViewProj = transposedWorld;
-            shaderData.color = new float4(color.X / 255.0f, color.Y / 255.0f, color.Z / 255.0f, color.W / 255.0f);
-
-            string text = drawable.Text;
-            float offsetX = 0;
-            for (int i = 0; i < text.Length; i++) {
-                char c = text[i];
-
-                if (c == ' ') {
-                    offsetX += font.FontInfo.SpaceWidth;
-                    continue;
-                }
-
-                FontChar info = font.Characters[c];
-
-                shaderData.sourceRect = info.SourceRect;
-                shaderData.destRect = new float4(
-                    pos.X + offsetX,
-                    pos.Y,
-                    shaderData.sourceRect.Z * data.Width,
-                    shaderData.sourceRect.W * data.Height
-                );
-
-                offsetX += shaderData.sourceRect.Z * data.Width;
-
-                context.UpdateSubresource(ref shaderData, quadConstantBuffer);
-
-                context.Draw(4, 0);
-            }
+            render2D.DrawText(drawable);
         }
 
         public override void Draw() {
@@ -473,7 +333,6 @@ namespace helengine.sharpdx {
                 SharpDXWindow window = windows[i];
 
                 Device.ImmediateContext.OutputMerger.SetTargets(window.DepthView, window.RenderTarget);
-                Device.ImmediateContext.ClearDepthStencilView(window.DepthView, DepthStencilClearFlags.Depth, 1.0f, 0);
                 Device.ImmediateContext.ClearRenderTargetView(window.RenderTarget, new RawColor4(1f, 0.5f, 0, 1.0f));
 
                 for (int k = 0; k < cameraBuckets.Length; k++) {

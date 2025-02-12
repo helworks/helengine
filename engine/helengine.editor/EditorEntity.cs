@@ -8,6 +8,7 @@
             Name = "Entity";
 
             InitComponents();
+            InitChildren();
         }
     }
 }

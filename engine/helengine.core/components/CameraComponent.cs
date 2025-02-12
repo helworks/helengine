@@ -22,7 +22,10 @@
         public List<int>[] RenderIndices2D { get; set; }
         public List<int>[][] RenderIndices3D { get; set; }
 
+        public ushort LayerMask { get; set; }
+
         public CameraComponent() {
+            LayerMask = 0b11111111;
             Viewport = new float4(0, 0, 1, 1);
 
             RenderIndices2D = new List<int>[4];

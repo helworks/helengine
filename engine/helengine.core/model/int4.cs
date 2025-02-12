@@ -37,5 +37,15 @@ namespace helengine {
         public override string ToString() {
             return $"{X}, {Y}, {Z}, {W}";
         }
+
+        /// <summary>
+        /// Gets whether or not the provided coordinates lie within the bounds of this <see cref="int4"/>.
+        /// </summary>
+        /// <param name="x">The x coordinate of the point to check for containment.</param>
+        /// <param name="y">The y coordinate of the point to check for containment.</param>
+        /// <returns><c>true</c> if the provided coordinates lie inside this <see cref="int4"/>; <c>false</c> otherwise.</returns>
+        public bool Contains(int x, int y) {
+            return ((((this.X <= x) && (x < (this.X + this.Z))) && (this.Y <= y)) && (y < (this.Y + this.W)));
+        }
     }
 }

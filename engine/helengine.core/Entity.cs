@@ -47,7 +47,7 @@
 
         public Entity Parent { get; private set; }
 
-        public byte LayerMask { get; set; }
+        public ushort LayerMask { get; set; }
 
         /// <summary>
         /// TODO seal/rework this list, adding directly breaks the system
@@ -84,6 +84,8 @@
             Orientation = float4.Identity;
             Scale = float3.One;
             LayerMask = 0b00000001;
+
+            Core.Instance.ObjectManager.RegisterEntity(this);
         }
 
         public void InitChildren() {
@@ -95,6 +97,7 @@
                 throw new Exception("Parent is not empty");
             }
 
+            entity.Parent = this;
             Children.Add(entity);
         }
 

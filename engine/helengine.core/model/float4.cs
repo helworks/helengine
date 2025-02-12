@@ -38,7 +38,26 @@ namespace helengine {
             return $"{X}, {Y}, {Z}, {W}";
         }
 
+        /// <summary>
+        /// Gets whether or not the provided coordinates lie within the bounds of this <see cref="int4"/>.
+        /// </summary>
+        /// <param name="x">The x coordinate of the point to check for containment.</param>
+        /// <param name="y">The y coordinate of the point to check for containment.</param>
+        /// <returns><c>true</c> if the provided coordinates lie inside this <see cref="int4"/>; <c>false</c> otherwise.</returns>
+        public bool Contains(float x, float y) {
+            return ((((this.X <= x) && (x < (this.X + this.Z))) && (this.Y <= y)) && (y < (this.Y + this.W)));
+        }
 
+        /// <summary>
+        /// Scales the quaternion magnitude to unit length.
+        /// </summary>
+        public void Normalize() {
+            float num = 1f / (float)Math.Sqrt((X * X) + (Y * Y) + (Z * Z) + (W * W));
+            X *= num;
+            Y *= num;
+            Z *= num;
+            W *= num;
+        }
 
         /// <summary>
         /// Creates a new <see cref="float4"/> from the specified yaw, pitch and roll angles.
@@ -102,17 +121,6 @@ namespace helengine {
             result.Y = axis.Y * sin;
             result.Z = axis.Z * sin;
             result.W = cos;
-        }
-
-        /// <summary>
-        /// Scales the quaternion magnitude to unit length.
-        /// </summary>
-        public void Normalize() {
-            float num = 1f / (float)Math.Sqrt((X * X) + (Y * Y) + (Z * Z) + (W * W));
-            X *= num;
-            Y *= num;
-            Z *= num;
-            W *= num;
         }
 
         /// <summary>

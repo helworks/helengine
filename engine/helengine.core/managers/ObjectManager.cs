@@ -1,5 +1,8 @@
 ﻿namespace helengine;
+
 public class ObjectManager {
+    public List<Entity> Entities { get; private set; }
+
     public List<IUpdateable>[] UpdateEntities { get; private set; }
     public byte TotalUpdateBuckets { get; private set; } = 4;
 
@@ -13,7 +16,11 @@ public class ObjectManager {
     public List<ICamera>[] Cameras { get; private set; }
     public byte TotalCameraBuckets { get; private set; } = 3;
 
+    public List<IInteractable2D> Interactables { get; private set; }
+
     public ObjectManager() {
+        Entities = new List<Entity>();
+
         UpdateEntities = new List<IUpdateable>[TotalUpdateBuckets];
         for (int i = 0; i < TotalUpdateBuckets; i++) {
             UpdateEntities[i] = new List<IUpdateable>();
@@ -27,6 +34,24 @@ public class ObjectManager {
         for (int i = 0; i < TotalCameraBuckets; i++) {
             Cameras[i] = new List<ICamera>();
         }
+
+        Interactables = new List<IInteractable2D>();
+    }
+
+    public virtual void RegisterInteractable(IInteractable2D entity) {
+        Interactables.Add(entity);
+    }
+
+    public virtual void RemoveInteractable(IInteractable2D entity) {
+        Interactables.Remove(entity);
+    }
+
+    public virtual void RegisterEntity(Entity entity) {
+        Entities.Add(entity);
+    }
+
+    public virtual void RemoveEntity(Entity entity) {
+        Entities.Remove(entity);
     }
 
     public virtual void RegisterForUpdate(IUpdateable entity) {
@@ -49,7 +74,7 @@ public class ObjectManager {
             int camCount = Cameras[i].Count;
             for (int j = 0; j < camCount; j++) {
                 ICamera cam = Cameras[i][j];
-                if ((drawable.Parent.LayerMask & cam.Parent.LayerMask) != 0) {
+                if ((drawable.Parent.LayerMask & cam.LayerMask) != 0) {
                     cam.RenderIndices2D[bucket].Add(index);
                 }
             }
@@ -82,7 +107,7 @@ public class ObjectManager {
             int camCount = Cameras[i].Count;
             for (int j = 0; j < camCount; j++) {
                 ICamera cam = Cameras[i][j];
-                if ((drawable.Parent.LayerMask & cam.Parent.LayerMask) != 0) {
+                if ((drawable.Parent.LayerMask & cam.LayerMask) != 0) {
                     cam.RenderIndices3D[drawable.Variant][bucket].Add(index);
                 }
             }
