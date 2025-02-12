@@ -64,8 +64,13 @@ public class ObjectManager {
         UpdateEntities[bucket].Remove(entity);
     }
 
+    private int getBucket(byte renderOrder, byte totalBuckets) {
+        int gaps = 255 / totalBuckets;
+        return renderOrder / gaps;
+    }
+
     public void RegisterForRender2D(IDrawable2D drawable) {
-        int bucket = drawable.RenderOrder2D / TotalBuckets2D;
+        int bucket = getBucket(drawable.RenderOrder2D, TotalBuckets2D);
         int index = Drawables2D.Count;
         Drawables2D.Add(drawable);
 

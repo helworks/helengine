@@ -26,6 +26,8 @@ namespace helengine.sharpdx {
         private BlendState blendState;
 
         private SharpDXRenderManager2D render2D;
+        private RasterizerState rasterizerState3D;
+        DepthStencilState depthStencilState3D;
 
         public SharpDXRenderManager() {
             windows = new List<SharpDXWindow>();
@@ -67,6 +69,20 @@ namespace helengine.sharpdx {
             blendState = CreateBlendState(BlendOption.SourceAlpha, BlendOption.InverseSourceAlpha, BlendOperation.Add);
 
             render2D = new SharpDXRenderManager2D(this);
+
+            var rasterizerDesc3D = new RasterizerStateDescription {
+                CullMode = CullMode.Back,
+                FillMode = FillMode.Solid,
+                IsDepthClipEnabled = true
+            };
+            rasterizerState3D = new RasterizerState(Device, rasterizerDesc3D);
+
+            var depthStencilDesc3D = new DepthStencilStateDescription {
+                IsDepthEnabled = true,
+                DepthWriteMask = DepthWriteMask.All,
+                DepthComparison = Comparison.Less
+            };
+            depthStencilState3D = new DepthStencilState(Device, depthStencilDesc3D);
         }
 
         public override void Dispose() {
@@ -236,6 +252,8 @@ namespace helengine.sharpdx {
 
             var context = Device.ImmediateContext;
             context.OutputMerger.SetBlendState(blendState);
+            context.Rasterizer.State = rasterizerState3D;
+            context.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
 
             int totalVariants = Core.Instance.ObjectManager.TotalVariants3D;
             var drawables = Core.Instance.ObjectManager.Drawables3D;

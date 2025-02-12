@@ -6,7 +6,7 @@
         float3 scale;
         float4 orientation;
 
-        public float3 Position {
+        public virtual float3 Position {
             get {
                 float3 pos = this.position;
 

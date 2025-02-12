@@ -49,7 +49,8 @@ public abstract class InputManager {
             int deltaY = mouseState.Y - lastMouseState.Y;
             if (interaction == PointerInteraction.None &&
                 (Math.Abs(deltaX) > 0 ||
-                Math.Abs(deltaY) > 0)) {
+                Math.Abs(deltaY) > 0)
+                ) {
                 interaction = PointerInteraction.Hover;
             }
 

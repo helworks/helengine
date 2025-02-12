@@ -18,6 +18,8 @@ namespace helengine.sharpdx {
         private SamplerState quadSampler;
         private Buffer quadConstantBuffer;
         private float4x4 projection2D;
+        private RasterizerState rasterizerState2D;
+        DepthStencilState depthStencilState2D;
 
         public D3DDevice Device { get; private set; }
 
@@ -25,6 +27,20 @@ namespace helengine.sharpdx {
             Device = parent.Device;
 
             initSpriteQuad();
+
+            var rasterizerDesc = new RasterizerStateDescription {
+                CullMode = CullMode.None,
+                FillMode = FillMode.Solid,
+                IsDepthClipEnabled = false
+            };
+            rasterizerState2D = new RasterizerState(Device, rasterizerDesc);
+
+            var depthStencilDesc = new DepthStencilStateDescription {
+                IsDepthEnabled = false,
+                DepthWriteMask = DepthWriteMask.Zero,
+                DepthComparison = Comparison.Always
+            };
+            depthStencilState2D = new DepthStencilState(Device, depthStencilDesc);
         }
 
         private void initSpriteQuad() {
@@ -77,6 +93,10 @@ namespace helengine.sharpdx {
 
         internal void DrawCamera(SharpDXWindow window, ICamera camera) {
             var context = Device.ImmediateContext;
+
+            context.Rasterizer.State = rasterizerState2D;
+            context.OutputMerger.SetDepthStencilState(depthStencilState2D, 0);
+
             context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleStrip;
             context.VertexShader.Set(quadVertexShader);
             context.PixelShader.Set(quadPixelShader);
