@@ -120,6 +120,8 @@ namespace helengine.ui.Controls {
             string title = "Panel";
             if (panel is EditorPanel editorPanel) {
                 title = editorPanel.Title ?? "Panel";
+                // Set the panel as docked to hide its individual title bar
+                editorPanel.IsDocked = true;
             } else {
                 title = panel.GetType().Name;
             }
@@ -135,6 +137,11 @@ namespace helengine.ui.Controls {
         public void RemovePanel(Control panel) {
             AssignedPanels.Remove(panel);
             TabHeader.RemoveTab(panel);
+            
+            // Restore individual title bar when undocked
+            if (panel is EditorPanel editorPanel) {
+                editorPanel.IsDocked = false;
+            }
             
             // Update active panel if needed
             if (ActivePanel == panel) {

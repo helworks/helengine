@@ -16,10 +16,19 @@ public class EditorPanel : UserControl {
     private Border content;
 
     private int borderSize = 4;
+    private bool _isDocked = false;
 
     public string Title {
         get { return this.title.Text; }
         set { this.title.Text = value; }
+    }
+
+    public bool IsDocked {
+        get { return _isDocked; }
+        set {
+            _isDocked = value;
+            UpdateHeaderVisibility();
+        }
     }
 
     public Control Child {
@@ -109,6 +118,25 @@ public class EditorPanel : UserControl {
 
         Content = mainBorder;
         RenderTransform = _transform;
+    }
+
+    private void UpdateHeaderVisibility() {
+        if (_header != null) {
+            _header.IsVisible = !_isDocked;
+            
+            // Update content corner radius based on docked state
+            if (content != null) {
+                if (_isDocked) {
+                    // When docked, content should have no rounded corners (tabs will handle top styling)
+                    content.CornerRadius = new CornerRadius(0);
+                    content.BorderThickness = new Thickness(0);
+                } else {
+                    // When floating, restore original styling
+                    content.CornerRadius = new CornerRadius(0, 0, 4, 4);
+                    content.BorderThickness = new Thickness(2, 0, 2, 2);
+                }
+            }
+        }
     }
 
 
