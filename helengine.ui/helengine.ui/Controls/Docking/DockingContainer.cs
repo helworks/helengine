@@ -8,8 +8,16 @@ using helengine.ui.Controls.Docking;
 
 namespace helengine.ui.Controls.Docking;
 
+// Custom canvas that only allows hit testing on children, not empty background areas
+public class FloatingCanvas : Canvas {
+    public FloatingCanvas() {
+        Background = null; // Null background allows clicks to pass through
+        IsHitTestVisible = true;
+    }
+}
+
 public class DockingContainer : UserControl {
-    private Canvas _floatingCanvas;
+    private FloatingCanvas _floatingCanvas;
     private DockZone _rootDockZone;
     private List<TabbedEditorPanel> _floatingPanels = new List<TabbedEditorPanel>();
     private DockDropIndicator? _dropIndicator;
@@ -27,11 +35,8 @@ public class DockingContainer : UserControl {
         _rootDockZone.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch;
         mainGrid.Children.Add(_rootDockZone);
         
-        // Canvas for floating panels (overlay) - only hit testable when needed
-        _floatingCanvas = new Canvas {
-            Background = Brushes.Transparent,
-            IsHitTestVisible = false // Only enable when showing drop indicators
-        };
+        // Custom canvas that only allows hit testing on children, not background
+        _floatingCanvas = new FloatingCanvas();
         mainGrid.Children.Add(_floatingCanvas);
 
         Content = mainGrid;
@@ -90,8 +95,7 @@ public class DockingContainer : UserControl {
         // Enable dragging for floating panel
         panel.IsDockingEnabled = false;
         
-        // Enable hit testing on canvas since we have floating panels
-        _floatingCanvas.IsHitTestVisible = _floatingPanels.Count > 0;
+        // Floating panels handle their own hit testing - canvas stays non-hit-testable
     }
 
     private void RemoveFromDockZones(TabbedEditorPanel panel) {

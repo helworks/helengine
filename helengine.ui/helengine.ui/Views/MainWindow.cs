@@ -16,7 +16,7 @@ namespace helengine.ui.Views {
         private bool closed;
 
         public MainWindow() {
-            Title = "helengine v0 - Unity Style Docking";
+            Title = "helengine v0";
             Width = 1280;
             Height = 720;
 
@@ -67,13 +67,23 @@ namespace helengine.ui.Views {
 
         private void OnTabUndocked(object? sender, TabUndockEventArgs e) {
             if (Content is DockingContainer dockingContainer) {
+                // Force release capture on the source panel
+                if (sender is TabbedEditorPanel sourcePanel) {
+                    sourcePanel.ForceReleaseCapture();
+                }
+                
                 // Create a new floating tabbed panel for the undocked tab
                 var floatingPanel = new TabbedEditorPanel();
                 floatingPanel.AddPanel(e.Panel);
                 floatingPanel.TabUndocked += OnTabUndocked; // Handle further undocking
 
-                // Undock it as a floating panel
+                // Undock it as a floating panel  
                 dockingContainer.UndockPanel(floatingPanel, e.Position);
+                
+                // Ensure the floating panel gets focus for dragging
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => {
+                    floatingPanel.Focus();
+                }, Avalonia.Threading.DispatcherPriority.Background);
             }
         }
 

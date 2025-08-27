@@ -37,6 +37,8 @@ public class TabbedEditorPanel : UserControl {
     private bool _isDockingEnabled = true;
     private TabHeader? _draggingTab;
     private Point _tabDragStart;
+    private TabHeader? _pressedTab;
+    private Point _pressStartPosition;
 
     private int borderSize = 4;
 
@@ -97,6 +99,9 @@ public class TabbedEditorPanel : UserControl {
         MinWidth = 200;
         MinHeight = 150;
         
+        // Ensure this panel can receive mouse events
+        IsHitTestVisible = true;
+        
         BuildVisualTree();
         InitializeDragLogic();
     }
@@ -106,7 +111,8 @@ public class TabbedEditorPanel : UserControl {
             Background = Brushes.Gray,
             CornerRadius = new CornerRadius(4),
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
+            IsHitTestVisible = true
         };
 
         var mainStackPanel = new StackPanel();
@@ -145,60 +151,117 @@ public class TabbedEditorPanel : UserControl {
     }
 
     private void OnHeaderPointerPressed(object? sender, PointerPressedEventArgs e) {
+        var hitTab = GetTabHeaderAt(e.GetPosition(_tabHeadersPanel));
+        
         if (_isDockingEnabled) {
-            // When docked, only individual tabs can be dragged out
-            var hitTab = GetTabHeaderAt(e.GetPosition(_tabHeadersPanel));
+            // When docked, track tab press for potential dragging or clicking
             if (hitTab != null) {
-                _draggingTab = hitTab;
+                _pressedTab = hitTab;
+                _pressStartPosition = e.GetPosition(_tabHeadersPanel);
                 _tabDragStart = e.GetPosition(this);
                 e.Pointer.Capture(_tabHeadersPanel);
             }
         } else {
-            // When floating, the whole panel can be dragged
-            if (!_isDragging) {
-                _isDragging = true;
-                _initialPointerPosition = e.GetPosition(Parent as Control);
-                _initialLeft = Canvas.GetLeft(this);
-                _initialTop = Canvas.GetTop(this);
-                BringToFront();
+            // When floating, handle tab clicks and panel dragging
+            if (hitTab != null) {
+                _pressedTab = hitTab;
+                _pressStartPosition = e.GetPosition(_tabHeadersPanel);
                 e.Pointer.Capture(_tabHeadersPanel);
+            } else {
+                // Click outside tabs - drag the whole panel
+                if (!_isDragging) {
+                    _isDragging = true;
+                    _initialPointerPosition = e.GetPosition(Parent as Control);
+                    _initialLeft = Canvas.GetLeft(this);
+                    _initialTop = Canvas.GetTop(this);
+                    BringToFront();
+                    e.Pointer.Capture(_tabHeadersPanel);
+                }
             }
         }
     }
 
     private void OnHeaderPointerReleased(object? sender, PointerReleasedEventArgs e) {
+        // Always release capture and reset states
+        e.Pointer.Capture(null);
+        
+        // Handle tab clicks (if not dragging)
+        if (_pressedTab != null && _draggingTab == null && !_isDragging) {
+            var currentPosition = e.GetPosition(_tabHeadersPanel);
+            var distance = Math.Sqrt(
+                Math.Pow(currentPosition.X - _pressStartPosition.X, 2) + 
+                Math.Pow(currentPosition.Y - _pressStartPosition.Y, 2)
+            );
+            
+            // If mouse didn't move much, treat as a click
+            if (distance < 5) {
+                var tabIndex = _tabHeaders.IndexOf(_pressedTab);
+                if (tabIndex >= 0) {
+                    SelectTab(tabIndex);
+                }
+            }
+        }
+        
+        // Reset all states
         if (_isDragging) {
             _isDragging = false;
-            e.Pointer.Capture(null);
         }
 
         if (_draggingTab != null) {
             _draggingTab = null;
-            e.Pointer.Capture(null);
         }
+        
+        _pressedTab = null;
     }
 
     private void OnHeaderPointerMoved(object? sender, PointerEventArgs e) {
-        if (_isDragging && e.Pointer.Captured == _tabHeadersPanel) {
+        if (e.Pointer.Captured != _tabHeadersPanel) {
+            return;
+        }
+        
+        if (_isDragging) {
             // Floating panel movement
             var currentPosition = e.GetPosition(Parent as Control);
             var deltaX = currentPosition.X - _initialPointerPosition.X;
             var deltaY = currentPosition.Y - _initialPointerPosition.Y;
             Canvas.SetLeft(this, _initialLeft + deltaX);
             Canvas.SetTop(this, _initialTop + deltaY);
-        } else if (_draggingTab != null && e.Pointer.Captured == _tabHeadersPanel) {
-            // Tab undocking logic
+        } else if (_pressedTab != null && _isDockingEnabled) {
+            // Check if we should start dragging a tab for undocking
             var currentPosition = e.GetPosition(this);
             var distance = Math.Sqrt(
                 Math.Pow(currentPosition.X - _tabDragStart.X, 2) + 
                 Math.Pow(currentPosition.Y - _tabDragStart.Y, 2)
             );
 
+            // Start dragging if moved far enough
+            if (distance > 5 && _draggingTab == null) {
+                _draggingTab = _pressedTab;
+            }
+            
             // If dragged far enough, undock the tab
-            if (distance > 20) {
+            if (_draggingTab != null && distance > 20) {
                 UndockTab(_draggingTab, e.GetPosition(Parent as Control));
-                _draggingTab = null;
+                
+                // Force complete cleanup of all mouse states
+                ForceReleaseCapture();
                 e.Pointer.Capture(null);
+            }
+        } else if (_pressedTab != null && !_isDockingEnabled) {
+            // For floating panels, check if we should start dragging the whole panel
+            var currentPosition = e.GetPosition(_tabHeadersPanel);
+            var distance = Math.Sqrt(
+                Math.Pow(currentPosition.X - _pressStartPosition.X, 2) + 
+                Math.Pow(currentPosition.Y - _pressStartPosition.Y, 2)
+            );
+            
+            // Start dragging the whole panel if moved far enough
+            if (distance > 5 && !_isDragging) {
+                _isDragging = true;
+                _initialPointerPosition = e.GetPosition(Parent as Control);
+                _initialLeft = Canvas.GetLeft(this);
+                _initialTop = Canvas.GetTop(this);
+                BringToFront();
             }
         }
     }
@@ -224,6 +287,13 @@ public class TabbedEditorPanel : UserControl {
             // Fire the undock event
             TabUndocked?.Invoke(this, new TabUndockEventArgs(panel, position));
         }
+    }
+    
+    public void ForceReleaseCapture() {
+        // Reset all drag states immediately
+        _draggingTab = null;
+        _isDragging = false;
+        _pressedTab = null;
     }
 
     private void BringToFront() {
