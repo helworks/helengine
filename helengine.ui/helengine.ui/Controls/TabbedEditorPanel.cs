@@ -16,6 +16,7 @@ public class TabbedEditorPanel : UserControl {
     private Border _mainBorder;
     private StackPanel _tabHeadersPanel;
     private Border _contentArea;
+    private Grid _contentGrid;
     private List<EditorPanel> _panels = new List<EditorPanel>();
     private List<TabHeader> _tabHeaders = new List<TabHeader>();
     private int _selectedIndex = -1;
@@ -59,13 +60,17 @@ public class TabbedEditorPanel : UserControl {
             Height = 26
         };
 
-        // Content area
+        // Content area with Grid to hold all panels
         _contentArea = new Border {
             Background = Brushes.White,
             CornerRadius = new CornerRadius(0, 0, 4, 4),
             BorderThickness = new Thickness(2, 0, 2, 2),
             BorderBrush = new SolidColorBrush(Color.Parse("#4431c2"))
         };
+
+        // Grid to hold all panels simultaneously
+        _contentGrid = new Grid();
+        _contentArea.Child = _contentGrid;
 
         mainStackPanel.Children.Add(_tabHeadersPanel);
         mainStackPanel.Children.Add(_contentArea);
@@ -146,13 +151,19 @@ public class TabbedEditorPanel : UserControl {
         // Hide the panel's titlebar since we're using our custom tabs
         panel.ShowTitlebar = false;
 
+        // Add panel to the grid (all panels will be children, but hidden by default)
+        _contentGrid.Children.Add(panel);
+        panel.IsVisible = false; // Hide by default
+
+        // Adjust panel size to fill the grid
+        panel.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+        panel.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch;
+        panel.Size = new Size(_contentArea.Width - 4, _contentArea.Height - 4);
+
         // Add to collections
         _panels.Add(panel);
         _tabHeaders.Add(tabHeader);
         _tabHeadersPanel.Children.Add(tabHeader);
-
-        // Adjust panel size
-        panel.Size = new Size(_contentArea.Width - 4, _contentArea.Height - 4);
 
         // Select this tab if it's the first one
         if (_panels.Count == 1) {
@@ -172,13 +183,15 @@ public class TabbedEditorPanel : UserControl {
         // Restore the panel's titlebar in case it's used elsewhere
         panel.ShowTitlebar = true;
 
+        // Remove panel from the grid
+        _contentGrid.Children.Remove(panel);
+
         _panels.RemoveAt(index);
         _tabHeaders.RemoveAt(index);
         _tabHeadersPanel.Children.RemoveAt(index);
 
-        // Clear content if this was the selected tab
+        // Handle selection changes
         if (index == _selectedIndex) {
-            _contentArea.Child = null;
             _selectedIndex = -1;
             
             // Select another tab if available
@@ -202,8 +215,11 @@ public class TabbedEditorPanel : UserControl {
             _tabHeaders[i].IsSelected = (i == index);
         }
 
-        // Show the selected panel
-        _contentArea.Child = _panels[index];
+        // Hide all panels, then show the selected one
+        for (int i = 0; i < _panels.Count; i++) {
+            _panels[i].IsVisible = (i == index);
+        }
+
         _selectedIndex = index;
     }
 

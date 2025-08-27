@@ -21,15 +21,23 @@ public abstract class DrawingSurfaceBase : Control {
         _update = UpdateFrame;
     }
 
+    ~DrawingSurfaceBase() {
+        if (_initialized) {
+            FreeGraphicsResources();
+        }
+    }
+
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e) {
         base.OnAttachedToVisualTree(e);
         Initialize();
     }
 
     protected override void OnDetachedFromLogicalTree(LogicalTreeAttachmentEventArgs e) {
-        if (_initialized)
-            FreeGraphicsResources();
-        _initialized = false;
+        //if (_initialized) {
+        //    FreeGraphicsResources();
+        //}
+        //_initialized = false;
+
         base.OnDetachedFromLogicalTree(e);
     }
 
@@ -81,8 +89,10 @@ public abstract class DrawingSurfaceBase : Control {
         base.OnPropertyChanged(change);
     }
 
-    async Task<(bool success, string info)> DoInitialize(Compositor compositor,
-        CompositionDrawingSurface compositionDrawingSurface) {
+    async Task<(bool success, string info)> DoInitialize(
+        Compositor compositor,
+        CompositionDrawingSurface compositionDrawingSurface
+    ) {
         var interop = await compositor.TryGetCompositionGpuInterop();
         if (interop == null)
             return (false, "Compositor doesn't support interop for the current backend");

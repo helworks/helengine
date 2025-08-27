@@ -35,8 +35,11 @@ public class D3D11Control : DrawingSurfaceBase {
     float Pitch = 0;
     float Roll = 0;
 
-    protected override (bool success, string info) InitializeGraphicsResources(Compositor compositor,
-        CompositionDrawingSurface surface, ICompositionGpuInterop interop) {
+    protected override (bool success, string info) InitializeGraphicsResources(
+        Compositor compositor,
+        CompositionDrawingSurface surface,
+        ICompositionGpuInterop interop
+    ) {
 
         if (interop.SupportedImageHandleTypes.Contains(KnownPlatformGraphicsExternalImageHandleTypes
                 .D3D11TextureGlobalSharedHandle) != true)
@@ -107,7 +110,7 @@ public class D3D11Control : DrawingSurfaceBase {
 
             var ypr = Matrix4x4.CreateFromYawPitchRoll(Yaw, Pitch, Roll);
             // update WorldViewProj Matrix
-            var worldViewProj = Matrix.RotationX(Yaw) 
+            var worldViewProj = Matrix.RotationX(Yaw)
                                     * Matrix.RotationY(Pitch)
                                     * Matrix.RotationZ(Roll)
                                     * Matrix.Scaling(new Vector3(scaleX, scaleY, 1))

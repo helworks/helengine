@@ -55,23 +55,7 @@ public class TabHeader : UserControl {
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
         };
 
-        // Close button (X)
-        var closeButton = new TextBlock {
-            Text = "×",
-            Foreground = Brushes.White,
-            FontSize = 12,
-            FontWeight = FontWeight.Bold,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-            Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand)
-        };
-
-        closeButton.PointerPressed += (s, e) => {
-            CloseClicked?.Invoke(this, EventArgs.Empty);
-            e.Handled = true;
-        };
-
         stackPanel.Children.Add(_titleText);
-        stackPanel.Children.Add(closeButton);
         _border.Child = stackPanel;
 
         Content = _border;
