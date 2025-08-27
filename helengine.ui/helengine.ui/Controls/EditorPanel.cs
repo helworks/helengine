@@ -45,7 +45,23 @@ public class EditorPanel : UserControl {
 
     public EditorPanel() {
         BuildVisualTree();
+
         InitializeDragLogic();
+    }
+
+    protected override void OnSizeChanged(SizeChangedEventArgs e) {
+        base.OnSizeChanged(e);
+
+        UpdateSize(e.NewSize);
+    }
+
+    private void UpdateSize(Size size) {
+        content.Width = size.Width;
+        content.Height = size.Height;
+        if (Child != null) {
+            Child.Width = size.Width;
+            Child.Height = size.Height;
+        }
     }
 
     private void BuildVisualTree() {
@@ -94,6 +110,7 @@ public class EditorPanel : UserControl {
         Content = mainBorder;
         RenderTransform = _transform;
     }
+
 
     private void InitializeDragLogic() {
         _header.PointerPressed += (sender, e) => {

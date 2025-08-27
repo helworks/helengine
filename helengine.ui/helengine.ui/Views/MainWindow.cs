@@ -21,25 +21,29 @@ namespace helengine.ui.Views {
 
             Background = new SolidColorBrush(Color.Parse("#8d31c2"));
 
-            var canvas = new Canvas();
-            Content = canvas;
+            // Create custom panel container with left and right areas
+            var panelContainer = new PanelContainer();
+            Content = panelContainer;
 
+            // Left panels (multiple for testing tabs)
             panel = new EditorPanel();
+            panel.Title = "Inspector";
+            panelContainer.AssignPanelToArea(panel, "Left");
+            
+            var hierarchyPanel = new EditorPanel();
+            hierarchyPanel.Title = "Hierarchy";
+            panelContainer.AssignPanelToArea(hierarchyPanel, "Left");
 
+            // Right panels with scene view and additional panels
             sceneView = new EditorPanel();
-            sceneView.Size = new Size(640, 480);
-            sceneView.Title = "scene";
-
+            sceneView.Title = "Scene";
             control = new D3D11Control();
             sceneView.Child = control;
-
-            Canvas.SetLeft(panel, 50);
-            Canvas.SetTop(panel, 50);
-            Canvas.SetLeft(sceneView, 200);
-            Canvas.SetTop(sceneView, 200);
-
-            canvas.Children.Add(panel);
-            canvas.Children.Add(sceneView);
+            panelContainer.AssignPanelToArea(sceneView, "Right");
+            
+            var gamePanel = new EditorPanel();
+            gamePanel.Title = "Game";
+            panelContainer.AssignPanelToArea(gamePanel, "Right");
 
             thread = new Thread(threadUpdate);
             thread.Start();
