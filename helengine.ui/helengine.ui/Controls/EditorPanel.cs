@@ -14,12 +14,22 @@ public class EditorPanel : UserControl {
     private Border _header;
     private TextBlock title;
     private Border content;
+    private StackPanel _stackPanel;
 
     private int borderSize = 4;
+    private bool _showTitlebar = true;
 
     public string Title {
         get { return this.title.Text; }
         set { this.title.Text = value; }
+    }
+
+    public bool ShowTitlebar {
+        get { return _showTitlebar; }
+        set {
+            _showTitlebar = value;
+            UpdateTitlebarVisibility();
+        }
     }
 
     public Control Child {
@@ -45,6 +55,7 @@ public class EditorPanel : UserControl {
 
     public EditorPanel() {
         BuildVisualTree();
+
         InitializeDragLogic();
     }
 
@@ -55,7 +66,7 @@ public class EditorPanel : UserControl {
             CornerRadius = new CornerRadius(4)
         };
 
-        var stackPanel = new StackPanel();
+        _stackPanel = new StackPanel();
 
         // Header
         _header = new Border {
@@ -87,9 +98,9 @@ public class EditorPanel : UserControl {
         };
 
         // Assemble hierarchy
-        stackPanel.Children.Add(_header);
-        stackPanel.Children.Add(content);
-        mainBorder.Child = stackPanel;
+        _stackPanel.Children.Add(_header);
+        _stackPanel.Children.Add(content);
+        mainBorder.Child = _stackPanel;
 
         Content = mainBorder;
         RenderTransform = _transform;
@@ -135,6 +146,26 @@ public class EditorPanel : UserControl {
         if (Parent is Canvas canvas) {
             var maxZ = canvas.Children.OfType<Control>().Max(c => c.ZIndex) + 1;
             this.ZIndex = maxZ;
+        }
+    }
+
+    private void UpdateTitlebarVisibility() {
+        if (_stackPanel == null || _header == null || content == null) {
+            return;
+        }
+
+        if (_showTitlebar) {
+            // Show titlebar - ensure header is in the stack and content has proper corner radius
+            if (!_stackPanel.Children.Contains(_header)) {
+                _stackPanel.Children.Insert(0, _header);
+            }
+            content.CornerRadius = new CornerRadius(0, 0, 4, 4);
+        } else {
+            // Hide titlebar - remove header from stack and adjust content corner radius
+            if (_stackPanel.Children.Contains(_header)) {
+                _stackPanel.Children.Remove(_header);
+            }
+            content.CornerRadius = new CornerRadius(4);
         }
     }
 }
