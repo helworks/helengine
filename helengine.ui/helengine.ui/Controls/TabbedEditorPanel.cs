@@ -79,12 +79,15 @@ public class TabbedEditorPanel : UserControl {
     }
 
     private void UpdatePanelSizes() {
-        var availableWidth = Math.Max(0, Bounds.Width - borderSize - 4);
-        var availableHeight = Math.Max(0, Bounds.Height - 30 - 4); // Account for tab header
-        
-        foreach (var panel in _panels) {
-            if (availableWidth > 0 && availableHeight > 0) {
-                panel.Size = new Size(availableWidth, availableHeight);
+        // Only update sizes if we have valid bounds
+        if (Bounds.Width > 0 && Bounds.Height > 0) {
+            var availableWidth = Math.Max(0, Bounds.Width - borderSize - 4);
+            var availableHeight = Math.Max(0, Bounds.Height - 30 - 4); // Account for tab header
+            
+            foreach (var panel in _panels) {
+                if (availableWidth > 0 && availableHeight > 0) {
+                    panel.Size = new Size(availableWidth, availableHeight);
+                }
             }
         }
     }
@@ -240,6 +243,9 @@ public class TabbedEditorPanel : UserControl {
         if (Parent is Canvas c) {
             c.Children.Remove(this);
         }
+
+        // Trigger a size update for the target after docking
+        target.UpdatePanelSizes();
     }
 
     private void OnHeaderPointerMoved(object? sender, PointerEventArgs e) {
@@ -416,7 +422,7 @@ public class TabbedEditorPanel : UserControl {
         // Adjust panel size to fill the grid
         panel.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
         panel.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch;
-        panel.Size = new Size(_contentArea.Width - 4, _contentArea.Height - 4);
+        // Don't set explicit size - let stretch alignment handle it initially
 
         // Add to collections
         _panels.Add(panel);
