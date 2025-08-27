@@ -1,0 +1,48 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+	<TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+	<PackageId>distrohelena.nucleus.net.windows</PackageId>
+	<Version>1.0.2</Version>
+	<PackageLicenseExpression>MIT</PackageLicenseExpression>
+	<Copyright>MIT License Copyright (c) 2025 Helena Assis</Copyright>
+	<Description>NucleusDotNet.Windows is the Windows version of NucleusDotNet, a helper library for developing applications using .NET</Description>
+	  <PackageProjectUrl>https://github.com/distrohelena/nucleusdotnet</PackageProjectUrl>
+	<RepositoryUrl>https://github.com/distrohelena/nucleusdotnet</RepositoryUrl>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DefineConstants>$(DefineConstants);FORMS;WINDOWS;WINFORMS</DefineConstants>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <NoWarn>1701;1702;WFO1000</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DefineConstants>$(DefineConstants);FORMS;WINDOWS;WINFORMS</DefineConstants>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <NoWarn>1701;1702;WFO1000</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Remove="BaseForm.resx" />
+    <EmbeddedResource Remove="Controls\PictureButton.resx" />
+    <EmbeddedResource Remove="Controls\TextMessageBox.resx" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="BaseForm.resx" />
+    <None Include="Controls\PictureButton.resx" />
+    <None Include="Controls\TextMessageBox.resx" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="9.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\nucleus-dotnet\NucleusDotNet.csproj" />
+  </ItemGroup>
+
+</Project>

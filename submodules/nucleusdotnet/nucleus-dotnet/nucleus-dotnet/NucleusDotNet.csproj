@@ -1,0 +1,79 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFrameworks>net9.0;net472</TargetFrameworks>
+		<ApplicationIcon />
+		<StartupObject />
+		<PackageId>distrohelena.nucleus.net</PackageId>
+		<Version>1.0.3</Version>
+		<Authors>Helena Assis Ribeiro</Authors>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<Copyright>MIT License Copyright (c) 2025 Helena Assis</Copyright>
+		<Description>NucleusDotNet is a cross-platform library used for the development of .NET applications</Description>
+		<PackageProjectUrl>https://github.com/distrohelena/nucleusdotnet</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/distrohelena/nucleusdotnet</RepositoryUrl>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(TargetFramework)' == 'net472'">
+		<DefineConstants>TRACE;NETFRAMEWORK</DefineConstants>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+		<DefineConstants>TRACE;NETCORE</DefineConstants>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Remove="Coop\**" />
+		<EmbeddedResource Remove="Coop\**" />
+		<None Remove="Coop\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Compile Remove="IO\LZMA\Compress\LzmaAlone\LzmaAlone.cs" />
+		<Compile Remove="IO\LZMA\Compress\LzmaAlone\LzmaBench.cs" />
+		<Compile Remove="IO\LZMA\Compress\LzmaHelper.cs" />
+		<Compile Remove="IO\LZMA\Compress\LZMA\LzmaBase.cs" />
+		<Compile Remove="IO\LZMA\Compress\LZMA\LzmaDecoder.cs" />
+		<Compile Remove="IO\LZMA\Compress\LZMA\LzmaEncoder.cs" />
+		<Compile Remove="IO\LZMA\Compress\LZ\IMatchFinder.cs" />
+		<Compile Remove="IO\LZMA\Compress\LZ\LzBinTree.cs" />
+		<Compile Remove="IO\LZMA\Compress\LZ\LzInWindow.cs" />
+		<Compile Remove="IO\LZMA\Compress\LZ\LzOutWindow.cs" />
+		<Compile Remove="IO\LZMA\Compress\RangeCoder\RangeCoder.cs" />
+		<Compile Remove="IO\LZMA\Compress\RangeCoder\RangeCoderBit.cs" />
+		<Compile Remove="IO\LZMA\Compress\RangeCoder\RangeCoderBitTree.cs" />
+		<Compile Remove="Properties\AssemblyInfo.cs" />
+		<Compile Remove="Properties\Resources.Designer.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Remove="Properties\Resources.resx" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="IO\LZMA\Compress\LzmaAlone\LzmaAlone.cs" />
+		<None Include="IO\LZMA\Compress\LzmaAlone\LzmaBench.cs" />
+		<None Include="IO\LZMA\Compress\LzmaHelper.cs" />
+		<None Include="IO\LZMA\Compress\LZMA\LzmaBase.cs" />
+		<None Include="IO\LZMA\Compress\LZMA\LzmaDecoder.cs" />
+		<None Include="IO\LZMA\Compress\LZMA\LzmaEncoder.cs" />
+		<None Include="IO\LZMA\Compress\LZ\IMatchFinder.cs" />
+		<None Include="IO\LZMA\Compress\LZ\LzBinTree.cs" />
+		<None Include="IO\LZMA\Compress\LZ\LzInWindow.cs" />
+		<None Include="IO\LZMA\Compress\LZ\LzOutWindow.cs" />
+		<None Include="IO\LZMA\Compress\RangeCoder\RangeCoder.cs" />
+		<None Include="IO\LZMA\Compress\RangeCoder\RangeCoderBit.cs" />
+		<None Include="IO\LZMA\Compress\RangeCoder\RangeCoderBitTree.cs" />
+		<None Include="Properties\AssemblyInfo.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="Properties\Resources.Designer.cs" />
+		<None Include="Properties\Resources.resx" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<PackageReference Include="System.Drawing.Common" Version="9.0.2" />
+	</ItemGroup>
+
+</Project>
