@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using System.Collections.Generic;
 using System.Linq;
 using System;
@@ -39,6 +40,11 @@ public class TabbedEditorPanel : UserControl {
     private Point _tabDragStart;
     private TabHeader? _pressedTab;
     private Point _pressStartPosition;
+
+    // Merge docking (tab strip) preview state
+    private TabbedEditorPanel? _mergeTarget;
+    private IBrush? _mergeTargetPrevBrush;
+    private static readonly IBrush _mergeHighlightBrush = new SolidColorBrush(Color.Parse("#caa7f4"));
 
     private int borderSize = 4;
 
@@ -202,6 +208,12 @@ public class TabbedEditorPanel : UserControl {
             }
         }
         
+        // If floating and over a merge target, merge tabs
+        if (_isDragging && !_isDockingEnabled && _mergeTarget != null) {
+            MergeIntoTarget(_mergeTarget);
+            ClearMergeTargetHighlight();
+        }
+
         // Reset all states
         if (_isDragging) {
             _isDragging = false;
@@ -212,6 +224,22 @@ public class TabbedEditorPanel : UserControl {
         }
         
         _pressedTab = null;
+    }
+
+    private void MergeIntoTarget(TabbedEditorPanel target) {
+        // Move all tabs from this (floating) panel into target
+        for (int i = GetTabCount() - 1; i >= 0; i--) {
+            var p = GetPanel(i);
+            if (p != null) {
+                RemovePanel(i);
+                target.AddPanel(p);
+            }
+        }
+
+        // Remove the empty floating container from its canvas if present
+        if (Parent is Canvas c) {
+            c.Children.Remove(this);
+        }
     }
 
     private void OnHeaderPointerMoved(object? sender, PointerEventArgs e) {
@@ -226,6 +254,9 @@ public class TabbedEditorPanel : UserControl {
             var deltaY = currentPosition.Y - _initialPointerPosition.Y;
             Canvas.SetLeft(this, _initialLeft + deltaX);
             Canvas.SetTop(this, _initialTop + deltaY);
+
+            // While floating-dragging, find a nearby tab strip to merge into
+            UpdateMergeTargetUnderPointer(e);
         } else if (_pressedTab != null && _isDockingEnabled) {
             // Check if we should start dragging a tab for undocking
             var currentPosition = e.GetPosition(this);
@@ -264,6 +295,51 @@ public class TabbedEditorPanel : UserControl {
                 BringToFront();
             }
         }
+    }
+
+    private void UpdateMergeTargetUnderPointer(PointerEventArgs e) {
+        var root = this.GetVisualRoot() as Visual;
+        if (root == null) return;
+
+        var posInRoot = e.GetPosition(root);
+
+        // find first TabbedEditorPanel under pointer that isn't this
+        TabbedEditorPanel target = null;
+        foreach (var v in root.GetVisualsAt(posInRoot)) {
+            if (v is TabbedEditorPanel tep && tep != this) {
+                target = tep;
+                break;
+            }
+            // try ancestor of each visual
+            if (v is Visual vis) {
+                var anc = vis.FindAncestorOfType<TabbedEditorPanel>(includeSelf: true);
+                if (anc != null && anc != this) { target = anc; break; }
+            }
+        }
+
+        if (target != null && target.GetTabCount() > 0 && target._tabHeadersPanel != null) {
+            var posInHeader = e.GetPosition(target._tabHeadersPanel);
+            var headerBounds = new Rect(0, 0, target._tabHeadersPanel.Bounds.Width, target._tabHeadersPanel.Bounds.Height + 8);
+            if (headerBounds.Contains(posInHeader)) {
+                if (_mergeTarget != target) {
+                    ClearMergeTargetHighlight();
+                    _mergeTarget = target;
+                    _mergeTargetPrevBrush = target._tabHeadersPanel.Background;
+                    target._tabHeadersPanel.Background = _mergeHighlightBrush;
+                }
+                return;
+            }
+        }
+
+        ClearMergeTargetHighlight();
+    }
+
+    private void ClearMergeTargetHighlight() {
+        if (_mergeTarget != null && _mergeTarget._tabHeadersPanel != null) {
+            _mergeTarget._tabHeadersPanel.Background = _mergeTargetPrevBrush ?? _mergeTarget._tabHeadersPanel.Background;
+        }
+        _mergeTarget = null;
+        _mergeTargetPrevBrush = null;
     }
 
     private TabHeader? GetTabHeaderAt(Point position) {
