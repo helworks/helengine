@@ -1,10 +1,23 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
 using System.Collections.Generic;
 using System.Linq;
+using System;
+using helengine.ui.Controls.Docking;
 
 namespace helengine.ui.Controls;
+
+public class TabUndockEventArgs : EventArgs {
+    public EditorPanel Panel { get; }
+    public Point Position { get; }
+
+    public TabUndockEventArgs(EditorPanel panel, Point position) {
+        Panel = panel;
+        Position = position;
+    }
+}
 
 public class TabbedEditorPanel : UserControl {
     private bool _isDragging;
@@ -20,25 +33,70 @@ public class TabbedEditorPanel : UserControl {
     private List<EditorPanel> _panels = new List<EditorPanel>();
     private List<TabHeader> _tabHeaders = new List<TabHeader>();
     private int _selectedIndex = -1;
+    
+    private bool _isDockingEnabled = true;
+    private TabHeader? _draggingTab;
+    private Point _tabDragStart;
 
     private int borderSize = 4;
 
+    public bool IsDockingEnabled {
+        get { return _isDockingEnabled; }
+        set { _isDockingEnabled = value; }
+    }
+
+    public event EventHandler<TabUndockEventArgs>? TabUndocked;
+
     public Size Size {
-        get { return new Size(_mainBorder.Width, _mainBorder.Height); }
+        get { 
+            if (double.IsNaN(_mainBorder.Width) || double.IsNaN(_mainBorder.Height)) {
+                return new Size(Bounds.Width, Bounds.Height);
+            }
+            return new Size(_mainBorder.Width, _mainBorder.Height); 
+        }
         set {
-            _mainBorder.Width = value.Width;
-            _mainBorder.Height = value.Height;
-            _contentArea.Width = value.Width - borderSize;
-            _contentArea.Height = value.Height - 30; // Account for tab header height
-            
-            // Update all panels to fit content area
-            foreach (var panel in _panels) {
-                panel.Size = new Size(value.Width - borderSize - 4, value.Height - 30 - 4);
+            if (value.Width > 0 && value.Height > 0) {
+                _mainBorder.Width = value.Width;
+                _mainBorder.Height = value.Height;
+                
+                // Remove stretch alignment when setting explicit size
+                _mainBorder.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
+                _mainBorder.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top;
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top;
+                
+                UpdatePanelSizes();
             }
         }
     }
 
+    private void UpdatePanelSizes() {
+        var availableWidth = Math.Max(0, Bounds.Width - borderSize - 4);
+        var availableHeight = Math.Max(0, Bounds.Height - 30 - 4); // Account for tab header
+        
+        foreach (var panel in _panels) {
+            if (availableWidth > 0 && availableHeight > 0) {
+                panel.Size = new Size(availableWidth, availableHeight);
+            }
+        }
+    }
+
+    protected override void OnSizeChanged(SizeChangedEventArgs e) {
+        base.OnSizeChanged(e);
+        
+        // Update panel sizes when the container is resized
+        if (e.NewSize.Width > 0 && e.NewSize.Height > 0) {
+            UpdatePanelSizes();
+        }
+    }
+
     public TabbedEditorPanel() {
+        // Set default size and alignment
+        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch;
+        VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch;
+        MinWidth = 200;
+        MinHeight = 150;
+        
         BuildVisualTree();
         InitializeDragLogic();
     }
@@ -47,8 +105,8 @@ public class TabbedEditorPanel : UserControl {
         _mainBorder = new Border {
             Background = Brushes.Gray,
             CornerRadius = new CornerRadius(4),
-            Width = 400,
-            Height = 300
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch
         };
 
         var mainStackPanel = new StackPanel();
@@ -81,37 +139,91 @@ public class TabbedEditorPanel : UserControl {
     }
 
     private void InitializeDragLogic() {
-        _tabHeadersPanel.PointerPressed += (sender, e) => {
+        _tabHeadersPanel.PointerPressed += OnHeaderPointerPressed;
+        _tabHeadersPanel.PointerReleased += OnHeaderPointerReleased;
+        _tabHeadersPanel.PointerMoved += OnHeaderPointerMoved;
+    }
+
+    private void OnHeaderPointerPressed(object? sender, PointerPressedEventArgs e) {
+        if (_isDockingEnabled) {
+            // When docked, only individual tabs can be dragged out
+            var hitTab = GetTabHeaderAt(e.GetPosition(_tabHeadersPanel));
+            if (hitTab != null) {
+                _draggingTab = hitTab;
+                _tabDragStart = e.GetPosition(this);
+                e.Pointer.Capture(_tabHeadersPanel);
+            }
+        } else {
+            // When floating, the whole panel can be dragged
             if (!_isDragging) {
                 _isDragging = true;
-
                 _initialPointerPosition = e.GetPosition(Parent as Control);
                 _initialLeft = Canvas.GetLeft(this);
                 _initialTop = Canvas.GetTop(this);
-
                 BringToFront();
                 e.Pointer.Capture(_tabHeadersPanel);
             }
-        };
+        }
+    }
 
-        _tabHeadersPanel.PointerReleased += (sender, e) => {
-            if (_isDragging) {
-                _isDragging = false;
+    private void OnHeaderPointerReleased(object? sender, PointerReleasedEventArgs e) {
+        if (_isDragging) {
+            _isDragging = false;
+            e.Pointer.Capture(null);
+        }
+
+        if (_draggingTab != null) {
+            _draggingTab = null;
+            e.Pointer.Capture(null);
+        }
+    }
+
+    private void OnHeaderPointerMoved(object? sender, PointerEventArgs e) {
+        if (_isDragging && e.Pointer.Captured == _tabHeadersPanel) {
+            // Floating panel movement
+            var currentPosition = e.GetPosition(Parent as Control);
+            var deltaX = currentPosition.X - _initialPointerPosition.X;
+            var deltaY = currentPosition.Y - _initialPointerPosition.Y;
+            Canvas.SetLeft(this, _initialLeft + deltaX);
+            Canvas.SetTop(this, _initialTop + deltaY);
+        } else if (_draggingTab != null && e.Pointer.Captured == _tabHeadersPanel) {
+            // Tab undocking logic
+            var currentPosition = e.GetPosition(this);
+            var distance = Math.Sqrt(
+                Math.Pow(currentPosition.X - _tabDragStart.X, 2) + 
+                Math.Pow(currentPosition.Y - _tabDragStart.Y, 2)
+            );
+
+            // If dragged far enough, undock the tab
+            if (distance > 20) {
+                UndockTab(_draggingTab, e.GetPosition(Parent as Control));
+                _draggingTab = null;
                 e.Pointer.Capture(null);
             }
-        };
+        }
+    }
 
-        _tabHeadersPanel.PointerMoved += (sender, e) => {
-            if (_isDragging && e.Pointer.Captured == _tabHeadersPanel) {
-                var currentPosition = e.GetPosition(Parent as Control);
-
-                var deltaX = currentPosition.X - _initialPointerPosition.X;
-                var deltaY = currentPosition.Y - _initialPointerPosition.Y;
-
-                Canvas.SetLeft(this, _initialLeft + deltaX);
-                Canvas.SetTop(this, _initialTop + deltaY);
+    private TabHeader? GetTabHeaderAt(Point position) {
+        foreach (var tab in _tabHeaders) {
+            var tabBounds = tab.Bounds;
+            if (tabBounds.Contains(position)) {
+                return tab;
             }
-        };
+        }
+        return null;
+    }
+
+    private void UndockTab(TabHeader tabHeader, Point position) {
+        var tabIndex = _tabHeaders.IndexOf(tabHeader);
+        if (tabIndex >= 0 && tabIndex < _panels.Count) {
+            var panel = _panels[tabIndex];
+            
+            // Remove the panel from this tabbed container
+            RemovePanel(tabIndex);
+            
+            // Fire the undock event
+            TabUndocked?.Invoke(this, new TabUndockEventArgs(panel, position));
+        }
     }
 
     private void BringToFront() {

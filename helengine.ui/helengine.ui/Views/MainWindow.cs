@@ -2,6 +2,7 @@
 using Avalonia.Controls;
 using Avalonia.Media;
 using helengine.ui.Controls;
+using helengine.ui.Controls.Docking;
 using System;
 using System.Threading;
 
@@ -15,14 +16,15 @@ namespace helengine.ui.Views {
         private bool closed;
 
         public MainWindow() {
-            Title = "helengine v0";
+            Title = "helengine v0 - Unity Style Docking";
             Width = 1280;
             Height = 720;
 
-            Background = new SolidColorBrush(Color.Parse("#8d31c2"));
+            Background = new SolidColorBrush(Color.Parse("#2d2d30")); // Unity-like dark theme
 
-            var canvas = new Canvas();
-            Content = canvas;
+            // Create docking container as main content
+            var dockingContainer = new DockingContainer();
+            Content = dockingContainer;
 
             // Create individual panels
             panel = new EditorPanel();
@@ -30,42 +32,49 @@ namespace helengine.ui.Views {
             panel.Child = new TextBlock { Text = "Editor Panel Content", Margin = new Thickness(10) };
 
             sceneView = new EditorPanel();
-            sceneView.Size = new Size(640, 480);
             sceneView.Title = "Scene";
-
             control = new D3D11Control();
             sceneView.Child = control;
 
-            // Create another panel for demonstration
             var propertiesPanel = new EditorPanel();
             propertiesPanel.Title = "Properties";
             propertiesPanel.Child = new TextBlock { Text = "Properties Panel Content", Margin = new Thickness(10) };
 
-            // Create custom tabbed panel and add all panels to it
-            var tabbedPanel = new TabbedEditorPanel();
-            tabbedPanel.Size = new Size(700, 500);
-            
-            tabbedPanel.AddPanel(panel);
-            tabbedPanel.AddPanel(sceneView);
-            tabbedPanel.AddPanel(propertiesPanel);
+            var hierarchyPanel = new EditorPanel();
+            hierarchyPanel.Title = "Hierarchy";
+            hierarchyPanel.Child = new TextBlock { Text = "Hierarchy Panel Content", Margin = new Thickness(10) };
 
-            Canvas.SetLeft(tabbedPanel, 50);
-            Canvas.SetTop(tabbedPanel, 50);
+            // Create tabbed panels for docking
+            var mainTabbedPanel = new TabbedEditorPanel();
+            mainTabbedPanel.AddPanel(sceneView);
+            mainTabbedPanel.AddPanel(panel);
 
-            // Create a standalone panel to show the difference (with titlebar)
-            var standalonePanel = new EditorPanel();
-            standalonePanel.Title = "Standalone";
-            standalonePanel.Size = new Size(250, 150);
-            standalonePanel.Child = new TextBlock { Text = "This panel has a titlebar", Margin = new Thickness(10) };
+            var sideTabbedPanel = new TabbedEditorPanel();
+            sideTabbedPanel.AddPanel(propertiesPanel);
+            sideTabbedPanel.AddPanel(hierarchyPanel);
 
-            Canvas.SetLeft(standalonePanel, 800);
-            Canvas.SetTop(standalonePanel, 50);
+            // Dock panels in different positions (Unity-style layout)
+            dockingContainer.DockPanel(mainTabbedPanel, DockPosition.Center);
+            dockingContainer.DockPanel(sideTabbedPanel, DockPosition.Right);
 
-            canvas.Children.Add(tabbedPanel);
-            canvas.Children.Add(standalonePanel);
+            // Handle tab undocking events to create floating panels
+            mainTabbedPanel.TabUndocked += OnTabUndocked;
+            sideTabbedPanel.TabUndocked += OnTabUndocked;
 
             thread = new Thread(threadUpdate);
             thread.Start();
+        }
+
+        private void OnTabUndocked(object? sender, TabUndockEventArgs e) {
+            if (Content is DockingContainer dockingContainer) {
+                // Create a new floating tabbed panel for the undocked tab
+                var floatingPanel = new TabbedEditorPanel();
+                floatingPanel.AddPanel(e.Panel);
+                floatingPanel.TabUndocked += OnTabUndocked; // Handle further undocking
+
+                // Undock it as a floating panel
+                dockingContainer.UndockPanel(floatingPanel, e.Position);
+            }
         }
 
         protected override void OnClosed(EventArgs e) {

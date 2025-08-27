@@ -33,10 +33,10 @@ public abstract class DrawingSurfaceBase : Control {
     }
 
     protected override void OnDetachedFromLogicalTree(LogicalTreeAttachmentEventArgs e) {
-        //if (_initialized) {
-        //    FreeGraphicsResources();
-        //}
-        //_initialized = false;
+        if (_initialized) {
+            FreeGraphicsResources();
+        }
+        _initialized = false;
 
         base.OnDetachedFromLogicalTree(e);
     }

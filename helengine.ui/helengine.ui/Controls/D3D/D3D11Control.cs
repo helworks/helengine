@@ -130,6 +130,9 @@ public class D3D11Control : DrawingSurfaceBase {
 
         if (_device is null) {
             return;
+        } else if (size.Width == 0 ||
+            size.Height == 0) {
+            return;
         }
 
         _depthBuffer = new Texture2D(_device,
