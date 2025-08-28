@@ -27,22 +27,20 @@ namespace helengine.ui.Views {
 
             // Left panels (multiple for testing tabs)
             panel = new EditorPanel();
-            panel.Title = "Inspector";
+            panel.Title = "assets";
+            var assetManager = new AssetManagerControl();
+            panel.Child = assetManager;
             panelContainer.AssignPanelToArea(panel, "Left");
             
-            var hierarchyPanel = new EditorPanel();
-            hierarchyPanel.Title = "Hierarchy";
-            panelContainer.AssignPanelToArea(hierarchyPanel, "Left");
-
             // Right panels with scene view and additional panels
             sceneView = new EditorPanel();
-            sceneView.Title = "Scene";
+            sceneView.Title = "scene";
             control = new D3D11Control();
             sceneView.Child = control;
             panelContainer.AssignPanelToArea(sceneView, "Right");
             
             var gamePanel = new EditorPanel();
-            gamePanel.Title = "Game";
+            gamePanel.Title = "game";
             panelContainer.AssignPanelToArea(gamePanel, "Right");
 
             thread = new Thread(threadUpdate);

@@ -5,6 +5,7 @@
         public ObjectManager ObjectManager { get; private set; }
 
         public RenderManager RenderManager { get; private set; }
+
         public InputManager InputManager { get; private set; }
 
         public Core() {
