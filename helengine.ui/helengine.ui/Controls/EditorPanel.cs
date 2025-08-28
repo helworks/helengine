@@ -139,7 +139,6 @@ public class EditorPanel : UserControl {
         }
     }
 
-
     private void InitializeDragLogic() {
         _header.PointerPressed += (sender, e) => {
             if (!_isDragging) {
@@ -164,9 +163,12 @@ public class EditorPanel : UserControl {
                     var currentPosition = e.GetPosition(Parent as Control);
                     var targetArea = panelContainer.GetHeaderAtPosition(currentPosition);
                     if (targetArea != null) {
-                        // Dock the panel
+                        // Dock the panel to existing tab header
                         targetArea.AddPanel(this);
                         panelContainer.InvalidateArrange();
+                    } else {
+                        // Check if we should commit a split
+                        panelContainer.CommitSplitIfAny(this);
                     }
                     // Hide preview regardless
                     panelContainer.HideDockPreview();
