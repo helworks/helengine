@@ -67,11 +67,11 @@ public class EditorPanel : UserControl {
     }
 
     private void UpdateSize(Size size) {
-        content.Width = size.Width;
-        content.Height = size.Height;
+        content.Width = size.Width - 2;
+        content.Height = size.Height - 2;
         if (Child != null) {
-            Child.Width = size.Width;
-            Child.Height = size.Height;
+            Child.Width = size.Width - 2;
+            Child.Height = size.Height - 2;
         }
     }
 
@@ -103,7 +103,7 @@ public class EditorPanel : UserControl {
 
         // Content
         content = new Border {
-            Background = Brushes.Black,
+            Background = Brushes.WhiteSmoke,
             Height = 200,
             Width = 300,
             CornerRadius = new CornerRadius(0, 0, 4, 4),

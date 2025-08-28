@@ -87,15 +87,129 @@ namespace helengine.ui.Controls {
             
             if (neighbors.Count == 0) return;
 
-            // Sort neighbors by preference: prioritize those that share the same column/row structure
-            var sortedNeighbors = neighbors.OrderBy(n => GetExpansionPriority(n, emptyArea)).ToList();
+            // Group neighbors by expansion type for more intelligent distribution
+            var columnNeighbors = neighbors.Where(n => CanExpandVertically(n, emptyArea)).ToList();
+            var rowNeighbors = neighbors.Where(n => CanExpandHorizontally(n, emptyArea)).ToList();
 
+            // Try to distribute space among same-column neighbors first (vertical expansion)
+            if (columnNeighbors.Count > 0) {
+                DistributeSpaceAmongNeighbors(columnNeighbors, emptyArea, true); // true = vertical
+                return;
+            }
+
+            // Then try same-row neighbors (horizontal expansion)
+            if (rowNeighbors.Count > 0) {
+                DistributeSpaceAmongNeighbors(rowNeighbors, emptyArea, false); // false = horizontal
+                return;
+            }
+
+            // Fallback: try individual expansion for other adjacent neighbors
+            var sortedNeighbors = neighbors.OrderBy(n => GetExpansionPriority(n, emptyArea)).ToList();
             foreach (var neighbor in sortedNeighbors) {
-                var neighborBounds = neighbor.RelativeBounds;
-                
-                // Try to expand this neighbor to fill the empty space
                 if (TryExpandNeighbor(neighbor, emptyArea)) {
                     break; // Successfully expanded one neighbor, we're done
+                }
+            }
+        }
+
+        private bool CanExpandVertically(PanelArea neighbor, PanelArea emptyArea) {
+            var neighborBounds = neighbor.RelativeBounds;
+            var emptyBounds = emptyArea.RelativeBounds;
+            
+            // Can expand vertically if they have overlapping X ranges and are above/below
+            return (neighborBounds.X < emptyBounds.Right && neighborBounds.Right > emptyBounds.X) &&
+                   (Math.Abs(neighborBounds.Bottom - emptyBounds.Top) < 0.001 || // Neighbor is above
+                    Math.Abs(neighborBounds.Top - emptyBounds.Bottom) < 0.001);  // Neighbor is below
+        }
+
+        private bool CanExpandHorizontally(PanelArea neighbor, PanelArea emptyArea) {
+            var neighborBounds = neighbor.RelativeBounds;
+            var emptyBounds = emptyArea.RelativeBounds;
+            
+            // Can expand horizontally if they have overlapping Y ranges and are left/right
+            return (neighborBounds.Y < emptyBounds.Bottom && neighborBounds.Bottom > emptyBounds.Y) &&
+                   (Math.Abs(neighborBounds.Right - emptyBounds.Left) < 0.001 || // Neighbor is left
+                    Math.Abs(neighborBounds.Left - emptyBounds.Right) < 0.001);  // Neighbor is right
+        }
+
+        private void DistributeSpaceAmongNeighbors(List<PanelArea> neighbors, PanelArea emptyArea, bool isVertical) {
+            if (neighbors.Count == 0) return;
+
+            var emptyBounds = emptyArea.RelativeBounds;
+
+            if (isVertical) {
+                // Group neighbors by direction (above vs below)
+                var neighborsAbove = neighbors.Where(n => n.RelativeBounds.Bottom <= emptyBounds.Top + 0.001).ToList();
+                var neighborsBelow = neighbors.Where(n => n.RelativeBounds.Top >= emptyBounds.Bottom - 0.001).ToList();
+                
+                // Each group of neighbors gets the full empty space
+                if (neighborsAbove.Count > 0) {
+                    double expansionAmount = emptyBounds.Height;
+                    foreach (var neighbor in neighborsAbove) {
+                        var nb = neighbor.RelativeBounds;
+                        // Check if there's overlap (if there is, this neighbor should expand)
+                        double overlapStart = Math.Max(nb.X, emptyBounds.X);
+                        double overlapEnd = Math.Min(nb.Right, emptyBounds.Right);
+                        double overlapWidth = Math.Max(0, overlapEnd - overlapStart);
+                        
+                        if (overlapWidth > 0) {
+                            // Expand down by the full empty space height
+                            neighbor.RelativeBounds = new Rect(nb.X, nb.Y, nb.Width, nb.Height + expansionAmount);
+                        }
+                    }
+                }
+                
+                if (neighborsBelow.Count > 0) {
+                    double expansionAmount = emptyBounds.Height;
+                    foreach (var neighbor in neighborsBelow) {
+                        var nb = neighbor.RelativeBounds;
+                        // Check if there's overlap (if there is, this neighbor should expand)
+                        double overlapStart = Math.Max(nb.X, emptyBounds.X);
+                        double overlapEnd = Math.Min(nb.Right, emptyBounds.Right);
+                        double overlapWidth = Math.Max(0, overlapEnd - overlapStart);
+                        
+                        if (overlapWidth > 0) {
+                            // Expand up by the full empty space height
+                            neighbor.RelativeBounds = new Rect(nb.X, nb.Y - expansionAmount, nb.Width, nb.Height + expansionAmount);
+                        }
+                    }
+                }
+            } else {
+                // Group neighbors by direction (left vs right)
+                var neighborsLeft = neighbors.Where(n => n.RelativeBounds.Right <= emptyBounds.Left + 0.001).ToList();
+                var neighborsRight = neighbors.Where(n => n.RelativeBounds.Left >= emptyBounds.Right - 0.001).ToList();
+                
+                // Each group of neighbors gets the full empty space
+                if (neighborsLeft.Count > 0) {
+                    double expansionAmount = emptyBounds.Width;
+                    foreach (var neighbor in neighborsLeft) {
+                        var nb = neighbor.RelativeBounds;
+                        // Check if there's overlap (if there is, this neighbor should expand)
+                        double overlapStart = Math.Max(nb.Y, emptyBounds.Y);
+                        double overlapEnd = Math.Min(nb.Bottom, emptyBounds.Bottom);
+                        double overlapHeight = Math.Max(0, overlapEnd - overlapStart);
+                        
+                        if (overlapHeight > 0) {
+                            // Expand right by the full empty space width
+                            neighbor.RelativeBounds = new Rect(nb.X, nb.Y, nb.Width + expansionAmount, nb.Height);
+                        }
+                    }
+                }
+                
+                if (neighborsRight.Count > 0) {
+                    double expansionAmount = emptyBounds.Width;
+                    foreach (var neighbor in neighborsRight) {
+                        var nb = neighbor.RelativeBounds;
+                        // Check if there's overlap (if there is, this neighbor should expand)
+                        double overlapStart = Math.Max(nb.Y, emptyBounds.Y);
+                        double overlapEnd = Math.Min(nb.Bottom, emptyBounds.Bottom);
+                        double overlapHeight = Math.Max(0, overlapEnd - overlapStart);
+                        
+                        if (overlapHeight > 0) {
+                            // Expand left by the full empty space width
+                            neighbor.RelativeBounds = new Rect(nb.X - expansionAmount, nb.Y, nb.Width + expansionAmount, nb.Height);
+                        }
+                    }
                 }
             }
         }
@@ -174,14 +288,33 @@ namespace helengine.ui.Controls {
 
                 var areaBounds = area.RelativeBounds;
                 
-                // Check if areas are adjacent (sharing an edge)
-                if (AreHorizontallyAdjacent(areaBounds, targetBounds) || 
-                    AreVerticallyAdjacent(areaBounds, targetBounds)) {
+                // Check if areas can expand to fill the target area's space
+                if (CanExpandToFillSpace(areaBounds, targetBounds)) {
                     neighbors.Add(area);
                 }
             }
 
             return neighbors;
+        }
+
+        private bool CanExpandToFillSpace(Rect areaBounds, Rect targetBounds) {
+            // Check if area can expand vertically to fill target space
+            bool canExpandVertically = 
+                // Same or overlapping X range (column alignment)
+                (areaBounds.X <= targetBounds.Right && areaBounds.Right >= targetBounds.X) &&
+                // Area is above or below the target
+                (Math.Abs(areaBounds.Bottom - targetBounds.Top) < 0.001 || // Area is above
+                 Math.Abs(areaBounds.Top - targetBounds.Bottom) < 0.001);  // Area is below
+
+            // Check if area can expand horizontally to fill target space  
+            bool canExpandHorizontally = 
+                // Same or overlapping Y range (row alignment)
+                (areaBounds.Y <= targetBounds.Bottom && areaBounds.Bottom >= targetBounds.Y) &&
+                // Area is left or right of the target
+                (Math.Abs(areaBounds.Right - targetBounds.Left) < 0.001 || // Area is left
+                 Math.Abs(areaBounds.Left - targetBounds.Right) < 0.001);  // Area is right
+
+            return canExpandVertically || canExpandHorizontally;
         }
 
         private bool AreHorizontallyAdjacent(Rect rect1, Rect rect2) {
