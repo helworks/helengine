@@ -12,10 +12,12 @@ namespace helengine.ui.Controls {
         private TabButton? _activeTab;
         
         public event EventHandler<TabSelectedEventArgs>? TabSelected;
+        public event EventHandler<TabDragEventArgs>? TabDragStarted;
         
         public void AddTab(string title, object tag) {
             var tabButton = new TabButton(title, tag);
             tabButton.Clicked += OnTabClicked;
+            tabButton.TabDragStarted += OnTabDragStarted;
             
             _tabs.Add(tabButton);
             Children.Add(tabButton);
@@ -49,6 +51,10 @@ namespace helengine.ui.Controls {
             }
         }
         
+        private void OnTabDragStarted(object? sender, TabDragEventArgs e) {
+            TabDragStarted?.Invoke(this, e);
+        }
+        
         private void SetActiveTab(TabButton tab) {
             if (_activeTab != null) {
                 _activeTab.IsActive = false;
@@ -77,11 +83,14 @@ namespace helengine.ui.Controls {
     public class TabButton : Border {
         private readonly TextBlock _textBlock;
         private bool _isActive;
+        private bool _isDragging;
+        private Point _initialPointerPosition;
         
         public string Title { get; }
         public new object Tag { get; }
         
         public event EventHandler? Clicked;
+        public event EventHandler<TabDragEventArgs>? TabDragStarted;
         
         public bool IsActive {
             get => _isActive;
@@ -109,11 +118,42 @@ namespace helengine.ui.Controls {
             BorderBrush = new SolidColorBrush(Color.Parse("#4431c2"));
             
             PointerPressed += OnPointerPressed;
+            PointerMoved += OnPointerMoved;
+            PointerReleased += OnPointerReleased;
             UpdateAppearance();
         }
         
         private void OnPointerPressed(object? sender, PointerPressedEventArgs e) {
-            Clicked?.Invoke(this, EventArgs.Empty);
+            _initialPointerPosition = e.GetPosition(this);
+            _isDragging = false;
+            e.Pointer.Capture(this);
+        }
+        
+        private void OnPointerMoved(object? sender, PointerEventArgs e) {
+            if (e.Pointer.Captured == this && !_isDragging) {
+                var currentPosition = e.GetPosition(this);
+                var deltaX = Math.Abs(currentPosition.X - _initialPointerPosition.X);
+                var deltaY = Math.Abs(currentPosition.Y - _initialPointerPosition.Y);
+                
+                // Start dragging if moved more than threshold (like Unity)
+                if (deltaX > 5 || deltaY > 5) {
+                    _isDragging = true;
+                    TabDragStarted?.Invoke(this, new TabDragEventArgs(Tag));
+                }
+            }
+        }
+        
+        private void OnPointerReleased(object? sender, PointerReleasedEventArgs e) {
+            if (e.Pointer.Captured == this) {
+                e.Pointer.Capture(null);
+                
+                // Only fire click if we weren't dragging
+                if (!_isDragging) {
+                    Clicked?.Invoke(this, EventArgs.Empty);
+                }
+                
+                _isDragging = false;
+            }
         }
         
         private void UpdateAppearance() {
@@ -131,6 +171,14 @@ namespace helengine.ui.Controls {
         public object Tag { get; }
         
         public TabSelectedEventArgs(object tag) {
+            Tag = tag;
+        }
+    }
+    
+    public class TabDragEventArgs : EventArgs {
+        public object Tag { get; }
+        
+        public TabDragEventArgs(object tag) {
             Tag = tag;
         }
     }
