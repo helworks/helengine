@@ -1,7 +1,9 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Input;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace helengine.ui.Controls;
 
@@ -84,7 +86,6 @@ public class EditorPanel : UserControl {
 
         // Header
         _header = new Border {
-            //c231af
             Background = new SolidColorBrush(Color.Parse("#c231af")),
             Height = 20,
             CornerRadius = new CornerRadius(4, 4, 0, 0),
@@ -95,7 +96,6 @@ public class EditorPanel : UserControl {
         title = new TextBlock {
             Text = "Window Title",
             Foreground = Brushes.White,
-            //VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(10, 0)
         };
 
@@ -123,7 +123,7 @@ public class EditorPanel : UserControl {
     private void UpdateHeaderVisibility() {
         if (_header != null) {
             _header.IsVisible = !_isDocked;
-            
+
             // Update content corner radius based on docked state
             if (content != null) {
                 if (_isDocked) {
@@ -158,6 +158,19 @@ public class EditorPanel : UserControl {
             if (_isDragging) {
                 _isDragging = false;
                 e.Pointer.Capture(null);
+
+                // Check if we should dock when releasing
+                if (!_isDocked && Parent is PanelContainer panelContainer) {
+                    var currentPosition = e.GetPosition(Parent as Control);
+                    var targetArea = panelContainer.GetHeaderAtPosition(currentPosition);
+                    if (targetArea != null) {
+                        // Dock the panel
+                        targetArea.AddPanel(this);
+                        panelContainer.InvalidateArrange();
+                    }
+                    // Hide preview regardless
+                    panelContainer.HideDockPreview();
+                }
             }
         };
 
@@ -172,6 +185,11 @@ public class EditorPanel : UserControl {
                 // Update Canvas positions directly
                 Canvas.SetLeft(this, _initialLeft + deltaX);
                 Canvas.SetTop(this, _initialTop + deltaY);
+
+                // Check for dock proximity if this is a floating panel (use header zone)
+                if (!_isDocked && Parent is PanelContainer panelContainer) {
+                    panelContainer.CheckDockProximity(this);
+                }
             }
         };
     }

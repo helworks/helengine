@@ -5,15 +5,47 @@ using Avalonia.Input;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Avalonia.Controls.Shapes;
 
 namespace helengine.ui.Controls {
     public class TabHeader : Canvas {
         private readonly List<TabButton> _tabs = new List<TabButton>();
         private TabButton? _activeTab;
-        
+        private readonly Rectangle _dockPreview = new Rectangle();
+
         public event EventHandler<TabSelectedEventArgs>? TabSelected;
         public event EventHandler<TabDragEventArgs>? TabDragStarted;
+        public event EventHandler<PanelDropEventArgs>? PanelDropped;
         
+        public TabHeader() {
+            _dockPreview.IsHitTestVisible = false;
+            _dockPreview.IsVisible = false;
+            _dockPreview.ZIndex = 1000;
+            _dockPreview.Stroke = new SolidColorBrush(Color.FromRgb(64, 128, 255));
+            _dockPreview.StrokeThickness = 2;
+            _dockPreview.Fill = new SolidColorBrush(Color.FromArgb(64, 64, 128, 255));
+            _dockPreview.Height = 25;
+            Children.Add(_dockPreview);
+        }
+
+        protected override void OnSizeChanged(SizeChangedEventArgs e) {
+            base.OnSizeChanged(e);
+
+            _dockPreview.Width = e.NewSize.Width;
+        }
+
+        public void ShowPreview() {
+            _dockPreview.Width = Bounds.Width > 0 ? Bounds.Width : Width;
+            _dockPreview.Height = 25;
+            Canvas.SetLeft(_dockPreview, 0);
+            Canvas.SetTop(_dockPreview, 0);
+            _dockPreview.IsVisible = true;
+        }
+
+        public void HidePreview() {
+            _dockPreview.IsVisible = false;
+        }
+
         public void AddTab(string title, object tag) {
             var tabButton = new TabButton(title, tag);
             tabButton.Clicked += OnTabClicked;
@@ -180,6 +212,14 @@ namespace helengine.ui.Controls {
         
         public TabDragEventArgs(object tag) {
             Tag = tag;
+        }
+    }
+    
+    public class PanelDropEventArgs : EventArgs {
+        public EditorPanel Panel { get; }
+        
+        public PanelDropEventArgs(EditorPanel panel) {
+            Panel = panel;
         }
     }
 }
