@@ -11,15 +11,16 @@ namespace helengine.ui.Views {
         private EditorPanel sceneView;
 
         private D3D11Control control;
-        private Thread thread;
+        private Thread? thread;
         private bool closed;
 
         public MainWindow() {
-            Title = "helengine v0";
+            Title = "helengine - main editor";
             Width = 1280;
             Height = 720;
 
-            Background = new SolidColorBrush(Color.Parse("#8d31c2"));
+            // 90s deep purple background
+            Background = new SolidColorBrush(Color.FromRgb(25, 15, 35));
 
             // Create custom panel container with left and right areas
             var panelContainer = new PanelContainer();
@@ -43,6 +44,12 @@ namespace helengine.ui.Views {
             gamePanel.Title = "game";
             panelContainer.AssignPanelToArea(gamePanel, "Right");
 
+            // Start the update thread only after the window is properly opened
+            Opened += OnWindowOpened;
+        }
+
+        private void OnWindowOpened(object? sender, EventArgs e) {
+            // Start the update thread now that the window is fully initialized
             thread = new Thread(threadUpdate);
             thread.Start();
         }
@@ -62,7 +69,14 @@ namespace helengine.ui.Views {
                 Thread.Sleep(span);
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    control.QueueNextFrame();
+                    // Check if control is still valid and not disposed
+                    if (control != null && !closed) {
+                        try {
+                            control.QueueNextFrame();
+                        } catch {
+                            // Ignore any exceptions during frame updates
+                        }
+                    }
                 });
             }
         }

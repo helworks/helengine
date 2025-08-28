@@ -15,7 +15,8 @@ namespace helengine.ui.Controls {
         }
 
         private void InitializeComponent() {
-            Background = new SolidColorBrush(Color.FromRgb(45, 45, 48));
+            // 90s theme dark purple background
+            Background = new SolidColorBrush(Color.FromRgb(30, 15, 40));
 
             // Ensure the control can receive input
             Focusable = true;
@@ -23,12 +24,13 @@ namespace helengine.ui.Controls {
 
             // Create a simple placeholder content
             var textBlock = new TextBlock {
-                Text = "Asset Manager\n\nRight-click to open context menu",
+                Text = "asset manager\n\nright-click to open context menu",
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
-                Foreground = new SolidColorBrush(Color.FromRgb(220, 220, 220)),
-                FontSize = 14
+                Foreground = new SolidColorBrush(Color.FromRgb(102, 255, 255)), // Bright cyan
+                FontSize = 14,
+                FontFamily = new FontFamily("Consolas, 'Courier New', monospace")
             };
 
             Content = textBlock;
@@ -40,7 +42,7 @@ namespace helengine.ui.Controls {
 
             // Create a simple stack panel with menu items
             var stackPanel = new StackPanel {
-                Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)),
+                Background = new SolidColorBrush(Color.FromRgb(40, 25, 50)), // Dark purple
                 MinWidth = 150
             };
 
@@ -51,17 +53,17 @@ namespace helengine.ui.Controls {
             var deleteBtn = CreateMenuButton("delete", () => OnDelete());
 
             stackPanel.Children.Add(newFolderBtn);
-            stackPanel.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(200, 200, 200)) }); // separator
+            stackPanel.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(255, 102, 204)) }); // Hot pink separator
             stackPanel.Children.Add(importAssetBtn);
             stackPanel.Children.Add(refreshBtn);
-            stackPanel.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(200, 200, 200)) }); // separator
+            stackPanel.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Color.FromRgb(255, 102, 204)) }); // Hot pink separator
             stackPanel.Children.Add(deleteBtn);
 
             // Wrap in a border for better visibility
             var border = new Border {
-                Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(128, 128, 128)),
-                BorderThickness = new Thickness(1),
+                Background = new SolidColorBrush(Color.FromRgb(40, 25, 50)), // Dark purple
+                BorderBrush = new SolidColorBrush(Color.FromRgb(102, 255, 255)), // Cyan border
+                BorderThickness = new Thickness(2),
                 Child = stackPanel
             };
 
@@ -92,13 +94,14 @@ namespace helengine.ui.Controls {
         private Button CreateMenuButton(string text, System.Action onClick) {
             var button = new Button {
                 Content = text,
-                Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)),
-                Foreground = new SolidColorBrush(Color.FromRgb(0, 0, 0)),
+                Background = new SolidColorBrush(Color.FromRgb(40, 25, 50)), // Dark purple
+                Foreground = new SolidColorBrush(Color.FromRgb(102, 255, 255)), // Cyan text
                 BorderThickness = new Thickness(0),
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
                 Padding = new Thickness(8, 4),
-                FontSize = 12
+                FontSize = 12,
+                FontFamily = new FontFamily("Consolas, 'Courier New', monospace")
             };
 
             button.Click += (sender, e) => {
@@ -106,12 +109,14 @@ namespace helengine.ui.Controls {
                 onClick();
             };
 
-            // Add hover effect
+            // Add hover effect - 90s style color swap
             button.PointerEntered += (sender, e) => {
-                button.Background = new SolidColorBrush(Color.FromRgb(220, 220, 220));
+                button.Background = new SolidColorBrush(Color.FromRgb(255, 102, 204)); // Hot pink
+                button.Foreground = new SolidColorBrush(Color.FromRgb(25, 15, 35)); // Dark purple text
             };
             button.PointerExited += (sender, e) => {
-                button.Background = new SolidColorBrush(Color.FromRgb(240, 240, 240));
+                button.Background = new SolidColorBrush(Color.FromRgb(40, 25, 50)); // Dark purple
+                button.Foreground = new SolidColorBrush(Color.FromRgb(102, 255, 255)); // Cyan text
             };
 
             return button;
