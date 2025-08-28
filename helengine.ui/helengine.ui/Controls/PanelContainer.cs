@@ -87,42 +87,82 @@ namespace helengine.ui.Controls {
             
             if (neighbors.Count == 0) return;
 
-            // Distribute the empty area's space proportionally among neighbors
-            foreach (var neighbor in neighbors) {
-                var neighborBounds = neighbor.RelativeBounds;
-                var newBounds = neighborBounds;
+            // Sort neighbors by preference: prioritize those that share the same column/row structure
+            var sortedNeighbors = neighbors.OrderBy(n => GetExpansionPriority(n, emptyArea)).ToList();
 
-                // Determine how to expand based on spatial relationship
-                if (AreHorizontallyAdjacent(neighborBounds, emptyBounds)) {
-                    // Expand horizontally
-                    if (neighborBounds.Right <= emptyBounds.Left) {
-                        // Neighbor is to the left, expand right
-                        newBounds = new Rect(neighborBounds.X, neighborBounds.Y, 
-                            neighborBounds.Width + emptyBounds.Width, neighborBounds.Height);
-                    } else if (neighborBounds.Left >= emptyBounds.Right) {
-                        // Neighbor is to the right, expand left
-                        newBounds = new Rect(emptyBounds.X, neighborBounds.Y, 
-                            neighborBounds.Width + emptyBounds.Width, neighborBounds.Height);
-                    }
-                } else if (AreVerticallyAdjacent(neighborBounds, emptyBounds)) {
-                    // Expand vertically
+            foreach (var neighbor in sortedNeighbors) {
+                var neighborBounds = neighbor.RelativeBounds;
+                
+                // Try to expand this neighbor to fill the empty space
+                if (TryExpandNeighbor(neighbor, emptyArea)) {
+                    break; // Successfully expanded one neighbor, we're done
+                }
+            }
+        }
+
+        private int GetExpansionPriority(PanelArea neighbor, PanelArea emptyArea) {
+            var neighborBounds = neighbor.RelativeBounds;
+            var emptyBounds = emptyArea.RelativeBounds;
+
+            // Priority 1: Neighbors that share the same column (for vertical expansion)
+            if (Math.Abs(neighborBounds.X - emptyBounds.X) < 0.001 && 
+                Math.Abs(neighborBounds.Width - emptyBounds.Width) < 0.001) {
+                return 1;
+            }
+
+            // Priority 2: Neighbors that share the same row (for horizontal expansion)  
+            if (Math.Abs(neighborBounds.Y - emptyBounds.Y) < 0.001 && 
+                Math.Abs(neighborBounds.Height - emptyBounds.Height) < 0.001) {
+                return 2;
+            }
+
+            // Priority 3: Other adjacent neighbors
+            return 3;
+        }
+
+        private bool TryExpandNeighbor(PanelArea neighbor, PanelArea emptyArea) {
+            var neighborBounds = neighbor.RelativeBounds;
+            var emptyBounds = emptyArea.RelativeBounds;
+
+            // Check if we can expand vertically (same column)
+            if (Math.Abs(neighborBounds.X - emptyBounds.X) < 0.001 && 
+                Math.Abs(neighborBounds.Width - emptyBounds.Width) < 0.001) {
+                
+                if (AreVerticallyAdjacent(neighborBounds, emptyBounds)) {
                     if (neighborBounds.Bottom <= emptyBounds.Top) {
                         // Neighbor is above, expand down
-                        newBounds = new Rect(neighborBounds.X, neighborBounds.Y, 
+                        neighbor.RelativeBounds = new Rect(neighborBounds.X, neighborBounds.Y, 
                             neighborBounds.Width, neighborBounds.Height + emptyBounds.Height);
+                        return true;
                     } else if (neighborBounds.Top >= emptyBounds.Bottom) {
                         // Neighbor is below, expand up
-                        newBounds = new Rect(neighborBounds.X, emptyBounds.Y, 
+                        neighbor.RelativeBounds = new Rect(neighborBounds.X, emptyBounds.Y, 
                             neighborBounds.Width, neighborBounds.Height + emptyBounds.Height);
+                        return true;
                     }
                 }
-
-                neighbor.RelativeBounds = newBounds;
-                
-                // For simplicity, expand the first valid neighbor and break
-                // In a more complex system, you might distribute among multiple neighbors
-                break;
             }
+
+            // Check if we can expand horizontally (same row)
+            if (Math.Abs(neighborBounds.Y - emptyBounds.Y) < 0.001 && 
+                Math.Abs(neighborBounds.Height - emptyBounds.Height) < 0.001) {
+                
+                if (AreHorizontallyAdjacent(neighborBounds, emptyBounds)) {
+                    if (neighborBounds.Right <= emptyBounds.Left) {
+                        // Neighbor is to the left, expand right
+                        neighbor.RelativeBounds = new Rect(neighborBounds.X, neighborBounds.Y, 
+                            neighborBounds.Width + emptyBounds.Width, neighborBounds.Height);
+                        return true;
+                    } else if (neighborBounds.Left >= emptyBounds.Right) {
+                        // Neighbor is to the right, expand left
+                        neighbor.RelativeBounds = new Rect(emptyBounds.X, neighborBounds.Y, 
+                            neighborBounds.Width + emptyBounds.Width, neighborBounds.Height);
+                        return true;
+                    }
+                }
+            }
+
+            return false; // Couldn't expand this neighbor
         }
 
         private List<PanelArea> FindNeighboringAreas(PanelArea targetArea) {
@@ -184,8 +224,8 @@ namespace helengine.ui.Controls {
         }
 
         private void UndockPanel(EditorPanel panel, TabHeader tabHeader) {
-            // Find which area contains this panel
-            var area = _areas.FirstOrDefault(a => a.AssignedPanels.Contains(panel));
+            // Find which area contains this specific panel AND matches the tab header
+            var area = _areas.FirstOrDefault(a => a.AssignedPanels.Contains(panel) && a.TabHeader == tabHeader);
             if (area != null) {
                 // Get the tab header's position to place the panel near it
                 var tabHeaderLeft = Canvas.GetLeft(tabHeader);
@@ -296,18 +336,11 @@ namespace helengine.ui.Controls {
             return result;
         }
 
-        public void CheckDockProximity(EditorPanel panel) {
+        public void CheckDockProximity(EditorPanel panel, Point mousePosition) {
             if (panel.IsDocked) return; // Only check floating panels
 
-            var panelLeft = Canvas.GetLeft(panel);
-            var panelTop = Canvas.GetTop(panel);
-
-            // Handle NaN values from Canvas positioning
-            if (double.IsNaN(panelLeft)) panelLeft = 0;
-            if (double.IsNaN(panelTop)) panelTop = 0;
-
-            // Use current pointer position to test header hit, fallback to panel top-left
-            var testPoint = new Point(panelLeft, panelTop);
+            // Use the actual mouse position for accurate detection
+            var testPoint = mousePosition;
             var headerArea = GetHeaderAtPosition(testPoint);
             if (headerArea != null) {
                 ShowDockPreview(headerArea);
@@ -328,31 +361,41 @@ namespace helengine.ui.Controls {
                     area.RelativeBounds.Height * containerSize.Height
                 );
 
-                // Consider proximity to edges
                 var px = testPoint.X;
                 var py = testPoint.Y;
-                if (areaBounds.Contains(testPoint) ||
-                    Math.Abs(px - areaBounds.X) < DOCK_PROXIMITY_THRESHOLD ||
-                    Math.Abs(px - (areaBounds.X + areaBounds.Width)) < DOCK_PROXIMITY_THRESHOLD ||
-                    Math.Abs(py - areaBounds.Y) < DOCK_PROXIMITY_THRESHOLD ||
-                    Math.Abs(py - (areaBounds.Y + areaBounds.Height)) < DOCK_PROXIMITY_THRESHOLD) {
 
-                    // Choose closest edge
+                // Only show split preview if mouse is actually inside the area bounds
+                if (areaBounds.Contains(testPoint)) {
+                    // Calculate distance to each edge
                     double dLeft = Math.Abs(px - areaBounds.X);
-                    double dRight = Math.Abs(px - (areaBounds.X + areaBounds.Width));
+                    double dRight = Math.Abs(px - areaBounds.Right);
                     double dTop = Math.Abs(py - areaBounds.Y);
-                    double dBottom = Math.Abs(py - (areaBounds.Y + areaBounds.Height));
+                    double dBottom = Math.Abs(py - areaBounds.Bottom);
 
-                    double min = Math.Min(Math.Min(dLeft, dRight), Math.Min(dTop, dBottom));
-                    if (min <= DOCK_PROXIMITY_THRESHOLD) {
-                        _splitTargetArea = area;
-                        if (min == dLeft) _splitDirection = DockDirection.Left;
-                        else if (min == dRight) _splitDirection = DockDirection.Right;
-                        else if (min == dTop) _splitDirection = DockDirection.Top;
-                        else _splitDirection = DockDirection.Bottom;
-                        ShowSplitPreview(area, _splitDirection);
-                        HideDockPreview();
-                        return;
+                    // Find the closest edge
+                    double minDistance = Math.Min(Math.Min(dLeft, dRight), Math.Min(dTop, dBottom));
+                    
+                    // Only show split preview if close enough to an edge
+                    if (minDistance <= DOCK_PROXIMITY_THRESHOLD) {
+                        DockDirection direction = DockDirection.None;
+                        
+                        if (minDistance == dLeft) {
+                            direction = DockDirection.Left;
+                        } else if (minDistance == dRight) {
+                            direction = DockDirection.Right;
+                        } else if (minDistance == dTop) {
+                            direction = DockDirection.Top;
+                        } else if (minDistance == dBottom) {
+                            direction = DockDirection.Bottom;
+                        }
+                        
+                        if (direction != DockDirection.None) {
+                            _splitTargetArea = area;
+                            _splitDirection = direction;
+                            ShowSplitPreview(area, _splitDirection);
+                            HideDockPreview();
+                            return;
+                        }
                     }
                 }
             }

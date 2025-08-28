@@ -103,12 +103,13 @@ public class EditorPanel : UserControl {
 
         // Content
         content = new Border {
-            Background = Brushes.White,
+            Background = Brushes.Black,
             Height = 200,
             Width = 300,
             CornerRadius = new CornerRadius(0, 0, 4, 4),
             BorderThickness = new Thickness(2, 0, 2, 2),
-            BorderBrush = new SolidColorBrush(Color.Parse("#4431c2"))
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0, 0, 0))
+            //BorderBrush = new SolidColorBrush(Color.Parse("#4431c2"))
         };
 
         // Assemble hierarchy
@@ -190,7 +191,7 @@ public class EditorPanel : UserControl {
 
                 // Check for dock proximity if this is a floating panel (use header zone)
                 if (!_isDocked && Parent is PanelContainer panelContainer) {
-                    panelContainer.CheckDockProximity(this);
+                    panelContainer.CheckDockProximity(this, currentPosition);
                 }
             }
         };
