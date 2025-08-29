@@ -38,9 +38,10 @@ namespace helengine.ui.Views {
             Grid.SetRow(titleBar, 0);
             root.Children.Add(titleBar);
 
-            // Resize overlay covering both rows
-            var resize = new ResizeOverlay(rowSpan: 2);
-            Grid.SetRow(resize, 0);
+            // Resize overlay covering content row
+            var resize = new ResizeOverlay(rowSpan: 1);
+            Grid.SetRow(resize, 1);
+            resize.ZIndex = 10000; // Ensure it's above content
             root.Children.Add(resize);
 
             // Create custom panel container with left and right areas

@@ -42,11 +42,11 @@ namespace helengine.ui.Controls {
             // Back button
             var backButton = ThemedButton.Create(
                 text: "← back",
-                normalBg: ThemeManager.Colors.AccentTertiary,
-                normalBorder: ThemeManager.Colors.AccentQuaternary,
-                normalFore: ThemeManager.Colors.TextOnAccent,
-                hoverBg: ThemeManager.Colors.AccentSecondary,
-                hoverBorder: ThemeManager.Colors.AccentPrimary,
+                normalBg: ThemeManager.Colors.AccentSecondary,  // Inactive tab color
+                normalBorder: ThemeManager.Colors.AccentTertiary, // Tab border color
+                normalFore: ThemeManager.Colors.AccentQuaternary, // Inactive tab text
+                hoverBg: ThemeManager.Colors.AccentPrimary, // Active tab color
+                hoverBorder: ThemeManager.Colors.AccentPrimary, // Active tab color
                 hoverFore: ThemeManager.Colors.TextOnAccent
             );
             backButton.HorizontalAlignment = HorizontalAlignment.Left;
@@ -113,12 +113,12 @@ namespace helengine.ui.Controls {
             
             var browseButton = ThemedButton.Create(
                 text: "browse",
-                normalBg: Color.FromRgb(102, 255, 153),
-                normalBorder: Color.FromRgb(255, 255, 102),
-                normalFore: Color.FromRgb(25, 15, 35),
-                hoverBg: Color.FromRgb(255, 102, 204),
-                hoverBorder: Color.FromRgb(102, 255, 255),
-                hoverFore: Color.FromRgb(25, 15, 35)
+                normalBg: ThemeManager.Colors.AccentSecondary,  // Inactive tab color
+                normalBorder: ThemeManager.Colors.AccentTertiary, // Tab border color
+                normalFore: ThemeManager.Colors.AccentQuaternary, // Inactive tab text
+                hoverBg: ThemeManager.Colors.AccentPrimary, // Active tab color
+                hoverBorder: ThemeManager.Colors.AccentPrimary, // Active tab color
+                hoverFore: ThemeManager.Colors.TextOnAccent
             );
             browseButton.Width = 100;
             browseButton.Height = 50;
@@ -165,12 +165,12 @@ namespace helengine.ui.Controls {
             // Create button
             var createButton = ThemedButton.Create(
                 text: "create",
-                normalBg: Color.FromRgb(255, 102, 204),
-                normalBorder: Color.FromRgb(102, 255, 255),
-                normalFore: Color.FromRgb(25, 15, 35),
-                hoverBg: Color.FromRgb(102, 255, 255),
-                hoverBorder: Color.FromRgb(255, 255, 102),
-                hoverFore: Color.FromRgb(25, 15, 35)
+                normalBg: ThemeManager.Colors.AccentSecondary,  // Inactive tab color
+                normalBorder: ThemeManager.Colors.AccentTertiary, // Tab border color
+                normalFore: ThemeManager.Colors.AccentQuaternary, // Inactive tab text
+                hoverBg: ThemeManager.Colors.AccentPrimary, // Active tab color
+                hoverBorder: ThemeManager.Colors.AccentPrimary, // Active tab color
+                hoverFore: ThemeManager.Colors.TextOnAccent
             );
             createButton.Width = 200;
             createButton.Height = 45;

@@ -18,10 +18,11 @@ namespace helengine.ui.Theming {
                 SurfacePrimary = Color.FromRgb(40, 25, 50),
                 SurfaceInput = Color.FromRgb(15, 15, 15),
 
-                AccentPrimary = Color.FromRgb(255, 102, 204),
-                AccentSecondary = Color.FromRgb(102, 255, 255),
-                AccentTertiary = Color.FromRgb(102, 255, 153),
-                AccentQuaternary = Color.FromRgb(255, 255, 102),
+                // Matching tab button colors
+                AccentPrimary = Color.Parse("#c231af"),      // Active tab background (pink/magenta)
+                AccentSecondary = Color.Parse("#8d31c2"),     // Inactive tab background (purple)
+                AccentTertiary = Color.Parse("#4431c2"),      // Tab border color
+                AccentQuaternary = Color.Parse("#cccccc"),    // Inactive tab text
 
                 StateWarning = Color.FromRgb(255, 178, 102),
                 StateDanger = Color.FromRgb(255, 80, 80),

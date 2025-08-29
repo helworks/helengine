@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Controls.Shapes;
+using helengine.ui.Theming;
 
 namespace helengine.ui.Controls {
     public class TabHeader : Canvas {
@@ -147,7 +148,7 @@ namespace helengine.ui.Controls {
             Child = _textBlock;
             CornerRadius = new CornerRadius(4, 4, 0, 0);
             BorderThickness = new Thickness(1, 1, 1, 0);
-            BorderBrush = new SolidColorBrush(Color.Parse("#4431c2"));
+            BorderBrush = ThemeManager.Brushes.AccentTertiary;
             
             PointerPressed += OnPointerPressed;
             PointerMoved += OnPointerMoved;
@@ -190,11 +191,11 @@ namespace helengine.ui.Controls {
         
         private void UpdateAppearance() {
             if (_isActive) {
-                Background = new SolidColorBrush(Color.Parse("#c231af"));
+                Background = ThemeManager.Brushes.AccentPrimary;
                 _textBlock.Foreground = Brushes.White;
             } else {
-                Background = new SolidColorBrush(Color.Parse("#8d31c2"));
-                _textBlock.Foreground = new SolidColorBrush(Color.Parse("#cccccc"));
+                Background = ThemeManager.Brushes.AccentSecondary;
+                _textBlock.Foreground = ThemeManager.Brushes.AccentQuaternary;
             }
         }
     }

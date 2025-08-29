@@ -19,6 +19,9 @@ namespace helengine.ui {
             else if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) {
                 // Desktop setup - show project chooser first
                 ShowProjectChooser(desktop);
+
+            var mainWindow = new MainWindow();
+                mainWindow.Show();
             }
 
             base.OnFrameworkInitializationCompleted();
@@ -73,7 +76,7 @@ namespace helengine.ui {
             
             // TODO: Pass project information to main window
             // For now, just update the title
-            mainWindow.Title = $"HelEngine - {project.DisplayName}";
+            mainWindow.Title = $"helengine - {project.DisplayName}";
             
             // Set the main window and show it
             desktop.MainWindow = mainWindow;

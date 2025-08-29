@@ -122,9 +122,10 @@ namespace helengine.ui.Views {
             Grid.SetRow(titleBar, 0);
             _mainGrid.Children.Add(titleBar);
 
-            // Resize overlay across header + content rows
-            var resize = new ResizeOverlay(rowSpan: 3);
-            Grid.SetRow(resize, 0);
+            // Resize overlay across content row
+            var resize = new ResizeOverlay(rowSpan: 1);
+            Grid.SetRow(resize, 2);
+            resize.ZIndex = 10000; // Ensure it's above content
             _mainGrid.Children.Add(resize);
 
             // Minimalist header (actions)
@@ -177,11 +178,11 @@ namespace helengine.ui.Views {
 
             var newProjectBtn = ThemedButton.Create(
                 text: "create",
-                normalBg: ThemeManager.Colors.AccentTertiary,
-                normalBorder: ThemeManager.Colors.AccentQuaternary,
-                normalFore: ThemeManager.Colors.TextOnAccent,
-                hoverBg: ThemeManager.Colors.AccentPrimary,
-                hoverBorder: ThemeManager.Colors.AccentSecondary,
+                normalBg: ThemeManager.Colors.AccentSecondary,  // Inactive tab color
+                normalBorder: ThemeManager.Colors.AccentTertiary, // Tab border color
+                normalFore: ThemeManager.Colors.AccentQuaternary, // Inactive tab text
+                hoverBg: ThemeManager.Colors.AccentPrimary, // Active tab color
+                hoverBorder: ThemeManager.Colors.AccentPrimary, // Active tab color
                 hoverFore: ThemeManager.Colors.TextOnAccent
             );
             newProjectBtn.Margin = new Thickness(5);
@@ -190,11 +191,11 @@ namespace helengine.ui.Views {
 
             var findProjectBtn = ThemedButton.Create(
                 text: "find",
-                normalBg: ThemeManager.Colors.AccentTertiary,
-                normalBorder: ThemeManager.Colors.AccentQuaternary,
-                normalFore: ThemeManager.Colors.TextOnAccent,
-                hoverBg: ThemeManager.Colors.AccentPrimary,
-                hoverBorder: ThemeManager.Colors.AccentSecondary,
+                normalBg: ThemeManager.Colors.AccentSecondary,  // Inactive tab color
+                normalBorder: ThemeManager.Colors.AccentTertiary, // Tab border color
+                normalFore: ThemeManager.Colors.AccentQuaternary, // Inactive tab text
+                hoverBg: ThemeManager.Colors.AccentPrimary, // Active tab color
+                hoverBorder: ThemeManager.Colors.AccentPrimary, // Active tab color
                 hoverFore: ThemeManager.Colors.TextOnAccent
             );
             findProjectBtn.Margin = new Thickness(5);
