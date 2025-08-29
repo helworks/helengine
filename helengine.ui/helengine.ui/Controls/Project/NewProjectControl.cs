@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using helengine.ui.Models;
 using helengine.ui.Services;
+using helengine.ui.Theming;
 
 namespace helengine.ui.Controls {
     public class NewProjectControl : UserControl {
@@ -56,7 +57,7 @@ namespace helengine.ui.Controls {
             var nameLabel = new TextBlock {
                 Text = "name:",
                 FontSize = 14,
-                Foreground = new SolidColorBrush(Color.FromRgb(102, 255, 255)),
+                Foreground = ThemeManager.Brushes.AccentSecondary,
                 FontFamily = new FontFamily("Consolas"),
                 Margin = new Thickness(0, 10, 0, 5)
             };
@@ -66,15 +67,15 @@ namespace helengine.ui.Controls {
                 Height = 50,
                 MinWidth = 300,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
-                Background = new SolidColorBrush(Color.FromRgb(15, 15, 15)),
-                Foreground = new SolidColorBrush(Color.FromRgb(0, 255, 0)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0, 255, 0)),
+                Background = ThemeManager.Brushes.SurfaceInput,
+                Foreground = ThemeManager.Brushes.InputForegroundPrimary,
+                BorderBrush = ThemeManager.Brushes.InputForegroundPrimary,
                 BorderThickness = new Thickness(3),
                 FontFamily = new FontFamily("Consolas"),
                 FontSize = 20,
                 FontWeight = FontWeight.Bold,
                 Padding = new Thickness(15),
-                CaretBrush = new SolidColorBrush(Color.FromRgb(0, 255, 0)),
+                CaretBrush = ThemeManager.Brushes.InputForegroundPrimary,
                 SelectionBrush = new SolidColorBrush(Color.FromRgb(0, 100, 0)),
                 MaxLength = 50,
                 IsEnabled = true,
@@ -102,7 +103,7 @@ namespace helengine.ui.Controls {
             var pathLabel = new TextBlock {
                 Text = "folder:",
                 FontSize = 14,
-                Foreground = new SolidColorBrush(Color.FromRgb(102, 255, 255)),
+                Foreground = ThemeManager.Brushes.AccentSecondary,
                 FontFamily = new FontFamily("Consolas"),
                 Margin = new Thickness(0, 15, 0, 5)
             };
@@ -127,16 +128,16 @@ namespace helengine.ui.Controls {
 
             _projectPathTextBox = new TextBox {
                 Height = 50,
-                Background = new SolidColorBrush(Color.FromRgb(15, 15, 15)),
-                Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 0)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(255, 255, 0)),
+                Background = ThemeManager.Brushes.SurfaceInput,
+                Foreground = ThemeManager.Brushes.InputForegroundSecondary,
+                BorderBrush = ThemeManager.Brushes.InputForegroundSecondary,
                 BorderThickness = new Thickness(3),
                 FontFamily = new FontFamily("Consolas"),
                 FontSize = 16,
                 FontWeight = FontWeight.Bold,
                 Margin = new Thickness(0, 0, 10, 0),
                 Padding = new Thickness(15),
-                CaretBrush = new SolidColorBrush(Color.FromRgb(255, 255, 0)),
+                CaretBrush = ThemeManager.Brushes.InputForegroundSecondary,
                 SelectionBrush = new SolidColorBrush(Color.FromRgb(100, 100, 0)),
                 IsEnabled = true,
                 Focusable = true,

@@ -5,6 +5,7 @@ using Avalonia.Media;
 using helengine.ui.Controls;
 using helengine.ui.Models;
 using helengine.ui.Services;
+using helengine.ui.Theming;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -13,7 +14,7 @@ namespace helengine.ui.Views {
     public class ProjectChooserWindow : Window {
         private readonly List<Project> _recentProjects = new();
         private readonly ProjectManager _projectManager;
-        
+
         // Components
         private ProjectListControl? _projectListControl;
         private NewProjectControl? _newProjectControl;
@@ -38,8 +39,8 @@ namespace helengine.ui.Views {
             MinHeight = 600;
             CanResize = true;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
-            // 90s-inspired deep purple background
-            Background = new SolidColorBrush(Color.FromRgb(25, 15, 35));
+            // themed background
+            Background = ThemeManager.Brushes.BackgroundPrimary;
         }
 
         private async Task LoadRecentProjectsAsync() {
@@ -47,7 +48,7 @@ namespace helengine.ui.Views {
                 var projects = await _projectManager.LoadProjectsAsync();
                 _recentProjects.Clear();
                 _recentProjects.AddRange(projects);
-                
+
                 // Update UI on UI thread
                 await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => {
                     _projectListControl?.SetProjects(_recentProjects);
@@ -132,7 +133,7 @@ namespace helengine.ui.Views {
         private Panel CreateMinimalistHeader() {
             var panel = new DockPanel {
                 Margin = new Thickness(20),
-                Background = new SolidColorBrush(Color.FromRgb(25, 15, 35))
+                Background = ThemeManager.Brushes.BackgroundPrimary
             };
             panel.LastChildFill = false; // ensure right-docked stack doesn't stretch
 
@@ -141,7 +142,7 @@ namespace helengine.ui.Views {
                 Text = "helengine",
                 FontSize = 24,
                 FontWeight = FontWeight.Bold,
-                Foreground = new SolidColorBrush(Color.FromRgb(255, 102, 204)),
+                Foreground = ThemeManager.Brushes.AccentPrimary,
                 VerticalAlignment = VerticalAlignment.Center,
                 FontFamily = new FontFamily("Consolas")
             };
@@ -158,12 +159,12 @@ namespace helengine.ui.Views {
 
             var newProjectBtn = ThemedButton.Create(
                 text: "create",
-                normalBg: Color.FromRgb(102, 255, 153),
-                normalBorder: Color.FromRgb(255, 255, 102),
-                normalFore: Color.FromRgb(25, 15, 35),
-                hoverBg: Color.FromRgb(255, 102, 204),
-                hoverBorder: Color.FromRgb(102, 255, 255),
-                hoverFore: Color.FromRgb(25, 15, 35)
+                normalBg: ThemeManager.Colors.AccentTertiary,
+                normalBorder: ThemeManager.Colors.AccentQuaternary,
+                normalFore: ThemeManager.Colors.TextOnAccent,
+                hoverBg: ThemeManager.Colors.AccentPrimary,
+                hoverBorder: ThemeManager.Colors.AccentSecondary,
+                hoverFore: ThemeManager.Colors.TextOnAccent
             );
             newProjectBtn.Margin = new Thickness(5);
             newProjectBtn.Click += (s, e) => ShowNewProject();
@@ -171,12 +172,12 @@ namespace helengine.ui.Views {
 
             var findProjectBtn = ThemedButton.Create(
                 text: "find",
-                normalBg: Color.FromRgb(255, 102, 204),
-                normalBorder: Color.FromRgb(102, 255, 255),
-                normalFore: Color.FromRgb(25, 15, 35),
-                hoverBg: Color.FromRgb(102, 255, 255),
-                hoverBorder: Color.FromRgb(255, 255, 102),
-                hoverFore: Color.FromRgb(25, 15, 35)
+                normalBg: ThemeManager.Colors.AccentTertiary,
+                normalBorder: ThemeManager.Colors.AccentQuaternary,
+                normalFore: ThemeManager.Colors.TextOnAccent,
+                hoverBg: ThemeManager.Colors.AccentPrimary,
+                hoverBorder: ThemeManager.Colors.AccentSecondary,
+                hoverFore: ThemeManager.Colors.TextOnAccent
             );
             findProjectBtn.Margin = new Thickness(5);
             findProjectBtn.Click += (s, e) => BrowseProjectRequested?.Invoke(this, EventArgs.Empty);
@@ -196,18 +197,18 @@ namespace helengine.ui.Views {
                 var result = await dialog.ShowAsync(this);
                 if (!string.IsNullOrEmpty(result)) {
                     var project = await _projectManager.AddExistingProjectAsync(result);
-                    
+
                     // Refresh the project list
                     _recentProjects.Clear();
                     _recentProjects.AddRange(await _projectManager.LoadProjectsAsync());
                     _projectListControl?.SetProjects(_recentProjects);
-                    
+
                     return project;
                 }
             } catch (Exception ex) {
                 System.Diagnostics.Debug.WriteLine($"Error adding project: {ex.Message}");
             }
-            
+
             return null;
         }
     }
