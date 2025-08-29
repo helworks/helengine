@@ -2,6 +2,7 @@
 using Avalonia.Controls;
 using Avalonia.Media;
 using helengine.ui.Controls;
+using Avalonia.Platform;
 using System;
 using System.Threading;
 
@@ -22,9 +23,31 @@ namespace helengine.ui.Views {
             // 90s deep purple background
             Background = new SolidColorBrush(Color.FromRgb(25, 15, 35));
 
+            // Hide system titlebar and extend client area
+            SystemDecorations = SystemDecorations.BorderOnly;
+            ExtendClientAreaToDecorationsHint = true;
+            ExtendClientAreaChromeHints = ExtendClientAreaChromeHints.PreferSystemChrome;
+            ExtendClientAreaTitleBarHeightHint = 36;
+
+            // Root layout with TitleBar
+            var root = new Grid();
+            root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            root.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+
+            var titleBar = new TitleBar { Title = "helengine" };
+            Grid.SetRow(titleBar, 0);
+            root.Children.Add(titleBar);
+
+            // Resize overlay covering both rows
+            var resize = new ResizeOverlay(rowSpan: 2);
+            Grid.SetRow(resize, 0);
+            root.Children.Add(resize);
+
             // Create custom panel container with left and right areas
             var panelContainer = new PanelContainer();
-            Content = panelContainer;
+            Grid.SetRow(panelContainer, 1);
+            root.Children.Add(panelContainer);
+            Content = root;
 
             // Left panels (multiple for testing tabs)
             panel = new EditorPanel();

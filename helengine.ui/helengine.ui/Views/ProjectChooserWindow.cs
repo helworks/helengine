@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform;
 using helengine.ui.Controls;
 using helengine.ui.Models;
 using helengine.ui.Services;
@@ -41,6 +42,12 @@ namespace helengine.ui.Views {
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             // themed background
             Background = ThemeManager.Brushes.BackgroundPrimary;
+
+            // Hide system titlebar and extend client area
+            SystemDecorations = SystemDecorations.BorderOnly;
+            ExtendClientAreaToDecorationsHint = true;
+            ExtendClientAreaChromeHints = ExtendClientAreaChromeHints.PreferSystemChrome;
+            ExtendClientAreaTitleBarHeightHint = 36;
         }
 
         private async Task LoadRecentProjectsAsync() {
@@ -106,24 +113,35 @@ namespace helengine.ui.Views {
 
         private void SetupContent() {
             _mainGrid = new Grid();
-            _mainGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto)); // Header
+            _mainGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto)); // TitleBar
+            _mainGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto)); // Header actions
             _mainGrid.RowDefinitions.Add(new RowDefinition(GridLength.Star)); // Content
 
-            // Minimalist header
+            // Custom TitleBar
+            var titleBar = new TitleBar { Title = "helengine" };
+            Grid.SetRow(titleBar, 0);
+            _mainGrid.Children.Add(titleBar);
+
+            // Resize overlay across header + content rows
+            var resize = new ResizeOverlay(rowSpan: 3);
+            Grid.SetRow(resize, 0);
+            _mainGrid.Children.Add(resize);
+
+            // Minimalist header (actions)
             var headerPanel = CreateMinimalistHeader();
-            Grid.SetRow(headerPanel, 0);
+            Grid.SetRow(headerPanel, 1);
             _mainGrid.Children.Add(headerPanel);
 
             // Create components
             _projectListControl = new ProjectListControl();
             _projectListControl.ProjectSelected += OnProjectSelected;
-            Grid.SetRow(_projectListControl, 1);
+            Grid.SetRow(_projectListControl, 2);
             _mainGrid.Children.Add(_projectListControl);
 
             _newProjectControl = new NewProjectControl();
             _newProjectControl.ProjectCreated += OnNewProjectCreated;
             _newProjectControl.BackRequested += OnBackToProjectList;
-            Grid.SetRow(_newProjectControl, 1);
+            Grid.SetRow(_newProjectControl, 2);
             _newProjectControl.IsVisible = false;
             _mainGrid.Children.Add(_newProjectControl);
 
