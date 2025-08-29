@@ -1,7 +1,6 @@
-using System;
 using System.Text.Json.Serialization;
 
-namespace helengine.ui.Models {
+namespace helengine.ui {
     public class Project {
         public string Name { get; set; } = string.Empty;
         public string Path { get; set; } = string.Empty;

@@ -1,7 +1,6 @@
 ﻿using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using helengine.ui.Views;
-using helengine.ui.Models;
 using System;
 using Avalonia.Themes.Fluent;
 

@@ -35,10 +35,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Controls\D3D\MiniCube.fx">
+    <None Update="controls\D3D\MiniCube.fx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Update="Controls\teapot.bin">
+    <None Update="controls\teapot.bin">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

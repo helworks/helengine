@@ -1,12 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text.Json;
-using System.Threading.Tasks;
-using helengine.ui.Models;
 
-namespace helengine.ui.Services {
+namespace helengine.ui.managers {
     public class ProjectManager {
         private readonly string _settingsFolder;
         private readonly string _projectsFilePath;

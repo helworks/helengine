@@ -5,7 +5,6 @@ using Avalonia.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using helengine.ui.Models;
 
 namespace helengine.ui.Controls {
     public class ProjectListControl : UserControl {

@@ -6,9 +6,8 @@ using Avalonia.Media;
 using System;
 using System.IO;
 using System.Linq;
-using helengine.ui.Models;
-using helengine.ui.Services;
 using helengine.ui.Theming;
+using helengine.ui.managers;
 
 namespace helengine.ui.Controls {
     public class NewProjectControl : UserControl {
