@@ -1,9 +1,7 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
- 
 
 namespace helengine.ui.Controls {
     public class ResizeOverlay : Grid {

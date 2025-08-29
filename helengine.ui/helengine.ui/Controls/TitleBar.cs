@@ -94,5 +94,3 @@ namespace helengine.ui.Controls {
         }
     }
 }
-
-

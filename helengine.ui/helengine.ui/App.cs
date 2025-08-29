@@ -3,9 +3,14 @@ using Avalonia.Controls.ApplicationLifetimes;
 using helengine.ui.Views;
 using helengine.ui.Models;
 using System;
+using Avalonia.Themes.Fluent;
 
 namespace helengine.ui {
     public class App : Application {
+        public override void Initialize() {
+            Styles.Add(new FluentTheme());
+        }
+
         public override void OnFrameworkInitializationCompleted() {
             if (ApplicationLifetime is ISingleViewApplicationLifetime browserLifetime) {
                 // Browser/WebAssembly setup

@@ -42,12 +42,12 @@ namespace helengine.ui.Controls {
             // Back button
             var backButton = ThemedButton.Create(
                 text: "← back",
-                normalBg: Color.FromRgb(102, 255, 153),
-                normalBorder: Color.FromRgb(255, 255, 102),
-                normalFore: Color.FromRgb(25, 15, 35),
-                hoverBg: Color.FromRgb(102, 255, 255),
-                hoverBorder: Color.FromRgb(255, 102, 204),
-                hoverFore: Color.FromRgb(25, 15, 35)
+                normalBg: ThemeManager.Colors.AccentTertiary,
+                normalBorder: ThemeManager.Colors.AccentQuaternary,
+                normalFore: ThemeManager.Colors.TextOnAccent,
+                hoverBg: ThemeManager.Colors.AccentSecondary,
+                hoverBorder: ThemeManager.Colors.AccentPrimary,
+                hoverFore: ThemeManager.Colors.TextOnAccent
             );
             backButton.HorizontalAlignment = HorizontalAlignment.Left;
             backButton.Click += (s, e) => BackRequested?.Invoke(this, EventArgs.Empty);
@@ -67,16 +67,16 @@ namespace helengine.ui.Controls {
                 Height = 50,
                 MinWidth = 300,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
-                Background = ThemeManager.Brushes.SurfaceInput,
-                Foreground = ThemeManager.Brushes.InputForegroundPrimary,
-                BorderBrush = ThemeManager.Brushes.InputForegroundPrimary,
+                Background = new SolidColorBrush(Color.FromRgb(15, 15, 15)), // Dark background
+                Foreground = new SolidColorBrush(Color.FromRgb(0, 255, 0)), // Bright green text
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0, 255, 0)), // Green border
                 BorderThickness = new Thickness(3),
                 FontFamily = new FontFamily("Consolas"),
                 FontSize = 20,
                 FontWeight = FontWeight.Bold,
                 Padding = new Thickness(15),
-                CaretBrush = ThemeManager.Brushes.InputForegroundPrimary,
-                SelectionBrush = new SolidColorBrush(Color.FromRgb(0, 100, 0)),
+                CaretBrush = new SolidColorBrush(Color.FromRgb(0, 255, 0)), // Green caret
+                SelectionBrush = new SolidColorBrush(Color.FromRgb(0, 100, 0)), // Dark green selection
                 MaxLength = 50,
                 IsEnabled = true,
                 Focusable = true,
@@ -128,17 +128,17 @@ namespace helengine.ui.Controls {
 
             _projectPathTextBox = new TextBox {
                 Height = 50,
-                Background = ThemeManager.Brushes.SurfaceInput,
-                Foreground = ThemeManager.Brushes.InputForegroundSecondary,
-                BorderBrush = ThemeManager.Brushes.InputForegroundSecondary,
+                Background = new SolidColorBrush(Color.FromRgb(15, 15, 15)), // Dark background
+                Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 0)), // Bright yellow text
+                BorderBrush = new SolidColorBrush(Color.FromRgb(255, 255, 0)), // Yellow border
                 BorderThickness = new Thickness(3),
                 FontFamily = new FontFamily("Consolas"),
                 FontSize = 16,
                 FontWeight = FontWeight.Bold,
                 Margin = new Thickness(0, 0, 10, 0),
                 Padding = new Thickness(15),
-                CaretBrush = ThemeManager.Brushes.InputForegroundSecondary,
-                SelectionBrush = new SolidColorBrush(Color.FromRgb(100, 100, 0)),
+                CaretBrush = new SolidColorBrush(Color.FromRgb(255, 255, 0)), // Yellow caret
+                SelectionBrush = new SolidColorBrush(Color.FromRgb(100, 100, 0)), // Dark yellow selection
                 IsEnabled = true,
                 Focusable = true,
                 IsReadOnly = false,
