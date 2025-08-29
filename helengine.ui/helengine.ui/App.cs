@@ -34,44 +34,22 @@ namespace helengine.ui {
                 projectChooser.Close();
             };
 
-            projectChooser.NewProjectRequested += (sender, e) => {
-                // Mark that a project was selected
-                projectSelected = true;
-                
-                // TODO: Show new project dialog
-                // For now, just create a temporary project
-                var newProject = new Project {
-                    Name = "New Project",
-                    Path = @"C:\Projects\NewProject",
-                    LastOpened = DateTime.Now,
-                    Description = "A new project"
-                };
-                
-                // Open main editor first
-                OpenMainEditor(desktop, newProject);
-                
-                // Then close project chooser
-                projectChooser.Close();
-            };
+            // Note: NewProjectRequested is now handled internally by the window
+            // It will directly call ProjectSelected when a project is created
 
-            projectChooser.BrowseProjectRequested += (sender, e) => {
-                // Mark that a project was selected
-                projectSelected = true;
-                
-                // TODO: Show folder browser dialog
-                // For now, just create a temporary project
-                var browseProject = new Project {
-                    Name = "Browsed Project",
-                    Path = @"C:\Projects\BrowsedProject",
-                    LastOpened = DateTime.Now,
-                    Description = "A project opened via browse"
-                };
-                
-                // Open main editor first
-                OpenMainEditor(desktop, browseProject);
-                
-                // Then close project chooser
-                projectChooser.Close();
+            projectChooser.BrowseProjectRequested += async (sender, e) => {
+                // Show browse project dialog
+                var browseProject = await projectChooser.ShowBrowseProjectDialogAsync();
+                if (browseProject != null) {
+                    // Mark that a project was selected
+                    projectSelected = true;
+                    
+                    // Open main editor first
+                    OpenMainEditor(desktop, browseProject);
+                    
+                    // Then close project chooser
+                    projectChooser.Close();
+                }
             };
 
             projectChooser.Closed += (sender, e) => {

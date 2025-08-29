@@ -1,13 +1,20 @@
 using System;
+using System.Text.Json.Serialization;
 
 namespace helengine.ui.Models {
     public class Project {
         public string Name { get; set; } = string.Empty;
         public string Path { get; set; } = string.Empty;
         public DateTime LastOpened { get; set; }
+        public DateTime Created { get; set; }
+        public int TimesOpened { get; set; } = 0;
         public string Description { get; set; } = string.Empty;
+        public string Version { get; set; } = "1.0.0";
         
+        [JsonIgnore]
         public string DisplayName => !string.IsNullOrEmpty(Name) ? Name : System.IO.Path.GetFileName(Path);
+        
+        [JsonIgnore]
         public string RelativeTime => GetRelativeTime(LastOpened);
         
         private string GetRelativeTime(DateTime dateTime) {
