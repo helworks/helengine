@@ -20,8 +20,6 @@ namespace helengine.ui {
                 // Desktop setup - show project chooser first
                 ShowProjectChooser(desktop);
 
-            var mainWindow = new MainWindow();
-                mainWindow.Show();
             }
 
             base.OnFrameworkInitializationCompleted();

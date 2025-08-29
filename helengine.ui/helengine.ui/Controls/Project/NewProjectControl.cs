@@ -32,12 +32,24 @@ namespace helengine.ui.Controls {
                 Padding = new Thickness(20)
             };
 
-            var panel = new StackPanel {
-                Margin = new Thickness(20),
-                Spacing = 20,
-                MaxWidth = 600,
-                HorizontalAlignment = HorizontalAlignment.Center
+            // Create a responsive grid layout
+            var mainGrid = new Grid {
+                Margin = new Thickness(40),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Center,
+                MaxWidth = 1200 // Maximum width for very large screens
             };
+
+            // Define columns: 10% margin, 80% content, 10% margin (90% total content)
+            mainGrid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star))); // Left margin
+            mainGrid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(8, GridUnitType.Star))); // Content (80% of total)
+            mainGrid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star))); // Right margin
+
+            var panel = new StackPanel {
+                Spacing = 20,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            Grid.SetColumn(panel, 1); // Place in content column
 
             // Back button
             var backButton = ThemedButton.Create(
@@ -55,7 +67,7 @@ namespace helengine.ui.Controls {
 
             // Project name section
             var nameLabel = new TextBlock {
-                Text = "name:",
+                Text = "name",
                 FontSize = 14,
                 Foreground = ThemeManager.Brushes.AccentSecondary,
                 FontFamily = new FontFamily("Consolas"),
@@ -65,18 +77,17 @@ namespace helengine.ui.Controls {
 
             _projectNameTextBox = new TextBox {
                 Height = 50,
-                MinWidth = 300,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                Background = new SolidColorBrush(Color.FromRgb(15, 15, 15)), // Dark background
-                Foreground = new SolidColorBrush(Color.FromRgb(0, 255, 0)), // Bright green text
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0, 255, 0)), // Green border
+                HorizontalAlignment = HorizontalAlignment.Stretch, // Fill available width
+                Background = ThemeManager.Brushes.SurfacePrimary, // Use theme surface
+                Foreground = ThemeManager.Brushes.AccentSecondary, // Cyan text to match theme
+                BorderBrush = ThemeManager.Brushes.AccentSecondary, // Cyan border
                 BorderThickness = new Thickness(3),
                 FontFamily = new FontFamily("Consolas"),
-                FontSize = 20,
+                FontSize = 14,
                 FontWeight = FontWeight.Bold,
-                Padding = new Thickness(15),
-                CaretBrush = new SolidColorBrush(Color.FromRgb(0, 255, 0)), // Green caret
-                SelectionBrush = new SolidColorBrush(Color.FromRgb(0, 100, 0)), // Dark green selection
+                Padding = new Thickness(15, 5),
+                CaretBrush = ThemeManager.Brushes.AccentSecondary, // Cyan caret
+                SelectionBrush = ThemeManager.Brushes.AccentTertiary, // Purple selection
                 MaxLength = 50,
                 IsEnabled = true,
                 Focusable = true,
@@ -84,24 +95,14 @@ namespace helengine.ui.Controls {
                 AcceptsTab = false,
                 TextWrapping = TextWrapping.NoWrap,
                 VerticalContentAlignment = VerticalAlignment.Center,
-                Text = "MyAwesomeProject"
+                Watermark = "project name"
             };
             _projectNameTextBox.TextChanged += OnProjectNameChanged;
-            _projectNameTextBox.GotFocus += (s, e) => {
-                if (_projectNameTextBox.Text == "MyAwesomeProject") {
-                    _projectNameTextBox.SelectAll();
-                }
-            };
-            _projectNameTextBox.LostFocus += (s, e) => {
-                if (string.IsNullOrWhiteSpace(_projectNameTextBox.Text)) {
-                    _projectNameTextBox.Text = "MyAwesomeProject";
-                }
-            };
             panel.Children.Add(_projectNameTextBox);
 
             // Project path section
             var pathLabel = new TextBlock {
-                Text = "folder:",
+                Text = "folder",
                 FontSize = 14,
                 Foreground = ThemeManager.Brushes.AccentSecondary,
                 FontFamily = new FontFamily("Consolas"),
@@ -109,7 +110,9 @@ namespace helengine.ui.Controls {
             };
             panel.Children.Add(pathLabel);
 
-            var pathPanel = new DockPanel();
+            var pathPanel = new DockPanel {
+                HorizontalAlignment = HorizontalAlignment.Stretch // Fill available width
+            };
             
             var browseButton = ThemedButton.Create(
                 text: "browse",
@@ -122,23 +125,27 @@ namespace helengine.ui.Controls {
             );
             browseButton.Width = 100;
             browseButton.Height = 50;
+            browseButton.Padding = new Thickness(0); // Remove default padding for perfect centering
+            browseButton.HorizontalContentAlignment = HorizontalAlignment.Center;
+            browseButton.VerticalContentAlignment = VerticalAlignment.Center;
             browseButton.Click += OnBrowseClick;
             DockPanel.SetDock(browseButton, Dock.Right);
             pathPanel.Children.Add(browseButton);
 
             _projectPathTextBox = new TextBox {
                 Height = 50,
-                Background = new SolidColorBrush(Color.FromRgb(15, 15, 15)), // Dark background
-                Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 0)), // Bright yellow text
-                BorderBrush = new SolidColorBrush(Color.FromRgb(255, 255, 0)), // Yellow border
+                Background = ThemeManager.Brushes.SurfacePrimary, // Use theme surface
+                Foreground = ThemeManager.Brushes.AccentSecondary, // Cyan text to match theme
+                BorderBrush = ThemeManager.Brushes.AccentSecondary, // Cyan border
                 BorderThickness = new Thickness(3),
                 FontFamily = new FontFamily("Consolas"),
-                FontSize = 16,
+                FontSize = 14 ,
                 FontWeight = FontWeight.Bold,
                 Margin = new Thickness(0, 0, 10, 0),
-                Padding = new Thickness(15),
-                CaretBrush = new SolidColorBrush(Color.FromRgb(255, 255, 0)), // Yellow caret
-                SelectionBrush = new SolidColorBrush(Color.FromRgb(100, 100, 0)), // Dark yellow selection
+                Padding = new Thickness(15, 5),
+                CaretBrush = ThemeManager.Brushes.AccentSecondary, // Cyan caret
+                SelectionBrush = ThemeManager.Brushes.AccentTertiary, // Purple selection
+                HorizontalAlignment = HorizontalAlignment.Stretch, // Fill available space
                 IsEnabled = true,
                 Focusable = true,
                 IsReadOnly = false,
@@ -176,7 +183,10 @@ namespace helengine.ui.Controls {
             createButton.Height = 45;
             createButton.FontSize = 14;
             createButton.HorizontalAlignment = HorizontalAlignment.Center;
-            createButton.Margin = new Thickness(0, 20);
+            createButton.Margin = new Thickness(0, 30, 0, 20);
+            createButton.Padding = new Thickness(0); // Remove default padding for perfect centering
+            createButton.HorizontalContentAlignment = HorizontalAlignment.Center;
+            createButton.VerticalContentAlignment = VerticalAlignment.Center;
             createButton.IsEnabled = false;
             createButton.Tag = "CreateButton";
             createButton.Click += OnCreateProject;
@@ -187,7 +197,8 @@ namespace helengine.ui.Controls {
             var defaultProjectsPath = Path.Combine(documentsPath, "helengine projects");
             _projectPathTextBox.Text = defaultProjectsPath;
 
-            scrollViewer.Content = panel;
+            mainGrid.Children.Add(panel);
+            scrollViewer.Content = mainGrid;
             Content = scrollViewer;
         }
 
@@ -197,7 +208,7 @@ namespace helengine.ui.Controls {
         }
 
         public void ClearFields() {
-            if (_projectNameTextBox != null) _projectNameTextBox.Text = "MyAwesomeProject";
+            if (_projectNameTextBox != null) _projectNameTextBox.Text = "";
             if (_errorText != null) _errorText.IsVisible = false;
         }
 
@@ -305,14 +316,19 @@ namespace helengine.ui.Controls {
         }
 
         private void EnableCreateButton(bool enabled) {
-            if (Content is ScrollViewer scrollViewer && 
-                scrollViewer.Content is StackPanel stackPanel) {
-                
-                var createButton = stackPanel.Children
-                    .OfType<Button>()
-                    .FirstOrDefault(b => b.Tag?.ToString() == "CreateButton");
-                if (createButton != null) {
-                    createButton.IsEnabled = enabled;
+            if (Content is ScrollViewer scrollViewer &&
+                scrollViewer.Content is Grid mainGrid) {
+
+                // Find the panel in the main grid
+                var panel = mainGrid.Children.FirstOrDefault(c => c is StackPanel) as StackPanel;
+                if (panel != null) {
+                    var createButton = panel.Children
+                        .OfType<Button>()
+                        .FirstOrDefault(b => b.Tag?.ToString() == "CreateButton");
+
+                    if (createButton != null) {
+                        createButton.IsEnabled = enabled;
+                    }
                 }
             }
         }
