@@ -122,12 +122,6 @@ namespace helengine.ui.Views {
             Grid.SetRow(titleBar, 0);
             _mainGrid.Children.Add(titleBar);
 
-            // Resize overlay across content row
-            var resize = new ResizeOverlay(rowSpan: 1);
-            Grid.SetRow(resize, 2);
-            resize.ZIndex = 10000; // Ensure it's above content
-            _mainGrid.Children.Add(resize);
-
             // Minimalist header (actions)
             var headerPanel = CreateMinimalistHeader();
             Grid.SetRow(headerPanel, 1);

@@ -24,6 +24,7 @@ namespace helengine.ui.Views {
             Background = new SolidColorBrush(Color.FromRgb(25, 15, 35));
 
             // Hide system titlebar and extend client area
+            CanResize = true;
             SystemDecorations = SystemDecorations.BorderOnly;
             ExtendClientAreaToDecorationsHint = true;
             ExtendClientAreaChromeHints = ExtendClientAreaChromeHints.PreferSystemChrome;
@@ -37,12 +38,6 @@ namespace helengine.ui.Views {
             var titleBar = new TitleBar { Title = "helengine" };
             Grid.SetRow(titleBar, 0);
             root.Children.Add(titleBar);
-
-            // Resize overlay covering content row
-            var resize = new ResizeOverlay(rowSpan: 1);
-            Grid.SetRow(resize, 1);
-            resize.ZIndex = 10000; // Ensure it's above content
-            root.Children.Add(resize);
 
             // Create custom panel container with left and right areas
             var panelContainer = new PanelContainer();
