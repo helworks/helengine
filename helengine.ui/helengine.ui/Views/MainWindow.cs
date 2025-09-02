@@ -15,10 +15,14 @@ namespace helengine.ui.Views {
         private Thread? thread;
         private bool closed;
 
-        public MainWindow() {
+        private EditorCore core;
+
+        public MainWindow(Project project) {
             Title = "helengine - main editor";
             Width = 1280;
             Height = 720;
+
+            core = new EditorCore(project);
 
             // 90s deep purple background
             Background = new SolidColorBrush(Color.FromRgb(25, 15, 35));

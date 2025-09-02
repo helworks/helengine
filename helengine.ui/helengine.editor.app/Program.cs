@@ -3,7 +3,7 @@ namespace helengine.editor.app {
         [STAThread]
         static void Main() {
             ApplicationConfiguration.Initialize();
-            Application.Run(new ProjectView());
+            Application.Run(new MainForm());
         }
     }
 }

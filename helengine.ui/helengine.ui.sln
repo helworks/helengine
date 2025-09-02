@@ -32,6 +32,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.core.windows", ".
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.sharpdx", "..\engine\helengine.sharpdx\helengine.sharpdx.csproj", "{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.editor.app", "helengine.editor.app\helengine.editor.app.csproj", "{3C74754D-F82C-4A00-D665-AF82B29B7064}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.editor.launcher", "helengine.editor.launcher\helengine.editor.launcher.csproj", "{A76CD920-6961-4008-B118-462687142945}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -78,6 +82,14 @@ Global
 		{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3C74754D-F82C-4A00-D665-AF82B29B7064}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C74754D-F82C-4A00-D665-AF82B29B7064}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C74754D-F82C-4A00-D665-AF82B29B7064}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C74754D-F82C-4A00-D665-AF82B29B7064}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A76CD920-6961-4008-B118-462687142945}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A76CD920-6961-4008-B118-462687142945}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A76CD920-6961-4008-B118-462687142945}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A76CD920-6961-4008-B118-462687142945}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

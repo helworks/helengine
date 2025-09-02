@@ -38,8 +38,5 @@
     <None Update="controls\D3D\MiniCube.fx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Update="controls\teapot.bin">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 </Project>

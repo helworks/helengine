@@ -1,8 +1,13 @@
-﻿namespace helengine {
+﻿using helengine.ui;
+
+namespace helengine {
     public class EditorCore : Core {
         public ObjectManager EditorObjectManager { get; private set; }
 
-        public EditorCore() {
+        public Project Project { get; private set; }
+
+        public EditorCore(Project project) {
+            Project = project;
             EditorObjectManager = new ObjectManager();
         }
 

@@ -2,9 +2,9 @@
     public class DockableEntity : EditorEntity {
         bool isDragging;
 
-        private SpriteComponent titleBar;
-        private SpriteComponent areaSprite;
-        private int2 size;
+        SpriteComponent titleBar;
+        SpriteComponent areaSprite;
+        int2 size;
 
         public int2 Size {
             get { return size; }

@@ -69,7 +69,7 @@ namespace helengine.ui {
         }
 
         private void OpenMainEditor(IClassicDesktopStyleApplicationLifetime desktop, Project project) {
-            var mainWindow = new MainWindow();
+            var mainWindow = new MainWindow(project);
             
             // TODO: Pass project information to main window
             // For now, just update the title
