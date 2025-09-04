@@ -4,16 +4,20 @@ using helengine.sharpdx;
 using Nucleus.Platform.Windows.Controls;
 
 namespace helengine.editor.launcher {
-    public partial class LauncherForm : Form {
+    public partial class LauncherForm : ResizableForm {
         private TitleBarControl titleBarControl;
         private Thread thread;
         private bool closed;
 
         // UI entities using helengine.core components
         private Entity titleEntity;
-        private ButtonUIElements createProjectButton;
-        private ButtonUIElements browseProjectButton;
+        private Entity createProjectButtonEntity;
+        private Entity browseProjectButtonEntity;
+        private ButtonComponent createProjectButton;
+        private ButtonComponent browseProjectButton;
         private FontAsset uiFont;
+        private Entity sceneCamEntity;
+        private CameraComponent sceneCamera;
 
         // Button constants
         private const int ButtonWidth = 300;
@@ -22,6 +26,15 @@ namespace helengine.editor.launcher {
 
         public LauncherForm() {
             InitializeComponent();
+            
+            // Set minimum size for the launcher
+            MinimumSize = new Size(600, 400);
+            
+            // Set initial size if not already set
+            if (Size.Width < MinimumSize.Width || Size.Height < MinimumSize.Height) {
+                Size = new Size(800, 600);
+            }
+            
             initialize();
         }
 
@@ -41,100 +54,82 @@ namespace helengine.editor.launcher {
             Font font = new Font("Consolas", 16, FontStyle.Regular);
             uiFont = GDIFontProcessor.ImportFont(font);
 
-            var colors = ThemeManager.Colors;
-            
             // Calculate center positions
             int centerX = ClientSize.Width / 2;
             int centerY = ClientSize.Height / 2;
 
             // Create UI camera for rendering UI elements
-            Entity sceneCam = new Entity();
-            CameraComponent compCamera = new CameraComponent();
-            compCamera.LayerMask = 0b1000000000000000; // UI layer
-            compCamera.Viewport = new float4(0, 0, ClientSize.Width, ClientSize.Height);
-            sceneCam.InitComponents();
-            sceneCam.AddComponent(compCamera);
+            sceneCamEntity = new Entity();
+            sceneCamera = new CameraComponent();
+            sceneCamera.LayerMask = 0b1000000000000000; // UI layer
+            sceneCamera.Viewport = new float4(0, 0, ClientSize.Width, ClientSize.Height);
+            sceneCamEntity.InitComponents();
+            sceneCamEntity.AddComponent(sceneCamera);
 
-            // Title
+            // Title (top-left position)
             titleEntity = new Entity();
             titleEntity.LayerMask = 0b1000000000000000;
-            titleEntity.Position = new float3(centerX - 100, centerY - 150, 0);
+            titleEntity.Position = new float3(20, 30, 0); // Top-left with padding
             titleEntity.Enabled = true;
             titleEntity.InitComponents();
 
             var titleText = new TextComponent();
             titleText.Text = "helengine";
-            titleText.Color = new byte4(colors.TextPrimary.X, colors.TextPrimary.Y, colors.TextPrimary.Z, colors.TextPrimary.W);
+            titleText.Color = ThemeManager.Colors.TextPrimary;
             titleText.Size = new int2(200, 40);
             titleText.RenderOrder2D = 1;
             titleText.Font = uiFont;
             titleEntity.AddComponent(titleText);
 
-            // Create Project Button using ButtonUtility
+            // Create Project Button using ButtonComponent
             float3 createButtonPos = new float3(centerX - ButtonWidth/2, centerY - ButtonHeight/2 - ButtonSpacing, 0);
-            byte4 buttonBgColor = new byte4(colors.AccentSecondary.X, colors.AccentSecondary.Y, colors.AccentSecondary.Z, colors.AccentSecondary.W);
-            byte4 textOnAccentColor = new byte4(colors.TextOnAccent.X, colors.TextOnAccent.Y, colors.TextOnAccent.Z, colors.TextOnAccent.W);
             
-            createProjectButton = ButtonUtility.CreateButton(
+            createProjectButtonEntity = new Entity();
+            createProjectButtonEntity.LayerMask = 0b1000000000000000;
+            createProjectButtonEntity.Position = createButtonPos;
+            createProjectButtonEntity.Enabled = true;
+            createProjectButtonEntity.InitComponents();
+
+            createProjectButton = new ButtonComponent(
                 "create project",
-                createButtonPos,
                 new int2(ButtonWidth, ButtonHeight),
                 uiFont,
-                buttonBgColor,
-                textOnAccentColor,
                 OnCreateProjectClick
             );
+            createProjectButtonEntity.AddComponent(createProjectButton);
 
-            // Browse Project Button using ButtonUtility
+            // Browse Project Button using ButtonComponent
             float3 browseButtonPos = new float3(centerX - ButtonWidth/2, centerY + ButtonHeight/2 + ButtonSpacing, 0);
             
-            browseProjectButton = ButtonUtility.CreateButton(
+            browseProjectButtonEntity = new Entity();
+            browseProjectButtonEntity.LayerMask = 0b1000000000000000;
+            browseProjectButtonEntity.Position = browseButtonPos;
+            browseProjectButtonEntity.Enabled = true;
+            browseProjectButtonEntity.InitComponents();
+
+            browseProjectButton = new ButtonComponent(
                 "browse project",
-                browseButtonPos,
                 new int2(ButtonWidth, ButtonHeight),
                 uiFont,
-                buttonBgColor,
-                textOnAccentColor,
                 OnBrowseProjectClick
             );
+            browseProjectButtonEntity.AddComponent(browseProjectButton);
         }
 
-        private void OnCreateProjectClick(int2 relPos, int2 delta, PointerInteraction state) {
-            var colors = ThemeManager.Colors;
-            byte4 hoverColor = new byte4(colors.AccentPrimary.X, colors.AccentPrimary.Y, colors.AccentPrimary.Z, colors.AccentPrimary.W);
-            byte4 normalColor = new byte4(colors.AccentSecondary.X, colors.AccentSecondary.Y, colors.AccentSecondary.Z, colors.AccentSecondary.W);
-
-            if (state == PointerInteraction.Release) {
-                // Handle create project action
-                MessageBox.Show("Create Project clicked!", "helengine", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                // Reset to normal color after click
-                ButtonUtility.SetButtonNormalState(createProjectButton, normalColor);
-            } else if (state == PointerInteraction.Hover) {
-                // Change button color on hover
-                ButtonUtility.SetButtonHoverState(createProjectButton, hoverColor);
-            } else if (state == PointerInteraction.None) {
-                // Reset to normal color when not hovering
-                ButtonUtility.SetButtonNormalState(createProjectButton, normalColor);
+        private void UpdateCameraViewport() {
+            if (sceneCamera != null) {
+                sceneCamera.Viewport = new float4(0, 0, ClientSize.Width, ClientSize.Height);
             }
         }
 
-        private void OnBrowseProjectClick(int2 relPos, int2 delta, PointerInteraction state) {
-            var colors = ThemeManager.Colors;
-            byte4 hoverColor = new byte4(colors.AccentPrimary.X, colors.AccentPrimary.Y, colors.AccentPrimary.Z, colors.AccentPrimary.W);
-            byte4 normalColor = new byte4(colors.AccentSecondary.X, colors.AccentSecondary.Y, colors.AccentSecondary.Z, colors.AccentSecondary.W);
+        private void OnCreateProjectClick() {
+            // Handle create project action
+            MessageBox.Show("Create Project clicked!", "helengine", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
 
-            if (state == PointerInteraction.Release) {
-                // Handle browse project action
-                MessageBox.Show("Browse Project clicked!", "helengine", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                // Reset to normal color after click
-                ButtonUtility.SetButtonNormalState(browseProjectButton, normalColor);
-            } else if (state == PointerInteraction.Hover) {
-                // Change button color on hover
-                ButtonUtility.SetButtonHoverState(browseProjectButton, hoverColor);
-            } else if (state == PointerInteraction.None) {
-                // Reset to normal color when not hovering
-                ButtonUtility.SetButtonNormalState(browseProjectButton, normalColor);
-            }
+        private void OnBrowseProjectClick() {
+            // Handle browse project action
+            MessageBox.Show("Browse Project clicked!", "helengine", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void initialize() {
@@ -192,19 +187,28 @@ namespace helengine.editor.launcher {
                 titleBarControl.Width = this.Width;
             }
 
+            // Notify render manager about resize for swap chain recreation
+            if (Core.Instance?.RenderManager != null) {
+                Core.Instance.RenderManager.OnWindowResize(this.Handle, ClientSize.Width, ClientSize.Height);
+            }
+
+            // Update camera viewport for proper rendering
+            UpdateCameraViewport();
+
             // Recalculate UI positions on resize
             if (titleEntity != null) {
                 int centerX = ClientSize.Width / 2;
                 int centerY = ClientSize.Height / 2;
                 
-                titleEntity.Position = new float3(centerX - 100, centerY - 150, 0);
+                // Title stays in top-left
+                titleEntity.Position = new float3(20, 30, 0);
                 
-                // Update button positions using ButtonUtility
+                // Update button positions using ButtonComponent
                 float3 createButtonPos = new float3(centerX - ButtonWidth/2, centerY - ButtonHeight/2 - ButtonSpacing, 0);
                 float3 browseButtonPos = new float3(centerX - ButtonWidth/2, centerY + ButtonHeight/2 + ButtonSpacing, 0);
                 
-                ButtonUtility.UpdateButtonPosition(createProjectButton, createButtonPos);
-                ButtonUtility.UpdateButtonPosition(browseProjectButton, browseButtonPos);
+                createProjectButton?.UpdatePosition(createButtonPos);
+                browseProjectButton?.UpdatePosition(browseButtonPos);
             }
         }
     }

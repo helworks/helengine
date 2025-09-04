@@ -1,4 +1,4 @@
-namespace helengine.editor {
+namespace helengine {
     /// <summary>
     /// Theme manager
     /// </summary>

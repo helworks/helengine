@@ -1,5 +1,5 @@
 ﻿namespace helengine {
-    public class Entity {
+    public class Entity : IDisposable {
         bool isEnabled;
         bool isStatic;
         float3 position;
@@ -136,6 +136,9 @@
                     Children[i].ParentStaticChange(newEnabled);
                 }
             }
+        }
+
+        public void Dispose() {
         }
     }
 }

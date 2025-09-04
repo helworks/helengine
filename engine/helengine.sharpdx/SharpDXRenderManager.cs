@@ -33,6 +33,9 @@ namespace helengine.sharpdx {
             windows = new List<SharpDXWindow>();
             windowsDict = new Dictionary<nint, SharpDXWindow>();
 
+            // Subscribe to resize events
+            WindowResized += OnWindowResized;
+
             var factory = new DxgiFactory1();
 
             Adapter = factory.GetAdapter1(0);
@@ -170,6 +173,47 @@ namespace helengine.sharpdx {
                 // Prevent window scaling
                 factory.MakeWindowAssociation(handle, WindowAssociationFlags.IgnoreAll);
             }
+        }
+
+        /// <summary>
+        /// Handles window resize by disposing and recreating swap chain and related resources
+        /// </summary>
+        void OnWindowResized(IntPtr handle, int newWidth, int newHeight) {
+            if (!windowsDict.TryGetValue(handle, out SharpDXWindow? window)) {
+                return; // Window not found
+            }
+
+            // Dispose current resources
+            window.RenderTarget?.Dispose();
+            window.DepthView?.Dispose();
+
+            // Update window size
+            window.Width = newWidth;
+            window.Height = newHeight;
+
+            // Resize the swap chain
+            window.Chain.ResizeBuffers(2, newWidth, newHeight, Format.B8G8R8A8_UNorm, SwapChainFlags.AllowModeSwitch);
+
+            // Recreate render target view
+            using (var backBuffer = window.Chain.GetBackBuffer<Texture2D>(0)) {
+                window.RenderTarget = new RenderTargetView(Device, backBuffer);
+            }
+
+            // Recreate depth buffer
+            var depthBuffer = new Texture2D(Device, new Texture2DDescription() {
+                Format = Format.D32_Float_S8X24_UInt,
+                ArraySize = 1,
+                MipLevels = 1,
+                Width = newWidth,
+                Height = newHeight,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.DepthStencil,
+                CpuAccessFlags = CpuAccessFlags.None,
+                OptionFlags = ResourceOptionFlags.None
+            });
+
+            window.DepthView = new DepthStencilView(Device, depthBuffer);
         }
 
         public override RuntimeTexture BuildTextureFromRaw(TextureAsset data) {

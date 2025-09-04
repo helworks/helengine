@@ -6,6 +6,9 @@
             Parent = entity;
         }
 
+        public virtual void ComponentRemoved(Entity entity) {
+        }
+
         public virtual void ParentEnabledChange(bool newEnabled) {
         }
 

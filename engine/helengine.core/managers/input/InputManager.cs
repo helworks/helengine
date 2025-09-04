@@ -3,7 +3,8 @@
 public abstract class InputManager {
     public Keyboard Keyboard { get; protected set; }
     public Mouse Mouse { get; protected set; }
-    public IInteractable2D Highlighted { get; set; }
+    public IInteractable2D? Highlighted { get; private set; }
+    public IInteractable2D? Hovering { get; private set; }
 
     protected Core core;
 
@@ -29,6 +30,7 @@ public abstract class InputManager {
             interaction = PointerInteraction.Press;
         }
 
+        bool overNothing = true;
         for (int i = 0; i < interactables.Count; i++) {
             IInteractable2D interactable = interactables[i];
 
@@ -38,10 +40,33 @@ public abstract class InputManager {
             float4 rect = new float4(pos.X, pos.Y, size.X, size.Y);
 
             if (rect.Contains(mouseState.X, mouseState.Y)) {
+                overNothing = false;
+
                 if (interaction == PointerInteraction.Press) {
                     Highlighted = interactable;
+                } else {
+                    if (Hovering != null && Hovering != interactable) {
+                        Hovering.OnCursor(new int2(mouseState.X, mouseState.Y), new int2(0, 0), PointerInteraction.None);
+                    }
+                    Hovering = interactable;
                 }
             }
+        }
+
+        if (overNothing && Hovering != null) {
+            Hovering.OnCursor(new int2(mouseState.X, mouseState.Y), new int2(0, 0), PointerInteraction.None);
+            Hovering = null;
+        }
+
+        if (Hovering != null && interaction == PointerInteraction.None) {
+            int deltaX = mouseState.X - lastMouseState.X;
+            int deltaY = mouseState.Y - lastMouseState.Y;
+            if (interaction == PointerInteraction.None &&
+                (Math.Abs(deltaX) > 0 ||
+                Math.Abs(deltaY) > 0)) {
+                Hovering.OnCursor(new int2(mouseState.X, mouseState.Y), new int2(deltaX, deltaY), PointerInteraction.Hover);
+            }
+
         }
 
         if (Highlighted != null) {
