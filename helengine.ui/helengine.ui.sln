@@ -36,6 +36,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.editor.app", "hel
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.editor.launcher", "helengine.editor.launcher\helengine.editor.launcher.csproj", "{A76CD920-6961-4008-B118-462687142945}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "nucleusdotnet", "nucleusdotnet", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NucleusDotNet", "..\submodules\nucleusdotnet\nucleus-dotnet\nucleus-dotnet\NucleusDotNet.csproj", "{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NucleusDotNet.Windows.NETCore", "..\submodules\nucleusdotnet\nucleus-dotnet\nucleus-dotnet-windows\NucleusDotNet.Windows.NETCore.csproj", "{74378338-FC71-7225-5E0A-67848ABA1916}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -90,6 +96,14 @@ Global
 		{A76CD920-6961-4008-B118-462687142945}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A76CD920-6961-4008-B118-462687142945}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A76CD920-6961-4008-B118-462687142945}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{74378338-FC71-7225-5E0A-67848ABA1916}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{74378338-FC71-7225-5E0A-67848ABA1916}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{74378338-FC71-7225-5E0A-67848ABA1916}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{74378338-FC71-7225-5E0A-67848ABA1916}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -102,6 +116,8 @@ Global
 		{7AD1DAC8-7FBE-49D5-8614-7321233DB82E} = {5DC288B9-64DA-44D7-B076-2695B4C19D13}
 		{0BD61AD0-ADF2-4CB7-B8C8-05C805CED6C0} = {0B0188C9-57AB-47CA-818B-ACFCA79A44F5}
 		{DF08A1E1-3F05-4F30-A430-329FBE385968} = {0B0188C9-57AB-47CA-818B-ACFCA79A44F5}
+		{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{74378338-FC71-7225-5E0A-67848ABA1916} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {83CB65B8-011F-4ED7-BCD3-A6CFA935EF7E}

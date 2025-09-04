@@ -6,7 +6,7 @@
             get { return renderOrder2D; }
             set {
                 if (renderOrder2D != value) {
-                    if (Parent.Enabled) {
+                    if (Parent != null && Parent.Enabled) {
                         Core.Instance.ObjectManager.RemoveFromRender2D(this);
                         renderOrder2D = value;
                         Core.Instance.ObjectManager.RegisterForRender2D(this);

@@ -17,6 +17,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Theming\**" />
+    <EmbeddedResource Remove="Theming\**" />
+    <None Remove="Theming\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="distrohelena.nucleus.net" />
     <PackageReference Include="distrohelena.nucleus.net.windows" />
   </ItemGroup>
@@ -27,10 +33,6 @@
     <ProjectReference Include="..\..\engine\helengine.editor.fbximporter\helengine.editor.assimp.csproj" />
     <ProjectReference Include="..\..\engine\helengine.editor\helengine.editor.csproj" />
     <ProjectReference Include="..\..\engine\helengine.sharpdx\helengine.sharpdx.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Theming\" />
   </ItemGroup>
 
 </Project>

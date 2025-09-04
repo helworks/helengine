@@ -121,6 +121,10 @@ namespace helengine.sharpdx {
         }
 
         internal void DrawSprite(ISpriteDrawable2D drawable) {
+            if (drawable.Texture == null) {
+                return;
+            }
+
             var context = Device.ImmediateContext;
             SharpDXTextureRuntimeData data = (SharpDXTextureRuntimeData)drawable.Texture;
 

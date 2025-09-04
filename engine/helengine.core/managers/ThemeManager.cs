@@ -1,6 +1,6 @@
 namespace helengine.editor {
     /// <summary>
-    /// Theme manager for the WinForms editor application
+    /// Theme manager
     /// </summary>
     public static class ThemeManager {
         public static event EventHandler? ThemeChanged;
