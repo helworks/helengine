@@ -20,7 +20,7 @@ namespace helengine {
             int2 size,
             FontAsset font,
             Action? onClickAction = null) {
-            
+
             this.text = text;
             this.size = size;
             this.font = font;
@@ -52,15 +52,17 @@ namespace helengine {
             textEntity.Enabled = true;
             textEntity.InitComponents();
 
+            entity.InitChildren();
+            entity.AddChild(textEntity);
+
             // Center text on button
             int textWidth = text.Length * 10; // Rough estimation
             int textHeight = 20;
-            float3 textOffset = new float3(
-                entity.Position.X + (size.X - textWidth) / 2,
-                entity.Position.Y + (size.Y - textHeight) / 2,
-                entity.Position.Z + 0.1f // Slightly forward
+            textEntity.Position = new float3(
+                (size.X - textWidth) / 2,
+                (size.Y - textHeight) / 2,
+                0.1f
             );
-            textEntity.Position = textOffset;
 
             // Create text component
             textComponent = new TextComponent();
@@ -124,45 +126,5 @@ namespace helengine {
                 spriteComponent.Color = ThemeManager.Colors.AccentSecondary;
             }
         }
-
-        public void UpdatePosition(float3 newPosition) {
-            if (Parent != null) {
-                Parent.Position = newPosition;
-
-                // Update text position to stay centered
-                if (textEntity != null) {
-                    int textWidth = text.Length * 10;
-                    int textHeight = 20;
-                    float3 textOffset = new float3(
-                        newPosition.X + (size.X - textWidth) / 2,
-                        newPosition.Y + (size.Y - textHeight) / 2,
-                        newPosition.Z + 0.1f
-                    );
-                    textEntity.Position = textOffset;
-                }
-            }
-        }
-
-
-        public void SetText(string newText) {
-            text = newText;
-            if (textComponent != null) {
-                textComponent.Text = newText;
-                
-                // Recalculate text position for centering
-                if (Parent != null && textEntity != null) {
-                    int textWidth = text.Length * 10;
-                    int textHeight = 20;
-                    float3 textOffset = new float3(
-                        Parent.Position.X + (size.X - textWidth) / 2,
-                        Parent.Position.Y + (size.Y - textHeight) / 2,
-                        Parent.Position.Z + 0.1f
-                    );
-                    textEntity.Position = textOffset;
-                    textComponent.Size = new int2(textWidth, textHeight);
-                }
-            }
-        }
     }
 }
-

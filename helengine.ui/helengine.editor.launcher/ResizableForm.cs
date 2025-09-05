@@ -56,6 +56,8 @@ namespace helengine.editor.launcher {
 
             if (isResizing) {
                 PerformResize();
+                // Force immediate control layout updates during resize for smooth titlebar
+                PerformLayout();
             } else {
                 UpdateCursor(e.Location);
             }
@@ -170,6 +172,27 @@ namespace helengine.editor.launcher {
         public void EnableTitleBarDrag() {
             ReleaseCapture();
             SendMessage(Handle, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
+        }
+
+        /// <summary>
+        /// Override WndProc to handle resize messages for smoother control updates
+        /// </summary>
+        protected override void WndProc(ref Message m) {
+            const int WM_SIZING = 0x0214;
+            const int WM_SIZE = 0x0005;
+
+            // Handle real-time sizing for smooth titlebar resize
+            if (m.Msg == WM_SIZING || m.Msg == WM_SIZE) {
+                base.WndProc(ref m);
+                // Force immediate layout update during resize operation
+                if (IsHandleCreated && !IsDisposed) {
+                    Invalidate(true);
+                    Update();
+                }
+                return;
+            }
+
+            base.WndProc(ref m);
         }
     }
 }

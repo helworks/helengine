@@ -5,7 +5,7 @@ using Nucleus.Platform.Windows.Controls;
 
 namespace helengine.editor.launcher {
     public partial class LauncherForm : ResizableForm {
-        private TitleBarControl titleBarControl;
+        private EnhancedTitleBarControl titleBarControl;
         private Thread thread;
         private bool closed;
 
@@ -20,31 +20,32 @@ namespace helengine.editor.launcher {
         private CameraComponent sceneCamera;
 
         // Button constants
-        private const int ButtonWidth = 300;
+        private const int ButtonWidth = 200;
         private const int ButtonHeight = 60;
         private const int ButtonSpacing = 20;
 
         public LauncherForm() {
             InitializeComponent();
-            
+
             // Set minimum size for the launcher
             MinimumSize = new Size(600, 400);
-            
-            // Set initial size if not already set
-            if (Size.Width < MinimumSize.Width || Size.Height < MinimumSize.Height) {
-                Size = new Size(800, 600);
-            }
-            
+
+            Size = new Size(1280, 720);
+
             initialize();
         }
 
         private void SetupTitleBar() {
-            // Create and configure the title bar
-            titleBarControl = new TitleBarControl();
+            // Create and configure the enhanced title bar
+            titleBarControl = new EnhancedTitleBarControl();
             titleBarControl.Text = "helengine project manager";
             titleBarControl.Location = new Point(0, 0);
-            titleBarControl.Width = this.Width;
+            titleBarControl.Width = this.ClientSize.Width;
             titleBarControl.TitleBarHeight = 24;
+            titleBarControl.EnableMaximize = true;
+
+            // Ensure proper anchoring for smooth resize (redundant but explicit)
+            titleBarControl.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right;
 
             this.Controls.Add(titleBarControl);
         }
@@ -53,10 +54,6 @@ namespace helengine.editor.launcher {
             // Create font asset for UI text
             Font font = new Font("Consolas", 16, FontStyle.Regular);
             uiFont = GDIFontProcessor.ImportFont(font);
-
-            // Calculate center positions
-            int centerX = ClientSize.Width / 2;
-            int centerY = ClientSize.Height / 2;
 
             // Create UI camera for rendering UI elements
             sceneCamEntity = new Entity();
@@ -82,13 +79,15 @@ namespace helengine.editor.launcher {
             titleEntity.AddComponent(titleText);
 
             // Create Project Button using ButtonComponent
-            float3 createButtonPos = new float3(centerX - ButtonWidth/2, centerY - ButtonHeight/2 - ButtonSpacing, 0);
-            
             createProjectButtonEntity = new Entity();
             createProjectButtonEntity.LayerMask = 0b1000000000000000;
-            createProjectButtonEntity.Position = createButtonPos;
+            createProjectButtonEntity.Position = new float3(750, 50, 0);
             createProjectButtonEntity.Enabled = true;
             createProjectButtonEntity.InitComponents();
+
+            var anchorProjectButton = new AnchorComponent();
+            createProjectButtonEntity.AddComponent(anchorProjectButton);
+            anchorProjectButton.EnableAnchoring(right: true, top: true);
 
             createProjectButton = new ButtonComponent(
                 "create project",
@@ -99,21 +98,23 @@ namespace helengine.editor.launcher {
             createProjectButtonEntity.AddComponent(createProjectButton);
 
             // Browse Project Button using ButtonComponent
-            float3 browseButtonPos = new float3(centerX - ButtonWidth/2, centerY + ButtonHeight/2 + ButtonSpacing, 0);
-            
-            browseProjectButtonEntity = new Entity();
-            browseProjectButtonEntity.LayerMask = 0b1000000000000000;
-            browseProjectButtonEntity.Position = browseButtonPos;
-            browseProjectButtonEntity.Enabled = true;
-            browseProjectButtonEntity.InitComponents();
+            //browseProjectButtonEntity = new Entity();
+            //browseProjectButtonEntity.LayerMask = 0b1000000000000000;
+            //browseProjectButtonEntity.Position = new float3(950, 150, 0);
+            //browseProjectButtonEntity.Enabled = true;
+            //browseProjectButtonEntity.InitComponents();
 
-            browseProjectButton = new ButtonComponent(
-                "browse project",
-                new int2(ButtonWidth, ButtonHeight),
-                uiFont,
-                OnBrowseProjectClick
-            );
-            browseProjectButtonEntity.AddComponent(browseProjectButton);
+            //var anchorBrowseProject = new AnchorComponent();
+            //browseProjectButtonEntity.AddComponent(anchorBrowseProject);
+            //anchorBrowseProject.EnableAnchoring(right: true, top: true);
+
+            //browseProjectButton = new ButtonComponent(
+            //    "browse project",
+            //    new int2(ButtonWidth, ButtonHeight),
+            //    uiFont,
+            //    OnBrowseProjectClick
+            //);
+            //browseProjectButtonEntity.AddComponent(browseProjectButton);
         }
 
         private void UpdateCameraViewport() {
@@ -181,11 +182,6 @@ namespace helengine.editor.launcher {
 
         protected override void OnResize(EventArgs e) {
             base.OnResize(e);
-            
-            // Update titlebar width
-            if (titleBarControl != null) {
-                titleBarControl.Width = this.Width;
-            }
 
             // Notify render manager about resize for swap chain recreation
             if (Core.Instance?.RenderManager != null) {
@@ -194,22 +190,6 @@ namespace helengine.editor.launcher {
 
             // Update camera viewport for proper rendering
             UpdateCameraViewport();
-
-            // Recalculate UI positions on resize
-            if (titleEntity != null) {
-                int centerX = ClientSize.Width / 2;
-                int centerY = ClientSize.Height / 2;
-                
-                // Title stays in top-left
-                titleEntity.Position = new float3(20, 30, 0);
-                
-                // Update button positions using ButtonComponent
-                float3 createButtonPos = new float3(centerX - ButtonWidth/2, centerY - ButtonHeight/2 - ButtonSpacing, 0);
-                float3 browseButtonPos = new float3(centerX - ButtonWidth/2, centerY + ButtonHeight/2 + ButtonSpacing, 0);
-                
-                createProjectButton?.UpdatePosition(createButtonPos);
-                browseProjectButton?.UpdatePosition(browseButtonPos);
-            }
         }
     }
 }
