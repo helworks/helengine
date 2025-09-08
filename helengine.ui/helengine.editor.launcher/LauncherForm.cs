@@ -19,6 +19,19 @@ namespace helengine.editor.launcher {
         private Entity sceneCamEntity;
         private CameraComponent sceneCamera;
 
+        // New Project UI entities
+        private Entity projectNameLabelEntity;
+        private Entity projectNameTextBoxEntity;
+        private Entity projectLocationLabelEntity;
+        private Entity projectLocationTextBoxEntity;
+        private Entity createButtonEntity;
+        private Entity cancelButtonEntity;
+        private TextBoxComponent projectNameTextBox;
+        private TextBoxComponent projectLocationTextBox;
+        private ButtonComponent createButton;
+        private ButtonComponent cancelButton;
+        private bool showingNewProjectUI;
+
         // Button constants
         private const int ButtonWidth = 200;
         private const int ButtonHeight = 60;
@@ -98,23 +111,23 @@ namespace helengine.editor.launcher {
             createProjectButtonEntity.AddComponent(createProjectButton);
 
             // Browse Project Button using ButtonComponent
-            //browseProjectButtonEntity = new Entity();
-            //browseProjectButtonEntity.LayerMask = 0b1000000000000000;
-            //browseProjectButtonEntity.Position = new float3(950, 150, 0);
-            //browseProjectButtonEntity.Enabled = true;
-            //browseProjectButtonEntity.InitComponents();
+            browseProjectButtonEntity = new Entity();
+            browseProjectButtonEntity.LayerMask = 0b1000000000000000;
+            browseProjectButtonEntity.Position = new float3(950, 150, 0);
+            browseProjectButtonEntity.Enabled = true;
+            browseProjectButtonEntity.InitComponents();
 
-            //var anchorBrowseProject = new AnchorComponent();
-            //browseProjectButtonEntity.AddComponent(anchorBrowseProject);
-            //anchorBrowseProject.EnableAnchoring(right: true, top: true);
+            var anchorBrowseProject = new AnchorComponent();
+            browseProjectButtonEntity.AddComponent(anchorBrowseProject);
+            anchorBrowseProject.EnableAnchoring(right: true, top: true);
 
-            //browseProjectButton = new ButtonComponent(
-            //    "browse project",
-            //    new int2(ButtonWidth, ButtonHeight),
-            //    uiFont,
-            //    OnBrowseProjectClick
-            //);
-            //browseProjectButtonEntity.AddComponent(browseProjectButton);
+            browseProjectButton = new ButtonComponent(
+                "browse project",
+                new int2(ButtonWidth, ButtonHeight),
+                uiFont,
+                OnBrowseProjectClick
+            );
+            browseProjectButtonEntity.AddComponent(browseProjectButton);
         }
 
         private void UpdateCameraViewport() {
@@ -124,13 +137,147 @@ namespace helengine.editor.launcher {
         }
 
         private void OnCreateProjectClick() {
-            // Handle create project action
-            MessageBox.Show("Create Project clicked!", "helengine", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (!showingNewProjectUI) {
+                ShowNewProjectUI();
+            }
         }
 
         private void OnBrowseProjectClick() {
             // Handle browse project action
             MessageBox.Show("Browse Project clicked!", "helengine", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void ShowNewProjectUI() {
+            showingNewProjectUI = true;
+
+            // Hide the main buttons
+            createProjectButtonEntity.Enabled = false;
+
+            // Create project name label
+            projectNameLabelEntity = new Entity();
+            projectNameLabelEntity.LayerMask = 0b1000000000000000;
+            projectNameLabelEntity.Position = new float3(50, 80, 0);
+            projectNameLabelEntity.Enabled = true;
+            projectNameLabelEntity.InitComponents();
+
+            var nameLabel = new TextComponent();
+            nameLabel.Text = "Project Name:";
+            nameLabel.Font = uiFont;
+            nameLabel.Color = new byte4(255, 255, 255, 255);
+            nameLabel.RenderOrder2D = 3;
+            projectNameLabelEntity.AddComponent(nameLabel);
+
+            // Create project name textbox
+            projectNameTextBoxEntity = new Entity();
+            projectNameTextBoxEntity.LayerMask = 0b1000000000000000;
+            projectNameTextBoxEntity.Position = new float3(50, 110, 0);
+            projectNameTextBoxEntity.Enabled = true;
+            projectNameTextBoxEntity.InitComponents();
+
+            projectNameTextBox = new TextBoxComponent(
+                new int2(300, 30),
+                uiFont,
+                "Enter project name"
+            );
+            projectNameTextBoxEntity.AddComponent(projectNameTextBox);
+
+            // Create project location label
+            projectLocationLabelEntity = new Entity();
+            projectLocationLabelEntity.LayerMask = 0b1000000000000000;
+            projectLocationLabelEntity.Position = new float3(50, 160, 0);
+            projectLocationLabelEntity.Enabled = true;
+            projectLocationLabelEntity.InitComponents();
+
+            var locationLabel = new TextComponent();
+            locationLabel.Text = "Project Location:";
+            locationLabel.Font = uiFont;
+            locationLabel.Color = new byte4(255, 255, 255, 255);
+            locationLabel.RenderOrder2D = 3;
+            projectLocationLabelEntity.AddComponent(locationLabel);
+
+            // Create project location textbox
+            projectLocationTextBoxEntity = new Entity();
+            projectLocationTextBoxEntity.LayerMask = 0b1000000000000000;
+            projectLocationTextBoxEntity.Position = new float3(50, 190, 0);
+            projectLocationTextBoxEntity.Enabled = true;
+            projectLocationTextBoxEntity.InitComponents();
+
+            projectLocationTextBox = new TextBoxComponent(
+                new int2(300, 30),
+                uiFont,
+                "C:\\Projects"
+            );
+            projectLocationTextBoxEntity.AddComponent(projectLocationTextBox);
+
+            // Create Create button
+            createButtonEntity = new Entity();
+            createButtonEntity.LayerMask = 0b1000000000000000;
+            createButtonEntity.Position = new float3(50, 240, 0);
+            createButtonEntity.Enabled = true;
+            createButtonEntity.InitComponents();
+
+            createButton = new ButtonComponent(
+                "Create",
+                new int2(100, 40),
+                uiFont,
+                OnCreateConfirmClick
+            );
+            createButtonEntity.AddComponent(createButton);
+
+            // Create Cancel button
+            cancelButtonEntity = new Entity();
+            cancelButtonEntity.LayerMask = 0b1000000000000000;
+            cancelButtonEntity.Position = new float3(170, 240, 0);
+            cancelButtonEntity.Enabled = true;
+            cancelButtonEntity.InitComponents();
+
+            cancelButton = new ButtonComponent(
+                "Cancel",
+                new int2(100, 40),
+                uiFont,
+                OnCancelClick
+            );
+            cancelButtonEntity.AddComponent(cancelButton);
+        }
+
+        private void HideNewProjectUI() {
+            showingNewProjectUI = false;
+
+            // Show the main buttons
+            createProjectButtonEntity.Enabled = true;
+
+            // Dispose new project UI entities
+            projectNameLabelEntity?.Dispose();
+            projectNameTextBoxEntity?.Dispose();
+            projectLocationLabelEntity?.Dispose();
+            projectLocationTextBoxEntity?.Dispose();
+            createButtonEntity?.Dispose();
+            cancelButtonEntity?.Dispose();
+        }
+
+        private void OnCreateConfirmClick() {
+            string projectName = projectNameTextBox.Text.Trim();
+            string projectLocation = projectLocationTextBox.Text.Trim();
+
+            if (string.IsNullOrEmpty(projectName)) {
+                MessageBox.Show("Please enter a project name.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(projectLocation)) {
+                MessageBox.Show("Please enter a project location.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // TODO: Create the actual project
+            MessageBox.Show($"Creating project '{projectName}' at '{projectLocation}'", "Project Created", 
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            HideNewProjectUI();
+        }
+
+        private void OnCancelClick() {
+            HideNewProjectUI();
         }
 
         private void initialize() {

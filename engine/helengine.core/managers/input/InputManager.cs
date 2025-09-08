@@ -19,7 +19,7 @@ public abstract class InputManager {
         List<IInteractable2D> interactables = core.ObjectManager.Interactables;
 
         lastMouseState = mouseState;
-        mouseState = core.InputManager.Mouse.GetState();
+        mouseState = Mouse.GetState();
 
         PointerInteraction interaction = PointerInteraction.None;
         if (mouseState.LeftButton == ButtonState.Released &&

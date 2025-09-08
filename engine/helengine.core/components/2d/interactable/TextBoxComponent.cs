@@ -1,0 +1,260 @@
+namespace helengine {
+    public class TextBoxComponent : Component {
+        string text = "";
+        string placeholder = "";
+        FontAsset font;
+        int2 size;
+        bool isFocused;
+        bool cursorVisible = true;
+        DateTime lastCursorBlink = DateTime.Now;
+        int cursorPosition;
+        
+        // Child components
+        SpriteComponent? backgroundSprite;
+        TextComponent? textComponent;
+        InteractableComponent? interactableComponent;
+        
+        // Input handling
+        KeyboardState lastKeyboardState;
+
+        public string Text {
+            get { return text; }
+            set {
+                text = value ?? "";
+                cursorPosition = Math.Min(cursorPosition, text.Length);
+                UpdateTextDisplay();
+            }
+        }
+
+        public string Placeholder {
+            get { return placeholder; }
+            set { 
+                placeholder = value ?? "";
+                UpdateTextDisplay();
+            }
+        }
+
+        public FontAsset Font {
+            get { return font; }
+            set { 
+                font = value;
+                if (textComponent != null) {
+                    textComponent.Font = font;
+                }
+            }
+        }
+
+        public int2 Size {
+            get { return size; }
+            set { 
+                size = value;
+                if (backgroundSprite != null) {
+                    backgroundSprite.Size = size;
+                }
+                if (interactableComponent != null) {
+                    interactableComponent.Size = size;
+                }
+            }
+        }
+
+        public bool IsFocused {
+            get { return isFocused; }
+            set {
+                if (isFocused != value) {
+                    isFocused = value;
+                    if (isFocused) {
+                        cursorPosition = text.Length; // Move cursor to end when focused
+                    }
+                    UpdateTextDisplay();
+                }
+            }
+        }
+
+        public TextBoxComponent(int2 size, FontAsset font, string placeholder = "") {
+            this.size = size;
+            this.font = font;
+            this.placeholder = placeholder;
+        }
+
+        public override void ComponentAdded(Entity entity) {
+            base.ComponentAdded(entity);
+
+            // Create background sprite
+            backgroundSprite = new SpriteComponent();
+            backgroundSprite.Texture = TextureUtils.PixelTexture;
+            backgroundSprite.Color = new byte4(40, 40, 40, 255); // Dark background
+            backgroundSprite.Size = size;
+            backgroundSprite.RenderOrder2D = 1;
+            entity.AddComponent(backgroundSprite);
+
+            // Create text component
+            textComponent = new TextComponent();
+            textComponent.Font = font;
+            textComponent.Color = new byte4(255, 255, 255, 255);
+            textComponent.RenderOrder2D = 2;
+            entity.AddComponent(textComponent);
+
+            // Create interactable component for mouse clicks
+            interactableComponent = new InteractableComponent();
+            interactableComponent.Size = size;
+            interactableComponent.CursorEvent += OnCursorEvent;
+            entity.AddComponent(interactableComponent);
+
+            // Create a custom update component for keyboard input
+            var updateComponent = new TextBoxUpdateComponent(this);
+            updateComponent.UpdateOrder = 1;
+            entity.AddComponent(updateComponent);
+
+            UpdateTextDisplay();
+        }
+
+        void OnCursorEvent(int2 relPos, int2 delta, PointerInteraction state) {
+            if (state == PointerInteraction.Press) {
+                IsFocused = true;
+                cursorPosition = text.Length; // For now, just move to end
+            }
+        }
+
+        public void Update() {
+            if (!isFocused) return;
+
+            // Handle cursor blinking
+            if ((DateTime.Now - lastCursorBlink).TotalMilliseconds > 500) {
+                cursorVisible = !cursorVisible;
+                lastCursorBlink = DateTime.Now;
+                UpdateTextDisplay();
+            }
+
+            // Handle keyboard input
+            KeyboardState currentKeyboardState = Core.Instance.InputManager.Keyboard.GetState();
+            
+            // Process newly pressed keys
+            for (int i = 0; i < 255; i++) {
+                Keys key = (Keys)i;
+                if (currentKeyboardState.IsKeyDown(key) && !lastKeyboardState.IsKeyDown(key)) {
+                    HandleKeyPress(key, currentKeyboardState);
+                }
+            }
+
+            lastKeyboardState = currentKeyboardState;
+        }
+
+        void HandleKeyPress(Keys key, KeyboardState keyboardState) {
+            bool isShiftPressed = keyboardState.IsKeyDown(Keys.LeftShift) || keyboardState.IsKeyDown(Keys.RightShift);
+            
+            switch (key) {
+                case Keys.Back:
+                    if (cursorPosition > 0) {
+                        text = text.Remove(cursorPosition - 1, 1);
+                        cursorPosition--;
+                        UpdateTextDisplay();
+                    }
+                    break;
+                    
+                case Keys.Delete:
+                    if (cursorPosition < text.Length) {
+                        text = text.Remove(cursorPosition, 1);
+                        UpdateTextDisplay();
+                    }
+                    break;
+                    
+                case Keys.Left:
+                    cursorPosition = Math.Max(0, cursorPosition - 1);
+                    UpdateTextDisplay();
+                    break;
+                    
+                case Keys.Right:
+                    cursorPosition = Math.Min(text.Length, cursorPosition + 1);
+                    UpdateTextDisplay();
+                    break;
+                    
+                case Keys.Home:
+                    cursorPosition = 0;
+                    UpdateTextDisplay();
+                    break;
+                    
+                case Keys.End:
+                    cursorPosition = text.Length;
+                    UpdateTextDisplay();
+                    break;
+                    
+                default:
+                    char character = KeyToChar(key, isShiftPressed);
+                    if (character != '\0') {
+                        text = text.Insert(cursorPosition, character.ToString());
+                        cursorPosition++;
+                        UpdateTextDisplay();
+                    }
+                    break;
+            }
+        }
+
+        char KeyToChar(Keys key, bool isShiftPressed) {
+            // Handle letters
+            if (key >= Keys.A && key <= Keys.Z) {
+                char baseChar = (char)('a' + (key - Keys.A));
+                return isShiftPressed ? char.ToUpper(baseChar) : baseChar;
+            }
+            
+            // Handle numbers and symbols
+            switch (key) {
+                case Keys.D0: return isShiftPressed ? ')' : '0';
+                case Keys.D1: return isShiftPressed ? '!' : '1';
+                case Keys.D2: return isShiftPressed ? '@' : '2';
+                case Keys.D3: return isShiftPressed ? '#' : '3';
+                case Keys.D4: return isShiftPressed ? '$' : '4';
+                case Keys.D5: return isShiftPressed ? '%' : '5';
+                case Keys.D6: return isShiftPressed ? '^' : '6';
+                case Keys.D7: return isShiftPressed ? '&' : '7';
+                case Keys.D8: return isShiftPressed ? '*' : '8';
+                case Keys.D9: return isShiftPressed ? '(' : '9';
+                case Keys.Space: return ' ';
+                case Keys.OemPeriod: return isShiftPressed ? '>' : '.';
+                case Keys.OemComma: return isShiftPressed ? '<' : ',';
+                case Keys.OemMinus: return isShiftPressed ? '_' : '-';
+                case Keys.OemPlus: return isShiftPressed ? '+' : '=';
+                case Keys.OemQuestion: return isShiftPressed ? '?' : '/';
+                case Keys.OemSemicolon: return isShiftPressed ? ':' : ';';
+                case Keys.OemQuotes: return isShiftPressed ? '"' : '\'';
+                case Keys.OemOpenBrackets: return isShiftPressed ? '{' : '[';
+                case Keys.OemCloseBrackets: return isShiftPressed ? '}' : ']';
+                case Keys.OemPipe: return isShiftPressed ? '|' : '\\';
+                default: return '\0';
+            }
+        }
+
+        void UpdateTextDisplay() {
+            if (textComponent == null) return;
+
+            // Display text or placeholder
+            string displayText = string.IsNullOrEmpty(text) ? placeholder : text;
+            
+            // Add cursor if focused and visible
+            if (isFocused && cursorVisible && !string.IsNullOrEmpty(text)) {
+                displayText = text.Insert(cursorPosition, "|");
+            }
+            
+            textComponent.Text = displayText;
+            
+            // Set color based on whether it's placeholder or real text
+            if (string.IsNullOrEmpty(text)) {
+                textComponent.Color = new byte4(150, 150, 150, 255); // Gray for placeholder
+            } else {
+                textComponent.Color = new byte4(255, 255, 255, 255); // White for text
+            }
+        }
+    }
+
+    // Helper update component for TextBoxComponent
+    class TextBoxUpdateComponent : UpdateComponent {
+        TextBoxComponent textBox;
+
+        public TextBoxUpdateComponent(TextBoxComponent textBox) {
+            this.textBox = textBox;
+        }
+
+        public override void Update() {
+            textBox.Update();
+        }
+    }
+}
