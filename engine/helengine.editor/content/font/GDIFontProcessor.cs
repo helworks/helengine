@@ -96,55 +96,17 @@ namespace helengine.editor {
         public static FontAsset ImportFont(Font font) {
             Dictionary<char, TempFontChar> tempChars = new Dictionary<char, TempFontChar>();
 
-            // Calculate proper font metrics using FontFamily
-            FontFamily fontFamily = font.FontFamily;
-            float emSize = font.Size;
-            float designUnitsPerEm = fontFamily.GetEmHeight(font.Style);
-            
-            // Get font metrics in design units
-            float ascentDesignUnits = fontFamily.GetCellAscent(font.Style);
-            float descentDesignUnits = fontFamily.GetCellDescent(font.Style);
-            float lineSpacingDesignUnits = fontFamily.GetLineSpacing(font.Style);
-            
-            // Convert to pixels
-            float ascent = (ascentDesignUnits / designUnitsPerEm) * emSize;
-            float descent = (descentDesignUnits / designUnitsPerEm) * emSize;
-            float lineHeight = (lineSpacingDesignUnits / designUnitsPerEm) * emSize;
-            float lineGap = lineHeight - (ascent + descent);
-            float baselineOffset = ascent;
+            int res = font.Height;
+            int offset = (int)(font.Height * 0.1f);
 
-            int res = (int)Math.Ceiling(lineHeight);
-            int offset = (int)(res * 0.1f);
+            for (int i = 0; i < Characters.Length; i++) {
+                char c = Characters[i];
 
-            // Calculate character metrics with proper spacing
-            using (Bitmap tempBmp = new Bitmap(1, 1)) {
-                using (Graphics tempGraphics = Graphics.FromImage(tempBmp)) {
-                    for (int i = 0; i < Characters.Length; i++) {
-                        char c = Characters[i];
+                Bitmap bmp;
+                Rectangle rect;
+                GenerateChar(c, font, res * 2, offset, out bmp, out rect);
 
-                        Bitmap bmp;
-                        Rectangle rect;
-                        GenerateChar(c, font, res * 2, offset, out bmp, out rect);
-
-                        // Calculate character advance width and bearings
-                        string charStr = c.ToString();
-                        SizeF charSize = tempGraphics.MeasureString(charStr, font, PointF.Empty, StringFormat.GenericTypographic);
-                        float advanceWidth = charSize.Width;
-                        float bearingX = rect.X - offset; // Left side bearing
-                        float bearingY = baselineOffset - rect.Y; // Top side bearing from baseline
-                        
-                        float offsetY = rect.Y - baselineOffset; // Offset from baseline
-
-                        tempChars.Add(c, new TempFontChar(
-                            new int4(rect.X, rect.Y, rect.Width, rect.Height), 
-                            bmp, 
-                            offsetY,
-                            advanceWidth,
-                            bearingX,
-                            bearingY
-                        ));
-                    }
-                }
+                tempChars.Add(c, new TempFontChar(new int4(rect.X, rect.Y, rect.Width, rect.Height), bmp, 0));
             }
 
             Dictionary<char, FontChar> packedChars;
@@ -175,47 +137,20 @@ namespace helengine.editor {
 
             RuntimeTexture asset = Core.Instance.RenderManager.BuildTextureFromRaw(rawTex);
 
-            // Calculate space width properly with fallback
-            float spaceWidth = 0;
-            
-            // First try: Check if space character was processed and use its advance width
-            if (tempChars.ContainsKey(' ')) {
-                spaceWidth = tempChars[' '].AdvanceWidth;
-            }
-            
-            // Second try: Use MeasureString if space wasn't processed or returned zero
-            if (spaceWidth <= 0) {
-                using (Bitmap bmp = new Bitmap(1, 1)) {
-                    using (Graphics g = Graphics.FromImage(bmp)) {
-                        SizeF size = g.MeasureString(" ", font, PointF.Empty, StringFormat.GenericTypographic);
-                        spaceWidth = size.Width;
-                    }
+            float spaceWidth;
+            using (Bitmap bmp = new Bitmap(1, 1)) {
+                using (Graphics g = Graphics.FromImage(bmp)) {
+                    SizeF size = g.MeasureString(" ", font);
+                    spaceWidth = size.Width;
                 }
             }
-            
-            // Final fallback: Use average character width if still zero
-            if (spaceWidth <= 0) {
-                spaceWidth = emSize * 0.25f; // Typical space width is about 1/4 of em size
-            }
-
-            // Create FontInfo with comprehensive metrics
-            FontInfo fontInfo = new FontInfo(
-                font.Name,
-                spaceWidth,
-                ascent,
-                descent,
-                lineHeight,
-                lineGap,
-                baselineOffset,
-                emSize
-            );
 
             return new FontAsset(
-                fontInfo,
-                asset,
-                packedChars,
-                lineHeight
-            );
+                    new FontInfo(font.Name, 0, spaceWidth),
+                    asset,
+                    packedChars,
+                    0.0f
+                );
         }
 
         private static Bitmap GenerateAtlas(Dictionary<char, TempFontChar> tempChars, out Dictionary<char, FontChar> packedChars) {
@@ -355,10 +290,7 @@ namespace helengine.editor {
                         originalChar.SourceRect.Z / (float)atlas.Width,
                         originalChar.SourceRect.W / (float)atlas.Height
                     ),
-                    originalChar.OffsetY,
-                    originalChar.AdvanceWidth,
-                    originalChar.BearingX,
-                    originalChar.BearingY
+                    originalChar.OffsetY
                 );
             }
 

@@ -105,12 +105,17 @@ namespace helengine {
                     UpdateButtonColor();
                     break;
 
-                case PointerInteraction.None:
-                    if (isHovering) {
+                case PointerInteraction.Leave:
+                    // Pointer left the button's bounds
+                    if (isHovering || isPressed) {
                         isHovering = false;
                         isPressed = false;
                         UpdateButtonColor();
                     }
+                    break;
+
+                case PointerInteraction.None:
+                    // No-op under new semantics; retain state.
                     break;
             }
         }

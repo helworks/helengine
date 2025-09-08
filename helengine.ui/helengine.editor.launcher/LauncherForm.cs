@@ -2,6 +2,7 @@ using helengine;
 using helengine.editor;
 using helengine.sharpdx;
 using Nucleus.Platform.Windows.Controls;
+using helengine.editor.launcher.pages;
 
 namespace helengine.editor.launcher {
     public partial class LauncherForm : ResizableForm {
@@ -9,28 +10,13 @@ namespace helengine.editor.launcher {
         private Thread thread;
         private bool closed;
 
-        // UI entities using helengine.core components
-        private Entity titleEntity;
-        private Entity createProjectButtonEntity;
-        private Entity browseProjectButtonEntity;
-        private ButtonComponent createProjectButton;
-        private ButtonComponent browseProjectButton;
+        // Page management system
+        private PageManager? pageManager;
+        private MainPage? mainPage;
+        private NewProjectPage? newProjectPage;
         private FontAsset uiFont;
         private Entity sceneCamEntity;
         private CameraComponent sceneCamera;
-
-        // New Project UI entities
-        private Entity projectNameLabelEntity;
-        private Entity projectNameTextBoxEntity;
-        private Entity projectLocationLabelEntity;
-        private Entity projectLocationTextBoxEntity;
-        private Entity createButtonEntity;
-        private Entity cancelButtonEntity;
-        private TextBoxComponent projectNameTextBox;
-        private TextBoxComponent projectLocationTextBox;
-        private ButtonComponent createButton;
-        private ButtonComponent cancelButton;
-        private bool showingNewProjectUI;
 
         // Button constants
         private const int ButtonWidth = 200;
@@ -76,58 +62,26 @@ namespace helengine.editor.launcher {
             sceneCamEntity.InitComponents();
             sceneCamEntity.AddComponent(sceneCamera);
 
-            // Title (top-left position)
-            titleEntity = new Entity();
-            titleEntity.LayerMask = 0b1000000000000000;
-            titleEntity.Position = new float3(20, 30, 0); // Top-left with padding
-            titleEntity.Enabled = true;
-            titleEntity.InitComponents();
-
-            var titleText = new TextComponent();
-            titleText.Text = "helengine";
-            titleText.Color = ThemeManager.Colors.TextPrimary;
-            titleText.Size = new int2(200, 40);
-            titleText.RenderOrder2D = 1;
-            titleText.Font = uiFont;
-            titleEntity.AddComponent(titleText);
-
-            // Create Project Button using ButtonComponent
-            createProjectButtonEntity = new Entity();
-            createProjectButtonEntity.LayerMask = 0b1000000000000000;
-            createProjectButtonEntity.Position = new float3(750, 50, 0);
-            createProjectButtonEntity.Enabled = true;
-            createProjectButtonEntity.InitComponents();
-
-            var anchorProjectButton = new AnchorComponent();
-            createProjectButtonEntity.AddComponent(anchorProjectButton);
-            anchorProjectButton.EnableAnchoring(right: true, top: true);
-
-            createProjectButton = new ButtonComponent(
-                "create project",
-                new int2(ButtonWidth, ButtonHeight),
-                uiFont,
-                OnCreateProjectClick
+            // Initialize page management system
+            pageManager = new PageManager(ClientSize.Width);
+            
+            // Create pages
+            mainPage = new MainPage(uiFont, 
+                onCreateProject: () => NavigateToNewProject(),
+                onBrowseProject: () => OnBrowseProjectClick()
             );
-            createProjectButtonEntity.AddComponent(createProjectButton);
-
-            // Browse Project Button using ButtonComponent
-            browseProjectButtonEntity = new Entity();
-            browseProjectButtonEntity.LayerMask = 0b1000000000000000;
-            browseProjectButtonEntity.Position = new float3(950, 150, 0);
-            browseProjectButtonEntity.Enabled = true;
-            browseProjectButtonEntity.InitComponents();
-
-            var anchorBrowseProject = new AnchorComponent();
-            browseProjectButtonEntity.AddComponent(anchorBrowseProject);
-            anchorBrowseProject.EnableAnchoring(right: true, top: true);
-
-            browseProjectButton = new ButtonComponent(
-                "browse project",
-                new int2(ButtonWidth, ButtonHeight),
-                uiFont,
-                OnBrowseProjectClick
+            
+            newProjectPage = new NewProjectPage(uiFont,
+                onCreateProject: (name, location) => OnCreateConfirmClick(name, location),
+                onCancel: () => NavigateToMain()
             );
-            browseProjectButtonEntity.AddComponent(browseProjectButton);
+            
+            // Register pages
+            pageManager.RegisterPage("main", mainPage);
+            pageManager.RegisterPage("newproject", newProjectPage);
+            
+            // Show initial page
+            pageManager.ShowInitialPage("main");
         }
 
         private void UpdateCameraViewport() {
@@ -136,10 +90,14 @@ namespace helengine.editor.launcher {
             }
         }
 
-        private void OnCreateProjectClick() {
-            if (!showingNewProjectUI) {
-                ShowNewProjectUI();
-            }
+        private void NavigateToNewProject() {
+            MessageBox.Show("New Project");
+            //pageManager?.NavigateTo("newproject");
+        }
+
+        private void NavigateToMain() {
+            pageManager?.NavigateTo("main");
+            newProjectPage?.ClearInputs(); // Clear form when returning to main
         }
 
         private void OnBrowseProjectClick() {
@@ -147,137 +105,12 @@ namespace helengine.editor.launcher {
             MessageBox.Show("Browse Project clicked!", "helengine", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
-        private void ShowNewProjectUI() {
-            showingNewProjectUI = true;
-
-            // Hide the main buttons
-            createProjectButtonEntity.Enabled = false;
-
-            // Create project name label
-            projectNameLabelEntity = new Entity();
-            projectNameLabelEntity.LayerMask = 0b1000000000000000;
-            projectNameLabelEntity.Position = new float3(50, 80, 0);
-            projectNameLabelEntity.Enabled = true;
-            projectNameLabelEntity.InitComponents();
-
-            var nameLabel = new TextComponent();
-            nameLabel.Text = "Project Name:";
-            nameLabel.Font = uiFont;
-            nameLabel.Color = new byte4(255, 255, 255, 255);
-            nameLabel.RenderOrder2D = 3;
-            projectNameLabelEntity.AddComponent(nameLabel);
-
-            // Create project name textbox
-            projectNameTextBoxEntity = new Entity();
-            projectNameTextBoxEntity.LayerMask = 0b1000000000000000;
-            projectNameTextBoxEntity.Position = new float3(50, 110, 0);
-            projectNameTextBoxEntity.Enabled = true;
-            projectNameTextBoxEntity.InitComponents();
-
-            projectNameTextBox = new TextBoxComponent(
-                new int2(300, 30),
-                uiFont,
-                "Enter project name"
-            );
-            projectNameTextBoxEntity.AddComponent(projectNameTextBox);
-
-            // Create project location label
-            projectLocationLabelEntity = new Entity();
-            projectLocationLabelEntity.LayerMask = 0b1000000000000000;
-            projectLocationLabelEntity.Position = new float3(50, 160, 0);
-            projectLocationLabelEntity.Enabled = true;
-            projectLocationLabelEntity.InitComponents();
-
-            var locationLabel = new TextComponent();
-            locationLabel.Text = "Project Location:";
-            locationLabel.Font = uiFont;
-            locationLabel.Color = new byte4(255, 255, 255, 255);
-            locationLabel.RenderOrder2D = 3;
-            projectLocationLabelEntity.AddComponent(locationLabel);
-
-            // Create project location textbox
-            projectLocationTextBoxEntity = new Entity();
-            projectLocationTextBoxEntity.LayerMask = 0b1000000000000000;
-            projectLocationTextBoxEntity.Position = new float3(50, 190, 0);
-            projectLocationTextBoxEntity.Enabled = true;
-            projectLocationTextBoxEntity.InitComponents();
-
-            projectLocationTextBox = new TextBoxComponent(
-                new int2(300, 30),
-                uiFont,
-                "C:\\Projects"
-            );
-            projectLocationTextBoxEntity.AddComponent(projectLocationTextBox);
-
-            // Create Create button
-            createButtonEntity = new Entity();
-            createButtonEntity.LayerMask = 0b1000000000000000;
-            createButtonEntity.Position = new float3(50, 240, 0);
-            createButtonEntity.Enabled = true;
-            createButtonEntity.InitComponents();
-
-            createButton = new ButtonComponent(
-                "Create",
-                new int2(100, 40),
-                uiFont,
-                OnCreateConfirmClick
-            );
-            createButtonEntity.AddComponent(createButton);
-
-            // Create Cancel button
-            cancelButtonEntity = new Entity();
-            cancelButtonEntity.LayerMask = 0b1000000000000000;
-            cancelButtonEntity.Position = new float3(170, 240, 0);
-            cancelButtonEntity.Enabled = true;
-            cancelButtonEntity.InitComponents();
-
-            cancelButton = new ButtonComponent(
-                "Cancel",
-                new int2(100, 40),
-                uiFont,
-                OnCancelClick
-            );
-            cancelButtonEntity.AddComponent(cancelButton);
-        }
-
-        private void HideNewProjectUI() {
-            showingNewProjectUI = false;
-
-            // Show the main buttons
-            createProjectButtonEntity.Enabled = true;
-
-            // Dispose new project UI entities
-            projectNameLabelEntity?.Dispose();
-            projectNameTextBoxEntity?.Dispose();
-            projectLocationLabelEntity?.Dispose();
-            projectLocationTextBoxEntity?.Dispose();
-            createButtonEntity?.Dispose();
-            cancelButtonEntity?.Dispose();
-        }
-
-        private void OnCreateConfirmClick() {
-            string projectName = projectNameTextBox.Text.Trim();
-            string projectLocation = projectLocationTextBox.Text.Trim();
-
-            if (string.IsNullOrEmpty(projectName)) {
-                MessageBox.Show("Please enter a project name.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            if (string.IsNullOrEmpty(projectLocation)) {
-                MessageBox.Show("Please enter a project location.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
+        private void OnCreateConfirmClick(string projectName, string projectLocation) {
             // TODO: Create the actual project
             MessageBox.Show($"Creating project '{projectName}' at '{projectLocation}'", "Project Created", 
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-            HideNewProjectUI();
-        }
-
-        private void OnCancelClick() {
-            HideNewProjectUI();
+            NavigateToMain();
         }
 
         private void initialize() {
@@ -306,6 +139,7 @@ namespace helengine.editor.launcher {
                 try {
                     Invoke(() => {
                         Core.Instance.Update();
+                        pageManager?.Update(); // Update page animations
                         Core.Instance.Draw();
                     });
                 } catch { }
@@ -316,6 +150,7 @@ namespace helengine.editor.launcher {
             base.OnClosed(e);
 
             closed = true;
+            pageManager?.Dispose();
             Core.Instance.Dispose();
         }
 
@@ -337,6 +172,9 @@ namespace helengine.editor.launcher {
 
             // Update camera viewport for proper rendering
             UpdateCameraViewport();
+            
+            // Update page manager screen size for animations
+            pageManager?.UpdateScreenSize(ClientSize.Width);
         }
     }
 }

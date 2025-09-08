@@ -31,7 +31,6 @@ PS_INPUT VS(VS_INPUT input)
     float4 dest = destRect;
     dest.x += dest.z / 2.0;
     dest.y += dest.w / 2.0;
-    dest.y *= -1;
     
     float2 destPos = dest.xy + (input.pos.xy * dest.zw);
     

@@ -46,7 +46,8 @@ public abstract class InputManager {
                     Highlighted = interactable;
                 } else {
                     if (Hovering != null && Hovering != interactable) {
-                        Hovering.OnCursor(new int2(mouseState.X, mouseState.Y), new int2(0, 0), PointerInteraction.None);
+                        // Fire leave on the previously hovered interactable
+                        Hovering.OnCursor(new int2(mouseState.X, mouseState.Y), new int2(0, 0), PointerInteraction.Leave);
                     }
                     Hovering = interactable;
                 }
@@ -54,7 +55,8 @@ public abstract class InputManager {
         }
 
         if (overNothing && Hovering != null) {
-            Hovering.OnCursor(new int2(mouseState.X, mouseState.Y), new int2(0, 0), PointerInteraction.None);
+            // Fire leave when cursor is no longer over any interactable
+            Hovering.OnCursor(new int2(mouseState.X, mouseState.Y), new int2(0, 0), PointerInteraction.Leave);
             Hovering = null;
         }
 

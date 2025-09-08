@@ -10,8 +10,8 @@ namespace helengine {
 
         public FontAsset(FontInfo fontInfo, RuntimeTexture tex,
             Dictionary<char, FontChar> chars, float lineHeight) {
+            this.LineHeight = lineHeight;
             this.FontInfo = fontInfo;
-            this.LineHeight = fontInfo.LineHeight > 0 ? fontInfo.LineHeight : lineHeight; // Use FontInfo's LineHeight if available
             this.Texture = tex;
             this.Characters = chars;
         }
@@ -20,39 +20,41 @@ namespace helengine {
         }
 
         public float2 MeasureString(string text) {
-            if (string.IsNullOrEmpty(text)) {
-                return new float2(0, FontInfo.LineHeight);
-            }
+            float lastX = 0;
+            float Y = LineHeight;
+            int letterSpacing = 2;
+            float posY = 0;
+            float lineSpacing = LineHeight;
 
-            float currentX = 0;
-            float currentY = 0;
-            float maxX = 0;
-            float totalHeight = FontInfo.LineHeight;
+            float MaxX = 0;
+            float MaxY = LineHeight;
 
             for (int i = 0; i < text.Length; i++) {
                 char c = text[i];
 
-                if (c == '\n') {
-                    // New line
-                    currentY += FontInfo.LineHeight;
-                    totalHeight = currentY + FontInfo.LineHeight;
-                    maxX = Math.Max(maxX, currentX);
-                    currentX = 0;
-                } else if (c == ' ') {
-                    // Space character
-                    currentX += FontInfo.SpaceWidth;
-                } else if (Characters.ContainsKey(c)) {
-                    // Regular character - use advance width for proper spacing
-                    var fontChar = Characters[c];
-                    currentX += fontChar.AdvanceWidth;
+                if (Characters.ContainsKey(c)) {
+                    var rect = Characters[c];
+                    lastX += rect.SourceRect.Z + letterSpacing;
+                    if (lastX > MaxX) {
+                        MaxX = lastX;
+                    }
+
+                    if (posY > MaxY) {
+                        MaxY = posY;
+                    }
                 } else {
-                    // Unknown character - use average character width
-                    currentX += FontInfo.SpaceWidth;
+                    // special cases
+                    if (c == ' ') {
+                        // space
+                        lastX += FontInfo.SpaceWidth;
+                    } else if (c == '\n') {
+                        posY += lineSpacing;
+                        lastX = 0;
+                    }
                 }
             }
 
-            maxX = Math.Max(maxX, currentX);
-            return new float2(maxX, totalHeight);
+            return new float2(MaxX, posY + lineSpacing);
         }
     }
 }

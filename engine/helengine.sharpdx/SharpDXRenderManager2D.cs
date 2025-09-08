@@ -177,45 +177,28 @@ namespace helengine.sharpdx {
 
             string text = drawable.Text;
             float offsetX = 0;
-            float baselineY = pos.Y + font.FontInfo.BaselineOffset; // Use proper baseline positioning
-            
             for (int i = 0; i < text.Length; i++) {
                 char c = text[i];
 
                 if (c == ' ') {
                     offsetX += font.FontInfo.SpaceWidth;
                     continue;
-                } else if (c == '\n') {
-                    // Handle newlines
-                    offsetX = 0;
-                    baselineY += font.FontInfo.LineHeight;
-                    continue;
                 }
 
-                if (!font.Characters.ContainsKey(c)) {
-                    // Skip unknown characters
-                    offsetX += font.FontInfo.SpaceWidth; // Use space width as fallback
-                    continue;
-                }
+                FontChar info = font.Characters[c];
 
-                FontChar fontChar = font.Characters[c];
-
-                // Calculate character position using bearing for proper alignment
-                float charX = pos.X + offsetX + fontChar.BearingX;
-                float charY = baselineY - fontChar.BearingY; // Subtract bearing Y from baseline
-
-                shaderData.sourceRect = fontChar.SourceRect;
+                shaderData.sourceRect = info.SourceRect;
                 shaderData.destRect = new float4(
-                    charX,
-                    charY,
-                    fontChar.SourceRect.Z * data.Width,
-                    fontChar.SourceRect.W * data.Height
+                    pos.X + offsetX,
+                    pos.Y,
+                    shaderData.sourceRect.Z * data.Width,
+                    shaderData.sourceRect.W * data.Height
                 );
 
-                // Use advance width for proper character spacing
-                offsetX += fontChar.AdvanceWidth;
+                offsetX += shaderData.sourceRect.Z * data.Width;
 
                 context.UpdateSubresource(ref shaderData, quadConstantBuffer);
+
                 context.Draw(4, 0);
             }
         }

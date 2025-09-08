@@ -3,7 +3,7 @@
 public enum PointerInteraction {
     None,
     Hover,
-    LeftHover,
+    Leave,
     Press,
     Release
 }
