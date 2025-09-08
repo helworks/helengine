@@ -136,22 +136,32 @@ public class ObjectManager {
     }
 
     public void RegisterCamera(ICamera camera) {
-        int bucket = camera.CameraDrawOrder / TotalBuckets3D;
-        Cameras[bucket].Add(camera);
+        // Use the correct camera bucket count for camera ordering
+        int cameraBucket = camera.CameraDrawOrder / TotalCameraBuckets;
+        Cameras[cameraBucket].Add(camera);
 
+        // Backfill existing 3D drawables for this camera
         for (int i = 0; i < Drawables3D.Count; i++) {
             IDrawable3D drawable = Drawables3D[i];
-            if ((drawable.Parent.LayerMask & camera.Parent.LayerMask) != 0) {
-                camera.RenderIndices3D[drawable.Variant][bucket].Add(i);
+            if ((drawable.Parent.LayerMask & camera.LayerMask) != 0) {
+                int drawBucket3D = drawable.RenderOrder3D / TotalBuckets3D;
+                camera.RenderIndices3D[drawable.Variant][drawBucket3D].Add(i);
+            }
+        }
+
+        // Backfill existing 2D drawables for this camera (important when camera is added after UI)
+        for (int i = 0; i < Drawables2D.Count; i++) {
+            IDrawable2D drawable2D = Drawables2D[i];
+            if ((drawable2D.Parent.LayerMask & camera.LayerMask) != 0) {
+                int drawBucket2D = getBucket(drawable2D.RenderOrder2D, TotalBuckets2D);
+                camera.RenderIndices2D[drawBucket2D].Add(i);
             }
         }
     }
 
     public virtual void RemoveCamera(ICamera camera) {
-        int bucket = camera.CameraDrawOrder / TotalCameraBuckets;
-        Cameras[bucket].Remove(camera);
-
-        //camera.RenderIndices3D.Clear();
+        int cameraBucket = camera.CameraDrawOrder / TotalCameraBuckets;
+        Cameras[cameraBucket].Remove(camera);
     }
 
     public virtual void Update() {

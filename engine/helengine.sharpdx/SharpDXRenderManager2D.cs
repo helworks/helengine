@@ -18,7 +18,7 @@ namespace helengine.sharpdx {
         private SamplerState quadSampler;
         private Buffer quadConstantBuffer;
         private float4x4 projection2D;
-        private RasterizerState rasterizerState2D;
+        RasterizerState rasterizerState2D;
         DepthStencilState depthStencilState2D;
 
         public D3DDevice Device { get; private set; }
