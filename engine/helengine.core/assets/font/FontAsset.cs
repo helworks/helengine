@@ -54,6 +54,38 @@ namespace helengine {
             if (x > maxX) maxX = x;
             return new float2(maxX, y + line);
         }
+
+        // Measures a single line of text using tight glyph bounds.
+        // Returns FontTightMetrics with Width, MinTop, MaxBottom (all in pixels).
+        public FontTightMetrics MeasureTight(string text) {
+            float width = 0f;
+            float minTop = float.MaxValue;
+            float maxBottom = float.MinValue;
+
+            for (int i = 0; i < text.Length; i++) {
+                char c = text[i];
+                if (c == ' ') {
+                    width += FontInfo.SpaceWidth;
+                    continue;
+                }
+                if (!Characters.TryGetValue(c, out var ch)) continue;
+
+                float advance = ch.AdvanceWidth > 0 ? ch.AdvanceWidth : (ch.SourceRect.Z * AtlasWidth);
+                width += advance;
+
+                float glyphTop = ch.OffsetY;
+                float glyphBottom = ch.OffsetY + (ch.SourceRect.W * AtlasHeight);
+                if (glyphTop < minTop) minTop = glyphTop;
+                if (glyphBottom > maxBottom) maxBottom = glyphBottom;
+            }
+
+            if (minTop == float.MaxValue) {
+                minTop = 0f;
+                maxBottom = LineHeight > 0 ? LineHeight : 1f;
+            }
+
+            return new FontTightMetrics(width, minTop, maxBottom);
+        }
     }
 }
 

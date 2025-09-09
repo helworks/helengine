@@ -34,6 +34,9 @@
         public virtual void DrawText(ITextDrawable2D text) {
         }
 
+        public virtual void DrawRoundedRect(IRoundedRectDrawable2D shape) {
+        }
+
         /// <summary>
         /// Triggers window resize handling - should be called by forms when resizing
         /// </summary>

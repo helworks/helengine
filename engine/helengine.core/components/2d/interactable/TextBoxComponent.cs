@@ -10,7 +10,7 @@ namespace helengine {
         int cursorPosition;
         
         // Child components
-        SpriteComponent? backgroundSprite;
+        RoundedRectComponent? backgroundSprite;
         TextComponent? textComponent;
         InteractableComponent? interactableComponent;
         
@@ -48,9 +48,7 @@ namespace helengine {
             get { return size; }
             set { 
                 size = value;
-                if (backgroundSprite != null) {
-                    backgroundSprite.Size = size;
-                }
+                if (backgroundSprite != null) backgroundSprite.Size = size;
                 if (interactableComponent != null) {
                     interactableComponent.Size = size;
                 }
@@ -79,11 +77,13 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            // Create background sprite
-            backgroundSprite = new SpriteComponent();
-            backgroundSprite.Texture = TextureUtils.PixelTexture;
-            backgroundSprite.Color = new byte4(40, 40, 40, 255); // Dark background
+            // Create rounded background
+            backgroundSprite = new RoundedRectComponent();
             backgroundSprite.Size = size;
+            backgroundSprite.Radius = MathF.Min(size.X, size.Y) * 0.15f;
+            backgroundSprite.BorderThickness = 2f;
+            backgroundSprite.FillColor = ThemeManager.Colors.SurfaceInput;
+            backgroundSprite.BorderColor = ThemeManager.Colors.AccentTertiary;
             backgroundSprite.RenderOrder2D = 1;
             entity.AddComponent(backgroundSprite);
 

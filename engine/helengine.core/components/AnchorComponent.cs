@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace helengine {
     public class AnchorComponent : Component {
         private AnchorData? anchorData;

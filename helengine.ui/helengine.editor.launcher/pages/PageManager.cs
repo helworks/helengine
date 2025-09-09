@@ -97,6 +97,8 @@ namespace helengine.editor.launcher.pages {
             // ESC handling for back navigation
             var kb = Core.Instance.InputManager.Keyboard.GetState();
             bool escPressed = kb.IsKeyDown(Keys.Escape) && !lastKeyboard.IsKeyDown(Keys.Escape);
+            bool f6Pressed = kb.IsKeyDown(Keys.F6) && !lastKeyboard.IsKeyDown(Keys.F6);
+            bool f7Pressed = kb.IsKeyDown(Keys.F7) && !lastKeyboard.IsKeyDown(Keys.F7);
             lastKeyboard = kb;
 
             if (escPressed && !IsTransitioning && history.Count > 0) {
@@ -104,7 +106,20 @@ namespace helengine.editor.launcher.pages {
                 // Reverse animation when going back; don't push current into history again
                 NavigateTo(prev, reverse: true, onComplete: null, recordHistory: false);
             }
+
+            // Toggle UI backend (debug)
+            if (f6Pressed || f7Pressed) {
+                var rm = Core.Instance.RenderManager as helengine.sharpdx.SharpDXRenderManager;
+                if (rm != null) {
+                    // Cycle modes: sdf -> nineslice -> geometry -> sdf ...
+                    cycleModeIndex = (cycleModeIndex + (f6Pressed ? 1 : -1) + 3) % 3;
+                    string mode = cycleModeIndex == 0 ? "sdf" : (cycleModeIndex == 1 ? "nineslice" : "geometry");
+                    rm.SetUIBackend(mode);
+                }
+            }
         }
+
+        int cycleModeIndex = 0;
         
         /// <summary>
         /// Update screen size for animations

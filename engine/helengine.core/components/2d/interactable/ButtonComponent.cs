@@ -7,7 +7,7 @@ namespace helengine {
 
         // Child entities and components
         Entity? textEntity;
-        SpriteComponent? spriteComponent;
+        RoundedRectComponent? roundedRect;
         TextComponent? textComponent;
         InteractableComponent? interactableComponent;
 
@@ -32,13 +32,15 @@ namespace helengine {
 
             if (!entity.Enabled) return;
 
-            // Create sprite component for button background
-            spriteComponent = new SpriteComponent();
-            spriteComponent.Texture = TextureUtils.PixelTexture;
-            spriteComponent.Color = ThemeManager.Colors.AccentSecondary;
-            spriteComponent.Size = size;
-            spriteComponent.RenderOrder2D = 2;
-            entity.AddComponent(spriteComponent);
+            // Create rounded rectangle background
+            roundedRect = new RoundedRectComponent();
+            roundedRect.Size = size;
+            roundedRect.Radius = MathF.Min(size.X, size.Y) * 0.15f;
+            roundedRect.BorderThickness = 2f;
+            roundedRect.FillColor = ThemeManager.Colors.AccentSecondary;
+            roundedRect.BorderColor = ThemeManager.Colors.AccentTertiary;
+            roundedRect.RenderOrder2D = 2;
+            entity.AddComponent(roundedRect);
 
             // Create interactable component for mouse events
             interactableComponent = new InteractableComponent();
@@ -55,36 +57,11 @@ namespace helengine {
             entity.InitChildren();
             entity.AddChild(textEntity);
 
-            // Precise centering using glyph metrics (tight bounds)
-            float totalWidth = 0f;
-            float minTop = float.MaxValue;
-            float maxBottom = float.MinValue;
-            for (int i = 0; i < text.Length; i++) {
-                char c = text[i];
-                if (c == ' ') {
-                    totalWidth += font.FontInfo.SpaceWidth;
-                    continue;
-                }
-                if (!font.Characters.TryGetValue(c, out var ch)) continue;
+            // Precise centering using font-provided tight bounds
+            var tight = font.MeasureTight(text);
 
-                float adv = ch.AdvanceWidth > 0 ? ch.AdvanceWidth : (ch.SourceRect.Z * font.AtlasWidth);
-                totalWidth += adv;
-
-                float glyphTop = ch.OffsetY;
-                float glyphBottom = ch.OffsetY + (ch.SourceRect.W * font.AtlasHeight);
-                if (glyphTop < minTop) minTop = glyphTop;
-                if (glyphBottom > maxBottom) maxBottom = glyphBottom;
-            }
-
-            if (minTop == float.MaxValue) { // empty string
-                minTop = 0f;
-                maxBottom = font.LineHeight;
-            }
-
-            float tightHeight = Math.Max(1f, maxBottom - minTop);
-
-            float px = (size.X - totalWidth) / 2f;
-            float py = (size.Y / 2f) - ((minTop + maxBottom) / 2f);
+            float px = (size.X - tight.Width) / 2f;
+            float py = (size.Y / 2f) - ((tight.MinTop + tight.MaxBottom) / 2f);
             // Snap to pixel grid to avoid half-pixel shimmering
             px = MathF.Round(px);
             py = MathF.Round(py);
@@ -96,7 +73,7 @@ namespace helengine {
             textComponent.Text = text;
             textComponent.Font = font;
             textComponent.Color = ThemeManager.Colors.TextOnAccent;
-            textComponent.Size = new int2((int)Math.Ceiling(totalWidth), (int)Math.Ceiling(tightHeight));
+            textComponent.Size = new int2((int)Math.Ceiling(tight.Width), (int)Math.Ceiling(tight.Height));
             textComponent.RenderOrder2D = 3;
             textEntity.AddComponent(textComponent);
         }
@@ -148,14 +125,14 @@ namespace helengine {
         }
 
         void UpdateButtonColor() {
-            if (spriteComponent == null) return;
+            if (roundedRect == null) return;
 
             if (isPressed) {
-                spriteComponent.Color = ThemeManager.Colors.AccentTertiary;
+                roundedRect.FillColor = ThemeManager.Colors.AccentTertiary;
             } else if (isHovering) {
-                spriteComponent.Color = ThemeManager.Colors.AccentPrimary;
+                roundedRect.FillColor = ThemeManager.Colors.AccentPrimary;
             } else {
-                spriteComponent.Color = ThemeManager.Colors.AccentSecondary;
+                roundedRect.FillColor = ThemeManager.Colors.AccentSecondary;
             }
         }
     }

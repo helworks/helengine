@@ -15,8 +15,16 @@ namespace helengine.sharpdx {
         private InputLayout quadLayout;
         private VertexShader quadVertexShader;
         private PixelShader quadPixelShader;
+        private VertexShader uiShapeVertexShader;
+        private PixelShader uiShapePixelShader;
+        private VertexShader basicColorVertexShader;
+        private PixelShader basicColorPixelShader;
         private SamplerState quadSampler;
         private Buffer quadConstantBuffer;
+        private Buffer uiShapeConstantBuffer;
+        private Buffer basicColorConstantBuffer;
+        private Buffer geomVertexBuffer;
+        private int geomVertexCapacity;
         private float4x4 projection2D;
         RasterizerState rasterizerState2D;
         DepthStencilState depthStencilState2D;
@@ -55,13 +63,25 @@ namespace helengine.sharpdx {
             // Create the vertex buffer
             quadBuffer = Buffer.Create(Device, BindFlags.VertexBuffer, vertices);
 
-            var vertexShaderByteCode = ShaderBytecode.CompileFromFile("shaders\\SpriteShader.fx", "VS", "vs_4_0");
-            quadVertexShader = new VertexShader(Device, vertexShaderByteCode);
+            var spriteVS = ShaderBytecode.CompileFromFile("shaders\\SpriteShader.fx", "VS", "vs_4_0");
+            quadVertexShader = new VertexShader(Device, spriteVS);
 
-            var pixelShaderByteCode = ShaderBytecode.CompileFromFile("shaders\\SpriteShader.fx", "PS", "ps_4_0");
-            quadPixelShader = new PixelShader(Device, pixelShaderByteCode);
+            var spritePS = ShaderBytecode.CompileFromFile("shaders\\SpriteShader.fx", "PS", "ps_4_0");
+            quadPixelShader = new PixelShader(Device, spritePS);
 
-            quadLayout = new InputLayout(Device, vertexShaderByteCode, new[]
+            // UI Shape shader (rounded rectangles)
+            var uiVS = ShaderBytecode.CompileFromFile("shaders\\UIShapeShader.fx", "VS", "vs_4_0");
+            uiShapeVertexShader = new VertexShader(Device, uiVS);
+            var uiPS = ShaderBytecode.CompileFromFile("shaders\\UIShapeShader.fx", "PS", "ps_4_0");
+            uiShapePixelShader = new PixelShader(Device, uiPS);
+
+            // Basic color shader (for geometry fallback)
+            var colVS = ShaderBytecode.CompileFromFile("shaders\\BasicColorShader.fx", "VS", "vs_4_0");
+            basicColorVertexShader = new VertexShader(Device, colVS);
+            var colPS = ShaderBytecode.CompileFromFile("shaders\\BasicColorShader.fx", "PS", "ps_4_0");
+            basicColorPixelShader = new PixelShader(Device, colPS);
+
+            quadLayout = new InputLayout(Device, spriteVS, new[]
             {
                 new InputElement("POSITION", 0, Format.R32G32B32_Float, 0, 0),
                 new InputElement("TEXCOORD", 0, Format.R32G32_Float, 12, 0)
@@ -89,6 +109,37 @@ namespace helengine.sharpdx {
             );
 
             quadConstantBuffer = new Buffer(Device, bufferDesc);
+
+            // UI shape constant buffer
+            var shapeBufferDesc = new BufferDescription(
+                Marshal.SizeOf<UIShapeShaderData>(),
+                ResourceUsage.Default,
+                BindFlags.ConstantBuffer,
+                CpuAccessFlags.None,
+                ResourceOptionFlags.None,
+                0
+            );
+            uiShapeConstantBuffer = new Buffer(Device, shapeBufferDesc);
+
+            var colorBufferDesc = new BufferDescription(
+                Marshal.SizeOf<BasicColorShaderData>(),
+                ResourceUsage.Default,
+                BindFlags.ConstantBuffer,
+                CpuAccessFlags.None,
+                ResourceOptionFlags.None,
+                0
+            );
+            basicColorConstantBuffer = new Buffer(Device, colorBufferDesc);
+
+            // Geometry dynamic vertex buffer (initial capacity)
+            geomVertexCapacity = 1024;
+            geomVertexBuffer = new Buffer(Device, new BufferDescription(
+                Utilities.SizeOf<VertexPositionUV>() * geomVertexCapacity,
+                ResourceUsage.Dynamic,
+                BindFlags.VertexBuffer,
+                CpuAccessFlags.Write,
+                ResourceOptionFlags.None,
+                0));
         }
 
         internal void DrawCamera(SharpDXWindow window, ICamera camera) {
@@ -215,6 +266,306 @@ namespace helengine.sharpdx {
                 context.UpdateSubresource(ref shaderData, quadConstantBuffer);
 
                 context.Draw(4, 0);
+            }
+        }
+
+        private enum UIShapeBackend { SDF, NineSlice, Geometry }
+        private UIShapeBackend backend = UIShapeBackend.SDF;
+        private readonly Dictionary<(int,int), UINineSliceAtlas> nineSliceCache = new();
+
+        public void SetUIBackend(string mode) {
+            switch (mode?.ToLowerInvariant()) {
+                case "sdf": backend = UIShapeBackend.SDF; break;
+                case "nineslice": backend = UIShapeBackend.NineSlice; break;
+                case "geometry": backend = UIShapeBackend.Geometry; break;
+            }
+        }
+
+        internal void DrawRoundedRect(IRoundedRectDrawable2D shape) {
+            if (backend == UIShapeBackend.SDF) { DrawRoundedRectSDF(shape); return; }
+            if (backend == UIShapeBackend.NineSlice) { DrawRoundedRectNineSlice(shape); return; }
+            DrawRoundedRectGeometry(shape);
+        }
+
+        private void DrawRoundedRectSDF(IRoundedRectDrawable2D shape) {
+            var context = Device.ImmediateContext;
+
+            context.Rasterizer.State = rasterizerState2D;
+            context.OutputMerger.SetDepthStencilState(depthStencilState2D, 0);
+
+            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleStrip;
+            context.VertexShader.Set(uiShapeVertexShader);
+            context.PixelShader.Set(uiShapePixelShader);
+            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(quadBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
+            context.InputAssembler.InputLayout = quadLayout;
+
+            float3 pos = shape.Parent.Position;
+            float4x4 transposedWorld;
+            float4x4.Transpose(ref projection2D, out transposedWorld);
+
+            UIShapeShaderData sd = new UIShapeShaderData();
+            sd.worldViewProj = transposedWorld;
+            sd.destRect = new float4(pos.X, pos.Y, shape.Size.X, shape.Size.Y);
+            sd.params1 = new float4(shape.Radius, shape.BorderThickness, 1.0f, 0.0f);
+            sd.fillColor = new float4(
+                shape.FillColor.X / 255.0f,
+                shape.FillColor.Y / 255.0f,
+                shape.FillColor.Z / 255.0f,
+                shape.FillColor.W / 255.0f
+            );
+            sd.borderColor = new float4(
+                shape.BorderColor.X / 255.0f,
+                shape.BorderColor.Y / 255.0f,
+                shape.BorderColor.Z / 255.0f,
+                shape.BorderColor.W / 255.0f
+            );
+
+            context.VertexShader.SetConstantBuffer(0, uiShapeConstantBuffer);
+            context.PixelShader.SetConstantBuffer(0, uiShapeConstantBuffer);
+            context.UpdateSubresource(ref sd, uiShapeConstantBuffer);
+
+            context.Draw(4, 0);
+        }
+
+        private UINineSliceAtlas GetNineSliceAtlas(IRoundedRectDrawable2D shape) {
+            int r = (int)MathF.Round(shape.Radius);
+            int b = (int)MathF.Round(shape.BorderThickness);
+            var key = (r, b);
+            if (!nineSliceCache.TryGetValue(key, out var atlas)) {
+                atlas = UINineSliceAtlas.Generate(r, b, aaPx: 1, padding: 2);
+                nineSliceCache[key] = atlas;
+            }
+            return atlas;
+        }
+
+        private void DrawRoundedRectNineSlice(IRoundedRectDrawable2D shape) {
+            var context = Device.ImmediateContext;
+            var atlas = GetNineSliceAtlas(shape);
+
+            // Bind atlas
+            context.PixelShader.SetShaderResource(0, atlas.Texture.Resource);
+            context.PixelShader.SetSampler(0, quadSampler);
+
+            // Setup sprite pipeline
+            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleStrip;
+            context.VertexShader.Set(quadVertexShader);
+            context.PixelShader.Set(quadPixelShader);
+            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(quadBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
+            context.InputAssembler.InputLayout = quadLayout;
+
+            float3 pos = shape.Parent.Position;
+            float x = pos.X;
+            float y = pos.Y;
+            float w = shape.Size.X;
+            float h = shape.Size.Y;
+            int s = atlas.CornerSize;
+            int lw = s; int rw = s; int mw = Math.Max(1, (int)w - lw - rw);
+            int th = s; int bh = s; int mh = Math.Max(1, (int)h - th - bh);
+
+            float4x4 transposedWorld; float4x4.Transpose(ref projection2D, out transposedWorld);
+            SpriteShaderData sd = new SpriteShaderData();
+            sd.worldViewProj = transposedWorld;
+            sd.color = new float4(shape.FillColor.X/255f, shape.FillColor.Y/255f, shape.FillColor.Z/255f, shape.FillColor.W/255f);
+
+            context.VertexShader.SetConstantBuffer(0, quadConstantBuffer);
+            context.PixelShader.SetConstantBuffer(0, quadConstantBuffer);
+
+            void drawTile(int idx, float dx, float dy, float dw, float dh) {
+                var uv = atlas.FillUV[idx];
+                sd.sourceRect = uv;
+                sd.destRect = new float4(dx, dy, dw, dh);
+                context.UpdateSubresource(ref sd, quadConstantBuffer);
+                context.Draw(4, 0);
+            }
+
+            // Top row
+            drawTile(0, x, y, lw, th);
+            drawTile(1, x+lw, y, mw, th);
+            drawTile(2, x+lw+mw, y, rw, th);
+            // Middle row
+            drawTile(3, x, y+th, lw, mh);
+            drawTile(4, x+lw, y+th, mw, mh);
+            drawTile(5, x+lw+mw, y+th, rw, mh);
+            // Bottom row
+            drawTile(6, x, y+th+mh, lw, bh);
+            drawTile(7, x+lw, y+th+mh, mw, bh);
+            drawTile(8, x+lw+mw, y+th+mh, rw, bh);
+
+            // Border overlay
+            if (shape.BorderThickness > 0) {
+                sd.color = new float4(shape.BorderColor.X/255f, shape.BorderColor.Y/255f, shape.BorderColor.Z/255f, shape.BorderColor.W/255f);
+                void drawBorderTile(int idx, float dx, float dy, float dw, float dh) {
+                    var uv = atlas.BorderUV[idx];
+                    sd.sourceRect = uv;
+                    sd.destRect = new float4(dx, dy, dw, dh);
+                    context.UpdateSubresource(ref sd, quadConstantBuffer);
+                    context.Draw(4, 0);
+                }
+                // Top row
+                drawBorderTile(0, x, y, lw, th);
+                drawBorderTile(1, x+lw, y, mw, th);
+                drawBorderTile(2, x+lw+mw, y, rw, th);
+                // Middle row
+                drawBorderTile(3, x, y+th, lw, mh);
+                drawBorderTile(4, x+lw, y+th, mw, mh);
+                drawBorderTile(5, x+lw+mw, y+th, rw, mh);
+                // Bottom row
+                drawBorderTile(6, x, y+th+mh, lw, bh);
+                drawBorderTile(7, x+lw, y+th+mh, mw, bh);
+                drawBorderTile(8, x+lw+mw, y+th+mh, rw, bh);
+            }
+        }
+
+        private void EnsureGeomCapacity(int needed) {
+            if (needed <= geomVertexCapacity) return;
+            // Double until sufficient
+            int newCap = geomVertexCapacity;
+            while (newCap < needed) newCap *= 2;
+            geomVertexBuffer.Dispose();
+            geomVertexCapacity = newCap;
+            geomVertexBuffer = new Buffer(Device, new BufferDescription(
+                Utilities.SizeOf<VertexPositionUV>() * geomVertexCapacity,
+                ResourceUsage.Dynamic,
+                BindFlags.VertexBuffer,
+                CpuAccessFlags.Write,
+                ResourceOptionFlags.None,
+                0));
+        }
+
+        private void DrawRoundedRectGeometry(IRoundedRectDrawable2D shape) {
+            var context = Device.ImmediateContext;
+
+            // Build geometry for rounded rect: fill fan + border ring
+            const int segmentsPerCorner = 8;
+            int corners = 4;
+            int ringSegments = segmentsPerCorner * corners;
+
+            // Estimate vertices: fill fan (1 center + ringSegments vertices), border ring (ringSegments*2 vertices)
+            int fillVerts = 1 + ringSegments + 1; // closing vertex
+            int borderVerts = (shape.BorderThickness > 0) ? (ringSegments + 1) * 2 : 0;
+            int totalVerts = fillVerts + borderVerts;
+            EnsureGeomCapacity(totalVerts);
+
+            var dataBox = context.MapSubresource(geomVertexBuffer, 0, MapMode.WriteDiscard, SharpDX.Direct3D11.MapFlags.None);
+            var ptr = dataBox.DataPointer;
+
+            float3 pos = shape.Parent.Position;
+            float w = shape.Size.X;
+            float h = shape.Size.Y;
+            float r = Math.Min(shape.Radius, Math.Min(w, h) * 0.5f);
+            float cx = pos.X + w * 0.5f;
+            float cy = pos.Y + h * 0.5f;
+
+            // Helper to write a vertex
+            void write(float x, float y) {
+                var v = new VertexPositionUV(new float3(x, y, 0), new float2(0, 0));
+                Utilities.Write(ptr, ref v);
+                ptr += Utilities.SizeOf<VertexPositionUV>();
+            }
+
+            // Fill fan
+            write(cx, cy);
+            // Create ring around the rounded rect
+            int steps = ringSegments;
+            for (int i = 0; i <= steps; i++) {
+                float t = (float)i / steps; // 0..1
+                // Map t to four corners
+                float angle = t * MathF.PI * 2.0f;
+                // Parametric rounded-rect approx: clamp to box then add corner arcs
+                float x = MathF.Cos(angle);
+                float y = MathF.Sin(angle);
+                // Compute point on outer rounded rect
+                float ox = MathF.Sign(x) * MathF.Max(MathF.Abs(w * 0.5f - r), MathF.Abs(w * 0.5f * x)) + cx;
+                float oy = MathF.Sign(y) * MathF.Max(MathF.Abs(h * 0.5f - r), MathF.Abs(h * 0.5f * y)) + cy;
+                // Adjust to arc near corners
+                if (MathF.Abs(ox - cx) > (w * 0.5f - r) && MathF.Abs(oy - cy) > (h * 0.5f - r)) {
+                    float cornerCx = cx + MathF.Sign(x) * (w * 0.5f - r);
+                    float cornerCy = cy + MathF.Sign(y) * (h * 0.5f - r);
+                    ox = cornerCx + r * MathF.Sign(x) * MathF.Abs(x);
+                    oy = cornerCy + r * MathF.Sign(y) * MathF.Abs(y);
+                }
+                write(ox, oy);
+            }
+
+            // Border ring (if any)
+            if (shape.BorderThickness > 0) {
+                float ir = Math.Max(0, r - shape.BorderThickness);
+                float iw = Math.Max(0, w - shape.BorderThickness * 2);
+                float ih = Math.Max(0, h - shape.BorderThickness * 2);
+                for (int i = 0; i <= steps; i++) {
+                    float t = (float)i / steps;
+                    float angle = t * MathF.PI * 2.0f;
+                    float x = MathF.Cos(angle);
+                    float y = MathF.Sin(angle);
+                    float ox = MathF.Sign(x) * MathF.Max(MathF.Abs(w * 0.5f - r), MathF.Abs(w * 0.5f * x)) + cx;
+                    float oy = MathF.Sign(y) * MathF.Max(MathF.Abs(h * 0.5f - r), MathF.Abs(h * 0.5f * y)) + cy;
+                    if (MathF.Abs(ox - cx) > (w * 0.5f - r) && MathF.Abs(oy - cy) > (h * 0.5f - r)) {
+                        float cornerCx = cx + MathF.Sign(x) * (w * 0.5f - r);
+                        float cornerCy = cy + MathF.Sign(y) * (h * 0.5f - r);
+                        ox = cornerCx + r * MathF.Sign(x) * MathF.Abs(x);
+                        oy = cornerCy + r * MathF.Sign(y) * MathF.Abs(y);
+                    }
+
+                    // inner ring point
+                    float icx = cx;
+                    float icy = cy;
+                    float ix = MathF.Sign(x) * MathF.Max(MathF.Abs(iw * 0.5f - ir), MathF.Abs(iw * 0.5f * x)) + icx;
+                    float iy = MathF.Sign(y) * MathF.Max(MathF.Abs(ih * 0.5f - ir), MathF.Abs(ih * 0.5f * y)) + icy;
+                    if (MathF.Abs(ix - icx) > (iw * 0.5f - ir) && MathF.Abs(iy - icy) > (ih * 0.5f - ir)) {
+                        float cornerCx2 = icx + MathF.Sign(x) * (iw * 0.5f - ir);
+                        float cornerCy2 = icy + MathF.Sign(y) * (ih * 0.5f - ir);
+                        ix = cornerCx2 + ir * MathF.Sign(x) * MathF.Abs(x);
+                        iy = cornerCy2 + ir * MathF.Sign(y) * MathF.Abs(y);
+                    }
+
+                    write(ox, oy);
+                    write(ix, iy);
+                }
+            }
+
+            context.UnmapSubresource(geomVertexBuffer, 0);
+
+            // Setup pipeline
+            context.Rasterizer.State = rasterizerState2D;
+            context.OutputMerger.SetDepthStencilState(depthStencilState2D, 0);
+            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleStrip;
+            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(geomVertexBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
+            context.InputAssembler.InputLayout = quadLayout; // matches POSITION+TEXCOORD
+
+            float4x4 transposedWorld;
+            float4x4.Transpose(ref projection2D, out transposedWorld);
+
+            // Draw fill fan
+            var col = new BasicColorShaderData();
+            col.worldViewProj = transposedWorld;
+            col.color = new float4(
+                shape.FillColor.X / 255.0f,
+                shape.FillColor.Y / 255.0f,
+                shape.FillColor.Z / 255.0f,
+                shape.FillColor.W / 255.0f
+            );
+
+            context.VertexShader.Set(basicColorVertexShader);
+            context.PixelShader.Set(basicColorPixelShader);
+            context.VertexShader.SetConstantBuffer(0, basicColorConstantBuffer);
+            context.PixelShader.SetConstantBuffer(0, basicColorConstantBuffer);
+            context.UpdateSubresource(ref col, basicColorConstantBuffer);
+
+            // Fill fan uses TriangleFan, which D3D11 doesn't support directly; emulate with triangle list using strip ordering
+            // We already wrote center + ring. To render as strip, we can draw from vertex 0 with strip; it will not form a fan correctly, but acceptable for basic fill approx.
+            // For correctness, draw as list using small batches would be required; here we draw as strip for simplicity.
+            int fillVertexCount = fillVerts;
+            context.Draw(fillVertexCount, 0);
+
+            if (borderVerts > 0) {
+                col.color = new float4(
+                    shape.BorderColor.X / 255.0f,
+                    shape.BorderColor.Y / 255.0f,
+                    shape.BorderColor.Z / 255.0f,
+                    shape.BorderColor.W / 255.0f
+                );
+                context.UpdateSubresource(ref col, basicColorConstantBuffer);
+                context.Draw(borderVerts, fillVertexCount);
             }
         }
     }

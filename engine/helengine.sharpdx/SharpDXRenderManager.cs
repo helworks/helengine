@@ -383,6 +383,15 @@ namespace helengine.sharpdx {
             render2D.DrawText(drawable);
         }
 
+        public override void DrawRoundedRect(IRoundedRectDrawable2D shape) {
+            render2D.DrawRoundedRect(shape);
+        }
+
+        // Debug helper to switch UI backend
+        public void SetUIBackend(string mode) {
+            render2D.SetUIBackend(mode);
+        }
+
         public override void Draw() {
             base.Draw();
 
