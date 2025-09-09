@@ -23,6 +23,7 @@
         ///  the contents of this method with the code editor.
         /// </summary>
         private void InitializeComponent() {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(LauncherForm));
             SuspendLayout();
             // 
             // LauncherForm
@@ -31,6 +32,7 @@
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(986, 705);
             FormBorderStyle = FormBorderStyle.None;
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "LauncherForm";
             Text = "Form1";
             ResumeLayout(false);

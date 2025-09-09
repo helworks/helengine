@@ -117,4 +117,33 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <assembly alias="System.Drawing" name="System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
+  <data name="$this.Icon" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+    <value>
+        AAABAAMAICAQAAEABADoAgAANgAAACAgAgABAAEAMAEAAB4DAAAgIAIAAQABADABAABOBAAAKAAAACAA
+        AABAAAAAAQAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMMtmQDnlssAAAAAAAAAAAAAAAAAAAAAAAAA
+        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAiIiIiIiIiIiIiIiIiIiIiIiIiIiIi
+        IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIAAAIiIiIiAAACIiIiIiIiARECIiIiIgERAiIiIiIi
+        IgERAiIiIiIBEQIiIiIiIiIBEQIiIiIiARECIiIiIiIiARECIiIiIgERAiIiIiIiIgERAiIiIiIBEQIi
+        IiIiIiIBEQIiIiIiARECIiIiIiIiARECIiIiIgERAiIiIiIiIgERAiIiIiIBEQIiIiIiIiIBEQIiIiIi
+        ARECIiIiIiIiARECIiIiIgERAiIiIiIiIgERAAAAAAABEQIiIiIiIiIBERERERERERECIiIiIiIiARER
+        ERERERERAiIiIiIiIgEREREREREREQIiIiIiIiIBEQAAAAAAARECIiIiIiIiARECIiIiIgERAiIiIiIi
+        IgERAiIiIiIBEQIiIiIiIiIBEQIiIiIiARECIiIiIiIiARECIiIiIgERAiIiIiIiIgERAiIiIiIBEQIi
+        IiIiIiIBEQIiIiIiARECIiIiIiIiARECIiIiIgERAiIiIiIiIgERAiIiIiIBEQIiIiIiIiIBEQIiIiIi
+        ARECIiIiIiIiAAACIiIiIgAAAiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIi
+        IiIiIiIiIiIiIv////////////////wf8H/8H/B//B/wf/wf8H/8H/B//B/wf/wf8H/8H/B//B/wf/wf
+        8H/8H/B//AAAf/wAAH/8AAB//AAAf/wAAH/8H/B//B/wf/wf8H/8H/B//B/wf/wf8H/8H/B//B/wf/wf
+        8H/8H/B/////////////////KAAAACAAAABAAAAAAQABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOeW
+        ywAAAAAA//////////////////////4/+P/+P/j//j/4//4/+P/+P/j//j/4//4/+P/+P/j//j/4//4/
+        +P/+P/j//gAA//4AAP/+AAD//j/4//4/+P/+P/j//j/4//4/+P/+P/j//j/4//4/+P/+P/j//j/4////
+        /////////////////////////////////////////j/4//4/+P/+P/j//j/4//4/+P/+P/j//j/4//4/
+        +P/+P/j//j/4//4/+P/+AAD//gAA//4AAP/+P/j//j/4//4/+P/+P/j//j/4//4/+P/+P/j//j/4//4/
+        +P/+P/j//////////////////////ygAAAAgAAAAQAAAAAEAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        AADDLZkAAAAAAP////////////////wf8H/8H/B//B/wf/wf8H/8H/B//B/wf/wf8H/8H/B//B/wf/wf
+        8H/8H/B//AAAf/wAAH/8AAB//AAAf/wAAH/8H/B//B/wf/wf8H/8H/B//B/wf/wf8H/8H/B//B/wf/wf
+        8H/8H/B//////////////////////////////////B/wf/wf8H/8H/B//B/wf/wf8H/8H/B//B/wf/wf
+        8H/8H/B//B/wf/wf8H/8AAB//AAAf/wAAH/8AAB//AAAf/wf8H/8H/B//B/wf/wf8H/8H/B//B/wf/wf
+        8H/8H/B//B/wf/wf8H////////////////8=
+</value>
+  </data>
 </root>

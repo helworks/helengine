@@ -8,12 +8,17 @@ namespace helengine {
 
         public float LineHeight { get; protected set; }
 
+        public int AtlasWidth { get; protected set; }
+        public int AtlasHeight { get; protected set; }
+
         public FontAsset(FontInfo fontInfo, RuntimeTexture tex,
-            Dictionary<char, FontChar> chars, float lineHeight) {
+            Dictionary<char, FontChar> chars, float lineHeight, int atlasWidth, int atlasHeight) {
             this.LineHeight = lineHeight;
             this.FontInfo = fontInfo;
             this.Texture = tex;
             this.Characters = chars;
+            this.AtlasWidth = atlasWidth;
+            this.AtlasHeight = atlasHeight;
         }
 
         public void Dispose() {

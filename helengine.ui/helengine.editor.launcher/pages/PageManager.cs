@@ -9,6 +9,8 @@ namespace helengine.editor.launcher.pages {
         private LauncherPage? currentPage;
         private LauncherPage? transitioningPage;
         private int screenWidth;
+        private Stack<string> history = new Stack<string>();
+        private KeyboardState lastKeyboard;
         
         public string CurrentPageName { get; private set; } = "";
         public bool IsTransitioning => transitioningPage != null;
@@ -28,6 +30,14 @@ namespace helengine.editor.launcher.pages {
         /// Navigate to a specific page with animation
         /// </summary>
         public void NavigateTo(string pageName, Action? onComplete = null) {
+            NavigateTo(pageName, reverse: false, onComplete);
+        }
+
+        public void NavigateTo(string pageName, bool reverse, Action? onComplete = null) {
+            NavigateTo(pageName, reverse, onComplete, recordHistory: true);
+        }
+
+        public void NavigateTo(string pageName, bool reverse, Action? onComplete, bool recordHistory) {
             if (!pages.ContainsKey(pageName)) {
                 throw new ArgumentException($"Page '{pageName}' not found");
             }
@@ -46,13 +56,17 @@ namespace helengine.editor.launcher.pages {
             
             // If there's a current page, hide it first
             if (currentPage != null) {
-                currentPage.Hide(screenWidth, () => {
+                if (recordHistory && !string.IsNullOrEmpty(CurrentPageName)) {
+                    history.Push(CurrentPageName);
+                }
+                var hideDir = reverse ? SlideDirection.LeftToRight : SlideDirection.RightToLeft;
+                currentPage.Hide(screenWidth, hideDir, () => {
                     // After hide animation completes, show the new page
-                    ShowNewPage(pageName, targetPage, onComplete);
+                    ShowNewPage(pageName, targetPage, reverse, onComplete);
                 });
             } else {
                 // No current page, just show the new one
-                ShowNewPage(pageName, targetPage, onComplete);
+                ShowNewPage(pageName, targetPage, reverse, onComplete);
             }
         }
         
@@ -67,6 +81,7 @@ namespace helengine.editor.launcher.pages {
             var page = pages[pageName];
             currentPage = page;
             CurrentPageName = pageName;
+            history.Clear();
             
             // Create and show immediately without animation so Hide() can run later
             page.ShowImmediate(screenWidth);
@@ -78,6 +93,17 @@ namespace helengine.editor.launcher.pages {
         public void Update() {
             currentPage?.Update();
             transitioningPage?.Update();
+
+            // ESC handling for back navigation
+            var kb = Core.Instance.InputManager.Keyboard.GetState();
+            bool escPressed = kb.IsKeyDown(Keys.Escape) && !lastKeyboard.IsKeyDown(Keys.Escape);
+            lastKeyboard = kb;
+
+            if (escPressed && !IsTransitioning && history.Count > 0) {
+                var prev = history.Pop();
+                // Reverse animation when going back; don't push current into history again
+                NavigateTo(prev, reverse: true, onComplete: null, recordHistory: false);
+            }
         }
         
         /// <summary>
@@ -118,8 +144,9 @@ namespace helengine.editor.launcher.pages {
             transitioningPage = null;
         }
         
-        private void ShowNewPage(string pageName, LauncherPage targetPage, Action? onComplete) {
-            targetPage.Show(screenWidth, () => {
+        private void ShowNewPage(string pageName, LauncherPage targetPage, bool reverse, Action? onComplete) {
+            var showDir = reverse ? SlideDirection.LeftToRight : SlideDirection.RightToLeft;
+            targetPage.Show(screenWidth, showDir, () => {
                 // Transition complete
                 currentPage = targetPage;
                 CurrentPageName = pageName;

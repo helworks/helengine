@@ -1,27 +1,20 @@
-using helengine;
-using helengine.editor;
+using helengine.editor.launcher.pages;
 using helengine.sharpdx;
 using Nucleus.Platform.Windows.Controls;
-using helengine.editor.launcher.pages;
 
 namespace helengine.editor.launcher {
     public partial class LauncherForm : ResizableForm {
-        private EnhancedTitleBarControl titleBarControl;
-        private Thread thread;
-        private bool closed;
+        TitleBarControl titleBarControl;
+        Thread thread;
+        bool closed;
 
         // Page management system
-        private PageManager? pageManager;
-        private MainPage? mainPage;
-        private NewProjectPage? newProjectPage;
-        private FontAsset uiFont;
-        private Entity sceneCamEntity;
-        private CameraComponent sceneCamera;
-
-        // Button constants
-        private const int ButtonWidth = 200;
-        private const int ButtonHeight = 60;
-        private const int ButtonSpacing = 20;
+        PageManager? pageManager;
+        MainPage? mainPage;
+        NewProjectPage? newProjectPage;
+        FontAsset uiFont;
+        Entity sceneCamEntity;
+        CameraComponent sceneCamera;
 
         public LauncherForm() {
             InitializeComponent();
@@ -35,30 +28,25 @@ namespace helengine.editor.launcher {
         }
 
         private void SetupTitleBar() {
-            // Create and configure the enhanced title bar
-            titleBarControl = new EnhancedTitleBarControl();
+            titleBarControl = new TitleBarControl();
             titleBarControl.Text = "helengine project manager";
             titleBarControl.Location = new Point(0, 0);
             titleBarControl.Width = this.ClientSize.Width;
             titleBarControl.TitleBarHeight = 24;
             titleBarControl.EnableMaximize = true;
 
-            // Ensure proper anchoring for smooth resize (redundant but explicit)
-            titleBarControl.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right;
-
             this.Controls.Add(titleBarControl);
         }
 
         private void CreateLauncherUI() {
             // Create font asset for UI text
-            Font font = new Font("Consolas", 16, FontStyle.Regular);
-            uiFont = GDIFontProcessor.ImportFont(font);
+            uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 16, FontStyle.Regular));
 
             // Create UI camera for rendering UI elements
             sceneCamEntity = new Entity();
             sceneCamera = new CameraComponent();
             sceneCamera.LayerMask = 0b1000000000000000; // UI layer
-            sceneCamera.Viewport = new float4(0, 0, ClientSize.Width, ClientSize.Height);
+            sceneCamera.Viewport = new float4(0, 24, ClientSize.Width, ClientSize.Height - 24);
             sceneCamEntity.InitComponents();
             sceneCamEntity.AddComponent(sceneCamera);
 
@@ -86,16 +74,19 @@ namespace helengine.editor.launcher {
 
         private void UpdateCameraViewport() {
             if (sceneCamera != null) {
-                sceneCamera.Viewport = new float4(0, 0, ClientSize.Width, ClientSize.Height);
+                int top = titleBarControl?.TitleBarHeight ?? 0;
+                sceneCamera.Viewport = new float4(0, top, ClientSize.Width, ClientSize.Height - top);
             }
         }
 
         private void NavigateToNewProject() {
-            pageManager?.NavigateTo("newproject");
+            // Forward transition (main -> newproject): slide in from right
+            pageManager?.NavigateTo("newproject", reverse: false);
         }
 
         private void NavigateToMain() {
-            pageManager?.NavigateTo("main");
+            // Reverse transition (newproject -> main): slide back to the right
+            pageManager?.NavigateTo("main", reverse: true);
             newProjectPage?.ClearInputs(); // Clear form when returning to main
         }
 
@@ -117,6 +108,9 @@ namespace helengine.editor.launcher {
 
             Core core = new Core();
             core.Initialize(new SharpDXRenderManager(), new InputManagerWindows(this.Handle));
+
+            // Enable keyboard input for ESC/back handling
+            (Core.Instance.InputManager.Keyboard as KeyboardWindows)?.SetActive(true);
 
             core.RenderManager.AddWindow(this.Handle, ClientSize.Width - 1, ClientSize.Height);
 
@@ -155,10 +149,12 @@ namespace helengine.editor.launcher {
 
         protected override void OnActivated(EventArgs e) {
             base.OnActivated(e);
+            (Core.Instance?.InputManager.Keyboard as KeyboardWindows)?.SetActive(true);
         }
 
         protected override void OnDeactivate(EventArgs e) {
             base.OnDeactivate(e);
+            (Core.Instance?.InputManager.Keyboard as KeyboardWindows)?.SetActive(false);
         }
 
         protected override void OnResize(EventArgs e) {

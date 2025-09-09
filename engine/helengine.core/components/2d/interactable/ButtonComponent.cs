@@ -55,21 +55,48 @@ namespace helengine {
             entity.InitChildren();
             entity.AddChild(textEntity);
 
-            // Center text on button
-            int textWidth = text.Length * 10; // Rough estimation
-            int textHeight = 20;
-            textEntity.Position = new float3(
-                (size.X - textWidth) / 2,
-                (size.Y - textHeight) / 2,
-                0.1f
-            );
+            // Precise centering using glyph metrics (tight bounds)
+            float totalWidth = 0f;
+            float minTop = float.MaxValue;
+            float maxBottom = float.MinValue;
+            for (int i = 0; i < text.Length; i++) {
+                char c = text[i];
+                if (c == ' ') {
+                    totalWidth += font.FontInfo.SpaceWidth;
+                    continue;
+                }
+                if (!font.Characters.TryGetValue(c, out var ch)) continue;
+
+                float adv = ch.AdvanceWidth > 0 ? ch.AdvanceWidth : (ch.SourceRect.Z * font.AtlasWidth);
+                totalWidth += adv;
+
+                float glyphTop = ch.OffsetY;
+                float glyphBottom = ch.OffsetY + (ch.SourceRect.W * font.AtlasHeight);
+                if (glyphTop < minTop) minTop = glyphTop;
+                if (glyphBottom > maxBottom) maxBottom = glyphBottom;
+            }
+
+            if (minTop == float.MaxValue) { // empty string
+                minTop = 0f;
+                maxBottom = font.LineHeight;
+            }
+
+            float tightHeight = Math.Max(1f, maxBottom - minTop);
+
+            float px = (size.X - totalWidth) / 2f;
+            float py = (size.Y / 2f) - ((minTop + maxBottom) / 2f);
+            // Snap to pixel grid to avoid half-pixel shimmering
+            px = MathF.Round(px);
+            py = MathF.Round(py);
+
+            textEntity.Position = new float3(px, py, 0.1f);
 
             // Create text component
             textComponent = new TextComponent();
             textComponent.Text = text;
             textComponent.Font = font;
             textComponent.Color = ThemeManager.Colors.TextOnAccent;
-            textComponent.Size = new int2(textWidth, textHeight);
+            textComponent.Size = new int2((int)Math.Ceiling(totalWidth), (int)Math.Ceiling(tightHeight));
             textComponent.RenderOrder2D = 3;
             textEntity.AddComponent(textComponent);
         }

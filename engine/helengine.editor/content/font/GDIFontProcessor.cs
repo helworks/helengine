@@ -188,7 +188,9 @@ namespace helengine.editor {
                 new FontInfo(font.Name, (int)Math.Ceiling(lineHeightPx), spaceWidth),
                 asset,
                 packedChars,
-                lineHeightPx
+                lineHeightPx,
+                atlasImg.Width,
+                atlasImg.Height
             );
         }
 

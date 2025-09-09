@@ -1,27 +1,25 @@
-using helengine;
-
 namespace helengine.editor.launcher.pages {
     /// <summary>
     /// New project creation page with input fields
     /// </summary>
     public class NewProjectPage : LauncherPage {
-        private Action<string, string>? onCreateProject; // projectName, projectLocation
-        private Action? onCancel;
+        Action<string, string>? onCreateProject; // projectName, projectLocation
+        Action? onCancel;
         
         // UI entities
-        private Entity? titleEntity;
-        private Entity? projectNameLabelEntity;
-        private Entity? projectNameTextBoxEntity;
-        private Entity? projectLocationLabelEntity;
-        private Entity? projectLocationTextBoxEntity;
-        private Entity? createButtonEntity;
-        private Entity? cancelButtonEntity;
+        Entity? titleEntity;
+        Entity? projectNameLabelEntity;
+        Entity? projectNameTextBoxEntity;
+        Entity? projectLocationLabelEntity;
+        Entity? projectLocationTextBoxEntity;
+        Entity? createButtonEntity;
+        Entity? backButtonEntity;
         
         // Components
-        private TextBoxComponent? projectNameTextBox;
-        private TextBoxComponent? projectLocationTextBox;
-        private ButtonComponent? createButton;
-        private ButtonComponent? cancelButton;
+        TextBoxComponent? projectNameTextBox;
+        TextBoxComponent? projectLocationTextBox;
+        ButtonComponent? createButton;
+        ButtonComponent? cancelButton;
         
         public NewProjectPage(FontAsset font, Action<string, string>? onCreateProject = null, Action? onCancel = null) : base(font) {
             this.onCreateProject = onCreateProject;
@@ -44,7 +42,6 @@ namespace helengine.editor.launcher.pages {
         private void CreateTitle() {
             titleEntity = new Entity();
             titleEntity.LayerMask = 0b1000000000000000;
-            titleEntity.Position = GetPosition(50, 30);
             titleEntity.Enabled = true;
             titleEntity.InitComponents();
             
@@ -54,15 +51,35 @@ namespace helengine.editor.launcher.pages {
             titleText.Color = new byte4(255, 255, 255, 255);
             titleText.RenderOrder2D = 3;
             titleEntity.AddComponent(titleText);
-            
-            pageEntities.Add(titleEntity);
+
+            AddPageEntity(titleEntity, 50, 30);
+
+            // Back arrow button (top-left)
+            backButtonEntity = new Entity();
+            backButtonEntity.LayerMask = 0b1000000000000000;
+            backButtonEntity.Enabled = true;
+            backButtonEntity.InitComponents();
+
+            var backAnchor = new AnchorComponent();
+            backButtonEntity.AddComponent(backAnchor);
+            // Anchor after shown to ensure distances are from on-screen position
+            OnShown(() => backAnchor.EnableAnchoring(left: true, top: true));
+
+            var backButton = new ButtonComponent(
+                "←",
+                new int2(40, 40),
+                font,
+                () => onCancel?.Invoke()
+            );
+            backButtonEntity.AddComponent(backButton);
+
+            AddPageEntity(backButtonEntity, 10, 10);
         }
         
         private void CreateInputFields() {
             // Project Name Label
             projectNameLabelEntity = new Entity();
             projectNameLabelEntity.LayerMask = 0b1000000000000000;
-            projectNameLabelEntity.Position = GetPosition(50, 80);
             projectNameLabelEntity.Enabled = true;
             projectNameLabelEntity.InitComponents();
             
@@ -72,12 +89,11 @@ namespace helengine.editor.launcher.pages {
             nameLabel.Color = new byte4(255, 255, 255, 255);
             nameLabel.RenderOrder2D = 3;
             projectNameLabelEntity.AddComponent(nameLabel);
-            pageEntities.Add(projectNameLabelEntity);
+            AddPageEntity(projectNameLabelEntity, 50, 80);
             
             // Project Name TextBox
             projectNameTextBoxEntity = new Entity();
             projectNameTextBoxEntity.LayerMask = 0b1000000000000000;
-            projectNameTextBoxEntity.Position = GetPosition(50, 110);
             projectNameTextBoxEntity.Enabled = true;
             projectNameTextBoxEntity.InitComponents();
             
@@ -87,12 +103,11 @@ namespace helengine.editor.launcher.pages {
                 "Enter project name"
             );
             projectNameTextBoxEntity.AddComponent(projectNameTextBox);
-            pageEntities.Add(projectNameTextBoxEntity);
+            AddPageEntity(projectNameTextBoxEntity, 50, 110);
             
             // Project Location Label
             projectLocationLabelEntity = new Entity();
             projectLocationLabelEntity.LayerMask = 0b1000000000000000;
-            projectLocationLabelEntity.Position = GetPosition(50, 160);
             projectLocationLabelEntity.Enabled = true;
             projectLocationLabelEntity.InitComponents();
             
@@ -102,12 +117,11 @@ namespace helengine.editor.launcher.pages {
             locationLabel.Color = new byte4(255, 255, 255, 255);
             locationLabel.RenderOrder2D = 3;
             projectLocationLabelEntity.AddComponent(locationLabel);
-            pageEntities.Add(projectLocationLabelEntity);
+            AddPageEntity(projectLocationLabelEntity, 50, 160);
             
             // Project Location TextBox
             projectLocationTextBoxEntity = new Entity();
             projectLocationTextBoxEntity.LayerMask = 0b1000000000000000;
-            projectLocationTextBoxEntity.Position = GetPosition(50, 190);
             projectLocationTextBoxEntity.Enabled = true;
             projectLocationTextBoxEntity.InitComponents();
             
@@ -117,14 +131,13 @@ namespace helengine.editor.launcher.pages {
                 "C:\\Projects"
             );
             projectLocationTextBoxEntity.AddComponent(projectLocationTextBox);
-            pageEntities.Add(projectLocationTextBoxEntity);
+            AddPageEntity(projectLocationTextBoxEntity, 50, 190);
         }
         
         private void CreateActionButtons() {
             // Create Button
             createButtonEntity = new Entity();
             createButtonEntity.LayerMask = 0b1000000000000000;
-            createButtonEntity.Position = GetPosition(50, 240);
             createButtonEntity.Enabled = true;
             createButtonEntity.InitComponents();
             
@@ -135,23 +148,7 @@ namespace helengine.editor.launcher.pages {
                 OnCreateClick
             );
             createButtonEntity.AddComponent(createButton);
-            pageEntities.Add(createButtonEntity);
-            
-            // Cancel Button
-            cancelButtonEntity = new Entity();
-            cancelButtonEntity.LayerMask = 0b1000000000000000;
-            cancelButtonEntity.Position = GetPosition(170, 240);
-            cancelButtonEntity.Enabled = true;
-            cancelButtonEntity.InitComponents();
-            
-            cancelButton = new ButtonComponent(
-                "Cancel",
-                new int2(100, 40),
-                font,
-                () => onCancel?.Invoke()
-            );
-            cancelButtonEntity.AddComponent(cancelButton);
-            pageEntities.Add(cancelButtonEntity);
+            AddPageEntity(createButtonEntity, 50, 240);
         }
         
         private void OnCreateClick() {
@@ -177,36 +174,7 @@ namespace helengine.editor.launcher.pages {
             }
         }
         
-        protected override void UpdatePagePosition() {
-            // Update all entity positions during animation
-            if (titleEntity != null) {
-                titleEntity.Position = GetPosition(50, 30);
-            }
-            
-            if (projectNameLabelEntity != null) {
-                projectNameLabelEntity.Position = GetPosition(50, 80);
-            }
-            
-            if (projectNameTextBoxEntity != null) {
-                projectNameTextBoxEntity.Position = GetPosition(50, 110);
-            }
-            
-            if (projectLocationLabelEntity != null) {
-                projectLocationLabelEntity.Position = GetPosition(50, 160);
-            }
-            
-            if (projectLocationTextBoxEntity != null) {
-                projectLocationTextBoxEntity.Position = GetPosition(50, 190);
-            }
-            
-            if (createButtonEntity != null) {
-                createButtonEntity.Position = GetPosition(50, 240);
-            }
-            
-            if (cancelButtonEntity != null) {
-                cancelButtonEntity.Position = GetPosition(170, 240);
-            }
-        }
+        // Base class now manages positions via AddPageEntity
         
         /// <summary>
         /// Set the action callbacks for the buttons

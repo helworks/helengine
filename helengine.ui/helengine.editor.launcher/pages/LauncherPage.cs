@@ -1,20 +1,26 @@
 using helengine;
 
 namespace helengine.editor.launcher.pages {
+    public enum SlideDirection {
+        RightToLeft, // enter from right, exit to left
+        LeftToRight  // enter from left,  exit to right
+    }
     /// <summary>
     /// Base class for launcher pages with animation support
     /// </summary>
     public abstract class LauncherPage {
         protected List<Entity> pageEntities = new List<Entity>();
+        private readonly List<(Entity entity, float x, float y, float z)> positioned = new();
         protected FontAsset font;
         protected bool isVisible;
         protected bool isAnimating;
         
         // Animation properties
-        protected float targetX;
         protected float currentX;
+        protected float animStartX;
+        protected float animTargetX;
         protected DateTime animationStartTime;
-        protected float animationDuration = 0.3f; // 300ms animations
+        protected float animationDuration = 0.15f; // 50% faster than 0.3s
         protected Action? animationCompletionCallback;
         protected int screenWidth = 1280; // Default, updated by PageManager
         
@@ -38,21 +44,27 @@ namespace helengine.editor.launcher.pages {
                 entity?.Dispose();
             }
             pageEntities.Clear();
+            positioned.Clear();
         }
         
         /// <summary>
         /// Show page with slide-in animation from the right
         /// </summary>
         public virtual void Show(int screenWidth, Action? onComplete = null) {
+            Show(screenWidth, SlideDirection.RightToLeft, onComplete);
+        }
+
+        public virtual void Show(int screenWidth, SlideDirection direction, Action? onComplete = null) {
             if (isVisible) return;
             
             this.screenWidth = screenWidth;
             isVisible = true;
             isAnimating = true;
             
-            // Start off-screen to the right
-            currentX = screenWidth;
-            targetX = 0;
+            // Configure animation based on direction
+            animStartX = direction == SlideDirection.RightToLeft ? screenWidth : -screenWidth;
+            animTargetX = 0;
+            currentX = animStartX;
             animationStartTime = DateTime.Now;
             
             CreatePage();
@@ -74,21 +86,28 @@ namespace helengine.editor.launcher.pages {
 
             // Ensure page is created and positioned at rest
             currentX = 0;
-            targetX = 0;
+            animStartX = 0;
+            animTargetX = 0;
             CreatePage();
             UpdatePagePosition();
+            // No animation; fire on-shown hooks immediately
+            FlushOnShownActions();
         }
         
         /// <summary>
         /// Hide page with slide-out animation to the left
         /// </summary>
         public virtual void Hide(int screenWidth, Action? onComplete = null) {
-            
+            Hide(screenWidth, SlideDirection.RightToLeft, onComplete);
+        }
+
+        public virtual void Hide(int screenWidth, SlideDirection direction, Action? onComplete = null) {
             this.screenWidth = screenWidth;
             isAnimating = true;
-            targetX = -screenWidth;
+            animStartX = currentX; // usually 0 when visible
+            animTargetX = direction == SlideDirection.RightToLeft ? -screenWidth : screenWidth;
             animationStartTime = DateTime.Now;
-            
+
             // Set completion callback to clean up and notify
             animationCompletionCallback = () => {
                 isVisible = false;
@@ -109,25 +128,17 @@ namespace helengine.editor.launcher.pages {
             // Ease-out animation curve
             progress = 1.0f - (1.0f - progress) * (1.0f - progress);
             
-            // Determine start position based on target
-            float startX;
-            if (targetX == 0) {
-                // Showing: start from screen width, end at 0
-                startX = screenWidth;
-            } else {
-                // Hiding: start from 0, end at negative screen width
-                startX = 0;
-            }
-            
-            currentX = startX + (targetX - startX) * progress;
+            currentX = animStartX + (animTargetX - animStartX) * progress;
             
             UpdatePagePosition();
             
             if (progress >= 1.0f) {
                 isAnimating = false;
-                currentX = targetX;
+                currentX = animTargetX;
                 UpdatePagePosition();
-                
+                // Ensure any page-level post-show hooks run now
+                FlushOnShownActions();
+
                 // Call completion callback
                 animationCompletionCallback?.Invoke();
                 animationCompletionCallback = null;
@@ -138,8 +149,12 @@ namespace helengine.editor.launcher.pages {
         /// Update all entity positions based on current animation position
         /// </summary>
         protected virtual void UpdatePagePosition() {
-            // This method should be overridden by derived classes to set absolute positions
-            // including the currentX animation offset
+            for (int i = 0; i < positioned.Count; i++) {
+                var p = positioned[i];
+                if (p.entity != null) {
+                    p.entity.Position = GetPosition(p.x, p.y, p.z);
+                }
+            }
         }
         
         /// <summary>
@@ -160,6 +175,32 @@ namespace helengine.editor.launcher.pages {
         /// </summary>
         protected float3 GetPosition(float x, float y, float z = 0) {
             return new float3(x + currentX, y, z);
+        }
+
+        /// <summary>
+        /// Track an entity with a logical base position; the page animation offset is applied automatically.
+        /// </summary>
+        protected void AddPageEntity(Entity entity, float x, float y, float z = 0) {
+            pageEntities.Add(entity);
+            positioned.Add((entity, x, y, z));
+            entity.Position = GetPosition(x, y, z);
+        }
+
+        private List<Action>? onShownActions;
+        /// <summary>
+        /// Queue an action to run when the page finishes showing (or immediately for ShowImmediate)
+        /// </summary>
+        protected void OnShown(Action action) {
+            onShownActions ??= new List<Action>();
+            onShownActions.Add(action);
+        }
+
+        private void FlushOnShownActions() {
+            if (onShownActions == null) return;
+            foreach (var a in onShownActions) {
+                try { a(); } catch { }
+            }
+            onShownActions.Clear();
         }
         
         /// <summary>
