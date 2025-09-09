@@ -20,41 +20,34 @@ namespace helengine {
         }
 
         public float2 MeasureString(string text) {
-            float lastX = 0;
-            float Y = LineHeight;
-            int letterSpacing = 2;
-            float posY = 0;
-            float lineSpacing = LineHeight;
-
-            float MaxX = 0;
-            float MaxY = LineHeight;
+            float x = 0f;
+            float y = 0f;
+            float maxX = 0f;
+            float line = Math.Max(LineHeight, 1f);
 
             for (int i = 0; i < text.Length; i++) {
                 char c = text[i];
 
-                if (Characters.ContainsKey(c)) {
-                    var rect = Characters[c];
-                    lastX += rect.SourceRect.Z + letterSpacing;
-                    if (lastX > MaxX) {
-                        MaxX = lastX;
-                    }
+                if (c == '\n') {
+                    if (x > maxX) maxX = x;
+                    y += line;
+                    x = 0f;
+                    continue;
+                }
 
-                    if (posY > MaxY) {
-                        MaxY = posY;
-                    }
-                } else {
-                    // special cases
-                    if (c == ' ') {
-                        // space
-                        lastX += FontInfo.SpaceWidth;
-                    } else if (c == '\n') {
-                        posY += lineSpacing;
-                        lastX = 0;
-                    }
+                if (c == ' ') {
+                    x += FontInfo.SpaceWidth;
+                    continue;
+                }
+
+                if (Characters.TryGetValue(c, out var ch)) {
+                    float adv = ch.AdvanceWidth > 0 ? ch.AdvanceWidth : (ch.SourceRect.Z);
+                    x += adv;
                 }
             }
 
-            return new float2(MaxX, posY + lineSpacing);
+            if (x > maxX) maxX = x;
+            return new float2(maxX, y + line);
         }
     }
 }

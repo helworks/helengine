@@ -91,8 +91,7 @@ namespace helengine.editor.launcher {
         }
 
         private void NavigateToNewProject() {
-            MessageBox.Show("New Project");
-            //pageManager?.NavigateTo("newproject");
+            pageManager?.NavigateTo("newproject");
         }
 
         private void NavigateToMain() {

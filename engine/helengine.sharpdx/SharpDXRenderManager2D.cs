@@ -68,7 +68,7 @@ namespace helengine.sharpdx {
             });
 
             var samplerDesc = new SamplerStateDescription() {
-                Filter = Filter.MinMagMipLinear, // Linear filtering
+                Filter = Filter.MinMagMipPoint, // Point sampling to avoid glyph bleeding
                 AddressU = TextureAddressMode.Clamp,
                 AddressV = TextureAddressMode.Clamp,
                 AddressW = TextureAddressMode.Clamp,
@@ -176,26 +176,41 @@ namespace helengine.sharpdx {
             shaderData.color = new float4(color.X / 255.0f, color.Y / 255.0f, color.Z / 255.0f, color.W / 255.0f);
 
             string text = drawable.Text;
-            float offsetX = 0;
+            float offsetX = 0f;
+            float offsetY = 0f;
+            float lineHeight = Math.Max(font.LineHeight, 1f);
+
             for (int i = 0; i < text.Length; i++) {
                 char c = text[i];
+
+                if (c == '\n') {
+                    offsetY += lineHeight;
+                    offsetX = 0f;
+                    continue;
+                }
 
                 if (c == ' ') {
                     offsetX += font.FontInfo.SpaceWidth;
                     continue;
                 }
 
-                FontChar info = font.Characters[c];
+                if (!font.Characters.TryGetValue(c, out FontChar info)) {
+                    continue; // skip missing glyphs silently
+                }
 
                 shaderData.sourceRect = info.SourceRect;
+                float pixelW = shaderData.sourceRect.Z * data.Width;
+                float pixelH = shaderData.sourceRect.W * data.Height;
+
                 shaderData.destRect = new float4(
                     pos.X + offsetX,
-                    pos.Y,
-                    shaderData.sourceRect.Z * data.Width,
-                    shaderData.sourceRect.W * data.Height
+                    pos.Y + offsetY + info.OffsetY,
+                    pixelW,
+                    pixelH
                 );
 
-                offsetX += shaderData.sourceRect.Z * data.Width;
+                float advance = info.AdvanceWidth > 0 ? info.AdvanceWidth : pixelW;
+                offsetX += advance;
 
                 context.UpdateSubresource(ref shaderData, quadConstantBuffer);
 

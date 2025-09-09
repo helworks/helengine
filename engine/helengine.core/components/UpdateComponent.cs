@@ -6,7 +6,7 @@
             get { return updateOrder; }
             set {
                 if (updateOrder != value) {
-                    if (Parent.Enabled) {
+                    if (Parent != null && Parent.Enabled) {
                         Core.Instance.ObjectManager.RemoveFromUpdate(this);
                         updateOrder = value;
                         Core.Instance.ObjectManager.RegisterForUpdate(this);

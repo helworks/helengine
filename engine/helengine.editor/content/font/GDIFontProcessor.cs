@@ -1,5 +1,6 @@
 ﻿using System.Drawing;
 using System.Drawing.Imaging;
+using System.IO;
 using System.Runtime.Versioning;
 using System.Windows.Forms;
 using Bitmap = System.Drawing.Bitmap;
@@ -15,6 +16,8 @@ using TextRenderingHint = System.Drawing.Text.TextRenderingHint;
 namespace helengine.editor {
     [SupportedOSPlatform("windows")]
     public static class GDIFontProcessor {
+        // Extra transparent pixels around each glyph in the atlas to prevent bleeding
+        private const int ATLAS_PADDING = 2;
         static readonly char[] Characters = new char[]
         {
             'a', 'à', 'á', 'ã', 'b', 'c', 'd', 'e', 'é', 'ê',
@@ -47,7 +50,7 @@ namespace helengine.editor {
             bitmap = new Bitmap(res, res);
             string cs = c.ToString();
 
-            int pos = (int)(res * 0.1f);
+            int pos = offset; // consistent top-of-line margin
             using (Graphics graphics = Graphics.FromImage(bitmap)) {
                 graphics.SmoothingMode = SmoothingMode.None;
                 graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
@@ -96,9 +99,24 @@ namespace helengine.editor {
         public static FontAsset ImportFont(Font font) {
             Dictionary<char, TempFontChar> tempChars = new Dictionary<char, TempFontChar>();
 
-            int res = font.Height;
-            int offset = (int)(font.Height * 0.1f);
+            // Measure context for metrics (96 DPI by default)
+            float lineHeightPx;
+            float spaceWidth;
+            using (Bitmap bmpMeasure = new Bitmap(1, 1))
+            using (Graphics g = Graphics.FromImage(bmpMeasure)) {
+                // Prefer typographic metrics and trailing spaces
+                using (var fmt = new StringFormat(StringFormat.GenericTypographic)) {
+                    fmt.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces;
+                    spaceWidth = g.MeasureString(" ", font, PointF.Empty, fmt).Width;
+                }
 
+                lineHeightPx = font.GetHeight(g);
+            }
+
+            int res = Math.Max(16, (int)Math.Ceiling(lineHeightPx));
+            int offset = (int)(res * 0.1f);
+
+            // Build glyph bitmaps and capture advance widths
             for (int i = 0; i < Characters.Length; i++) {
                 char c = Characters[i];
 
@@ -106,7 +124,26 @@ namespace helengine.editor {
                 Rectangle rect;
                 GenerateChar(c, font, res * 2, offset, out bmp, out rect);
 
-                tempChars.Add(c, new TempFontChar(new int4(rect.X, rect.Y, rect.Width, rect.Height), bmp, 0));
+                // Measure advance width with typographic settings
+                float advanceWidth;
+                using (Bitmap bmpMeasure = new Bitmap(1, 1))
+                using (Graphics g = Graphics.FromImage(bmpMeasure))
+                using (var fmt = new StringFormat(StringFormat.GenericTypographic)) {
+                    fmt.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces;
+                    advanceWidth = g.MeasureString(c.ToString(), font, PointF.Empty, fmt).Width;
+                }
+
+                // Vertical offset from line-top to glyph-top in pixels
+                float glyphOffsetY = rect.Y - offset;
+
+                tempChars[c] = new TempFontChar(
+                    new int4(rect.X, rect.Y, rect.Width, rect.Height),
+                    bmp,
+                    glyphOffsetY,
+                    advanceWidth,
+                    0,                 // BearingX (not computed with GDI+)
+                    0                  // BearingY
+                );
             }
 
             Dictionary<char, FontChar> packedChars;
@@ -118,6 +155,7 @@ namespace helengine.editor {
 
             byte[] colors = locker.Pixels;
 
+            // Convert ARGB->RGBA as expected by renderer
             for (int i = 0; i < colors.Length; i += 4) {
                 byte a = colors[i];
                 byte r = colors[i + 1];
@@ -130,6 +168,14 @@ namespace helengine.editor {
                 colors[i + 3] = a;
             }
 
+            // DEBUG: Save atlas to disk to inspect
+            try {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string safeName = new string(font.Name.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch).ToArray());
+                string file = Path.Combine(baseDir, $"font_atlas_{safeName}_{(int)Math.Ceiling(lineHeightPx)}.png");
+                atlasImg.Save(file, ImageFormat.Png);
+            } catch { /* ignore IO issues */ }
+
             TextureAsset rawTex = new TextureAsset();
             rawTex.Colors = colors;
             rawTex.Width = (ushort)atlasImg.Width;
@@ -137,20 +183,13 @@ namespace helengine.editor {
 
             RuntimeTexture asset = Core.Instance.RenderManager.BuildTextureFromRaw(rawTex);
 
-            float spaceWidth;
-            using (Bitmap bmp = new Bitmap(1, 1)) {
-                using (Graphics g = Graphics.FromImage(bmp)) {
-                    SizeF size = g.MeasureString(" ", font);
-                    spaceWidth = size.Width;
-                }
-            }
-
+            // Populate font asset with measured line height and space width
             return new FontAsset(
-                    new FontInfo(font.Name, 0, spaceWidth),
-                    asset,
-                    packedChars,
-                    0.0f
-                );
+                new FontInfo(font.Name, (int)Math.Ceiling(lineHeightPx), spaceWidth),
+                asset,
+                packedChars,
+                lineHeightPx
+            );
         }
 
         private static Bitmap GenerateAtlas(Dictionary<char, TempFontChar> tempChars, out Dictionary<char, FontChar> packedChars) {
@@ -181,8 +220,8 @@ namespace helengine.editor {
 
         private static (int width, int height) CalculateOptimalAtlasSize(List<TempFontItem> items) {
             const int maxSize = 2048; // Maximum dimension for old consoles
-            int maxItemWidth = items.Max(i => i.Width);
-            int totalArea = items.Sum(i => i.Width * i.Height);
+            int maxItemWidth = items.Max(i => i.Width + (ATLAS_PADDING * 2));
+            int totalArea = items.Sum(i => (i.Width + (ATLAS_PADDING * 2)) * (i.Height + (ATLAS_PADDING * 2)));
 
             // Try different POT sizes starting from minimum required
             var candidates = new List<(int w, int h)>();
@@ -227,14 +266,17 @@ namespace helengine.editor {
             int currentX = 0, currentY = 0, rowHeight = 0, totalHeight = 0;
 
             foreach (var item in items) {
-                if (currentX + item.Width > atlasWidth) {
+                int paddedWidth = item.Width + (ATLAS_PADDING * 2);
+                int paddedHeight = item.Height + (ATLAS_PADDING * 2);
+
+                if (currentX + paddedWidth > atlasWidth) {
                     currentY += rowHeight;
                     currentX = 0;
                     rowHeight = 0;
                 }
 
-                rowHeight = Math.Max(rowHeight, item.Height);
-                currentX += item.Width;
+                rowHeight = Math.Max(rowHeight, paddedHeight);
+                currentX += paddedWidth;
                 totalHeight = currentY + rowHeight;
             }
 
@@ -247,15 +289,19 @@ namespace helengine.editor {
             int currentX = 0, currentY = 0, rowHeight = 0;
 
             foreach (var item in items) {
-                if (currentX + item.Width > atlasWidth) {
+                int paddedWidth = item.Width + (ATLAS_PADDING * 2);
+                int paddedHeight = item.Height + (ATLAS_PADDING * 2);
+
+                if (currentX + paddedWidth > atlasWidth) {
                     currentY += rowHeight;
                     currentX = 0;
                     rowHeight = 0;
                 }
 
+                // Store the slot top-left (including padding). We'll add padding when drawing and when computing UVs
                 positions[item.Char] = new Point(currentX, currentY);
-                rowHeight = Math.Max(rowHeight, item.Height);
-                currentX += item.Width;
+                rowHeight = Math.Max(rowHeight, paddedHeight);
+                currentX += paddedWidth;
             }
 
             return positions;
@@ -268,7 +314,9 @@ namespace helengine.editor {
                 g.Clear(Color.Transparent);
                 foreach (var item in items) {
                     Point pos = positions[item.Char];
-                    g.DrawImage(item.Bitmap, pos.X, pos.Y, new Rectangle(item.X, item.Y, item.Width, item.Height), GraphicsUnit.Pixel);
+                    // Draw glyph with padding offset to leave transparent border around glyph
+                    g.DrawImage(item.Bitmap, pos.X + ATLAS_PADDING, pos.Y + ATLAS_PADDING,
+                        new Rectangle(item.X, item.Y, item.Width, item.Height), GraphicsUnit.Pixel);
                 }
             }
             return atlas;
@@ -285,12 +333,16 @@ namespace helengine.editor {
                 var originalChar = kvp.Value;
 
                 newDict[kvp.Key] = new FontChar(
-                    new float4(pos.X / (float)atlas.Width,
-                        pos.Y / (float)atlas.Height,
+                    new float4(
+                        (pos.X + ATLAS_PADDING) / (float)atlas.Width,
+                        (pos.Y + ATLAS_PADDING) / (float)atlas.Height,
                         originalChar.SourceRect.Z / (float)atlas.Width,
                         originalChar.SourceRect.W / (float)atlas.Height
                     ),
-                    originalChar.OffsetY
+                    originalChar.OffsetY,
+                    originalChar.AdvanceWidth,
+                    originalChar.BearingX,
+                    originalChar.BearingY
                 );
             }
 
