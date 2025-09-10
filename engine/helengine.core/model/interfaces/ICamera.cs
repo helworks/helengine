@@ -6,8 +6,8 @@
 
         float4 Viewport { get; set; }
 
-        List<int>[] RenderIndices2D { get; set; }
-        List<int>[][] RenderIndices3D { get; set; }
+        RenderBucket2D[] RenderBuckets2D { get; }
+        RenderBucket3D[][][] RenderBuckets3D { get; }
 
         ushort LayerMask { get; set; }
     }

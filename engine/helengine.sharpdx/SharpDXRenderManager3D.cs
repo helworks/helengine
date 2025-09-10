@@ -296,18 +296,17 @@ namespace helengine.sharpdx {
             float4x4 viewProj;
             float4x4.Multiply(ref view, ref projection, out viewProj);
 
-            List<int>[][] renderIndices = camera.RenderIndices3D;
-            for (int variant = 0; variant < renderIndices.Length; variant++) {
-                List<int>[] buckets = renderIndices[variant];
+            var buckets3D = camera.RenderBuckets3D;
+            for (int variant = 0; variant < buckets3D.Length; variant++) {
+                var variantBuckets = buckets3D[variant];
 
-                for (int bucket = 0; bucket < buckets.Length; bucket++) {
-                    List<int> indices = buckets[bucket];
-
-                    for (int i = 0; i < indices.Count; i++) {
-                        int indice = indices[i];
-                        if (indice < 0 || indice >= drawables.Count) { continue; }
-                        IDrawable3D drawable = drawables[indice];
-                        if (drawable?.Parent == null || !drawable.Parent.Enabled) { continue; }
+                for (int bucket = 0; bucket < variantBuckets.Length; bucket++) {
+                    var binBuckets = variantBuckets[bucket];
+                    for (int bin = 0; bin < binBuckets.Length; bin++) {
+                        var rb = binBuckets[bin];
+                        for (int i = 0; i < rb.Count; i++) {
+                            IDrawable3D drawable = rb.Items[i];
+                            if (drawable?.Parent == null || !drawable.Parent.Enabled) { continue; }
 
                         Entity parent = drawable.Parent;
 
@@ -345,6 +344,7 @@ namespace helengine.sharpdx {
                         context.Flush();
                     }
                 }
+            }
             }
 
             render2D.DrawCamera(window, camera);

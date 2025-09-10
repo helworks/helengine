@@ -172,17 +172,14 @@ namespace helengine.sharpdx {
             float4 viewport = camera.Viewport;
             float4x4.CreateOrthographicOffCenter(0, viewport.Z, -viewport.W, 0, -10, 10, out projection2D);
 
-            var drawables2D = Core.Instance.ObjectManager.Drawables2D;
-            List<int>[] renderBuckets2D = camera.RenderIndices2D;
-            for (int bucket = 0; bucket < renderBuckets2D.Length; bucket++) {
-                List<int> indices = renderBuckets2D[bucket];
-
-                for (int j = 0; j < indices.Count; j++) {
-                    int indice = indices[j];
-                    if (indice < 0 || indice >= drawables2D.Count) { continue; }
-                    IDrawable2D drawable = drawables2D[indice];
-                    if (drawable?.Parent == null || !drawable.Parent.Enabled) { continue; }
-
+            var buckets = camera.RenderBuckets2D;
+            for (int b = 0; b < buckets.Length; b++) {
+                var rb = buckets[b];
+                int n = rb.Count;
+                var items = rb.Items;
+                for (int j = 0; j < n; j++) {
+                    var drawable = items[j];
+                    if (drawable?.Parent == null || !drawable.Parent.Enabled) continue;
                     drawable.Draw();
                 }
             }
