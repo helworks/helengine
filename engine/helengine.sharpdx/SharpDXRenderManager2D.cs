@@ -10,7 +10,8 @@ using D3DDevice = SharpDX.Direct3D11.Device;
 using DxgiFactory1 = SharpDX.DXGI.Factory1;
 
 namespace helengine.sharpdx {
-    internal class SharpDXRenderManager2D {
+    internal class SharpDXRenderManager2D : RenderManager2D {
+        private readonly SharpDXRenderManager3D parent;
         private Buffer quadBuffer;
         private InputLayout quadLayout;
         private VertexShader quadVertexShader;
@@ -31,7 +32,8 @@ namespace helengine.sharpdx {
 
         public D3DDevice Device { get; private set; }
 
-        public SharpDXRenderManager2D(SharpDXRenderManager parent) {
+        public SharpDXRenderManager2D(SharpDXRenderManager3D parent) {
+            this.parent = parent;
             Device = parent.Device;
 
             initSpriteQuad();
@@ -49,6 +51,19 @@ namespace helengine.sharpdx {
                 DepthComparison = Comparison.Always
             };
             depthStencilState2D = new DepthStencilState(Device, depthStencilDesc);
+
+            DebugInfoRegistry.Register(new RendererDebugInfo(this));
+        }
+
+        private void EnsureSpritePipeline() {
+            var context = Device.ImmediateContext;
+            context.Rasterizer.State = rasterizerState2D;
+            context.OutputMerger.SetDepthStencilState(depthStencilState2D, 0);
+            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleStrip;
+            context.VertexShader.Set(quadVertexShader);
+            context.PixelShader.Set(quadPixelShader);
+            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(quadBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
+            context.InputAssembler.InputLayout = quadLayout;
         }
 
         private void initSpriteQuad() {
@@ -164,14 +179,17 @@ namespace helengine.sharpdx {
 
                 for (int j = 0; j < indices.Count; j++) {
                     int indice = indices[j];
+                    if (indice < 0 || indice >= drawables2D.Count) { continue; }
                     IDrawable2D drawable = drawables2D[indice];
+                    if (drawable?.Parent == null || !drawable.Parent.Enabled) { continue; }
 
                     drawable.Draw();
                 }
             }
         }
 
-        internal void DrawSprite(ISpriteDrawable2D drawable) {
+        public override void DrawSprite(ISpriteDrawable2D drawable) {
+            EnsureSpritePipeline();
             if (drawable.Texture == null) {
                 return;
             }
@@ -201,9 +219,11 @@ namespace helengine.sharpdx {
             context.UpdateSubresource(ref shaderData, quadConstantBuffer);
 
             context.Draw(4, 0);
+            parent.IncrementDrawCalls(1);
         }
 
-        internal void DrawText(ITextDrawable2D drawable) {
+        public override void DrawText(ITextDrawable2D drawable) {
+            EnsureSpritePipeline();
             var context = Device.ImmediateContext;
 
             FontAsset font = drawable.Font;
@@ -234,7 +254,7 @@ namespace helengine.sharpdx {
             for (int i = 0; i < text.Length; i++) {
                 char c = text[i];
 
-                if (c == '\n') {
+                if (c == (char)10) {
                     offsetY += lineHeight;
                     offsetX = 0f;
                     continue;
@@ -266,12 +286,14 @@ namespace helengine.sharpdx {
                 context.UpdateSubresource(ref shaderData, quadConstantBuffer);
 
                 context.Draw(4, 0);
+                parent.IncrementDrawCalls(1);
             }
         }
 
         private enum UIShapeBackend { SDF, NineSlice, Geometry }
         private UIShapeBackend backend = UIShapeBackend.SDF;
-        private readonly Dictionary<(int,int), UINineSliceAtlas> nineSliceCache = new();
+        private struct NineSliceRuntime { public RuntimeTexture Texture; public float4[] FillUV; public float4[] BorderUV; public int CornerSize; }
+        private readonly Dictionary<(int, int), NineSliceRuntime> nineSliceCache = new();
 
         public void SetUIBackend(string mode) {
             switch (mode?.ToLowerInvariant()) {
@@ -281,10 +303,71 @@ namespace helengine.sharpdx {
             }
         }
 
-        internal void DrawRoundedRect(IRoundedRectDrawable2D shape) {
+        public override void DrawRoundedRect(IRoundedRectDrawable2D shape) {
             if (backend == UIShapeBackend.SDF) { DrawRoundedRectSDF(shape); return; }
             if (backend == UIShapeBackend.NineSlice) { DrawRoundedRectNineSlice(shape); return; }
             DrawRoundedRectGeometry(shape);
+        }
+
+        public override RuntimeTexture BuildTextureFromRaw(TextureAsset data) {
+            SharpDXTextureRuntimeData asset = new SharpDXTextureRuntimeData();
+            asset.Width = data.Width;
+            asset.Height = data.Height;
+
+            int bytesPerPixel = 4; // For R8G8B8A8 format
+            int expectedDataLength = data.Width * data.Height * bytesPerPixel;
+            if (data.Colors.Length != expectedDataLength) {
+                throw new ArgumentException("Data length does not match width and height.");
+            }
+
+            var textureDesc = new Texture2DDescription {
+                Width = data.Width,
+                Height = data.Height,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = SharpDX.DXGI.Format.R8G8B8A8_UNorm,
+                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.ShaderResource,
+                CpuAccessFlags = CpuAccessFlags.None,
+                OptionFlags = ResourceOptionFlags.None
+            };
+
+            GCHandle dataHandle = GCHandle.Alloc(data.Colors, GCHandleType.Pinned);
+            try {
+                IntPtr dataPtr = dataHandle.AddrOfPinnedObject();
+                int rowPitch = data.Width * bytesPerPixel;
+
+                asset.Texture = new Texture2D(
+                    Device,
+                    textureDesc,
+                    new DataRectangle(dataPtr, rowPitch)
+                );
+            } finally {
+                dataHandle.Free();
+            }
+
+            asset.Resource = new ShaderResourceView(Device, asset.Texture);
+
+            return asset;
+        }
+
+        public override void Dispose() {
+            quadBuffer?.Dispose();
+            quadLayout?.Dispose();
+            quadVertexShader?.Dispose();
+            quadPixelShader?.Dispose();
+            uiShapeVertexShader?.Dispose();
+            uiShapePixelShader?.Dispose();
+            basicColorVertexShader?.Dispose();
+            basicColorPixelShader?.Dispose();
+            quadSampler?.Dispose();
+            quadConstantBuffer?.Dispose();
+            uiShapeConstantBuffer?.Dispose();
+            basicColorConstantBuffer?.Dispose();
+            geomVertexBuffer?.Dispose();
+            rasterizerState2D?.Dispose();
+            depthStencilState2D?.Dispose();
         }
 
         private void DrawRoundedRectSDF(IRoundedRectDrawable2D shape) {
@@ -325,14 +408,22 @@ namespace helengine.sharpdx {
             context.UpdateSubresource(ref sd, uiShapeConstantBuffer);
 
             context.Draw(4, 0);
+            parent.IncrementDrawCalls(1);
         }
 
-        private UINineSliceAtlas GetNineSliceAtlas(IRoundedRectDrawable2D shape) {
+        private NineSliceRuntime GetNineSliceAtlas(IRoundedRectDrawable2D shape) {
             int r = (int)MathF.Round(shape.Radius);
             int b = (int)MathF.Round(shape.BorderThickness);
             var key = (r, b);
             if (!nineSliceCache.TryGetValue(key, out var atlas)) {
-                atlas = UINineSliceAtlas.Generate(r, b, aaPx: 1, padding: 2);
+                var coreAtlas = helengine.NineSliceAtlas.Generate(r, b, aaPx: 1, padding: 2);
+                var rt = Core.Instance.RenderManager2D.BuildTextureFromRaw(coreAtlas.Texture);
+                atlas = new NineSliceRuntime {
+                    Texture = rt,
+                    FillUV = coreAtlas.FillUV,
+                    BorderUV = coreAtlas.BorderUV,
+                    CornerSize = coreAtlas.CornerSize
+                };
                 nineSliceCache[key] = atlas;
             }
             return atlas;
@@ -343,7 +434,8 @@ namespace helengine.sharpdx {
             var atlas = GetNineSliceAtlas(shape);
 
             // Bind atlas
-            context.PixelShader.SetShaderResource(0, atlas.Texture.Resource);
+            var sdata = (SharpDXTextureRuntimeData)atlas.Texture;
+            context.PixelShader.SetShaderResource(0, sdata.Resource);
             context.PixelShader.SetSampler(0, quadSampler);
 
             // Setup sprite pipeline
@@ -365,7 +457,7 @@ namespace helengine.sharpdx {
             float4x4 transposedWorld; float4x4.Transpose(ref projection2D, out transposedWorld);
             SpriteShaderData sd = new SpriteShaderData();
             sd.worldViewProj = transposedWorld;
-            sd.color = new float4(shape.FillColor.X/255f, shape.FillColor.Y/255f, shape.FillColor.Z/255f, shape.FillColor.W/255f);
+            sd.color = new float4(shape.FillColor.X / 255f, shape.FillColor.Y / 255f, shape.FillColor.Z / 255f, shape.FillColor.W / 255f);
 
             context.VertexShader.SetConstantBuffer(0, quadConstantBuffer);
             context.PixelShader.SetConstantBuffer(0, quadConstantBuffer);
@@ -376,43 +468,47 @@ namespace helengine.sharpdx {
                 sd.destRect = new float4(dx, dy, dw, dh);
                 context.UpdateSubresource(ref sd, quadConstantBuffer);
                 context.Draw(4, 0);
+                parent.IncrementDrawCalls(1);
             }
 
             // Top row
             drawTile(0, x, y, lw, th);
-            drawTile(1, x+lw, y, mw, th);
-            drawTile(2, x+lw+mw, y, rw, th);
+            drawTile(1, x + lw, y, mw, th);
+            drawTile(2, x + lw + mw, y, rw, th);
             // Middle row
-            drawTile(3, x, y+th, lw, mh);
-            drawTile(4, x+lw, y+th, mw, mh);
-            drawTile(5, x+lw+mw, y+th, rw, mh);
+            drawTile(3, x, y + th, lw, mh);
+            drawTile(4, x + lw, y + th, mw, mh);
+            drawTile(5, x + lw + mw, y + th, rw, mh);
             // Bottom row
-            drawTile(6, x, y+th+mh, lw, bh);
-            drawTile(7, x+lw, y+th+mh, mw, bh);
-            drawTile(8, x+lw+mw, y+th+mh, rw, bh);
+            drawTile(6, x, y + th + mh, lw, bh);
+            drawTile(7, x + lw, y + th + mh, mw, bh);
+            drawTile(8, x + lw + mw, y + th + mh, rw, bh);
+            parent.IncrementDrawCalls(9);
 
             // Border overlay
             if (shape.BorderThickness > 0) {
-                sd.color = new float4(shape.BorderColor.X/255f, shape.BorderColor.Y/255f, shape.BorderColor.Z/255f, shape.BorderColor.W/255f);
+                sd.color = new float4(shape.BorderColor.X / 255f, shape.BorderColor.Y / 255f, shape.BorderColor.Z / 255f, shape.BorderColor.W / 255f);
                 void drawBorderTile(int idx, float dx, float dy, float dw, float dh) {
                     var uv = atlas.BorderUV[idx];
                     sd.sourceRect = uv;
                     sd.destRect = new float4(dx, dy, dw, dh);
                     context.UpdateSubresource(ref sd, quadConstantBuffer);
                     context.Draw(4, 0);
+                    parent.IncrementDrawCalls(1);
                 }
                 // Top row
                 drawBorderTile(0, x, y, lw, th);
-                drawBorderTile(1, x+lw, y, mw, th);
-                drawBorderTile(2, x+lw+mw, y, rw, th);
+                drawBorderTile(1, x + lw, y, mw, th);
+                drawBorderTile(2, x + lw + mw, y, rw, th);
                 // Middle row
-                drawBorderTile(3, x, y+th, lw, mh);
-                drawBorderTile(4, x+lw, y+th, mw, mh);
-                drawBorderTile(5, x+lw+mw, y+th, rw, mh);
+                drawBorderTile(3, x, y + th, lw, mh);
+                drawBorderTile(4, x + lw, y + th, mw, mh);
+                drawBorderTile(5, x + lw + mw, y + th, rw, mh);
                 // Bottom row
-                drawBorderTile(6, x, y+th+mh, lw, bh);
-                drawBorderTile(7, x+lw, y+th+mh, mw, bh);
-                drawBorderTile(8, x+lw+mw, y+th+mh, rw, bh);
+                drawBorderTile(6, x, y + th + mh, lw, bh);
+                drawBorderTile(7, x + lw, y + th + mh, mw, bh);
+                drawBorderTile(8, x + lw + mw, y + th + mh, rw, bh);
+                parent.IncrementDrawCalls(9);
             }
         }
 
@@ -556,6 +652,7 @@ namespace helengine.sharpdx {
             // For correctness, draw as list using small batches would be required; here we draw as strip for simplicity.
             int fillVertexCount = fillVerts;
             context.Draw(fillVertexCount, 0);
+            parent.IncrementDrawCalls(1);
 
             if (borderVerts > 0) {
                 col.color = new float4(
@@ -566,6 +663,15 @@ namespace helengine.sharpdx {
                 );
                 context.UpdateSubresource(ref col, basicColorConstantBuffer);
                 context.Draw(borderVerts, fillVertexCount);
+                parent.IncrementDrawCalls(1);
+            }
+        }
+        class RendererDebugInfo : IDebugInfoProvider {
+            private readonly SharpDXRenderManager2D owner;
+            public RendererDebugInfo(SharpDXRenderManager2D o) { owner = o; }
+            public string Category => "Renderer";
+            public void AppendInfo(List<(string Key, string Value)> items) {
+                items.Add(("UI Backend", owner.backend.ToString()));
             }
         }
     }

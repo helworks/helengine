@@ -53,7 +53,7 @@
         }
 
         public virtual void Draw() {
-            Core.Instance.RenderManager.DrawSprite(this);
+            Core.Instance.RenderManager2D.DrawSprite(this);
         }
     }
 }

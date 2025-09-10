@@ -39,7 +39,7 @@ namespace helengine.editor.launcher.pages {
             titleEntity.LayerMask = 0b1000000000000000;
             titleEntity.Enabled = true;
             titleEntity.InitComponents();
-            
+
             var titleText = new TextComponent();
             titleText.Text = "helengine";
             titleText.Font = font;
@@ -49,7 +49,7 @@ namespace helengine.editor.launcher.pages {
             
             AddPageEntity(titleEntity, 20, 30);
         }
-        
+
         private void CreateProjectButtons() {
             // Create Project Button (top-right)
             createProjectButtonEntity = new Entity();

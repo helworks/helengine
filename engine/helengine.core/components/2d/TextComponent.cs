@@ -59,7 +59,7 @@
                 return;
             }
 
-            Core.Instance.RenderManager.DrawText(this);
+            Core.Instance.RenderManager2D.DrawText(this);
         }
     }
 }

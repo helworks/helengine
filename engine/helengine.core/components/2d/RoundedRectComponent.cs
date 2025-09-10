@@ -57,7 +57,7 @@ namespace helengine {
         }
 
         public virtual void Draw() {
-            Core.Instance.RenderManager.DrawRoundedRect(this);
+            Core.Instance.RenderManager2D.DrawRoundedRect(this);
         }
     }
 }

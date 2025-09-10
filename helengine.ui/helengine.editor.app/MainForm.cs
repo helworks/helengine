@@ -19,7 +19,7 @@ namespace helengine.editor.app {
             MeshComponent mesh = new MeshComponent();
             cube.AddComponent(mesh);
             ModelAsset modelData = ModelUtils.GenerateCubeMesh(float3.Zero, float3.One);
-            RuntimeModel renderData = core.RenderManager.BuildModelFromRaw(modelData);
+            RuntimeModel renderData = core.RenderManager3D.BuildModelFromRaw(modelData);
             mesh.Model = renderData;
 
             EditorEntity plane = new EditorEntity();
@@ -28,15 +28,16 @@ namespace helengine.editor.app {
             MeshComponent planeMesh = new MeshComponent();
             plane.AddComponent(planeMesh);
             ModelAsset planeModelData = ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One);
-            RuntimeModel planeRenderData = core.RenderManager.BuildModelFromRaw(planeModelData);
+            RuntimeModel planeRenderData = core.RenderManager3D.BuildModelFromRaw(planeModelData);
             planeMesh.Model = planeRenderData;
         }
 
         private void initialize() {
             EditorCore core = new EditorCore(null);
-            core.Initialize(new SharpDXRenderManager(), new InputManagerWindows(this.Handle));
+            var rm3d = new SharpDXRenderManager3D();
+            core.Initialize(rm3d, rm3d.Render2D, new InputManagerWindows(this.Handle));
 
-            core.RenderManager.AddWindow(this.Handle, ClientSize.Width - 1, ClientSize.Height);
+            core.RenderManager3D.AddWindow(this.Handle, ClientSize.Width - 1, ClientSize.Height);
 
             Font font = new Font("Consolas", 16, FontStyle.Regular);
             FontAsset fontAsset = GDIFontProcessor.ImportFont(font);

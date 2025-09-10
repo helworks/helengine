@@ -1,4 +1,4 @@
-﻿using SharpDX;
+using SharpDX;
 using SharpDX.D3DCompiler;
 using SharpDX.Direct3D;
 using SharpDX.Direct3D11;
@@ -10,7 +10,12 @@ using D3DDevice = SharpDX.Direct3D11.Device;
 using DxgiFactory1 = SharpDX.DXGI.Factory1;
 
 namespace helengine.sharpdx {
-    public class SharpDXRenderManager : RenderManager {
+    public class SharpDXRenderManager3D : RenderManager3D {
+        System.Diagnostics.Stopwatch stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        int drawCallsThisFrame;
+        int lastDrawCalls;
+        double lastFps;
+        double lastFrameTimeMs;
         List<SharpDXWindow> windows;
         Dictionary<IntPtr, SharpDXWindow> windowsDict;
 
@@ -26,10 +31,11 @@ namespace helengine.sharpdx {
         private BlendState blendState;
 
         private SharpDXRenderManager2D render2D;
+        public RenderManager2D Render2D => render2D;
         private RasterizerState rasterizerState3D;
         DepthStencilState depthStencilState3D;
 
-        public SharpDXRenderManager() {
+        public SharpDXRenderManager3D() {
             windows = new List<SharpDXWindow>();
             windowsDict = new Dictionary<nint, SharpDXWindow>();
 
@@ -73,6 +79,9 @@ namespace helengine.sharpdx {
 
             render2D = new SharpDXRenderManager2D(this);
 
+            // Register debug provider for FPS/draw calls
+            DebugInfoRegistry.Register(new RMDebugProvider(this));
+
             var rasterizerDesc3D = new RasterizerStateDescription {
                 CullMode = CullMode.Back,
                 FillMode = FillMode.Solid,
@@ -93,7 +102,16 @@ namespace helengine.sharpdx {
 
             if (windows != null) {
                 lock (windows) {
-                    for (int i = 0; i < windows.Count; i++) {
+                    // reset per-frame counters
+            lastDrawCalls = drawCallsThisFrame;
+            drawCallsThisFrame = 0;
+            // FPS
+            double ms = stopwatch.Elapsed.TotalMilliseconds;
+            lastFrameTimeMs = ms;
+            lastFps = ms > 0 ? 1000.0 / ms : 0;
+            stopwatch.Restart();
+
+            for (int i = 0; i < windows.Count; i++) {
                         windows[i].Dispose();
                     }
                 }
@@ -216,52 +234,7 @@ namespace helengine.sharpdx {
             window.DepthView = new DepthStencilView(Device, depthBuffer);
         }
 
-        public override RuntimeTexture BuildTextureFromRaw(TextureAsset data) {
-            SharpDXTextureRuntimeData asset = new SharpDXTextureRuntimeData();
-            asset.Width = data.Width;
-            asset.Height = data.Height;
-
-            // Validate the data length matches the expected dimensions
-            int bytesPerPixel = 4; // For R8G8B8A8 format
-            int expectedDataLength = data.Width * data.Height * bytesPerPixel;
-            if (data.Colors.Length != expectedDataLength) {
-                throw new ArgumentException("Data length does not match width and height.");
-            }
-
-            // Define the texture description
-            var textureDesc = new Texture2DDescription {
-                Width = data.Width,
-                Height = data.Height,
-                MipLevels = 1,
-                ArraySize = 1,
-                Format = SharpDX.DXGI.Format.R8G8B8A8_UNorm, // 32-bit RGBA format
-                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0),
-                Usage = ResourceUsage.Default,
-                BindFlags = BindFlags.ShaderResource,
-                CpuAccessFlags = CpuAccessFlags.None,
-                OptionFlags = ResourceOptionFlags.None
-            };
-
-            // Pin the byte array to access its memory
-            GCHandle dataHandle = GCHandle.Alloc(data.Colors, GCHandleType.Pinned);
-            try {
-                IntPtr dataPtr = dataHandle.AddrOfPinnedObject();
-                int rowPitch = data.Width * bytesPerPixel; // Bytes per row
-
-                // Create the texture with the initial data
-                asset.Texture = new Texture2D(
-                    Device,
-                    textureDesc,
-                    new DataRectangle(dataPtr, rowPitch)
-                );
-            } finally {
-                dataHandle.Free(); // Unpin the array
-            }
-
-            asset.Resource = new ShaderResourceView(Device, asset.Texture);
-
-            return asset;
-        }
+        
 
         public override RuntimeModel BuildModelFromRaw(ModelAsset data) {
             SharpDXModelRuntimeData model = new SharpDXModelRuntimeData();
@@ -332,7 +305,9 @@ namespace helengine.sharpdx {
 
                     for (int i = 0; i < indices.Count; i++) {
                         int indice = indices[i];
+                        if (indice < 0 || indice >= drawables.Count) { continue; }
                         IDrawable3D drawable = drawables[indice];
+                        if (drawable?.Parent == null || !drawable.Parent.Enabled) { continue; }
 
                         Entity parent = drawable.Parent;
 
@@ -375,21 +350,24 @@ namespace helengine.sharpdx {
             render2D.DrawCamera(window, camera);
         }
 
-        public override void DrawSprite(ISpriteDrawable2D drawable) {
-            render2D.DrawSprite(drawable);
-        }
-
-        public override void DrawText(ITextDrawable2D drawable) {
-            render2D.DrawText(drawable);
-        }
-
-        public override void DrawRoundedRect(IRoundedRectDrawable2D shape) {
-            render2D.DrawRoundedRect(shape);
-        }
+        
 
         // Debug helper to switch UI backend
         public void SetUIBackend(string mode) {
             render2D.SetUIBackend(mode);
+        }
+
+        public void IncrementDrawCalls(int n) { drawCallsThisFrame += n; }
+
+        class RMDebugProvider : IDebugInfoProvider {
+            private readonly SharpDXRenderManager3D rm;
+            public RMDebugProvider(SharpDXRenderManager3D r) { rm = r; }
+            public string Category => "Renderer";
+            public void AppendInfo(List<(string Key, string Value)> items) {
+                items.Add(("FPS", rm.lastFps.ToString("0.0")));
+                items.Add(("Draw Calls", rm.lastDrawCalls.ToString()));
+                items.Add(("Frame (ms)", rm.lastFrameTimeMs.ToString("0.00")));
+            }
         }
 
         public override void Draw() {
@@ -399,6 +377,15 @@ namespace helengine.sharpdx {
             context.InputAssembler.InputLayout = layout;
 
             var cameraBuckets = Core.Instance.ObjectManager.Cameras;
+
+            // reset per-frame counters
+            lastDrawCalls = drawCallsThisFrame;
+            drawCallsThisFrame = 0;
+            // FPS
+            double ms = stopwatch.Elapsed.TotalMilliseconds;
+            lastFrameTimeMs = ms;
+            lastFps = ms > 0 ? 1000.0 / ms : 0;
+            stopwatch.Restart();
 
             for (int i = 0; i < windows.Count; i++) {
                 SharpDXWindow window = windows[i];
@@ -420,3 +407,9 @@ namespace helengine.sharpdx {
         }
     }
 }
+
+
+
+
+
+

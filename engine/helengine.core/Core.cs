@@ -4,7 +4,8 @@
 
         public ObjectManager ObjectManager { get; private set; }
 
-        public RenderManager RenderManager { get; private set; }
+        public RenderManager3D RenderManager3D { get; private set; }
+        public RenderManager2D RenderManager2D { get; private set; }
 
         public InputManager InputManager { get; private set; }
 
@@ -12,10 +13,11 @@
             Instance = this;
         }
 
-        public virtual void Initialize(RenderManager render, InputManager input) {
-            this.RenderManager = render;
+        public virtual void Initialize(RenderManager3D render3D, RenderManager2D render2D, InputManager input) {
+            this.RenderManager3D = render3D;
+            this.RenderManager2D = render2D;
             this.InputManager = input;
-        
+
             ObjectManager = new ObjectManager();
         }
 
@@ -26,11 +28,12 @@
         }
 
         public virtual void Draw() {
-            RenderManager.Draw();
+            RenderManager3D.Draw();
         }
 
         public void Dispose() {
-            RenderManager.Dispose();
+            RenderManager3D.Dispose();
+            RenderManager2D.Dispose();
         }
     }
 }

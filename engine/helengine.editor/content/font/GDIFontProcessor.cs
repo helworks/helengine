@@ -181,7 +181,7 @@ namespace helengine.editor {
             rawTex.Width = (ushort)atlasImg.Width;
             rawTex.Height = (ushort)atlasImg.Height;
 
-            RuntimeTexture asset = Core.Instance.RenderManager.BuildTextureFromRaw(rawTex);
+            RuntimeTexture asset = Core.Instance.RenderManager2D.BuildTextureFromRaw(rawTex);
 
             // Populate font asset with measured line height and space width
             return new FontAsset(

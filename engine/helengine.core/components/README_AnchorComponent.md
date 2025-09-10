@@ -67,7 +67,7 @@ anchor.DisableAnchoring();
 ### UI Button in Top-Right Corner
 ```csharp
 var button = new Entity();
-var windowSize = Core.Instance.RenderManager.MainWindowSize;
+var windowSize = Core.Instance.RenderManager3D.MainWindowSize;
 button.Position = new float3(windowSize.X - 120, 10, 0);
 
 var anchor = new AnchorComponent();
@@ -78,7 +78,7 @@ anchor.EnableAnchoring(right: true, top: true);
 ### Status Bar at Bottom
 ```csharp
 var statusBar = new Entity();
-var windowSize = Core.Instance.RenderManager.MainWindowSize;
+var windowSize = Core.Instance.RenderManager3D.MainWindowSize;
 statusBar.Position = new float3(0, windowSize.Y - 30, 0);
 
 var anchor = new AnchorComponent();
@@ -89,7 +89,7 @@ anchor.EnableAnchoring(left: true, bottom: true);
 ### Centered Dialog
 ```csharp
 var dialog = new Entity();
-var windowSize = Core.Instance.RenderManager.MainWindowSize;
+var windowSize = Core.Instance.RenderManager3D.MainWindowSize;
 dialog.Position = new float3(windowSize.X / 2, windowSize.Y / 2, 0);
 
 var anchor = new AnchorComponent();
@@ -103,7 +103,7 @@ anchor.SetAnchorDistances(
 ## Implementation Details
 
 - **Memory Efficient**: The `AnchorData` class is only instantiated when anchoring is enabled
-- **Event-Driven**: Uses `RenderManager.WindowResized` events for automatic updates
+- **Event-Driven**: Uses `RenderManager3D.WindowResized` events for automatic updates
 - **Priority System**: When both left/right or top/bottom anchors are set, left and top take priority
 - **Automatic Cleanup**: Unsubscribes from events when component is removed or anchoring is disabled
 
@@ -119,5 +119,5 @@ anchor.SetAnchorDistances(
 - `string GetAnchorInfo()` - Get human-readable description of current anchor configuration
 
 ### Events
-- Automatically subscribes to `Core.Instance.RenderManager.WindowResized` when anchoring is enabled
+- Automatically subscribes to `Core.Instance.RenderManager3D.WindowResized` when anchoring is enabled
 - Automatically unsubscribes when anchoring is disabled or component is removed

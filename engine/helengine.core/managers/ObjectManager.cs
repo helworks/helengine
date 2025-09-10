@@ -87,7 +87,7 @@ public class ObjectManager {
     }
 
     public void RemoveFromRender2D(IDrawable2D drawable) {
-        int bucket = drawable.RenderOrder2D / TotalBuckets2D;
+        int bucket = getBucket(drawable.RenderOrder2D, TotalBuckets2D);
         int index = Drawables2D.IndexOf(drawable);
         if (index < 0) return;
 

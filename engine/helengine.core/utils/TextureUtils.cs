@@ -11,7 +11,7 @@ namespace helengine {
                     rawTex.Width = 1;
                     rawTex.Height = 1;
 
-                    pixelTexture = Core.Instance.RenderManager.BuildTextureFromRaw(rawTex);
+                    pixelTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(rawTex);
                 }
                 return pixelTexture;
             }

@@ -109,7 +109,7 @@ namespace helengine.editor.launcher.pages {
 
             // Toggle UI backend (debug)
             if (f6Pressed || f7Pressed) {
-                var rm = Core.Instance.RenderManager as helengine.sharpdx.SharpDXRenderManager;
+                var rm = Core.Instance.RenderManager3D as helengine.sharpdx.SharpDXRenderManager3D;
                 if (rm != null) {
                     // Cycle modes: sdf -> nineslice -> geometry -> sdf ...
                     cycleModeIndex = (cycleModeIndex + (f6Pressed ? 1 : -1) + 3) % 3;

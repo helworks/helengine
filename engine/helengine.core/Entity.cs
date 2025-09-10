@@ -113,7 +113,7 @@
         protected virtual void ParentEnabledChange(bool newEnabled) {
             if (Components != null) {
                 for (int i = 0; i < Components.Count; i++) {
-                    Components[i].ParentStaticChange(newEnabled);
+                    Components[i].ParentEnabledChange(newEnabled);
                 }
             }
 
@@ -127,7 +127,7 @@
         protected virtual void ParentStaticChange(bool newEnabled) {
             if (Components != null) {
                 for (int i = 0; i < Components.Count; i++) {
-                    Components[i].ParentEnabledChange(newEnabled);
+                    Components[i].ParentStaticChange(newEnabled);
                 }
             }
 

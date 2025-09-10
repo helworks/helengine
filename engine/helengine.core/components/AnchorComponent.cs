@@ -17,7 +17,7 @@ namespace helengine {
                 return;
             }
             
-            var windowSize = Core.Instance.RenderManager.MainWindowSize;
+            var windowSize = Core.Instance.RenderManager3D.MainWindowSize;
             anchorData = new AnchorData {
                 LeftDistance = left ? Parent.Position.X : null,
                 RightDistance = right ? windowSize.X - Parent.Position.X : null,
@@ -26,7 +26,7 @@ namespace helengine {
             };
             
             // Subscribe to window resize events
-            Core.Instance.RenderManager.WindowResized += OnWindowResized;
+            Core.Instance.RenderManager3D.WindowResized += OnWindowResized;
         }
         
         /// <summary>
@@ -34,7 +34,7 @@ namespace helengine {
         /// </summary>
         public void DisableAnchoring() {
             if (anchorData != null) {
-                Core.Instance.RenderManager.WindowResized -= OnWindowResized;
+                Core.Instance.RenderManager3D.WindowResized -= OnWindowResized;
                 anchorData = null;
             }
         }
@@ -45,7 +45,7 @@ namespace helengine {
         public void SetAnchorDistances(float? left = null, float? right = null, float? top = null, float? bottom = null) {
             if (anchorData == null) {
                 anchorData = new AnchorData();
-                Core.Instance.RenderManager.WindowResized += OnWindowResized;
+                Core.Instance.RenderManager3D.WindowResized += OnWindowResized;
             }
             
             anchorData.LeftDistance = left;

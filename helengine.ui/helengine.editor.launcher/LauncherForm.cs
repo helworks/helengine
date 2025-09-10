@@ -70,6 +70,15 @@ namespace helengine.editor.launcher {
             
             // Show initial page
             pageManager.ShowInitialPage("main");
+
+            // Debug overlay (toggle with F8)
+            var debugEntity = new Entity();
+            debugEntity.LayerMask = 0b1000000000000000;
+            debugEntity.Position = new float3(8, titleBarControl.TitleBarHeight + 4, 0);
+            debugEntity.InitComponents();
+            var overlay = new DebugOverlayComponent(uiFont);
+            overlay.RenderOrder2D = 250;
+            debugEntity.AddComponent(overlay);
         }
 
         private void UpdateCameraViewport() {
@@ -107,12 +116,13 @@ namespace helengine.editor.launcher {
             SetupTitleBar();
 
             Core core = new Core();
-            core.Initialize(new SharpDXRenderManager(), new InputManagerWindows(this.Handle));
+            var rm3d = new SharpDXRenderManager3D();
+            core.Initialize(rm3d, rm3d.Render2D, new InputManagerWindows(this.Handle));
 
             // Enable keyboard input for ESC/back handling
             (Core.Instance.InputManager.Keyboard as KeyboardWindows)?.SetActive(true);
 
-            core.RenderManager.AddWindow(this.Handle, ClientSize.Width - 1, ClientSize.Height);
+            core.RenderManager3D.AddWindow(this.Handle, ClientSize.Width - 1, ClientSize.Height);
 
             // Create the launcher UI using helengine.core components
             CreateLauncherUI();
@@ -161,8 +171,8 @@ namespace helengine.editor.launcher {
             base.OnResize(e);
 
             // Notify render manager about resize for swap chain recreation
-            if (Core.Instance?.RenderManager != null) {
-                Core.Instance.RenderManager.OnWindowResize(this.Handle, ClientSize.Width, ClientSize.Height);
+            if (Core.Instance?.RenderManager3D != null) {
+                Core.Instance.RenderManager3D.OnWindowResize(this.Handle, ClientSize.Width, ClientSize.Height);
             }
 
             // Update camera viewport for proper rendering
