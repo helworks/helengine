@@ -16,8 +16,8 @@ namespace helengine.editor.launcher.pages {
         private ButtonComponent? browseProjectButton;
         
         // Layout constants
-        private const int ButtonWidth = 200;
-        private const int ButtonHeight = 60;
+        private const int ButtonWidth = 270;
+        private const int ButtonHeight = 68;
         
         public MainPage(FontAsset font, Action? onCreateProject = null, Action? onBrowseProject = null) : base(font) {
             this.onCreateProject = onCreateProject;
@@ -51,6 +51,15 @@ namespace helengine.editor.launcher.pages {
         }
 
         private void CreateProjectButtons() {
+            const int rightMargin = 30;
+            const int topMargin = 20;
+            const int horizontalSpacing = 16;
+
+            int totalWidth = ButtonWidth * 2 + horizontalSpacing;
+            int startX = Math.Max(0, screenWidth - rightMargin - totalWidth);
+            int browseX = startX;
+            int createX = startX + ButtonWidth + horizontalSpacing;
+
             // Create Project Button (top-right)
             createProjectButtonEntity = new Entity();
             createProjectButtonEntity.LayerMask = 0b1000000000000000;
@@ -69,9 +78,9 @@ namespace helengine.editor.launcher.pages {
                 () => onCreateProject?.Invoke()
             );
             createProjectButtonEntity.AddComponent(createProjectButton);
-            AddPageEntity(createProjectButtonEntity, 830, 20);
+            AddPageEntity(createProjectButtonEntity, createX, topMargin);
             
-            // Browse Project Button (below create project button)
+            // Browse Project Button (left of create project button)
             browseProjectButtonEntity = new Entity();
             browseProjectButtonEntity.LayerMask = 0b1000000000000000;
             browseProjectButtonEntity.Enabled = true;
@@ -88,7 +97,7 @@ namespace helengine.editor.launcher.pages {
                 () => onBrowseProject?.Invoke()
             );
             browseProjectButtonEntity.AddComponent(browseProjectButton);
-            AddPageEntity(browseProjectButtonEntity, 1050, 20);
+            AddPageEntity(browseProjectButtonEntity, browseX, topMargin);
         }
         
         public override void OnNavigateTo(string targetPage) {

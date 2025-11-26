@@ -8,6 +8,7 @@ namespace helengine {
         TextComponent text;
         FontAsset font;
         bool initialized;
+        KeyboardState lastKeyboard;
 
         public bool Visible { get; private set; } = false;
         public byte RenderOrder2D { get; set; } = 250;
@@ -62,9 +63,13 @@ namespace helengine {
                 return;
             }
 
-            // Hold-to-show: Visible while key is down
+            // Edge-triggered toggle on key press (not hold)
             var kb = Core.Instance.InputManager.Keyboard.GetState();
-            Visible = kb.IsKeyDown(ToggleKey);
+            bool pressed = kb.IsKeyDown(ToggleKey) && !lastKeyboard.IsKeyDown(ToggleKey);
+            if (pressed) {
+                Visible = !Visible;
+            }
+            lastKeyboard = kb;
 
             bgEntity.Enabled = Visible;
             textEntity.Enabled = Visible;

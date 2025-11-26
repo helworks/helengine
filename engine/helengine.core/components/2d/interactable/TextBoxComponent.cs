@@ -1,5 +1,6 @@
 namespace helengine {
     public class TextBoxComponent : Component {
+        static TextBoxComponent? focusedTextBox;
         string text = "";
         string placeholder = "";
         FontAsset font;
@@ -58,13 +59,19 @@ namespace helengine {
         public bool IsFocused {
             get { return isFocused; }
             set {
-                if (isFocused != value) {
-                    isFocused = value;
-                    if (isFocused) {
-                        cursorPosition = text.Length; // Move cursor to end when focused
-                    }
-                    UpdateTextDisplay();
+                if (isFocused == value) {
+                    return;
                 }
+
+                isFocused = value;
+                if (isFocused) {
+                    cursorPosition = text.Length; // Move cursor to end when focused
+                    focusedTextBox = this;
+                } else if (focusedTextBox == this) {
+                    focusedTextBox = null;
+                }
+                cursorVisible = true;
+                UpdateTextDisplay();
             }
         }
 
@@ -110,6 +117,9 @@ namespace helengine {
 
         void OnCursorEvent(int2 relPos, int2 delta, PointerInteraction state) {
             if (state == PointerInteraction.Press) {
+                if (focusedTextBox != null && focusedTextBox != this) {
+                    focusedTextBox.IsFocused = false;
+                }
                 IsFocused = true;
                 cursorPosition = text.Length; // For now, just move to end
             }
@@ -226,21 +236,37 @@ namespace helengine {
         void UpdateTextDisplay() {
             if (textComponent == null) return;
 
-            // Display text or placeholder
-            string displayText = string.IsNullOrEmpty(text) ? placeholder : text;
+            // Display text or placeholder; hide placeholder when focused
+            bool showPlaceholder = string.IsNullOrEmpty(text) && !isFocused;
+            string displayText = showPlaceholder ? placeholder : text;
             
             // Add cursor if focused and visible
-            if (isFocused && cursorVisible && !string.IsNullOrEmpty(text)) {
-                displayText = text.Insert(cursorPosition, "|");
+            if (isFocused && cursorVisible) {
+                displayText = displayText.Insert(cursorPosition, "|");
             }
             
             textComponent.Text = displayText;
             
             // Set color based on whether it's placeholder or real text
-            if (string.IsNullOrEmpty(text)) {
+            if (showPlaceholder) {
                 textComponent.Color = new byte4(150, 150, 150, 255); // Gray for placeholder
             } else {
                 textComponent.Color = new byte4(255, 255, 255, 255); // White for text
+            }
+        }
+
+        public override void ParentEnabledChange(bool newEnabled) {
+            base.ParentEnabledChange(newEnabled);
+
+            if (!newEnabled && focusedTextBox == this) {
+                IsFocused = false;
+            }
+        }
+
+        public override void ComponentRemoved(Entity entity) {
+            base.ComponentRemoved(entity);
+            if (focusedTextBox == this) {
+                focusedTextBox = null;
             }
         }
     }

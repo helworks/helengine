@@ -14,6 +14,8 @@ namespace helengine.sharpdx {
         private readonly SharpDXRenderManager3D parent;
         private Buffer quadBuffer;
         private InputLayout quadLayout;
+        private InputLayout uiLayout;
+        private InputLayout basicLayout;
         private VertexShader quadVertexShader;
         private PixelShader quadPixelShader;
         private VertexShader uiShapeVertexShader;
@@ -63,7 +65,7 @@ namespace helengine.sharpdx {
             context.VertexShader.Set(quadVertexShader);
             context.PixelShader.Set(quadPixelShader);
             context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(quadBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
-            context.InputAssembler.InputLayout = quadLayout;
+            context.InputAssembler.InputLayout = uiLayout;
         }
 
         private void initSpriteQuad() {
@@ -97,6 +99,16 @@ namespace helengine.sharpdx {
             basicColorPixelShader = new PixelShader(Device, colPS);
 
             quadLayout = new InputLayout(Device, spriteVS, new[]
+            {
+                new InputElement("POSITION", 0, Format.R32G32B32_Float, 0, 0),
+                new InputElement("TEXCOORD", 0, Format.R32G32_Float, 12, 0)
+            });
+            uiLayout = new InputLayout(Device, uiVS, new[]
+            {
+                new InputElement("POSITION", 0, Format.R32G32B32_Float, 0, 0),
+                new InputElement("TEXCOORD", 0, Format.R32G32_Float, 12, 0)
+            });
+            basicLayout = new InputLayout(Device, colVS, new[]
             {
                 new InputElement("POSITION", 0, Format.R32G32B32_Float, 0, 0),
                 new InputElement("TEXCOORD", 0, Format.R32G32_Float, 12, 0)
@@ -199,6 +211,10 @@ namespace helengine.sharpdx {
             context.PixelShader.SetSampler(0, quadSampler);
 
             int2 size = drawable.Size;
+            // If no explicit size is provided, default to texture pixel size
+            if (size.X <= 0 || size.Y <= 0) {
+                size = new int2(data.Width, data.Height);
+            }
             float3 pos = drawable.Parent.Position;
             byte4 color = drawable.Color;
 
@@ -352,6 +368,8 @@ namespace helengine.sharpdx {
         public override void Dispose() {
             quadBuffer?.Dispose();
             quadLayout?.Dispose();
+            uiLayout?.Dispose();
+            basicLayout?.Dispose();
             quadVertexShader?.Dispose();
             quadPixelShader?.Dispose();
             uiShapeVertexShader?.Dispose();
@@ -528,14 +546,14 @@ namespace helengine.sharpdx {
         private void DrawRoundedRectGeometry(IRoundedRectDrawable2D shape) {
             var context = Device.ImmediateContext;
 
-            // Build geometry for rounded rect: fill fan + border ring
+            // Build geometry for rounded rect: triangle list fan for fill + triangle list ring for border
             const int segmentsPerCorner = 8;
             int corners = 4;
-            int ringSegments = segmentsPerCorner * corners;
+            int steps = segmentsPerCorner * corners; // ring segments around shape
 
-            // Estimate vertices: fill fan (1 center + ringSegments vertices), border ring (ringSegments*2 vertices)
-            int fillVerts = 1 + ringSegments + 1; // closing vertex
-            int borderVerts = (shape.BorderThickness > 0) ? (ringSegments + 1) * 2 : 0;
+            // Vertex counts for triangle lists
+            int fillVerts = steps * 3; // center + edge pair per triangle (no index buffer)
+            int borderVerts = (shape.BorderThickness > 0) ? steps * 6 : 0; // two triangles per segment
             int totalVerts = fillVerts + borderVerts;
             EnsureGeomCapacity(totalVerts);
 
@@ -556,63 +574,67 @@ namespace helengine.sharpdx {
                 ptr += Utilities.SizeOf<VertexPositionUV>();
             }
 
-            // Fill fan
-            write(cx, cy);
-            // Create ring around the rounded rect
-            int steps = ringSegments;
-            for (int i = 0; i <= steps; i++) {
-                float t = (float)i / steps; // 0..1
-                // Map t to four corners
-                float angle = t * MathF.PI * 2.0f;
-                // Parametric rounded-rect approx: clamp to box then add corner arcs
+            // Helpers to compute outer/inner points on rounded rectangle for a given angle
+            void outerAt(float angle, out float ox, out float oy) {
                 float x = MathF.Cos(angle);
                 float y = MathF.Sin(angle);
-                // Compute point on outer rounded rect
-                float ox = MathF.Sign(x) * MathF.Max(MathF.Abs(w * 0.5f - r), MathF.Abs(w * 0.5f * x)) + cx;
-                float oy = MathF.Sign(y) * MathF.Max(MathF.Abs(h * 0.5f - r), MathF.Abs(h * 0.5f * y)) + cy;
-                // Adjust to arc near corners
+                ox = MathF.Sign(x) * MathF.Max(MathF.Abs(w * 0.5f - r), MathF.Abs(w * 0.5f * x)) + cx;
+                oy = MathF.Sign(y) * MathF.Max(MathF.Abs(h * 0.5f - r), MathF.Abs(h * 0.5f * y)) + cy;
                 if (MathF.Abs(ox - cx) > (w * 0.5f - r) && MathF.Abs(oy - cy) > (h * 0.5f - r)) {
                     float cornerCx = cx + MathF.Sign(x) * (w * 0.5f - r);
                     float cornerCy = cy + MathF.Sign(y) * (h * 0.5f - r);
                     ox = cornerCx + r * MathF.Sign(x) * MathF.Abs(x);
                     oy = cornerCy + r * MathF.Sign(y) * MathF.Abs(y);
                 }
-                write(ox, oy);
             }
 
-            // Border ring (if any)
+            void innerAt(float angle, float ir, float iw, float ih, out float ix, out float iy) {
+                float x = MathF.Cos(angle);
+                float y = MathF.Sin(angle);
+                float icx = cx;
+                float icy = cy;
+                ix = MathF.Sign(x) * MathF.Max(MathF.Abs(iw * 0.5f - ir), MathF.Abs(iw * 0.5f * x)) + icx;
+                iy = MathF.Sign(y) * MathF.Max(MathF.Abs(ih * 0.5f - ir), MathF.Abs(ih * 0.5f * y)) + icy;
+                if (MathF.Abs(ix - icx) > (iw * 0.5f - ir) && MathF.Abs(iy - icy) > (ih * 0.5f - ir)) {
+                    float cornerCx2 = icx + MathF.Sign(x) * (iw * 0.5f - ir);
+                    float cornerCy2 = icy + MathF.Sign(y) * (ih * 0.5f - ir);
+                    ix = cornerCx2 + ir * MathF.Sign(x) * MathF.Abs(x);
+                    iy = cornerCy2 + ir * MathF.Sign(y) * MathF.Abs(y);
+                }
+            }
+
+            // Fill fan as triangle list (center, p[i], p[i+1])
+            for (int i = 0; i < steps; i++) {
+                float a0 = (i / (float)steps) * MathF.PI * 2.0f;
+                float a1 = ((i + 1) % steps) / (float)steps * MathF.PI * 2.0f;
+                outerAt(a0, out float ox0, out float oy0);
+                outerAt(a1, out float ox1, out float oy1);
+                write(cx, cy);
+                write(ox0, oy0);
+                write(ox1, oy1);
+            }
+
+            // Border ring as triangle list (two per segment)
             if (shape.BorderThickness > 0) {
                 float ir = Math.Max(0, r - shape.BorderThickness);
                 float iw = Math.Max(0, w - shape.BorderThickness * 2);
                 float ih = Math.Max(0, h - shape.BorderThickness * 2);
-                for (int i = 0; i <= steps; i++) {
-                    float t = (float)i / steps;
-                    float angle = t * MathF.PI * 2.0f;
-                    float x = MathF.Cos(angle);
-                    float y = MathF.Sin(angle);
-                    float ox = MathF.Sign(x) * MathF.Max(MathF.Abs(w * 0.5f - r), MathF.Abs(w * 0.5f * x)) + cx;
-                    float oy = MathF.Sign(y) * MathF.Max(MathF.Abs(h * 0.5f - r), MathF.Abs(h * 0.5f * y)) + cy;
-                    if (MathF.Abs(ox - cx) > (w * 0.5f - r) && MathF.Abs(oy - cy) > (h * 0.5f - r)) {
-                        float cornerCx = cx + MathF.Sign(x) * (w * 0.5f - r);
-                        float cornerCy = cy + MathF.Sign(y) * (h * 0.5f - r);
-                        ox = cornerCx + r * MathF.Sign(x) * MathF.Abs(x);
-                        oy = cornerCy + r * MathF.Sign(y) * MathF.Abs(y);
-                    }
+                for (int i = 0; i < steps; i++) {
+                    float a0 = (i / (float)steps) * MathF.PI * 2.0f;
+                    float a1 = ((i + 1) % steps) / (float)steps * MathF.PI * 2.0f;
+                    outerAt(a0, out float ox0, out float oy0);
+                    outerAt(a1, out float ox1, out float oy1);
+                    innerAt(a0, ir, iw, ih, out float ix0, out float iy0);
+                    innerAt(a1, ir, iw, ih, out float ix1, out float iy1);
 
-                    // inner ring point
-                    float icx = cx;
-                    float icy = cy;
-                    float ix = MathF.Sign(x) * MathF.Max(MathF.Abs(iw * 0.5f - ir), MathF.Abs(iw * 0.5f * x)) + icx;
-                    float iy = MathF.Sign(y) * MathF.Max(MathF.Abs(ih * 0.5f - ir), MathF.Abs(ih * 0.5f * y)) + icy;
-                    if (MathF.Abs(ix - icx) > (iw * 0.5f - ir) && MathF.Abs(iy - icy) > (ih * 0.5f - ir)) {
-                        float cornerCx2 = icx + MathF.Sign(x) * (iw * 0.5f - ir);
-                        float cornerCy2 = icy + MathF.Sign(y) * (ih * 0.5f - ir);
-                        ix = cornerCx2 + ir * MathF.Sign(x) * MathF.Abs(x);
-                        iy = cornerCy2 + ir * MathF.Sign(y) * MathF.Abs(y);
-                    }
-
-                    write(ox, oy);
-                    write(ix, iy);
+                    // Triangle 1: outer0, outer1, inner1
+                    write(ox0, oy0);
+                    write(ox1, oy1);
+                    write(ix1, iy1);
+                    // Triangle 2: outer0, inner1, inner0
+                    write(ox0, oy0);
+                    write(ix1, iy1);
+                    write(ix0, iy0);
                 }
             }
 
@@ -621,9 +643,9 @@ namespace helengine.sharpdx {
             // Setup pipeline
             context.Rasterizer.State = rasterizerState2D;
             context.OutputMerger.SetDepthStencilState(depthStencilState2D, 0);
-            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleStrip;
+            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(geomVertexBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
-            context.InputAssembler.InputLayout = quadLayout; // matches POSITION+TEXCOORD
+            context.InputAssembler.InputLayout = basicLayout; // matches POSITION+TEXCOORD
 
             float4x4 transposedWorld;
             float4x4.Transpose(ref projection2D, out transposedWorld);
@@ -644,9 +666,6 @@ namespace helengine.sharpdx {
             context.PixelShader.SetConstantBuffer(0, basicColorConstantBuffer);
             context.UpdateSubresource(ref col, basicColorConstantBuffer);
 
-            // Fill fan uses TriangleFan, which D3D11 doesn't support directly; emulate with triangle list using strip ordering
-            // We already wrote center + ring. To render as strip, we can draw from vertex 0 with strip; it will not form a fan correctly, but acceptable for basic fill approx.
-            // For correctness, draw as list using small batches would be required; here we draw as strip for simplicity.
             int fillVertexCount = fillVerts;
             context.Draw(fillVertexCount, 0);
             parent.IncrementDrawCalls(1);

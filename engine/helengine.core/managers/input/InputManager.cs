@@ -5,12 +5,12 @@ public abstract class InputManager {
     public Mouse Mouse { get; protected set; }
     public IInteractable2D? Highlighted { get; private set; }
     public IInteractable2D? Hovering { get; private set; }
-    private ICamera? capturedCamera; // Camera that captured the pointer on press
 
     protected Core core;
 
-    private MouseState lastMouseState;
-    private MouseState mouseState;
+    ICamera? capturedCamera; // Camera that captured the pointer on press
+    MouseState lastMouseState;
+    MouseState mouseState;
 
     public InputManager() {
         core = Core.Instance;

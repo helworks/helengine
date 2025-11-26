@@ -1,3 +1,6 @@
+using System.IO;
+using System.Windows.Forms;
+
 namespace helengine.editor.launcher.pages {
     /// <summary>
     /// New project creation page with input fields
@@ -14,12 +17,17 @@ namespace helengine.editor.launcher.pages {
         Entity? projectLocationTextBoxEntity;
         Entity? createButtonEntity;
         Entity? backButtonEntity;
+        Entity? browseLocationButtonEntity;
         
         // Components
         TextBoxComponent? projectNameTextBox;
         TextBoxComponent? projectLocationTextBox;
         ButtonComponent? createButton;
         ButtonComponent? cancelButton;
+        ButtonComponent? browseLocationButton;
+
+        // Layout
+        private const int HorizontalOffset = 20;
         
         public NewProjectPage(FontAsset font, Action<string, string>? onCreateProject = null, Action? onCancel = null) : base(font) {
             this.onCreateProject = onCreateProject;
@@ -52,7 +60,7 @@ namespace helengine.editor.launcher.pages {
             titleText.RenderOrder2D = 3;
             titleEntity.AddComponent(titleText);
 
-            AddPageEntity(titleEntity, 50, 30);
+            AddPageEntity(titleEntity, 50 + HorizontalOffset, 30);
 
             // Back arrow button (top-left)
             backButtonEntity = new Entity();
@@ -89,7 +97,7 @@ namespace helengine.editor.launcher.pages {
             nameLabel.Color = new byte4(255, 255, 255, 255);
             nameLabel.RenderOrder2D = 3;
             projectNameLabelEntity.AddComponent(nameLabel);
-            AddPageEntity(projectNameLabelEntity, 50, 80);
+            AddPageEntity(projectNameLabelEntity, 50 + HorizontalOffset, 80);
             
             // Project Name TextBox
             projectNameTextBoxEntity = new Entity();
@@ -103,7 +111,7 @@ namespace helengine.editor.launcher.pages {
                 "Enter project name"
             );
             projectNameTextBoxEntity.AddComponent(projectNameTextBox);
-            AddPageEntity(projectNameTextBoxEntity, 50, 110);
+            AddPageEntity(projectNameTextBoxEntity, 50 + HorizontalOffset, 110);
             
             // Project Location Label
             projectLocationLabelEntity = new Entity();
@@ -117,7 +125,7 @@ namespace helengine.editor.launcher.pages {
             locationLabel.Color = new byte4(255, 255, 255, 255);
             locationLabel.RenderOrder2D = 3;
             projectLocationLabelEntity.AddComponent(locationLabel);
-            AddPageEntity(projectLocationLabelEntity, 50, 160);
+            AddPageEntity(projectLocationLabelEntity, 50 + HorizontalOffset, 160);
             
             // Project Location TextBox
             projectLocationTextBoxEntity = new Entity();
@@ -131,7 +139,22 @@ namespace helengine.editor.launcher.pages {
                 "C:\\Projects"
             );
             projectLocationTextBoxEntity.AddComponent(projectLocationTextBox);
-            AddPageEntity(projectLocationTextBoxEntity, 50, 190);
+            AddPageEntity(projectLocationTextBoxEntity, 50 + HorizontalOffset, 190);
+
+            // Browse button for project location
+            browseLocationButtonEntity = new Entity();
+            browseLocationButtonEntity.LayerMask = 0b1000000000000000;
+            browseLocationButtonEntity.Enabled = true;
+            browseLocationButtonEntity.InitComponents();
+
+            browseLocationButton = new ButtonComponent(
+                "...",
+                new int2(50, 30),
+                font,
+                OnBrowseLocationClick
+            );
+            browseLocationButtonEntity.AddComponent(browseLocationButton);
+            AddPageEntity(browseLocationButtonEntity, 50 + HorizontalOffset + 300 + 10, 190);
         }
         
         private void CreateActionButtons() {
@@ -148,7 +171,7 @@ namespace helengine.editor.launcher.pages {
                 OnCreateClick
             );
             createButtonEntity.AddComponent(createButton);
-            AddPageEntity(createButtonEntity, 50, 240);
+            AddPageEntity(createButtonEntity, 50 + HorizontalOffset, 240);
         }
         
         private void OnCreateClick() {
@@ -166,6 +189,25 @@ namespace helengine.editor.launcher.pages {
             }
             
             onCreateProject?.Invoke(projectName, projectLocation);
+        }
+
+        private void OnBrowseLocationClick() {
+            using var dialog = new FolderBrowserDialog();
+            dialog.Description = "Select a folder for your project";
+            dialog.UseDescriptionForTitle = true;
+            dialog.ShowNewFolderButton = true;
+            dialog.AutoUpgradeEnabled = true;
+
+            string currentPath = projectLocationTextBox?.Text?.Trim() ?? string.Empty;
+            if (!string.IsNullOrEmpty(currentPath) && Directory.Exists(currentPath)) {
+                dialog.SelectedPath = currentPath;
+            }
+
+            if (dialog.ShowDialog() == DialogResult.OK && !string.IsNullOrEmpty(dialog.SelectedPath)) {
+                if (projectLocationTextBox != null) {
+                    projectLocationTextBox.Text = dialog.SelectedPath;
+                }
+            }
         }
         
         public override void OnNavigateTo(string targetPage) {

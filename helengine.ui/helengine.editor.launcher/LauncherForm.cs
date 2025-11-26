@@ -40,7 +40,7 @@ namespace helengine.editor.launcher {
 
         private void CreateLauncherUI() {
             // Create font asset for UI text
-            uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 16, FontStyle.Regular));
+            uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 22, FontStyle.Regular, System.Drawing.GraphicsUnit.Pixel));
 
             // Create UI camera for rendering UI elements
             sceneCamEntity = new Entity();
@@ -95,7 +95,7 @@ namespace helengine.editor.launcher {
 
         private void NavigateToMain() {
             // Reverse transition (newproject -> main): slide back to the right
-            pageManager?.NavigateTo("main", reverse: true);
+            pageManager?.NavigateTo("main", reverse: true, onComplete: null, recordHistory: false);
             newProjectPage?.ClearInputs(); // Clear form when returning to main
         }
 

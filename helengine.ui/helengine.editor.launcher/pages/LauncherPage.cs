@@ -41,7 +41,7 @@ namespace helengine.editor.launcher.pages {
         /// </summary>
         public virtual void DestroyPage() {
             foreach (var entity in pageEntities) {
-                entity?.Dispose();
+                CleanupEntity(entity);
             }
             pageEntities.Clear();
             positioned.Clear();
@@ -208,6 +208,36 @@ namespace helengine.editor.launcher.pages {
         /// </summary>
         public virtual void UpdateScreenWidth(int newScreenWidth) {
             screenWidth = newScreenWidth;
+        }
+
+        void CleanupEntity(Entity? entity) {
+            if (entity == null) {
+                return;
+            }
+
+            DisableAnchors(entity);
+
+            if (entity.Children != null) {
+                for (int i = 0; i < entity.Children.Count; i++) {
+                    CleanupEntity(entity.Children[i]);
+                }
+            }
+
+            // Disable to unregister from render/update/interactables
+            entity.Enabled = false;
+            Core.Instance.ObjectManager.RemoveEntity(entity);
+        }
+
+        void DisableAnchors(Entity entity) {
+            if (entity.Components == null) {
+                return;
+            }
+
+            for (int i = 0; i < entity.Components.Count; i++) {
+                if (entity.Components[i] is AnchorComponent anchor) {
+                    anchor.DisableAnchoring();
+                }
+            }
         }
     }
 }

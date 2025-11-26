@@ -18,7 +18,10 @@ cbuffer ColorBuffer : register(b0)
 PS_INPUT VS(VS_INPUT input)
 {
     PS_INPUT output;
-    output.pos = mul(float4(input.pos, 1.0), world);
+    // Match the UI coordinate system used by sprite/text: Y grows downward in pixels
+    float3 p = input.pos;
+    p.y = -p.y;
+    output.pos = mul(float4(p, 1.0), world);
     return output;
 }
 
@@ -26,4 +29,3 @@ float4 PS(PS_INPUT input) : SV_TARGET
 {
     return color;
 }
-
