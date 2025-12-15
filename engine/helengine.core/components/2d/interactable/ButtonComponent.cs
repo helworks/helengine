@@ -4,6 +4,7 @@ namespace helengine {
         FontAsset font;
         int2 size;
         Action? onClickAction;
+        readonly float borderThickness;
 
         // Child entities and components
         Entity? textEntity;
@@ -19,12 +20,14 @@ namespace helengine {
             string text,
             int2 size,
             FontAsset font,
-            Action? onClickAction = null) {
+            Action? onClickAction = null,
+            float borderThickness = 2f) {
 
             this.text = text;
             this.size = size;
             this.font = font;
             this.onClickAction = onClickAction;
+            this.borderThickness = borderThickness;
         }
 
         public override void ComponentAdded(Entity entity) {
@@ -36,7 +39,7 @@ namespace helengine {
             roundedRect = new RoundedRectComponent();
             roundedRect.Size = size;
             roundedRect.Radius = MathF.Min(size.X, size.Y) * 0.15f;
-            roundedRect.BorderThickness = 2f;
+            roundedRect.BorderThickness = borderThickness;
             roundedRect.FillColor = ThemeManager.Colors.AccentSecondary;
             roundedRect.BorderColor = ThemeManager.Colors.AccentTertiary;
             roundedRect.RenderOrder2D = 2;

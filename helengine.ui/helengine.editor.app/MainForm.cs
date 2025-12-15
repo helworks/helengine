@@ -1,20 +1,42 @@
 using helengine.sharpdx;
+using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace helengine.editor.app {
     public partial class MainForm : Form {
         private Thread thread;
         private bool closed;
+        private bool initialized;
+        private const int TitleBarHeight = 36;
+
+        private CameraComponent? uiCameraComponent;
+        private CameraComponent? sceneCameraComponent;
+        private DockableViewport? mainViewport;
+        private FontAsset? uiFont;
+
+        private EditorEntity? titleBarEntity;
+        private SpriteComponent? titleBarBackground;
+        private InteractableComponent? titleBarHitRegion;
+        private TextComponent? titleTextComponent;
+        private readonly List<(EditorEntity entity, int width)> menuButtons = new();
+        private readonly List<(EditorEntity entity, int width)> windowControlButtons = new();
 
         public MainForm() {
             InitializeComponent();
+            ControlBox = false;
+            FormBorderStyle = FormBorderStyle.None;
 
             initialize();
         }
 
         public MainForm(string projectPath) : this() {
             if (!string.IsNullOrWhiteSpace(projectPath)) {
-                Text = $"helengine - {Path.GetFileName(projectPath)}";
+                string title = $"helengine - {Path.GetFileName(projectPath)}";
+                Text = title;
+                if (titleTextComponent != null) {
+                    titleTextComponent.Text = title;
+                }
             }
         }
 
@@ -43,32 +65,37 @@ namespace helengine.editor.app {
             var rm3d = new SharpDXRenderManager3D();
             core.Initialize(rm3d, rm3d.Render2D, new InputManagerWindows(this.Handle));
 
-            core.RenderManager3D.AddWindow(this.Handle, ClientSize.Width - 1, ClientSize.Height);
+            int renderWidth = ClientSize.Width - 1;
+            int renderHeight = ClientSize.Height;
+            core.RenderManager3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
-            Font font = new Font("Consolas", 12, FontStyle.Regular);
-            FontAsset fontAsset = GDIFontProcessor.ImportFont(font);
+            uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular));
 
             EditorEntity uiCam = new EditorEntity();
             uiCam.Position = new float3(0, 3, -8);
-            CameraComponent compUiCamera = new CameraComponent();
-            compUiCamera.LayerMask = 0b1000000000000000;
-            compUiCamera.Viewport = new float4(0, 0, ClientSize.Width - 1, ClientSize.Height);
-            uiCam.AddComponent(compUiCamera);
+            uiCameraComponent = new CameraComponent();
+            uiCameraComponent.LayerMask = 0b1000000000000000;
+            uiCameraComponent.Viewport = new float4(0, 0, renderWidth, renderHeight);
+            uiCam.AddComponent(uiCameraComponent);
 
             EditorEntity sceneCam = new EditorEntity();
             sceneCam.Position = new float3(0, 3, -8);
-            CameraComponent compCamera = new CameraComponent();
-            compCamera.LayerMask = 0b0100000000000000;
-            compCamera.Viewport = new float4(100, 100, 300, 300);
-            sceneCam.AddComponent(compCamera);
+            sceneCameraComponent = new CameraComponent();
+            sceneCameraComponent.LayerMask = 0b0100000000000000;
+            sceneCameraComponent.Viewport = new float4(100, TitleBarHeight + 100, 300, renderHeight - TitleBarHeight - 100);
+            sceneCam.AddComponent(sceneCameraComponent);
 
-            DockableViewport dockable = new DockableViewport(compCamera, fontAsset);
-            dockable.Position = new float3(ClientSize.Width - 601, 0, 0);
+            BuildTitleBar(uiFont, renderWidth);
+
+            mainViewport = new DockableViewport(sceneCameraComponent, uiFont);
+            mainViewport.Position = new float3(ClientSize.Width - 601, TitleBarHeight, 0);
 
             makeStartScene();
 
             thread = new Thread(threadUpdate);
             thread.Start();
+
+            initialized = true;
 
             //EditorEntity fpsView = new EditorEntity();
             //fpsView.LayerMask = 0b00000010;
@@ -115,5 +142,172 @@ namespace helengine.editor.app {
 
             //Keyboard.SetActive(false);
         }
+
+        protected override void OnResize(EventArgs e) {
+            base.OnResize(e);
+            if (!initialized) {
+                return;
+            }
+
+            var rm3d = Core.Instance?.RenderManager3D;
+            if (rm3d != null) {
+                rm3d.OnWindowResize(Handle, ClientSize.Width, ClientSize.Height);
+            }
+            UpdateLayout();
+        }
+
+        void StartWindowDrag() {
+            ReleaseCapture();
+            SendMessage(Handle, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        }
+
+        void BuildTitleBar(FontAsset font, int windowWidth) {
+            titleBarEntity = new EditorEntity();
+            titleBarEntity.LayerMask = 0b1000000000000000;
+            titleBarEntity.Position = new float3(0, 0, 0);
+
+            titleBarBackground = new SpriteComponent();
+            titleBarBackground.Texture = TextureUtils.PixelTexture;
+            titleBarBackground.Color = ThemeManager.Colors.SurfacePrimary;
+            titleBarBackground.Size = new int2(windowWidth, TitleBarHeight);
+            titleBarBackground.RenderOrder2D = 1;
+            titleBarEntity.AddComponent(titleBarBackground);
+
+            titleBarHitRegion = new InteractableComponent();
+            titleBarHitRegion.Size = new int2(windowWidth, TitleBarHeight);
+            titleBarHitRegion.CursorEvent += (pos, delta, state) => {
+                if (state == PointerInteraction.Press) {
+                    StartWindowDrag();
+                }
+            };
+            titleBarEntity.AddComponent(titleBarHitRegion);
+
+            menuButtons.Clear();
+            float x = 8f;
+            string[] labels = { "File", "Edit", "View", "Window", "Help" };
+            foreach (var label in labels) {
+                int width = ComputeButtonWidth(font, label);
+                var buttonEntity = new EditorEntity {
+                    LayerMask = titleBarEntity.LayerMask,
+                    Position = new float3(x, 6, 0)
+                };
+                var button = new ButtonComponent(label, new int2(width, 24), font, null, 0f);
+                buttonEntity.AddComponent(button);
+                titleBarEntity.AddChild(buttonEntity);
+                menuButtons.Add((buttonEntity, width));
+                x += width + 6;
+            }
+
+            var titleEntity = new EditorEntity {
+                LayerMask = titleBarEntity.LayerMask,
+                Position = new float3(x + 10, 8, 0)
+            };
+            titleTextComponent = new TextComponent {
+                Font = font,
+                Text = "helengine editor",
+                Color = new byte4(255, 255, 255, 255),
+                Size = new int2(300, 20),
+                RenderOrder2D = 3
+            };
+            titleEntity.AddComponent(titleTextComponent);
+            titleBarEntity.AddChild(titleEntity);
+
+            windowControlButtons.Clear();
+            int closeWidth = ComputeButtonWidth(font, "X");
+            int maxWidth = ComputeButtonWidth(font, "Max");
+            int minWidth = ComputeButtonWidth(font, "-");
+            AddWindowControl(font, "-", minWidth, () => WindowState = FormWindowState.Minimized);
+            AddWindowControl(font, "Max", maxWidth, ToggleWindowState);
+            AddWindowControl(font, "X", closeWidth, Close);
+
+            UpdateTitleBarLayout(windowWidth);
+        }
+
+        void UpdateLayout() {
+            if (uiFont == null) {
+                return;
+            }
+
+            int renderWidth = ClientSize.Width - 1;
+            int renderHeight = ClientSize.Height;
+
+            UpdateTitleBarLayout(renderWidth);
+
+            if (uiCameraComponent != null) {
+                uiCameraComponent.Viewport = new float4(0, 0, renderWidth, renderHeight);
+            }
+
+            if (sceneCameraComponent != null) {
+                sceneCameraComponent.Viewport = new float4(100, TitleBarHeight + 100, 300, renderHeight - TitleBarHeight - 100);
+            }
+
+            if (mainViewport != null) {
+                mainViewport.Position = new float3(ClientSize.Width - 601, TitleBarHeight, 0);
+            }
+        }
+
+        void UpdateTitleBarLayout(int windowWidth) {
+            if (titleBarBackground != null) {
+                titleBarBackground.Size = new int2(windowWidth, TitleBarHeight);
+            }
+
+            if (titleBarHitRegion != null) {
+                titleBarHitRegion.Size = new int2(windowWidth, TitleBarHeight);
+            }
+
+            float x = 8f;
+            foreach (var (entity, width) in menuButtons) {
+                entity.Position = new float3(x, 6, 0);
+                x += width + 6;
+            }
+
+            if (titleTextComponent?.Parent != null) {
+                titleTextComponent.Parent.Position = new float3(x + 10, 8, 0);
+            }
+
+            int totalControlsWidth = 0;
+            foreach (var (_, width) in windowControlButtons) {
+                totalControlsWidth += width + 6;
+            }
+
+            float controlX = Math.Max(x + 20, windowWidth - totalControlsWidth - 8);
+            foreach (var (entity, width) in windowControlButtons) {
+                entity.Position = new float3(controlX, 6, 0);
+                controlX += width + 6;
+            }
+        }
+
+        void AddWindowControl(FontAsset font, string label, int width, Action onClick) {
+            var buttonEntity = new EditorEntity {
+                LayerMask = 0b1000000000000000,
+                Position = new float3(0, 6, 0)
+            };
+            var button = new ButtonComponent(label, new int2(width, 24), font, onClick, 0f);
+            buttonEntity.AddComponent(button);
+            titleBarEntity?.AddChild(buttonEntity);
+            windowControlButtons.Add((buttonEntity, width));
+        }
+
+        int ComputeButtonWidth(FontAsset font, string label) {
+            var tight = font.MeasureTight(label);
+            return Math.Max(40, (int)MathF.Ceiling(tight.Width) + 16);
+        }
+
+        void ToggleWindowState() {
+            if (WindowState == FormWindowState.Maximized) {
+                WindowState = FormWindowState.Normal;
+            } else {
+                WindowState = FormWindowState.Maximized;
+            }
+        }
+
+        const int WM_NCLBUTTONDOWN = 0xA1;
+        const int HTCAPTION = 0x2;
+
+        [DllImport("user32.dll")]
+        static extern bool ReleaseCapture();
+
+        [DllImport("user32.dll")]
+        static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
     }
 }

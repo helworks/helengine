@@ -103,15 +103,15 @@ namespace helengine.sharpdx {
             if (windows != null) {
                 lock (windows) {
                     // reset per-frame counters
-            lastDrawCalls = drawCallsThisFrame;
-            drawCallsThisFrame = 0;
-            // FPS
-            double ms = stopwatch.Elapsed.TotalMilliseconds;
-            lastFrameTimeMs = ms;
-            lastFps = ms > 0 ? 1000.0 / ms : 0;
-            stopwatch.Restart();
+                    lastDrawCalls = drawCallsThisFrame;
+                    drawCallsThisFrame = 0;
+                    // FPS
+                    double ms = stopwatch.Elapsed.TotalMilliseconds;
+                    lastFrameTimeMs = ms;
+                    lastFps = ms > 0 ? 1000.0 / ms : 0;
+                    stopwatch.Restart();
 
-            for (int i = 0; i < windows.Count; i++) {
+                    for (int i = 0; i < windows.Count; i++) {
                         windows[i].Dispose();
                     }
                 }
@@ -234,7 +234,7 @@ namespace helengine.sharpdx {
             window.DepthView = new DepthStencilView(Device, depthBuffer);
         }
 
-        
+
 
         public override RuntimeModel BuildModelFromRaw(ModelAsset data) {
             SharpDXModelRuntimeData model = new SharpDXModelRuntimeData();
@@ -308,49 +308,49 @@ namespace helengine.sharpdx {
                             IDrawable3D drawable = rb.Items[i];
                             if (drawable?.Parent == null || !drawable.Parent.Enabled) { continue; }
 
-                        Entity parent = drawable.Parent;
+                            Entity parent = drawable.Parent;
 
-                        SharpDXModelRuntimeData data = (SharpDXModelRuntimeData)drawable.Model;
+                            SharpDXModelRuntimeData data = (SharpDXModelRuntimeData)drawable.Model;
 
-                        // state change
-                        context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-                        context.VertexShader.Set(vertexShader);
-                        context.PixelShader.Set(pixelShader);
-                        context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, 32, 0));
-                        context.InputAssembler.SetIndexBuffer(data.IndexBuffer, Format.R16_UInt, 0);
-                        context.VertexShader.SetConstantBuffer(0, constantBuffer);
+                            // state change
+                            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+                            context.VertexShader.Set(vertexShader);
+                            context.PixelShader.Set(pixelShader);
+                            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, 32, 0));
+                            context.InputAssembler.SetIndexBuffer(data.IndexBuffer, Format.R16_UInt, 0);
+                            context.VertexShader.SetConstantBuffer(0, constantBuffer);
 
-                        // draw
-                        float4 orientation = parent.Orientation;
-                        float4x4 rotation;
-                        float4x4.CreateFromQuaternion(ref orientation, out rotation);
+                            // draw
+                            float4 orientation = parent.Orientation;
+                            float4x4 rotation;
+                            float4x4.CreateFromQuaternion(ref orientation, out rotation);
 
-                        float3 scale = parent.Scale;
-                        float4x4 size;
-                        float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
+                            float3 scale = parent.Scale;
+                            float4x4 size;
+                            float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
 
-                        float4x4 world;
-                        float4x4.Multiply(ref rotation, ref size, out world);
+                            float4x4 world;
+                            float4x4.Multiply(ref rotation, ref size, out world);
 
-                        float4x4 worldViewProj;
-                        float4x4.Multiply(ref world, ref viewProj, out worldViewProj);
+                            float4x4 worldViewProj;
+                            float4x4.Multiply(ref world, ref viewProj, out worldViewProj);
 
-                        float4x4 worldViewProjTransposed;
-                        float4x4.Transpose(ref worldViewProj, out worldViewProjTransposed);
+                            float4x4 worldViewProjTransposed;
+                            float4x4.Transpose(ref worldViewProj, out worldViewProjTransposed);
 
-                        context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
+                            context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
 
-                        context.DrawIndexed(data.Indices, 0, 0);
-                        context.Flush();
+                            context.DrawIndexed(data.Indices, 0, 0);
+                            context.Flush();
+                        }
                     }
                 }
-            }
             }
 
             render2D.DrawCamera(window, camera);
         }
 
-        
+
 
         // Debug helper to switch UI backend
         public void SetUIBackend(string mode) {
@@ -372,6 +372,10 @@ namespace helengine.sharpdx {
 
         public override void Draw() {
             base.Draw();
+
+            if (windows == null) {
+                return;
+            }
 
             var context = Device.ImmediateContext;
             context.InputAssembler.InputLayout = layout;

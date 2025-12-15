@@ -31,10 +31,11 @@
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1904, 1041);
             Name = "MainForm";
-            Text = "helengine v0";
+            Text = "helengine";
             ResumeLayout(false);
         }
 
         #endregion
+
     }
 }
