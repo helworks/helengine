@@ -1,3 +1,4 @@
+using helengine.editor;
 using helengine.sharpdx;
 using System.Collections.Generic;
 using System.IO;
@@ -9,10 +10,13 @@ namespace helengine.editor.app {
         private bool closed;
         private bool initialized;
         private const int TitleBarHeight = 36;
+        private const int TitleBarDoubleClickMs = 350;
+        private const int TitleBarDoubleClickDistance = 6;
 
         private CameraComponent? uiCameraComponent;
         private CameraComponent? sceneCameraComponent;
         private DockableViewport? mainViewport;
+        private DockLayoutEngine? dockLayout;
         private FontAsset? uiFont;
 
         private EditorEntity? titleBarEntity;
@@ -21,6 +25,8 @@ namespace helengine.editor.app {
         private TextComponent? titleTextComponent;
         private readonly List<(EditorEntity entity, int width)> menuButtons = new();
         private readonly List<(EditorEntity entity, int width)> windowControlButtons = new();
+        private long lastTitleBarClickTicks;
+        private int2 lastTitleBarClickPos;
 
         public MainForm() {
             InitializeComponent();
@@ -65,8 +71,8 @@ namespace helengine.editor.app {
             var rm3d = new SharpDXRenderManager3D();
             core.Initialize(rm3d, rm3d.Render2D, new InputManagerWindows(this.Handle));
 
-            int renderWidth = ClientSize.Width - 1;
-            int renderHeight = ClientSize.Height;
+            int renderWidth = Math.Max(1, ClientSize.Width);
+            int renderHeight = Math.Max(1, ClientSize.Height);
             core.RenderManager3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
             uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular));
@@ -82,15 +88,19 @@ namespace helengine.editor.app {
             sceneCam.Position = new float3(0, 3, -8);
             sceneCameraComponent = new CameraComponent();
             sceneCameraComponent.LayerMask = 0b0100000000000000;
-            sceneCameraComponent.Viewport = new float4(100, TitleBarHeight + 100, 300, renderHeight - TitleBarHeight - 100);
             sceneCam.AddComponent(sceneCameraComponent);
 
-            BuildTitleBar(uiFont, renderWidth);
+            BuildTitleBar(uiFont, ClientSize.Width);
+
+            dockLayout = new DockLayoutEngine();
 
             mainViewport = new DockableViewport(sceneCameraComponent, uiFont);
-            mainViewport.Position = new float3(ClientSize.Width - 601, TitleBarHeight, 0);
+            mainViewport.Dock = DockRegion.Fill;
+            dockLayout.Add(mainViewport);
 
             makeStartScene();
+
+            UpdateLayout();
 
             thread = new Thread(threadUpdate);
             thread.Start();
@@ -117,6 +127,7 @@ namespace helengine.editor.app {
 
                 try {
                     Invoke(() => {
+                        UpdateLayout();
                         Core.Instance.Update();
                         Core.Instance.Draw();
                     });
@@ -177,7 +188,20 @@ namespace helengine.editor.app {
             titleBarHitRegion.Size = new int2(windowWidth, TitleBarHeight);
             titleBarHitRegion.CursorEvent += (pos, delta, state) => {
                 if (state == PointerInteraction.Press) {
-                    StartWindowDrag();
+                    long now = Environment.TickCount64;
+                    long elapsed = now - lastTitleBarClickTicks;
+                    bool isDoubleClick = elapsed <= TitleBarDoubleClickMs &&
+                                         Math.Abs(pos.X - lastTitleBarClickPos.X) <= TitleBarDoubleClickDistance &&
+                                         Math.Abs(pos.Y - lastTitleBarClickPos.Y) <= TitleBarDoubleClickDistance;
+
+                    lastTitleBarClickTicks = now;
+                    lastTitleBarClickPos = pos;
+
+                    if (isDoubleClick) {
+                        ToggleWindowState();
+                    } else {
+                        StartWindowDrag();
+                    }
                 }
             };
             titleBarEntity.AddComponent(titleBarHitRegion);
@@ -228,31 +252,31 @@ namespace helengine.editor.app {
                 return;
             }
 
-            int renderWidth = ClientSize.Width - 1;
-            int renderHeight = ClientSize.Height;
+            int renderWidth = Math.Max(1, ClientSize.Width);
+            int renderHeight = Math.Max(1, ClientSize.Height);
 
-            UpdateTitleBarLayout(renderWidth);
+            UpdateTitleBarLayout(ClientSize.Width);
 
             if (uiCameraComponent != null) {
                 uiCameraComponent.Viewport = new float4(0, 0, renderWidth, renderHeight);
             }
 
-            if (sceneCameraComponent != null) {
-                sceneCameraComponent.Viewport = new float4(100, TitleBarHeight + 100, 300, renderHeight - TitleBarHeight - 100);
-            }
-
-            if (mainViewport != null) {
-                mainViewport.Position = new float3(ClientSize.Width - 601, TitleBarHeight, 0);
+            if (dockLayout != null) {
+                int availableHeight = Math.Max(0, renderHeight - TitleBarHeight);
+                dockLayout.Layout(new int2(renderWidth, availableHeight), new float3(0, TitleBarHeight, 0));
             }
         }
 
         void UpdateTitleBarLayout(int windowWidth) {
+            // Extend by 1px to avoid gaps from viewport rounding when maximizing/restoring
+            int fullWidth = windowWidth + 1;
+
             if (titleBarBackground != null) {
-                titleBarBackground.Size = new int2(windowWidth, TitleBarHeight);
+                titleBarBackground.Size = new int2(fullWidth, TitleBarHeight);
             }
 
             if (titleBarHitRegion != null) {
-                titleBarHitRegion.Size = new int2(windowWidth, TitleBarHeight);
+                titleBarHitRegion.Size = new int2(fullWidth, TitleBarHeight);
             }
 
             float x = 8f;

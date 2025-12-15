@@ -1,5 +1,7 @@
 ﻿namespace helengine.editor {
     public class DockableEntity : EditorEntity {
+        public const int TitleBarHeight = 20;
+
         bool isDragging;
 
         SpriteComponent titleBar;
@@ -12,16 +14,23 @@
             get { return size; }
             set {
                 size = value;
-                titleBar.Size = new int2(value.X, 20);
+                titleBar.Size = new int2(value.X, TitleBarHeight);
                 areaSprite.Size = new int2(value.X, value.Y);
                 if (titleBarInteractivity != null) {
-                    titleBarInteractivity.Size = new int2(value.X, 20);
+                    titleBarInteractivity.Size = new int2(value.X, TitleBarHeight);
                 }
+                OnSizeChanged();
             }
         }
 
+        public int2 MinSize { get; set; }
+
+        public DockRegion Dock { get; set; }
+
         public DockableEntity(FontAsset font) {
             LayerMask = 0b1000000000000000;
+            Dock = DockRegion.Floating;
+            MinSize = new int2(160, 120);
 
             titleBar = new SpriteComponent();
             titleBar.Texture = TextureUtils.PixelTexture;
@@ -39,7 +48,7 @@
             titleBarText.AddComponent(titleComponent);
 
             EditorEntity sceneViewArea = new EditorEntity();
-            sceneViewArea.Position = new float3(0, 20, 0);
+            sceneViewArea.Position = new float3(0, TitleBarHeight, 0);
             sceneViewArea.LayerMask = LayerMask;
             AddChild(sceneViewArea);
             areaSprite = new SpriteComponent();
@@ -48,7 +57,7 @@
             sceneViewArea.AddComponent(areaSprite);
 
             titleBarInteractivity = new InteractableComponent();
-            titleBarInteractivity.Size = new int2(300, 20);
+            titleBarInteractivity.Size = new int2(300, TitleBarHeight);
             titleBarInteractivity.CursorEvent += TitleBarInteractivity_CursorEvent;
             AddComponent(titleBarInteractivity);
 
@@ -56,17 +65,23 @@
         }
 
         private void TitleBarInteractivity_CursorEvent(int2 pos, int2 delta, PointerInteraction state) {
+            if (Dock != DockRegion.Floating) {
+                isDragging = false;
+                return;
+            }
+
             if (state == PointerInteraction.Press) {
                 if (!isDragging) {
                     isDragging = true;
                 }
             } else if (state == PointerInteraction.Release) {
                 isDragging = false;
-            } else {
-                if (isDragging) {
-                    Position += new float3(delta.X, delta.Y, 0);
-                }
+            } else if (state == PointerInteraction.Hover && isDragging) {
+                Position += new float3(delta.X, delta.Y, 0);
             }
+        }
+
+        protected virtual void OnSizeChanged() {
         }
     }
 }
