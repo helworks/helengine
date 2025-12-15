@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace helengine.ui.managers {
@@ -5,6 +6,7 @@ namespace helengine.ui.managers {
         private readonly string _settingsFolder;
         private readonly string _projectsFilePath;
         private List<Project> _projects = new();
+        static readonly JsonSerializerOptions SaveOptions = new() { WriteIndented = true };
         
         public ProjectManager() {
             // Create helengine folder in roaming folder
@@ -51,14 +53,10 @@ namespace helengine.ui.managers {
             try {
                 var projectsData = new ProjectsData {
                     Projects = _projects,
-                    LastUpdated = DateTime.Now
+                    LastUpdated = DateTime.UtcNow
                 };
                 
-                var options = new JsonSerializerOptions {
-                    WriteIndented = true
-                };
-                
-                var json = JsonSerializer.Serialize(projectsData, options);
+                var json = SerializeIndented(projectsData);
                 await File.WriteAllTextAsync(_projectsFilePath, json);
             } catch (Exception ex) {
                 System.Diagnostics.Debug.WriteLine($"Error saving projects: {ex.Message}");
@@ -87,25 +85,26 @@ namespace helengine.ui.managers {
                 Directory.CreateDirectory(settingsFolder);
                 
                 // Create project metadata file
+                var createdAt = DateTime.UtcNow;
                 var projectMetadata = new {
                     Name = projectName,
                     Version = "1.0.0",
-                    Created = DateTime.Now,
+                    Created = createdAt,
                     EngineVersion = "helengine v0.1"
                 };
                 
                 var metadataPath = Path.Combine(settingsFolder, "project.json");
-                var metadataJson = JsonSerializer.Serialize(projectMetadata, new JsonSerializerOptions { WriteIndented = true });
+                var metadataJson = SerializeIndented(projectMetadata);
                 await File.WriteAllTextAsync(metadataPath, metadataJson);
                 
                 // Create new project object
                 var project = new Project {
                     Name = projectName,
                     Path = projectPath,
-                    Created = DateTime.Now,
-                    LastOpened = DateTime.Now,
+                    Created = createdAt,
+                    LastOpened = createdAt,
                     TimesOpened = 1,
-                    Description = $"new project created on {DateTime.Now:MMM dd, yyyy}",
+                    Description = $"new project created on {createdAt:MMM dd, yyyy}",
                     Version = "1.0.0"
                 };
                 
@@ -130,7 +129,7 @@ namespace helengine.ui.managers {
                 var existingProject = _projects.FirstOrDefault(p => string.Equals(p.Path, projectPath, StringComparison.OrdinalIgnoreCase));
                 if (existingProject != null) {
                     // Update last opened and increment times opened
-                    existingProject.LastOpened = DateTime.Now;
+                    existingProject.LastOpened = DateTime.UtcNow;
                     existingProject.TimesOpened++;
                     await SaveProjectsAsync();
                     return existingProject;
@@ -139,7 +138,7 @@ namespace helengine.ui.managers {
                 // Try to read existing project metadata
                 var metadataPath = Path.Combine(projectPath, "settings", "project.json");
                 string projectName = Path.GetFileName(projectPath);
-                DateTime created = Directory.GetCreationTime(projectPath);
+                DateTime created = Directory.GetCreationTimeUtc(projectPath);
                 
                 if (File.Exists(metadataPath)) {
                     try {
@@ -161,7 +160,7 @@ namespace helengine.ui.managers {
                     Name = projectName,
                     Path = projectPath,
                     Created = created,
-                    LastOpened = DateTime.Now,
+                    LastOpened = DateTime.UtcNow,
                     TimesOpened = 1,
                     Description = "imported existing project",
                     Version = "1.0.0"
@@ -179,7 +178,7 @@ namespace helengine.ui.managers {
         
         public async Task UpdateProjectLastOpenedAsync(Project project) {
             try {
-                project.LastOpened = DateTime.Now;
+                project.LastOpened = DateTime.UtcNow;
                 project.TimesOpened++;
                 
                 // Move to front of list
@@ -203,6 +202,56 @@ namespace helengine.ui.managers {
         
         public List<Project> GetRecentProjects() {
             return _projects.ToList();
+        }
+
+        static string SerializeIndented<T>(T value) {
+            string json = JsonSerializer.Serialize(value, SaveOptions);
+            return ReindentJson(json);
+        }
+
+        static string ReindentJson(string json) {
+            var builder = new StringBuilder(json.Length);
+            bool inString = false;
+            bool escape = false;
+
+            for (int i = 0; i < json.Length; i++) {
+                char ch = json[i];
+
+                if (!inString && ch == '\n') {
+                    builder.Append(ch);
+
+                    int spaceStart = i + 1;
+                    int spaces = 0;
+                    while (spaceStart + spaces < json.Length && json[spaceStart + spaces] == ' ') {
+                        spaces++;
+                    }
+
+                    int indentLevel = spaces / 2;
+                    int remainder = spaces % 2;
+                    builder.Append(' ', indentLevel * 4 + remainder);
+                    i = spaceStart + spaces - 1;
+                    escape = false;
+                    continue;
+                }
+
+                builder.Append(ch);
+
+                if (escape) {
+                    escape = false;
+                    continue;
+                }
+
+                if (ch == '\\' && inString) {
+                    escape = true;
+                    continue;
+                }
+
+                if (ch == '"') {
+                    inString = !inString;
+                }
+            }
+
+            return builder.ToString();
         }
     }
     

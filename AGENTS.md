@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 - Engine core: `src/helengine.core/` (systems, memory, IO, timing).
 - DX11 renderer: `src/helengine.graphics.dx11/` (SharpDX/Direct3D 11; Windows‑only).
-- Editor launcher (focus): `helengine.ui/helengine.editor.launcher/` — engine‑driven UI; WinForms is a thin host.
+- Editor launcher: `helengine.ui/helengine.launcher/` — Avalonia driven UI, no connections to engine.
 - Test projects: under `tests/` and/or adjacent `**/*.Tests/` folders, named `Helengine.*.Tests` to mirror target modules.
 - Support: `assets/`, `scripts/`, CI in `.github/workflows/`.
 

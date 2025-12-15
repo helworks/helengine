@@ -17,7 +17,7 @@ namespace helengine.ui {
         public string RelativeTime => GetRelativeTime(LastOpened);
         
         private string GetRelativeTime(DateTime dateTime) {
-            var timeSpan = DateTime.Now - dateTime;
+            var timeSpan = DateTime.UtcNow - dateTime;
             
             if (timeSpan.TotalDays > 7) {
                 return dateTime.ToString("MMM dd, yyyy");
