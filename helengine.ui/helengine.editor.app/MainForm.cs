@@ -1,5 +1,5 @@
-
 using helengine.sharpdx;
+using System.IO;
 
 namespace helengine.editor.app {
     public partial class MainForm : Form {
@@ -10,6 +10,12 @@ namespace helengine.editor.app {
             InitializeComponent();
 
             initialize();
+        }
+
+        public MainForm(string projectPath) : this() {
+            if (!string.IsNullOrWhiteSpace(projectPath)) {
+                Text = $"helengine - {Path.GetFileName(projectPath)}";
+            }
         }
 
         private void makeStartScene() {
@@ -39,7 +45,7 @@ namespace helengine.editor.app {
 
             core.RenderManager3D.AddWindow(this.Handle, ClientSize.Width - 1, ClientSize.Height);
 
-            Font font = new Font("Consolas", 16, FontStyle.Regular);
+            Font font = new Font("Consolas", 12, FontStyle.Regular);
             FontAsset fontAsset = GDIFontProcessor.ImportFont(font);
 
             EditorEntity uiCam = new EditorEntity();
