@@ -23,6 +23,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\engine\helengine.core.windows\helengine.core.windows.csproj" />
     <ProjectReference Include="..\..\engine\helengine.core\helengine.core.csproj" />
     <ProjectReference Include="..\..\engine\helengine.editor.fbximporter\helengine.editor.assimp.csproj" />

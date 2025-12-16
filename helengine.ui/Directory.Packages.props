@@ -24,6 +24,7 @@
     <PackageVersion Include="SharpDX.Direct3D11" Version="4.2.0" />
     <PackageVersion Include="SharpDX.DXGI" Version="4.2.0" />
     <PackageVersion Include="SharpDX.Mathematics" Version="4.2.0" />
+    <PackageVersion Include="System.Drawing.Common" Version="9.0.11" />
     <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.1" />
   </ItemGroup>
 </Project>

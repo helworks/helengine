@@ -3,22 +3,44 @@ using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 
 namespace helengine {
+    /// <summary>
+    /// Provides a simple helper for locking and editing bitmap pixel data safely.
+    /// </summary>
     public class LockBitmap {
         readonly Bitmap source = null;
         IntPtr Iptr = IntPtr.Zero;
         BitmapData bitmapData = null;
 
-        public byte[] Pixels { get; set; }
-        public int Depth { get; private set; }
-        public int Width { get; private set; }
-        public int Height { get; private set; }
-
+        /// <summary>
+        /// Initializes a new <see cref="LockBitmap"/> instance for the given bitmap.
+        /// </summary>
+        /// <param name="source">Bitmap to lock for pixel access.</param>
         public LockBitmap(Bitmap source) {
             this.source = source;
         }
 
         /// <summary>
-        /// Lock bitmap data
+        /// Gets or sets the pixel buffer representing the locked bitmap.
+        /// </summary>
+        public byte[] Pixels { get; set; }
+
+        /// <summary>
+        /// Gets the pixel depth (bits per pixel) for the locked bitmap.
+        /// </summary>
+        public int Depth { get; private set; }
+
+        /// <summary>
+        /// Gets the width of the locked bitmap.
+        /// </summary>
+        public int Width { get; private set; }
+
+        /// <summary>
+        /// Gets the height of the locked bitmap.
+        /// </summary>
+        public int Height { get; private set; }
+
+        /// <summary>
+        /// Locks the bitmap for read/write access and fills the <see cref="Pixels"/> buffer.
         /// </summary>
         public void LockBits() {
             try {
@@ -57,8 +79,9 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Unlock bitmap data
+        /// Unlocks the bitmap data and optionally writes modified pixels back to the source.
         /// </summary>
+        /// <param name="transferBack">True to copy the <see cref="Pixels"/> buffer back into the bitmap.</param>
         public void UnlockBits(bool transferBack) {
             try {
                 // Copy data from byte array to pointer
@@ -74,11 +97,11 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Get the color of the specified pixel
+        /// Gets the color of the specified pixel.
         /// </summary>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        /// <returns></returns>
+        /// <param name="x">X coordinate of the pixel.</param>
+        /// <param name="y">Y coordinate of the pixel.</param>
+        /// <returns>Color value at the specified coordinate.</returns>
         public Color GetPixel(int x, int y) {
             Color clr = Color.Empty;
 
@@ -115,6 +138,14 @@ namespace helengine {
             return clr;
         }
 
+        /// <summary>
+        /// Sets the color of a pixel using raw channel values.
+        /// </summary>
+        /// <param name="x">X coordinate of the pixel.</param>
+        /// <param name="y">Y coordinate of the pixel.</param>
+        /// <param name="r">Red channel value.</param>
+        /// <param name="g">Green channel value.</param>
+        /// <param name="b">Blue channel value.</param>
         public void SetPixel(int x, int y, byte r, byte g, byte b) {
             // Get color components count
             int cCount = Depth / 8;
@@ -143,11 +174,11 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Set the color of the specified pixel
+        /// Sets the color of the specified pixel.
         /// </summary>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        /// <param name="color"></param>
+        /// <param name="x">X coordinate of the pixel.</param>
+        /// <param name="y">Y coordinate of the pixel.</param>
+        /// <param name="color">Color to apply.</param>
         public void SetPixel(int x, int y, Color color) {
             // Get color components count
             int cCount = Depth / 8;

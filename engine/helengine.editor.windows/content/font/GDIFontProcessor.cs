@@ -12,6 +12,9 @@ using StringFormat = System.Drawing.StringFormat;
 using TextRenderingHint = System.Drawing.Text.TextRenderingHint;
 
 namespace helengine.editor {
+    /// <summary>
+    /// Provides GDI-based font processing to build glyph atlases and font assets.
+    /// </summary>
     [SupportedOSPlatform("windows")]
     public static class GDIFontProcessor {
         // Extra transparent pixels around each glyph in the atlas to prevent bleeding
@@ -39,6 +42,15 @@ namespace helengine.editor {
             '{', '}', '~', '`', "'"[0]
         };
 
+        /// <summary>
+        /// Generates a glyph bitmap and bounds for the specified character.
+        /// </summary>
+        /// <param name="c">Character to generate.</param>
+        /// <param name="font">Font used for rendering.</param>
+        /// <param name="res">Resolution of the temporary bitmap.</param>
+        /// <param name="offset">Padding offset applied before rendering.</param>
+        /// <param name="bitmap">Output bitmap containing the rendered glyph.</param>
+        /// <param name="rectangle">Output bounds of the glyph within the bitmap.</param>
         private static void GenerateChar(char c,
             Font font,
             int res,
@@ -94,6 +106,11 @@ namespace helengine.editor {
             rectangle = new Rectangle(X - off, Y - off, Width + off, Height + off);
         }
 
+        /// <summary>
+        /// Generates a font asset and atlas for the supplied font using GDI-based rendering.
+        /// </summary>
+        /// <param name="font">Font to import.</param>
+        /// <returns>Constructed <see cref="FontAsset"/> containing atlas texture and metrics.</returns>
         public static FontAsset ImportFont(Font font) {
             Dictionary<char, TempFontChar> tempChars = new Dictionary<char, TempFontChar>();
 
@@ -192,6 +209,12 @@ namespace helengine.editor {
             );
         }
 
+        /// <summary>
+        /// Builds a packed atlas bitmap from the temporary glyph data.
+        /// </summary>
+        /// <param name="tempChars">Source glyphs and metrics.</param>
+        /// <param name="packedChars">Resulting packed glyph metadata.</param>
+        /// <returns>Generated atlas bitmap.</returns>
         private static Bitmap GenerateAtlas(Dictionary<char, TempFontChar> tempChars, out Dictionary<char, FontChar> packedChars) {
             // Extract and sort items
             var items = tempChars.Select(kvp => new TempFontItem {
@@ -218,6 +241,11 @@ namespace helengine.editor {
             return atlas;
         }
 
+        /// <summary>
+        /// Calculates an optimal power-of-two atlas size for the given glyphs.
+        /// </summary>
+        /// <param name="items">Glyph items with dimensions.</param>
+        /// <returns>Width and height for the atlas.</returns>
         private static (int width, int height) CalculateOptimalAtlasSize(List<TempFontItem> items) {
             const int maxSize = 2048; // Maximum dimension for old consoles
             int maxItemWidth = items.Max(i => i.Width + (ATLAS_PADDING * 2));
@@ -251,6 +279,11 @@ namespace helengine.editor {
             return (NextPowerOfTwo(best.w), NextPowerOfTwo(best.h));
         }
 
+        /// <summary>
+        /// Finds the next power-of-two greater than or equal to <paramref name="n"/>.
+        /// </summary>
+        /// <param name="n">Input value.</param>
+        /// <returns>Next power-of-two.</returns>
         private static int NextPowerOfTwo(int n) {
             if (n < 1) return 1;
             n--;
@@ -262,6 +295,12 @@ namespace helengine.editor {
             return n + 1;
         }
 
+        /// <summary>
+        /// Estimates the required atlas height for the given width using row packing.
+        /// </summary>
+        /// <param name="items">Glyph items to pack.</param>
+        /// <param name="atlasWidth">Candidate atlas width.</param>
+        /// <returns>Estimated height to fit all glyphs.</returns>
         private static int CalculateRequiredHeight(List<TempFontItem> items, int atlasWidth) {
             int currentX = 0, currentY = 0, rowHeight = 0, totalHeight = 0;
 
@@ -283,6 +322,12 @@ namespace helengine.editor {
             return totalHeight;
         }
 
+        /// <summary>
+        /// Calculates top-left positions for each glyph within the atlas.
+        /// </summary>
+        /// <param name="items">Glyph items to position.</param>
+        /// <param name="atlasWidth">Width of the atlas.</param>
+        /// <returns>Dictionary mapping characters to their atlas positions.</returns>
         private static Dictionary<char, Point> CalculatePositions(List<TempFontItem> items, int atlasWidth) {
             var positions = new Dictionary<char, Point>();
 
@@ -307,6 +352,14 @@ namespace helengine.editor {
             return positions;
         }
 
+        /// <summary>
+        /// Renders the atlas bitmap from glyph bitmaps and calculated positions.
+        /// </summary>
+        /// <param name="items">Glyph items to draw.</param>
+        /// <param name="positions">Positions of each glyph in the atlas.</param>
+        /// <param name="width">Atlas width.</param>
+        /// <param name="height">Atlas height.</param>
+        /// <returns>Rendered atlas bitmap.</returns>
         private static Bitmap CreateAtlasBitmap(List<TempFontItem> items, Dictionary<char, Point> positions, int width, int height) {
             Bitmap atlas = new Bitmap(width, height, PixelFormat.Format32bppArgb);
 
@@ -322,6 +375,13 @@ namespace helengine.editor {
             return atlas;
         }
 
+        /// <summary>
+        /// Produces packed font character metadata using atlas positions.
+        /// </summary>
+        /// <param name="original">Original glyph metrics.</param>
+        /// <param name="positions">Calculated atlas positions.</param>
+        /// <param name="atlas">Atlas bitmap.</param>
+        /// <returns>Dictionary of packed font characters.</returns>
         private static Dictionary<char, FontChar> CreateUpdatedDictionary(
             Dictionary<char, TempFontChar> original,
             Dictionary<char, Point> positions,

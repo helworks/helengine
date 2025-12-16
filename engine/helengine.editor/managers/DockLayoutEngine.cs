@@ -1,13 +1,21 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace helengine.editor {
+    /// <summary>
+    /// Lays out dockable editor entities within a host area according to their docking preferences.
+    /// </summary>
     public class DockLayoutEngine {
         readonly List<DockableEntity> dockables;
         readonly List<DockableEntity> fillBuffer;
         readonly int padding;
         readonly int gap;
 
+        /// <summary>
+        /// Creates a new layout engine with optional padding and gap values.
+        /// </summary>
+        /// <param name="padding">Space to leave around the host bounds.</param>
+        /// <param name="gap">Space inserted between docked panels.</param>
         public DockLayoutEngine(int padding = 0, int gap = 0) {
             this.padding = padding;
             this.gap = gap;
@@ -15,22 +23,43 @@ namespace helengine.editor {
             fillBuffer = new List<DockableEntity>(2);
         }
 
+        /// <summary>
+        /// Gets the dockable entities currently managed by the layout engine.
+        /// </summary>
         public IReadOnlyList<DockableEntity> Dockables => dockables;
 
+        /// <summary>
+        /// Adds a dockable entity to the layout list if it is not already tracked.
+        /// </summary>
+        /// <param name="entity">Entity to add.</param>
         public void Add(DockableEntity entity) {
             if (!dockables.Contains(entity)) {
                 dockables.Add(entity);
             }
         }
 
+        /// <summary>
+        /// Removes a dockable entity from the layout list.
+        /// </summary>
+        /// <param name="entity">Entity to remove.</param>
+        /// <returns>True if the entity was removed; otherwise false.</returns>
         public bool Remove(DockableEntity entity) {
             return dockables.Remove(entity);
         }
 
+        /// <summary>
+        /// Performs layout using the host size at the origin.
+        /// </summary>
+        /// <param name="hostSize">Size of the host area.</param>
         public void Layout(int2 hostSize) {
             Layout(hostSize, float3.Zero);
         }
 
+        /// <summary>
+        /// Performs layout using the host size and a specified origin.
+        /// </summary>
+        /// <param name="hostSize">Size of the host area.</param>
+        /// <param name="origin">Origin point of the host area.</param>
         public void Layout(int2 hostSize, float3 origin) {
             float left = origin.X + padding;
             float top = origin.Y + padding;
@@ -72,6 +101,15 @@ namespace helengine.editor {
             }
         }
 
+        /// <summary>
+        /// Lays out a panel docked to the left and adjusts the remaining available space.
+        /// </summary>
+        /// <param name="entity">Entity to lay out.</param>
+        /// <param name="left">Current left boundary; updated to new boundary.</param>
+        /// <param name="top">Top boundary of the host area.</param>
+        /// <param name="bottom">Bottom boundary of the host area.</param>
+        /// <param name="z">Z coordinate for positioning.</param>
+        /// <param name="right">Right boundary of the host area.</param>
         void layoutLeft(DockableEntity entity, ref float left, float top, float bottom, float z, float right) {
             float availableWidth = right - left;
             if (availableWidth <= 0f) {
@@ -92,6 +130,15 @@ namespace helengine.editor {
             }
         }
 
+        /// <summary>
+        /// Lays out a panel docked to the right and adjusts the remaining available space.
+        /// </summary>
+        /// <param name="entity">Entity to lay out.</param>
+        /// <param name="left">Left boundary of the host area.</param>
+        /// <param name="top">Top boundary of the host area.</param>
+        /// <param name="right">Current right boundary; updated to new boundary.</param>
+        /// <param name="bottom">Bottom boundary of the host area.</param>
+        /// <param name="z">Z coordinate for positioning.</param>
         void layoutRight(DockableEntity entity, float left, float top, ref float right, float bottom, float z) {
             float availableWidth = right - left;
             if (availableWidth <= 0f) {
@@ -114,6 +161,15 @@ namespace helengine.editor {
             }
         }
 
+        /// <summary>
+        /// Lays out a panel docked to the top and adjusts the remaining available space.
+        /// </summary>
+        /// <param name="entity">Entity to lay out.</param>
+        /// <param name="left">Left boundary of the host area.</param>
+        /// <param name="top">Current top boundary; updated to new boundary.</param>
+        /// <param name="right">Right boundary of the host area.</param>
+        /// <param name="bottom">Current bottom boundary; updated to new boundary.</param>
+        /// <param name="z">Z coordinate for positioning.</param>
         void layoutTop(DockableEntity entity, float left, ref float top, float right, ref float bottom, float z) {
             float availableHeight = bottom - top;
             if (availableHeight <= 0f) {
@@ -134,6 +190,15 @@ namespace helengine.editor {
             }
         }
 
+        /// <summary>
+        /// Lays out a panel docked to the bottom and adjusts the remaining available space.
+        /// </summary>
+        /// <param name="entity">Entity to lay out.</param>
+        /// <param name="left">Left boundary of the host area.</param>
+        /// <param name="top">Top boundary of the host area.</param>
+        /// <param name="right">Right boundary of the host area.</param>
+        /// <param name="bottom">Current bottom boundary; updated to new boundary.</param>
+        /// <param name="z">Z coordinate for positioning.</param>
         void layoutBottom(DockableEntity entity, float left, float top, float right, ref float bottom, float z) {
             float availableHeight = bottom - top;
             if (availableHeight <= 0f) {
@@ -156,6 +221,15 @@ namespace helengine.editor {
             }
         }
 
+        /// <summary>
+        /// Lays out a panel that fills the remaining space.
+        /// </summary>
+        /// <param name="entity">Entity to lay out.</param>
+        /// <param name="left">Left boundary of remaining space.</param>
+        /// <param name="top">Top boundary of remaining space.</param>
+        /// <param name="right">Right boundary of remaining space.</param>
+        /// <param name="bottom">Bottom boundary of remaining space.</param>
+        /// <param name="z">Z coordinate for positioning.</param>
         void layoutFill(DockableEntity entity, float left, float top, float right, float bottom, float z) {
             int width = Math.Max(0, (int)(right - left));
             int height = Math.Max(0, (int)(bottom - top - DockableEntity.TitleBarHeight));
@@ -164,6 +238,17 @@ namespace helengine.editor {
             entity.Size = new int2(width, height);
         }
 
+        /// <summary>
+        /// Calculates a dock hint based on a pointer position within the host area.
+        /// </summary>
+        /// <param name="pointer">Pointer position in screen or host coordinates.</param>
+        /// <param name="hostSize">Size of the host area.</param>
+        /// <param name="origin">Origin of the host area.</param>
+        /// <param name="fillOnly">True to only allow fill hints.</param>
+        /// <param name="region">Resulting suggested docking region.</param>
+        /// <param name="position">Resulting top-left position for the hint region.</param>
+        /// <param name="size">Resulting size for the hint region.</param>
+        /// <returns>True if a dock hint could be determined; otherwise false.</returns>
         public bool TryGetDockHint(int2 pointer, int2 hostSize, float3 origin, bool fillOnly, out DockRegion region, out float3 position, out int2 size) {
             region = DockRegion.Floating;
             position = origin;
