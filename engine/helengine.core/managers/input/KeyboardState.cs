@@ -46,6 +46,10 @@ namespace helengine {
             return (element & mask) != 0;
         }
 
+        /// <summary>
+        /// Marks a key as pressed in the internal state.
+        /// </summary>
+        /// <param name="key">Key to mark as pressed.</param>
         internal void InternalSetKey(Keys key)
         {
             uint mask = (uint)1 << (((int)key) & 0x1f);
@@ -62,6 +66,10 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Clears a pressed key from the internal state.
+        /// </summary>
+        /// <param name="key">Key to clear.</param>
         internal void InternalClearKey(Keys key)
         {
             uint mask = (uint)1 << (((int)key) & 0x1f);
@@ -78,6 +86,9 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Clears all tracked key states.
+        /// </summary>
         internal void InternalClearAllKeys()
         {
             _keys0 = 0;
@@ -95,6 +106,12 @@ namespace helengine {
 
         #region XNA Interface
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="KeyboardState"/> class.
+        /// </summary>
+        /// <param name="keys">List of keys to flag as pressed on initialization.</param>
+        /// <param name="capsLock">Caps Lock state.</param>
+        /// <param name="numLock">Num Lock state.</param>
         public KeyboardState(List<Keys> keys, bool capsLock = false, bool numLock = false) : this()
         {
             _modifiers = (byte)(0 | (capsLock ? CapsLockModifier : 0) | (numLock ? NumLockModifier : 0));
@@ -198,6 +215,11 @@ namespace helengine {
             return (int)count;
         }
 
+        /// <summary>
+        /// Counts set bits in a 32-bit integer.
+        /// </summary>
+        /// <param name="v">Value to evaluate.</param>
+        /// <returns>Number of set bits.</returns>
         private static uint CountBits(uint v)
         {
             // http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
@@ -206,6 +228,14 @@ namespace helengine {
             return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24; // count
         }
 
+        /// <summary>
+        /// Appends all pressed keys from a bitfield into the provided array.
+        /// </summary>
+        /// <param name="keys">Bitfield containing pressed keys.</param>
+        /// <param name="offset">Offset used to convert bit index to key value.</param>
+        /// <param name="pressedKeys">Destination array to populate.</param>
+        /// <param name="index">Current insertion index.</param>
+        /// <returns>Updated insertion index.</returns>
         private static int AddKeysToArray(uint keys, int offset, Keys[] pressedKeys, int index)
         {
             for (int i = 0; i < 32; i++)

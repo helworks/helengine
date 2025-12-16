@@ -9,6 +9,9 @@ namespace helengine {
     /// Represents a 4D vector of 32-bit integer components.
     /// </summary>
     public struct int4 {
+        /// <summary>
+        /// Identity-like vector with W set to one.
+        /// </summary>
         private static readonly int4 identity = new int4(0, 0, 0, 1);
 
         /// <summary>

@@ -1,29 +1,68 @@
 namespace helengine {
+    /// <summary>
+    /// Represents a font atlas and glyph metrics used for rendering text.
+    /// </summary>
     public class FontAsset : IDisposable {
-        public FontInfo FontInfo { get; protected set; }
-
-        public RuntimeTexture Texture { get; protected set; }
-
-        public Dictionary<char, FontChar> Characters { get; protected set; }
-
-        public float LineHeight { get; protected set; }
-
-        public int AtlasWidth { get; protected set; }
-        public int AtlasHeight { get; protected set; }
-
+        /// <summary>
+        /// Initializes a new font asset with atlas texture, metrics, and glyph map.
+        /// </summary>
+        /// <param name="fontInfo">Basic font metrics.</param>
+        /// <param name="tex">Atlas texture containing glyphs.</param>
+        /// <param name="chars">Map of characters to glyph metrics.</param>
+        /// <param name="lineHeight">Line height in pixels.</param>
+        /// <param name="atlasWidth">Atlas width in pixels.</param>
+        /// <param name="atlasHeight">Atlas height in pixels.</param>
         public FontAsset(FontInfo fontInfo, RuntimeTexture tex,
             Dictionary<char, FontChar> chars, float lineHeight, int atlasWidth, int atlasHeight) {
-            this.LineHeight = lineHeight;
-            this.FontInfo = fontInfo;
-            this.Texture = tex;
-            this.Characters = chars;
-            this.AtlasWidth = atlasWidth;
-            this.AtlasHeight = atlasHeight;
+            LineHeight = lineHeight;
+            FontInfo = fontInfo;
+            Texture = tex;
+            Characters = chars;
+            AtlasWidth = atlasWidth;
+            AtlasHeight = atlasHeight;
         }
 
+        /// <summary>
+        /// Gets the basic font metrics.
+        /// </summary>
+        public FontInfo FontInfo { get; protected set; }
+
+        /// <summary>
+        /// Gets the atlas texture containing glyphs.
+        /// </summary>
+        public RuntimeTexture Texture { get; protected set; }
+
+        /// <summary>
+        /// Gets the glyph map keyed by character.
+        /// </summary>
+        public Dictionary<char, FontChar> Characters { get; protected set; }
+
+        /// <summary>
+        /// Gets the line height in pixels.
+        /// </summary>
+        public float LineHeight { get; protected set; }
+
+        /// <summary>
+        /// Gets the atlas width in pixels.
+        /// </summary>
+        public int AtlasWidth { get; protected set; }
+
+        /// <summary>
+        /// Gets the atlas height in pixels.
+        /// </summary>
+        public int AtlasHeight { get; protected set; }
+
+        /// <summary>
+        /// Disposes of managed resources if needed.
+        /// </summary>
         public void Dispose() {
         }
 
+        /// <summary>
+        /// Measures the width and height of a string using glyph advances.
+        /// </summary>
+        /// <param name="text">Text to measure.</param>
+        /// <returns>Size in pixels.</returns>
         public float2 MeasureString(string text) {
             float x = 0f;
             float y = 0f;
@@ -46,7 +85,7 @@ namespace helengine {
                 }
 
                 if (Characters.TryGetValue(c, out var ch)) {
-                    float adv = ch.AdvanceWidth > 0 ? ch.AdvanceWidth : (ch.SourceRect.Z);
+                    float adv = ch.AdvanceWidth > 0 ? ch.AdvanceWidth : ch.SourceRect.Z;
                     x += adv;
                 }
             }
@@ -55,8 +94,11 @@ namespace helengine {
             return new float2(maxX, y + line);
         }
 
-        // Measures a single line of text using tight glyph bounds.
-        // Returns FontTightMetrics with Width, MinTop, MaxBottom (all in pixels).
+        /// <summary>
+        /// Measures a single line of text using tight glyph bounds.
+        /// </summary>
+        /// <param name="text">Text to measure.</param>
+        /// <returns>Metrics containing width and vertical extents.</returns>
         public FontTightMetrics MeasureTight(string text) {
             float width = 0f;
             float minTop = float.MaxValue;
@@ -88,4 +130,3 @@ namespace helengine {
         }
     }
 }
-

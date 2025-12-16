@@ -1,6 +1,9 @@
 using System.Text;
 
 namespace helengine {
+    /// <summary>
+    /// Renders a toggleable debug overlay showing registered debug info categories.
+    /// </summary>
     public class DebugOverlayComponent : UpdateComponent {
         Entity bgEntity;
         Entity textEntity;
@@ -10,15 +13,38 @@ namespace helengine {
         bool initialized;
         KeyboardState lastKeyboard;
 
+        /// <summary>
+        /// Gets a value indicating whether the overlay is currently visible.
+        /// </summary>
         public bool Visible { get; private set; } = false;
+
+        /// <summary>
+        /// Gets or sets the render order used by both background and text.
+        /// </summary>
         public byte RenderOrder2D { get; set; } = 250;
+
+        /// <summary>
+        /// Gets or sets padding around the text in pixels.
+        /// </summary>
         public int2 Padding { get; set; } = new int2(8, 6);
+
+        /// <summary>
+        /// Gets or sets the key used to toggle overlay visibility.
+        /// </summary>
         public Keys ToggleKey { get; set; } = Keys.F8;
 
+        /// <summary>
+        /// Creates a debug overlay that renders using the provided font.
+        /// </summary>
+        /// <param name="font">Font used for overlay text.</param>
         public DebugOverlayComponent(FontAsset font) {
             this.font = font;
         }
 
+        /// <summary>
+        /// Initializes child entities and components when added to an entity.
+        /// </summary>
+        /// <param name="entity">Owning entity.</param>
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
@@ -58,6 +84,9 @@ namespace helengine {
             textEntity.Enabled = false;
         }
 
+        /// <summary>
+        /// Updates overlay visibility, handles input toggle, and rebuilds text.
+        /// </summary>
         public override void Update() {
             if (!initialized) {
                 return;

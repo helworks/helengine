@@ -12,6 +12,9 @@ namespace helengine {
     /// </summary>
     public abstract class Mouse
     {
+        /// <summary>
+        /// Default mouse state used when no platform-specific state is available.
+        /// </summary>
         private static readonly MouseState _defaultState = new MouseState();
 
         /// <summary>

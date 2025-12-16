@@ -1,9 +1,27 @@
-﻿namespace helengine;
+namespace helengine;
 
+/// <summary>
+/// Routes mouse input to interactable components and tracks hover/press state.
+/// </summary>
 public abstract class InputManager {
+    /// <summary>
+    /// Gets the keyboard input device.
+    /// </summary>
     public Keyboard Keyboard { get; protected set; }
+
+    /// <summary>
+    /// Gets the mouse input device.
+    /// </summary>
     public Mouse Mouse { get; protected set; }
+
+    /// <summary>
+    /// Gets the interactable currently captured by a press.
+    /// </summary>
     public IInteractable2D? Highlighted { get; private set; }
+
+    /// <summary>
+    /// Gets the interactable currently hovered by the pointer.
+    /// </summary>
     public IInteractable2D? Hovering { get; private set; }
 
     protected Core core;
@@ -12,10 +30,16 @@ public abstract class InputManager {
     MouseState lastMouseState;
     MouseState mouseState;
 
+    /// <summary>
+    /// Initializes the input manager and caches the core instance.
+    /// </summary>
     public InputManager() {
         core = Core.Instance;
     }
 
+    /// <summary>
+    /// Processes mouse state, performs hit tests, and dispatches pointer events.
+    /// </summary>
     public virtual void Update() {
         var objectManager = core.ObjectManager;
         List<IInteractable2D> interactables = objectManager.Interactables;
@@ -145,6 +169,9 @@ public abstract class InputManager {
         }
     }
 
+    /// <summary>
+    /// Finds the topmost camera whose viewport contains the given screen coordinates.
+    /// </summary>
     private ICamera? GetTopmostCameraAt(int x, int y) {
         var cameraBuckets = core.ObjectManager.Cameras;
         for (int b = cameraBuckets.Length - 1; b >= 0; b--) {
@@ -160,6 +187,9 @@ public abstract class InputManager {
         return null;
     }
 
+    /// <summary>
+    /// Finds the camera containing the specified interactable at the given mouse position.
+    /// </summary>
     private ICamera? FindCameraForInteractableAt(IInteractable2D interactable, int mouseX, int mouseY) {
         var cameraBuckets = core.ObjectManager.Cameras;
         for (int b = cameraBuckets.Length - 1; b >= 0; b--) {

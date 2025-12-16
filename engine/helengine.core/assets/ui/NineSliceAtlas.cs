@@ -1,16 +1,61 @@
 namespace helengine {
+    /// <summary>
+    /// Generates nine-slice atlas data for UI rendering, including fill and border UVs.
+    /// </summary>
     public class NineSliceAtlas {
+        /// <summary>
+        /// Gets the generated texture for the atlas.
+        /// </summary>
         public TextureAsset Texture { get; private set; }
+
+        /// <summary>
+        /// Gets the fill UV rectangles for the 3x3 grid.
+        /// </summary>
         public float4[] FillUV { get; private set; } = new float4[9];
+
+        /// <summary>
+        /// Gets the border UV rectangles for the 3x3 grid.
+        /// </summary>
         public float4[] BorderUV { get; private set; } = new float4[9];
+
+        /// <summary>
+        /// Gets the corner size in pixels.
+        /// </summary>
         public int CornerSize { get; private set; }
+
+        /// <summary>
+        /// Gets the edge thickness in pixels.
+        /// </summary>
         public int EdgeThickness { get; private set; }
+
+        /// <summary>
+        /// Gets the padding in pixels.
+        /// </summary>
         public int Padding { get; private set; }
+
+        /// <summary>
+        /// Gets the atlas width in pixels.
+        /// </summary>
         public int Width { get; private set; }
+
+        /// <summary>
+        /// Gets the atlas height in pixels.
+        /// </summary>
         public int Height { get; private set; }
 
+        /// <summary>
+        /// Prevents direct instantiation; use <see cref="Generate(int, int, int, int)"/> to build an atlas.
+        /// </summary>
         private NineSliceAtlas() { }
 
+        /// <summary>
+        /// Generates a nine-slice atlas with specified corner radius and border thickness.
+        /// </summary>
+        /// <param name="radiusPx">Corner radius in pixels.</param>
+        /// <param name="borderPx">Border thickness in pixels.</param>
+        /// <param name="aaPx">Antialias radius in pixels.</param>
+        /// <param name="padding">Padding around each tile.</param>
+        /// <returns>Constructed atlas with texture and UVs.</returns>
         public static NineSliceAtlas Generate(int radiusPx, int borderPx, int aaPx = 1, int padding = 2) {
             int s = Math.Max(1, radiusPx);
             int e = 1;
@@ -134,8 +179,56 @@ namespace helengine {
             return atlas;
         }
 
-        private struct Rect { public int X,Y,W,H; public Rect(int x,int y,int w,int h){X=x;Y=y;W=w;H=h;} }
+        /// <summary>
+        /// Simple rectangle used for pixel blits between source and destination buffers.
+        /// </summary>
+        private struct Rect {
+            /// <summary>
+            /// Gets or sets the X coordinate in pixels.
+            /// </summary>
+            public int X;
 
+            /// <summary>
+            /// Gets or sets the Y coordinate in pixels.
+            /// </summary>
+            public int Y;
+
+            /// <summary>
+            /// Gets or sets the width in pixels.
+            /// </summary>
+            public int W;
+
+            /// <summary>
+            /// Gets or sets the height in pixels.
+            /// </summary>
+            public int H;
+
+            /// <summary>
+            /// Initializes a new rectangle with explicit bounds.
+            /// </summary>
+            /// <param name="x">Left pixel coordinate.</param>
+            /// <param name="y">Top pixel coordinate.</param>
+            /// <param name="w">Width in pixels.</param>
+            /// <param name="h">Height in pixels.</param>
+            public Rect(int x, int y, int w, int h) {
+                X = x;
+                Y = y;
+                W = w;
+                H = h;
+            }
+        }
+
+        /// <summary>
+        /// Copies a rectangular region from a float alpha source into an RGBA destination buffer.
+        /// </summary>
+        /// <param name="src">Source alpha data.</param>
+        /// <param name="srcW">Source width in pixels.</param>
+        /// <param name="srcH">Source height in pixels.</param>
+        /// <param name="s">Source rectangle.</param>
+        /// <param name="dst">Destination RGBA buffer.</param>
+        /// <param name="dstW">Destination width in pixels.</param>
+        /// <param name="dstH">Destination height in pixels.</param>
+        /// <param name="d">Destination rectangle.</param>
         private static void Blit(float[] src, int srcW, int srcH, Rect s, byte[] dst, int dstW, int dstH, Rect d) {
             for (int y = 0; y < s.H; y++) {
                 for (int x = 0; x < s.W; x++) {
@@ -153,6 +246,14 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Rasterizes a rounded rectangle alpha mask.
+        /// </summary>
+        /// <param name="w">Width in pixels.</param>
+        /// <param name="h">Height in pixels.</param>
+        /// <param name="radius">Corner radius in pixels.</param>
+        /// <param name="aa">Antialiasing radius in pixels.</param>
+        /// <returns>Alpha array representing the rounded rectangle.</returns>
         private static float[] RasterizeRoundedRectAlpha(int w, int h, int radius, int aa) {
             float[] a = new float[w * h];
             float cx = w * 0.5f, cy = h * 0.5f;
@@ -176,6 +277,15 @@ namespace helengine {
             return a;
         }
 
+        /// <summary>
+        /// Rasterizes only the border of a rounded rectangle as an alpha mask.
+        /// </summary>
+        /// <param name="w">Width in pixels.</param>
+        /// <param name="h">Height in pixels.</param>
+        /// <param name="radius">Outer corner radius in pixels.</param>
+        /// <param name="borderPx">Border thickness in pixels.</param>
+        /// <param name="aa">Antialiasing radius in pixels.</param>
+        /// <returns>Alpha array for the rounded border.</returns>
         private static float[] RasterizeRoundedRectBorderAlpha(int w, int h, int radius, int borderPx, int aa) {
             float[] outer = RasterizeRoundedRectAlpha(w, h, radius, aa);
             int ir = Math.Max(0, radius - borderPx);
@@ -190,10 +300,16 @@ namespace helengine {
             return a;
         }
 
+        /// <summary>
+        /// Applies a smoothstep easing between two edges.
+        /// </summary>
+        /// <param name="edge0">Lower edge of the transition.</param>
+        /// <param name="edge1">Upper edge of the transition.</param>
+        /// <param name="x">Value to smooth.</param>
+        /// <returns>Smoothed value in the 0-1 range.</returns>
         private static float SmoothStep(float edge0, float edge1, float x) {
             float t = Math.Clamp((x - edge0) / (edge1 - edge0), 0f, 1f);
             return t * t * (3f - 2f * t);
         }
     }
 }
-

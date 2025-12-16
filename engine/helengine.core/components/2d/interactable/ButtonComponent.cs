@@ -1,4 +1,7 @@
 namespace helengine {
+    /// <summary>
+    /// Simple interactable button that renders rounded rect styling and invokes a click action.
+    /// </summary>
     public class ButtonComponent : Component {
         string text;
         FontAsset font;
@@ -16,6 +19,14 @@ namespace helengine {
         bool isHovering;
         bool isPressed;
 
+        /// <summary>
+        /// Creates a new button with text, size, font, and optional click action.
+        /// </summary>
+        /// <param name="text">Label text displayed on the button.</param>
+        /// <param name="size">Button dimensions.</param>
+        /// <param name="font">Font used to render the label.</param>
+        /// <param name="onClickAction">Optional callback invoked on click.</param>
+        /// <param name="borderThickness">Border thickness in pixels.</param>
         public ButtonComponent(
             string text,
             int2 size,
@@ -30,6 +41,10 @@ namespace helengine {
             this.borderThickness = borderThickness;
         }
 
+        /// <summary>
+        /// Creates child components and sets up interactivity when added to an enabled entity.
+        /// </summary>
+        /// <param name="entity">Owning entity.</param>
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
@@ -81,6 +96,10 @@ namespace helengine {
             textEntity.AddComponent(textComponent);
         }
 
+        /// <summary>
+        /// Keeps child text entity enabled state in sync with parent.
+        /// </summary>
+        /// <param name="newEnabled">New enabled state.</param>
         public override void ParentEnabledChange(bool newEnabled) {
             base.ParentEnabledChange(newEnabled);
 
@@ -89,6 +108,12 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Handles cursor events to manage hover/press states and clicks.
+        /// </summary>
+        /// <param name="relPos">Relative pointer position.</param>
+        /// <param name="delta">Pointer delta.</param>
+        /// <param name="state">Pointer interaction state.</param>
         void OnCursorEvent(int2 relPos, int2 delta, PointerInteraction state) {
             switch (state) {
                 case PointerInteraction.Hover:
@@ -127,6 +152,9 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Updates the button fill color based on hover/pressed state.
+        /// </summary>
         void UpdateButtonColor() {
             if (roundedRect == null) return;
 

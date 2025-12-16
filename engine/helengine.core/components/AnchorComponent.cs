@@ -1,7 +1,13 @@
 namespace helengine {
+    /// <summary>
+    /// Maintains an entity's position relative to window edges and updates on resize.
+    /// </summary>
     public class AnchorComponent : Component {
         private AnchorData? anchorData;
         
+        /// <summary>
+        /// Gets a value indicating whether anchoring is currently enabled.
+        /// </summary>
         public bool IsAnchored => anchorData != null;
         
         /// <summary>
@@ -59,11 +65,18 @@ namespace helengine {
             }
         }
         
+        /// <summary>
+        /// Cleans up anchoring resources when the component is removed from its parent entity.
+        /// </summary>
+        /// <param name="entity">Entity the component was attached to.</param>
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
             DisableAnchoring();
         }
         
+        /// <summary>
+        /// Handles window resize events to reposition anchored entities.
+        /// </summary>
         private void OnWindowResized(IntPtr handle, int newWidth, int newHeight) {
             if (anchorData == null || Parent == null) return;
             
@@ -107,9 +120,21 @@ namespace helengine {
         /// Internal data structure to store anchor distances. Only allocated when anchoring is enabled.
         /// </summary>
         private class AnchorData {
+            /// <summary>
+            /// Distance from the left edge of the window in pixels.
+            /// </summary>
             public float? LeftDistance { get; set; }
+            /// <summary>
+            /// Distance from the right edge of the window in pixels.
+            /// </summary>
             public float? RightDistance { get; set; }
+            /// <summary>
+            /// Distance from the top edge of the window in pixels.
+            /// </summary>
             public float? TopDistance { get; set; }
+            /// <summary>
+            /// Distance from the bottom edge of the window in pixels.
+            /// </summary>
             public float? BottomDistance { get; set; }
         }
     }

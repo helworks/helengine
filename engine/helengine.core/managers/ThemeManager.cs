@@ -1,17 +1,30 @@
 namespace helengine {
     /// <summary>
-    /// Theme manager
+    /// Provides theme palettes and colors for UI elements.
     /// </summary>
     public static class ThemeManager {
+        /// <summary>
+        /// Raised when the active theme changes.
+        /// </summary>
         public static event EventHandler? ThemeChanged;
 
+        /// <summary>
+        /// Gets the current theme palette.
+        /// </summary>
         public static ThemePalette Current { get; private set; } = CreateNeon90s();
 
+        /// <summary>
+        /// Sets the active theme palette.
+        /// </summary>
+        /// <param name="palette">Theme palette to activate.</param>
         public static void SetTheme(ThemePalette palette) {
             Current = palette ?? throw new ArgumentNullException(nameof(palette));
             ThemeChanged?.Invoke(null, EventArgs.Empty);
         }
 
+        /// <summary>
+        /// Creates a neon-inspired palette used as default.
+        /// </summary>
         public static ThemePalette CreateNeon90s() {
             var colors = new ThemeColors {
                 // Deep purple background like MainWindow
@@ -43,6 +56,9 @@ namespace helengine {
             return new ThemePalette(colors);
         }
 
+        /// <summary>
+        /// Creates a dark palette.
+        /// </summary>
         public static ThemePalette CreateDarkTheme() {
             var colors = new ThemeColors {
                 BackgroundPrimary = new byte4(20, 20, 20, 255),
@@ -69,6 +85,9 @@ namespace helengine {
             return new ThemePalette(colors);
         }
 
+        /// <summary>
+        /// Creates a light palette.
+        /// </summary>
         public static ThemePalette CreateLightTheme() {
             var colors = new ThemeColors {
                 BackgroundPrimary = new byte4(248, 249, 250, 255),
@@ -95,42 +114,97 @@ namespace helengine {
             return new ThemePalette(colors);
         }
 
+        /// <summary>
+        /// Theme palette container.
+        /// </summary>
         public sealed class ThemePalette {
+            /// <summary>
+            /// Gets the palette colors.
+            /// </summary>
             public ThemeColors Colors { get; }
 
+            /// <summary>
+            /// Creates a palette from the provided colors.
+            /// </summary>
+            /// <param name="colors">Theme colors.</param>
             public ThemePalette(ThemeColors colors) {
                 Colors = colors ?? throw new ArgumentNullException(nameof(colors));
             }
         }
 
+        /// <summary>
+        /// Theme color set.
+        /// </summary>
         public sealed class ThemeColors {
-            // Background colors
+            /// <summary>
+            /// Background color for major UI surfaces.
+            /// </summary>
             public byte4 BackgroundPrimary { get; set; }
+            /// <summary>
+            /// Secondary surface color for panels or cards.
+            /// </summary>
             public byte4 SurfacePrimary { get; set; }
+            /// <summary>
+            /// Input background color for text boxes and fields.
+            /// </summary>
             public byte4 SurfaceInput { get; set; }
 
-            // Accent colors (matching tab system)
-            public byte4 AccentPrimary { get; set; }      // Active/hover states
-            public byte4 AccentSecondary { get; set; }    // Normal/inactive states
-            public byte4 AccentTertiary { get; set; }     // Borders/outlines
-            public byte4 AccentQuaternary { get; set; }   // Inactive text/labels
+            /// <summary>
+            /// Accent color for active or hovered elements.
+            /// </summary>
+            public byte4 AccentPrimary { get; set; }
+            /// <summary>
+            /// Accent color for normal or inactive states.
+            /// </summary>
+            public byte4 AccentSecondary { get; set; }
+            /// <summary>
+            /// Accent color for borders and outlines.
+            /// </summary>
+            public byte4 AccentTertiary { get; set; }
+            /// <summary>
+            /// Accent color for inactive text or labels.
+            /// </summary>
+            public byte4 AccentQuaternary { get; set; }
 
-            // State colors
+            /// <summary>
+            /// Color for danger or destructive actions.
+            /// </summary>
             public byte4 StateDanger { get; set; }
+            /// <summary>
+            /// Color for warning or caution states.
+            /// </summary>
             public byte4 StateWarning { get; set; }
+            /// <summary>
+            /// Color for success or confirmation states.
+            /// </summary>
             public byte4 StateSuccess { get; set; }
 
-            // Input colors
+            /// <summary>
+            /// Primary input foreground (text) color.
+            /// </summary>
             public byte4 InputForegroundPrimary { get; set; }
+            /// <summary>
+            /// Secondary input foreground (placeholder) color.
+            /// </summary>
             public byte4 InputForegroundSecondary { get; set; }
 
-            // Text colors
+            /// <summary>
+            /// Primary text color.
+            /// </summary>
             public byte4 TextPrimary { get; set; }
+            /// <summary>
+            /// Secondary or muted text color.
+            /// </summary>
             public byte4 TextSecondary { get; set; }
+            /// <summary>
+            /// Text color to use on accented backgrounds.
+            /// </summary>
             public byte4 TextOnAccent { get; set; }
         }
 
-        // Shortcuts for easy access
+        /// <summary>
+        /// Shortcuts for easy access to current theme colors.
+        /// </summary>
         public static ThemeColors Colors => Current.Colors;
     }
 }

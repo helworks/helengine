@@ -1,4 +1,7 @@
 namespace helengine {
+    /// <summary>
+    /// Simple text box with placeholder, blinking cursor, and basic keyboard input handling.
+    /// </summary>
     public class TextBoxComponent : Component {
         static TextBoxComponent? focusedTextBox;
         string text = "";
@@ -18,6 +21,9 @@ namespace helengine {
         // Input handling
         KeyboardState lastKeyboardState;
 
+        /// <summary>
+        /// Gets or sets the text content.
+        /// </summary>
         public string Text {
             get { return text; }
             set {
@@ -27,6 +33,9 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Gets or sets placeholder text shown when empty and not focused.
+        /// </summary>
         public string Placeholder {
             get { return placeholder; }
             set { 
@@ -35,6 +44,9 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Gets or sets the font used for rendering text.
+        /// </summary>
         public FontAsset Font {
             get { return font; }
             set { 
@@ -45,6 +57,9 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Gets or sets the size of the text box.
+        /// </summary>
         public int2 Size {
             get { return size; }
             set { 
@@ -56,6 +71,9 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether the text box has input focus.
+        /// </summary>
         public bool IsFocused {
             get { return isFocused; }
             set {
@@ -75,12 +93,22 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Creates a new text box with size, font, and optional placeholder.
+        /// </summary>
+        /// <param name="size">Dimensions of the text box.</param>
+        /// <param name="font">Font used to render text.</param>
+        /// <param name="placeholder">Placeholder string.</param>
         public TextBoxComponent(int2 size, FontAsset font, string placeholder = "") {
             this.size = size;
             this.font = font;
             this.placeholder = placeholder;
         }
 
+        /// <summary>
+        /// Builds child components and registers input handling when added.
+        /// </summary>
+        /// <param name="entity">Owning entity.</param>
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
@@ -115,6 +143,9 @@ namespace helengine {
             UpdateTextDisplay();
         }
 
+        /// <summary>
+        /// Handles pointer presses to focus the text box.
+        /// </summary>
         void OnCursorEvent(int2 relPos, int2 delta, PointerInteraction state) {
             if (state == PointerInteraction.Press) {
                 if (focusedTextBox != null && focusedTextBox != this) {
@@ -125,6 +156,9 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Handles blinking, key input, and updates the displayed text each frame.
+        /// </summary>
         public void Update() {
             if (!isFocused) return;
 
@@ -149,6 +183,11 @@ namespace helengine {
             lastKeyboardState = currentKeyboardState;
         }
 
+        /// <summary>
+        /// Processes a key press to modify text, move the cursor, or delete characters.
+        /// </summary>
+        /// <param name="key">Key pressed.</param>
+        /// <param name="keyboardState">Current keyboard state.</param>
         void HandleKeyPress(Keys key, KeyboardState keyboardState) {
             bool isShiftPressed = keyboardState.IsKeyDown(Keys.LeftShift) || keyboardState.IsKeyDown(Keys.RightShift);
             
@@ -199,6 +238,12 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Converts a key and shift state into a printable character.
+        /// </summary>
+        /// <param name="key">Keyboard key.</param>
+        /// <param name="isShiftPressed">True if shift is pressed.</param>
+        /// <returns>Printable character or '\0' if not mapped.</returns>
         char KeyToChar(Keys key, bool isShiftPressed) {
             // Handle letters
             if (key >= Keys.A && key <= Keys.Z) {
@@ -233,6 +278,9 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Updates displayed text, placeholder coloring, and cursor.
+        /// </summary>
         void UpdateTextDisplay() {
             if (textComponent == null) return;
 
@@ -255,6 +303,10 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Clears focus when parent is disabled.
+        /// </summary>
+        /// <param name="newEnabled">New enabled state.</param>
         public override void ParentEnabledChange(bool newEnabled) {
             base.ParentEnabledChange(newEnabled);
 
@@ -263,6 +315,10 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Removes focus reference when component is removed.
+        /// </summary>
+        /// <param name="entity">Owning entity.</param>
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
             if (focusedTextBox == this) {
@@ -271,14 +327,23 @@ namespace helengine {
         }
     }
 
-    // Helper update component for TextBoxComponent
+    /// <summary>
+    /// Helper update component that forwards updates to its owning text box.
+    /// </summary>
     class TextBoxUpdateComponent : UpdateComponent {
         TextBoxComponent textBox;
 
+        /// <summary>
+        /// Creates a forwarding update component for the given text box.
+        /// </summary>
+        /// <param name="textBox">Text box to drive.</param>
         public TextBoxUpdateComponent(TextBoxComponent textBox) {
             this.textBox = textBox;
         }
 
+        /// <summary>
+        /// Forwards update calls to the text box.
+        /// </summary>
         public override void Update() {
             textBox.Update();
         }

@@ -9,6 +9,9 @@ namespace helengine {
     /// Represents a quaternion with single-precision floating point components.
     /// </summary>
     public struct float4 {
+        /// <summary>
+        /// Identity quaternion representing no rotation.
+        /// </summary>
         private static readonly float4 identity = new float4(0, 0, 0, 1);
 
         /// <summary>
