@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.3.32811.315
+# Visual Studio Version 18
+VisualStudioVersion = 18.1.11304.174 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "helengine.launcher", "helengine.launcher\helengine.launcher.csproj", "{EBFA8512-1EA5-4D8C-B4AC-AB5B48A6D568}"
 EndProject
@@ -39,6 +39,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NucleusDotNet", "..\submodules\nucleusdotnet\nucleus-dotnet\nucleus-dotnet\NucleusDotNet.csproj", "{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NucleusDotNet.Windows.NETCore", "..\submodules\nucleusdotnet\nucleus-dotnet\nucleus-dotnet-windows\NucleusDotNet.Windows.NETCore.csproj", "{74378338-FC71-7225-5E0A-67848ABA1916}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.editor.windows", "..\engine\helengine.editor.windows\helengine.editor.windows.csproj", "{4B4C57C7-85D6-416B-A136-9338424700F2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -98,6 +100,10 @@ Global
 		{74378338-FC71-7225-5E0A-67848ABA1916}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{74378338-FC71-7225-5E0A-67848ABA1916}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{74378338-FC71-7225-5E0A-67848ABA1916}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4B4C57C7-85D6-416B-A136-9338424700F2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4B4C57C7-85D6-416B-A136-9338424700F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4B4C57C7-85D6-416B-A136-9338424700F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4B4C57C7-85D6-416B-A136-9338424700F2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -113,6 +119,7 @@ Global
 		{DF08A1E1-3F05-4F30-A430-329FBE385968} = {0B0188C9-57AB-47CA-818B-ACFCA79A44F5}
 		{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{74378338-FC71-7225-5E0A-67848ABA1916} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{4B4C57C7-85D6-416B-A136-9338424700F2} = {0B0188C9-57AB-47CA-818B-ACFCA79A44F5}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {83CB65B8-011F-4ED7-BCD3-A6CFA935EF7E}

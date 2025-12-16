@@ -23,6 +23,8 @@
             }
         }
 
+        public bool IsDragging => isDragging;
+
         public int2 MinSize { get; set; }
 
         public DockRegion Dock { get; set; }
@@ -65,15 +67,11 @@
         }
 
         private void TitleBarInteractivity_CursorEvent(int2 pos, int2 delta, PointerInteraction state) {
-            if (Dock != DockRegion.Floating) {
-                isDragging = false;
-                return;
-            }
-
             if (state == PointerInteraction.Press) {
-                if (!isDragging) {
-                    isDragging = true;
+                if (Dock != DockRegion.Floating) {
+                    Dock = DockRegion.Floating;
                 }
+                isDragging = true;
             } else if (state == PointerInteraction.Release) {
                 isDragging = false;
             } else if (state == PointerInteraction.Hover && isDragging) {

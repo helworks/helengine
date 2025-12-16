@@ -8,12 +8,14 @@ namespace helengine.editor {
         readonly int padding;
         readonly int gap;
 
-        public DockLayoutEngine(int padding = 8, int gap = 6) {
+        public DockLayoutEngine(int padding = 0, int gap = 0) {
             this.padding = padding;
             this.gap = gap;
             dockables = new List<DockableEntity>(8);
             fillBuffer = new List<DockableEntity>(2);
         }
+
+        public IReadOnlyList<DockableEntity> Dockables => dockables;
 
         public void Add(DockableEntity entity) {
             if (!dockables.Contains(entity)) {
@@ -160,6 +162,85 @@ namespace helengine.editor {
 
             entity.Position = new float3(left, top, z);
             entity.Size = new int2(width, height);
+        }
+
+        public bool TryGetDockHint(int2 pointer, int2 hostSize, float3 origin, bool fillOnly, out DockRegion region, out float3 position, out int2 size) {
+            region = DockRegion.Floating;
+            position = origin;
+            size = hostSize;
+
+            if (hostSize.X <= 0 || hostSize.Y <= 0) {
+                return false;
+            }
+
+            float localX = pointer.X - origin.X;
+            float localY = pointer.Y - origin.Y;
+
+            if (localX < 0 || localY < 0 || localX > hostSize.X || localY > hostSize.Y) {
+                return false;
+            }
+
+            if (fillOnly) {
+                int centerWidth = Math.Max(32, hostSize.X / 3);
+                int centerHeight = Math.Max(32, hostSize.Y / 3);
+
+                float centerStartX = origin.X + (hostSize.X - centerWidth) * 0.5f;
+                float centerStartY = origin.Y + (hostSize.Y - centerHeight) * 0.5f;
+                float centerEndX = centerStartX + centerWidth;
+                float centerEndY = centerStartY + centerHeight;
+
+                if (pointer.X >= centerStartX && pointer.X <= centerEndX &&
+                    pointer.Y >= centerStartY && pointer.Y <= centerEndY) {
+                    region = DockRegion.Fill;
+                    position = origin;
+                    size = hostSize;
+                    return true;
+                }
+
+                return false;
+            }
+
+            int leftThreshold = Math.Max(64, hostSize.X / 5);
+            int rightThreshold = hostSize.X - leftThreshold;
+            int topThreshold = Math.Max(64, hostSize.Y / 5);
+            int bottomThreshold = hostSize.Y - topThreshold;
+
+            if (localX <= leftThreshold) {
+                region = DockRegion.Left;
+                int width = Math.Max(1, hostSize.X / 3);
+                position = origin;
+                size = new int2(width, hostSize.Y);
+                return true;
+            }
+
+            if (localX >= rightThreshold) {
+                region = DockRegion.Right;
+                int width = Math.Max(1, hostSize.X / 3);
+                position = new float3(origin.X + hostSize.X - width, origin.Y, origin.Z);
+                size = new int2(width, hostSize.Y);
+                return true;
+            }
+
+            if (localY <= topThreshold) {
+                region = DockRegion.Top;
+                int height = Math.Max(1, hostSize.Y / 3);
+                position = origin;
+                size = new int2(hostSize.X, height);
+                return true;
+            }
+
+            if (localY >= bottomThreshold) {
+                region = DockRegion.Bottom;
+                int height = Math.Max(1, hostSize.Y / 3);
+                position = new float3(origin.X, origin.Y + hostSize.Y - height, origin.Z);
+                size = new int2(hostSize.X, height);
+                return true;
+            }
+
+            region = DockRegion.Fill;
+            position = origin;
+            size = hostSize;
+            return true;
         }
     }
 }

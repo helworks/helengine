@@ -17,6 +17,12 @@ namespace helengine.editor.app {
         private CameraComponent? sceneCameraComponent;
         private DockableViewport? mainViewport;
         private DockLayoutEngine? dockLayout;
+        private DockPreviewOverlay? dockPreviewOverlay;
+        private DockableEntity? lastDragging;
+        private bool dockHintValid;
+        private DockRegion dockHintRegion;
+        private float3 dockHintPos;
+        private int2 dockHintSize;
         private FontAsset? uiFont;
 
         private EditorEntity? titleBarEntity;
@@ -97,6 +103,7 @@ namespace helengine.editor.app {
             mainViewport = new DockableViewport(sceneCameraComponent, uiFont);
             mainViewport.Dock = DockRegion.Fill;
             dockLayout.Add(mainViewport);
+            dockPreviewOverlay = new DockPreviewOverlay();
 
             makeStartScene();
 
@@ -128,6 +135,7 @@ namespace helengine.editor.app {
                 try {
                     Invoke(() => {
                         UpdateLayout();
+                        UpdateDockPreview();
                         Core.Instance.Update();
                         Core.Instance.Draw();
                     });
@@ -265,6 +273,82 @@ namespace helengine.editor.app {
                 int availableHeight = Math.Max(0, renderHeight - TitleBarHeight);
                 dockLayout.Layout(new int2(renderWidth, availableHeight), new float3(0, TitleBarHeight, 0));
             }
+        }
+
+        void UpdateDockPreview() {
+            if (dockLayout == null || dockPreviewOverlay == null || Core.Instance?.InputManager == null) {
+                return;
+            }
+
+            DockableEntity? dragging = null;
+            var dockables = dockLayout.Dockables;
+            for (int i = 0; i < dockables.Count; i++) {
+                var de = dockables[i];
+                if (de.IsDragging) {
+                    dragging = de;
+                    break;
+                }
+            }
+
+            if (dragging == null) {
+                if (lastDragging != null && dockHintValid) {
+                    ApplyDockHint(lastDragging);
+                }
+                dockPreviewOverlay.Hide();
+                lastDragging = null;
+                dockHintValid = false;
+                return;
+            }
+
+            bool hasDocked = false;
+            for (int i = 0; i < dockables.Count; i++) {
+                var de = dockables[i];
+                if (de == dragging) {
+                    continue;
+                }
+
+                if (de.Dock != DockRegion.Floating) {
+                    hasDocked = true;
+                    break;
+                }
+            }
+
+            var mouse = Core.Instance.InputManager.Mouse.GetState();
+            int2 pointer = new int2(mouse.X, mouse.Y);
+
+            int renderWidth = Math.Max(1, ClientSize.Width);
+            int renderHeight = Math.Max(1, ClientSize.Height);
+            int availableHeight = Math.Max(0, renderHeight - TitleBarHeight);
+            int2 hostSize = new int2(renderWidth, availableHeight);
+            float3 origin = new float3(0, TitleBarHeight, 0);
+
+            bool fillOnly = !hasDocked;
+
+            if (dockLayout.TryGetDockHint(pointer, hostSize, origin, fillOnly, out var region, out var pos, out var size)) {
+                dockPreviewOverlay.Show(pos, size);
+                dockHintValid = true;
+                dockHintRegion = region;
+                dockHintPos = pos;
+                dockHintSize = size;
+                lastDragging = dragging;
+            } else {
+                dockPreviewOverlay.Hide();
+                dockHintValid = false;
+                lastDragging = dragging;
+            }
+        }
+
+        void ApplyDockHint(DockableEntity entity) {
+            if (!dockHintValid) {
+                return;
+            }
+
+            entity.Dock = dockHintRegion;
+            int contentHeight = Math.Max(1, dockHintSize.Y - DockableEntity.TitleBarHeight);
+            entity.Size = new int2(dockHintSize.X, contentHeight);
+            dockHintValid = false;
+            dockPreviewOverlay?.Hide();
+            UpdateLayout();
         }
 
         void UpdateTitleBarLayout(int windowWidth) {

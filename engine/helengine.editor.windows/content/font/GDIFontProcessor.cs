@@ -1,8 +1,6 @@
 ﻿using System.Drawing;
 using System.Drawing.Imaging;
-using System.IO;
 using System.Runtime.Versioning;
-using System.Windows.Forms;
 using Bitmap = System.Drawing.Bitmap;
 using Brushes = System.Drawing.Brushes;
 using Font = System.Drawing.Font;
