@@ -31,13 +31,6 @@ namespace helengine {
                                             0f, 0f, 0f, 1f);
 
         /// <summary>
-        /// Returns the identity matrix.
-        /// </summary>
-        public static float4x4 Identity {
-            get { return identity; }
-        }
-
-        /// <summary>
         /// Constructs a matrix.
         /// </summary>
         /// <param name="m11">A first row and first column value.</param>
@@ -76,6 +69,12 @@ namespace helengine {
             this.M44 = m44;
         }
 
+        /// <summary>
+        /// Returns the identity matrix.
+        /// </summary>
+        public static float4x4 Identity {
+            get { return identity; }
+        }
 
         /// <summary>
         /// Creates a new viewing <see cref="Matrix"/>.
@@ -296,6 +295,11 @@ namespace helengine {
             result.M44 = m44;
         }
 
+        /// <summary>
+        /// Transposes the given matrix.
+        /// </summary>
+        /// <param name="matrix">Matrix to transpose.</param>
+        /// <param name="result">Transposed matrix.</param>
         public static void Transpose(ref float4x4 matrix, out float4x4 result) {
             float4x4 ret;
 
@@ -322,6 +326,13 @@ namespace helengine {
             result = ret;
         }
 
+        /// <summary>
+        /// Creates a rotation matrix from yaw, pitch, and roll angles.
+        /// </summary>
+        /// <param name="yaw">Yaw around the Y axis in radians.</param>
+        /// <param name="pitch">Pitch around the X axis in radians.</param>
+        /// <param name="roll">Roll around the Z axis in radians.</param>
+        /// <param name="result">Output rotation matrix.</param>
         public static void CreateFromYawPitchRoll(float yaw, float pitch, float roll, out float4x4 result) {
             float4 quaternion;
             float4.CreateFromYawPitchRoll(yaw, pitch, roll, out quaternion);

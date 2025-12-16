@@ -1,23 +1,12 @@
-﻿namespace helengine;
+namespace helengine;
 
+/// <summary>
+/// Tracks engine objects and organizes update and render buckets for efficient processing.
+/// </summary>
 public class ObjectManager {
-    public List<Entity> Entities { get; private set; }
-
-    public List<IUpdateable>[] UpdateEntities { get; private set; }
-    public byte TotalUpdateBuckets { get; private set; } = 4;
-
-    public List<IDrawable2D> Drawables2D { get; private set; }
-    public byte TotalBuckets2D { get; private set; } = 4;
-
-    public List<IDrawable3D> Drawables3D { get; private set; }
-    public byte TotalBuckets3D { get; private set; } = 3;
-    public byte TotalVariants3D { get; private set; } = 4;
-
-    public List<ICamera>[] Cameras { get; private set; }
-    public byte TotalCameraBuckets { get; private set; } = 3;
-
-    public List<IInteractable2D> Interactables { get; private set; }
-
+    /// <summary>
+    /// Initializes a new object manager and allocates buckets for updates, rendering, and cameras.
+    /// </summary>
     public ObjectManager() {
         Entities = new List<Entity>();
 
@@ -38,45 +27,115 @@ public class ObjectManager {
         Interactables = new List<IInteractable2D>();
     }
 
+    /// <summary>
+    /// Gets the registered entities.
+    /// </summary>
+    public List<Entity> Entities { get; private set; }
+
+    /// <summary>
+    /// Gets update buckets used to group updateables by order.
+    /// </summary>
+    public List<IUpdateable>[] UpdateEntities { get; private set; }
+
+    /// <summary>
+    /// Gets the number of update buckets.
+    /// </summary>
+    public byte TotalUpdateBuckets { get; private set; } = 4;
+
+    /// <summary>
+    /// Gets registered 2D drawables for diagnostics.
+    /// </summary>
+    public List<IDrawable2D> Drawables2D { get; private set; }
+
+    /// <summary>
+    /// Gets the number of 2D render buckets.
+    /// </summary>
+    public byte TotalBuckets2D { get; private set; } = 4;
+
+    /// <summary>
+    /// Gets registered 3D drawables for diagnostics.
+    /// </summary>
+    public List<IDrawable3D> Drawables3D { get; private set; }
+
+    /// <summary>
+    /// Gets the number of 3D render buckets.
+    /// </summary>
+    public byte TotalBuckets3D { get; private set; } = 3;
+
+    /// <summary>
+    /// Gets the number of 3D variants (bins) supported.
+    /// </summary>
+    public byte TotalVariants3D { get; private set; } = 4;
+
+    /// <summary>
+    /// Gets grouped cameras by draw order.
+    /// </summary>
+    public List<ICamera>[] Cameras { get; private set; }
+
+    /// <summary>
+    /// Gets the number of camera buckets.
+    /// </summary>
+    public byte TotalCameraBuckets { get; private set; } = 3;
+
+    /// <summary>
+    /// Gets registered 2D interactables.
+    /// </summary>
+    public List<IInteractable2D> Interactables { get; private set; }
+
+    /// <summary>
+    /// Registers an interactable element for hit testing.
+    /// </summary>
+    /// <param name="entity">Interactable to register.</param>
     public virtual void RegisterInteractable(IInteractable2D entity) {
         Interactables.Add(entity);
     }
 
+    /// <summary>
+    /// Removes an interactable element.
+    /// </summary>
+    /// <param name="entity">Interactable to remove.</param>
     public virtual void RemoveInteractable(IInteractable2D entity) {
         Interactables.Remove(entity);
     }
 
+    /// <summary>
+    /// Registers an entity with the manager.
+    /// </summary>
+    /// <param name="entity">Entity to register.</param>
     public virtual void RegisterEntity(Entity entity) {
         Entities.Add(entity);
     }
 
+    /// <summary>
+    /// Removes an entity from the manager.
+    /// </summary>
+    /// <param name="entity">Entity to remove.</param>
     public virtual void RemoveEntity(Entity entity) {
         Entities.Remove(entity);
     }
 
+    /// <summary>
+    /// Registers an object to be updated each frame based on its update order.
+    /// </summary>
+    /// <param name="entity">Updateable instance.</param>
     public virtual void RegisterForUpdate(IUpdateable entity) {
         int bucket = entity.UpdateOrder / TotalUpdateBuckets;
         UpdateEntities[bucket].Add(entity);
     }
 
+    /// <summary>
+    /// Removes an object from the update buckets.
+    /// </summary>
+    /// <param name="entity">Updateable to remove.</param>
     public virtual void RemoveFromUpdate(IUpdateable entity) {
         int bucket = entity.UpdateOrder / TotalUpdateBuckets;
         UpdateEntities[bucket].Remove(entity);
     }
 
-    private int getBucket(byte renderOrder, byte totalBuckets) {
-        int gaps = 255 / totalBuckets;
-        return renderOrder / gaps;
-    }
-
-    private static int getStateBin3D(IDrawable3D drawable, int bins) {
-        var model = drawable.Model;
-        if (model == null || bins <= 1) return 0;
-        int h = model.Id != null ? model.Id.GetHashCode() : 0;
-        uint uh = unchecked((uint)h);
-        return (int)(uh % (uint)bins);
-    }
-
+    /// <summary>
+    /// Registers a 2D drawable with all matching cameras.
+    /// </summary>
+    /// <param name="drawable">Drawable to register.</param>
     public void RegisterForRender2D(IDrawable2D drawable) {
         // Maintain a side list for diagnostics, but membership uses per-camera dense buckets of references
         Drawables2D.Add(drawable);
@@ -96,6 +155,10 @@ public class ObjectManager {
         }
     }
 
+    /// <summary>
+    /// Removes a 2D drawable from all camera buckets.
+    /// </summary>
+    /// <param name="drawable">Drawable to remove.</param>
     public void RemoveFromRender2D(IDrawable2D drawable) {
         // Keep Drawables2D as a diagnostic list but remove reference if present
         Drawables2D.Remove(drawable);
@@ -117,6 +180,10 @@ public class ObjectManager {
         }
     }
 
+    /// <summary>
+    /// Registers a 3D drawable with all matching cameras.
+    /// </summary>
+    /// <param name="drawable">Drawable to register.</param>
     public void RegisterForRender3D(IDrawable3D drawable) {
         Drawables3D.Add(drawable);
 
@@ -138,6 +205,10 @@ public class ObjectManager {
         }
     }
 
+    /// <summary>
+    /// Removes a 3D drawable from all camera buckets.
+    /// </summary>
+    /// <param name="drawable">Drawable to remove.</param>
     public void RemoveFromRender3D(IDrawable3D drawable) {
         Drawables3D.Remove(drawable);
 
@@ -158,6 +229,10 @@ public class ObjectManager {
         }
     }
 
+    /// <summary>
+    /// Registers a camera for rendering and backfills existing drawables into its registries.
+    /// </summary>
+    /// <param name="camera">Camera to register.</param>
     public void RegisterCamera(ICamera camera) {
         // Use the correct camera bucket count for camera ordering
         int cameraBucket = camera.CameraDrawOrder / TotalCameraBuckets;
@@ -194,11 +269,18 @@ public class ObjectManager {
         }
     }
 
+    /// <summary>
+    /// Removes a camera and its buckets.
+    /// </summary>
+    /// <param name="camera">Camera to remove.</param>
     public virtual void RemoveCamera(ICamera camera) {
         int cameraBucket = camera.CameraDrawOrder / TotalCameraBuckets;
         Cameras[cameraBucket].Remove(camera);
     }
 
+    /// <summary>
+    /// Updates all registered updateables in bucket order.
+    /// </summary>
     public virtual void Update() {
         for (int i = 0; i < TotalUpdateBuckets; i++) {
             List<IUpdateable> entities = UpdateEntities[i];
@@ -207,5 +289,30 @@ public class ObjectManager {
                 entities[j].Update();
             }
         }
+    }
+
+    /// <summary>
+    /// Computes the bucket index based on a render order value.
+    /// </summary>
+    /// <param name="renderOrder">Render order to bucketize.</param>
+    /// <param name="totalBuckets">Total buckets available.</param>
+    /// <returns>Calculated bucket index.</returns>
+    private int getBucket(byte renderOrder, byte totalBuckets) {
+        int gaps = 255 / totalBuckets;
+        return renderOrder / gaps;
+    }
+
+    /// <summary>
+    /// Calculates a stable bin for a drawable based on its model identifier.
+    /// </summary>
+    /// <param name="drawable">Drawable to hash.</param>
+    /// <param name="bins">Number of bins available.</param>
+    /// <returns>Bin index.</returns>
+    private static int getStateBin3D(IDrawable3D drawable, int bins) {
+        var model = drawable.Model;
+        if (model == null || bins <= 1) return 0;
+        int h = model.Id != null ? model.Id.GetHashCode() : 0;
+        uint uh = unchecked((uint)h);
+        return (int)(uh % (uint)bins);
     }
 }

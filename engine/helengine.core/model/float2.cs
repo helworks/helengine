@@ -1,24 +1,48 @@
-﻿// MIT License - Copyright (C) The Mono.Xna Team
+// MIT License - Copyright (C) The Mono.Xna Team
 // Portions of this file are based on work by The Mono.Xna Team and are subject to
 // the terms and conditions defined in file 'LICENSE.txt', which is part of this source code package.
 //
 // Additional modifications and work by Helena.
 
 namespace helengine {
+    /// <summary>
+    /// Represents a 2D vector of single-precision floating point components.
+    /// </summary>
     public struct float2 {
+        /// <summary>
+        /// X component of the vector.
+        /// </summary>
         public float X;
+
+        /// <summary>
+        /// Y component of the vector.
+        /// </summary>
         public float Y;
 
+        /// <summary>
+        /// Initializes a vector with the specified components.
+        /// </summary>
+        /// <param name="x">Value for the X component.</param>
+        /// <param name="y">Value for the Y component.</param>
         public float2(float x, float y) {
-            this.X = x;
-            this.Y = y;
+            X = x;
+            Y = y;
         }
 
+        /// <summary>
+        /// Initializes a vector with both components set to the same value.
+        /// </summary>
+        /// <param name="value">Value to assign to both X and Y.</param>
         public float2(float value) {
-            this.X = value;
-            this.Y = value;
+            X = value;
+            Y = value;
         }
 
+        /// <summary>
+        /// Determines whether this instance and another object are equal.
+        /// </summary>
+        /// <param name="obj">Object to compare.</param>
+        /// <returns>True when the vectors have identical components; otherwise false.</returns>
         public override bool Equals(object? obj) {
             if (obj == null) {
                 return false;
@@ -31,31 +55,72 @@ namespace helengine {
                     Y == other.Y;
         }
 
+        /// <summary>
+        /// Determines whether this instance equals the supplied <see cref="float3"/> (ignoring Z).
+        /// </summary>
+        /// <param name="other">Vector to compare.</param>
+        /// <returns>True when the X and Y components match.</returns>
         public bool Equals(float3 other) {
             return X == other.X &&
                     Y == other.Y;
         }
 
+        /// <summary>
+        /// Compares two vectors for equality.
+        /// </summary>
+        /// <param name="a">Left operand.</param>
+        /// <param name="b">Right operand.</param>
+        /// <returns>True when components match.</returns>
         public static bool operator ==(float2 a, float2 b) {
             return a.X == b.X && a.Y == b.Y;
         }
 
+        /// <summary>
+        /// Compares two vectors for inequality.
+        /// </summary>
+        /// <param name="a">Left operand.</param>
+        /// <param name="b">Right operand.</param>
+        /// <returns>True when any component differs.</returns>
         public static bool operator !=(float2 a, float2 b) {
             return a.X != b.X || a.Y != b.Y;
         }
 
+        /// <summary>
+        /// Multiplies two vectors component-wise.
+        /// </summary>
+        /// <param name="a">Left operand.</param>
+        /// <param name="b">Right operand.</param>
+        /// <returns>Scaled vector.</returns>
         public static float2 operator *(float2 a, float2 b) {
             return new float2(a.X * b.X, a.Y * b.Y);
         }
 
+        /// <summary>
+        /// Multiplies a vector by a scalar.
+        /// </summary>
+        /// <param name="a">Vector to scale.</param>
+        /// <param name="scalar">Scalar multiplier.</param>
+        /// <returns>Scaled vector.</returns>
         public static float2 operator *(float2 a, float scalar) {
             return new float2(a.X * scalar, a.Y * scalar);
         }
 
+        /// <summary>
+        /// Divides two vectors component-wise.
+        /// </summary>
+        /// <param name="a">Left operand.</param>
+        /// <param name="b">Right operand.</param>
+        /// <returns>Resulting vector.</returns>
         public static float2 operator /(float2 a, float2 b) {
             return new float2(a.X / b.X, a.Y / b.Y);
         }
 
+        /// <summary>
+        /// Divides a vector by a scalar.
+        /// </summary>
+        /// <param name="a">Vector to scale.</param>
+        /// <param name="scalar">Scalar divisor.</param>
+        /// <returns>Scaled vector.</returns>
         public static float2 operator /(float2 a, float scalar) {
             return new float2(a.X / scalar, a.Y / scalar);
         }

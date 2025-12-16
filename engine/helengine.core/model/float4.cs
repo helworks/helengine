@@ -1,51 +1,73 @@
-﻿// MIT License - Copyright (C) The Mono.Xna Team
+// MIT License - Copyright (C) The Mono.Xna Team
 // Portions of this file are based on work by The Mono.Xna Team and are subject to
 // the terms and conditions defined in file 'LICENSE.txt', which is part of this source code package.
 //
 // Additional modifications and work by Helena.
 
 namespace helengine {
+    /// <summary>
+    /// Represents a quaternion with single-precision floating point components.
+    /// </summary>
     public struct float4 {
-        private static readonly float4 _identity = new float4(0, 0, 0, 1);
+        private static readonly float4 identity = new float4(0, 0, 0, 1);
 
+        /// <summary>
+        /// X component of the quaternion.
+        /// </summary>
         public float X;
+
+        /// <summary>
+        /// Y component of the quaternion.
+        /// </summary>
         public float Y;
+
+        /// <summary>
+        /// Z component of the quaternion.
+        /// </summary>
         public float Z;
+
+        /// <summary>
+        /// W component representing the rotation scalar.
+        /// </summary>
         public float W;
+
+        /// <summary>
+        /// Constructs a quaternion with X, Y, Z, and W values.
+        /// </summary>
+        /// <param name="x">X component.</param>
+        /// <param name="y">Y component.</param>
+        /// <param name="z">Z component.</param>
+        /// <param name="w">Rotation scalar.</param>
+        public float4(float x, float y, float z, float w) {
+            X = x;
+            Y = y;
+            Z = z;
+            W = w;
+        }
 
         /// <summary>
         /// Returns a quaternion representing no rotation.
         /// </summary>
         public static float4 Identity {
-            get { return _identity; }
+            get { return identity; }
         }
 
         /// <summary>
-        /// Constructs a quaternion with X, Y, Z and W from four values.
+        /// Returns a string representing the quaternion components.
         /// </summary>
-        /// <param name="x">The x coordinate in 3d-space.</param>
-        /// <param name="y">The y coordinate in 3d-space.</param>
-        /// <param name="z">The z coordinate in 3d-space.</param>
-        /// <param name="w">The rotation component.</param>
-        public float4(float x, float y, float z, float w) {
-            this.X = x;
-            this.Y = y;
-            this.Z = z;
-            this.W = w;
-        }
-
+        /// <returns>Formatted string.</returns>
         public override string ToString() {
             return $"{X}, {Y}, {Z}, {W}";
         }
 
         /// <summary>
-        /// Gets whether or not the provided coordinates lie within the bounds of this <see cref="int4"/>.
+        /// Gets whether the provided point lies within the bounds represented by this value.
         /// </summary>
-        /// <param name="x">The x coordinate of the point to check for containment.</param>
-        /// <param name="y">The y coordinate of the point to check for containment.</param>
-        /// <returns><c>true</c> if the provided coordinates lie inside this <see cref="int4"/>; <c>false</c> otherwise.</returns>
+        /// <param name="x">X coordinate to test.</param>
+        /// <param name="y">Y coordinate to test.</param>
+        /// <returns>True if the point is inside the bounds; otherwise false.</returns>
         public bool Contains(float x, float y) {
-            return ((((this.X <= x) && (x < (this.X + this.Z))) && (this.Y <= y)) && (y < (this.Y + this.W)));
+            return ((((X <= x) && (x < (X + Z))) && (Y <= y)) && (y < (Y + W)));
         }
 
         /// <summary>
@@ -60,12 +82,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Creates a new <see cref="float4"/> from the specified yaw, pitch and roll angles.
+        /// Creates a quaternion from yaw, pitch, and roll angles.
         /// </summary>
-        /// <param name="yaw">Yaw around the y axis in radians.</param>
-        /// <param name="pitch">Pitch around the x axis in radians.</param>
-        /// <param name="roll">Roll around the z axis in radians.</param>
-        /// <param name="result">A new quaternion from the concatenated yaw, pitch, and roll angles as an output parameter.</param>
+        /// <param name="yaw">Yaw around the Y axis in radians.</param>
+        /// <param name="pitch">Pitch around the X axis in radians.</param>
+        /// <param name="roll">Roll around the Z axis in radians.</param>
+        /// <param name="result">Output quaternion.</param>
         public static void CreateFromYawPitchRoll(float yaw, float pitch, float roll, out float4 result) {
             float halfRoll = roll * 0.5f;
             float halfPitch = pitch * 0.5f;
@@ -85,11 +107,11 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Creates a new <see cref="Quaternion"/> that contains concatenation between two quaternion.
+        /// Concatenates two quaternions.
         /// </summary>
-        /// <param name="value1">The first <see cref="Quaternion"/> to concatenate.</param>
-        /// <param name="value2">The second <see cref="Quaternion"/> to concatenate.</param>
-        /// <param name="result">The result of rotation of <paramref name="value1"/> followed by <paramref name="value2"/> rotation as an output parameter.</param>
+        /// <param name="value1">First quaternion.</param>
+        /// <param name="value2">Second quaternion.</param>
+        /// <param name="result">Resulting concatenated quaternion.</param>
         public static void Concatenate(ref float4 value1, ref float4 value2, out float4 result) {
             float x1 = value1.X;
             float y1 = value1.Y;
@@ -108,11 +130,11 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Creates a new <see cref="Quaternion"/> from the specified axis and angle.
+        /// Creates a quaternion from an axis and angle.
         /// </summary>
-        /// <param name="axis">The axis of rotation.</param>
-        /// <param name="angle">The angle in radians.</param>
-        /// <param name="result">The new quaternion builded from axis and angle as an output parameter.</param>
+        /// <param name="axis">Axis of rotation.</param>
+        /// <param name="angle">Angle in radians.</param>
+        /// <param name="result">Output quaternion.</param>
         public static void CreateFromAxisAngle(ref float3 axis, float angle, out float4 result) {
             float half = angle * 0.5f;
             float sin = (float)Math.Sin(half);
@@ -126,9 +148,9 @@ namespace helengine {
         /// <summary>
         /// Multiplies two quaternions.
         /// </summary>
-        /// <param name="quaternion1">Source <see cref="Quaternion"/> on the left of the mul sign.</param>
-        /// <param name="quaternion2">Source <see cref="Quaternion"/> on the right of the mul sign.</param>
-        /// <returns>Result of the quaternions multiplication.</returns>
+        /// <param name="quaternion1">Left operand.</param>
+        /// <param name="quaternion2">Right operand.</param>
+        /// <returns>Product quaternion.</returns>
         public static float4 operator *(float4 quaternion1, float4 quaternion2) {
             float4 quaternion;
             float x = quaternion1.X;
