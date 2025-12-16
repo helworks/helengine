@@ -124,5 +124,17 @@ namespace helengine {
         public static float2 operator /(float2 a, float scalar) {
             return new float2(a.X / scalar, a.Y / scalar);
         }
+
+        /// <summary>
+        /// Returns a hash code for the vector.
+        /// </summary>
+        /// <returns>Hash code.</returns>
+        public override int GetHashCode() {
+            unchecked {
+                int hash = X.GetHashCode();
+                hash = (hash * 397) ^ Y.GetHashCode();
+                return hash;
+            }
+        }
     }
 }

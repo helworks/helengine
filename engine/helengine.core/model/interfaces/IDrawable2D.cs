@@ -14,9 +14,8 @@ namespace helengine {
         byte RenderOrder2D { get; set; }
 
         /// <summary>
-        /// Draws the object using the specified camera.
+        /// Draws the object using the active render manager.
         /// </summary>
-        /// <param name="camera">Camera used for rendering.</param>
-        void Draw(CameraComponent camera);
+        void Draw();
     }
 }

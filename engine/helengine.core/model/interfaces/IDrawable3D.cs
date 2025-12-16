@@ -21,12 +21,6 @@ namespace helengine {
         /// <summary>
         /// Gets the runtime model associated with this drawable.
         /// </summary>
-        RuntimeModel Model { get; }
-
-        /// <summary>
-        /// Draws the object using a provided camera.
-        /// </summary>
-        /// <param name="camera">Camera used for view and projection.</param>
-        void Draw(CameraComponent camera);
+        RuntimeModel? Model { get; }
     }
 }
