@@ -5,6 +5,9 @@ using System.IO;
 using System.Runtime.InteropServices;
 
 namespace helengine.editor.app {
+    /// <summary>
+    /// Main editor host form for Helengine, wiring up rendering and dockable UI.
+    /// </summary>
     public partial class MainForm : Form {
         private Thread thread;
         private bool closed;
@@ -81,7 +84,7 @@ namespace helengine.editor.app {
             int renderHeight = Math.Max(1, ClientSize.Height);
             core.RenderManager3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
-            uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular));
+            uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
 
             EditorEntity uiCam = new EditorEntity();
             uiCam.Position = new float3(0, 3, -8);

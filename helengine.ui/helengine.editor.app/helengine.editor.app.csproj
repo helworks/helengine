@@ -1,38 +1,40 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
-    <Nullable>disable</Nullable>
-    <UseWindowsForms>true</UseWindowsForms>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net9.0-windows</TargetFramework>
+		<Nullable>disable</Nullable>
+		<UseWindowsForms>true</UseWindowsForms>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+		<EnableWindowsFormsHighDpiAutoResizing>false</EnableWindowsFormsHighDpiAutoResizing>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <NoWarn>1701;1702;WFO1000</NoWarn>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+		<NoWarn>1701;1702;WFO1000</NoWarn>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <NoWarn>1701;1702;WFO1000</NoWarn>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<NoWarn>1701;1702;WFO1000</NoWarn>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="Theming\**" />
-    <EmbeddedResource Remove="Theming\**" />
-    <None Remove="Theming\**" />
-  </ItemGroup>
+	<ItemGroup>
+		<Compile Remove="Theming\**" />
+		<EmbeddedResource Remove="Theming\**" />
+		<None Remove="Theming\**" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="System.Drawing.Common" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="System.Drawing.Common" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\engine\helengine.core.windows\helengine.core.windows.csproj" />
-    <ProjectReference Include="..\..\engine\helengine.core\helengine.core.csproj" />
-    <ProjectReference Include="..\..\engine\helengine.editor.fbximporter\helengine.editor.assimp.csproj" />
-    <ProjectReference Include="..\..\engine\helengine.editor.windows\helengine.editor.windows.csproj" />
-    <ProjectReference Include="..\..\engine\helengine.editor\helengine.editor.csproj" />
-    <ProjectReference Include="..\..\engine\helengine.sharpdx\helengine.sharpdx.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\..\engine\helengine.core.windows\helengine.core.windows.csproj" />
+		<ProjectReference Include="..\..\engine\helengine.core\helengine.core.csproj" />
+		<ProjectReference Include="..\..\engine\helengine.editor.fbximporter\helengine.editor.assimp.csproj" />
+		<ProjectReference Include="..\..\engine\helengine.editor.windows\helengine.editor.windows.csproj" />
+		<ProjectReference Include="..\..\engine\helengine.editor\helengine.editor.csproj" />
+		<ProjectReference Include="..\..\engine\helengine.sharpdx\helengine.sharpdx.csproj" />
+	</ItemGroup>
 
 </Project>

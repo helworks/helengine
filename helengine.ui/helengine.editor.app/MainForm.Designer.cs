@@ -1,4 +1,7 @@
 ﻿namespace helengine.editor.app {
+    /// <summary>
+    /// Main editor form hosting the Helengine UI and render surface.
+    /// </summary>
     partial class MainForm {
         /// <summary>
         ///  Required designer variable.
@@ -27,8 +30,8 @@
             // 
             // MainForm
             // 
-            AutoScaleDimensions = new SizeF(7F, 15F);
-            AutoScaleMode = AutoScaleMode.Font;
+            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleMode = AutoScaleMode.None;
             ClientSize = new Size(1904, 1041);
             Name = "MainForm";
             Text = "helengine";
