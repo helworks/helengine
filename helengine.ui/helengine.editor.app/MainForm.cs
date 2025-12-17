@@ -1,8 +1,7 @@
 using helengine.editor;
+using helengine.editor.windows;
 using helengine.sharpdx;
-using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 
 namespace helengine.editor.app {
     /// <summary>
@@ -12,9 +11,6 @@ namespace helengine.editor.app {
         private Thread thread;
         private bool closed;
         private bool initialized;
-        private const int TitleBarHeight = 36;
-        private const int TitleBarDoubleClickMs = 350;
-        private const int TitleBarDoubleClickDistance = 6;
 
         private CameraComponent? uiCameraComponent;
         private CameraComponent? sceneCameraComponent;
@@ -27,35 +23,50 @@ namespace helengine.editor.app {
         private float3 dockHintPos;
         private int2 dockHintSize;
         private FontAsset? uiFont;
+        private EditorTitleBar? titleBar;
 
-        private EditorEntity? titleBarEntity;
-        private SpriteComponent? titleBarBackground;
-        private InteractableComponent? titleBarHitRegion;
-        private TextComponent? titleTextComponent;
-        private readonly List<(EditorEntity entity, int width)> menuButtons = new();
-        private readonly List<(EditorEntity entity, int width)> windowControlButtons = new();
-        private long lastTitleBarClickTicks;
-        private int2 lastTitleBarClickPos;
-
+        /// <summary>
+        /// Initializes a new instance of the main editor form and configures custom chrome.
+        /// </summary>
         public MainForm() {
             InitializeComponent();
             ControlBox = false;
             FormBorderStyle = FormBorderStyle.None;
 
-            initialize();
+            InitializeEditor();
         }
 
+        /// <summary>
+        /// Initializes the main editor form for a specific project path.
+        /// </summary>
+        /// <param name="projectPath">Path to the project to open.</param>
         public MainForm(string projectPath) : this() {
             if (!string.IsNullOrWhiteSpace(projectPath)) {
                 string title = $"helengine - {Path.GetFileName(projectPath)}";
-                Text = title;
-                if (titleTextComponent != null) {
-                    titleTextComponent.Text = title;
-                }
+                SetWindowTitle(title);
             }
         }
 
-        private void makeStartScene() {
+        /// <summary>
+        /// Gets the height of the active title bar, falling back to the default when uninitialized.
+        /// </summary>
+        private int TitleBarHeight => titleBar?.Height ?? EditorTitleBar.HeightPixels;
+
+        /// <summary>
+        /// Updates the form title text and keeps the title bar in sync.
+        /// </summary>
+        /// <param name="title">Title text to display.</param>
+        private void SetWindowTitle(string title) {
+            Text = title;
+            if (titleBar != null) {
+                titleBar.Title = title;
+            }
+        }
+
+        /// <summary>
+        /// Creates a simple starter scene with a cube and plane to exercise rendering.
+        /// </summary>
+        private void MakeStartScene() {
             Core core = Core.Instance;
             EditorEntity cube = new EditorEntity();
             cube.LayerMask = 0b0100000000000000;
@@ -75,7 +86,10 @@ namespace helengine.editor.app {
             planeMesh.Model = planeRenderData;
         }
 
-        private void initialize() {
+        /// <summary>
+        /// Sets up rendering, input, cameras, UI chrome, and the initial layout.
+        /// </summary>
+        private void InitializeEditor() {
             EditorCore core = new EditorCore(null);
             var rm3d = new SharpDXRenderManager3D();
             core.Initialize(rm3d, rm3d.Render2D, new InputManagerWindows(this.Handle));
@@ -99,7 +113,9 @@ namespace helengine.editor.app {
             sceneCameraComponent.LayerMask = 0b0100000000000000;
             sceneCam.AddComponent(sceneCameraComponent);
 
-            BuildTitleBar(uiFont, ClientSize.Width);
+            titleBar = new EditorTitleBar(uiFont, ClientSize.Width, Text);
+            TitleBarWindowAdapter.Attach(titleBar, this);
+            SetWindowTitle(Text);
 
             dockLayout = new DockLayoutEngine();
 
@@ -108,11 +124,11 @@ namespace helengine.editor.app {
             dockLayout.Add(mainViewport);
             dockPreviewOverlay = new DockPreviewOverlay();
 
-            makeStartScene();
+            MakeStartScene();
 
             UpdateLayout();
 
-            thread = new Thread(threadUpdate);
+            thread = new Thread(RunEditorLoop);
             thread.Start();
 
             initialized = true;
@@ -127,7 +143,10 @@ namespace helengine.editor.app {
             //fpsText.Font = fontAsset;
         }
 
-        private void threadUpdate() {
+        /// <summary>
+        /// Drives the editor update and draw loop on a worker thread.
+        /// </summary>
+        private void RunEditorLoop() {
             TimeSpan span = TimeSpan.FromMilliseconds(1000 / 120.0);
             for (; ; ) {
                 Thread.Sleep(span);
@@ -146,6 +165,10 @@ namespace helengine.editor.app {
             }
         }
 
+        /// <summary>
+        /// Stops the editor loop and disposes engine resources when the window closes.
+        /// </summary>
+        /// <param name="e">Event data.</param>
         protected override void OnClosed(EventArgs e) {
             base.OnClosed(e);
 
@@ -153,18 +176,30 @@ namespace helengine.editor.app {
             Core.Instance.Dispose();
         }
 
+        /// <summary>
+        /// Handles activation to allow future input focus handling hooks.
+        /// </summary>
+        /// <param name="e">Event data.</param>
         protected override void OnActivated(EventArgs e) {
             base.OnActivated(e);
 
             //Keyboard.SetActive(true);
         }
 
+        /// <summary>
+        /// Handles window deactivation to support future focus-aware behaviors.
+        /// </summary>
+        /// <param name="e">Event data.</param>
         protected override void OnDeactivate(EventArgs e) {
             base.OnDeactivate(e);
 
             //Keyboard.SetActive(false);
         }
 
+        /// <summary>
+        /// Resizes render targets and UI layout when the window size changes.
+        /// </summary>
+        /// <param name="e">Event data.</param>
         protected override void OnResize(EventArgs e) {
             base.OnResize(e);
             if (!initialized) {
@@ -178,87 +213,10 @@ namespace helengine.editor.app {
             UpdateLayout();
         }
 
-        void StartWindowDrag() {
-            ReleaseCapture();
-            SendMessage(Handle, WM_NCLBUTTONDOWN, HTCAPTION, 0);
-        }
-
-        void BuildTitleBar(FontAsset font, int windowWidth) {
-            titleBarEntity = new EditorEntity();
-            titleBarEntity.LayerMask = 0b1000000000000000;
-            titleBarEntity.Position = new float3(0, 0, 0);
-
-            titleBarBackground = new SpriteComponent();
-            titleBarBackground.Texture = TextureUtils.PixelTexture;
-            titleBarBackground.Color = ThemeManager.Colors.SurfacePrimary;
-            titleBarBackground.Size = new int2(windowWidth, TitleBarHeight);
-            titleBarBackground.RenderOrder2D = 1;
-            titleBarEntity.AddComponent(titleBarBackground);
-
-            titleBarHitRegion = new InteractableComponent();
-            titleBarHitRegion.Size = new int2(windowWidth, TitleBarHeight);
-            titleBarHitRegion.CursorEvent += (pos, delta, state) => {
-                if (state == PointerInteraction.Press) {
-                    long now = Environment.TickCount64;
-                    long elapsed = now - lastTitleBarClickTicks;
-                    bool isDoubleClick = elapsed <= TitleBarDoubleClickMs &&
-                                         Math.Abs(pos.X - lastTitleBarClickPos.X) <= TitleBarDoubleClickDistance &&
-                                         Math.Abs(pos.Y - lastTitleBarClickPos.Y) <= TitleBarDoubleClickDistance;
-
-                    lastTitleBarClickTicks = now;
-                    lastTitleBarClickPos = pos;
-
-                    if (isDoubleClick) {
-                        ToggleWindowState();
-                    } else {
-                        StartWindowDrag();
-                    }
-                }
-            };
-            titleBarEntity.AddComponent(titleBarHitRegion);
-
-            menuButtons.Clear();
-            float x = 8f;
-            string[] labels = { "File", "Edit", "View", "Window", "Help" };
-            foreach (var label in labels) {
-                int width = ComputeButtonWidth(font, label);
-                var buttonEntity = new EditorEntity {
-                    LayerMask = titleBarEntity.LayerMask,
-                    Position = new float3(x, 6, 0)
-                };
-                var button = new ButtonComponent(label, new int2(width, 24), font, null, 0f);
-                buttonEntity.AddComponent(button);
-                titleBarEntity.AddChild(buttonEntity);
-                menuButtons.Add((buttonEntity, width));
-                x += width + 6;
-            }
-
-            var titleEntity = new EditorEntity {
-                LayerMask = titleBarEntity.LayerMask,
-                Position = new float3(x + 10, 8, 0)
-            };
-            titleTextComponent = new TextComponent {
-                Font = font,
-                Text = "helengine editor",
-                Color = new byte4(255, 255, 255, 255),
-                Size = new int2(300, 20),
-                RenderOrder2D = 3
-            };
-            titleEntity.AddComponent(titleTextComponent);
-            titleBarEntity.AddChild(titleEntity);
-
-            windowControlButtons.Clear();
-            int closeWidth = ComputeButtonWidth(font, "X");
-            int maxWidth = ComputeButtonWidth(font, "Max");
-            int minWidth = ComputeButtonWidth(font, "-");
-            AddWindowControl(font, "-", minWidth, () => WindowState = FormWindowState.Minimized);
-            AddWindowControl(font, "Max", maxWidth, ToggleWindowState);
-            AddWindowControl(font, "X", closeWidth, Close);
-
-            UpdateTitleBarLayout(windowWidth);
-        }
-
-        void UpdateLayout() {
+        /// <summary>
+        /// Updates camera viewports, title bar layout, and dock layout sizing.
+        /// </summary>
+        private void UpdateLayout() {
             if (uiFont == null) {
                 return;
             }
@@ -266,7 +224,9 @@ namespace helengine.editor.app {
             int renderWidth = Math.Max(1, ClientSize.Width);
             int renderHeight = Math.Max(1, ClientSize.Height);
 
-            UpdateTitleBarLayout(ClientSize.Width);
+            if (titleBar != null) {
+                titleBar.UpdateLayout(ClientSize.Width);
+            }
 
             if (uiCameraComponent != null) {
                 uiCameraComponent.Viewport = new float4(0, 0, renderWidth, renderHeight);
@@ -278,7 +238,10 @@ namespace helengine.editor.app {
             }
         }
 
-        void UpdateDockPreview() {
+        /// <summary>
+        /// Evaluates docking hints for dragging panels and shows the preview overlay.
+        /// </summary>
+        private void UpdateDockPreview() {
             if (dockLayout == null || dockPreviewOverlay == null || Core.Instance?.InputManager == null) {
                 return;
             }
@@ -341,7 +304,11 @@ namespace helengine.editor.app {
             }
         }
 
-        void ApplyDockHint(DockableEntity entity) {
+        /// <summary>
+        /// Applies the pending dock hint to a floating dockable entity.
+        /// </summary>
+        /// <param name="entity">Dockable entity to dock.</param>
+        private void ApplyDockHint(DockableEntity entity) {
             if (!dockHintValid) {
                 return;
             }
@@ -353,72 +320,5 @@ namespace helengine.editor.app {
             dockPreviewOverlay?.Hide();
             UpdateLayout();
         }
-
-        void UpdateTitleBarLayout(int windowWidth) {
-            // Extend by 1px to avoid gaps from viewport rounding when maximizing/restoring
-            int fullWidth = windowWidth + 1;
-
-            if (titleBarBackground != null) {
-                titleBarBackground.Size = new int2(fullWidth, TitleBarHeight);
-            }
-
-            if (titleBarHitRegion != null) {
-                titleBarHitRegion.Size = new int2(fullWidth, TitleBarHeight);
-            }
-
-            float x = 8f;
-            foreach (var (entity, width) in menuButtons) {
-                entity.Position = new float3(x, 6, 0);
-                x += width + 6;
-            }
-
-            if (titleTextComponent?.Parent != null) {
-                titleTextComponent.Parent.Position = new float3(x + 10, 8, 0);
-            }
-
-            int totalControlsWidth = 0;
-            foreach (var (_, width) in windowControlButtons) {
-                totalControlsWidth += width + 6;
-            }
-
-            float controlX = Math.Max(x + 20, windowWidth - totalControlsWidth - 8);
-            foreach (var (entity, width) in windowControlButtons) {
-                entity.Position = new float3(controlX, 6, 0);
-                controlX += width + 6;
-            }
-        }
-
-        void AddWindowControl(FontAsset font, string label, int width, Action onClick) {
-            var buttonEntity = new EditorEntity {
-                LayerMask = 0b1000000000000000,
-                Position = new float3(0, 6, 0)
-            };
-            var button = new ButtonComponent(label, new int2(width, 24), font, onClick, 0f);
-            buttonEntity.AddComponent(button);
-            titleBarEntity?.AddChild(buttonEntity);
-            windowControlButtons.Add((buttonEntity, width));
-        }
-
-        int ComputeButtonWidth(FontAsset font, string label) {
-            var tight = font.MeasureTight(label);
-            return Math.Max(40, (int)MathF.Ceiling(tight.Width) + 16);
-        }
-
-        void ToggleWindowState() {
-            if (WindowState == FormWindowState.Maximized) {
-                WindowState = FormWindowState.Normal;
-            } else {
-                WindowState = FormWindowState.Maximized;
-            }
-        }
-
-        const int WM_NCLBUTTONDOWN = 0xA1;
-        const int HTCAPTION = 0x2;
-
-        [DllImport("user32.dll")]
-        static extern bool ReleaseCapture();
-
-        [DllImport("user32.dll")]
-        static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
     }
 }
