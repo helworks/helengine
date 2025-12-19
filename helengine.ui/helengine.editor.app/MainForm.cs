@@ -1,6 +1,7 @@
 using helengine.editor;
 using helengine.editor.windows;
 using helengine.sharpdx;
+using System;
 using System.IO;
 
 namespace helengine.editor.app {
@@ -15,13 +16,12 @@ namespace helengine.editor.app {
         private CameraComponent? uiCameraComponent;
         private CameraComponent? sceneCameraComponent;
         private DockableViewport? mainViewport;
+        private SceneHierarchyPanel? sceneHierarchyPanel;
         private DockLayoutEngine? dockLayout;
         private DockPreviewOverlay? dockPreviewOverlay;
         private DockableEntity? lastDragging;
         private bool dockHintValid;
-        private DockRegion dockHintRegion;
-        private float3 dockHintPos;
-        private int2 dockHintSize;
+        private DockHint dockHint;
         private FontAsset? uiFont;
         private EditorTitleBar? titleBar;
 
@@ -119,12 +119,20 @@ namespace helengine.editor.app {
 
             dockLayout = new DockLayoutEngine();
 
+            sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
             mainViewport = new DockableViewport(sceneCameraComponent, uiFont);
-            mainViewport.Dock = DockRegion.Fill;
+            sceneHierarchyPanel.Size = new int2(280, 600);
+            dockLayout.Add(sceneHierarchyPanel);
             dockLayout.Add(mainViewport);
             dockPreviewOverlay = new DockPreviewOverlay();
 
+            if (mainViewport != null && sceneHierarchyPanel != null) {
+                dockLayout.DockAsRoot(mainViewport);
+                dockLayout.DockRelative(sceneHierarchyPanel, mainViewport, DockInsertDirection.Left, 0.3f);
+            }
+
             MakeStartScene();
+            sceneHierarchyPanel.RefreshHierarchy();
 
             UpdateLayout();
 
@@ -156,9 +164,10 @@ namespace helengine.editor.app {
 
                 try {
                     Invoke(() => {
+                        Core.Instance.Update();
                         UpdateLayout();
                         UpdateDockPreview();
-                        Core.Instance.Update();
+                        sceneHierarchyPanel?.RefreshHierarchy();
                         Core.Instance.Draw();
                     });
                 } catch { }
@@ -266,19 +275,6 @@ namespace helengine.editor.app {
                 return;
             }
 
-            bool hasDocked = false;
-            for (int i = 0; i < dockables.Count; i++) {
-                var de = dockables[i];
-                if (de == dragging) {
-                    continue;
-                }
-
-                if (de.Dock != DockRegion.Floating) {
-                    hasDocked = true;
-                    break;
-                }
-            }
-
             var mouse = Core.Instance.InputManager.Mouse.GetState();
             int2 pointer = new int2(mouse.X, mouse.Y);
 
@@ -288,14 +284,17 @@ namespace helengine.editor.app {
             int2 hostSize = new int2(renderWidth, availableHeight);
             float3 origin = new float3(0, TitleBarHeight, 0);
 
-            bool fillOnly = !hasDocked;
+            if (dragging != null && dragging.ConsumeUndockRequest()) {
+                dockLayout.Undock(dragging);
+                UpdateLayout();
+            }
 
-            if (dockLayout.TryGetDockHint(pointer, hostSize, origin, fillOnly, out var region, out var pos, out var size)) {
-                dockPreviewOverlay.Show(pos, size);
+            bool fillOnly = !dockLayout.HasDocked;
+
+            if (dockLayout.TryGetDockHint(pointer, hostSize, origin, fillOnly, out var hint)) {
+                dockPreviewOverlay.Show(hint.Position, hint.Size);
                 dockHintValid = true;
-                dockHintRegion = region;
-                dockHintPos = pos;
-                dockHintSize = size;
+                dockHint = hint;
                 lastDragging = dragging;
             } else {
                 dockPreviewOverlay.Hide();
@@ -313,9 +312,9 @@ namespace helengine.editor.app {
                 return;
             }
 
-            entity.Dock = dockHintRegion;
-            int contentHeight = Math.Max(1, dockHintSize.Y - DockableEntity.TitleBarHeight);
-            entity.Size = new int2(dockHintSize.X, contentHeight);
+            if (dockLayout != null) {
+                dockLayout.Dock(entity, dockHint);
+            }
             dockHintValid = false;
             dockPreviewOverlay?.Hide();
             UpdateLayout();

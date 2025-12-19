@@ -298,8 +298,7 @@ public class ObjectManager {
     /// <param name="totalBuckets">Total buckets available.</param>
     /// <returns>Calculated bucket index.</returns>
     private int getBucket(byte renderOrder, byte totalBuckets) {
-        int gaps = 255 / totalBuckets;
-        return renderOrder / gaps;
+        return (renderOrder * totalBuckets) / 256;
     }
 
     /// <summary>

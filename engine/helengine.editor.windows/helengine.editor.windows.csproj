@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\submodules\nucleusdotnet\nucleus-dotnet\nucleus-dotnet-windows\NucleusDotNet.Windows.NETCore.csproj" />
     <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
     <ProjectReference Include="..\helengine.editor\helengine.editor.csproj" />
   </ItemGroup>

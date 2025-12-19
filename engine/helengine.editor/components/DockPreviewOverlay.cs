@@ -12,8 +12,8 @@ namespace helengine.editor {
             LayerMask = 0b1000000000000000;
             highlight = new SpriteComponent();
             highlight.Texture = TextureUtils.PixelTexture;
-            highlight.Color = new byte4(68, 49, 194, 128); // Semi-transparent accent
-            highlight.RenderOrder2D = 240;
+            highlight.Color = new byte4(64, 200, 255, 180); // Brighter translucent accent for clarity
+            highlight.RenderOrder2D = 255;
             AddComponent(highlight);
 
             Enabled = false;
@@ -25,7 +25,7 @@ namespace helengine.editor {
         /// <param name="position">Top-left position for the overlay.</param>
         /// <param name="size">Size of the overlay highlight.</param>
         public void Show(float3 position, int2 size) {
-            Position = position;
+            Position = new float3(position.X, position.Y, position.Z + 1000f);
             highlight.Size = size;
             if (!Enabled) {
                 Enabled = true;

@@ -75,11 +75,12 @@ namespace helengine {
             entity.InitChildren();
             entity.AddChild(textEntity);
 
-            // Precise centering using font-provided tight bounds
+            // Precise centering using font-provided tight bounds for width; line height keeps vertical centering stable across glyphs with descenders
             var tight = font.MeasureTight(text);
+            float lineHeight = MathF.Max(font.LineHeight, 1f);
 
             float px = (size.X - tight.Width) / 2f;
-            float py = (size.Y / 2f) - ((tight.MinTop + tight.MaxBottom) / 2f);
+            float py = (size.Y - lineHeight) / 2f;
             // Snap to pixel grid to avoid half-pixel shimmering
             px = MathF.Round(px);
             py = MathF.Round(py);
@@ -91,7 +92,7 @@ namespace helengine {
             textComponent.Text = text;
             textComponent.Font = font;
             textComponent.Color = ThemeManager.Colors.TextOnAccent;
-            textComponent.Size = new int2((int)Math.Ceiling(tight.Width), (int)Math.Ceiling(tight.Height));
+            textComponent.Size = new int2((int)Math.Ceiling(tight.Width), (int)Math.Ceiling(lineHeight));
             textComponent.RenderOrder2D = 3;
             textEntity.AddComponent(textComponent);
         }
