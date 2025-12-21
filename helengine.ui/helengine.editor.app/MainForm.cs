@@ -91,7 +91,7 @@ namespace helengine.editor.app {
         /// </summary>
         private void InitializeEditor() {
             EditorCore core = new EditorCore(null);
-            var rm3d = new SharpDXRenderManager3D();
+            var rm3d = new SharpDXRenderer3D();
             core.Initialize(rm3d, rm3d.Render2D, new InputManagerWindows(this.Handle));
 
             int renderWidth = Math.Max(1, ClientSize.Width);
