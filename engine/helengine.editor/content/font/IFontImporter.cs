@@ -4,10 +4,10 @@ namespace helengine.editor {
     /// </summary>
     public interface IFontImporter {
         /// <summary>
-        /// Imports a model representation of a font from a stream.
+        /// Imports the representation of a font from a stream.
         /// </summary>
         /// <param name="stream">Stream containing font data.</param>
         /// <returns>Imported <see cref="ModelAsset"/> for the font.</returns>
-        ModelAsset ImportModel(Stream stream);
+        FontAsset ImportFont(Stream stream);
     }
 }

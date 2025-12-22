@@ -1,5 +1,3 @@
-using System.Drawing;
-
 namespace helengine.editor {
     /// <summary>
     /// Represents a temporary glyph bitmap placement used during font import.

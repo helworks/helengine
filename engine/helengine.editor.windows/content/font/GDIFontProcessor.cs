@@ -1,5 +1,4 @@
-﻿using System.Drawing;
-using System.Drawing.Imaging;
+﻿using System.Drawing.Imaging;
 using System.Runtime.Versioning;
 using Bitmap = System.Drawing.Bitmap;
 using Brushes = System.Drawing.Brushes;

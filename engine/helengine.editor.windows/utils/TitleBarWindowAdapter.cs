@@ -1,6 +1,3 @@
-using System;
-using System.Windows.Forms;
-using helengine.editor;
 using Nucleus.Platform.Windows.Interop;
 
 namespace helengine.editor.windows {

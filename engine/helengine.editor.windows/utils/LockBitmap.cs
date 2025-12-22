@@ -1,5 +1,4 @@
-﻿using System.Drawing;
-using System.Drawing.Imaging;
+﻿using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 
 namespace helengine {
@@ -7,9 +6,9 @@ namespace helengine {
     /// Provides a simple helper for locking and editing bitmap pixel data safely.
     /// </summary>
     public class LockBitmap {
-        readonly Bitmap source = null;
+        readonly Bitmap source;
         IntPtr Iptr = IntPtr.Zero;
-        BitmapData bitmapData = null;
+        BitmapData bitmapData;
 
         /// <summary>
         /// Initializes a new <see cref="LockBitmap"/> instance for the given bitmap.

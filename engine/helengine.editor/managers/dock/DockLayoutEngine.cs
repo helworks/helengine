@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
-
 namespace helengine.editor {
     /// <summary>
-    /// Lays out dockable editor entities using a split-tree layout similar to Unity's docking system.
+    /// Lays out dockable editor entities using a split-tree layout
     /// </summary>
     public class DockLayoutEngine {
         const int EdgeMinThreshold = 16;

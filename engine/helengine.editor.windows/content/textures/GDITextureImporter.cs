@@ -9,7 +9,6 @@ namespace helengine.editor {
         /// <param name="stream">Stream containing the raw texture data.</param>
         /// <returns>Created <see cref="TextureAsset"/> instance.</returns>
         public TextureAsset ImportTexture(Stream stream) {
-
             TextureAsset rawTex = new TextureAsset();
 
             throw new NotImplementedException();
