@@ -9,30 +9,77 @@ namespace helengine.editor.app {
     /// Main editor host form for Helengine, wiring up rendering and dockable UI.
     /// </summary>
     public partial class MainForm : Form {
+        /// <summary>
+        /// Background thread that drives the editor update loop.
+        /// </summary>
         private Thread thread;
+        /// <summary>
+        /// Tracks whether the form has been closed to stop the loop.
+        /// </summary>
         private bool closed;
+        /// <summary>
+        /// Tracks whether initialization has completed to guard resize logic.
+        /// </summary>
         private bool initialized;
+        /// <summary>
+        /// Stores the project path used to locate project assets.
+        /// </summary>
+        string projectPath = string.Empty;
 
+        /// <summary>
+        /// Camera used for 2D UI rendering.
+        /// </summary>
         private CameraComponent? uiCameraComponent;
+        /// <summary>
+        /// Camera used for rendering the scene viewport.
+        /// </summary>
         private CameraComponent? sceneCameraComponent;
+        /// <summary>
+        /// Dockable viewport used for 3D scene rendering.
+        /// </summary>
         private DockableViewport? mainViewport;
+        /// <summary>
+        /// Dockable panel that shows the scene hierarchy.
+        /// </summary>
         private SceneHierarchyPanel? sceneHierarchyPanel;
+        /// <summary>
+        /// Dockable assets panel that mirrors the project assets folder.
+        /// </summary>
+        AssetBrowserPanel? assetBrowserPanel;
+        /// <summary>
+        /// Docking layout engine used to arrange panels.
+        /// </summary>
         private DockLayoutEngine? dockLayout;
+        /// <summary>
+        /// Overlay used to preview docking positions during drag operations.
+        /// </summary>
         private DockPreviewOverlay? dockPreviewOverlay;
+        /// <summary>
+        /// Last dockable entity that was dragged, used to finalize docking.
+        /// </summary>
         private DockableEntity? lastDragging;
+        /// <summary>
+        /// Tracks whether a docking hint is currently valid.
+        /// </summary>
         private bool dockHintValid;
+        /// <summary>
+        /// Stores the active docking hint during drag operations.
+        /// </summary>
         private DockHint dockHint;
+        /// <summary>
+        /// UI font used for title bars and panel content.
+        /// </summary>
         private FontAsset? uiFont;
+        /// <summary>
+        /// Custom title bar UI component.
+        /// </summary>
         private EditorTitleBar? titleBar;
 
         /// <summary>
         /// Initializes a new instance of the main editor form and configures custom chrome.
         /// </summary>
         public MainForm() {
-            InitializeComponent();
-            ControlBox = false;
-            FormBorderStyle = FormBorderStyle.None;
-
+            InitializeWindowFrame();
             InitializeEditor();
         }
 
@@ -40,17 +87,30 @@ namespace helengine.editor.app {
         /// Initializes the main editor form for a specific project path.
         /// </summary>
         /// <param name="projectPath">Path to the project to open.</param>
-        public MainForm(string projectPath) : this() {
-            if (!string.IsNullOrWhiteSpace(projectPath)) {
-                string title = $"helengine - {Path.GetFileName(projectPath)}";
+        public MainForm(string projectPath) {
+            InitializeWindowFrame();
+            this.projectPath = projectPath ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(this.projectPath)) {
+                string title = $"helengine - {Path.GetFileName(this.projectPath)}";
                 SetWindowTitle(title);
             }
+
+            InitializeEditor();
         }
 
         /// <summary>
         /// Gets the height of the active title bar, falling back to the default when uninitialized.
         /// </summary>
         private int TitleBarHeight => titleBar?.Height ?? EditorTitleBar.HeightPixels;
+
+        /// <summary>
+        /// Initializes the form shell and window chrome settings.
+        /// </summary>
+        void InitializeWindowFrame() {
+            InitializeComponent();
+            ControlBox = false;
+            FormBorderStyle = FormBorderStyle.None;
+        }
 
         /// <summary>
         /// Updates the form title text and keeps the title bar in sync.
@@ -120,14 +180,18 @@ namespace helengine.editor.app {
             dockLayout = new DockLayoutEngine();
 
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
+            assetBrowserPanel = new AssetBrowserPanel(uiFont, projectPath);
             mainViewport = new DockableViewport(sceneCameraComponent, uiFont);
             sceneHierarchyPanel.Size = new int2(280, 600);
+            assetBrowserPanel.Size = new int2(500, 240);
             dockLayout.Add(sceneHierarchyPanel);
+            dockLayout.Add(assetBrowserPanel);
             dockLayout.Add(mainViewport);
             dockPreviewOverlay = new DockPreviewOverlay();
 
-            if (mainViewport != null && sceneHierarchyPanel != null) {
+            if (mainViewport != null && sceneHierarchyPanel != null && assetBrowserPanel != null) {
                 dockLayout.DockAsRoot(mainViewport);
+                dockLayout.DockRelative(assetBrowserPanel, mainViewport, DockInsertDirection.Bottom, 0.7f);
                 dockLayout.DockRelative(sceneHierarchyPanel, mainViewport, DockInsertDirection.Left, 0.3f);
             }
 

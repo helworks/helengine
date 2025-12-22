@@ -11,6 +11,7 @@ namespace helengine.editor {
         public DockableViewport(CameraComponent camera, FontAsset font)
             : base(font) {
             Camera = camera;
+            Title = "Viewport";
             updateViewport();
         }
 
