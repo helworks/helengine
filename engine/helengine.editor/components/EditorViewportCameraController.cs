@@ -110,10 +110,7 @@ namespace helengine.editor {
         /// Updates camera position based on right-click state and keyboard input.
         /// </summary>
         public override void Update() {
-            var input = Core.Instance.InputManager;
-            if (input == null || Parent == null) {
-                return;
-            }
+            InputManager input = Core.Instance.InputManager;
 
             if (!hasOrientationState) {
                 InitializeYawPitchFromOrientation();

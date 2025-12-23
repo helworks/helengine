@@ -10,9 +10,9 @@ public class ObjectManager {
     public ObjectManager() {
         Entities = new List<Entity>();
 
-        UpdateEntities = new List<IUpdateable>[TotalUpdateBuckets];
+        UpdateEntities = new UpdateBucket[TotalUpdateBuckets];
         for (int i = 0; i < TotalUpdateBuckets; i++) {
-            UpdateEntities[i] = new List<IUpdateable>();
+            UpdateEntities[i] = new UpdateBucket(64);
         }
 
         Drawables2D = new List<IDrawable2D>();
@@ -35,7 +35,7 @@ public class ObjectManager {
     /// <summary>
     /// Gets update buckets used to group updateables by order.
     /// </summary>
-    public List<IUpdateable>[] UpdateEntities { get; private set; }
+    public UpdateBucket[] UpdateEntities { get; private set; }
 
     /// <summary>
     /// Gets the number of update buckets.
@@ -60,7 +60,7 @@ public class ObjectManager {
     /// <summary>
     /// Gets the number of 3D render buckets.
     /// </summary>
-    public byte TotalBuckets3D { get; private set; } = 3;
+    public byte TotalBuckets3D { get; private set; } = 4;
 
     /// <summary>
     /// Gets the number of 3D variants (bins) supported.
@@ -119,8 +119,15 @@ public class ObjectManager {
     /// </summary>
     /// <param name="entity">Updateable instance.</param>
     public virtual void RegisterForUpdate(IUpdateable entity) {
-        int bucket = entity.UpdateOrder / TotalUpdateBuckets;
-        UpdateEntities[bucket].Add(entity);
+        if (entity.UpdateBucketIndex >= 0 && entity.UpdateBucket >= 0) {
+            RemoveFromUpdate(entity);
+        }
+
+        int bucket = getBucket(entity.UpdateOrder, TotalUpdateBuckets);
+        UpdateBucket updateBucket = UpdateEntities[bucket];
+        updateBucket.Add(entity, out int pos);
+        entity.UpdateBucket = bucket;
+        entity.UpdateBucketIndex = pos;
     }
 
     /// <summary>
@@ -128,8 +135,21 @@ public class ObjectManager {
     /// </summary>
     /// <param name="entity">Updateable to remove.</param>
     public virtual void RemoveFromUpdate(IUpdateable entity) {
-        int bucket = entity.UpdateOrder / TotalUpdateBuckets;
-        UpdateEntities[bucket].Remove(entity);
+        int bucket = entity.UpdateBucket;
+        int pos = entity.UpdateBucketIndex;
+        if (bucket < 0 || pos < 0) {
+            return;
+        }
+
+        UpdateBucket updateBucket = UpdateEntities[bucket];
+        IUpdateable swapped = updateBucket.RemoveSwapAt(pos);
+        if (swapped != null) {
+            swapped.UpdateBucket = bucket;
+            swapped.UpdateBucketIndex = pos;
+        }
+
+        entity.UpdateBucket = -1;
+        entity.UpdateBucketIndex = -1;
     }
 
     /// <summary>
@@ -171,13 +191,9 @@ public class ObjectManager {
                 var reg = cam.Get2DRegistry();
                 if (reg.Map.TryGetValue(drawable, out var idx)) {
                     var bucket = reg.Buckets[idx.Bucket];
-                    bucket.RemoveAt(idx.Pos);
-                    // Preserve draw order by updating indices for the shifted items.
-                    for (int k = idx.Pos; k < bucket.Count; k++) {
-                        IDrawable2D moved = bucket.Items[k];
-                        if (moved != null) {
-                            reg.Map[moved] = new Index2D(idx.Bucket, k);
-                        }
+                    IDrawable2D swapped = bucket.RemoveSwapAt(idx.Pos);
+                    if (swapped != null) {
+                        reg.Map[swapped] = new Index2D(idx.Bucket, idx.Pos);
                     }
                     reg.Map.Remove(drawable);
                 }
@@ -203,7 +219,7 @@ public class ObjectManager {
                 if ((drawable.Parent.LayerMask & cam.LayerMask) == 0) continue;
 
                 var reg = cam.Get3DRegistry();
-                int bin = getStateBin3D(drawable, reg.BinsPerBucket);
+                int bin = getStateBin3D(drawable.Model, reg.BinsPerBucket);
                 reg.Buckets[variant][bucket][bin].Add(drawable, out int pos);
                 reg.Map[drawable] = new Index3D(variant, bucket, bin, pos);
             }
@@ -235,6 +251,93 @@ public class ObjectManager {
     }
 
     /// <summary>
+    /// Ensures the update bucket for the given order can fit additional items.
+    /// </summary>
+    /// <param name="updateOrder">Update order used to select the bucket.</param>
+    /// <param name="additional">Number of items expected to be added.</param>
+    public void ReserveUpdateCapacity(byte updateOrder, int additional) {
+        if (additional < 1) {
+            return;
+        }
+
+        int bucket = getBucket(updateOrder, TotalUpdateBuckets);
+        UpdateBucket updateBucket = UpdateEntities[bucket];
+        updateBucket.EnsureCapacity(updateBucket.Count + additional);
+    }
+
+    /// <summary>
+    /// Ensures 2D render buckets can fit additional items for matching cameras.
+    /// </summary>
+    /// <param name="renderOrder">Render order used to select the bucket.</param>
+    /// <param name="additional">Number of items expected to be added.</param>
+    /// <param name="layerMask">Layer mask used to match cameras.</param>
+    public void ReserveRender2DCapacity(byte renderOrder, int additional, ushort layerMask) {
+        if (additional < 1) {
+            return;
+        }
+
+        int bucket = getBucket(renderOrder, TotalBuckets2D);
+        for (int i = 0; i < TotalCameraBuckets; i++) {
+            int camCount = Cameras[i].Count;
+            for (int j = 0; j < camCount; j++) {
+                var cam = Cameras[i][j] as CameraComponent;
+                if (cam == null) {
+                    continue;
+                }
+                if ((layerMask & cam.LayerMask) == 0) {
+                    continue;
+                }
+
+                var reg = cam.Get2DRegistry();
+                RenderBucket2D renderBucket = reg.Buckets[bucket];
+                renderBucket.EnsureCapacity(renderBucket.Count + additional);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ensures 3D render buckets can fit additional items for matching cameras.
+    /// </summary>
+    /// <param name="renderOrder">Render order used to select the bucket.</param>
+    /// <param name="variant">Render pipeline variant to target.</param>
+    /// <param name="model">Model used to determine the state bin.</param>
+    /// <param name="additional">Number of items expected to be added.</param>
+    /// <param name="layerMask">Layer mask used to match cameras.</param>
+    public void ReserveRender3DCapacity(byte renderOrder, byte variant, RuntimeModel model, int additional, ushort layerMask) {
+        if (additional < 1) {
+            return;
+        }
+
+        int bucket = getBucket(renderOrder, TotalBuckets3D);
+        for (int i = 0; i < TotalCameraBuckets; i++) {
+            int camCount = Cameras[i].Count;
+            for (int j = 0; j < camCount; j++) {
+                var cam = Cameras[i][j] as CameraComponent;
+                if (cam == null) {
+                    continue;
+                }
+                if ((layerMask & cam.LayerMask) == 0) {
+                    continue;
+                }
+
+                var reg = cam.Get3DRegistry();
+                if (reg.BinsPerBucket < 1) {
+                    continue;
+                }
+
+                int variantIndex = variant;
+                if (variantIndex < 0 || variantIndex >= reg.Buckets.Length) {
+                    continue;
+                }
+
+                int bin = getStateBin3D(model, reg.BinsPerBucket);
+                RenderBucket3D renderBucket = reg.Buckets[variantIndex][bucket][bin];
+                renderBucket.EnsureCapacity(renderBucket.Count + additional);
+            }
+        }
+    }
+
+    /// <summary>
     /// Registers a camera for rendering and backfills existing drawables into its registries.
     /// </summary>
     /// <param name="camera">Camera to register.</param>
@@ -252,7 +355,7 @@ public class ObjectManager {
                 if ((drawable.Parent.LayerMask & camera.LayerMask) != 0) {
                     int drawBucket3D = getBucket(drawable.RenderOrder3D, TotalBuckets3D);
                     int variant = drawable.Variant;
-                    int bin = getStateBin3D(drawable, reg3.BinsPerBucket);
+                    int bin = getStateBin3D(drawable.Model, reg3.BinsPerBucket);
                     reg3.Buckets[variant][drawBucket3D][bin].Add(drawable, out int pos3);
                     reg3.Map[drawable] = new Index3D(variant, drawBucket3D, bin, pos3);
                 }
@@ -288,10 +391,15 @@ public class ObjectManager {
     /// </summary>
     public virtual void Update() {
         for (int i = 0; i < TotalUpdateBuckets; i++) {
-            List<IUpdateable> entities = UpdateEntities[i];
+            UpdateBucket bucket = UpdateEntities[i];
+            int j = 0;
+            while (j < bucket.Count) {
+                IUpdateable item = bucket.Items[j];
+                item.Update();
 
-            for (int j = 0; j < entities.Count; j++) {
-                entities[j].Update();
+                if (j < bucket.Count && ReferenceEquals(bucket.Items[j], item)) {
+                    j++;
+                }
             }
         }
     }
@@ -307,14 +415,16 @@ public class ObjectManager {
     }
 
     /// <summary>
-    /// Calculates a stable bin for a drawable based on its model identifier.
+    /// Calculates a stable bin for a model based on its identifier.
     /// </summary>
-    /// <param name="drawable">Drawable to hash.</param>
+    /// <param name="model">Model to hash.</param>
     /// <param name="bins">Number of bins available.</param>
     /// <returns>Bin index.</returns>
-    private static int getStateBin3D(IDrawable3D drawable, int bins) {
-        var model = drawable.Model;
-        if (model == null || bins <= 1) return 0;
+    private static int getStateBin3D(RuntimeModel model, int bins) {
+        if (model == null || bins <= 1) {
+            return 0;
+        }
+
         int h = model.Id != null ? model.Id.GetHashCode() : 0;
         uint uh = unchecked((uint)h);
         return (int)(uh % (uint)bins);

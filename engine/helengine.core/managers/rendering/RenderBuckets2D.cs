@@ -48,15 +48,45 @@ namespace helengine {
         public void Clear() { Count = 0; }
 
         /// <summary>
+        /// Ensures the bucket can hold at least the desired number of items.
+        /// </summary>
+        /// <param name="desiredCount">Total number of items the bucket should hold.</param>
+        public void EnsureCapacity(int desiredCount) {
+            EnsureCapacity(desiredCount, false);
+        }
+
+        /// <summary>
+        /// Ensures the bucket can hold at least the desired number of items.
+        /// </summary>
+        /// <param name="desiredCount">Total number of items the bucket should hold.</param>
+        /// <param name="warnOnExpand">True to log a warning when the bucket expands.</param>
+        public void EnsureCapacity(int desiredCount, bool warnOnExpand) {
+            if (desiredCount <= Items.Length) {
+                return;
+            }
+
+            int oldCap = Items.Length;
+            int newCap = Items.Length;
+            if (newCap < 1) {
+                newCap = 1;
+            }
+            while (newCap < desiredCount) {
+                newCap <<= 1;
+            }
+
+            Array.Resize(ref Items, newCap);
+            if (warnOnExpand) {
+                Logger.WriteWarning($"RenderBucket2D expanded from {oldCap} to {newCap}.");
+            }
+        }
+
+        /// <summary>
         /// Adds a drawable and returns its position.
         /// </summary>
         /// <param name="item">Drawable to add.</param>
         /// <param name="pos">Position assigned.</param>
         public void Add(IDrawable2D item, out int pos) {
-            if (Count == Items.Length) {
-                int newCap = Items.Length << 1;
-                Array.Resize(ref Items, newCap);
-            }
+            EnsureCapacity(Count + 1, true);
             pos = Count;
             Items[Count++] = item;
         }

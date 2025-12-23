@@ -3,7 +3,18 @@ namespace helengine {
     /// Base component that participates in the engine update loop.
     /// </summary>
     public class UpdateComponent : Component, IUpdateable {
+        /// <summary>
+        /// Stores the update order used for bucketing.
+        /// </summary>
         byte updateOrder;
+        /// <summary>
+        /// Stores the current update bucket assignment.
+        /// </summary>
+        int updateBucket = -1;
+        /// <summary>
+        /// Stores the index inside the current update bucket.
+        /// </summary>
+        int updateBucketIndex = -1;
 
         /// <summary>
         /// Gets or sets the update order bucket for this component.
@@ -21,6 +32,22 @@ namespace helengine {
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Gets or sets the update bucket assigned by the object manager.
+        /// </summary>
+        public int UpdateBucket {
+            get { return updateBucket; }
+            set { updateBucket = value; }
+        }
+
+        /// <summary>
+        /// Gets or sets the position within the assigned update bucket.
+        /// </summary>
+        public int UpdateBucketIndex {
+            get { return updateBucketIndex; }
+            set { updateBucketIndex = value; }
         }
 
         /// <summary>

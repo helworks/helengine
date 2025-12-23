@@ -9,6 +9,16 @@ namespace helengine {
         byte UpdateOrder { get; set; }
 
         /// <summary>
+        /// Gets or sets the update bucket index assigned by the object manager.
+        /// </summary>
+        int UpdateBucket { get; set; }
+
+        /// <summary>
+        /// Gets or sets the position within the assigned update bucket.
+        /// </summary>
+        int UpdateBucketIndex { get; set; }
+
+        /// <summary>
         /// Executes a frame update.
         /// </summary>
         void Update();

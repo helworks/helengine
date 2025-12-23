@@ -16,6 +16,9 @@ namespace helengine {
         private readonly byte[] _keyState = new byte[256];
         private readonly List<Keys> _keys = new List<Keys>(10);
 
+        /// <summary>
+        /// Tracks whether the keyboard input device should capture state.
+        /// </summary>
         private bool _isActive;
 
         private Predicate<Keys> isKeyReleasedPredicate;

@@ -27,41 +27,13 @@ namespace helengine.editor.app {
         string projectPath = string.Empty;
 
         /// <summary>
-        /// Camera used for 2D UI rendering.
+        /// Editor session that owns core editor state and panels.
         /// </summary>
-        CameraComponent? uiCameraComponent;
+        EditorSession editorSession;
         /// <summary>
-        /// Camera used for rendering the scene viewport.
+        /// Renderer driving the editor render loop.
         /// </summary>
-        CameraComponent? sceneCameraComponent;
-        /// <summary>
-        /// Dockable viewport used for 3D scene rendering.
-        /// </summary>
-        DockableViewport? mainViewport;
-        /// <summary>
-        /// Dockable panel that shows the scene hierarchy.
-        /// </summary>
-        SceneHierarchyPanel? sceneHierarchyPanel;
-        /// <summary>
-        /// Dockable assets panel that mirrors the project assets folder.
-        /// </summary>
-        AssetBrowserPanel? assetBrowserPanel;
-        /// <summary>
-        /// Dockable panel that will host property details for selections.
-        /// </summary>
-        PropertiesPanel? propertiesPanel;
-        /// <summary>
-        /// Docking manager that handles docking layout, previews, and resizing.
-        /// </summary>
-        DockingManager? dockingManager;
-        /// <summary>
-        /// UI font used for title bars and panel content.
-        /// </summary>
-        FontAsset? uiFont;
-        /// <summary>
-        /// Custom title bar UI component.
-        /// </summary>
-        EditorTitleBar? titleBar;
+        SharpDXRenderer3D renderer3D;
 
         /// <summary>
         /// Initializes the main editor form for a specific project path.
@@ -71,19 +43,14 @@ namespace helengine.editor.app {
             InitializeWindowFrame();
 
             this.projectPath = projectPath;
-            
+
+            string title = Text;
             if (!string.IsNullOrWhiteSpace(this.projectPath)) {
-                string title = $"helengine - {Path.GetFileName(this.projectPath)}";
-                SetWindowTitle(title);
+                title = $"helengine - {Path.GetFileName(this.projectPath)}";
             }
 
-            InitializeEditor();
+            InitializeEditor(title);
         }
-
-        /// <summary>
-        /// Gets the height of the active title bar, falling back to the default when uninitialized.
-        /// </summary>
-        private int TitleBarHeight => titleBar?.Height ?? EditorTitleBar.HeightPixels;
 
         /// <summary>
         /// Initializes the form shell and window chrome settings.
@@ -100,112 +67,39 @@ namespace helengine.editor.app {
         /// <param name="title">Title text to display.</param>
         private void SetWindowTitle(string title) {
             Text = title;
-            if (titleBar != null) {
-                titleBar.Title = title;
-            }
-        }
-
-        /// <summary>
-        /// Creates a simple starter scene with a cube and plane to exercise rendering.
-        /// </summary>
-        private void MakeStartScene() {
-            Core core = Core.Instance;
-            EditorEntity cube = new EditorEntity();
-            cube.LayerMask = 0b0100000000000000;
-            MeshComponent mesh = new MeshComponent();
-            cube.AddComponent(mesh);
-            ModelAsset modelData = ModelUtils.GenerateCubeMesh(float3.Zero, float3.One);
-            RuntimeModel renderData = core.RenderManager3D.BuildModelFromRaw(modelData);
-            mesh.Model = renderData;
-
-            EditorEntity plane = new EditorEntity();
-            plane.LayerMask = 0b0100000000000000;
-            plane.Scale = new float3(10, 1, 10);
-            MeshComponent planeMesh = new MeshComponent();
-            plane.AddComponent(planeMesh);
-            ModelAsset planeModelData = ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One);
-            RuntimeModel planeRenderData = core.RenderManager3D.BuildModelFromRaw(planeModelData);
-            planeMesh.Model = planeRenderData;
+            editorSession.SetTitle(title);
         }
 
         /// <summary>
         /// Sets up rendering, input, cameras, UI chrome, and the initial layout.
         /// </summary>
-        private void InitializeEditor() {
+        /// <param name="titleText">Initial window title text.</param>
+        private void InitializeEditor(string titleText) {
             EditorCore core = new EditorCore(null);
-            var rm3d = new SharpDXRenderer3D();
-            core.Initialize(rm3d, rm3d.Render2D, new InputManagerWindows(this.Handle));
+
+            renderer3D = new SharpDXRenderer3D();
+            InputManager inputManager = new InputManagerWindows(this.Handle);
+            core.Initialize(renderer3D, renderer3D.Render2D, inputManager);
 
             int renderWidth = Math.Max(1, ClientSize.Width);
             int renderHeight = Math.Max(1, ClientSize.Height);
-            core.RenderManager3D.AddWindow(this.Handle, renderWidth, renderHeight);
+            renderer3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
-            uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
+            FontAsset uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
+            editorSession = new EditorSession(core, projectPath, uiFont, titleText, renderer3D, renderer3D.Render2D, inputManager, renderWidth, renderHeight);
 
-            EditorEntity uiCam = new EditorEntity();
-            uiCam.Position = new float3(0, 3, -8);
-            uiCameraComponent = new CameraComponent();
-            uiCameraComponent.LayerMask = 0b1000000000000000;
-            uiCameraComponent.Viewport = new float4(0, 0, renderWidth, renderHeight);
-            uiCameraComponent.CameraDrawOrder = 255;
-            uiCam.AddComponent(uiCameraComponent);
+            TitleBarWindowAdapter.Attach(editorSession.TitleBar, this);
+            SetWindowTitle(titleText);
 
-            EditorEntity sceneCam = new EditorEntity();
-            sceneCam.Position = new float3(0, 3, -8);
-            sceneCameraComponent = new CameraComponent();
-            sceneCameraComponent.LayerMask = 0b0100000000000000;
-            sceneCam.AddComponent(sceneCameraComponent);
-            sceneCam.AddComponent(new EditorViewportCameraController(sceneCameraComponent));
-            float3 toOrigin = float3.Normalize(new float3(-sceneCam.Position.X, -sceneCam.Position.Y, -sceneCam.Position.Z));
-            float yaw = MathF.Atan2(toOrigin.X, -toOrigin.Z);
-            float pitch = MathF.Asin(toOrigin.Y);
-            float4 orientation;
-            float4.CreateFromYawPitchRoll(yaw, pitch, 0f, out orientation);
-            sceneCam.Orientation = orientation;
-
-            titleBar = new EditorTitleBar(uiFont, ClientSize.Width, Text);
-            TitleBarWindowAdapter.Attach(titleBar, this);
-            SetWindowTitle(Text);
-
-            dockingManager = new DockingManager();
-
-            sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
-            assetBrowserPanel = new AssetBrowserPanel(uiFont, projectPath);
-            mainViewport = new DockableViewport(sceneCameraComponent, uiFont);
-            propertiesPanel = new PropertiesPanel(uiFont);
-            sceneHierarchyPanel.Size = new int2(280, 600);
-            assetBrowserPanel.Size = new int2(500, 240);
-            propertiesPanel.Size = new int2(280, 600);
-            dockingManager.Layout.Add(sceneHierarchyPanel);
-            dockingManager.Layout.Add(assetBrowserPanel);
-            dockingManager.Layout.Add(mainViewport);
-            dockingManager.Layout.Add(propertiesPanel);
-
-            if (mainViewport != null && sceneHierarchyPanel != null && assetBrowserPanel != null && propertiesPanel != null && dockingManager != null) {
-                dockingManager.Layout.DockAsRoot(mainViewport);
-                dockingManager.Layout.DockRelative(assetBrowserPanel, mainViewport, DockInsertDirection.Bottom, 0.7f);
-                dockingManager.Layout.DockRelative(sceneHierarchyPanel, mainViewport, DockInsertDirection.Left, 0.3f);
-                dockingManager.Layout.DockRelative(propertiesPanel, mainViewport, DockInsertDirection.Right, 0.75f);
-            }
-
-            MakeStartScene();
-            sceneHierarchyPanel.RefreshHierarchy();
-
-            UpdateLayout();
+            UpdateMinimumWindowSize();
+            renderWidth = Math.Max(1, ClientSize.Width);
+            renderHeight = Math.Max(1, ClientSize.Height);
+            editorSession.UpdateLayout(renderWidth, renderHeight);
 
             thread = new Thread(RunEditorLoop);
             thread.Start();
 
             initialized = true;
-
-            //EditorEntity fpsView = new EditorEntity();
-            //fpsView.LayerMask = 0b00000010;
-            //TextComponent fpsText = new TextComponent();
-            //fpsText.Size = new int2(100, 100);
-            //fpsText.Text = "FPS 200";
-            //fpsView.Position = new float3(500, 100, 0);
-            //fpsView.AddComponent(fpsText);
-            //fpsText.Font = fontAsset;
         }
 
         /// <summary>
@@ -221,11 +115,14 @@ namespace helengine.editor.app {
 
                 try {
                     Invoke(() => {
-                        Core.Instance.Update();
-                        UpdateLayout();
-                        UpdateDocking();
-                        sceneHierarchyPanel?.RefreshHierarchy();
-                        Core.Instance.Draw();
+                        if (UpdateMinimumWindowSize()) {
+                            return;
+                        }
+
+                        int renderWidth = Math.Max(1, ClientSize.Width);
+                        int renderHeight = Math.Max(1, ClientSize.Height);
+                        editorSession.UpdateFrame(renderWidth, renderHeight);
+                        UpdateDockingCursor();
                     });
                 } catch { }
             }
@@ -239,7 +136,7 @@ namespace helengine.editor.app {
             base.OnClosed(e);
 
             closed = true;
-            Core.Instance.Dispose();
+            editorSession.Dispose();
         }
 
         /// <summary>
@@ -249,7 +146,7 @@ namespace helengine.editor.app {
         protected override void OnActivated(EventArgs e) {
             base.OnActivated(e);
 
-            Core.Instance?.InputManager?.SetKeyboardActive(true);
+            editorSession.SetKeyboardActive(true);
         }
 
         /// <summary>
@@ -259,7 +156,7 @@ namespace helengine.editor.app {
         protected override void OnDeactivate(EventArgs e) {
             base.OnDeactivate(e);
 
-            Core.Instance?.InputManager?.SetKeyboardActive(false);
+            editorSession.SetKeyboardActive(false);
         }
 
         /// <summary>
@@ -272,62 +169,42 @@ namespace helengine.editor.app {
                 return;
             }
 
-            var rm3d = Core.Instance?.RenderManager3D;
-            if (rm3d != null) {
-                rm3d.OnWindowResize(Handle, ClientSize.Width, ClientSize.Height);
-            }
-            UpdateLayout();
-        }
-
-        /// <summary>
-        /// Updates camera viewports, title bar layout, and dock layout sizing.
-        /// </summary>
-        private void UpdateLayout() {
-            if (uiFont == null) {
-                return;
-            }
-
-            int renderWidth = Math.Max(1, ClientSize.Width);
-            int renderHeight = Math.Max(1, ClientSize.Height);
-
+            renderer3D.OnWindowResize(Handle, ClientSize.Width, ClientSize.Height);
             if (UpdateMinimumWindowSize()) {
                 return;
             }
-
-            if (titleBar != null) {
-                titleBar.UpdateLayout(ClientSize.Width);
-            }
-
-            if (uiCameraComponent != null) {
-                uiCameraComponent.Viewport = new float4(0, 0, renderWidth, renderHeight);
-            }
-
-            if (dockingManager != null) {
-                int availableHeight = Math.Max(0, renderHeight - TitleBarHeight);
-                dockingManager.Layout.Layout(new int2(renderWidth, availableHeight), new float3(0, TitleBarHeight, 0));
-            }
+            int renderWidth = Math.Max(1, ClientSize.Width);
+            int renderHeight = Math.Max(1, ClientSize.Height);
+            editorSession.UpdateLayout(renderWidth, renderHeight);
         }
 
         /// <summary>
-        /// Updates docking interactions and applies cursor feedback.
+        /// Applies the minimum window size needed to fit docked panels and the title bar.
         /// </summary>
-        void UpdateDocking() {
-            if (dockingManager == null || Core.Instance?.InputManager == null) {
-                return;
+        /// <returns>True when the window size was adjusted.</returns>
+        bool UpdateMinimumWindowSize() {
+            int2 minWindow = editorSession.MinimumWindowSize;
+            int minWidth = Math.Max(1, minWindow.X);
+            int minHeight = Math.Max(1, minWindow.Y);
+            MinimumSize = new Size(minWidth, minHeight);
+
+            int targetWidth = Math.Max(Width, minWidth);
+            int targetHeight = Math.Max(Height, minHeight);
+            if (targetWidth != Width || targetHeight != Height) {
+                Size = new Size(targetWidth, targetHeight);
+                return true;
             }
 
-            var inputManager = Core.Instance.InputManager;
-            int2 pointer = inputManager.GetMousePosition();
+            return false;
+        }
 
-            int renderWidth = Math.Max(1, ClientSize.Width);
-            int renderHeight = Math.Max(1, ClientSize.Height);
-            int availableHeight = Math.Max(0, renderHeight - TitleBarHeight);
-            int2 hostSize = new int2(renderWidth, availableHeight);
-            float3 origin = new float3(0, TitleBarHeight, 0);
+        /// <summary>
+        /// Updates the cursor based on docking state and resize hit testing.
+        /// </summary>
+        void UpdateDockingCursor() {
+            int2 pointer = editorSession.PointerPosition;
 
-            bool layoutDirty = dockingManager.Update(pointer, inputManager.GetMouseLeftButtonState(), hostSize, origin);
-
-            switch (dockingManager.CursorState) {
+            switch (editorSession.DockingCursorState) {
                 case DockingCursorState.VerticalSplit:
                     Cursor = Cursors.VSplit;
                     break;
@@ -342,34 +219,6 @@ namespace helengine.editor.app {
                     }
                     break;
             }
-
-            if (layoutDirty) {
-                UpdateLayout();
-            }
-        }
-
-        /// <summary>
-        /// Applies the minimum window size needed to fit docked panels and the title bar.
-        /// </summary>
-        /// <returns>True when the window size was adjusted.</returns>
-        bool UpdateMinimumWindowSize() {
-            if (dockingManager == null) {
-                return false;
-            }
-
-            int2 minHost = dockingManager.MinimumHostSize;
-            int minWidth = Math.Max(1, minHost.X);
-            int minHeight = Math.Max(1, minHost.Y + TitleBarHeight);
-            MinimumSize = new Size(minWidth, minHeight);
-
-            int targetWidth = Math.Max(Width, minWidth);
-            int targetHeight = Math.Max(Height, minHeight);
-            if (targetWidth != Width || targetHeight != Height) {
-                Size = new Size(targetWidth, targetHeight);
-                return true;
-            }
-
-            return false;
         }
 
         /// <summary>
