@@ -56,6 +56,10 @@ namespace helengine.editor {
         /// Gets the cursor state requested by the docking system.
         /// </summary>
         public DockingCursorState CursorState => cursorState;
+        /// <summary>
+        /// Gets the minimum host size required to accommodate all docked panels.
+        /// </summary>
+        public int2 MinimumHostSize => layout.GetMinimumHostSize();
 
         /// <summary>
         /// Updates docking interactions and returns whether layout should refresh.

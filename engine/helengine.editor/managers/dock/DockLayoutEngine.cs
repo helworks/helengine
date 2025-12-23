@@ -166,6 +166,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Gets the minimum host size required to satisfy all docked panel minimum sizes.
+        /// </summary>
+        /// <returns>Minimum host size in pixels.</returns>
+        public int2 GetMinimumHostSize() {
+            if (root == null) {
+                return new int2(1, 1);
+            }
+
+            GetMinSize(root, out int minWidth, out int minHeight);
+            int paddedWidth = minWidth + padding * 2;
+            int paddedHeight = minHeight + padding * 2;
+            return new int2(Math.Max(1, paddedWidth), Math.Max(1, paddedHeight));
+        }
+
+        /// <summary>
         /// Attempts to find a resize handle under the pointer and returns its axis.
         /// </summary>
         /// <param name="pointer">Pointer position in screen or host coordinates.</param>
@@ -667,6 +682,21 @@ namespace helengine.editor {
                 if (isVertical) {
                     float availableWidth = right - left;
                     float splitWidth = MathF.Max(1f, availableWidth * SplitFraction);
+                    if (availableWidth > 0f) {
+                        GetMinSize(First, out int firstMinWidth, out _);
+                        GetMinSize(Second, out int secondMinWidth, out _);
+
+                        float minSplit = firstMinWidth + gap * 0.5f;
+                        float maxSplit = availableWidth - secondMinWidth - gap * 0.5f;
+                        if (minSplit > maxSplit) {
+                            float midpoint = (minSplit + maxSplit) * 0.5f;
+                            minSplit = midpoint;
+                            maxSplit = midpoint;
+                        }
+
+                        splitWidth = Math.Clamp(splitWidth, minSplit, maxSplit);
+                        SplitFraction = Math.Clamp(splitWidth / availableWidth, 0.05f, 0.95f);
+                    }
                     float firstRight = left + splitWidth - gap * 0.5f;
                     float secondLeft = left + splitWidth + gap * 0.5f;
 
@@ -675,6 +705,21 @@ namespace helengine.editor {
                 } else {
                     float availableHeight = bottom - top;
                     float splitHeight = MathF.Max(1f, availableHeight * SplitFraction);
+                    if (availableHeight > 0f) {
+                        GetMinSize(First, out _, out int firstMinHeight);
+                        GetMinSize(Second, out _, out int secondMinHeight);
+
+                        float minSplit = firstMinHeight + gap * 0.5f;
+                        float maxSplit = availableHeight - secondMinHeight - gap * 0.5f;
+                        if (minSplit > maxSplit) {
+                            float midpoint = (minSplit + maxSplit) * 0.5f;
+                            minSplit = midpoint;
+                            maxSplit = midpoint;
+                        }
+
+                        splitHeight = Math.Clamp(splitHeight, minSplit, maxSplit);
+                        SplitFraction = Math.Clamp(splitHeight / availableHeight, 0.05f, 0.95f);
+                    }
                     float firstBottom = top + splitHeight - gap * 0.5f;
                     float secondTop = top + splitHeight + gap * 0.5f;
 
