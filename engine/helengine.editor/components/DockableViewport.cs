@@ -12,6 +12,7 @@ namespace helengine.editor {
             : base(font) {
             Camera = camera;
             Title = "Viewport";
+            SetContentBackgroundColor(new byte4(0, 0, 0, 0));
             updateViewport();
         }
 

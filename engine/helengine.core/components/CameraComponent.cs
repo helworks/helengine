@@ -12,7 +12,7 @@ namespace helengine {
             get { return cameraDrawOrder; }
             set {
                 if (cameraDrawOrder != value) {
-                    if (Parent.Enabled) {
+                    if (Parent != null && Parent.Enabled) {
                         Core.Instance.ObjectManager.RemoveCamera(this);
                         cameraDrawOrder = value;
                         Core.Instance.ObjectManager.RegisterCamera(this);

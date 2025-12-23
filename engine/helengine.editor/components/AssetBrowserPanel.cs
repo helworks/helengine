@@ -44,54 +44,14 @@ namespace helengine.editor {
         static readonly int2 UpButtonSize = new int2(46, 20);
 
         /// <summary>
-        /// Extensions treated as images.
-        /// </summary>
-        static readonly HashSet<string> ImageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tga", ".dds"
-        };
-
-        /// <summary>
-        /// Extensions treated as 3D models.
-        /// </summary>
-        static readonly HashSet<string> ModelExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-            ".obj", ".fbx", ".dae", ".3ds", ".blend", ".gltf", ".glb"
-        };
-
-        /// <summary>
-        /// Extensions treated as audio assets.
-        /// </summary>
-        static readonly HashSet<string> AudioExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-            ".wav", ".mp3", ".ogg", ".flac", ".aac"
-        };
-
-        /// <summary>
-        /// Extensions treated as scripts.
-        /// </summary>
-        static readonly HashSet<string> ScriptExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-            ".cs", ".js", ".lua", ".py"
-        };
-
-        /// <summary>
-        /// Extensions treated as configuration data.
-        /// </summary>
-        static readonly HashSet<string> ConfigExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-            ".json", ".xml", ".yaml", ".yml"
-        };
-
-        /// <summary>
         /// Font used to render toolbar and row labels.
         /// </summary>
         FontAsset font;
 
         /// <summary>
-        /// Absolute path to the assets root on disk.
+        /// Asset manager used to supply browsing data and classifications.
         /// </summary>
-        string assetsRootPath;
-
-        /// <summary>
-        /// Current directory path relative to the assets root.
-        /// </summary>
-        string currentRelativePath;
+        EditorAssetManager assetManager;
 
         /// <summary>
         /// Root entity hosting toolbar and row content.
@@ -153,8 +113,7 @@ namespace helengine.editor {
             Title = "Assets";
             MinSize = new int2(260, 180);
 
-            assetsRootPath = ResolveAssetsRoot(projectPath);
-            currentRelativePath = string.Empty;
+            assetManager = new EditorAssetManager(projectPath);
 
             contentRoot = new EditorEntity();
             contentRoot.LayerMask = LayerMask;
@@ -174,11 +133,7 @@ namespace helengine.editor {
         /// Refreshes the asset list from disk and updates layout.
         /// </summary>
         public void RefreshEntries() {
-            if (!Directory.Exists(assetsRootPath)) {
-                Directory.CreateDirectory(assetsRootPath);
-            }
-
-            LoadEntries();
+            assetManager.LoadEntries(entries);
             UpdatePathText();
             LayoutToolbar();
             LayoutRows();
@@ -258,133 +213,7 @@ namespace helengine.editor {
         /// Updates the visible path label based on the current folder.
         /// </summary>
         void UpdatePathText() {
-            if (string.IsNullOrEmpty(currentRelativePath)) {
-                pathText.Text = "assets";
-                return;
-            }
-
-            pathText.Text = $"assets/{currentRelativePath}";
-        }
-
-        /// <summary>
-        /// Loads directory entries from disk into the local list.
-        /// </summary>
-        void LoadEntries() {
-            entries.Clear();
-
-            string currentPath = GetCurrentFullPath();
-            if (!Directory.Exists(currentPath)) {
-                currentRelativePath = string.Empty;
-                currentPath = assetsRootPath;
-            }
-
-            try {
-                var directories = Directory.GetDirectories(currentPath);
-                for (int i = 0; i < directories.Length; i++) {
-                    string dirPath = directories[i];
-                    string name = Path.GetFileName(dirPath);
-                    if (string.IsNullOrWhiteSpace(name)) {
-                        continue;
-                    }
-
-                    string relativePath = CombineRelativePath(currentRelativePath, name);
-                    entries.Add(new AssetBrowserEntry(name, relativePath, dirPath, true, string.Empty));
-                }
-
-                var files = Directory.GetFiles(currentPath);
-                for (int i = 0; i < files.Length; i++) {
-                    string filePath = files[i];
-                    string name = Path.GetFileName(filePath);
-                    if (string.IsNullOrWhiteSpace(name)) {
-                        continue;
-                    }
-
-                    string relativePath = CombineRelativePath(currentRelativePath, name);
-                    string extension = Path.GetExtension(filePath);
-                    entries.Add(new AssetBrowserEntry(name, relativePath, filePath, false, extension));
-                }
-            } catch (Exception ex) {
-                System.Diagnostics.Debug.WriteLine($"Asset browser refresh failed: {ex.Message}");
-            }
-
-            entries.Sort(CompareEntries);
-        }
-
-        /// <summary>
-        /// Gets the absolute path for the current relative folder.
-        /// </summary>
-        /// <returns>Absolute directory path for the current view.</returns>
-        string GetCurrentFullPath() {
-            if (string.IsNullOrEmpty(currentRelativePath)) {
-                return assetsRootPath;
-            }
-
-            string relativePath = currentRelativePath.Replace('/', Path.DirectorySeparatorChar);
-            return Path.Combine(assetsRootPath, relativePath);
-        }
-
-        /// <summary>
-        /// Resolves and ensures the assets root folder for a project.
-        /// </summary>
-        /// <param name="projectPath">Path to the project root.</param>
-        /// <returns>Absolute assets folder path.</returns>
-        string ResolveAssetsRoot(string projectPath) {
-            string rootPath = projectPath;
-            if (string.IsNullOrWhiteSpace(rootPath)) {
-                rootPath = Directory.GetCurrentDirectory();
-            } else {
-                try {
-                    rootPath = Path.GetFullPath(rootPath);
-                } catch {
-                    rootPath = Directory.GetCurrentDirectory();
-                }
-            }
-
-            if (File.Exists(rootPath)) {
-                rootPath = Path.GetDirectoryName(rootPath) ?? Directory.GetCurrentDirectory();
-            }
-
-            if (!Directory.Exists(rootPath)) {
-                rootPath = Directory.GetCurrentDirectory();
-            }
-
-            string assetsPath = Path.Combine(rootPath, "assets");
-            if (!Directory.Exists(assetsPath)) {
-                Directory.CreateDirectory(assetsPath);
-            }
-
-            return assetsPath;
-        }
-
-        /// <summary>
-        /// Normalizes a relative path to use forward slashes without leading or trailing separators.
-        /// </summary>
-        /// <param name="relativePath">Path string to normalize.</param>
-        /// <returns>Normalized relative path.</returns>
-        string NormalizeRelativePath(string relativePath) {
-            if (string.IsNullOrWhiteSpace(relativePath)) {
-                return string.Empty;
-            }
-
-            return relativePath.Replace('\\', '/').Trim('/');
-        }
-
-        /// <summary>
-        /// Combines two path segments into a normalized relative path.
-        /// </summary>
-        /// <param name="left">Base relative path.</param>
-        /// <param name="right">Child path segment.</param>
-        /// <returns>Normalized combined relative path.</returns>
-        string CombineRelativePath(string left, string right) {
-            if (string.IsNullOrWhiteSpace(left)) {
-                return NormalizeRelativePath(right);
-            }
-
-            if (string.IsNullOrWhiteSpace(right)) {
-                return NormalizeRelativePath(left);
-            }
-
-            return NormalizeRelativePath($"{left}/{right}");
+            pathText.Text = assetManager.GetDisplayPath();
         }
 
         /// <summary>
@@ -392,31 +221,18 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="relativePath">Relative path to navigate into.</param>
         void NavigateTo(string relativePath) {
-            string normalized = NormalizeRelativePath(relativePath);
-            string targetPath = string.IsNullOrEmpty(normalized)
-                ? assetsRootPath
-                : Path.Combine(assetsRootPath, normalized.Replace('/', Path.DirectorySeparatorChar));
-
-            if (!Directory.Exists(targetPath)) {
-                return;
+            if (assetManager.TryNavigateTo(relativePath)) {
+                RefreshEntries();
             }
-
-            currentRelativePath = normalized;
-            RefreshEntries();
         }
 
         /// <summary>
         /// Navigates to the parent folder if available.
         /// </summary>
         void NavigateUp() {
-            if (string.IsNullOrEmpty(currentRelativePath)) {
-                return;
+            if (assetManager.TryNavigateUp()) {
+                RefreshEntries();
             }
-
-            string normalized = currentRelativePath.Replace('/', Path.DirectorySeparatorChar);
-            string? parent = Path.GetDirectoryName(normalized);
-            currentRelativePath = NormalizeRelativePath(parent ?? string.Empty);
-            RefreshEntries();
         }
 
         /// <summary>
@@ -424,8 +240,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="count">Number of rows required.</param>
         void EnsureRowCount(int count) {
+            bool created = false;
             for (int i = rows.Count; i < count; i++) {
                 rows.Add(CreateRow());
+                created = true;
+            }
+            if (created) {
+                RefreshRenderOrderBias();
             }
         }
 
@@ -623,66 +444,48 @@ namespace helengine.editor {
         /// <param name="label">Output icon label.</param>
         /// <param name="textColor">Output icon text color.</param>
         void GetIconForEntry(AssetBrowserEntry entry, out byte4 color, out string label, out byte4 textColor) {
-            if (entry.IsDirectory) {
-                color = ThemeManager.Colors.AccentSecondary;
-                label = "DIR";
-                textColor = ThemeManager.Colors.TextOnAccent;
-                return;
+            switch (assetManager.GetEntryKind(entry)) {
+                case AssetEntryKind.Directory:
+                    color = ThemeManager.Colors.AccentSecondary;
+                    label = "DIR";
+                    textColor = ThemeManager.Colors.TextOnAccent;
+                    return;
+                case AssetEntryKind.Image:
+                    color = ThemeManager.Colors.StateSuccess;
+                    label = "IMG";
+                    textColor = ThemeManager.Colors.TextOnAccent;
+                    return;
+                case AssetEntryKind.Model:
+                    color = ThemeManager.Colors.StateWarning;
+                    label = "3D";
+                    textColor = ThemeManager.Colors.TextOnAccent;
+                    return;
+                case AssetEntryKind.Audio:
+                    color = ThemeManager.Colors.AccentPrimary;
+                    label = "SND";
+                    textColor = ThemeManager.Colors.TextOnAccent;
+                    return;
+                case AssetEntryKind.Script:
+                    color = ThemeManager.Colors.AccentTertiary;
+                    label = "SCR";
+                    textColor = ThemeManager.Colors.TextOnAccent;
+                    return;
+                case AssetEntryKind.Config:
+                    color = ThemeManager.Colors.AccentQuaternary;
+                    label = "CFG";
+                    textColor = ThemeManager.Colors.TextOnAccent;
+                    return;
+                case AssetEntryKind.Unknown:
+                    color = ThemeManager.Colors.AccentSecondary;
+                    label = "UNK";
+                    textColor = ThemeManager.Colors.TextOnAccent;
+                    return;
+                default:
+                    color = ThemeManager.Colors.SurfaceInput;
+                    label = "FIL";
+                    textColor = ThemeManager.Colors.InputForegroundPrimary;
+                    return;
             }
-
-            string extension = entry.Extension ?? string.Empty;
-            if (ImageExtensions.Contains(extension)) {
-                color = ThemeManager.Colors.StateSuccess;
-                label = "IMG";
-                textColor = ThemeManager.Colors.TextOnAccent;
-                return;
-            }
-
-            if (ModelExtensions.Contains(extension)) {
-                color = ThemeManager.Colors.StateWarning;
-                label = "3D";
-                textColor = ThemeManager.Colors.TextOnAccent;
-                return;
-            }
-
-            if (AudioExtensions.Contains(extension)) {
-                color = ThemeManager.Colors.AccentPrimary;
-                label = "SND";
-                textColor = ThemeManager.Colors.TextOnAccent;
-                return;
-            }
-
-            if (ScriptExtensions.Contains(extension)) {
-                color = ThemeManager.Colors.AccentTertiary;
-                label = "SCR";
-                textColor = ThemeManager.Colors.TextOnAccent;
-                return;
-            }
-
-            if (ConfigExtensions.Contains(extension)) {
-                color = ThemeManager.Colors.AccentQuaternary;
-                label = "CFG";
-                textColor = ThemeManager.Colors.TextOnAccent;
-                return;
-            }
-
-            color = ThemeManager.Colors.SurfaceInput;
-            label = "FIL";
-            textColor = ThemeManager.Colors.InputForegroundPrimary;
-        }
-
-        /// <summary>
-        /// Compares entries so directories sort before files, then by name.
-        /// </summary>
-        /// <param name="left">Left entry to compare.</param>
-        /// <param name="right">Right entry to compare.</param>
-        /// <returns>Sort order value.</returns>
-        int CompareEntries(AssetBrowserEntry left, AssetBrowserEntry right) {
-            if (left.IsDirectory != right.IsDirectory) {
-                return left.IsDirectory ? -1 : 1;
-            }
-
-            return string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

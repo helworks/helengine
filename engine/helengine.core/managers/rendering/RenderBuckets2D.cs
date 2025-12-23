@@ -77,6 +77,23 @@ namespace helengine {
             Count = last;
             return pos == last ? null : swapped;
         }
+
+        /// <summary>
+        /// Removes an item while preserving the order of remaining entries.
+        /// </summary>
+        /// <param name="pos">Position to remove.</param>
+        public void RemoveAt(int pos) {
+            int last = Count - 1;
+            if (pos < 0 || pos > last) {
+                return;
+            }
+
+            if (pos < last) {
+                Array.Copy(Items, pos + 1, Items, pos, last - pos);
+            }
+            Items[last] = default!;
+            Count = last;
+        }
     }
 
     /// <summary>

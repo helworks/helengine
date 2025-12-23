@@ -11,7 +11,6 @@ namespace helengine {
         TextComponent text;
         FontAsset font;
         bool initialized;
-        KeyboardState lastKeyboard;
 
         /// <summary>
         /// Gets a value indicating whether the overlay is currently visible.
@@ -93,12 +92,11 @@ namespace helengine {
             }
 
             // Edge-triggered toggle on key press (not hold)
-            var kb = Core.Instance.InputManager.Keyboard.GetState();
-            bool pressed = kb.IsKeyDown(ToggleKey) && !lastKeyboard.IsKeyDown(ToggleKey);
+            var inputManager = Core.Instance.InputManager;
+            bool pressed = inputManager.WasKeyPressed(ToggleKey);
             if (pressed) {
                 Visible = !Visible;
             }
-            lastKeyboard = kb;
 
             bgEntity.Enabled = Visible;
             textEntity.Enabled = Visible;

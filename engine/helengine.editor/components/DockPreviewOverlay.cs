@@ -3,16 +3,18 @@ namespace helengine.editor {
     /// Displays a translucent overlay to preview docking targets during drag operations.
     /// </summary>
     public class DockPreviewOverlay : EditorEntity {
-        readonly SpriteComponent highlight;
+        readonly RoundedRectComponent highlight;
 
         /// <summary>
-        /// Initializes the overlay with a highlight sprite and disables it by default.
+        /// Initializes the overlay with a highlight outline and disables it by default.
         /// </summary>
         public DockPreviewOverlay() {
             LayerMask = 0b1000000000000000;
-            highlight = new SpriteComponent();
-            highlight.Texture = TextureUtils.PixelTexture;
-            highlight.Color = new byte4(64, 200, 255, 180); // Brighter translucent accent for clarity
+            highlight = new RoundedRectComponent();
+            highlight.FillColor = new byte4(0, 0, 0, 0);
+            highlight.BorderColor = new byte4(64, 200, 255, 220);
+            highlight.BorderThickness = 2f;
+            highlight.Radius = 4f;
             highlight.RenderOrder2D = 255;
             AddComponent(highlight);
 

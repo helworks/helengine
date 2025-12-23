@@ -367,10 +367,7 @@ namespace helengine.editor {
         /// <param name="minHeight">Minimum height in pixels.</param>
         static void GetMinSize(LayoutNode node, out int minWidth, out int minHeight) {
             if (node is PanelNode panel) {
-                int panelWidth = Math.Max(1, panel.Entity.MinSize.X);
-                int panelHeight = Math.Max(1, panel.Entity.MinSize.Y + DockableEntity.TitleBarHeight);
-                minWidth = panelWidth;
-                minHeight = panelHeight;
+                panel.GetMinimumSize(out minWidth, out minHeight);
                 return;
             }
 
@@ -523,9 +520,7 @@ namespace helengine.editor {
                     break;
                 case DockInsertDirection.Fill:
                 default:
-                    anchorNode.Entity.IsDocked = false;
-                    anchorNode.Entity = entity;
-                    anchorNode.Entity.IsDocked = true;
+                    anchorNode.AddTab(entity);
                     return currentRoot;
             }
 
@@ -560,14 +555,91 @@ namespace helengine.editor {
         /// Represents a docked panel leaf node.
         /// </summary>
         sealed class PanelNode : LayoutNode {
+            /// <summary>
+            /// Collection of dockable windows grouped into tabs.
+            /// </summary>
+            readonly List<DockableEntity> tabs;
+            /// <summary>
+            /// Tab strip UI used when multiple dockables share this panel.
+            /// </summary>
+            DockTabStrip? tabStrip;
+            /// <summary>
+            /// Active tab index within the group.
+            /// </summary>
+            int activeTabIndex;
+
+            /// <summary>
+            /// Initializes a new panel node with a single dockable tab.
+            /// </summary>
+            /// <param name="entity">Initial dockable window for the panel.</param>
             public PanelNode(DockableEntity entity) {
-                Entity = entity;
+                tabs = new List<DockableEntity>(2) { entity };
+                activeTabIndex = 0;
                 Bounds = new float4(0, 0, 0, 0);
             }
 
-            public DockableEntity Entity { get; set; }
+            /// <summary>
+            /// Gets the active dockable entity for this panel.
+            /// </summary>
+            public DockableEntity Entity => tabs[activeTabIndex];
 
+            /// <summary>
+            /// Gets the cached bounds for this panel.
+            /// </summary>
             public float4 Bounds { get; private set; }
+
+            /// <summary>
+            /// Adds a dockable window as a new tab and makes it active.
+            /// </summary>
+            /// <param name="entity">Dockable entity to add.</param>
+            public void AddTab(DockableEntity entity) {
+                int existingIndex = tabs.IndexOf(entity);
+                if (existingIndex >= 0) {
+                    SetActiveTab(existingIndex);
+                    return;
+                }
+
+                tabs.Add(entity);
+                activeTabIndex = tabs.Count - 1;
+                entity.IsDocked = true;
+                ApplyTabVisibility();
+            }
+
+            /// <summary>
+            /// Sets the active tab index and refreshes visibility.
+            /// </summary>
+            /// <param name="index">Index to activate.</param>
+            public void SetActiveTab(int index) {
+                if (tabs.Count == 0) {
+                    return;
+                }
+
+                int clamped = Math.Clamp(index, 0, tabs.Count - 1);
+                if (activeTabIndex != clamped) {
+                    activeTabIndex = clamped;
+                }
+
+                ApplyTabVisibility();
+            }
+
+            /// <summary>
+            /// Computes the minimum size required by this panel based on its tabs.
+            /// </summary>
+            /// <param name="minWidth">Minimum width in pixels.</param>
+            /// <param name="minHeight">Minimum height in pixels.</param>
+            public void GetMinimumSize(out int minWidth, out int minHeight) {
+                int maxWidth = 1;
+                int maxHeight = 1;
+
+                for (int i = 0; i < tabs.Count; i++) {
+                    DockableEntity tab = tabs[i];
+                    maxWidth = Math.Max(maxWidth, tab.MinSize.X);
+                    maxHeight = Math.Max(maxHeight, tab.MinSize.Y);
+                }
+
+                minWidth = Math.Max(1, maxWidth);
+                minHeight = Math.Max(1, maxHeight + DockableEntity.TitleBarHeight);
+            }
 
             public override void Layout(float left, float top, float right, float bottom, float z, int gap) {
                 float width = Math.Max(1, right - left);
@@ -577,9 +649,16 @@ namespace helengine.editor {
                 int targetWidth = Math.Max(1, (int)MathF.Round(width));
                 int targetHeight = Math.Max(1, (int)MathF.Round(height - DockableEntity.TitleBarHeight));
 
-                Entity.Position = new float3(left, top, z);
-                Entity.Size = new int2(targetWidth, targetHeight);
-                Entity.IsDocked = true;
+                ApplyTabVisibility();
+
+                for (int i = 0; i < tabs.Count; i++) {
+                    DockableEntity tab = tabs[i];
+                    tab.Position = new float3(left, top, z);
+                    tab.Size = new int2(targetWidth, targetHeight);
+                    tab.IsDocked = true;
+                }
+
+                UpdateTabStrip(left, top, z, targetWidth);
             }
 
             public override PanelNode? Hit(float x, float y) {
@@ -592,20 +671,87 @@ namespace helengine.editor {
             }
 
             public override LayoutNode? Remove(DockableEntity entity) {
-                if (ReferenceEquals(Entity, entity)) {
-                    Entity.IsDocked = false;
+                int index = tabs.IndexOf(entity);
+                if (index < 0) {
+                    return this;
+                }
+
+                tabs.RemoveAt(index);
+                entity.IsDocked = false;
+                entity.Enabled = true;
+                entity.SetTitleTextVisible(true);
+                entity.SetTitleBarInteractableEnabled(true);
+
+                if (tabs.Count == 0) {
+                    tabStrip?.Hide();
                     return null;
+                }
+
+                if (activeTabIndex >= tabs.Count) {
+                    activeTabIndex = tabs.Count - 1;
+                }
+
+                ApplyTabVisibility();
+                if (tabs.Count <= 1) {
+                    tabStrip?.Hide();
                 }
 
                 return this;
             }
 
             public override PanelNode? Find(DockableEntity entity) {
-                return ReferenceEquals(Entity, entity) ? this : null;
+                for (int i = 0; i < tabs.Count; i++) {
+                    if (ReferenceEquals(tabs[i], entity)) {
+                        return this;
+                    }
+                }
+                return null;
             }
 
             public override PanelNode? FirstLeaf() {
                 return this;
+            }
+
+            /// <summary>
+            /// Ensures only the active tab is visible and hides title text when tabbed.
+            /// </summary>
+            void ApplyTabVisibility() {
+                if (tabs.Count == 0) {
+                    return;
+                }
+
+                int clamped = Math.Clamp(activeTabIndex, 0, tabs.Count - 1);
+                activeTabIndex = clamped;
+                bool showTitle = tabs.Count <= 1;
+
+                for (int i = 0; i < tabs.Count; i++) {
+                    DockableEntity tab = tabs[i];
+                    bool isActive = i == activeTabIndex;
+                    tab.Enabled = isActive;
+                    tab.SetTitleTextVisible(showTitle && isActive);
+                    tab.SetTitleBarInteractableEnabled(showTitle && isActive);
+                }
+            }
+
+            /// <summary>
+            /// Updates the tab strip UI to match the current dockable group.
+            /// </summary>
+            /// <param name="left">Left edge of the panel.</param>
+            /// <param name="top">Top edge of the panel.</param>
+            /// <param name="z">Depth offset for UI elements.</param>
+            /// <param name="width">Width of the panel.</param>
+            void UpdateTabStrip(float left, float top, float z, int width) {
+                if (tabs.Count <= 1) {
+                    tabStrip?.Hide();
+                    return;
+                }
+
+                if (tabStrip == null) {
+                    tabStrip = new DockTabStrip(Entity.TitleFont, SetActiveTab);
+                }
+
+                DockableEntity active = Entity;
+                tabStrip.UpdateTabs(tabs, activeTabIndex, new float3(left, top, z), width, active.LayerMask);
             }
         }
 

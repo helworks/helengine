@@ -53,6 +53,8 @@ namespace helengine {
         /// Advances the engine update loop for objects and input.
         /// </summary>
         public virtual void Update() {
+            InputManager.EarlyUpdate();
+
             ObjectManager.Update();
 
             InputManager.Update();

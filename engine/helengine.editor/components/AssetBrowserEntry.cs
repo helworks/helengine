@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Represents a file or folder displayed in the asset browser.
     /// </summary>
-    sealed class AssetBrowserEntry {
+    public sealed class AssetBrowserEntry {
         /// <summary>
         /// Initializes a new asset browser entry with its core metadata.
         /// </summary>

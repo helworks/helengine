@@ -148,8 +148,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="count">Required row count.</param>
         void EnsureRowCount(int count) {
+            bool created = false;
             for (int i = rows.Count; i < count; i++) {
                 rows.Add(CreateRow());
+                created = true;
+            }
+            if (created) {
+                RefreshRenderOrderBias();
             }
         }
 

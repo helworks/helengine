@@ -47,6 +47,10 @@ namespace helengine.editor.app {
         /// </summary>
         AssetBrowserPanel? assetBrowserPanel;
         /// <summary>
+        /// Dockable panel that will host property details for selections.
+        /// </summary>
+        PropertiesPanel? propertiesPanel;
+        /// <summary>
         /// Docking manager that handles docking layout, previews, and resizing.
         /// </summary>
         DockingManager? dockingManager;
@@ -143,6 +147,7 @@ namespace helengine.editor.app {
             uiCameraComponent = new CameraComponent();
             uiCameraComponent.LayerMask = 0b1000000000000000;
             uiCameraComponent.Viewport = new float4(0, 0, renderWidth, renderHeight);
+            uiCameraComponent.CameraDrawOrder = 255;
             uiCam.AddComponent(uiCameraComponent);
 
             EditorEntity sceneCam = new EditorEntity();
@@ -160,16 +165,20 @@ namespace helengine.editor.app {
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, projectPath);
             mainViewport = new DockableViewport(sceneCameraComponent, uiFont);
+            propertiesPanel = new PropertiesPanel(uiFont);
             sceneHierarchyPanel.Size = new int2(280, 600);
             assetBrowserPanel.Size = new int2(500, 240);
+            propertiesPanel.Size = new int2(280, 600);
             dockingManager.Layout.Add(sceneHierarchyPanel);
             dockingManager.Layout.Add(assetBrowserPanel);
             dockingManager.Layout.Add(mainViewport);
+            dockingManager.Layout.Add(propertiesPanel);
 
-            if (mainViewport != null && sceneHierarchyPanel != null && assetBrowserPanel != null && dockingManager != null) {
+            if (mainViewport != null && sceneHierarchyPanel != null && assetBrowserPanel != null && propertiesPanel != null && dockingManager != null) {
                 dockingManager.Layout.DockAsRoot(mainViewport);
                 dockingManager.Layout.DockRelative(assetBrowserPanel, mainViewport, DockInsertDirection.Bottom, 0.7f);
                 dockingManager.Layout.DockRelative(sceneHierarchyPanel, mainViewport, DockInsertDirection.Left, 0.3f);
+                dockingManager.Layout.DockRelative(propertiesPanel, mainViewport, DockInsertDirection.Right, 0.75f);
             }
 
             MakeStartScene();
@@ -300,8 +309,8 @@ namespace helengine.editor.app {
                 return;
             }
 
-            var mouse = Core.Instance.InputManager.Mouse.GetState();
-            int2 pointer = new int2(mouse.X, mouse.Y);
+            var inputManager = Core.Instance.InputManager;
+            int2 pointer = inputManager.GetMousePosition();
 
             int renderWidth = Math.Max(1, ClientSize.Width);
             int renderHeight = Math.Max(1, ClientSize.Height);
@@ -309,7 +318,7 @@ namespace helengine.editor.app {
             int2 hostSize = new int2(renderWidth, availableHeight);
             float3 origin = new float3(0, TitleBarHeight, 0);
 
-            bool layoutDirty = dockingManager.Update(pointer, mouse.LeftButton, hostSize, origin);
+            bool layoutDirty = dockingManager.Update(pointer, inputManager.GetMouseLeftButtonState(), hostSize, origin);
 
             switch (dockingManager.CursorState) {
                 case DockingCursorState.VerticalSplit:

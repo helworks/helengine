@@ -170,9 +170,14 @@ public class ObjectManager {
                 if (cam == null) continue;
                 var reg = cam.Get2DRegistry();
                 if (reg.Map.TryGetValue(drawable, out var idx)) {
-                    var swapped = reg.Buckets[idx.Bucket].RemoveSwapAt(idx.Pos);
-                    if (swapped != null) {
-                        reg.Map[(IDrawable2D)swapped] = new Index2D(idx.Bucket, idx.Pos);
+                    var bucket = reg.Buckets[idx.Bucket];
+                    bucket.RemoveAt(idx.Pos);
+                    // Preserve draw order by updating indices for the shifted items.
+                    for (int k = idx.Pos; k < bucket.Count; k++) {
+                        IDrawable2D moved = bucket.Items[k];
+                        if (moved != null) {
+                            reg.Map[moved] = new Index2D(idx.Bucket, k);
+                        }
                     }
                     reg.Map.Remove(drawable);
                 }
@@ -235,7 +240,7 @@ public class ObjectManager {
     /// <param name="camera">Camera to register.</param>
     public void RegisterCamera(ICamera camera) {
         // Use the correct camera bucket count for camera ordering
-        int cameraBucket = camera.CameraDrawOrder / TotalCameraBuckets;
+        int cameraBucket = getBucket(camera.CameraDrawOrder, TotalCameraBuckets);
         Cameras[cameraBucket].Add(camera);
 
         // Backfill existing 3D drawables for this camera (by reference)
@@ -274,7 +279,7 @@ public class ObjectManager {
     /// </summary>
     /// <param name="camera">Camera to remove.</param>
     public virtual void RemoveCamera(ICamera camera) {
-        int cameraBucket = camera.CameraDrawOrder / TotalCameraBuckets;
+        int cameraBucket = getBucket(camera.CameraDrawOrder, TotalCameraBuckets);
         Cameras[cameraBucket].Remove(camera);
     }
 

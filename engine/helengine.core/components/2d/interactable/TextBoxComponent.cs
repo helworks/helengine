@@ -18,9 +18,6 @@ namespace helengine {
         TextComponent? textComponent;
         InteractableComponent? interactableComponent;
         
-        // Input handling
-        KeyboardState lastKeyboardState;
-
         /// <summary>
         /// Gets or sets the text content.
         /// </summary>
@@ -170,27 +167,24 @@ namespace helengine {
             }
 
             // Handle keyboard input
-            KeyboardState currentKeyboardState = Core.Instance.InputManager.Keyboard.GetState();
+            var inputManager = Core.Instance.InputManager;
+            bool isShiftPressed = inputManager.IsKeyDown(Keys.LeftShift) || inputManager.IsKeyDown(Keys.RightShift);
             
             // Process newly pressed keys
             for (int i = 0; i < 255; i++) {
                 Keys key = (Keys)i;
-                if (currentKeyboardState.IsKeyDown(key) && !lastKeyboardState.IsKeyDown(key)) {
-                    HandleKeyPress(key, currentKeyboardState);
+                if (inputManager.WasKeyPressed(key)) {
+                    HandleKeyPress(key, isShiftPressed);
                 }
             }
-
-            lastKeyboardState = currentKeyboardState;
         }
 
         /// <summary>
         /// Processes a key press to modify text, move the cursor, or delete characters.
         /// </summary>
         /// <param name="key">Key pressed.</param>
-        /// <param name="keyboardState">Current keyboard state.</param>
-        void HandleKeyPress(Keys key, KeyboardState keyboardState) {
-            bool isShiftPressed = keyboardState.IsKeyDown(Keys.LeftShift) || keyboardState.IsKeyDown(Keys.RightShift);
-            
+        /// <param name="isShiftPressed">True when either shift key is pressed.</param>
+        void HandleKeyPress(Keys key, bool isShiftPressed) {
             switch (key) {
                 case Keys.Back:
                     if (cursorPosition > 0) {
