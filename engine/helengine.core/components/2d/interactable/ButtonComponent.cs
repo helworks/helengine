@@ -50,6 +50,9 @@ namespace helengine {
 
             if (!entity.Enabled) return;
 
+            byte backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
+            byte textOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(2);
+
             // Create rounded rectangle background
             roundedRect = new RoundedRectComponent();
             roundedRect.Size = size;
@@ -57,7 +60,7 @@ namespace helengine {
             roundedRect.BorderThickness = borderThickness;
             roundedRect.FillColor = ThemeManager.Colors.AccentSecondary;
             roundedRect.BorderColor = ThemeManager.Colors.AccentTertiary;
-            roundedRect.RenderOrder2D = 2;
+            roundedRect.RenderOrder2D = backgroundOrder;
             entity.AddComponent(roundedRect);
 
             // Create interactable component for mouse events
@@ -93,7 +96,7 @@ namespace helengine {
             textComponent.Font = font;
             textComponent.Color = ThemeManager.Colors.TextOnAccent;
             textComponent.Size = new int2((int)Math.Ceiling(tight.Width), (int)Math.Ceiling(lineHeight));
-            textComponent.RenderOrder2D = 3;
+            textComponent.RenderOrder2D = textOrder;
             textEntity.AddComponent(textComponent);
         }
 

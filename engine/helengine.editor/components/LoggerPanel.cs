@@ -22,6 +22,14 @@ namespace helengine.editor {
         /// Font used to render log text.
         /// </summary>
         readonly FontAsset font;
+        /// <summary>
+        /// Render order used for row backgrounds.
+        /// </summary>
+        readonly byte rowBackgroundOrder;
+        /// <summary>
+        /// Render order used for row text.
+        /// </summary>
+        readonly byte textOrder;
 
         /// <summary>
         /// Root entity hosting log rows.
@@ -66,6 +74,9 @@ namespace helengine.editor {
             this.font = font;
             Title = "Logger";
             MinSize = new int2(260, 160);
+
+            rowBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
+            textOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(2);
 
             contentRoot = new EditorEntity();
             contentRoot.LayerMask = LayerMask;
@@ -176,7 +187,7 @@ namespace helengine.editor {
             var background = new SpriteComponent();
             background.Texture = TextureUtils.PixelTexture;
             background.Color = ThemeManager.Colors.SurfacePrimary;
-            background.RenderOrder2D = 2;
+            background.RenderOrder2D = rowBackgroundOrder;
             rowEntity.AddComponent(background);
 
             var labelHost = new EditorEntity();
@@ -189,7 +200,7 @@ namespace helengine.editor {
             text.Text = string.Empty;
             text.Color = ThemeManager.Colors.InputForegroundPrimary;
             text.Size = new int2(100, RowHeight);
-            text.RenderOrder2D = 3;
+            text.RenderOrder2D = textOrder;
             labelHost.AddComponent(text);
 
             contentRoot.AddChild(rowEntity);

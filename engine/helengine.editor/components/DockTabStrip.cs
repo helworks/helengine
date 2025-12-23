@@ -34,12 +34,12 @@ namespace helengine.editor {
         /// <summary>
         /// Render order used by tab backgrounds to ensure they sit above title bars.
         /// </summary>
-        const byte TabBackgroundOrder = 96;
+        readonly byte tabBackgroundOrder;
 
         /// <summary>
         /// Render order used by tab labels.
         /// </summary>
-        const byte TabTextOrder = 104;
+        readonly byte tabTextOrder;
         /// <summary>
         /// Minimum drag distance before undocking a tab.
         /// </summary>
@@ -94,6 +94,8 @@ namespace helengine.editor {
             isPointerDown = false;
             isDragging = false;
             dragDelta = new int2(0, 0);
+            tabBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(2);
+            tabTextOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(3);
             Enabled = false;
         }
 
@@ -180,7 +182,7 @@ namespace helengine.editor {
         /// <param name="layerMask">Layer mask applied to new tabs.</param>
         void EnsureTabCount(IReadOnlyList<DockableEntity> dockables, ushort layerMask) {
             for (int i = tabs.Count; i < dockables.Count; i++) {
-                var entry = new DockTabEntry(dockables[i], font, layerMask, TabBackgroundOrder, TabTextOrder);
+                var entry = new DockTabEntry(dockables[i], font, layerMask, tabBackgroundOrder, tabTextOrder);
                 entry.Root.LayerMask = layerMask;
                 entry.LabelHost.LayerMask = layerMask;
                 entry.Interactable.CursorEvent += (pos, delta, state) => HandleTabCursor(entry, pos, delta, state);

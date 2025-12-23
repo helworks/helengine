@@ -7,12 +7,27 @@ public class ObjectManager {
     /// <summary>
     /// Initializes a new object manager and allocates buckets for updates, rendering, and cameras.
     /// </summary>
-    public ObjectManager() {
+    public ObjectManager() : this(new CoreInitializationOptions()) { }
+
+    /// <summary>
+    /// Initializes a new object manager using the provided initialization options.
+    /// </summary>
+    /// <param name="options">Initialization options that control bucket sizing.</param>
+    public ObjectManager(CoreInitializationOptions options) {
+        CoreInitializationOptions settings = options ?? new CoreInitializationOptions();
+        settings.Normalize();
+
+        TotalUpdateBuckets = settings.TotalUpdateBuckets;
+        TotalBuckets2D = settings.TotalBuckets2D;
+        TotalBuckets3D = settings.TotalBuckets3D;
+        TotalVariants3D = settings.TotalVariants3D;
+        TotalCameraBuckets = settings.TotalCameraBuckets;
+
         Entities = new List<Entity>();
 
         UpdateEntities = new UpdateBucket[TotalUpdateBuckets];
         for (int i = 0; i < TotalUpdateBuckets; i++) {
-            UpdateEntities[i] = new UpdateBucket(64);
+            UpdateEntities[i] = new UpdateBucket(settings.UpdateBucketInitialCapacity);
         }
 
         Drawables2D = new List<IDrawable2D>();
@@ -83,6 +98,33 @@ public class ObjectManager {
     public List<IInteractable2D> Interactables { get; private set; }
 
     /// <summary>
+    /// Computes a render order value that maps to a desired 2D bucket.
+    /// </summary>
+    /// <param name="bucketIndex">Desired bucket index.</param>
+    /// <returns>Render order value that maps into the requested bucket.</returns>
+    public byte GetRenderOrderForBucket2D(int bucketIndex) {
+        return RenderBucketUtils.GetRenderOrderForBucket(bucketIndex, TotalBuckets2D);
+    }
+
+    /// <summary>
+    /// Computes a render order value that maps to a desired 3D bucket.
+    /// </summary>
+    /// <param name="bucketIndex">Desired bucket index.</param>
+    /// <returns>Render order value that maps into the requested bucket.</returns>
+    public byte GetRenderOrderForBucket3D(int bucketIndex) {
+        return RenderBucketUtils.GetRenderOrderForBucket(bucketIndex, TotalBuckets3D);
+    }
+
+    /// <summary>
+    /// Computes an update order value that maps to a desired update bucket.
+    /// </summary>
+    /// <param name="bucketIndex">Desired bucket index.</param>
+    /// <returns>Update order value that maps into the requested bucket.</returns>
+    public byte GetUpdateOrderForBucket(int bucketIndex) {
+        return RenderBucketUtils.GetRenderOrderForBucket(bucketIndex, TotalUpdateBuckets);
+    }
+
+    /// <summary>
     /// Registers an interactable element for hit testing.
     /// </summary>
     /// <param name="entity">Interactable to register.</param>
@@ -123,7 +165,7 @@ public class ObjectManager {
             RemoveFromUpdate(entity);
         }
 
-        int bucket = getBucket(entity.UpdateOrder, TotalUpdateBuckets);
+        int bucket = RenderBucketUtils.GetBucketIndex(entity.UpdateOrder, TotalUpdateBuckets);
         UpdateBucket updateBucket = UpdateEntities[bucket];
         updateBucket.Add(entity, out int pos);
         entity.UpdateBucket = bucket;
@@ -160,7 +202,7 @@ public class ObjectManager {
         // Maintain a side list for diagnostics, but membership uses per-camera dense buckets of references
         Drawables2D.Add(drawable);
 
-        int bucket = getBucket(drawable.RenderOrder2D, TotalBuckets2D);
+        int bucket = RenderBucketUtils.GetBucketIndex(drawable.RenderOrder2D, TotalBuckets2D);
         for (int i = 0; i < TotalCameraBuckets; i++) {
             int camCount = Cameras[i].Count;
             for (int j = 0; j < camCount; j++) {
@@ -208,7 +250,7 @@ public class ObjectManager {
     public void RegisterForRender3D(IDrawable3D drawable) {
         Drawables3D.Add(drawable);
 
-        int bucket = getBucket(drawable.RenderOrder3D, TotalBuckets3D);
+        int bucket = RenderBucketUtils.GetBucketIndex(drawable.RenderOrder3D, TotalBuckets3D);
         int variant = drawable.Variant;
 
         for (int i = 0; i < TotalCameraBuckets; i++) {
@@ -260,7 +302,7 @@ public class ObjectManager {
             return;
         }
 
-        int bucket = getBucket(updateOrder, TotalUpdateBuckets);
+        int bucket = RenderBucketUtils.GetBucketIndex(updateOrder, TotalUpdateBuckets);
         UpdateBucket updateBucket = UpdateEntities[bucket];
         updateBucket.EnsureCapacity(updateBucket.Count + additional);
     }
@@ -276,7 +318,7 @@ public class ObjectManager {
             return;
         }
 
-        int bucket = getBucket(renderOrder, TotalBuckets2D);
+        int bucket = RenderBucketUtils.GetBucketIndex(renderOrder, TotalBuckets2D);
         for (int i = 0; i < TotalCameraBuckets; i++) {
             int camCount = Cameras[i].Count;
             for (int j = 0; j < camCount; j++) {
@@ -308,7 +350,7 @@ public class ObjectManager {
             return;
         }
 
-        int bucket = getBucket(renderOrder, TotalBuckets3D);
+        int bucket = RenderBucketUtils.GetBucketIndex(renderOrder, TotalBuckets3D);
         for (int i = 0; i < TotalCameraBuckets; i++) {
             int camCount = Cameras[i].Count;
             for (int j = 0; j < camCount; j++) {
@@ -343,7 +385,7 @@ public class ObjectManager {
     /// <param name="camera">Camera to register.</param>
     public void RegisterCamera(ICamera camera) {
         // Use the correct camera bucket count for camera ordering
-        int cameraBucket = getBucket(camera.CameraDrawOrder, TotalCameraBuckets);
+        int cameraBucket = RenderBucketUtils.GetBucketIndex(camera.CameraDrawOrder, TotalCameraBuckets);
         Cameras[cameraBucket].Add(camera);
 
         // Backfill existing 3D drawables for this camera (by reference)
@@ -353,7 +395,7 @@ public class ObjectManager {
             for (int i = 0; i < Drawables3D.Count; i++) {
                 IDrawable3D drawable = Drawables3D[i];
                 if ((drawable.Parent.LayerMask & camera.LayerMask) != 0) {
-                    int drawBucket3D = getBucket(drawable.RenderOrder3D, TotalBuckets3D);
+                    int drawBucket3D = RenderBucketUtils.GetBucketIndex(drawable.RenderOrder3D, TotalBuckets3D);
                     int variant = drawable.Variant;
                     int bin = getStateBin3D(drawable.Model, reg3.BinsPerBucket);
                     reg3.Buckets[variant][drawBucket3D][bin].Add(drawable, out int pos3);
@@ -369,7 +411,7 @@ public class ObjectManager {
             for (int i = 0; i < Drawables2D.Count; i++) {
                 IDrawable2D drawable2D = Drawables2D[i];
                 if ((drawable2D.Parent.LayerMask & camera.LayerMask) != 0) {
-                    int drawBucket2D = getBucket(drawable2D.RenderOrder2D, TotalBuckets2D);
+                    int drawBucket2D = RenderBucketUtils.GetBucketIndex(drawable2D.RenderOrder2D, TotalBuckets2D);
                     reg.Buckets[drawBucket2D].Add(drawable2D, out int pos);
                     reg.Map[drawable2D] = new Index2D(drawBucket2D, pos);
                 }
@@ -382,7 +424,7 @@ public class ObjectManager {
     /// </summary>
     /// <param name="camera">Camera to remove.</param>
     public virtual void RemoveCamera(ICamera camera) {
-        int cameraBucket = getBucket(camera.CameraDrawOrder, TotalCameraBuckets);
+        int cameraBucket = RenderBucketUtils.GetBucketIndex(camera.CameraDrawOrder, TotalCameraBuckets);
         Cameras[cameraBucket].Remove(camera);
     }
 
@@ -402,16 +444,6 @@ public class ObjectManager {
                 }
             }
         }
-    }
-
-    /// <summary>
-    /// Computes the bucket index based on a render order value.
-    /// </summary>
-    /// <param name="renderOrder">Render order to bucketize.</param>
-    /// <param name="totalBuckets">Total buckets available.</param>
-    /// <returns>Calculated bucket index.</returns>
-    private int getBucket(byte renderOrder, byte totalBuckets) {
-        return (renderOrder * totalBuckets) / 256;
     }
 
     /// <summary>

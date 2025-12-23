@@ -11,7 +11,6 @@ namespace helengine {
         /// <param name="project">The project to open in the editor.</param>
         public EditorCore(Project project) {
             Project = project;
-            EditorObjectManager = new ObjectManager();
         }
 
         /// <summary>
@@ -23,6 +22,17 @@ namespace helengine {
         /// Gets the project currently loaded into the editor.
         /// </summary>
         public Project Project { get; private set; }
+
+        /// <inheritdoc />
+        public override void Initialize(
+            RenderManager3D render3D,
+            RenderManager2D render2D,
+            InputManager input,
+            CoreInitializationOptions options) {
+            base.Initialize(render3D, render2D, input, options);
+
+            EditorObjectManager = new ObjectManager(InitializationOptions);
+        }
 
         /// <inheritdoc />
         public override void Update() {

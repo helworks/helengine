@@ -79,7 +79,8 @@ namespace helengine.editor.app {
 
             renderer3D = new SharpDXRenderer3D();
             InputManager inputManager = new InputManagerWindows(this.Handle);
-            core.Initialize(renderer3D, renderer3D.Render2D, inputManager);
+            CoreInitializationOptions initOptions = new CoreInitializationOptions();
+            core.Initialize(renderer3D, renderer3D.Render2D, inputManager, initOptions);
 
             int renderWidth = Math.Max(1, ClientSize.Width);
             int renderHeight = Math.Max(1, ClientSize.Height);

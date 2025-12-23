@@ -4,16 +4,29 @@ namespace helengine {
     /// </summary>
     public class Core : IDisposable {
         /// <summary>
+        /// Initializes a new core instance with default initialization options.
+        /// </summary>
+        public Core() : this(new CoreInitializationOptions()) { }
+
+        /// <summary>
         /// Initializes a new core instance and registers the static singleton reference.
         /// </summary>
-        public Core() {
+        /// <param name="options">Initialization options that control bucket sizing.</param>
+        public Core(CoreInitializationOptions options) {
             Instance = this;
+            InitializationOptions = options ?? new CoreInitializationOptions();
+            InitializationOptions.Normalize();
         }
 
         /// <summary>
         /// Gets the singleton core instance.
         /// </summary>
         public static Core Instance { get; private set; }
+
+        /// <summary>
+        /// Gets the initialization options used to configure core systems.
+        /// </summary>
+        public CoreInitializationOptions InitializationOptions { get; private set; }
 
         /// <summary>
         /// Gets the object manager responsible for updating entities and components.
@@ -42,11 +55,33 @@ namespace helengine {
         /// <param name="render2D">2D renderer instance.</param>
         /// <param name="input">Input manager instance.</param>
         public virtual void Initialize(RenderManager3D render3D, RenderManager2D render2D, InputManager input) {
-            this.RenderManager3D = render3D;
-            this.RenderManager2D = render2D;
-            this.InputManager = input;
+            Initialize(render3D, render2D, input, InitializationOptions);
+        }
 
-            ObjectManager = new ObjectManager();
+        /// <summary>
+        /// Initializes core systems with rendering, input, and initialization options.
+        /// </summary>
+        /// <param name="render3D">3D renderer instance.</param>
+        /// <param name="render2D">2D renderer instance.</param>
+        /// <param name="input">Input manager instance.</param>
+        /// <param name="options">Initialization options that control bucket sizing.</param>
+        public virtual void Initialize(
+            RenderManager3D render3D,
+            RenderManager2D render2D,
+            InputManager input,
+            CoreInitializationOptions options) {
+            RenderManager3D = render3D;
+            RenderManager2D = render2D;
+            InputManager = input;
+
+            CoreInitializationOptions settings = options;
+            if (settings == null) {
+                settings = InitializationOptions ?? new CoreInitializationOptions();
+            }
+            settings.Normalize();
+            InitializationOptions = settings;
+
+            ObjectManager = new ObjectManager(settings);
         }
 
         /// <summary>

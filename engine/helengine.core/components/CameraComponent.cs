@@ -3,6 +3,9 @@ namespace helengine {
     /// Provides camera state for rendering scenes in 2D and 3D.
     /// </summary>
     public class CameraComponent : Component, ICamera {
+        /// <summary>
+        /// Cached camera draw order value.
+        /// </summary>
         byte cameraDrawOrder;
 
         /// <summary>
@@ -43,7 +46,13 @@ namespace helengine {
         /// </summary>
         public ushort LayerMask { get; set; }
 
+        /// <summary>
+        /// 2D render registry for this camera.
+        /// </summary>
         Camera2DRegistry registry2D;
+        /// <summary>
+        /// 3D render registry for this camera.
+        /// </summary>
         Camera3DRegistry registry3D;
 
         /// <summary>
@@ -53,9 +62,32 @@ namespace helengine {
             LayerMask = 0b11111111;
             Viewport = new float4(0, 0, 1, 1);
 
-            registry2D = new Camera2DRegistry(4, 64, 256);
-            // 3D: 4 variants, 4 order buckets, 4 state bins per bucket
-            registry3D = new Camera3DRegistry(4, 4, 4, 64, 512);
+            InitializeRegistries();
+        }
+
+        /// <summary>
+        /// Allocates render registries using the core initialization options.
+        /// </summary>
+        void InitializeRegistries() {
+            CoreInitializationOptions settings = null;
+            if (Core.Instance != null) {
+                settings = Core.Instance.InitializationOptions;
+            }
+            if (settings == null) {
+                settings = new CoreInitializationOptions();
+                settings.Normalize();
+            }
+
+            registry2D = new Camera2DRegistry(
+                settings.TotalBuckets2D,
+                settings.RenderBucket2DInitialCapacity,
+                settings.Camera2DMapCapacity);
+            registry3D = new Camera3DRegistry(
+                settings.TotalVariants3D,
+                settings.TotalBuckets3D,
+                settings.RenderBucket3DBinsPerBucket,
+                settings.RenderBucket3DInitialCapacity,
+                settings.Camera3DMapCapacity);
         }
 
         /// <summary>

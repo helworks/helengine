@@ -20,6 +20,14 @@ namespace helengine.editor {
         SpriteComponent background;
         InteractableComponent hitRegion;
         TextComponent titleTextComponent;
+        /// <summary>
+        /// Render order used for title bar backgrounds.
+        /// </summary>
+        readonly byte backgroundOrder;
+        /// <summary>
+        /// Render order used for title bar text.
+        /// </summary>
+        readonly byte textOrder;
         List<(EditorEntity Entity, int Width)> menuButtons = new();
         List<(EditorEntity Entity, int Width)> windowControlButtons = new();
 
@@ -36,6 +44,8 @@ namespace helengine.editor {
         public EditorTitleBar(FontAsset font, int windowWidth, string titleText) {
             this.font = font;
             title = titleText;
+            backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
+            textOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(2);
 
             rootEntity = new EditorEntity {
                 LayerMask = TitleBarLayerMask,
@@ -46,7 +56,7 @@ namespace helengine.editor {
                 Texture = TextureUtils.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
                 Size = new int2(windowWidth, HeightPixels),
-                RenderOrder2D = 1
+                RenderOrder2D = backgroundOrder
             };
             rootEntity.AddComponent(background);
 
@@ -67,7 +77,7 @@ namespace helengine.editor {
                 Text = titleText,
                 Color = new byte4(255, 255, 255, 255),
                 Size = new int2(300, (int)MathF.Ceiling(lineHeight)),
-                RenderOrder2D = 3
+                RenderOrder2D = textOrder
             };
             titleEntity.AddComponent(titleTextComponent);
             rootEntity.AddChild(titleEntity);

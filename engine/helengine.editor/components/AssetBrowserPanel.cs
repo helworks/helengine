@@ -47,6 +47,22 @@ namespace helengine.editor {
         /// Font used to render toolbar and row labels.
         /// </summary>
         FontAsset font;
+        /// <summary>
+        /// Render order used for toolbar backgrounds.
+        /// </summary>
+        readonly byte toolbarOrder;
+        /// <summary>
+        /// Render order used for row backgrounds.
+        /// </summary>
+        readonly byte rowBackgroundOrder;
+        /// <summary>
+        /// Render order used for icon backgrounds.
+        /// </summary>
+        readonly byte iconBackgroundOrder;
+        /// <summary>
+        /// Render order used for text labels.
+        /// </summary>
+        readonly byte textOrder;
 
         /// <summary>
         /// Asset manager used to supply browsing data and classifications.
@@ -113,6 +129,11 @@ namespace helengine.editor {
             Title = "Assets";
             MinSize = new int2(260, 180);
 
+            toolbarOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
+            rowBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
+            iconBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
+            textOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(2);
+
             assetManager = new EditorAssetManager(projectPath);
 
             contentRoot = new EditorEntity();
@@ -164,7 +185,7 @@ namespace helengine.editor {
             toolbarBackground = new SpriteComponent();
             toolbarBackground.Texture = TextureUtils.PixelTexture;
             toolbarBackground.Color = ThemeManager.Colors.SurfacePrimary;
-            toolbarBackground.RenderOrder2D = 1;
+            toolbarBackground.RenderOrder2D = toolbarOrder;
             toolbarRoot.AddComponent(toolbarBackground);
 
             upButtonHost = new EditorEntity();
@@ -186,7 +207,7 @@ namespace helengine.editor {
             pathText.Text = string.Empty;
             pathText.Color = ThemeManager.Colors.InputForegroundPrimary;
             pathText.Size = new int2(1, (int)MathF.Ceiling(lineHeight));
-            pathText.RenderOrder2D = 3;
+            pathText.RenderOrder2D = textOrder;
             pathTextHost.AddComponent(pathText);
         }
 
@@ -262,7 +283,7 @@ namespace helengine.editor {
             var background = new SpriteComponent();
             background.Texture = TextureUtils.PixelTexture;
             background.Color = ThemeManager.Colors.SurfacePrimary;
-            background.RenderOrder2D = 2;
+            background.RenderOrder2D = rowBackgroundOrder;
             rowEntity.AddComponent(background);
 
             var iconHost = new EditorEntity();
@@ -273,7 +294,7 @@ namespace helengine.editor {
             var iconBackground = new SpriteComponent();
             iconBackground.Texture = TextureUtils.PixelTexture;
             iconBackground.Color = ThemeManager.Colors.AccentSecondary;
-            iconBackground.RenderOrder2D = 3;
+            iconBackground.RenderOrder2D = iconBackgroundOrder;
             iconHost.AddComponent(iconBackground);
 
             var iconTextHost = new EditorEntity();
@@ -286,7 +307,7 @@ namespace helengine.editor {
             iconText.Text = string.Empty;
             iconText.Color = ThemeManager.Colors.TextOnAccent;
             iconText.Size = new int2(1, 1);
-            iconText.RenderOrder2D = 4;
+            iconText.RenderOrder2D = textOrder;
             iconTextHost.AddComponent(iconText);
 
             var labelHost = new EditorEntity();
@@ -299,7 +320,7 @@ namespace helengine.editor {
             label.Text = string.Empty;
             label.Color = ThemeManager.Colors.InputForegroundPrimary;
             label.Size = new int2(100, RowHeight);
-            label.RenderOrder2D = 4;
+            label.RenderOrder2D = textOrder;
             labelHost.AddComponent(label);
 
             var interactable = new InteractableComponent();
