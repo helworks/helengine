@@ -7,3 +7,4 @@
 - Order members using standard C# layout (constants/fields, constructors, properties, methods) to keep files predictable.
 - Do not add redundant `private` modifiers; members without an access modifier are assumed private in C#.
 - Do not use tuples.
+- Follow MVC: keep logic in separate classes (controllers/services/managers) and keep UI classes focused only on presentation and input wiring.
