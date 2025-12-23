@@ -47,25 +47,9 @@ namespace helengine.editor.app {
         /// </summary>
         AssetBrowserPanel? assetBrowserPanel;
         /// <summary>
-        /// Docking layout engine used to arrange panels.
+        /// Docking manager that handles docking layout, previews, and resizing.
         /// </summary>
-        private DockLayoutEngine? dockLayout;
-        /// <summary>
-        /// Overlay used to preview docking positions during drag operations.
-        /// </summary>
-        private DockPreviewOverlay? dockPreviewOverlay;
-        /// <summary>
-        /// Last dockable entity that was dragged, used to finalize docking.
-        /// </summary>
-        private DockableEntity? lastDragging;
-        /// <summary>
-        /// Tracks whether a docking hint is currently valid.
-        /// </summary>
-        private bool dockHintValid;
-        /// <summary>
-        /// Stores the active docking hint during drag operations.
-        /// </summary>
-        private DockHint dockHint;
+        DockingManager? dockingManager;
         /// <summary>
         /// UI font used for title bars and panel content.
         /// </summary>
@@ -177,22 +161,21 @@ namespace helengine.editor.app {
             TitleBarWindowAdapter.Attach(titleBar, this);
             SetWindowTitle(Text);
 
-            dockLayout = new DockLayoutEngine();
+            dockingManager = new DockingManager();
 
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, projectPath);
             mainViewport = new DockableViewport(sceneCameraComponent, uiFont);
             sceneHierarchyPanel.Size = new int2(280, 600);
             assetBrowserPanel.Size = new int2(500, 240);
-            dockLayout.Add(sceneHierarchyPanel);
-            dockLayout.Add(assetBrowserPanel);
-            dockLayout.Add(mainViewport);
-            dockPreviewOverlay = new DockPreviewOverlay();
+            dockingManager.Layout.Add(sceneHierarchyPanel);
+            dockingManager.Layout.Add(assetBrowserPanel);
+            dockingManager.Layout.Add(mainViewport);
 
-            if (mainViewport != null && sceneHierarchyPanel != null && assetBrowserPanel != null) {
-                dockLayout.DockAsRoot(mainViewport);
-                dockLayout.DockRelative(assetBrowserPanel, mainViewport, DockInsertDirection.Bottom, 0.7f);
-                dockLayout.DockRelative(sceneHierarchyPanel, mainViewport, DockInsertDirection.Left, 0.3f);
+            if (mainViewport != null && sceneHierarchyPanel != null && assetBrowserPanel != null && dockingManager != null) {
+                dockingManager.Layout.DockAsRoot(mainViewport);
+                dockingManager.Layout.DockRelative(assetBrowserPanel, mainViewport, DockInsertDirection.Bottom, 0.7f);
+                dockingManager.Layout.DockRelative(sceneHierarchyPanel, mainViewport, DockInsertDirection.Left, 0.3f);
             }
 
             MakeStartScene();
@@ -230,7 +213,7 @@ namespace helengine.editor.app {
                     Invoke(() => {
                         Core.Instance.Update();
                         UpdateLayout();
-                        UpdateDockPreview();
+                        UpdateDocking();
                         sceneHierarchyPanel?.RefreshHierarchy();
                         Core.Instance.Draw();
                     });
@@ -305,37 +288,17 @@ namespace helengine.editor.app {
                 uiCameraComponent.Viewport = new float4(0, 0, renderWidth, renderHeight);
             }
 
-            if (dockLayout != null) {
+            if (dockingManager != null) {
                 int availableHeight = Math.Max(0, renderHeight - TitleBarHeight);
-                dockLayout.Layout(new int2(renderWidth, availableHeight), new float3(0, TitleBarHeight, 0));
+                dockingManager.Layout.Layout(new int2(renderWidth, availableHeight), new float3(0, TitleBarHeight, 0));
             }
         }
 
         /// <summary>
-        /// Evaluates docking hints for dragging panels and shows the preview overlay.
+        /// Updates docking interactions and applies cursor feedback.
         /// </summary>
-        private void UpdateDockPreview() {
-            if (dockLayout == null || dockPreviewOverlay == null || Core.Instance?.InputManager == null) {
-                return;
-            }
-
-            DockableEntity? dragging = null;
-            var dockables = dockLayout.Dockables;
-            for (int i = 0; i < dockables.Count; i++) {
-                var de = dockables[i];
-                if (de.IsDragging) {
-                    dragging = de;
-                    break;
-                }
-            }
-
-            if (dragging == null) {
-                if (lastDragging != null && dockHintValid) {
-                    ApplyDockHint(lastDragging);
-                }
-                dockPreviewOverlay.Hide();
-                lastDragging = null;
-                dockHintValid = false;
+        void UpdateDocking() {
+            if (dockingManager == null || Core.Instance?.InputManager == null) {
                 return;
             }
 
@@ -348,40 +311,23 @@ namespace helengine.editor.app {
             int2 hostSize = new int2(renderWidth, availableHeight);
             float3 origin = new float3(0, TitleBarHeight, 0);
 
-            if (dragging != null && dragging.ConsumeUndockRequest()) {
-                dockLayout.Undock(dragging);
+            bool layoutDirty = dockingManager.Update(pointer, mouse.LeftButton, hostSize, origin);
+
+            switch (dockingManager.CursorState) {
+                case DockingCursorState.VerticalSplit:
+                    Cursor = Cursors.VSplit;
+                    break;
+                case DockingCursorState.HorizontalSplit:
+                    Cursor = Cursors.HSplit;
+                    break;
+                default:
+                    Cursor = Cursors.Default;
+                    break;
+            }
+
+            if (layoutDirty) {
                 UpdateLayout();
             }
-
-            bool fillOnly = !dockLayout.HasDocked;
-
-            if (dockLayout.TryGetDockHint(pointer, hostSize, origin, fillOnly, out var hint)) {
-                dockPreviewOverlay.Show(hint.Position, hint.Size);
-                dockHintValid = true;
-                dockHint = hint;
-                lastDragging = dragging;
-            } else {
-                dockPreviewOverlay.Hide();
-                dockHintValid = false;
-                lastDragging = dragging;
-            }
-        }
-
-        /// <summary>
-        /// Applies the pending dock hint to a floating dockable entity.
-        /// </summary>
-        /// <param name="entity">Dockable entity to dock.</param>
-        private void ApplyDockHint(DockableEntity entity) {
-            if (!dockHintValid) {
-                return;
-            }
-
-            if (dockLayout != null) {
-                dockLayout.Dock(entity, dockHint);
-            }
-            dockHintValid = false;
-            dockPreviewOverlay?.Hide();
-            UpdateLayout();
         }
     }
 }
