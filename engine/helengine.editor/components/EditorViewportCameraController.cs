@@ -11,6 +11,10 @@ namespace helengine.editor {
         /// Mouse-look sensitivity in radians per pixel.
         /// </summary>
         public const double DefaultLookSensitivity = 0.003;
+        /// <summary>
+        /// Pan speed in world units per pixel.
+        /// </summary>
+        public const double DefaultPanSpeed = 0.01;
 
         /// <summary>
         /// Minimum length squared used to avoid normalizing a zero vector.
@@ -41,13 +45,25 @@ namespace helengine.editor {
         /// </summary>
         bool isActive;
         /// <summary>
+        /// Tracks whether a middle-click pan started inside the viewport.
+        /// </summary>
+        bool isPanning;
+        /// <summary>
         /// Tracks whether the first look delta after activation should be ignored.
         /// </summary>
         bool ignoreNextLookDelta;
         /// <summary>
+        /// Tracks whether the first pan delta after activation should be ignored.
+        /// </summary>
+        bool ignoreNextPanDelta;
+        /// <summary>
         /// Last mouse position recorded for look deltas.
         /// </summary>
         int2 lastLookPosition;
+        /// <summary>
+        /// Last mouse position recorded for pan deltas.
+        /// </summary>
+        int2 lastPanPosition;
         /// <summary>
         /// Tracks whether yaw and pitch have been initialized from the current orientation.
         /// </summary>
@@ -69,6 +85,7 @@ namespace helengine.editor {
             this.camera = camera ?? throw new ArgumentNullException(nameof(camera));
             MoveSpeed = DefaultMoveSpeed;
             LookSensitivity = DefaultLookSensitivity;
+            PanSpeed = DefaultPanSpeed;
         }
 
         /// <summary>
@@ -84,6 +101,10 @@ namespace helengine.editor {
         /// Gets or sets the mouse-look sensitivity in radians per pixel.
         /// </summary>
         public double LookSensitivity { get; set; }
+        /// <summary>
+        /// Gets or sets the pan speed in world units per pixel.
+        /// </summary>
+        public double PanSpeed { get; set; }
 
         /// <summary>
         /// Updates camera position based on right-click state and keyboard input.
@@ -112,14 +133,48 @@ namespace helengine.editor {
                 ignoreNextLookDelta = false;
             }
 
-            if (!isActive) {
-                return;
+            if (input.WasMouseMiddleButtonPressed()) {
+                isPanning = IsPointerInsideViewport(input);
+                if (isPanning) {
+                    lastPanPosition = input.GetMousePosition();
+                    ignoreNextPanDelta = true;
+                }
             }
 
-            ApplyMouseLook(input);
+            if (input.WasMouseMiddleButtonReleased() || input.GetMouseMiddleButtonState() == ButtonState.Released) {
+                isPanning = false;
+                ignoreNextPanDelta = false;
+            }
+
+            if (!isActive) {
+                if (!isPanning) {
+                    return;
+                }
+            } else {
+                ApplyMouseLook(input);
+            }
 
             float3 forward = GetForward(Parent.Orientation);
             float3 right = NormalizeSafe(float3.Cross(forward, WorldUp), new float3(1f, 0f, 0f));
+            float3 up = NormalizeSafe(float3.Cross(right, forward), WorldUp);
+
+            if (isPanning) {
+                if (ignoreNextPanDelta) {
+                    lastPanPosition = input.GetMousePosition();
+                    ignoreNextPanDelta = false;
+                } else {
+                    int2 current = input.GetMousePosition();
+                    int2 delta = new int2(current.X - lastPanPosition.X, current.Y - lastPanPosition.Y);
+                    lastPanPosition = current;
+                    if (delta.X != 0 || delta.Y != 0) {
+                        double panScale = PanSpeed;
+                        float3 panMove =
+                            right * (float)(-delta.X * panScale) +
+                            up * (float)(delta.Y * panScale);
+                        Parent.Position += panMove;
+                    }
+                }
+            }
 
             float3 move = BuildMovement(input, forward, right);
             double lengthSquared = (move.X * move.X) + (move.Y * move.Y) + (move.Z * move.Z);
