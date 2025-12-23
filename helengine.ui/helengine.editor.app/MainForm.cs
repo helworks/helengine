@@ -10,51 +10,6 @@ namespace helengine.editor.app {
     /// </summary>
     public partial class MainForm : Form {
         /// <summary>
-        /// Window message identifier for hit testing.
-        /// </summary>
-        const int WmNcHitTest = 0x84;
-        /// <summary>
-        /// Hit test result for client area.
-        /// </summary>
-        const int HtClient = 1;
-        /// <summary>
-        /// Hit test result for left border.
-        /// </summary>
-        const int HtLeft = 10;
-        /// <summary>
-        /// Hit test result for right border.
-        /// </summary>
-        const int HtRight = 11;
-        /// <summary>
-        /// Hit test result for top border.
-        /// </summary>
-        const int HtTop = 12;
-        /// <summary>
-        /// Hit test result for top-left corner.
-        /// </summary>
-        const int HtTopLeft = 13;
-        /// <summary>
-        /// Hit test result for top-right corner.
-        /// </summary>
-        const int HtTopRight = 14;
-        /// <summary>
-        /// Hit test result for bottom border.
-        /// </summary>
-        const int HtBottom = 15;
-        /// <summary>
-        /// Hit test result for bottom-left corner.
-        /// </summary>
-        const int HtBottomLeft = 16;
-        /// <summary>
-        /// Hit test result for bottom-right corner.
-        /// </summary>
-        const int HtBottomRight = 17;
-        /// <summary>
-        /// Thickness in pixels for resizing the borderless window.
-        /// </summary>
-        const int ResizeBorderThickness = 6;
-
-        /// <summary>
         /// Background thread that drives the editor update loop.
         /// </summary>
         private Thread thread;
@@ -370,7 +325,7 @@ namespace helengine.editor.app {
                     Cursor = Cursors.HSplit;
                     break;
                 default:
-                    if (TryGetWindowResizeCursor(pointer, out var resizeCursor)) {
+                    if (WindowResizeAdapter.TryGetResizeCursor(this, new Point(pointer.X, pointer.Y), WindowResizeAdapter.DefaultResizeBorderThickness, out var resizeCursor)) {
                         Cursor = resizeCursor;
                     } else {
                         Cursor = Cursors.Default;
@@ -414,114 +369,7 @@ namespace helengine.editor.app {
         protected override void WndProc(ref Message m) {
             base.WndProc(ref m);
 
-            if (m.Msg != WmNcHitTest || WindowState == FormWindowState.Maximized) {
-                return;
-            }
-
-            if ((int)m.Result != HtClient) {
-                return;
-            }
-
-            Point clientPoint = GetHitTestPoint(m.LParam);
-            int hitTest = GetResizeHitTest(clientPoint);
-            if (hitTest != HtClient) {
-                m.Result = (IntPtr)hitTest;
-            }
-        }
-
-        /// <summary>
-        /// Converts a hit test message lParam into client coordinates.
-        /// </summary>
-        /// <param name="lParam">Raw lParam from the hit test message.</param>
-        /// <returns>Point in client coordinates.</returns>
-        Point GetHitTestPoint(IntPtr lParam) {
-            int value = lParam.ToInt32();
-            int x = (short)(value & 0xFFFF);
-            int y = (short)((value >> 16) & 0xFFFF);
-            return PointToClient(new Point(x, y));
-        }
-
-        /// <summary>
-        /// Determines the resize hit test result for a client point.
-        /// </summary>
-        /// <param name="clientPoint">Point in client coordinates.</param>
-        /// <returns>Hit test result for resizing, or client when not on an edge.</returns>
-        int GetResizeHitTest(Point clientPoint) {
-            int width = ClientSize.Width;
-            int height = ClientSize.Height;
-
-            bool left = clientPoint.X <= ResizeBorderThickness;
-            bool right = clientPoint.X >= width - ResizeBorderThickness;
-            bool top = clientPoint.Y <= ResizeBorderThickness;
-            bool bottom = clientPoint.Y >= height - ResizeBorderThickness;
-
-            if (left && top) {
-                return HtTopLeft;
-            }
-            if (right && top) {
-                return HtTopRight;
-            }
-            if (left && bottom) {
-                return HtBottomLeft;
-            }
-            if (right && bottom) {
-                return HtBottomRight;
-            }
-            if (left) {
-                return HtLeft;
-            }
-            if (right) {
-                return HtRight;
-            }
-            if (top) {
-                return HtTop;
-            }
-            if (bottom) {
-                return HtBottom;
-            }
-
-            return HtClient;
-        }
-
-        /// <summary>
-        /// Determines whether the cursor should display a window resize indicator.
-        /// </summary>
-        /// <param name="pointer">Pointer position in client coordinates.</param>
-        /// <param name="cursor">Resolved cursor for the resize handle.</param>
-        /// <returns>True when a resize cursor should be shown.</returns>
-        bool TryGetWindowResizeCursor(int2 pointer, out Cursor cursor) {
-            cursor = Cursors.Default;
-            if (WindowState == FormWindowState.Maximized) {
-                return false;
-            }
-
-            int hitTest = GetResizeHitTest(new Point(pointer.X, pointer.Y));
-            cursor = GetResizeCursor(hitTest);
-            return hitTest != HtClient;
-        }
-
-        /// <summary>
-        /// Maps hit test results to Windows resize cursors.
-        /// </summary>
-        /// <param name="hitTest">Hit test value.</param>
-        /// <returns>Cursor that represents the resize direction.</returns>
-        Cursor GetResizeCursor(int hitTest) {
-            switch (hitTest) {
-                case HtLeft:
-                case HtRight:
-                    return Cursors.SizeWE;
-                case HtTop:
-                case HtBottom:
-                    return Cursors.SizeNS;
-                case HtTopLeft:
-                case HtBottomRight:
-                    return Cursors.SizeNWSE;
-                case HtTopRight:
-                case HtBottomLeft:
-                    return Cursors.SizeNESW;
-                default:
-                    return Cursors.Default;
-            }
+            WindowResizeAdapter.ApplyResizeHitTest(this, ref m, WindowResizeAdapter.DefaultResizeBorderThickness);
         }
     }
 }
