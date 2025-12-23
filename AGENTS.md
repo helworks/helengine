@@ -8,3 +8,6 @@
 - Do not add redundant `private` modifiers; members without an access modifier are assumed private in C#.
 - Do not use tuples.
 - Follow MVC: keep logic in separate classes (controllers/services/managers) and keep UI classes focused only on presentation and input wiring.
+- Avoid half-measures that patch broken state; ensure systems are correctly initialized or fix the underlying cause instead of bolting on runtime fixes (e.g., do not add auto-attach helpers like `EnsureCameraControls`).
+- Avoid `Mathf`; use `double` math and convert back to `float` where needed (modern processors handle `double` faster in this context).
+- Do not create local helper functions; if a helper is needed, add it to the appropriate Utils class or to a related type (for example, quaternion math should live on the quaternion type).

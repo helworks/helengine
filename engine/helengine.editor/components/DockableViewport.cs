@@ -10,7 +10,7 @@ namespace helengine.editor {
         /// <param name="font">Font used by the base dockable entity title bar.</param>
         public DockableViewport(CameraComponent camera, FontAsset font)
             : base(font) {
-            Camera = camera;
+            Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             Title = "Viewport";
             SetContentBackgroundColor(new byte4(0, 0, 0, 0));
             updateViewport();

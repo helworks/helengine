@@ -297,14 +297,14 @@ namespace helengine.editor {
             if (entry.IsPressed) {
                 entry.Background.Color = ThemeManager.Colors.AccentTertiary;
             } else if (isActive) {
-                entry.Background.Color = ThemeManager.Colors.AccentPrimary;
+                entry.Background.Color = ThemeManager.Colors.SurfacePrimary;
             } else if (entry.IsHovering) {
                 entry.Background.Color = ThemeManager.Colors.AccentSecondary;
             } else {
-                entry.Background.Color = ThemeManager.Colors.SurfacePrimary;
+                entry.Background.Color = ThemeManager.Colors.AccentPrimary;
             }
 
-            entry.Label.Color = isActive ? ThemeManager.Colors.TextOnAccent : ThemeManager.Colors.AccentQuaternary;
+            entry.Label.Color = isActive ? ThemeManager.Colors.AccentQuaternary : ThemeManager.Colors.TextOnAccent;
         }
 
         /// <summary>

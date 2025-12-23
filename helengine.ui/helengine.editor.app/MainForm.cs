@@ -155,6 +155,13 @@ namespace helengine.editor.app {
             sceneCameraComponent = new CameraComponent();
             sceneCameraComponent.LayerMask = 0b0100000000000000;
             sceneCam.AddComponent(sceneCameraComponent);
+            sceneCam.AddComponent(new EditorViewportCameraController(sceneCameraComponent));
+            float3 toOrigin = float3.Normalize(new float3(-sceneCam.Position.X, -sceneCam.Position.Y, -sceneCam.Position.Z));
+            float yaw = MathF.Atan2(toOrigin.X, -toOrigin.Z);
+            float pitch = MathF.Asin(toOrigin.Y);
+            float4 orientation;
+            float4.CreateFromYawPitchRoll(yaw, pitch, 0f, out orientation);
+            sceneCam.Orientation = orientation;
 
             titleBar = new EditorTitleBar(uiFont, ClientSize.Width, Text);
             TitleBarWindowAdapter.Attach(titleBar, this);
@@ -242,7 +249,7 @@ namespace helengine.editor.app {
         protected override void OnActivated(EventArgs e) {
             base.OnActivated(e);
 
-            //Keyboard.SetActive(true);
+            Core.Instance?.InputManager?.SetKeyboardActive(true);
         }
 
         /// <summary>
@@ -252,7 +259,7 @@ namespace helengine.editor.app {
         protected override void OnDeactivate(EventArgs e) {
             base.OnDeactivate(e);
 
-            //Keyboard.SetActive(false);
+            Core.Instance?.InputManager?.SetKeyboardActive(false);
         }
 
         /// <summary>

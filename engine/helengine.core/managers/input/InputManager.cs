@@ -62,6 +62,18 @@ public abstract class InputManager {
     public IInteractable2D? Hovering { get; private set; }
 
     /// <summary>
+    /// Enables or disables keyboard input capture for the active backend.
+    /// </summary>
+    /// <param name="isActive">True to capture key state; false to ignore input.</param>
+    public void SetKeyboardActive(bool isActive) {
+        if (Keyboard == null) {
+            return;
+        }
+
+        Keyboard.SetActive(isActive);
+    }
+
+    /// <summary>
     /// Captures keyboard and mouse input at the start of a frame.
     /// </summary>
     public virtual void EarlyUpdate() {

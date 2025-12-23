@@ -17,6 +17,14 @@ namespace helengine.sharpdx {
     /// </summary>
     public class SharpDXRenderer3D : RenderManager3D {
         const int SwapChainBufferCount = 2;
+        /// <summary>
+        /// Default forward axis for cameras before rotation.
+        /// </summary>
+        static readonly float3 DefaultForward = new float3(0f, 0f, -1f);
+        /// <summary>
+        /// Default up axis for cameras before rotation.
+        /// </summary>
+        static readonly float3 DefaultUp = new float3(0f, 1f, 0f);
 
         Stopwatch frameStopwatch = Stopwatch.StartNew();
         int drawCallsThisFrame;
@@ -283,8 +291,10 @@ namespace helengine.sharpdx {
 
             float4x4 view;
             float3 cameraPos = camera.Parent.Position;
-            float3 cameraTarget = new float3(0, 0, 0);
-            float3 cameraUp = new float3(0, 1, 0);
+            float4 cameraOrientation = camera.Parent.Orientation;
+            float3 cameraForward = RotateVectorByQuaternion(DefaultForward, cameraOrientation);
+            float3 cameraUp = RotateVectorByQuaternion(DefaultUp, cameraOrientation);
+            float3 cameraTarget = cameraPos + cameraForward;
             float4x4.CreateLookAt(ref cameraPos, ref cameraTarget, ref cameraUp, out view);
 
             float4 viewport = camera.Viewport;
@@ -352,6 +362,18 @@ namespace helengine.sharpdx {
             }
 
             renderer2D.RenderCamera(camera);
+        }
+
+        /// <summary>
+        /// Rotates a vector by a quaternion.
+        /// </summary>
+        /// <param name="value">Vector to rotate.</param>
+        /// <param name="rotation">Quaternion rotation.</param>
+        /// <returns>Rotated vector.</returns>
+        static float3 RotateVectorByQuaternion(float3 value, float4 rotation) {
+            float3 qv = new float3(rotation.X, rotation.Y, rotation.Z);
+            float3 t = float3.Cross(qv, value) * 2f;
+            return value + (t * rotation.W) + float3.Cross(qv, t);
         }
 
         /// <summary>
