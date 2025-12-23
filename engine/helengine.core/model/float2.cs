@@ -43,7 +43,7 @@ namespace helengine {
         /// </summary>
         /// <param name="obj">Object to compare.</param>
         /// <returns>True when the vectors have identical components; otherwise false.</returns>
-        public override bool Equals(object? obj) {
+        public override bool Equals(object obj) {
             if (obj == null) {
                 return false;
             } else if (!(obj is float2)) {

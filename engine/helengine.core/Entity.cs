@@ -82,12 +82,12 @@ namespace helengine {
         /// <summary>
         /// Gets the list of components attached to this entity.
         /// </summary>
-        public List<Component>? Components { get; internal set; }
+        public List<Component> Components { get; internal set; }
 
         /// <summary>
         /// Gets the list of child entities owned by this entity.
         /// </summary>
-        public List<Entity>? Children { get; internal set; }
+        public List<Entity> Children { get; internal set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether the entity is enabled.

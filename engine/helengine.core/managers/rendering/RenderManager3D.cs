@@ -13,7 +13,7 @@ namespace helengine {
         /// <summary>
         /// Event raised when a window is resized.
         /// </summary>
-        public event Action<IntPtr, int, int>? WindowResized;
+        public event Action<IntPtr, int, int> WindowResized;
 
         /// <summary>
         /// Adds a window to the renderer and tracks its size.

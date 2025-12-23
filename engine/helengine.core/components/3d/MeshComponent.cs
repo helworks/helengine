@@ -8,7 +8,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the runtime model to render.
         /// </summary>
-        public RuntimeModel? Model { get; set; }
+        public RuntimeModel Model { get; set; }
 
         /// <summary>
         /// Gets or sets the render order bucket for this mesh.

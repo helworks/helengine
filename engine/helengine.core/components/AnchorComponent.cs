@@ -3,7 +3,7 @@ namespace helengine {
     /// Maintains an entity's position relative to window edges and updates on resize.
     /// </summary>
     public class AnchorComponent : Component {
-        private AnchorData? anchorData;
+        private AnchorData anchorData;
         
         /// <summary>
         /// Gets a value indicating whether anchoring is currently enabled.
@@ -48,7 +48,7 @@ namespace helengine {
         /// <summary>
         /// Set anchor distances manually (useful for runtime adjustments)
         /// </summary>
-        public void SetAnchorDistances(float? left = null, float? right = null, float? top = null, float? bottom = null) {
+        public void SetAnchorDistances(Nullable<float> left = null, Nullable<float> right = null, Nullable<float> top = null, Nullable<float> bottom = null) {
             if (anchorData == null) {
                 anchorData = new AnchorData();
                 Core.Instance.RenderManager3D.WindowResized += OnWindowResized;
@@ -108,7 +108,7 @@ namespace helengine {
             var info = "Anchored to: ";
             var anchors = new List<string>();
             
-            if (anchorData!.LeftDistance.HasValue) anchors.Add($"Left ({anchorData.LeftDistance.Value:F1}px)");
+            if (anchorData.LeftDistance.HasValue) anchors.Add($"Left ({anchorData.LeftDistance.Value:F1}px)");
             if (anchorData.RightDistance.HasValue) anchors.Add($"Right ({anchorData.RightDistance.Value:F1}px)");
             if (anchorData.TopDistance.HasValue) anchors.Add($"Top ({anchorData.TopDistance.Value:F1}px)");
             if (anchorData.BottomDistance.HasValue) anchors.Add($"Bottom ({anchorData.BottomDistance.Value:F1}px)");
@@ -123,19 +123,19 @@ namespace helengine {
             /// <summary>
             /// Distance from the left edge of the window in pixels.
             /// </summary>
-            public float? LeftDistance { get; set; }
+            public Nullable<float> LeftDistance { get; set; }
             /// <summary>
             /// Distance from the right edge of the window in pixels.
             /// </summary>
-            public float? RightDistance { get; set; }
+            public Nullable<float> RightDistance { get; set; }
             /// <summary>
             /// Distance from the top edge of the window in pixels.
             /// </summary>
-            public float? TopDistance { get; set; }
+            public Nullable<float> TopDistance { get; set; }
             /// <summary>
             /// Distance from the bottom edge of the window in pixels.
             /// </summary>
-            public float? BottomDistance { get; set; }
+            public Nullable<float> BottomDistance { get; set; }
         }
     }
 }

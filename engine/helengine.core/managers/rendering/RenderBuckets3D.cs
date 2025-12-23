@@ -76,7 +76,7 @@ namespace helengine {
         /// </summary>
         /// <param name="pos">Position to remove.</param>
         /// <returns>Swapped item or null if none.</returns>
-        public IDrawable3D? RemoveSwapAt(int pos) {
+        public IDrawable3D RemoveSwapAt(int pos) {
             int last = Count - 1;
             if (pos < 0 || pos > last) return null;
             IDrawable3D swapped = Items[last];

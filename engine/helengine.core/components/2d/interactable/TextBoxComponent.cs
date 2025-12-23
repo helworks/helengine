@@ -3,7 +3,7 @@ namespace helengine {
     /// Simple text box with placeholder, blinking cursor, and basic keyboard input handling.
     /// </summary>
     public class TextBoxComponent : Component {
-        static TextBoxComponent? focusedTextBox;
+        static TextBoxComponent focusedTextBox;
         string text = "";
         string placeholder = "";
         FontAsset font;
@@ -14,9 +14,9 @@ namespace helengine {
         int cursorPosition;
         
         // Child components
-        RoundedRectComponent? backgroundSprite;
-        TextComponent? textComponent;
-        InteractableComponent? interactableComponent;
+        RoundedRectComponent backgroundSprite;
+        TextComponent textComponent;
+        InteractableComponent interactableComponent;
         
         /// <summary>
         /// Gets or sets the text content.

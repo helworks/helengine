@@ -21,6 +21,6 @@ namespace helengine {
         /// <summary>
         /// Gets the runtime model associated with this drawable.
         /// </summary>
-        RuntimeModel? Model { get; }
+        RuntimeModel Model { get; }
     }
 }

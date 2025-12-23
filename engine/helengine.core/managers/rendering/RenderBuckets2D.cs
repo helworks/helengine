@@ -66,7 +66,7 @@ namespace helengine {
         /// </summary>
         /// <param name="pos">Position to remove.</param>
         /// <returns>Swapped item or null if none.</returns>
-        public IDrawable2D? RemoveSwapAt(int pos) {
+        public IDrawable2D RemoveSwapAt(int pos) {
             int last = Count - 1;
             if (pos < 0 || pos > last) return null;
             IDrawable2D swapped = Items[last];
@@ -140,7 +140,7 @@ namespace helengine {
         /// <param name="x">First object to compare.</param>
         /// <param name="y">Second object to compare.</param>
         /// <returns><c>true</c> if both references point to the same instance; otherwise, <c>false</c>.</returns>
-        public bool Equals(T? x, T? y) => ReferenceEquals(x, y);
+        public bool Equals(T x, T y) => ReferenceEquals(x, y);
         /// <summary>
         /// Gets a hash code based on the object's reference.
         /// </summary>

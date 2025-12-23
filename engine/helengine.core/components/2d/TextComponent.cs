@@ -26,7 +26,7 @@ namespace helengine {
         /// <summary>
         /// Gets or sets an optional pre-rendered texture backing this text.
         /// </summary>
-        public RuntimeTexture? Texture { get; set; }
+        public RuntimeTexture Texture { get; set; }
 
         /// <summary>
         /// Gets or sets the rotation applied during rendering.

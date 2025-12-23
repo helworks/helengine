@@ -12,7 +12,7 @@ public abstract class InputManager {
     /// <summary>
     /// Camera that captured the pointer on press.
     /// </summary>
-    ICamera? capturedCamera;
+    ICamera capturedCamera;
     /// <summary>
     /// Mouse state snapshot from the previous update.
     /// </summary>
@@ -54,12 +54,12 @@ public abstract class InputManager {
     /// <summary>
     /// Gets the interactable currently captured by a press.
     /// </summary>
-    public IInteractable2D? Highlighted { get; private set; }
+    public IInteractable2D Highlighted { get; private set; }
 
     /// <summary>
     /// Gets the interactable currently hovered by the pointer.
     /// </summary>
-    public IInteractable2D? Hovering { get; private set; }
+    public IInteractable2D Hovering { get; private set; }
 
     /// <summary>
     /// Enables or disables keyboard input capture for the active backend.
@@ -288,7 +288,7 @@ public abstract class InputManager {
             }
 
             // Determine the topmost camera under the cursor
-            ICamera? topCamera = GetTopmostCameraAt(mouseState.X, mouseState.Y);
+            ICamera topCamera = GetTopmostCameraAt(mouseState.X, mouseState.Y);
 
             // Compute local mouse coordinates within that camera's viewport
             float2 localMouse = new float2(mouseState.X, mouseState.Y);
@@ -330,7 +330,7 @@ public abstract class InputManager {
             }
 
             // No captured interactable; hit test within the topmost camera
-            IInteractable2D? hit = null;
+            IInteractable2D hit = null;
             if (topCamera != null) {
                 ushort camMask = topCamera.LayerMask;
                 for (int i = 0; i < interactables.Count; i++) {
@@ -355,7 +355,7 @@ public abstract class InputManager {
                 if (Hovering != null) {
                     // Compute relative coords for the previous hovered for a clean leave event
                     float2 prevLocal = new float2(mouseState.X, mouseState.Y);
-                    ICamera? prevCam = FindCameraForInteractableAt(Hovering, mouseState.X, mouseState.Y);
+                    ICamera prevCam = FindCameraForInteractableAt(Hovering, mouseState.X, mouseState.Y);
                     if (prevCam != null) {
                         float4 vp = prevCam.Viewport;
                         prevLocal.X -= vp.X;
@@ -406,7 +406,7 @@ public abstract class InputManager {
     /// <summary>
     /// Finds the topmost camera whose viewport contains the given screen coordinates.
     /// </summary>
-    private ICamera? GetTopmostCameraAt(int x, int y) {
+    private ICamera GetTopmostCameraAt(int x, int y) {
         var cameraBuckets = core.ObjectManager.Cameras;
         for (int b = cameraBuckets.Length - 1; b >= 0; b--) {
             var list = cameraBuckets[b];
@@ -424,7 +424,7 @@ public abstract class InputManager {
     /// <summary>
     /// Finds the camera containing the specified interactable at the given mouse position.
     /// </summary>
-    private ICamera? FindCameraForInteractableAt(IInteractable2D interactable, int mouseX, int mouseY) {
+    private ICamera FindCameraForInteractableAt(IInteractable2D interactable, int mouseX, int mouseY) {
         var cameraBuckets = core.ObjectManager.Cameras;
         for (int b = cameraBuckets.Length - 1; b >= 0; b--) {
             var list = cameraBuckets[b];

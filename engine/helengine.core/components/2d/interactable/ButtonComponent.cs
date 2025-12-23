@@ -6,14 +6,14 @@ namespace helengine {
         string text;
         FontAsset font;
         int2 size;
-        Action? onClickAction;
+        Action onClickAction;
         readonly float borderThickness;
 
         // Child entities and components
-        Entity? textEntity;
-        RoundedRectComponent? roundedRect;
-        TextComponent? textComponent;
-        InteractableComponent? interactableComponent;
+        Entity textEntity;
+        RoundedRectComponent roundedRect;
+        TextComponent textComponent;
+        InteractableComponent interactableComponent;
 
         // Current state
         bool isHovering;
@@ -31,7 +31,7 @@ namespace helengine {
             string text,
             int2 size,
             FontAsset font,
-            Action? onClickAction = null,
+            Action onClickAction = null,
             float borderThickness = 2f) {
 
             this.text = text;

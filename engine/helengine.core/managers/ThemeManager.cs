@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>
         /// Raised when the active theme changes.
         /// </summary>
-        public static event EventHandler? ThemeChanged;
+        public static event EventHandler ThemeChanged;
 
         /// <summary>
         /// Gets the current theme palette.
