@@ -85,6 +85,37 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Rotates a vector by the provided quaternion.
+        /// </summary>
+        /// <param name="value">Vector to rotate.</param>
+        /// <param name="rotation">Quaternion rotation.</param>
+        /// <returns>Rotated vector.</returns>
+        public static float3 RotateVector(float3 value, float4 rotation) {
+            double qx = rotation.X;
+            double qy = rotation.Y;
+            double qz = rotation.Z;
+            double qw = rotation.W;
+
+            double vx = value.X;
+            double vy = value.Y;
+            double vz = value.Z;
+
+            double tx = 2.0 * (qy * vz - qz * vy);
+            double ty = 2.0 * (qz * vx - qx * vz);
+            double tz = 2.0 * (qx * vy - qy * vx);
+
+            double cx = (qy * tz) - (qz * ty);
+            double cy = (qz * tx) - (qx * tz);
+            double cz = (qx * ty) - (qy * tx);
+
+            double rx = vx + (tx * qw) + cx;
+            double ry = vy + (ty * qw) + cy;
+            double rz = vz + (tz * qw) + cz;
+
+            return new float3((float)rx, (float)ry, (float)rz);
+        }
+
+        /// <summary>
         /// Creates a quaternion from yaw, pitch, and roll angles.
         /// </summary>
         /// <param name="yaw">Yaw around the Y axis in radians.</param>

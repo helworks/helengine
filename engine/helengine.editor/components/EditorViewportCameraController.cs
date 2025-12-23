@@ -195,20 +195,8 @@ namespace helengine.editor {
         /// <param name="orientation">Camera orientation quaternion.</param>
         /// <returns>Normalized forward vector.</returns>
         float3 GetForward(float4 orientation) {
-            float3 direction = RotateVectorByQuaternion(ForwardAxis, orientation);
+            float3 direction = float4.RotateVector(ForwardAxis, orientation);
             return NormalizeSafe(direction, ForwardAxis);
-        }
-
-        /// <summary>
-        /// Rotates a vector by a quaternion.
-        /// </summary>
-        /// <param name="value">Vector to rotate.</param>
-        /// <param name="rotation">Quaternion rotation.</param>
-        /// <returns>Rotated vector.</returns>
-        float3 RotateVectorByQuaternion(float3 value, float4 rotation) {
-            float3 qv = new float3(rotation.X, rotation.Y, rotation.Z);
-            float3 t = float3.Cross(qv, value) * 2f;
-            return value + (t * rotation.W) + float3.Cross(qv, t);
         }
 
         /// <summary>

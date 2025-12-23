@@ -292,8 +292,8 @@ namespace helengine.sharpdx {
             float4x4 view;
             float3 cameraPos = camera.Parent.Position;
             float4 cameraOrientation = camera.Parent.Orientation;
-            float3 cameraForward = RotateVectorByQuaternion(DefaultForward, cameraOrientation);
-            float3 cameraUp = RotateVectorByQuaternion(DefaultUp, cameraOrientation);
+            float3 cameraForward = float4.RotateVector(DefaultForward, cameraOrientation);
+            float3 cameraUp = float4.RotateVector(DefaultUp, cameraOrientation);
             float3 cameraTarget = cameraPos + cameraForward;
             float4x4.CreateLookAt(ref cameraPos, ref cameraTarget, ref cameraUp, out view);
 
@@ -364,17 +364,6 @@ namespace helengine.sharpdx {
             renderer2D.RenderCamera(camera);
         }
 
-        /// <summary>
-        /// Rotates a vector by a quaternion.
-        /// </summary>
-        /// <param name="value">Vector to rotate.</param>
-        /// <param name="rotation">Quaternion rotation.</param>
-        /// <returns>Rotated vector.</returns>
-        static float3 RotateVectorByQuaternion(float3 value, float4 rotation) {
-            float3 qv = new float3(rotation.X, rotation.Y, rotation.Z);
-            float3 t = float3.Cross(qv, value) * 2f;
-            return value + (t * rotation.W) + float3.Cross(qv, t);
-        }
 
         /// <summary>
         /// Sets the rounded-rectangle rendering backend for UI shapes.
