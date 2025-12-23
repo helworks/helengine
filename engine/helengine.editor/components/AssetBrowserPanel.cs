@@ -245,13 +245,13 @@ namespace helengine.editor {
             float buttonY = MathF.Round((ToolbarHeight - UpButtonSize.Y) * 0.5f);
             upButtonHost.Position = new float3(ToolbarPadding, buttonY, 0.2f);
 
-            float lineHeight = MathF.Max(font.LineHeight, 1f);
             float pathX = ToolbarPadding + UpButtonSize.X + ToolbarSpacing;
-            float pathY = MathF.Round((ToolbarHeight - lineHeight) * 0.5f);
+            var pathMetrics = font.MeasureTight(pathText.Text);
+            float pathY = GetTextTopOffset(ToolbarHeight, pathMetrics);
             pathTextHost.Position = new float3(pathX, pathY, 0.2f);
 
             int pathWidth = Math.Max(0, rowWidth - (int)pathX - ToolbarPadding);
-            pathText.Size = new int2(pathWidth, (int)MathF.Ceiling(lineHeight));
+            pathText.Size = new int2(pathWidth, (int)MathF.Ceiling(pathMetrics.Height));
         }
 
         /// <summary>
@@ -497,7 +497,6 @@ namespace helengine.editor {
         void LayoutRows() {
             EnsureRowCount(entries.Count);
 
-            float lineHeight = MathF.Max(font.LineHeight, 1f);
             int rowWidth = Math.Max(Size.X, MinSize.X);
 
             for (int i = 0; i < rows.Count; i++) {
@@ -535,23 +534,35 @@ namespace helengine.editor {
                 row.IconText.Text = iconLabel;
                 row.IconText.Color = iconTextColor;
 
-                var tight = font.MeasureTight(iconLabel);
-                float iconTextX = MathF.Round((IconSize - tight.Width) * 0.5f);
-                float iconTextY = MathF.Round((IconSize - lineHeight) * 0.5f);
+                var iconMetrics = font.MeasureTight(iconLabel);
+                float iconTextX = MathF.Round((IconSize - iconMetrics.Width) * 0.5f);
+                float iconTextY = GetTextTopOffset(IconSize, iconMetrics);
                 if (row.IconText.Parent != null) {
                     row.IconText.Parent.Position = new float3(iconTextX, iconTextY, 0.1f);
                 }
-                row.IconText.Size = new int2((int)MathF.Ceiling(tight.Width), (int)MathF.Ceiling(lineHeight));
+                row.IconText.Size = new int2((int)MathF.Ceiling(iconMetrics.Width), (int)MathF.Ceiling(iconMetrics.Height));
 
                 float labelX = IconPadding + IconSize + LabelPadding;
-                float labelY = MathF.Round((RowHeight - lineHeight) * 0.5f);
+                string labelText = entry.IsDirectory ? $"{entry.Name}/" : entry.Name;
+                var labelMetrics = font.MeasureTight(labelText);
+                float labelY = GetTextTopOffset(RowHeight, labelMetrics);
                 if (row.Label.Parent != null) {
                     row.Label.Parent.Position = new float3(labelX, labelY, 0.2f);
                 }
-                row.Label.Text = entry.IsDirectory ? $"{entry.Name}/" : entry.Name;
+                row.Label.Text = labelText;
                 row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
-                row.Label.Size = new int2(Math.Max(0, rowWidth - (int)labelX - LabelPadding), (int)MathF.Ceiling(lineHeight));
+                row.Label.Size = new int2(Math.Max(0, rowWidth - (int)labelX - LabelPadding), (int)MathF.Ceiling(labelMetrics.Height));
             }
+        }
+
+        /// <summary>
+        /// Computes the vertical offset needed to center text using tight metrics.
+        /// </summary>
+        /// <param name="containerHeight">Height of the container in pixels.</param>
+        /// <param name="metrics">Tight font metrics for the text.</param>
+        /// <returns>Top offset to position the line.</returns>
+        float GetTextTopOffset(float containerHeight, FontTightMetrics metrics) {
+            return MathF.Round((containerHeight - metrics.Height) * 0.5f - metrics.MinTop);
         }
 
         /// <summary>

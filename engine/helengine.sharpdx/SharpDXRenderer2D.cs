@@ -202,6 +202,9 @@ namespace helengine.sharpdx {
             float offsetX = 0f;
             float offsetY = 0f;
             float lineHeight = Math.Max(font.LineHeight, 1f);
+            // Snap the baseline to whole pixels to avoid clipped glyph edges at fractional offsets.
+            float baseX = MathF.Round(pos.X);
+            float baseY = MathF.Round(pos.Y);
 
             for (int i = 0; i < text.Length; i++) {
                 char c = text[i];
@@ -225,9 +228,10 @@ namespace helengine.sharpdx {
                 float pixelW = shaderData.sourceRect.Z * data.Width;
                 float pixelH = shaderData.sourceRect.W * data.Height;
 
+                float snappedLineOffsetY = MathF.Round(offsetY);
                 shaderData.destRect = new float4(
-                    pos.X + offsetX,
-                    pos.Y + offsetY + info.OffsetY,
+                    baseX + offsetX,
+                    baseY + snappedLineOffsetY + info.OffsetY,
                     pixelW,
                     pixelH
                 );

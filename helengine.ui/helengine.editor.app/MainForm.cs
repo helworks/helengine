@@ -12,15 +12,15 @@ namespace helengine.editor.app {
         /// <summary>
         /// Background thread that drives the editor update loop.
         /// </summary>
-        private Thread thread;
+        Thread thread;
         /// <summary>
         /// Tracks whether the form has been closed to stop the loop.
         /// </summary>
-        private bool closed;
+        bool closed;
         /// <summary>
         /// Tracks whether initialization has completed to guard resize logic.
         /// </summary>
-        private bool initialized;
+        bool initialized;
         /// <summary>
         /// Stores the project path used to locate project assets.
         /// </summary>
@@ -29,19 +29,19 @@ namespace helengine.editor.app {
         /// <summary>
         /// Camera used for 2D UI rendering.
         /// </summary>
-        private CameraComponent? uiCameraComponent;
+        CameraComponent? uiCameraComponent;
         /// <summary>
         /// Camera used for rendering the scene viewport.
         /// </summary>
-        private CameraComponent? sceneCameraComponent;
+        CameraComponent? sceneCameraComponent;
         /// <summary>
         /// Dockable viewport used for 3D scene rendering.
         /// </summary>
-        private DockableViewport? mainViewport;
+        DockableViewport? mainViewport;
         /// <summary>
         /// Dockable panel that shows the scene hierarchy.
         /// </summary>
-        private SceneHierarchyPanel? sceneHierarchyPanel;
+        SceneHierarchyPanel? sceneHierarchyPanel;
         /// <summary>
         /// Dockable assets panel that mirrors the project assets folder.
         /// </summary>
@@ -53,19 +53,11 @@ namespace helengine.editor.app {
         /// <summary>
         /// UI font used for title bars and panel content.
         /// </summary>
-        private FontAsset? uiFont;
+        FontAsset? uiFont;
         /// <summary>
         /// Custom title bar UI component.
         /// </summary>
-        private EditorTitleBar? titleBar;
-
-        /// <summary>
-        /// Initializes a new instance of the main editor form and configures custom chrome.
-        /// </summary>
-        public MainForm() {
-            InitializeWindowFrame();
-            InitializeEditor();
-        }
+        EditorTitleBar? titleBar;
 
         /// <summary>
         /// Initializes the main editor form for a specific project path.
@@ -73,7 +65,9 @@ namespace helengine.editor.app {
         /// <param name="projectPath">Path to the project to open.</param>
         public MainForm(string projectPath) {
             InitializeWindowFrame();
-            this.projectPath = projectPath ?? string.Empty;
+
+            this.projectPath = projectPath;
+            
             if (!string.IsNullOrWhiteSpace(this.projectPath)) {
                 string title = $"helengine - {Path.GetFileName(this.projectPath)}";
                 SetWindowTitle(title);
