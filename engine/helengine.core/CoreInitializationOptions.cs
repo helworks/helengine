@@ -24,17 +24,12 @@ namespace helengine {
         public byte TotalVariants3D { get; set; } = 4;
 
         /// <summary>
-        /// Gets or sets the number of camera buckets used for camera draw ordering.
-        /// </summary>
-        public byte TotalCameraBuckets { get; set; } = 3;
-
-        /// <summary>
         /// Gets or sets the number of state bins per 3D bucket.
         /// </summary>
         public int RenderBucket3DBinsPerBucket { get; set; } = 4;
 
         /// <summary>
-        /// Gets or sets the initial capacity for each update bucket.
+        /// Gets or sets the initial capacity for each update bucket, with one entry per bucket.
         /// </summary>
         public int[] UpdateBucketInitialCapacity { get; set; } = new int[] { 4, 4, 4, 4 };
 
@@ -66,7 +61,6 @@ namespace helengine {
             TotalBuckets2D = (byte)Math.Max(1, (int)TotalBuckets2D);
             TotalBuckets3D = (byte)Math.Max(1, (int)TotalBuckets3D);
             TotalVariants3D = (byte)Math.Max(1, (int)TotalVariants3D);
-            TotalCameraBuckets = (byte)Math.Max(1, (int)TotalCameraBuckets);
             RenderBucket3DBinsPerBucket = Math.Max(1, RenderBucket3DBinsPerBucket);
             if (UpdateBucketInitialCapacity == null) {
                 throw new InvalidOperationException("UpdateBucketInitialCapacity must be set.");

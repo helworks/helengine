@@ -14,7 +14,7 @@ namespace helengine {
         ushort LayerMask { get; set; }
 
         /// <summary>
-        /// Gets or sets the draw order bucket for the camera.
+        /// Gets or sets the draw order for the camera.
         /// </summary>
         byte CameraDrawOrder { get; set; }
 

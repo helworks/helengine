@@ -396,7 +396,7 @@ namespace helengine.sharpdx {
             var context = Device.ImmediateContext;
             context.InputAssembler.InputLayout = inputLayout;
 
-            var cameraBuckets = Core.Instance.ObjectManager.Cameras;
+            var cameras = Core.Instance.ObjectManager.Cameras;
 
             for (int i = 0; i < surfaces.Count; i++) {
                 var surface = surfaces[i];
@@ -404,12 +404,9 @@ namespace helengine.sharpdx {
                 context.OutputMerger.SetTargets(surface.DepthStencilView, surface.RenderTargetView);
                 context.ClearRenderTargetView(surface.RenderTargetView, new RawColor4(1f, 0.5f, 0, 1.0f));
 
-                for (int k = 0; k < cameraBuckets.Length; k++) {
-                    var cameras = cameraBuckets[k];
-                    for (int j = 0; j < cameras.Count; j++) {
-                        var camera = cameras[j];
-                        RenderCamera(surface, camera);
-                    }
+                for (int j = 0; j < cameras.Count; j++) {
+                    var camera = cameras[j];
+                    RenderCamera(surface, camera);
                 }
 
                 surface.SwapChain.Present(0, PresentFlags.None);

@@ -407,15 +407,12 @@ public abstract class InputManager {
     /// Finds the topmost camera whose viewport contains the given screen coordinates.
     /// </summary>
     private ICamera GetTopmostCameraAt(int x, int y) {
-        var cameraBuckets = core.ObjectManager.Cameras;
-        for (int b = cameraBuckets.Length - 1; b >= 0; b--) {
-            var list = cameraBuckets[b];
-            for (int i = list.Count - 1; i >= 0; i--) {
-                var cam = list[i];
-                var vp = cam.Viewport;
-                if (x >= vp.X && x < vp.X + vp.Z && y >= vp.Y && y < vp.Y + vp.W) {
-                    return cam;
-                }
+        var cameras = core.ObjectManager.Cameras;
+        for (int i = cameras.Count - 1; i >= 0; i--) {
+            var cam = cameras[i];
+            var vp = cam.Viewport;
+            if (x >= vp.X && x < vp.X + vp.Z && y >= vp.Y && y < vp.Y + vp.W) {
+                return cam;
             }
         }
         return null;
@@ -425,16 +422,15 @@ public abstract class InputManager {
     /// Finds the camera containing the specified interactable at the given mouse position.
     /// </summary>
     private ICamera FindCameraForInteractableAt(IInteractable2D interactable, int mouseX, int mouseY) {
-        var cameraBuckets = core.ObjectManager.Cameras;
-        for (int b = cameraBuckets.Length - 1; b >= 0; b--) {
-            var list = cameraBuckets[b];
-            for (int i = list.Count - 1; i >= 0; i--) {
-                var cam = list[i];
-                if ((interactable.Parent.LayerMask & cam.LayerMask) == 0) continue;
-                var vp = cam.Viewport;
-                if (mouseX >= vp.X && mouseX < vp.X + vp.Z && mouseY >= vp.Y && mouseY < vp.Y + vp.W) {
-                    return cam;
-                }
+        var cameras = core.ObjectManager.Cameras;
+        for (int i = cameras.Count - 1; i >= 0; i--) {
+            var cam = cameras[i];
+            if ((interactable.Parent.LayerMask & cam.LayerMask) == 0) {
+                continue;
+            }
+            var vp = cam.Viewport;
+            if (mouseX >= vp.X && mouseX < vp.X + vp.Z && mouseY >= vp.Y && mouseY < vp.Y + vp.W) {
+                return cam;
             }
         }
         return null;

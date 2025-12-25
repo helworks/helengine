@@ -9,7 +9,7 @@ namespace helengine {
         byte cameraDrawOrder;
 
         /// <summary>
-        /// Gets or sets the draw order bucket for the camera.
+        /// Gets or sets the draw order for the camera.
         /// </summary>
         public byte CameraDrawOrder {
             get { return cameraDrawOrder; }

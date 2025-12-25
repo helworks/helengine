@@ -29,8 +29,6 @@ public class ObjectManager {
         TotalBuckets2D = settings.TotalBuckets2D;
         TotalBuckets3D = settings.TotalBuckets3D;
         TotalVariants3D = settings.TotalVariants3D;
-        TotalCameraBuckets = settings.TotalCameraBuckets;
-
         Entities = new List<Entity>();
         pendingUpdateOperations = new List<PendingUpdateOperation>();
 
@@ -43,10 +41,7 @@ public class ObjectManager {
 
         Drawables3D = new List<IDrawable3D>();
 
-        Cameras = new List<ICamera>[TotalCameraBuckets];
-        for (int i = 0; i < TotalCameraBuckets; i++) {
-            Cameras[i] = new List<ICamera>();
-        }
+        Cameras = new List<ICamera>();
 
         Interactables = new List<IInteractable2D>();
     }
@@ -92,14 +87,9 @@ public class ObjectManager {
     public byte TotalVariants3D { get; private set; } = 4;
 
     /// <summary>
-    /// Gets grouped cameras by draw order.
+    /// Gets cameras sorted by draw order.
     /// </summary>
-    public List<ICamera>[] Cameras { get; private set; }
-
-    /// <summary>
-    /// Gets the number of camera buckets.
-    /// </summary>
-    public byte TotalCameraBuckets { get; private set; } = 3;
+    public List<ICamera> Cameras { get; private set; }
 
     /// <summary>
     /// Gets registered 2D interactables.
@@ -209,17 +199,18 @@ public class ObjectManager {
         Drawables2D.Add(drawable);
 
         int bucket = RenderBucketUtils.GetBucketIndex(drawable.RenderOrder2D, TotalBuckets2D);
-        for (int i = 0; i < TotalCameraBuckets; i++) {
-            int camCount = Cameras[i].Count;
-            for (int j = 0; j < camCount; j++) {
-                var cam = Cameras[i][j] as CameraComponent;
-                if (cam == null) continue;
-                if ((drawable.Parent.LayerMask & cam.LayerMask) == 0) continue;
-
-                var reg = cam.Get2DRegistry();
-                reg.Buckets[bucket].Add(drawable, out int pos);
-                reg.Map[drawable] = new Index2D(bucket, pos);
+        for (int i = 0; i < Cameras.Count; i++) {
+            ICamera camera = Cameras[i];
+            if (camera is not CameraComponent cam) {
+                continue;
             }
+            if ((drawable.Parent.LayerMask & cam.LayerMask) == 0) {
+                continue;
+            }
+
+            var reg = cam.Get2DRegistry();
+            reg.Buckets[bucket].Add(drawable, out int pos);
+            reg.Map[drawable] = new Index2D(bucket, pos);
         }
     }
 
@@ -231,20 +222,19 @@ public class ObjectManager {
         // Keep Drawables2D as a diagnostic list but remove reference if present
         Drawables2D.Remove(drawable);
 
-        for (int i = 0; i < TotalCameraBuckets; i++) {
-            int camCount = Cameras[i].Count;
-            for (int j = 0; j < camCount; j++) {
-                var cam = Cameras[i][j] as CameraComponent;
-                if (cam == null) continue;
-                var reg = cam.Get2DRegistry();
-                if (reg.Map.TryGetValue(drawable, out var idx)) {
-                    var bucket = reg.Buckets[idx.Bucket];
-                    IDrawable2D swapped = bucket.RemoveSwapAt(idx.Pos);
-                    if (swapped != null) {
-                        reg.Map[swapped] = new Index2D(idx.Bucket, idx.Pos);
-                    }
-                    reg.Map.Remove(drawable);
+        for (int i = 0; i < Cameras.Count; i++) {
+            ICamera camera = Cameras[i];
+            if (camera is not CameraComponent cam) {
+                continue;
+            }
+            var reg = cam.Get2DRegistry();
+            if (reg.Map.TryGetValue(drawable, out var idx)) {
+                var bucket = reg.Buckets[idx.Bucket];
+                IDrawable2D swapped = bucket.RemoveSwapAt(idx.Pos);
+                if (swapped != null) {
+                    reg.Map[swapped] = new Index2D(idx.Bucket, idx.Pos);
                 }
+                reg.Map.Remove(drawable);
             }
         }
     }
@@ -259,18 +249,19 @@ public class ObjectManager {
         int bucket = RenderBucketUtils.GetBucketIndex(drawable.RenderOrder3D, TotalBuckets3D);
         int variant = drawable.Variant;
 
-        for (int i = 0; i < TotalCameraBuckets; i++) {
-            int camCount = Cameras[i].Count;
-            for (int j = 0; j < camCount; j++) {
-                var cam = Cameras[i][j] as CameraComponent;
-                if (cam == null) continue;
-                if ((drawable.Parent.LayerMask & cam.LayerMask) == 0) continue;
-
-                var reg = cam.Get3DRegistry();
-                int bin = getStateBin3D(drawable.Model, reg.BinsPerBucket);
-                reg.Buckets[variant][bucket][bin].Add(drawable, out int pos);
-                reg.Map[drawable] = new Index3D(variant, bucket, bin, pos);
+        for (int i = 0; i < Cameras.Count; i++) {
+            ICamera camera = Cameras[i];
+            if (camera is not CameraComponent cam) {
+                continue;
             }
+            if ((drawable.Parent.LayerMask & cam.LayerMask) == 0) {
+                continue;
+            }
+
+            var reg = cam.Get3DRegistry();
+            int bin = getStateBin3D(drawable.Model, reg.BinsPerBucket);
+            reg.Buckets[variant][bucket][bin].Add(drawable, out int pos);
+            reg.Map[drawable] = new Index3D(variant, bucket, bin, pos);
         }
     }
 
@@ -281,19 +272,18 @@ public class ObjectManager {
     public void RemoveFromRender3D(IDrawable3D drawable) {
         Drawables3D.Remove(drawable);
 
-        for (int i = 0; i < TotalCameraBuckets; i++) {
-            int camCount = Cameras[i].Count;
-            for (int j = 0; j < camCount; j++) {
-                var cam = Cameras[i][j] as CameraComponent;
-                if (cam == null) continue;
-                var reg = cam.Get3DRegistry();
-                if (reg.Map.TryGetValue(drawable, out var idx)) {
-                    var swapped = reg.Buckets[idx.Variant][idx.Bucket][idx.Bin].RemoveSwapAt(idx.Pos);
-                    if (swapped != null) {
-                        reg.Map[(IDrawable3D)swapped] = new Index3D(idx.Variant, idx.Bucket, idx.Bin, idx.Pos);
-                    }
-                    reg.Map.Remove(drawable);
+        for (int i = 0; i < Cameras.Count; i++) {
+            ICamera camera = Cameras[i];
+            if (camera is not CameraComponent cam) {
+                continue;
+            }
+            var reg = cam.Get3DRegistry();
+            if (reg.Map.TryGetValue(drawable, out var idx)) {
+                var swapped = reg.Buckets[idx.Variant][idx.Bucket][idx.Bin].RemoveSwapAt(idx.Pos);
+                if (swapped != null) {
+                    reg.Map[(IDrawable3D)swapped] = new Index3D(idx.Variant, idx.Bucket, idx.Bin, idx.Pos);
                 }
+                reg.Map.Remove(drawable);
             }
         }
     }
@@ -325,21 +315,18 @@ public class ObjectManager {
         }
 
         int bucket = RenderBucketUtils.GetBucketIndex(renderOrder, TotalBuckets2D);
-        for (int i = 0; i < TotalCameraBuckets; i++) {
-            int camCount = Cameras[i].Count;
-            for (int j = 0; j < camCount; j++) {
-                var cam = Cameras[i][j] as CameraComponent;
-                if (cam == null) {
-                    continue;
-                }
-                if ((layerMask & cam.LayerMask) == 0) {
-                    continue;
-                }
-
-                var reg = cam.Get2DRegistry();
-                RenderBucket2D renderBucket = reg.Buckets[bucket];
-                renderBucket.EnsureCapacity(renderBucket.Count + additional);
+        for (int i = 0; i < Cameras.Count; i++) {
+            ICamera camera = Cameras[i];
+            if (camera is not CameraComponent cam) {
+                continue;
             }
+            if ((layerMask & cam.LayerMask) == 0) {
+                continue;
+            }
+
+            var reg = cam.Get2DRegistry();
+            RenderBucket2D renderBucket = reg.Buckets[bucket];
+            renderBucket.EnsureCapacity(renderBucket.Count + additional);
         }
     }
 
@@ -357,31 +344,28 @@ public class ObjectManager {
         }
 
         int bucket = RenderBucketUtils.GetBucketIndex(renderOrder, TotalBuckets3D);
-        for (int i = 0; i < TotalCameraBuckets; i++) {
-            int camCount = Cameras[i].Count;
-            for (int j = 0; j < camCount; j++) {
-                var cam = Cameras[i][j] as CameraComponent;
-                if (cam == null) {
-                    continue;
-                }
-                if ((layerMask & cam.LayerMask) == 0) {
-                    continue;
-                }
-
-                var reg = cam.Get3DRegistry();
-                if (reg.BinsPerBucket < 1) {
-                    continue;
-                }
-
-                int variantIndex = variant;
-                if (variantIndex < 0 || variantIndex >= reg.Buckets.Length) {
-                    continue;
-                }
-
-                int bin = getStateBin3D(model, reg.BinsPerBucket);
-                RenderBucket3D renderBucket = reg.Buckets[variantIndex][bucket][bin];
-                renderBucket.EnsureCapacity(renderBucket.Count + additional);
+        for (int i = 0; i < Cameras.Count; i++) {
+            ICamera camera = Cameras[i];
+            if (camera is not CameraComponent cam) {
+                continue;
             }
+            if ((layerMask & cam.LayerMask) == 0) {
+                continue;
+            }
+
+            var reg = cam.Get3DRegistry();
+            if (reg.BinsPerBucket < 1) {
+                continue;
+            }
+
+            int variantIndex = variant;
+            if (variantIndex < 0 || variantIndex >= reg.Buckets.Length) {
+                continue;
+            }
+
+            int bin = getStateBin3D(model, reg.BinsPerBucket);
+            RenderBucket3D renderBucket = reg.Buckets[variantIndex][bucket][bin];
+            renderBucket.EnsureCapacity(renderBucket.Count + additional);
         }
     }
 
@@ -390,37 +374,33 @@ public class ObjectManager {
     /// </summary>
     /// <param name="camera">Camera to register.</param>
     public void RegisterCamera(ICamera camera) {
-        // Use the correct camera bucket count for camera ordering
-        int cameraBucket = RenderBucketUtils.GetBucketIndex(camera.CameraDrawOrder, TotalCameraBuckets);
-        Cameras[cameraBucket].Add(camera);
+        InsertCameraByDrawOrder(camera);
+
+        if (camera is not CameraComponent camComp) {
+            return;
+        }
 
         // Backfill existing 3D drawables for this camera (by reference)
-        var camComp = camera as CameraComponent;
-        if (camComp != null) {
-            var reg3 = camComp.Get3DRegistry();
-            for (int i = 0; i < Drawables3D.Count; i++) {
-                IDrawable3D drawable = Drawables3D[i];
-                if ((drawable.Parent.LayerMask & camera.LayerMask) != 0) {
-                    int drawBucket3D = RenderBucketUtils.GetBucketIndex(drawable.RenderOrder3D, TotalBuckets3D);
-                    int variant = drawable.Variant;
-                    int bin = getStateBin3D(drawable.Model, reg3.BinsPerBucket);
-                    reg3.Buckets[variant][drawBucket3D][bin].Add(drawable, out int pos3);
-                    reg3.Map[drawable] = new Index3D(variant, drawBucket3D, bin, pos3);
-                }
+        var reg3 = camComp.Get3DRegistry();
+        for (int i = 0; i < Drawables3D.Count; i++) {
+            IDrawable3D drawable = Drawables3D[i];
+            if ((drawable.Parent.LayerMask & camera.LayerMask) != 0) {
+                int drawBucket3D = RenderBucketUtils.GetBucketIndex(drawable.RenderOrder3D, TotalBuckets3D);
+                int variant = drawable.Variant;
+                int bin = getStateBin3D(drawable.Model, reg3.BinsPerBucket);
+                reg3.Buckets[variant][drawBucket3D][bin].Add(drawable, out int pos3);
+                reg3.Map[drawable] = new Index3D(variant, drawBucket3D, bin, pos3);
             }
         }
 
         // Backfill existing 2D drawables for this camera with references
-        var camComp2 = camera as CameraComponent;
-        if (camComp2 != null) {
-            var reg = camComp2.Get2DRegistry();
-            for (int i = 0; i < Drawables2D.Count; i++) {
-                IDrawable2D drawable2D = Drawables2D[i];
-                if ((drawable2D.Parent.LayerMask & camera.LayerMask) != 0) {
-                    int drawBucket2D = RenderBucketUtils.GetBucketIndex(drawable2D.RenderOrder2D, TotalBuckets2D);
-                    reg.Buckets[drawBucket2D].Add(drawable2D, out int pos);
-                    reg.Map[drawable2D] = new Index2D(drawBucket2D, pos);
-                }
+        var reg = camComp.Get2DRegistry();
+        for (int i = 0; i < Drawables2D.Count; i++) {
+            IDrawable2D drawable2D = Drawables2D[i];
+            if ((drawable2D.Parent.LayerMask & camera.LayerMask) != 0) {
+                int drawBucket2D = RenderBucketUtils.GetBucketIndex(drawable2D.RenderOrder2D, TotalBuckets2D);
+                reg.Buckets[drawBucket2D].Add(drawable2D, out int pos);
+                reg.Map[drawable2D] = new Index2D(drawBucket2D, pos);
             }
         }
     }
@@ -430,8 +410,24 @@ public class ObjectManager {
     /// </summary>
     /// <param name="camera">Camera to remove.</param>
     public virtual void RemoveCamera(ICamera camera) {
-        int cameraBucket = RenderBucketUtils.GetBucketIndex(camera.CameraDrawOrder, TotalCameraBuckets);
-        Cameras[cameraBucket].Remove(camera);
+        Cameras.Remove(camera);
+    }
+
+    /// <summary>
+    /// Inserts a camera into the draw-order list while preserving order.
+    /// </summary>
+    /// <param name="camera">Camera to insert.</param>
+    void InsertCameraByDrawOrder(ICamera camera) {
+        int insertIndex = Cameras.Count;
+        byte order = camera.CameraDrawOrder;
+        for (int i = 0; i < Cameras.Count; i++) {
+            if (order < Cameras[i].CameraDrawOrder) {
+                insertIndex = i;
+                break;
+            }
+        }
+
+        Cameras.Insert(insertIndex, camera);
     }
 
     /// <summary>
