@@ -7,14 +7,6 @@ namespace helengine {
         /// Stores the update order used for bucketing.
         /// </summary>
         byte updateOrder;
-        /// <summary>
-        /// Stores the current update bucket assignment.
-        /// </summary>
-        int updateBucket = -1;
-        /// <summary>
-        /// Stores the index inside the current update bucket.
-        /// </summary>
-        int updateBucketIndex = -1;
 
         /// <summary>
         /// Gets or sets the update order bucket for this component.
@@ -24,7 +16,7 @@ namespace helengine {
             set {
                 if (updateOrder != value) {
                     if (Parent != null && Parent.Enabled) {
-                        Core.Instance.ObjectManager.RemoveFromUpdate(this);
+                        Core.Instance.ObjectManager.RemoveFromUpdate(this, updateOrder);
                         updateOrder = value;
                         Core.Instance.ObjectManager.RegisterForUpdate(this);
                     } else {
@@ -32,22 +24,6 @@ namespace helengine {
                     }
                 }
             }
-        }
-
-        /// <summary>
-        /// Gets or sets the update bucket assigned by the object manager.
-        /// </summary>
-        public int UpdateBucket {
-            get { return updateBucket; }
-            set { updateBucket = value; }
-        }
-
-        /// <summary>
-        /// Gets or sets the position within the assigned update bucket.
-        /// </summary>
-        public int UpdateBucketIndex {
-            get { return updateBucketIndex; }
-            set { updateBucketIndex = value; }
         }
 
         /// <summary>
@@ -72,7 +48,7 @@ namespace helengine {
             if (newEnabled) {
                 Core.Instance.ObjectManager.RegisterForUpdate(this);
             } else {
-                Core.Instance.ObjectManager.RemoveFromUpdate(this);
+                Core.Instance.ObjectManager.RemoveFromUpdate(this, updateOrder);
             }
         }
 

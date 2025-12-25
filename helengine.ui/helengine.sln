@@ -42,6 +42,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NucleusDotNet.Windows.NETCo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.editor.windows", "..\engine\helengine.editor.windows\helengine.editor.windows.csproj", "{4B4C57C7-85D6-416B-A136-9338424700F2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.patching", "..\engine\helengine.patching\helengine.patching.csproj", "{7AE9F6D2-ED92-6212-32C3-8314AE3B55FF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -104,6 +106,10 @@ Global
 		{4B4C57C7-85D6-416B-A136-9338424700F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4B4C57C7-85D6-416B-A136-9338424700F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4B4C57C7-85D6-416B-A136-9338424700F2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7AE9F6D2-ED92-6212-32C3-8314AE3B55FF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7AE9F6D2-ED92-6212-32C3-8314AE3B55FF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7AE9F6D2-ED92-6212-32C3-8314AE3B55FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7AE9F6D2-ED92-6212-32C3-8314AE3B55FF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

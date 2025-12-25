@@ -25,4 +25,8 @@
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\engine\helengine.patching\helengine.patching.csproj" />
+  </ItemGroup>
 </Project>

@@ -11,3 +11,5 @@
 - Avoid half-measures that patch broken state; ensure systems are correctly initialized or fix the underlying cause instead of bolting on runtime fixes (e.g., do not add auto-attach helpers like `EnsureCameraControls`).
 - Avoid `Mathf`; use `double` math and convert back to `float` where needed (modern processors handle `double` faster in this context).
 - Do not create local helper functions; if a helper is needed, add it to the appropriate Utils class or to a related type (for example, quaternion math should live on the quaternion type).
+- Avoid repeated `as` casts; prefer engine events or other patterns to avoid per-call conversions.
+- Do not create default values when a valid value is required; throw exceptions instead of silently constructing defaults (example: do not replace null `CoreInitializationOptions` with a new instance).

@@ -34,9 +34,9 @@ namespace helengine {
         public int RenderBucket3DBinsPerBucket { get; set; } = 4;
 
         /// <summary>
-        /// Gets or sets the initial capacity for update buckets.
+        /// Gets or sets the initial capacity for each update bucket.
         /// </summary>
-        public int UpdateBucketInitialCapacity { get; set; } = 64;
+        public int[] UpdateBucketInitialCapacity { get; set; } = new int[] { 4, 4, 4, 4 };
 
         /// <summary>
         /// Gets or sets the initial capacity for 2D render buckets.
@@ -62,49 +62,27 @@ namespace helengine {
         /// Clamps option values to valid minimums.
         /// </summary>
         public void Normalize() {
-            if (TotalUpdateBuckets < 1) {
-                TotalUpdateBuckets = 1;
+            TotalUpdateBuckets = (byte)Math.Max(1, (int)TotalUpdateBuckets);
+            TotalBuckets2D = (byte)Math.Max(1, (int)TotalBuckets2D);
+            TotalBuckets3D = (byte)Math.Max(1, (int)TotalBuckets3D);
+            TotalVariants3D = (byte)Math.Max(1, (int)TotalVariants3D);
+            TotalCameraBuckets = (byte)Math.Max(1, (int)TotalCameraBuckets);
+            RenderBucket3DBinsPerBucket = Math.Max(1, RenderBucket3DBinsPerBucket);
+            if (UpdateBucketInitialCapacity == null) {
+                throw new InvalidOperationException("UpdateBucketInitialCapacity must be set.");
             }
 
-            if (TotalBuckets2D < 1) {
-                TotalBuckets2D = 1;
+            if (UpdateBucketInitialCapacity.Length != TotalUpdateBuckets) {
+                throw new InvalidOperationException("UpdateBucketInitialCapacity must match TotalUpdateBuckets.");
             }
 
-            if (TotalBuckets3D < 1) {
-                TotalBuckets3D = 1;
+            for (int i = 0; i < UpdateBucketInitialCapacity.Length; i++) {
+                UpdateBucketInitialCapacity[i] = Math.Max(1, UpdateBucketInitialCapacity[i]);
             }
-
-            if (TotalVariants3D < 1) {
-                TotalVariants3D = 1;
-            }
-
-            if (TotalCameraBuckets < 1) {
-                TotalCameraBuckets = 1;
-            }
-
-            if (RenderBucket3DBinsPerBucket < 1) {
-                RenderBucket3DBinsPerBucket = 1;
-            }
-
-            if (UpdateBucketInitialCapacity < 1) {
-                UpdateBucketInitialCapacity = 1;
-            }
-
-            if (RenderBucket2DInitialCapacity < 1) {
-                RenderBucket2DInitialCapacity = 1;
-            }
-
-            if (RenderBucket3DInitialCapacity < 1) {
-                RenderBucket3DInitialCapacity = 1;
-            }
-
-            if (Camera2DMapCapacity < 1) {
-                Camera2DMapCapacity = 1;
-            }
-
-            if (Camera3DMapCapacity < 1) {
-                Camera3DMapCapacity = 1;
-            }
+            RenderBucket2DInitialCapacity = Math.Max(1, RenderBucket2DInitialCapacity);
+            RenderBucket3DInitialCapacity = Math.Max(1, RenderBucket3DInitialCapacity);
+            Camera2DMapCapacity = Math.Max(1, Camera2DMapCapacity);
+            Camera3DMapCapacity = Math.Max(1, Camera3DMapCapacity);
         }
     }
 }

@@ -60,13 +60,11 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Adds an updateable and returns its bucket position.
+        /// Adds an updateable to the bucket.
         /// </summary>
         /// <param name="item">Updateable to add.</param>
-        /// <param name="pos">Assigned bucket position.</param>
-        public void Add(IUpdateable item, out int pos) {
+        public void Add(IUpdateable item) {
             EnsureCapacity(Count + 1, true);
-            pos = Count;
             Items[Count++] = item;
         }
 
@@ -88,6 +86,40 @@ namespace helengine {
             Items[last] = default!;
             Count = last;
             return pos == last ? null : swapped;
+        }
+
+        /// <summary>
+        /// Removes the specified updateable from the bucket.
+        /// </summary>
+        /// <param name="item">Updateable to remove.</param>
+        /// <returns>True when the item was removed.</returns>
+        public bool Remove(IUpdateable item) {
+            int pos = IndexOf(item);
+            if (pos < 0) {
+                return false;
+            }
+
+            RemoveSwapAt(pos);
+            return true;
+        }
+
+        /// <summary>
+        /// Finds the index of an updateable in the bucket.
+        /// </summary>
+        /// <param name="item">Updateable to locate.</param>
+        /// <returns>Index of the item or -1 when not found.</returns>
+        public int IndexOf(IUpdateable item) {
+            if (item == null) {
+                return -1;
+            }
+
+            for (int i = 0; i < Count; i++) {
+                if (ReferenceEquals(Items[i], item)) {
+                    return i;
+                }
+            }
+
+            return -1;
         }
     }
 }
