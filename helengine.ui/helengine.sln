@@ -32,6 +32,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.core.windows", ".
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.sharpdx", "..\engine\helengine.sharpdx\helengine.sharpdx.csproj", "{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.vulkan", "..\engine\helengine.vulkan\helengine.vulkan.csproj", "{F029F93C-6B06-4105-90E7-A520D5815834}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.editor.app", "helengine.editor.app\helengine.editor.app.csproj", "{3C74754D-F82C-4A00-D665-AF82B29B7064}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "nucleusdotnet", "nucleusdotnet", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
@@ -90,6 +92,10 @@ Global
 		{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F029F93C-6B06-4105-90E7-A520D5815834}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F029F93C-6B06-4105-90E7-A520D5815834}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F029F93C-6B06-4105-90E7-A520D5815834}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F029F93C-6B06-4105-90E7-A520D5815834}.Release|Any CPU.Build.0 = Release|Any CPU
 		{3C74754D-F82C-4A00-D665-AF82B29B7064}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{3C74754D-F82C-4A00-D665-AF82B29B7064}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3C74754D-F82C-4A00-D665-AF82B29B7064}.Release|Any CPU.ActiveCfg = Release|Any CPU

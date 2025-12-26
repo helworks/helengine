@@ -35,6 +35,7 @@
 		<ProjectReference Include="..\..\engine\helengine.editor.windows\helengine.editor.windows.csproj" />
 		<ProjectReference Include="..\..\engine\helengine.editor\helengine.editor.csproj" />
 		<ProjectReference Include="..\..\engine\helengine.sharpdx\helengine.sharpdx.csproj" />
+		<ProjectReference Include="..\..\engine\helengine.vulkan\helengine.vulkan.csproj" />
 	</ItemGroup>
 
 </Project>

@@ -1,6 +1,7 @@
 using helengine.editor;
 using helengine.editor.windows;
 using helengine.sharpdx;
+using helengine.vulkan;
 using System;
 using System.IO;
 
@@ -9,6 +10,10 @@ namespace helengine.editor.app {
     /// Main editor host form for Helengine, wiring up rendering and dockable UI.
     /// </summary>
     public partial class MainForm : Form {
+        /// <summary>
+        /// Environment variable that selects the rendering backend (vulkan or sharpdx).
+        /// </summary>
+        const string RendererBackendEnvironmentVariable = "HELENGINE_RENDER_BACKEND";
         /// <summary>
         /// Background thread that drives the editor update loop.
         /// </summary>
@@ -33,7 +38,7 @@ namespace helengine.editor.app {
         /// <summary>
         /// Renderer driving the editor render loop.
         /// </summary>
-        SharpDXRenderer3D renderer3D;
+        RenderManager3D renderer3D;
 
         /// <summary>
         /// Initializes the main editor form for a specific project path.
@@ -77,17 +82,37 @@ namespace helengine.editor.app {
         private void InitializeEditor(string titleText) {
             EditorCore core = new EditorCore(null);
 
-            renderer3D = new SharpDXRenderer3D();
+            string rendererBackend = Environment.GetEnvironmentVariable(RendererBackendEnvironmentVariable, EnvironmentVariableTarget.Process);
+            bool useVulkan = false;
+            if (!string.IsNullOrWhiteSpace(rendererBackend)) {
+                rendererBackend = rendererBackend.Trim();
+                if (string.Equals(rendererBackend, "vulkan", StringComparison.OrdinalIgnoreCase)) {
+                    useVulkan = true;
+                } else if (!string.Equals(rendererBackend, "sharpdx", StringComparison.OrdinalIgnoreCase)) {
+                    throw new InvalidOperationException($"Unsupported renderer backend '{rendererBackend}'. Use 'vulkan' or 'sharpdx'.");
+                }
+            }
+
+            RenderManager2D renderer2D;
+            if (useVulkan) {
+                VulkanRenderer3D vulkanRenderer = new VulkanRenderer3D();
+                renderer3D = vulkanRenderer;
+                renderer2D = vulkanRenderer.Render2D;
+            } else {
+                SharpDXRenderer3D sharpDxRenderer = new SharpDXRenderer3D();
+                renderer3D = sharpDxRenderer;
+                renderer2D = sharpDxRenderer.Render2D;
+            }
             InputManager inputManager = new InputManagerWindows(this.Handle);
             CoreInitializationOptions initOptions = new CoreInitializationOptions();
-            core.Initialize(renderer3D, renderer3D.Render2D, inputManager, initOptions);
+            core.Initialize(renderer3D, renderer2D, inputManager, initOptions);
 
             int renderWidth = Math.Max(1, ClientSize.Width);
             int renderHeight = Math.Max(1, ClientSize.Height);
             renderer3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
             FontAsset uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
-            editorSession = new EditorSession(core, projectPath, uiFont, titleText, renderer3D, renderer3D.Render2D, inputManager, renderWidth, renderHeight);
+            editorSession = new EditorSession(core, projectPath, uiFont, titleText, renderer3D, renderer2D, inputManager, renderWidth, renderHeight);
 
             TitleBarWindowAdapter.Attach(editorSession.TitleBar, this);
             SetWindowTitle(titleText);
