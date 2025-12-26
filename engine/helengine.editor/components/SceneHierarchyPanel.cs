@@ -36,8 +36,8 @@ namespace helengine.editor {
             Title = "Scene Hierarchy";
             MinSize = new int2(220, 160);
 
-            rowBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
-            rowTextOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(2);
+            rowBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
+            rowTextOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
 
             contentRoot = new EditorEntity();
             contentRoot.LayerMask = LayerMask;

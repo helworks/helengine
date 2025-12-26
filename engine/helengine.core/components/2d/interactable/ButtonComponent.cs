@@ -50,8 +50,8 @@ namespace helengine {
 
             if (!entity.Enabled) return;
 
-            byte backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
-            byte textOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(2);
+            byte backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
+            byte textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
 
             // Create rounded rectangle background
             roundedRect = new RoundedRectComponent();

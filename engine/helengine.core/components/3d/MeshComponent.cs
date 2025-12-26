@@ -11,7 +11,7 @@ namespace helengine {
         public RuntimeModel Model { get; set; }
 
         /// <summary>
-        /// Gets or sets the render order bucket for this mesh.
+        /// Gets or sets the render order for this mesh.
         /// </summary>
         public byte RenderOrder3D {
             get { return renderOrder3D; }
@@ -27,11 +27,6 @@ namespace helengine {
                 }
             }
         }
-
-        /// <summary>
-        /// Gets or sets the variant index used to choose a render pipeline.
-        /// </summary>
-        public byte Variant { get; set; }
 
         /// <summary>
         /// Initializes a new mesh component.

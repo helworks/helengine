@@ -15,7 +15,7 @@ namespace helengine.sharpdx {
     /// <summary>
     /// SharpDX-backed renderer responsible for 3D rendering and swap chain management.
     /// </summary>
-    public class SharpDXRenderer3D : RenderManager3D {
+    public class SharpDXRenderer3D : RenderManager3D, IRenderVisitor3D {
         const int SwapChainBufferCount = 2;
         /// <summary>
         /// Default forward axis for cameras before rotation.
@@ -41,6 +41,10 @@ namespace helengine.sharpdx {
         SharpDXRenderer2D renderer2D;
         RasterizerState rasterizerState3D;
         DepthStencilState depthStencilState3D;
+        /// <summary>
+        /// Cached view-projection matrix for the active camera render pass.
+        /// </summary>
+        float4x4 currentViewProjection;
 
         /// <summary>
         /// Initializes the SharpDX device and default pipelines.
@@ -303,65 +307,61 @@ namespace helengine.sharpdx {
             float4x4 projection;
             float4x4.CreatePerspectiveFieldOfView((float)Math.PI / 4.0f, (viewport.Z / viewport.W), 0.1f, 100f, out projection);
 
-            float4x4 viewProj;
-            float4x4.Multiply(ref view, ref projection, out viewProj);
+            float4x4.Multiply(ref view, ref projection, out currentViewProjection);
 
             context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             context.VertexShader.Set(vertexShader);
             context.PixelShader.Set(pixelShader);
             context.VertexShader.SetConstantBuffer(0, constantBuffer);
 
-            var buckets3D = camera.RenderBuckets3D;
-            for (int variant = 0; variant < buckets3D.Length; variant++) {
-                var variantBuckets = buckets3D[variant];
-                for (int bucket = 0; bucket < variantBuckets.Length; bucket++) {
-                    var binBuckets = variantBuckets[bucket];
-                    for (int bin = 0; bin < binBuckets.Length; bin++) {
-                        var rb = binBuckets[bin];
-                        for (int i = 0; i < rb.Count; i++) {
-                            IDrawable3D drawable = rb.Items[i];
-                            if (drawable?.Parent == null || !drawable.Parent.Enabled) {
-                                continue;
-                            }
-
-                            Entity parent = drawable.Parent;
-                            var data = (SharpDXModelResource)drawable.Model;
-
-                            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, Utilities.SizeOf<VertexPositionNormalUV>(), 0));
-                            if (data.IndexBuffer != null && data.IndexCount > 0) {
-                                context.InputAssembler.SetIndexBuffer(data.IndexBuffer, Format.R16_UInt, 0);
-                            }
-
-                            float4 orientation = parent.Orientation;
-                            float4x4 rotation;
-                            float4x4.CreateFromQuaternion(ref orientation, out rotation);
-
-                            float3 scale = parent.Scale;
-                            float4x4 size;
-                            float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
-
-                            float4x4 world;
-                            float4x4.Multiply(ref rotation, ref size, out world);
-
-                            float4x4 worldViewProj;
-                            float4x4.Multiply(ref world, ref viewProj, out worldViewProj);
-
-                            float4x4 worldViewProjTransposed;
-                            float4x4.Transpose(ref worldViewProj, out worldViewProjTransposed);
-
-                            context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
-
-                            if (data.IndexBuffer != null && data.IndexCount > 0) {
-                                context.DrawIndexed(data.IndexCount, 0, 0);
-                            } else {
-                                context.Draw(data.VertexCount, 0);
-                            }
-                        }
-                    }
-                }
-            }
+            IRenderQueue3D renderQueue = camera.RenderQueue3D;
+            renderQueue.VisitOrdered(this);
 
             renderer2D.RenderCamera(camera);
+        }
+
+        /// <summary>
+        /// Draws a single 3D drawable encountered during queue traversal.
+        /// </summary>
+        /// <param name="drawable">Drawable to render.</param>
+        public void Visit(IDrawable3D drawable) {
+            if (drawable?.Parent == null || !drawable.Parent.Enabled) {
+                return;
+            }
+
+            var context = Device.ImmediateContext;
+            Entity parent = drawable.Parent;
+            var data = (SharpDXModelResource)drawable.Model;
+
+            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, Utilities.SizeOf<VertexPositionNormalUV>(), 0));
+            if (data.IndexBuffer != null && data.IndexCount > 0) {
+                context.InputAssembler.SetIndexBuffer(data.IndexBuffer, Format.R16_UInt, 0);
+            }
+
+            float4 orientation = parent.Orientation;
+            float4x4 rotation;
+            float4x4.CreateFromQuaternion(ref orientation, out rotation);
+
+            float3 scale = parent.Scale;
+            float4x4 size;
+            float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
+
+            float4x4 world;
+            float4x4.Multiply(ref rotation, ref size, out world);
+
+            float4x4 worldViewProj;
+            float4x4.Multiply(ref world, ref currentViewProjection, out worldViewProj);
+
+            float4x4 worldViewProjTransposed;
+            float4x4.Transpose(ref worldViewProj, out worldViewProjTransposed);
+
+            context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
+
+            if (data.IndexBuffer != null && data.IndexCount > 0) {
+                context.DrawIndexed(data.IndexCount, 0, 0);
+            } else {
+                context.Draw(data.VertexCount, 0);
+            }
         }
 
 

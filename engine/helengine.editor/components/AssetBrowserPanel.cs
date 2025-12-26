@@ -129,10 +129,10 @@ namespace helengine.editor {
             Title = "Assets";
             MinSize = new int2(260, 180);
 
-            toolbarOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
-            rowBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
-            iconBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
-            textOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(2);
+            toolbarOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
+            rowBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
+            iconBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
+            textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
 
             assetManager = new EditorAssetManager(projectPath);
 

@@ -6,7 +6,7 @@ namespace helengine {
         byte renderOrder2D;
 
         /// <summary>
-        /// Gets or sets the render order bucket for this shape.
+        /// Gets or sets the render order for this shape.
         /// </summary>
         public byte RenderOrder2D {
             get { return renderOrder2D; }

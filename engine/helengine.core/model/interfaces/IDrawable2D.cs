@@ -9,7 +9,7 @@ namespace helengine {
         Entity Parent { get; }
 
         /// <summary>
-        /// Gets or sets the render order bucket for 2D drawing.
+        /// Gets or sets the render order for 2D drawing.
         /// </summary>
         byte RenderOrder2D { get; set; }
 

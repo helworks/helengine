@@ -31,7 +31,7 @@ namespace helengine.sharpdx {
     /// <summary>
     /// SharpDX-backed renderer responsible for 2D sprites, text, and UI shapes.
     /// </summary>
-    internal class SharpDXRenderer2D : RenderManager2D {
+    internal class SharpDXRenderer2D : RenderManager2D, IRenderVisitor2D {
         const int InitialGeometryVertexCapacity = 1024;
 
         readonly SharpDXRenderer3D parentRenderer;
@@ -105,26 +105,27 @@ namespace helengine.sharpdx {
         /// <summary>
         /// Renders all 2D drawables for a camera.
         /// </summary>
-        /// <param name="camera">Camera supplying buckets.</param>
+        /// <param name="camera">Camera supplying the render queue.</param>
         internal void RenderCamera(ICamera camera) {
             ConfigureSpritePipeline(spriteInputLayout);
 
             float4 viewport = camera.Viewport;
             float4x4.CreateOrthographicOffCenter(0, viewport.Z, -viewport.W, 0, -10, 10, out projectionMatrix2D);
 
-            var buckets = camera.RenderBuckets2D;
-            for (int b = 0; b < buckets.Length; b++) {
-                var rb = buckets[b];
-                int n = rb.Count;
-                var items = rb.Items;
-                for (int j = 0; j < n; j++) {
-                    var drawable = items[j];
-                    if (drawable?.Parent == null || !drawable.Parent.Enabled) {
-                        continue;
-                    }
-                    drawable.Draw();
-                }
+            IRenderQueue2D renderQueue = camera.RenderQueue2D;
+            renderQueue.VisitOrdered(this);
+        }
+
+        /// <summary>
+        /// Draws a single 2D drawable encountered during queue traversal.
+        /// </summary>
+        /// <param name="drawable">Drawable to render.</param>
+        public void Visit(IDrawable2D drawable) {
+            if (drawable?.Parent == null || !drawable.Parent.Enabled) {
+                return;
             }
+
+            drawable.Draw();
         }
 
         /// <summary>

@@ -9,6 +9,26 @@ namespace helengine {
         byte cameraDrawOrder;
 
         /// <summary>
+        /// 2D render list for this camera.
+        /// </summary>
+        RenderList2D renderList2D;
+
+        /// <summary>
+        /// 3D render list for this camera.
+        /// </summary>
+        RenderList3D renderList3D;
+
+        /// <summary>
+        /// Initializes a new camera component with default lists and viewport.
+        /// </summary>
+        public CameraComponent() {
+            LayerMask = 0b11111111;
+            Viewport = new float4(0, 0, 1, 1);
+
+            InitializeLists();
+        }
+
+        /// <summary>
         /// Gets or sets the draw order for the camera.
         /// </summary>
         public byte CameraDrawOrder {
@@ -32,14 +52,14 @@ namespace helengine {
         public float4 Viewport { get; set; }
 
         /// <summary>
-        /// Gets the 2D render buckets registered for this camera.
+        /// Gets the 2D render queue registered for this camera.
         /// </summary>
-        public RenderBucket2D[] RenderBuckets2D { get { return registry2D.Buckets; } }
+        public IRenderQueue2D RenderQueue2D { get { return renderList2D; } }
 
         /// <summary>
-        /// Gets the 3D render buckets registered for this camera.
+        /// Gets the 3D render queue registered for this camera.
         /// </summary>
-        public RenderBucket3D[][][] RenderBuckets3D { get { return registry3D.Buckets; } }
+        public IRenderQueue3D RenderQueue3D { get { return renderList3D; } }
 
         /// <summary>
         /// Gets or sets the layer mask this camera renders.
@@ -47,47 +67,18 @@ namespace helengine {
         public ushort LayerMask { get; set; }
 
         /// <summary>
-        /// 2D render registry for this camera.
+        /// Allocates render lists using the core initialization options.
         /// </summary>
-        Camera2DRegistry registry2D;
-        /// <summary>
-        /// 3D render registry for this camera.
-        /// </summary>
-        Camera3DRegistry registry3D;
-
-        /// <summary>
-        /// Initializes a new camera component with default buckets and viewport.
-        /// </summary>
-        public CameraComponent() {
-            LayerMask = 0b11111111;
-            Viewport = new float4(0, 0, 1, 1);
-
-            InitializeRegistries();
-        }
-
-        /// <summary>
-        /// Allocates render registries using the core initialization options.
-        /// </summary>
-        void InitializeRegistries() {
-            CoreInitializationOptions settings = null;
-            if (Core.Instance != null) {
-                settings = Core.Instance.InitializationOptions;
-            }
-            if (settings == null) {
-                settings = new CoreInitializationOptions();
-                settings.Normalize();
+        void InitializeLists() {
+            if (Core.Instance == null || Core.Instance.InitializationOptions == null) {
+                throw new InvalidOperationException("Core initialization options must be set before creating camera lists.");
             }
 
-            registry2D = new Camera2DRegistry(
-                settings.TotalBuckets2D,
-                settings.RenderBucket2DInitialCapacity,
-                settings.Camera2DMapCapacity);
-            registry3D = new Camera3DRegistry(
-                settings.TotalVariants3D,
-                settings.TotalBuckets3D,
-                settings.RenderBucket3DBinsPerBucket,
-                settings.RenderBucket3DInitialCapacity,
-                settings.Camera3DMapCapacity);
+            CoreInitializationOptions settings = Core.Instance.InitializationOptions;
+            settings.Normalize();
+
+            renderList2D = new RenderList2D(settings.RenderList2DInitialCapacity);
+            renderList3D = new RenderList3D(settings.RenderList3DInitialCapacity);
         }
 
         /// <summary>
@@ -115,17 +106,5 @@ namespace helengine {
                 Core.Instance.ObjectManager.RemoveCamera(this);
             }
         }
-
-        // Internal accessors for ObjectManager registries
-        /// <summary>
-        /// Gets the 2D render registry associated with this camera.
-        /// </summary>
-        /// <returns>2D registry reference.</returns>
-        internal Camera2DRegistry Get2DRegistry() => registry2D;
-        /// <summary>
-        /// Gets the 3D render registry associated with this camera.
-        /// </summary>
-        /// <returns>3D registry reference.</returns>
-        internal Camera3DRegistry Get3DRegistry() => registry3D;
     }
 }

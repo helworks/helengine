@@ -109,8 +109,8 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            byte backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
-            byte textOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(2);
+            byte backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
+            byte textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
 
             // Create rounded background
             backgroundSprite = new RoundedRectComponent();
@@ -137,7 +137,7 @@ namespace helengine {
 
             // Create a custom update component for keyboard input
             var updateComponent = new TextBoxUpdateComponent(this);
-            updateComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForBucket(1);
+            updateComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
             entity.AddComponent(updateComponent);
 
             UpdateTextDisplay();

@@ -59,9 +59,9 @@ namespace helengine.editor {
         /// <param name="font">Font used to render the title text.</param>
         public DockableEntity(FontAsset font) {
             this.font = font;
-            backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(0);
-            surfaceOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
-            textOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(2);
+            backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(0);
+            surfaceOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
+            textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
             LayerMask = 0b1000000000000000;
             isDocked = false;
             titleBarInteractableEnabled = true;
@@ -323,7 +323,7 @@ namespace helengine.editor {
 
             int boost = 0;
             if (!isDocked) {
-                boost = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(Core.Instance.ObjectManager.TotalBuckets2D - 1);
+                boost = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(Core.Instance.ObjectManager.RenderOrderLayers2D - 1);
             }
             foreach (var entry in renderOrderBaseline) {
                 int adjusted = entry.Value + boost;

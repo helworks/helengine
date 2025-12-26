@@ -9,14 +9,9 @@ namespace helengine {
         Entity Parent { get; }
 
         /// <summary>
-        /// Gets or sets the render order bucket for 3D drawing.
+        /// Gets or sets the render order for 3D drawing.
         /// </summary>
         byte RenderOrder3D { get; set; }
-
-        /// <summary>
-        /// Gets or sets a variant index used to choose a render pipeline.
-        /// </summary>
-        byte Variant { get; set; }
 
         /// <summary>
         /// Gets the runtime model associated with this drawable.

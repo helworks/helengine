@@ -24,13 +24,13 @@ namespace helengine {
         float4 Viewport { get; set; }
 
         /// <summary>
-        /// Gets the 2D render buckets registered for this camera.
+        /// Gets the 2D render queue registered for this camera.
         /// </summary>
-        RenderBucket2D[] RenderBuckets2D { get; }
+        IRenderQueue2D RenderQueue2D { get; }
 
         /// <summary>
-        /// Gets the 3D render buckets registered for this camera.
+        /// Gets the 3D render queue registered for this camera.
         /// </summary>
-        RenderBucket3D[][][] RenderBuckets3D { get; }
+        IRenderQueue3D RenderQueue3D { get; }
     }
 }

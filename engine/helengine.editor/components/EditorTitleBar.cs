@@ -44,8 +44,8 @@ namespace helengine.editor {
         public EditorTitleBar(FontAsset font, int windowWidth, string titleText) {
             this.font = font;
             title = titleText;
-            backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(1);
-            textOrder = Core.Instance.ObjectManager.GetRenderOrderForBucket2D(2);
+            backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
+            textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
 
             rootEntity = new EditorEntity {
                 LayerMask = TitleBarLayerMask,

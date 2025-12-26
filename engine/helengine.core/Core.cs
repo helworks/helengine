@@ -11,10 +11,14 @@ namespace helengine {
         /// <summary>
         /// Initializes a new core instance and registers the static singleton reference.
         /// </summary>
-        /// <param name="options">Initialization options that control bucket sizing.</param>
+        /// <param name="options">Initialization options that control ordering and list sizing.</param>
         public Core(CoreInitializationOptions options) {
+            if (options == null) {
+                throw new ArgumentNullException(nameof(options));
+            }
+
             Instance = this;
-            InitializationOptions = options ?? new CoreInitializationOptions();
+            InitializationOptions = options;
             InitializationOptions.Normalize();
         }
 
@@ -64,7 +68,7 @@ namespace helengine {
         /// <param name="render3D">3D renderer instance.</param>
         /// <param name="render2D">2D renderer instance.</param>
         /// <param name="input">Input manager instance.</param>
-        /// <param name="options">Initialization options that control bucket sizing.</param>
+        /// <param name="options">Initialization options that control ordering and list sizing.</param>
         public virtual void Initialize(
             RenderManager3D render3D,
             RenderManager2D render2D,
@@ -74,14 +78,14 @@ namespace helengine {
             RenderManager2D = render2D;
             InputManager = input;
 
-            CoreInitializationOptions settings = options;
-            if (settings == null) {
-                settings = InitializationOptions ?? new CoreInitializationOptions();
+            if (options == null) {
+                throw new ArgumentNullException(nameof(options));
             }
-            settings.Normalize();
-            InitializationOptions = settings;
 
-            ObjectManager = new ObjectManager(settings);
+            options.Normalize();
+            InitializationOptions = options;
+
+            ObjectManager = new ObjectManager(options);
         }
 
         /// <summary>

@@ -1,82 +1,65 @@
 namespace helengine {
     /// <summary>
-    /// Describes core initialization settings for bucket counts and default capacities.
+    /// Describes core initialization settings for ordering layers and list capacities.
     /// </summary>
     public class CoreInitializationOptions {
         /// <summary>
-        /// Gets or sets the number of update buckets used for per-frame updates.
+        /// Gets or sets the number of update order layers available for convenience helpers.
         /// </summary>
-        public byte TotalUpdateBuckets { get; set; } = 4;
+        public byte UpdateOrderLayers { get; set; } = 4;
 
         /// <summary>
-        /// Gets or sets the number of 2D render buckets used for draw ordering.
+        /// Gets or sets the number of 2D render order layers available for convenience helpers.
         /// </summary>
-        public byte TotalBuckets2D { get; set; } = 4;
+        public byte RenderOrderLayers2D { get; set; } = 4;
 
         /// <summary>
-        /// Gets or sets the number of 3D render buckets used for draw ordering.
+        /// Gets or sets the number of 3D render order layers available for convenience helpers.
         /// </summary>
-        public byte TotalBuckets3D { get; set; } = 4;
+        public byte RenderOrderLayers3D { get; set; } = 4;
 
         /// <summary>
-        /// Gets or sets the number of 3D render variants supported per camera.
+        /// Gets or sets the initial capacity for the update list.
         /// </summary>
-        public byte TotalVariants3D { get; set; } = 4;
+        public int UpdateListInitialCapacity { get; set; } = 64;
 
         /// <summary>
-        /// Gets or sets the number of state bins per 3D bucket.
+        /// Gets or sets the initial capacity for 2D render lists.
         /// </summary>
-        public int RenderBucket3DBinsPerBucket { get; set; } = 4;
+        public int RenderList2DInitialCapacity { get; set; } = 64;
 
         /// <summary>
-        /// Gets or sets the initial capacity for each update bucket, with one entry per bucket.
+        /// Gets or sets the initial capacity for 3D render lists.
         /// </summary>
-        public int[] UpdateBucketInitialCapacity { get; set; } = new int[] { 4, 4, 4, 4 };
+        public int RenderList3DInitialCapacity { get; set; } = 64;
 
         /// <summary>
-        /// Gets or sets the initial capacity for 2D render buckets.
-        /// </summary>
-        public int RenderBucket2DInitialCapacity { get; set; } = 64;
-
-        /// <summary>
-        /// Gets or sets the initial capacity for 3D render buckets.
-        /// </summary>
-        public int RenderBucket3DInitialCapacity { get; set; } = 64;
-
-        /// <summary>
-        /// Gets or sets the initial capacity for camera 2D lookup maps.
-        /// </summary>
-        public int Camera2DMapCapacity { get; set; } = 256;
-
-        /// <summary>
-        /// Gets or sets the initial capacity for camera 3D lookup maps.
-        /// </summary>
-        public int Camera3DMapCapacity { get; set; } = 512;
-
-        /// <summary>
-        /// Clamps option values to valid minimums.
+        /// Validates option values for initialization.
         /// </summary>
         public void Normalize() {
-            TotalUpdateBuckets = (byte)Math.Max(1, (int)TotalUpdateBuckets);
-            TotalBuckets2D = (byte)Math.Max(1, (int)TotalBuckets2D);
-            TotalBuckets3D = (byte)Math.Max(1, (int)TotalBuckets3D);
-            TotalVariants3D = (byte)Math.Max(1, (int)TotalVariants3D);
-            RenderBucket3DBinsPerBucket = Math.Max(1, RenderBucket3DBinsPerBucket);
-            if (UpdateBucketInitialCapacity == null) {
-                throw new InvalidOperationException("UpdateBucketInitialCapacity must be set.");
+            if (UpdateOrderLayers < 1) {
+                throw new InvalidOperationException("UpdateOrderLayers must be at least 1.");
             }
 
-            if (UpdateBucketInitialCapacity.Length != TotalUpdateBuckets) {
-                throw new InvalidOperationException("UpdateBucketInitialCapacity must match TotalUpdateBuckets.");
+            if (RenderOrderLayers2D < 1) {
+                throw new InvalidOperationException("RenderOrderLayers2D must be at least 1.");
             }
 
-            for (int i = 0; i < UpdateBucketInitialCapacity.Length; i++) {
-                UpdateBucketInitialCapacity[i] = Math.Max(1, UpdateBucketInitialCapacity[i]);
+            if (RenderOrderLayers3D < 1) {
+                throw new InvalidOperationException("RenderOrderLayers3D must be at least 1.");
             }
-            RenderBucket2DInitialCapacity = Math.Max(1, RenderBucket2DInitialCapacity);
-            RenderBucket3DInitialCapacity = Math.Max(1, RenderBucket3DInitialCapacity);
-            Camera2DMapCapacity = Math.Max(1, Camera2DMapCapacity);
-            Camera3DMapCapacity = Math.Max(1, Camera3DMapCapacity);
+
+            if (UpdateListInitialCapacity < 0) {
+                throw new InvalidOperationException("UpdateListInitialCapacity cannot be negative.");
+            }
+
+            if (RenderList2DInitialCapacity < 0) {
+                throw new InvalidOperationException("RenderList2DInitialCapacity cannot be negative.");
+            }
+
+            if (RenderList3DInitialCapacity < 0) {
+                throw new InvalidOperationException("RenderList3DInitialCapacity cannot be negative.");
+            }
         }
     }
 }

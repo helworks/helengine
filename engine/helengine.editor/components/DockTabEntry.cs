@@ -9,8 +9,8 @@ namespace helengine.editor {
         /// <param name="dockable">Dockable window represented by the tab.</param>
         /// <param name="font">Font used for the tab label.</param>
         /// <param name="layerMask">Layer mask used for rendering and hit testing.</param>
-        /// <param name="backgroundOrder">Render order bucket for the tab background.</param>
-        /// <param name="textOrder">Render order bucket for the tab text.</param>
+        /// <param name="backgroundOrder">Render order for the tab background.</param>
+        /// <param name="textOrder">Render order for the tab text.</param>
         public DockTabEntry(
             DockableEntity dockable,
             FontAsset font,

@@ -4,12 +4,12 @@ namespace helengine {
     /// </summary>
     public class UpdateComponent : Component, IUpdateable {
         /// <summary>
-        /// Stores the update order used for bucketing.
+        /// Stores the update order used for sequencing.
         /// </summary>
         byte updateOrder;
 
         /// <summary>
-        /// Gets or sets the update order bucket for this component.
+        /// Gets or sets the update order for this component.
         /// </summary>
         public byte UpdateOrder {
             get { return updateOrder; }
