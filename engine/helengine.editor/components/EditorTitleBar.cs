@@ -48,6 +48,7 @@ namespace helengine.editor {
             textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
 
             rootEntity = new EditorEntity {
+                InternalEntity = true,
                 LayerMask = TitleBarLayerMask,
                 Position = new float3(0, 0, 0)
             };

@@ -4,6 +4,10 @@ namespace helengine.editor {
     /// </summary>
     public class EditorSession {
         /// <summary>
+        /// Default debounce delay for shader rebuilds.
+        /// </summary>
+        const int ShaderBuildDelayMilliseconds = 250;
+        /// <summary>
         /// Editor core driving updates and rendering.
         /// </summary>
         readonly EditorCore core;
@@ -59,6 +63,22 @@ namespace helengine.editor {
         /// Scene camera component.
         /// </summary>
         readonly CameraComponent sceneCameraComponent;
+        /// <summary>
+        /// Hidden editor camera entity used for offscreen rendering.
+        /// </summary>
+        readonly EditorEntity hiddenCameraEntity;
+        /// <summary>
+        /// Hidden editor camera component used for offscreen rendering.
+        /// </summary>
+        readonly CameraComponent hiddenCameraComponent;
+        /// <summary>
+        /// Render target assigned to the hidden editor camera.
+        /// </summary>
+        readonly RenderTarget hiddenCameraTarget;
+        /// <summary>
+        /// Shader module manager responsible for hot-reloading shader modules.
+        /// </summary>
+        readonly ShaderModuleManager shaderModuleManager;
 
         /// <summary>
         /// Initializes a new editor session and sets up cameras, docking, and starter content.
@@ -72,6 +92,7 @@ namespace helengine.editor {
         /// <param name="input">Input manager instance.</param>
         /// <param name="renderWidth">Initial render width in pixels.</param>
         /// <param name="renderHeight">Initial render height in pixels.</param>
+        /// <param name="shaderToolPath">Absolute path to the helshader tool.</param>
         public EditorSession(
             EditorCore core,
             string projectPath,
@@ -81,25 +102,33 @@ namespace helengine.editor {
             RenderManager2D render2D,
             InputManager input,
             int renderWidth,
-            int renderHeight) {
+            int renderHeight,
+            string shaderToolPath) {
             this.core = core;
             this.projectPath = projectPath ?? string.Empty;
             this.uiFont = uiFont;
+            if (string.IsNullOrWhiteSpace(shaderToolPath)) {
+                throw new ArgumentException("Shader tool path must be provided.", nameof(shaderToolPath));
+            }
 
             core.Initialize(render3D, render2D, input);
             core.InputManager.SetKeyboardActive(true);
 
             uiCameraEntity = new EditorEntity();
+            uiCameraEntity.InternalEntity = true;
             uiCameraEntity.Position = new float3(0, 3, -8);
             uiCameraComponent = new CameraComponent();
             uiCameraComponent.LayerMask = 0b1000000000000000;
             uiCameraComponent.CameraDrawOrder = 255;
+            uiCameraComponent.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), false, 1.0f, false, 0);
             uiCameraEntity.AddComponent(uiCameraComponent);
 
             sceneCameraEntity = new EditorEntity();
+            sceneCameraEntity.InternalEntity = true;
             sceneCameraEntity.Position = new float3(0, 3, -8);
             sceneCameraComponent = new CameraComponent();
             sceneCameraComponent.LayerMask = 0b0100000000000000;
+            sceneCameraComponent.ClearSettings = new CameraClearSettings(true, new float4(0.39215687f, 0.58431375f, 0.92941177f, 1f), true, 1.0f, false, 0);
             sceneCameraEntity.AddComponent(sceneCameraComponent);
             sceneCameraEntity.AddComponent(new EditorViewportCameraController(sceneCameraComponent));
 
@@ -109,6 +138,24 @@ namespace helengine.editor {
             float4 orientation;
             float4.CreateFromYawPitchRoll((float)yaw, (float)pitch, 0f, out orientation);
             sceneCameraEntity.Orientation = orientation;
+
+            hiddenCameraEntity = new EditorEntity();
+            hiddenCameraEntity.InternalEntity = true;
+            hiddenCameraEntity.Enabled = false;
+            hiddenCameraEntity.Position = sceneCameraEntity.Position;
+            hiddenCameraEntity.Orientation = sceneCameraEntity.Orientation;
+            hiddenCameraEntity.LayerMask = sceneCameraComponent.LayerMask;
+            hiddenCameraComponent = new CameraComponent();
+            hiddenCameraComponent.LayerMask = sceneCameraComponent.LayerMask;
+            hiddenCameraComponent.Viewport = new float4(0, 0, 640, 360);
+            hiddenCameraComponent.ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
+            hiddenCameraTarget = render3D.CreateRenderTarget(640, 360);
+            hiddenCameraComponent.RenderTarget = hiddenCameraTarget;
+            hiddenCameraEntity.AddComponent(hiddenCameraComponent);
+            if (render3D is not helengine.sharpdx.SharpDXRenderer3D pickerRenderer) {
+                throw new InvalidOperationException("Editor picker requires a SharpDX renderer.");
+            }
+            sceneCameraEntity.AddComponent(new EditorViewportPicker(sceneCameraComponent, hiddenCameraEntity, hiddenCameraComponent, pickerRenderer));
 
             titleBar = new EditorTitleBar(uiFont, Math.Max(1, renderWidth), titleText ?? string.Empty);
 
@@ -134,6 +181,9 @@ namespace helengine.editor {
             dockingManager.Layout.DockRelative(sceneHierarchyPanel, mainViewport, DockInsertDirection.Left, 0.3f);
             dockingManager.Layout.DockRelative(propertiesPanel, mainViewport, DockInsertDirection.Right, 0.75f);
             dockingManager.Layout.DockRelative(loggerPanel, assetBrowserPanel, DockInsertDirection.Fill, 0.5f);
+
+            shaderModuleManager = BuildShaderModuleManager(shaderToolPath);
+            shaderModuleManager.Start();
 
             BuildStartScene();
             sceneHierarchyPanel.RefreshHierarchy();
@@ -293,6 +343,7 @@ namespace helengine.editor {
         /// Disposes engine resources owned by the session.
         /// </summary>
         public void Dispose() {
+            shaderModuleManager.Dispose();
             loggerPanel.Detach();
             core.Dispose();
         }
@@ -318,6 +369,31 @@ namespace helengine.editor {
             ModelAsset planeModelData = ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One);
             RuntimeModel planeRenderData = coreInstance.RenderManager3D.BuildModelFromRaw(planeModelData);
             planeMesh.Model = planeRenderData;
+        }
+
+        /// <summary>
+        /// Builds a shader module manager for the current project path.
+        /// </summary>
+        /// <param name="shaderToolPath">Absolute path to the helshader tool.</param>
+        /// <returns>Configured shader module manager.</returns>
+        ShaderModuleManager BuildShaderModuleManager(string shaderToolPath) {
+            string manifestPath = ResolveShaderManifestPath(projectPath);
+            var options = new ShaderModuleManagerOptions(manifestPath, shaderToolPath, ShaderBuildDelayMilliseconds);
+            return new ShaderModuleManager(options);
+        }
+
+        /// <summary>
+        /// Resolves the shader manifest path for the current project.
+        /// </summary>
+        /// <param name="projectRoot">Project root path.</param>
+        /// <returns>Absolute manifest path.</returns>
+        string ResolveShaderManifestPath(string projectRoot) {
+            if (string.IsNullOrWhiteSpace(projectRoot)) {
+                throw new InvalidOperationException("Project root path is required to locate shader manifests.");
+            }
+
+            string manifestPath = Path.Combine(projectRoot, "shaders", "shader-manifest.json");
+            return Path.GetFullPath(manifestPath);
         }
     }
 }

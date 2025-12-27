@@ -37,6 +37,16 @@ namespace helengine {
         public abstract RuntimeModel BuildModelFromRaw(ModelAsset data);
 
         /// <summary>
+        /// Creates a render target that can be assigned to a camera.
+        /// </summary>
+        /// <param name="width">Width of the render target in pixels.</param>
+        /// <param name="height">Height of the render target in pixels.</param>
+        /// <returns>Render target instance.</returns>
+        public virtual RenderTarget CreateRenderTarget(int width, int height) {
+            throw new NotSupportedException("This renderer does not support render target creation.");
+        }
+
+        /// <summary>
         /// Performs per-frame update for 3D rendering systems.
         /// </summary>
         public virtual void Update() { }

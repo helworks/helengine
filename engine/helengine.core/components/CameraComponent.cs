@@ -24,6 +24,7 @@ namespace helengine {
         public CameraComponent() {
             LayerMask = 0b11111111;
             Viewport = new float4(0, 0, 1, 1);
+            ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
 
             InitializeLists();
         }
@@ -50,6 +51,16 @@ namespace helengine {
         /// Gets or sets the viewport rectangle.
         /// </summary>
         public float4 Viewport { get; set; }
+
+        /// <summary>
+        /// Gets or sets the render target that receives this camera's output; null renders to the main back buffer.
+        /// </summary>
+        public RenderTarget RenderTarget { get; set; }
+
+        /// <summary>
+        /// Gets or sets the clear settings applied before this camera renders.
+        /// </summary>
+        public CameraClearSettings ClearSettings { get; set; }
 
         /// <summary>
         /// Gets the 2D render queue registered for this camera.

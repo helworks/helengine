@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
+    <ProjectReference Include="..\helengine.sharpdx\helengine.sharpdx.csproj" />
   </ItemGroup>
 
   <ItemGroup>

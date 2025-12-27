@@ -10,6 +10,7 @@ namespace helengine.editor {
         /// </summary>
         public DockPreviewOverlay() {
             LayerMask = 0b1000000000000000;
+            InternalEntity = true;
             highlight = new RoundedRectComponent();
             highlight.FillColor = new byte4(0, 0, 0, 0);
             highlight.BorderColor = new byte4(64, 200, 255, 220);

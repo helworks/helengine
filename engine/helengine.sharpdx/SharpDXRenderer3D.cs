@@ -34,13 +34,53 @@ namespace helengine.sharpdx {
         List<SharpDXSwapChainSurface> surfaces;
         Dictionary<IntPtr, SharpDXSwapChainSurface> surfacesByHandle;
         InputLayout inputLayout;
+        /// <summary>
+        /// Constant buffer for standard world-view-projection transforms.
+        /// </summary>
         Buffer constantBuffer;
+        /// <summary>
+        /// Constant buffer used for custom effect shader data.
+        /// </summary>
+        Buffer customPassConstantBuffer;
+        /// <summary>
+        /// Standard 3D vertex shader.
+        /// </summary>
         VertexShader vertexShader;
+        /// <summary>
+        /// Standard 3D pixel shader.
+        /// </summary>
         PixelShader pixelShader;
+        /// <summary>
+        /// Blend state for standard rendering.
+        /// </summary>
         BlendState blendState;
         SharpDXRenderer2D renderer2D;
         RasterizerState rasterizerState3D;
         DepthStencilState depthStencilState3D;
+        /// <summary>
+        /// Tracks whether the current pass is a custom shader render.
+        /// </summary>
+        bool isCustomPassActive;
+        /// <summary>
+        /// Provides per-draw colors for the active custom pass.
+        /// </summary>
+        Func<IDrawable3D, byte4> customColorProvider;
+        /// <summary>
+        /// Stores custom shader pass requests keyed by camera.
+        /// </summary>
+        Dictionary<ICamera, SharpDXCustomPassRequest> customPassRequests;
+        /// <summary>
+        /// Caches compiled shader passes by a composite key.
+        /// </summary>
+        Dictionary<string, SharpDXShaderPass> shaderPassCache;
+        /// <summary>
+        /// Default vertex shader entry point for custom passes.
+        /// </summary>
+        const string DefaultCustomVertexEntry = "VS";
+        /// <summary>
+        /// Default pixel shader entry point for custom passes.
+        /// </summary>
+        const string DefaultCustomPixelEntry = "PS";
         /// <summary>
         /// Cached view-projection matrix for the active camera render pass.
         /// </summary>
@@ -52,6 +92,8 @@ namespace helengine.sharpdx {
         public SharpDXRenderer3D() {
             surfaces = new List<SharpDXSwapChainSurface>();
             surfacesByHandle = new Dictionary<IntPtr, SharpDXSwapChainSurface>();
+            customPassRequests = new Dictionary<ICamera, SharpDXCustomPassRequest>();
+            shaderPassCache = new Dictionary<string, SharpDXShaderPass>(StringComparer.Ordinal);
 
             WindowResized += OnWindowResized;
 
@@ -81,6 +123,8 @@ namespace helengine.sharpdx {
             }
 
             constantBuffer = new Buffer(Device, Utilities.SizeOf<float4x4>(), ResourceUsage.Default,
+                BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
+            customPassConstantBuffer = new Buffer(Device, Utilities.SizeOf<CustomEffectShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
 
             blendState = CreateBlendState(BlendOption.SourceAlpha, BlendOption.InverseSourceAlpha, BlendOperation.Add);
@@ -150,10 +194,12 @@ namespace helengine.sharpdx {
             depthStencilState3D?.Dispose();
             rasterizerState3D?.Dispose();
             blendState?.Dispose();
+            customPassConstantBuffer?.Dispose();
             constantBuffer?.Dispose();
             inputLayout?.Dispose();
             pixelShader?.Dispose();
             vertexShader?.Dispose();
+            DisposeShaderPassCache();
             Device?.Dispose();
             Adapter?.Dispose();
 
@@ -281,15 +327,190 @@ namespace helengine.sharpdx {
         }
 
         /// <summary>
+        /// Creates a SharpDX render target suitable for camera output.
+        /// </summary>
+        /// <param name="width">Width of the render target in pixels.</param>
+        /// <param name="height">Height of the render target in pixels.</param>
+        /// <returns>Render target instance.</returns>
+        public override RenderTarget CreateRenderTarget(int width, int height) {
+            return new SharpDXRenderTargetResource(Device, width, height, Format.R8G8B8A8_UNorm, Format.D32_Float);
+        }
+
+        /// <summary>
+        /// Queues a one-frame custom shader pass using the default entry points.
+        /// </summary>
+        /// <param name="camera">Camera providing transform, viewport, and target information.</param>
+        /// <param name="renderQueue">Render queue supplying drawables for the pass.</param>
+        /// <param name="shaderPath">Path to the shader file.</param>
+        /// <param name="colorProvider">Function that supplies per-draw colors for the shader.</param>
+        public void RequestShaderPass(
+            ICamera camera,
+            IRenderQueue3D renderQueue,
+            string shaderPath,
+            Func<IDrawable3D, byte4> colorProvider) {
+            RequestShaderPass(camera, renderQueue, shaderPath, DefaultCustomVertexEntry, DefaultCustomPixelEntry, colorProvider);
+        }
+
+        /// <summary>
+        /// Queues a one-frame custom shader pass with explicit entry points.
+        /// </summary>
+        /// <param name="camera">Camera providing transform, viewport, and target information.</param>
+        /// <param name="renderQueue">Render queue supplying drawables for the pass.</param>
+        /// <param name="shaderPath">Path to the shader file.</param>
+        /// <param name="vertexEntry">Vertex shader entry point.</param>
+        /// <param name="pixelEntry">Pixel shader entry point.</param>
+        /// <param name="colorProvider">Function that supplies per-draw colors for the shader.</param>
+        public void RequestShaderPass(
+            ICamera camera,
+            IRenderQueue3D renderQueue,
+            string shaderPath,
+            string vertexEntry,
+            string pixelEntry,
+            Func<IDrawable3D, byte4> colorProvider) {
+            var request = new SharpDXCustomPassRequest(camera, renderQueue, shaderPath, vertexEntry, pixelEntry, colorProvider);
+            customPassRequests[camera] = request;
+        }
+
+        /// <summary>
+        /// Renders all queued custom shader passes before the main surface rendering.
+        /// </summary>
+        void RenderCustomPasses() {
+            if (customPassRequests.Count == 0) {
+                return;
+            }
+
+            foreach (var entry in customPassRequests) {
+                RenderCustomPass(entry.Value);
+            }
+
+            customPassRequests.Clear();
+        }
+
+        /// <summary>
+        /// Renders a single custom pass into the camera's render target.
+        /// </summary>
+        /// <param name="request">Custom pass request to execute.</param>
+        void RenderCustomPass(SharpDXCustomPassRequest request) {
+            if (request == null) {
+                throw new ArgumentNullException(nameof(request));
+            }
+
+            ICamera camera = request.Camera;
+            RenderTarget renderTarget = camera.RenderTarget;
+            if (renderTarget == null) {
+                throw new InvalidOperationException("Custom shader passes require a render target.");
+            }
+            if (renderTarget is not SharpDXRenderTargetResource sharpDxTarget) {
+                throw new InvalidOperationException("Custom shader passes require SharpDX render targets.");
+            }
+
+            SharpDXShaderPass shaderPass = GetShaderPass(request.ShaderPath, request.VertexEntry, request.PixelEntry);
+
+            var context = Device.ImmediateContext;
+            context.InputAssembler.InputLayout = inputLayout;
+            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+            context.Rasterizer.State = rasterizerState3D;
+            context.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
+            context.OutputMerger.SetBlendState(null);
+
+            RenderTargetView renderTargetView = sharpDxTarget.RenderTargetView;
+            DepthStencilView depthStencilView = sharpDxTarget.DepthStencilView;
+
+            CameraClearSettings clearSettings = camera.ClearSettings;
+            bool clearColor = clearSettings.ClearColorEnabled;
+            float4 clearColorValue = clearSettings.ClearColor;
+            bool clearDepth = clearSettings.ClearDepthEnabled;
+            float clearDepthValue = clearSettings.ClearDepth;
+            bool clearStencil = clearSettings.ClearStencilEnabled;
+            byte clearStencilValue = clearSettings.ClearStencil;
+
+            context.OutputMerger.SetTargets(depthStencilView, renderTargetView);
+            if (clearColor) {
+                context.ClearRenderTargetView(renderTargetView, new RawColor4(clearColorValue.X, clearColorValue.Y, clearColorValue.Z, clearColorValue.W));
+            }
+            DepthStencilClearFlags clearFlags = 0;
+            if (clearDepth) {
+                clearFlags |= DepthStencilClearFlags.Depth;
+            }
+            if (clearStencil) {
+                clearFlags |= DepthStencilClearFlags.Stencil;
+            }
+            if (clearFlags != 0) {
+                context.ClearDepthStencilView(depthStencilView, clearFlags, clearDepthValue, clearStencilValue);
+            }
+
+            float4x4 view;
+            float3 cameraPos = camera.Parent.Position;
+            float4 cameraOrientation = camera.Parent.Orientation;
+            float3 cameraForward = float4.RotateVector(DefaultForward, cameraOrientation);
+            float3 cameraUp = float4.RotateVector(DefaultUp, cameraOrientation);
+            float3 cameraTarget = cameraPos + cameraForward;
+            float4x4.CreateLookAt(ref cameraPos, ref cameraTarget, ref cameraUp, out view);
+
+            float4 viewport = camera.Viewport;
+            context.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
+
+            float4x4 projection;
+            float4x4.CreatePerspectiveFieldOfView((float)Math.PI / 4.0f, (viewport.Z / viewport.W), 0.1f, 100f, out projection);
+
+            float4x4.Multiply(ref view, ref projection, out currentViewProjection);
+
+            isCustomPassActive = true;
+            customColorProvider = request.ColorProvider;
+            try {
+                context.VertexShader.Set(shaderPass.VertexShader);
+                context.PixelShader.Set(shaderPass.PixelShader);
+                context.VertexShader.SetConstantBuffer(0, customPassConstantBuffer);
+                context.PixelShader.SetConstantBuffer(0, customPassConstantBuffer);
+
+                request.RenderQueue.VisitOrdered(this);
+            } finally {
+                isCustomPassActive = false;
+                customColorProvider = null;
+            }
+        }
+
+        /// <summary>
         /// Renders a camera's 3D pass and then its 2D overlay.
         /// </summary>
         /// <param name="surface">Render surface for the window.</param>
         /// <param name="camera">Camera to render.</param>
         void RenderCamera(SharpDXSwapChainSurface surface, ICamera camera) {
-            Device.ImmediateContext.ClearDepthStencilView(surface.DepthStencilView, DepthStencilClearFlags.Depth, 1.0f, 0);
-
             var context = Device.ImmediateContext;
-            context.OutputMerger.SetBlendState(blendState);
+            RenderTargetView renderTargetView = surface.RenderTargetView;
+            DepthStencilView depthStencilView = surface.DepthStencilView;
+            CameraClearSettings clearSettings = camera.ClearSettings;
+            bool clearColor = clearSettings.ClearColorEnabled;
+            float4 clearColorValue = clearSettings.ClearColor;
+            bool clearDepth = clearSettings.ClearDepthEnabled;
+            float clearDepthValue = clearSettings.ClearDepth;
+            bool clearStencil = clearSettings.ClearStencilEnabled;
+            byte clearStencilValue = clearSettings.ClearStencil;
+
+            RenderTarget renderTarget = camera.RenderTarget;
+            if (renderTarget != null) {
+                if (renderTarget is not SharpDXRenderTargetResource sharpDxTarget) {
+                    throw new InvalidOperationException("Camera render targets must use SharpDXRenderTargetResource when rendering with SharpDX.");
+                }
+
+                renderTargetView = sharpDxTarget.RenderTargetView;
+                depthStencilView = sharpDxTarget.DepthStencilView;
+            }
+
+            context.OutputMerger.SetTargets(depthStencilView, renderTargetView);
+            if (clearColor) {
+                context.ClearRenderTargetView(renderTargetView, new RawColor4(clearColorValue.X, clearColorValue.Y, clearColorValue.Z, clearColorValue.W));
+            }
+            DepthStencilClearFlags clearFlags = 0;
+            if (clearDepth) {
+                clearFlags |= DepthStencilClearFlags.Depth;
+            }
+            if (clearStencil) {
+                clearFlags |= DepthStencilClearFlags.Stencil;
+            }
+            if (clearFlags != 0) {
+                context.ClearDepthStencilView(depthStencilView, clearFlags, clearDepthValue, clearStencilValue);
+            }
             context.Rasterizer.State = rasterizerState3D;
             context.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
 
@@ -310,6 +531,9 @@ namespace helengine.sharpdx {
             float4x4.Multiply(ref view, ref projection, out currentViewProjection);
 
             context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+            isCustomPassActive = false;
+            customColorProvider = null;
+            context.OutputMerger.SetBlendState(blendState);
             context.VertexShader.Set(vertexShader);
             context.PixelShader.Set(pixelShader);
             context.VertexShader.SetConstantBuffer(0, constantBuffer);
@@ -355,7 +579,20 @@ namespace helengine.sharpdx {
             float4x4 worldViewProjTransposed;
             float4x4.Transpose(ref worldViewProj, out worldViewProjTransposed);
 
-            context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
+            if (isCustomPassActive) {
+                if (customColorProvider == null) {
+                    throw new InvalidOperationException("Custom pass color provider must be set before rendering.");
+                }
+
+                byte4 customColor = customColorProvider(drawable);
+                var customData = new CustomEffectShaderData {
+                    worldViewProj = worldViewProjTransposed,
+                    color = new float4(customColor.X / 255f, customColor.Y / 255f, customColor.Z / 255f, customColor.W / 255f)
+                };
+                context.UpdateSubresource(ref customData, customPassConstantBuffer);
+            } else {
+                context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
+            }
 
             if (data.IndexBuffer != null && data.IndexCount > 0) {
                 context.DrawIndexed(data.IndexCount, 0, 0);
@@ -396,13 +633,12 @@ namespace helengine.sharpdx {
             var context = Device.ImmediateContext;
             context.InputAssembler.InputLayout = inputLayout;
 
+            RenderCustomPasses();
+
             var cameras = Core.Instance.ObjectManager.Cameras;
 
             for (int i = 0; i < surfaces.Count; i++) {
                 var surface = surfaces[i];
-
-                context.OutputMerger.SetTargets(surface.DepthStencilView, surface.RenderTargetView);
-                context.ClearRenderTargetView(surface.RenderTargetView, new RawColor4(1f, 0.5f, 0, 1.0f));
 
                 for (int j = 0; j < cameras.Count; j++) {
                     var camera = cameras[j];
@@ -451,6 +687,56 @@ namespace helengine.sharpdx {
             };
 
             return new BlendState(Device, blendStateDesc);
+        }
+
+        /// <summary>
+        /// Retrieves a compiled shader pass from the cache or builds a new one.
+        /// </summary>
+        /// <param name="shaderPath">Path to the shader source file.</param>
+        /// <param name="vertexEntry">Vertex shader entry point.</param>
+        /// <param name="pixelEntry">Pixel shader entry point.</param>
+        /// <returns>Compiled shader pass instance.</returns>
+        SharpDXShaderPass GetShaderPass(string shaderPath, string vertexEntry, string pixelEntry) {
+            if (string.IsNullOrWhiteSpace(shaderPath)) {
+                throw new ArgumentException("Shader path must be provided.", nameof(shaderPath));
+            }
+            if (string.IsNullOrWhiteSpace(vertexEntry)) {
+                throw new ArgumentException("Vertex entry point must be provided.", nameof(vertexEntry));
+            }
+            if (string.IsNullOrWhiteSpace(pixelEntry)) {
+                throw new ArgumentException("Pixel entry point must be provided.", nameof(pixelEntry));
+            }
+
+            string cacheKey = GetShaderCacheKey(shaderPath, vertexEntry, pixelEntry);
+            if (shaderPassCache.TryGetValue(cacheKey, out SharpDXShaderPass cachedPass)) {
+                return cachedPass;
+            }
+
+            var shaderPass = new SharpDXShaderPass(Device, shaderPath, vertexEntry, pixelEntry);
+            shaderPassCache[cacheKey] = shaderPass;
+            return shaderPass;
+        }
+
+        /// <summary>
+        /// Builds the cache key used to store shader passes.
+        /// </summary>
+        /// <param name="shaderPath">Path to the shader source file.</param>
+        /// <param name="vertexEntry">Vertex shader entry point.</param>
+        /// <param name="pixelEntry">Pixel shader entry point.</param>
+        /// <returns>Composite cache key for the shader pass.</returns>
+        string GetShaderCacheKey(string shaderPath, string vertexEntry, string pixelEntry) {
+            return string.Concat(shaderPath, "|", vertexEntry, "|", pixelEntry);
+        }
+
+        /// <summary>
+        /// Disposes and clears cached shader passes.
+        /// </summary>
+        void DisposeShaderPassCache() {
+            foreach (var shaderPass in shaderPassCache.Values) {
+                shaderPass.Dispose();
+            }
+
+            shaderPassCache.Clear();
         }
     }
 }

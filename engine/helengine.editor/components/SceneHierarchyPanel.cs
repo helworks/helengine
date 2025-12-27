@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace helengine.editor {
     /// <summary>
     /// Displays a dockable scene hierarchy list for the current scene graph.
@@ -12,7 +9,6 @@ namespace helengine.editor {
         public const int RowHeight = 22;
 
         const int RowIndent = 14;
-        const ushort SceneLayerMask = 0b0100000000000000;
 
         readonly FontAsset font;
         readonly EditorEntity contentRoot;
@@ -211,9 +207,17 @@ namespace helengine.editor {
         /// Determines whether an entity should appear in the hierarchy.
         /// </summary>
         /// <param name="entity">Entity to evaluate.</param>
-        /// <returns>True when the entity belongs to the scene layer.</returns>
+        /// <returns>True when the entity is not marked as internal.</returns>
         bool IsSceneEntity(Entity entity) {
-            return (entity.LayerMask & SceneLayerMask) != 0;
+            Entity current = entity;
+            while (current != null) {
+                if (current is EditorEntity editorEntity && editorEntity.InternalEntity) {
+                    return false;
+                }
+                current = current.Parent;
+            }
+
+            return true;
         }
 
         /// <summary>

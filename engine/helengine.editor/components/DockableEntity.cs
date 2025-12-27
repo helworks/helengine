@@ -63,6 +63,7 @@ namespace helengine.editor {
             surfaceOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
             textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
             LayerMask = 0b1000000000000000;
+            InternalEntity = true;
             isDocked = false;
             titleBarInteractableEnabled = true;
             MinSize = new int2(160, 120);

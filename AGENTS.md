@@ -13,3 +13,4 @@
 - Do not create local helper functions; if a helper is needed, add it to the appropriate Utils class or to a related type (for example, quaternion math should live on the quaternion type).
 - Avoid repeated `as` casts; prefer engine events or other patterns to avoid per-call conversions.
 - Do not create default values when a valid value is required; throw exceptions instead of silently constructing defaults (example: do not replace null `CoreInitializationOptions` with a new instance).
+- Nullable reference types are disabled; do not use nullable annotations or nullable patterns in code.

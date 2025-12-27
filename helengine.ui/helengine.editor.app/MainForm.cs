@@ -15,6 +15,10 @@ namespace helengine.editor.app {
         /// </summary>
         const string RendererBackendEnvironmentVariable = "HELENGINE_RENDER_BACKEND";
         /// <summary>
+        /// Environment variable that supplies the helshader tool path.
+        /// </summary>
+        const string ShaderToolEnvironmentVariable = "HELENGINE_SHADER_TOOL";
+        /// <summary>
         /// Background thread that drives the editor update loop.
         /// </summary>
         Thread thread;
@@ -112,7 +116,8 @@ namespace helengine.editor.app {
             renderer3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
             FontAsset uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
-            editorSession = new EditorSession(core, projectPath, uiFont, titleText, renderer3D, renderer2D, inputManager, renderWidth, renderHeight);
+            string shaderToolPath = ResolveShaderToolPath();
+            editorSession = new EditorSession(core, projectPath, uiFont, titleText, renderer3D, renderer2D, inputManager, renderWidth, renderHeight, shaderToolPath);
 
             TitleBarWindowAdapter.Attach(editorSession.TitleBar, this);
             SetWindowTitle(titleText);
@@ -152,6 +157,19 @@ namespace helengine.editor.app {
                     });
                 } catch { }
             }
+        }
+
+        /// <summary>
+        /// Resolves the helshader tool path from environment configuration.
+        /// </summary>
+        /// <returns>Absolute path to the helshader tool.</returns>
+        string ResolveShaderToolPath() {
+            string shaderToolPath = Environment.GetEnvironmentVariable(ShaderToolEnvironmentVariable, EnvironmentVariableTarget.Process);
+            if (string.IsNullOrWhiteSpace(shaderToolPath)) {
+                throw new InvalidOperationException("HELENGINE_SHADER_TOOL must be set to the helshader executable path.");
+            }
+
+            return Path.GetFullPath(shaderToolPath);
         }
 
         /// <summary>

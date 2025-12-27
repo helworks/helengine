@@ -96,6 +96,7 @@ namespace helengine.editor {
             dragDelta = new int2(0, 0);
             tabBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
             tabTextOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(3);
+            InternalEntity = true;
             Enabled = false;
         }
 
