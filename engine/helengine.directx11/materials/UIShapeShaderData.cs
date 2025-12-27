@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace helengine.sharpdx {
+namespace helengine.directx11 {
     [StructLayout(LayoutKind.Sequential)]
     public struct UIShapeShaderData {
         public float4x4 worldViewProj;

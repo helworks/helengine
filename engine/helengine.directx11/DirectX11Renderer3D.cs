@@ -11,11 +11,11 @@ using Buffer = SharpDX.Direct3D11.Buffer;
 using D3DDevice = SharpDX.Direct3D11.Device;
 using DxgiFactory1 = SharpDX.DXGI.Factory1;
 
-namespace helengine.sharpdx {
+namespace helengine.directx11 {
     /// <summary>
-    /// SharpDX-backed renderer responsible for 3D rendering and swap chain management.
+    /// DirectX11-backed renderer responsible for 3D rendering and swap chain management.
     /// </summary>
-    public class SharpDXRenderer3D : RenderManager3D, IRenderVisitor3D {
+    public class DirectX11Renderer3D : RenderManager3D, IRenderVisitor3D {
         const int SwapChainBufferCount = 2;
         /// <summary>
         /// Default forward axis for cameras before rotation.
@@ -31,8 +31,8 @@ namespace helengine.sharpdx {
         int lastDrawCalls;
         double lastFps;
         double lastFrameTimeMs;
-        List<SharpDXSwapChainSurface> surfaces;
-        Dictionary<IntPtr, SharpDXSwapChainSurface> surfacesByHandle;
+        List<DirectX11SwapChainSurface> surfaces;
+        Dictionary<IntPtr, DirectX11SwapChainSurface> surfacesByHandle;
         InputLayout inputLayout;
         /// <summary>
         /// Constant buffer for standard world-view-projection transforms.
@@ -54,7 +54,7 @@ namespace helengine.sharpdx {
         /// Blend state for standard rendering.
         /// </summary>
         BlendState blendState;
-        SharpDXRenderer2D renderer2D;
+        DirectX11Renderer2D renderer2D;
         RasterizerState rasterizerState3D;
         DepthStencilState depthStencilState3D;
         /// <summary>
@@ -68,11 +68,11 @@ namespace helengine.sharpdx {
         /// <summary>
         /// Stores custom shader pass requests keyed by camera.
         /// </summary>
-        Dictionary<ICamera, SharpDXCustomPassRequest> customPassRequests;
+        Dictionary<ICamera, DirectX11CustomPassRequest> customPassRequests;
         /// <summary>
         /// Caches compiled shader passes by a composite key.
         /// </summary>
-        Dictionary<string, SharpDXShaderPass> shaderPassCache;
+        Dictionary<string, DirectX11ShaderPass> shaderPassCache;
         /// <summary>
         /// Default vertex shader entry point for custom passes.
         /// </summary>
@@ -87,13 +87,13 @@ namespace helengine.sharpdx {
         float4x4 currentViewProjection;
 
         /// <summary>
-        /// Initializes the SharpDX device and default pipelines.
+        /// Initializes the DirectX11 device and default pipelines.
         /// </summary>
-        public SharpDXRenderer3D() {
-            surfaces = new List<SharpDXSwapChainSurface>();
-            surfacesByHandle = new Dictionary<IntPtr, SharpDXSwapChainSurface>();
-            customPassRequests = new Dictionary<ICamera, SharpDXCustomPassRequest>();
-            shaderPassCache = new Dictionary<string, SharpDXShaderPass>(StringComparer.Ordinal);
+        public DirectX11Renderer3D() {
+            surfaces = new List<DirectX11SwapChainSurface>();
+            surfacesByHandle = new Dictionary<IntPtr, DirectX11SwapChainSurface>();
+            customPassRequests = new Dictionary<ICamera, DirectX11CustomPassRequest>();
+            shaderPassCache = new Dictionary<string, DirectX11ShaderPass>(StringComparer.Ordinal);
 
             WindowResized += OnWindowResized;
 
@@ -129,8 +129,8 @@ namespace helengine.sharpdx {
 
             blendState = CreateBlendState(BlendOption.SourceAlpha, BlendOption.InverseSourceAlpha, BlendOperation.Add);
 
-            renderer2D = new SharpDXRenderer2D(this);
-            DebugInfoRegistry.Register(new SharpDXRenderer3DDebugInfoProvider(this));
+            renderer2D = new DirectX11Renderer2D(this);
+            DebugInfoRegistry.Register(new DirectX11Renderer3DDebugInfoProvider(this));
 
             var rasterizerDesc3D = new RasterizerStateDescription {
                 CullMode = CullMode.Back,
@@ -216,7 +216,7 @@ namespace helengine.sharpdx {
             base.AddWindow(handle, width, height);
 
             using (var factory = Adapter.GetParent<Factory>()) {
-                var surface = new SharpDXSwapChainSurface();
+                var surface = new DirectX11SwapChainSurface();
                 surfaces.Add(surface);
                 surfacesByHandle.Add(handle, surface);
 
@@ -305,7 +305,7 @@ namespace helengine.sharpdx {
         /// <param name="data">Raw model asset data.</param>
         /// <returns>GPU-ready model resource.</returns>
         public override RuntimeModel BuildModelFromRaw(ModelAsset data) {
-            var model = new SharpDXModelResource();
+            var model = new DirectX11ModelResource();
             var vertices = new VertexPositionNormalUV[data.Positions.Length];
 
             for (int i = 0; i < data.Positions.Length; i++) {
@@ -327,13 +327,13 @@ namespace helengine.sharpdx {
         }
 
         /// <summary>
-        /// Creates a SharpDX render target suitable for camera output.
+        /// Creates a DirectX11 render target suitable for camera output.
         /// </summary>
         /// <param name="width">Width of the render target in pixels.</param>
         /// <param name="height">Height of the render target in pixels.</param>
         /// <returns>Render target instance.</returns>
         public override RenderTarget CreateRenderTarget(int width, int height) {
-            return new SharpDXRenderTargetResource(Device, width, height, Format.R8G8B8A8_UNorm, Format.D32_Float);
+            return new DirectX11RenderTargetResource(Device, width, height, Format.R8G8B8A8_UNorm, Format.D32_Float);
         }
 
         /// <summary>
@@ -367,7 +367,7 @@ namespace helengine.sharpdx {
             string vertexEntry,
             string pixelEntry,
             Func<IDrawable3D, byte4> colorProvider) {
-            var request = new SharpDXCustomPassRequest(camera, renderQueue, shaderPath, vertexEntry, pixelEntry, colorProvider);
+            var request = new DirectX11CustomPassRequest(camera, renderQueue, shaderPath, vertexEntry, pixelEntry, colorProvider);
             customPassRequests[camera] = request;
         }
 
@@ -390,7 +390,7 @@ namespace helengine.sharpdx {
         /// Renders a single custom pass into the camera's render target.
         /// </summary>
         /// <param name="request">Custom pass request to execute.</param>
-        void RenderCustomPass(SharpDXCustomPassRequest request) {
+        void RenderCustomPass(DirectX11CustomPassRequest request) {
             if (request == null) {
                 throw new ArgumentNullException(nameof(request));
             }
@@ -400,11 +400,11 @@ namespace helengine.sharpdx {
             if (renderTarget == null) {
                 throw new InvalidOperationException("Custom shader passes require a render target.");
             }
-            if (renderTarget is not SharpDXRenderTargetResource sharpDxTarget) {
-                throw new InvalidOperationException("Custom shader passes require SharpDX render targets.");
+            if (renderTarget is not DirectX11RenderTargetResource directX11Target) {
+                throw new InvalidOperationException("Custom shader passes require DirectX11 render targets.");
             }
 
-            SharpDXShaderPass shaderPass = GetShaderPass(request.ShaderPath, request.VertexEntry, request.PixelEntry);
+            DirectX11ShaderPass shaderPass = GetShaderPass(request.ShaderPath, request.VertexEntry, request.PixelEntry);
 
             var context = Device.ImmediateContext;
             context.InputAssembler.InputLayout = inputLayout;
@@ -413,8 +413,8 @@ namespace helengine.sharpdx {
             context.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
             context.OutputMerger.SetBlendState(null);
 
-            RenderTargetView renderTargetView = sharpDxTarget.RenderTargetView;
-            DepthStencilView depthStencilView = sharpDxTarget.DepthStencilView;
+            RenderTargetView renderTargetView = directX11Target.RenderTargetView;
+            DepthStencilView depthStencilView = directX11Target.DepthStencilView;
 
             CameraClearSettings clearSettings = camera.ClearSettings;
             bool clearColor = clearSettings.ClearColorEnabled;
@@ -475,7 +475,7 @@ namespace helengine.sharpdx {
         /// </summary>
         /// <param name="surface">Render surface for the window.</param>
         /// <param name="camera">Camera to render.</param>
-        void RenderCamera(SharpDXSwapChainSurface surface, ICamera camera) {
+        void RenderCamera(DirectX11SwapChainSurface surface, ICamera camera) {
             var context = Device.ImmediateContext;
             RenderTargetView renderTargetView = surface.RenderTargetView;
             DepthStencilView depthStencilView = surface.DepthStencilView;
@@ -489,12 +489,12 @@ namespace helengine.sharpdx {
 
             RenderTarget renderTarget = camera.RenderTarget;
             if (renderTarget != null) {
-                if (renderTarget is not SharpDXRenderTargetResource sharpDxTarget) {
-                    throw new InvalidOperationException("Camera render targets must use SharpDXRenderTargetResource when rendering with SharpDX.");
+                if (renderTarget is not DirectX11RenderTargetResource directX11Target) {
+                    throw new InvalidOperationException("Camera render targets must use DirectX11RenderTargetResource when rendering with DirectX11.");
                 }
 
-                renderTargetView = sharpDxTarget.RenderTargetView;
-                depthStencilView = sharpDxTarget.DepthStencilView;
+                renderTargetView = directX11Target.RenderTargetView;
+                depthStencilView = directX11Target.DepthStencilView;
             }
 
             context.OutputMerger.SetTargets(depthStencilView, renderTargetView);
@@ -555,7 +555,7 @@ namespace helengine.sharpdx {
 
             var context = Device.ImmediateContext;
             Entity parent = drawable.Parent;
-            var data = (SharpDXModelResource)drawable.Model;
+            var data = (DirectX11ModelResource)drawable.Model;
 
             context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, Utilities.SizeOf<VertexPositionNormalUV>(), 0));
             if (data.IndexBuffer != null && data.IndexCount > 0) {
@@ -696,7 +696,7 @@ namespace helengine.sharpdx {
         /// <param name="vertexEntry">Vertex shader entry point.</param>
         /// <param name="pixelEntry">Pixel shader entry point.</param>
         /// <returns>Compiled shader pass instance.</returns>
-        SharpDXShaderPass GetShaderPass(string shaderPath, string vertexEntry, string pixelEntry) {
+        DirectX11ShaderPass GetShaderPass(string shaderPath, string vertexEntry, string pixelEntry) {
             if (string.IsNullOrWhiteSpace(shaderPath)) {
                 throw new ArgumentException("Shader path must be provided.", nameof(shaderPath));
             }
@@ -708,11 +708,11 @@ namespace helengine.sharpdx {
             }
 
             string cacheKey = GetShaderCacheKey(shaderPath, vertexEntry, pixelEntry);
-            if (shaderPassCache.TryGetValue(cacheKey, out SharpDXShaderPass cachedPass)) {
+            if (shaderPassCache.TryGetValue(cacheKey, out DirectX11ShaderPass cachedPass)) {
                 return cachedPass;
             }
 
-            var shaderPass = new SharpDXShaderPass(Device, shaderPath, vertexEntry, pixelEntry);
+            var shaderPass = new DirectX11ShaderPass(Device, shaderPath, vertexEntry, pixelEntry);
             shaderPassCache[cacheKey] = shaderPass;
             return shaderPass;
         }

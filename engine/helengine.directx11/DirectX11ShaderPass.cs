@@ -2,11 +2,11 @@ using SharpDX.D3DCompiler;
 using SharpDX.Direct3D11;
 using D3DDevice = SharpDX.Direct3D11.Device;
 
-namespace helengine.sharpdx {
+namespace helengine.directx11 {
     /// <summary>
     /// Represents a compiled vertex/pixel shader pair for custom passes.
     /// </summary>
-    public sealed class SharpDXShaderPass : IDisposable {
+    public sealed class DirectX11ShaderPass : IDisposable {
         /// <summary>
         /// Initializes a shader pass by compiling the provided shader entries.
         /// </summary>
@@ -14,7 +14,7 @@ namespace helengine.sharpdx {
         /// <param name="shaderPath">Path to the shader source file.</param>
         /// <param name="vertexEntry">Vertex shader entry point.</param>
         /// <param name="pixelEntry">Pixel shader entry point.</param>
-        public SharpDXShaderPass(D3DDevice device, string shaderPath, string vertexEntry, string pixelEntry) {
+        public DirectX11ShaderPass(D3DDevice device, string shaderPath, string vertexEntry, string pixelEntry) {
             if (device == null) {
                 throw new ArgumentNullException(nameof(device));
             }

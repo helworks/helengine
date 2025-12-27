@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace helengine.sharpdx {
+namespace helengine.directx11 {
     /// <summary>
     /// Holds per-draw data for custom effect shaders.
     /// </summary>

@@ -9,7 +9,7 @@ using SharpDX.DXGI;
 using Buffer = SharpDX.Direct3D11.Buffer;
 using D3DDevice = SharpDX.Direct3D11.Device;
 
-namespace helengine.sharpdx {
+namespace helengine.directx11 {
     /// <summary>
     /// Selects the backend used to render rounded rectangles.
     /// </summary>
@@ -29,12 +29,12 @@ namespace helengine.sharpdx {
     }
 
     /// <summary>
-    /// SharpDX-backed renderer responsible for 2D sprites, text, and UI shapes.
+    /// DirectX11-backed renderer responsible for 2D sprites, text, and UI shapes.
     /// </summary>
-    internal class SharpDXRenderer2D : RenderManager2D, IRenderVisitor2D {
+    internal class DirectX11Renderer2D : RenderManager2D, IRenderVisitor2D {
         const int InitialGeometryVertexCapacity = 1024;
 
-        readonly SharpDXRenderer3D parentRenderer;
+        readonly DirectX11Renderer3D parentRenderer;
         Buffer spriteQuadBuffer = null!;
         InputLayout spriteInputLayout = null!;
         InputLayout uiShapeInputLayout = null!;
@@ -61,7 +61,7 @@ namespace helengine.sharpdx {
         /// Initializes the 2D renderer and builds the required GPU resources.
         /// </summary>
         /// <param name="parentRenderer">Owning 3D renderer.</param>
-        public SharpDXRenderer2D(SharpDXRenderer3D parentRenderer) {
+        public DirectX11Renderer2D(DirectX11Renderer3D parentRenderer) {
             this.parentRenderer = parentRenderer;
             Device = parentRenderer.Device;
 
@@ -81,7 +81,7 @@ namespace helengine.sharpdx {
             };
             depthStencilState2D = new DepthStencilState(Device, depthStencilDesc);
 
-            DebugInfoRegistry.Register(new SharpDXRenderer2DDebugInfoProvider(this));
+            DebugInfoRegistry.Register(new DirectX11Renderer2DDebugInfoProvider(this));
         }
 
         /// <summary>
@@ -140,7 +140,7 @@ namespace helengine.sharpdx {
             }
 
             var context = Device.ImmediateContext;
-            var data = (SharpDXTextureResource)drawable.Texture;
+            var data = (DirectX11TextureResource)drawable.Texture;
 
             context.PixelShader.SetShaderResource(0, data.Resource);
             context.PixelShader.SetSampler(0, spriteSampler);
@@ -180,7 +180,7 @@ namespace helengine.sharpdx {
 
             var context = Device.ImmediateContext;
             FontAsset font = drawable.Font;
-            var data = (SharpDXTextureResource)font.Texture;
+            var data = (DirectX11TextureResource)font.Texture;
 
             context.PixelShader.SetShaderResource(0, data.Resource);
             context.PixelShader.SetSampler(0, spriteSampler);
@@ -270,7 +270,7 @@ namespace helengine.sharpdx {
         /// <param name="data">Raw texture asset data.</param>
         /// <returns>GPU texture resource.</returns>
         public override RuntimeTexture BuildTextureFromRaw(TextureAsset data) {
-            var asset = new SharpDXTextureResource {
+            var asset = new DirectX11TextureResource {
                 Width = data.Width,
                 Height = data.Height
             };
@@ -528,7 +528,7 @@ namespace helengine.sharpdx {
             var context = Device.ImmediateContext;
             var atlas = GetNineSliceCacheEntry(shape);
 
-            var sdata = (SharpDXTextureResource)atlas.Texture;
+            var sdata = (DirectX11TextureResource)atlas.Texture;
             context.PixelShader.SetShaderResource(0, sdata.Resource);
             context.PixelShader.SetSampler(0, spriteSampler);
 

@@ -32,7 +32,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.editor", "..\engi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.core.windows", "..\engine\helengine.core.windows\helengine.core.windows.csproj", "{2866E47B-6C06-4368-9A00-BDF819442D2F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.sharpdx", "..\engine\helengine.sharpdx\helengine.sharpdx.csproj", "{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.directx11", "..\engine\helengine.directx11\helengine.directx11.csproj", "{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.vulkan", "..\engine\helengine.vulkan\helengine.vulkan.csproj", "{F029F93C-6B06-4105-90E7-A520D5815834}"
 EndProject

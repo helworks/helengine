@@ -18,7 +18,7 @@ namespace helengine.editor {
         /// <summary>
         /// Renderer used to execute picker passes.
         /// </summary>
-        readonly helengine.sharpdx.SharpDXRenderer3D pickerRenderer;
+        readonly helengine.directx11.DirectX11Renderer3D pickerRenderer;
         /// <summary>
         /// Cached pick colors for the current picker pass.
         /// </summary>
@@ -34,7 +34,7 @@ namespace helengine.editor {
             CameraComponent sceneCamera,
             EditorEntity pickerEntity,
             CameraComponent pickerCamera,
-            helengine.sharpdx.SharpDXRenderer3D pickerRenderer) {
+            helengine.directx11.DirectX11Renderer3D pickerRenderer) {
             if (sceneCamera == null) {
                 throw new ArgumentNullException(nameof(sceneCamera));
             }

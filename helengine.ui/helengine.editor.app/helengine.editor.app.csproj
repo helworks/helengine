@@ -34,7 +34,7 @@
 		<ProjectReference Include="..\..\engine\helengine.editor.fbximporter\helengine.editor.assimp.csproj" />
 		<ProjectReference Include="..\..\engine\helengine.editor.windows\helengine.editor.windows.csproj" />
 		<ProjectReference Include="..\..\engine\helengine.editor\helengine.editor.csproj" />
-		<ProjectReference Include="..\..\engine\helengine.sharpdx\helengine.sharpdx.csproj" />
+		<ProjectReference Include="..\..\engine\helengine.directx11\helengine.directx11.csproj" />
 		<ProjectReference Include="..\..\engine\helengine.vulkan\helengine.vulkan.csproj" />
 	</ItemGroup>
 

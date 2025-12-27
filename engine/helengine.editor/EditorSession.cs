@@ -152,8 +152,8 @@ namespace helengine.editor {
             hiddenCameraTarget = render3D.CreateRenderTarget(640, 360);
             hiddenCameraComponent.RenderTarget = hiddenCameraTarget;
             hiddenCameraEntity.AddComponent(hiddenCameraComponent);
-            if (render3D is not helengine.sharpdx.SharpDXRenderer3D pickerRenderer) {
-                throw new InvalidOperationException("Editor picker requires a SharpDX renderer.");
+            if (render3D is not helengine.directx11.DirectX11Renderer3D pickerRenderer) {
+                throw new InvalidOperationException("Editor picker requires a DirectX11 renderer.");
             }
             sceneCameraEntity.AddComponent(new EditorViewportPicker(sceneCameraComponent, hiddenCameraEntity, hiddenCameraComponent, pickerRenderer));
 

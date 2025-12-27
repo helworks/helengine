@@ -1,10 +1,10 @@
 using Buffer = SharpDX.Direct3D11.Buffer;
 
-namespace helengine.sharpdx {
+namespace helengine.directx11 {
     /// <summary>
-    /// SharpDX-backed runtime model resource.
+    /// DirectX11-backed runtime model resource.
     /// </summary>
-    public class SharpDXModelResource : RuntimeModel {
+    public class DirectX11ModelResource : RuntimeModel {
         /// <summary>
         /// Gets or sets the vertex buffer for the model.
         /// </summary>

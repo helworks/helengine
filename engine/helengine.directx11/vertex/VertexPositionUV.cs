@@ -2,7 +2,7 @@
 using SharpDX.DXGI;
 using System.Runtime.InteropServices;
 
-namespace helengine.sharpdx {
+namespace helengine.directx11 {
     [StructLayout(LayoutKind.Sequential)]
     struct VertexPositionUV {
         public float3 Position;

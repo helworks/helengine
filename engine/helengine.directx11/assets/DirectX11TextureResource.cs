@@ -1,10 +1,10 @@
 using SharpDX.Direct3D11;
 
-namespace helengine.sharpdx {
+namespace helengine.directx11 {
     /// <summary>
-    /// SharpDX-backed runtime texture resource.
+    /// DirectX11-backed runtime texture resource.
     /// </summary>
-    public class SharpDXTextureResource : RuntimeTexture {
+    public class DirectX11TextureResource : RuntimeTexture {
         /// <summary>
         /// Gets or sets the underlying Direct3D texture.
         /// </summary>

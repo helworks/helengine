@@ -2,11 +2,11 @@ using SharpDX.Direct3D11;
 using SharpDX.DXGI;
 using D3DDevice = SharpDX.Direct3D11.Device;
 
-namespace helengine.sharpdx {
+namespace helengine.directx11 {
     /// <summary>
-    /// SharpDX-backed render target resource that provides color and depth buffers.
+    /// DirectX11-backed render target resource that provides color and depth buffers.
     /// </summary>
-    public class SharpDXRenderTargetResource : RenderTarget, IDisposable {
+    public class DirectX11RenderTargetResource : RenderTarget, IDisposable {
         /// <summary>
         /// Initializes a render target with color and depth buffers for camera rendering.
         /// </summary>
@@ -15,7 +15,7 @@ namespace helengine.sharpdx {
         /// <param name="height">Height of the render target in pixels.</param>
         /// <param name="colorFormat">Format used for the color texture.</param>
         /// <param name="depthFormat">Format used for the depth texture.</param>
-        public SharpDXRenderTargetResource(D3DDevice device, int width, int height, Format colorFormat, Format depthFormat) {
+        public DirectX11RenderTargetResource(D3DDevice device, int width, int height, Format colorFormat, Format depthFormat) {
             if (device == null) {
                 throw new ArgumentNullException(nameof(device));
             }

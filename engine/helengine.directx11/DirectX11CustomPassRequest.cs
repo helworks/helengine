@@ -1,8 +1,8 @@
-namespace helengine.sharpdx {
+namespace helengine.directx11 {
     /// <summary>
-    /// Describes a one-frame custom shader pass request for the SharpDX renderer.
+    /// Describes a one-frame custom shader pass request for the DirectX11 renderer.
     /// </summary>
-    public sealed class SharpDXCustomPassRequest {
+    public sealed class DirectX11CustomPassRequest {
         /// <summary>
         /// Initializes a new custom pass request with the required shader and color provider.
         /// </summary>
@@ -12,7 +12,7 @@ namespace helengine.sharpdx {
         /// <param name="vertexEntry">Entry point for the vertex shader.</param>
         /// <param name="pixelEntry">Entry point for the pixel shader.</param>
         /// <param name="colorProvider">Function supplying per-draw colors for the shader.</param>
-        public SharpDXCustomPassRequest(
+        public DirectX11CustomPassRequest(
             ICamera camera,
             IRenderQueue3D renderQueue,
             string shaderPath,

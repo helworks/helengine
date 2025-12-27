@@ -1,17 +1,17 @@
 using System.Collections.Generic;
 
-namespace helengine.sharpdx {
+namespace helengine.directx11 {
     /// <summary>
-    /// Supplies debug information for the SharpDX 3D renderer.
+    /// Supplies debug information for the DirectX11 3D renderer.
     /// </summary>
-    internal class SharpDXRenderer3DDebugInfoProvider : IDebugInfoProvider {
-        readonly SharpDXRenderer3D renderer;
+    internal class DirectX11Renderer3DDebugInfoProvider : IDebugInfoProvider {
+        readonly DirectX11Renderer3D renderer;
 
         /// <summary>
         /// Initializes the debug provider for a 3D renderer.
         /// </summary>
         /// <param name="renderer">Renderer to query for debug info.</param>
-        public SharpDXRenderer3DDebugInfoProvider(SharpDXRenderer3D renderer) {
+        public DirectX11Renderer3DDebugInfoProvider(DirectX11Renderer3D renderer) {
             this.renderer = renderer;
         }
 

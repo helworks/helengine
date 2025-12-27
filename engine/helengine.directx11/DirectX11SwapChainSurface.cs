@@ -1,11 +1,11 @@
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
 
-namespace helengine.sharpdx {
+namespace helengine.directx11 {
     /// <summary>
     /// Bundles swap chain and render targets for a single window surface.
     /// </summary>
-    public class SharpDXSwapChainSurface : IDisposable {
+    public class DirectX11SwapChainSurface : IDisposable {
         /// <summary>
         /// Gets or sets the swap chain for the window.
         /// </summary>

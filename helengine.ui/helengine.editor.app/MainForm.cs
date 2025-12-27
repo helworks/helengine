@@ -1,6 +1,6 @@
 using helengine.editor;
 using helengine.editor.windows;
-using helengine.sharpdx;
+using helengine.directx11;
 using helengine.vulkan;
 using System;
 using System.IO;
@@ -11,7 +11,7 @@ namespace helengine.editor.app {
     /// </summary>
     public partial class MainForm : Form {
         /// <summary>
-        /// Environment variable that selects the rendering backend (vulkan or sharpdx).
+        /// Environment variable that selects the rendering backend (vulkan or directx11).
         /// </summary>
         const string RendererBackendEnvironmentVariable = "HELENGINE_RENDER_BACKEND";
         /// <summary>
@@ -92,8 +92,8 @@ namespace helengine.editor.app {
                 rendererBackend = rendererBackend.Trim();
                 if (string.Equals(rendererBackend, "vulkan", StringComparison.OrdinalIgnoreCase)) {
                     useVulkan = true;
-                } else if (!string.Equals(rendererBackend, "sharpdx", StringComparison.OrdinalIgnoreCase)) {
-                    throw new InvalidOperationException($"Unsupported renderer backend '{rendererBackend}'. Use 'vulkan' or 'sharpdx'.");
+                } else if (!string.Equals(rendererBackend, "directx11", StringComparison.OrdinalIgnoreCase)) {
+                    throw new InvalidOperationException($"Unsupported renderer backend '{rendererBackend}'. Use 'vulkan' or 'directx11'.");
                 }
             }
 
@@ -103,9 +103,9 @@ namespace helengine.editor.app {
                 renderer3D = vulkanRenderer;
                 renderer2D = vulkanRenderer.Render2D;
             } else {
-                SharpDXRenderer3D sharpDxRenderer = new SharpDXRenderer3D();
-                renderer3D = sharpDxRenderer;
-                renderer2D = sharpDxRenderer.Render2D;
+                DirectX11Renderer3D directX11Renderer = new DirectX11Renderer3D();
+                renderer3D = directX11Renderer;
+                renderer2D = directX11Renderer.Render2D;
             }
             InputManager inputManager = new InputManagerWindows(this.Handle);
             CoreInitializationOptions initOptions = new CoreInitializationOptions();
