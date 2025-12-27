@@ -34,6 +34,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.core.windows", ".
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.directx11", "..\engine\helengine.directx11\helengine.directx11.csproj", "{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.directx11.video", "..\engine\helengine.directx11.video\helengine.directx11.video.csproj", "{0420008A-A97B-49E6-A2E7-BB8D888F3457}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.vulkan", "..\engine\helengine.vulkan\helengine.vulkan.csproj", "{F029F93C-6B06-4105-90E7-A520D5815834}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.editor.app", "helengine.editor.app\helengine.editor.app.csproj", "{3C74754D-F82C-4A00-D665-AF82B29B7064}"
@@ -98,6 +100,10 @@ Global
 		{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0420008A-A97B-49E6-A2E7-BB8D888F3457}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0420008A-A97B-49E6-A2E7-BB8D888F3457}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0420008A-A97B-49E6-A2E7-BB8D888F3457}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0420008A-A97B-49E6-A2E7-BB8D888F3457}.Release|Any CPU.Build.0 = Release|Any CPU
 		{F029F93C-6B06-4105-90E7-A520D5815834}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{F029F93C-6B06-4105-90E7-A520D5815834}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F029F93C-6B06-4105-90E7-A520D5815834}.Release|Any CPU.ActiveCfg = Release|Any CPU
