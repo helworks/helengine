@@ -8,6 +8,7 @@ namespace helengine {
     /// <summary>
     /// Represents a 3D vector of single-precision floating point components.
     /// </summary>
+    [ProtoBuf.ProtoContract]
     public struct float3 : IEquatable<float3> {
         /// <summary>
         /// Zero vector (0, 0, 0).
@@ -21,16 +22,19 @@ namespace helengine {
         /// <summary>
         /// X component of the vector.
         /// </summary>
+        [ProtoBuf.ProtoMember(1)]
         public float X;
 
         /// <summary>
         /// Y component of the vector.
         /// </summary>
+        [ProtoBuf.ProtoMember(2)]
         public float Y;
 
         /// <summary>
         /// Z component of the vector.
         /// </summary>
+        [ProtoBuf.ProtoMember(3)]
         public float Z;
 
         /// <summary>

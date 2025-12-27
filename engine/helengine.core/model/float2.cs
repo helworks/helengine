@@ -8,15 +8,18 @@ namespace helengine {
     /// <summary>
     /// Represents a 2D vector of single-precision floating point components.
     /// </summary>
+    [ProtoBuf.ProtoContract]
     public struct float2 {
         /// <summary>
         /// X component of the vector.
         /// </summary>
+        [ProtoBuf.ProtoMember(1)]
         public float X;
 
         /// <summary>
         /// Y component of the vector.
         /// </summary>
+        [ProtoBuf.ProtoMember(2)]
         public float Y;
 
         /// <summary>
