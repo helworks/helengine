@@ -57,9 +57,9 @@ namespace helengine.editor {
         readonly SemaphoreSlim buildSemaphore;
 
         /// <summary>
-        /// File system watcher used to monitor shader source changes.
+        /// Folder watcher used to monitor shader source changes.
         /// </summary>
-        FileSystemWatcher watcher;
+        FolderWatcher watcher;
 
         /// <summary>
         /// Timer that processes queued build requests.
@@ -131,11 +131,6 @@ namespace helengine.editor {
             }
 
             if (watcher != null) {
-                watcher.EnableRaisingEvents = false;
-                watcher.Changed -= OnSourceChanged;
-                watcher.Created -= OnSourceChanged;
-                watcher.Deleted -= OnSourceDeleted;
-                watcher.Renamed -= OnSourceRenamed;
                 watcher.Dispose();
                 watcher = null;
             }
@@ -185,18 +180,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Starts the file system watcher for shader source files.
+        /// Starts the folder watcher for shader source files.
         /// </summary>
         void StartWatcher() {
-            watcher = new FileSystemWatcher(options.ShaderRootPath);
-            watcher.IncludeSubdirectories = true;
-            watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size;
-            watcher.Filter = "*.*";
-            watcher.Changed += OnSourceChanged;
-            watcher.Created += OnSourceChanged;
-            watcher.Deleted += OnSourceDeleted;
-            watcher.Renamed += OnSourceRenamed;
-            watcher.EnableRaisingEvents = true;
+            watcher = new FolderWatcher(
+                options.ShaderRootPath,
+                HandleSourceEvent,
+                true,
+                NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
+                "*.*"
+            );
+            watcher.Start();
         }
 
         /// <summary>
@@ -225,20 +219,44 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Routes folder watcher events to the appropriate shader handlers.
+        /// </summary>
+        /// <param name="change">Folder change event data.</param>
+        void HandleSourceEvent(FolderWatchEvent change) {
+            if (change == null) {
+                throw new ArgumentNullException(nameof(change));
+            }
+
+            switch (change.Kind) {
+                case FolderWatchEventKind.Created:
+                case FolderWatchEventKind.Changed:
+                    OnSourceChanged(change);
+                    break;
+                case FolderWatchEventKind.Deleted:
+                    OnSourceDeleted(change);
+                    break;
+                case FolderWatchEventKind.Renamed:
+                    OnSourceRenamed(change);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        /// <summary>
         /// Handles file creation or update events from the watcher.
         /// </summary>
-        /// <param name="sender">Event sender.</param>
-        /// <param name="e">File system event data.</param>
-        void OnSourceChanged(object sender, FileSystemEventArgs e) {
+        /// <param name="change">Folder change event data.</param>
+        void OnSourceChanged(FolderWatchEvent change) {
             if (disposed) {
                 return;
             }
 
-            if (!IsShaderFile(e.FullPath)) {
+            if (!IsShaderFile(change.FullPath)) {
                 return;
             }
 
-            ShaderSourceEntry entry = GetOrAddEntry(e.FullPath);
+            ShaderSourceEntry entry = GetOrAddEntry(change.FullPath);
             if (entry == null) {
                 return;
             }
@@ -249,19 +267,18 @@ namespace helengine.editor {
         /// <summary>
         /// Handles file delete events from the watcher.
         /// </summary>
-        /// <param name="sender">Event sender.</param>
-        /// <param name="e">File system event data.</param>
-        void OnSourceDeleted(object sender, FileSystemEventArgs e) {
+        /// <param name="change">Folder change event data.</param>
+        void OnSourceDeleted(FolderWatchEvent change) {
             if (disposed) {
                 return;
             }
 
-            if (!IsShaderFile(e.FullPath)) {
+            if (!IsShaderFile(change.FullPath)) {
                 return;
             }
 
             ShaderSourceEntry entry;
-            if (RemoveEntry(e.FullPath, out entry)) {
+            if (RemoveEntry(change.FullPath, out entry)) {
                 UnloadModule(entry.Name);
             }
         }
@@ -269,22 +286,29 @@ namespace helengine.editor {
         /// <summary>
         /// Handles file rename events from the watcher.
         /// </summary>
-        /// <param name="sender">Event sender.</param>
-        /// <param name="e">File system event data.</param>
-        void OnSourceRenamed(object sender, RenamedEventArgs e) {
+        /// <param name="change">Folder change event data.</param>
+        void OnSourceRenamed(FolderWatchEvent change) {
             if (disposed) {
                 return;
             }
 
-            if (IsShaderFile(e.OldFullPath)) {
+            if (change == null) {
+                throw new ArgumentNullException(nameof(change));
+            }
+
+            if (!change.HasOldFullPath) {
+                throw new ArgumentException("Rename event did not include an old path.", nameof(change));
+            }
+
+            if (IsShaderFile(change.OldFullPath)) {
                 ShaderSourceEntry oldEntry;
-                if (RemoveEntry(e.OldFullPath, out oldEntry)) {
+                if (RemoveEntry(change.OldFullPath, out oldEntry)) {
                     UnloadModule(oldEntry.Name);
                 }
             }
 
-            if (IsShaderFile(e.FullPath)) {
-                ShaderSourceEntry newEntry = GetOrAddEntry(e.FullPath);
+            if (IsShaderFile(change.FullPath)) {
+                ShaderSourceEntry newEntry = GetOrAddEntry(change.FullPath);
                 if (newEntry != null) {
                     QueueBuild(newEntry);
                 }
