@@ -84,7 +84,7 @@ namespace helengine.editor {
         /// Initializes a new editor session and sets up cameras, docking, and starter content.
         /// </summary>
         /// <param name="core">Editor core instance that owns shared state.</param>
-        /// <param name="projectPath">Path to the project being edited.</param>
+        /// <param name="projectPath">Path to the project root or project file being edited.</param>
         /// <param name="uiFont">Font used for editor UI text.</param>
         /// <param name="titleText">Initial window title text.</param>
         /// <param name="render3D">3D renderer instance.</param>
@@ -92,7 +92,6 @@ namespace helengine.editor {
         /// <param name="input">Input manager instance.</param>
         /// <param name="renderWidth">Initial render width in pixels.</param>
         /// <param name="renderHeight">Initial render height in pixels.</param>
-        /// <param name="shaderToolPath">Absolute path to the helshader tool.</param>
         public EditorSession(
             EditorCore core,
             string projectPath,
@@ -102,14 +101,10 @@ namespace helengine.editor {
             RenderManager2D render2D,
             InputManager input,
             int renderWidth,
-            int renderHeight,
-            string shaderToolPath) {
+            int renderHeight) {
             this.core = core;
-            this.projectPath = projectPath ?? string.Empty;
+            this.projectPath = ResolveProjectRootPath(projectPath);
             this.uiFont = uiFont;
-            if (string.IsNullOrWhiteSpace(shaderToolPath)) {
-                throw new ArgumentException("Shader tool path must be provided.", nameof(shaderToolPath));
-            }
 
             core.Initialize(render3D, render2D, input);
             core.InputManager.SetKeyboardActive(true);
@@ -182,7 +177,7 @@ namespace helengine.editor {
             dockingManager.Layout.DockRelative(propertiesPanel, mainViewport, DockInsertDirection.Right, 0.75f);
             dockingManager.Layout.DockRelative(loggerPanel, assetBrowserPanel, DockInsertDirection.Fill, 0.5f);
 
-            shaderModuleManager = BuildShaderModuleManager(shaderToolPath);
+            shaderModuleManager = BuildShaderModuleManager();
             shaderModuleManager.Start();
 
             BuildStartScene();
@@ -374,26 +369,91 @@ namespace helengine.editor {
         /// <summary>
         /// Builds a shader module manager for the current project path.
         /// </summary>
-        /// <param name="shaderToolPath">Absolute path to the helshader tool.</param>
         /// <returns>Configured shader module manager.</returns>
-        ShaderModuleManager BuildShaderModuleManager(string shaderToolPath) {
-            string manifestPath = ResolveShaderManifestPath(projectPath);
-            var options = new ShaderModuleManagerOptions(manifestPath, shaderToolPath, ShaderBuildDelayMilliseconds);
+        ShaderModuleManager BuildShaderModuleManager() {
+            string projectRoot = ResolveProjectRootPath(projectPath);
+            string shaderRootPath = ResolveShaderRootPath(projectRoot);
+            string packageOutputPath = ResolveShaderPackageOutputPath(projectRoot);
+            ShaderPackageBuildOptions buildOptions = BuildShaderPackageOptions();
+            var options = new ShaderModuleManagerOptions(
+                shaderRootPath,
+                packageOutputPath,
+                buildOptions,
+                ShaderCompileTarget.DirectX11,
+                ShaderBuildDelayMilliseconds);
             return new ShaderModuleManager(options);
         }
 
         /// <summary>
-        /// Resolves the shader manifest path for the current project.
+        /// Builds the default shader package build options for the editor.
+        /// </summary>
+        /// <returns>Shader package build options.</returns>
+        ShaderPackageBuildOptions BuildShaderPackageOptions() {
+            ShaderTargetBuildOptions[] targets = new[] {
+                new ShaderTargetBuildOptions(ShaderCompileTarget.DirectX11, new ShaderModel(4, 0))
+            };
+            ShaderDefine[] defines = Array.Empty<ShaderDefine>();
+            return new ShaderPackageBuildOptions(
+                targets,
+                ShaderBindingPolicies.Default,
+                true,
+                false,
+                false,
+                defines);
+        }
+
+        /// <summary>
+        /// Resolves the shader root path for the current project.
         /// </summary>
         /// <param name="projectRoot">Project root path.</param>
-        /// <returns>Absolute manifest path.</returns>
-        string ResolveShaderManifestPath(string projectRoot) {
+        /// <returns>Absolute shader root path.</returns>
+        string ResolveShaderRootPath(string projectRoot) {
             if (string.IsNullOrWhiteSpace(projectRoot)) {
-                throw new InvalidOperationException("Project root path is required to locate shader manifests.");
+                throw new InvalidOperationException("Project root path is required to locate shader sources.");
             }
 
-            string manifestPath = Path.Combine(projectRoot, "shaders", "shader-manifest.json");
-            return Path.GetFullPath(manifestPath);
+            string shaderRootPath = Path.Combine(projectRoot, "assets");
+            return Path.GetFullPath(shaderRootPath);
+        }
+
+        /// <summary>
+        /// Resolves the shader package output path for the current project.
+        /// </summary>
+        /// <param name="projectRoot">Project root path.</param>
+        /// <returns>Absolute shader package output path.</returns>
+        string ResolveShaderPackageOutputPath(string projectRoot) {
+            if (string.IsNullOrWhiteSpace(projectRoot)) {
+                throw new InvalidOperationException("Project root path is required to locate shader output.");
+            }
+
+            string outputPath = Path.Combine(projectRoot, "shader-cache");
+            return Path.GetFullPath(outputPath);
+        }
+
+        /// <summary>
+        /// Resolves the project root directory from a project root or project file path.
+        /// </summary>
+        /// <param name="projectPath">Project root directory or project file path.</param>
+        /// <returns>Absolute path to the project root directory.</returns>
+        string ResolveProjectRootPath(string projectPath) {
+            if (string.IsNullOrWhiteSpace(projectPath)) {
+                throw new InvalidOperationException("Project path must be provided.");
+            }
+
+            if (Directory.Exists(projectPath)) {
+                return Path.GetFullPath(projectPath);
+            }
+
+            if (File.Exists(projectPath)) {
+                string directory = Path.GetDirectoryName(projectPath);
+                if (string.IsNullOrWhiteSpace(directory)) {
+                    throw new InvalidOperationException("Project file path does not include a directory.");
+                }
+
+                return Path.GetFullPath(directory);
+            }
+
+            return Path.GetFullPath(projectPath);
         }
     }
 }

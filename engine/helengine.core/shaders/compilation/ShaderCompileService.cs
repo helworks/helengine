@@ -89,6 +89,7 @@ namespace helengine {
         /// Loads shader source from disk and compiles the requested entry point.
         /// </summary>
         /// <param name="path">Path to the shader source file.</param>
+        /// <param name="programName">Logical program name for the entry point.</param>
         /// <param name="entryPoint">Entry point function name.</param>
         /// <param name="stage">Pipeline stage for the entry point.</param>
         /// <param name="target">Backend target to compile for.</param>
@@ -99,6 +100,7 @@ namespace helengine {
         /// <returns>Compilation result.</returns>
         public ShaderCompileResult CompileFromFile(
             string path,
+            string programName,
             string entryPoint,
             ShaderStage stage,
             ShaderCompileTarget target,
@@ -118,6 +120,7 @@ namespace helengine {
             ShaderSourceInfo sourceInfo = new ShaderSourceInfo(path, source);
             ShaderCompileRequest request = new ShaderCompileRequest(
                 sourceInfo,
+                programName,
                 entryPoint,
                 stage,
                 target,
@@ -153,6 +156,7 @@ namespace helengine {
             string bindingSignature = BuildBindingPolicySignature(request.Options.BindingPolicy);
             return new ShaderCompileCacheKey(
                 sourceHash,
+                request.ProgramName,
                 request.EntryPoint,
                 request.Stage,
                 request.Target,

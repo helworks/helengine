@@ -6,36 +6,63 @@ namespace helengine.editor {
         /// <summary>
         /// Initializes a new options container for the shader module manager.
         /// </summary>
-        /// <param name="manifestPath">Absolute path to the shader manifest.</param>
-        /// <param name="shaderToolPath">Absolute path to the helshader tool.</param>
+        /// <param name="shaderRootPath">Root directory containing shader source files.</param>
+        /// <param name="packageOutputPath">Output directory for compiled shader packages.</param>
+        /// <param name="buildOptions">Shader package build options.</param>
+        /// <param name="runtimeTarget">Target backend used for runtime loading.</param>
         /// <param name="buildDelayMilliseconds">Delay window used to coalesce file changes.</param>
-        public ShaderModuleManagerOptions(string manifestPath, string shaderToolPath, int buildDelayMilliseconds) {
-            if (string.IsNullOrWhiteSpace(manifestPath)) {
-                throw new ArgumentException("Manifest path must be provided.", nameof(manifestPath));
+        public ShaderModuleManagerOptions(
+            string shaderRootPath,
+            string packageOutputPath,
+            ShaderPackageBuildOptions buildOptions,
+            ShaderCompileTarget runtimeTarget,
+            int buildDelayMilliseconds) {
+            if (string.IsNullOrWhiteSpace(shaderRootPath)) {
+                throw new ArgumentException("Shader root path must be provided.", nameof(shaderRootPath));
             }
 
-            if (string.IsNullOrWhiteSpace(shaderToolPath)) {
-                throw new ArgumentException("Shader tool path must be provided.", nameof(shaderToolPath));
+            if (string.IsNullOrWhiteSpace(packageOutputPath)) {
+                throw new ArgumentException("Package output path must be provided.", nameof(packageOutputPath));
+            }
+
+            if (buildOptions == null) {
+                throw new ArgumentNullException(nameof(buildOptions));
+            }
+
+            if (!buildOptions.HasTarget(runtimeTarget)) {
+                throw new ArgumentException("Runtime target must be included in the build options.", nameof(runtimeTarget));
             }
 
             if (buildDelayMilliseconds < 1) {
                 throw new ArgumentOutOfRangeException(nameof(buildDelayMilliseconds), "Build delay must be at least 1ms.");
             }
 
-            ManifestPath = manifestPath;
-            ShaderToolPath = shaderToolPath;
+            ShaderRootPath = shaderRootPath;
+            PackageOutputPath = packageOutputPath;
+            BuildOptions = buildOptions;
+            RuntimeTarget = runtimeTarget;
             BuildDelayMilliseconds = buildDelayMilliseconds;
         }
 
         /// <summary>
-        /// Gets the absolute path to the shader manifest.
+        /// Gets the shader source root directory.
         /// </summary>
-        public string ManifestPath { get; }
+        public string ShaderRootPath { get; }
 
         /// <summary>
-        /// Gets the absolute path to the helshader tool.
+        /// Gets the shader package output directory.
         /// </summary>
-        public string ShaderToolPath { get; }
+        public string PackageOutputPath { get; }
+
+        /// <summary>
+        /// Gets the shader package build options.
+        /// </summary>
+        public ShaderPackageBuildOptions BuildOptions { get; }
+
+        /// <summary>
+        /// Gets the runtime backend used for package loading.
+        /// </summary>
+        public ShaderCompileTarget RuntimeTarget { get; }
 
         /// <summary>
         /// Gets the delay window used to coalesce file change events.

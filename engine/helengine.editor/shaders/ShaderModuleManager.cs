@@ -1,35 +1,15 @@
-using System.Diagnostics;
 using System.Timers;
+using Timer = System.Timers.Timer;
 
 namespace helengine.editor {
     /// <summary>
-    /// Watches shader source files, runs the shader tool, and hot-loads shader modules in the editor.
+    /// Watches shader source files, builds shader packages, and hot-loads shader metadata in the editor.
     /// </summary>
     public class ShaderModuleManager : IDisposable {
         /// <summary>
-        /// Command name used to invoke the shader tool build action.
-        /// </summary>
-        const string ShaderToolBuildCommand = "build";
-
-        /// <summary>
-        /// Command line argument that specifies the manifest path.
-        /// </summary>
-        const string ShaderToolManifestArgument = "--manifest";
-
-        /// <summary>
-        /// Command line argument that specifies a shader name filter.
-        /// </summary>
-        const string ShaderToolShaderArgument = "--shader";
-
-        /// <summary>
-        /// Command line argument that enables module emission.
-        /// </summary>
-        const string ShaderToolEmitModulesArgument = "--emit-modules";
-
-        /// <summary>
         /// Shader file extensions recognized by the manager.
         /// </summary>
-        static readonly string[] ShaderExtensions = new[] { ".hlsl", ".fx" };
+        static readonly string[] ShaderExtensions = new[] { ".hlsl" };
 
         /// <summary>
         /// Options controlling shader module compilation.
@@ -37,14 +17,14 @@ namespace helengine.editor {
         readonly ShaderModuleManagerOptions options;
 
         /// <summary>
-        /// Loader used to load compiled shader modules.
+        /// Loader used to load compiled shader packages.
         /// </summary>
-        readonly ShaderModuleLoader loader;
+        readonly ShaderPackageLoader loader;
 
         /// <summary>
         /// Tracks loaded shader module handles by shader name.
         /// </summary>
-        readonly Dictionary<string, ShaderModuleHandle> loadedModules;
+        readonly Dictionary<string, ShaderPackageHandle> loadedModules;
 
         /// <summary>
         /// Tracks queued build timestamps for shader names.
@@ -52,9 +32,24 @@ namespace helengine.editor {
         readonly Dictionary<string, DateTime> pendingBuilds;
 
         /// <summary>
+        /// Tracks shader entries by absolute source path.
+        /// </summary>
+        readonly Dictionary<string, ShaderSourceEntry> entriesBySourcePath;
+
+        /// <summary>
+        /// Tracks shader entries by logical shader name.
+        /// </summary>
+        readonly Dictionary<string, ShaderSourceEntry> entriesByName;
+
+        /// <summary>
         /// Synchronization object for build queue access.
         /// </summary>
         readonly object pendingLock;
+
+        /// <summary>
+        /// Synchronization object for shader entry access.
+        /// </summary>
+        readonly object entriesLock;
 
         /// <summary>
         /// Semaphore used to avoid concurrent build execution.
@@ -72,9 +67,9 @@ namespace helengine.editor {
         Timer buildTimer;
 
         /// <summary>
-        /// Loaded manifest index.
+        /// Package builder used to compile shader packages.
         /// </summary>
-        ShaderManifestIndex manifestIndex;
+        ShaderPackageBuilder packageBuilder;
 
         /// <summary>
         /// Tracks whether the manager has been started.
@@ -96,10 +91,13 @@ namespace helengine.editor {
             }
 
             this.options = options;
-            loader = new ShaderModuleLoader();
-            loadedModules = new Dictionary<string, ShaderModuleHandle>(StringComparer.OrdinalIgnoreCase);
+            loader = new ShaderPackageLoader(new ShaderModulePackageReader());
+            loadedModules = new Dictionary<string, ShaderPackageHandle>(StringComparer.OrdinalIgnoreCase);
             pendingBuilds = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+            entriesBySourcePath = new Dictionary<string, ShaderSourceEntry>(StringComparer.OrdinalIgnoreCase);
+            entriesByName = new Dictionary<string, ShaderSourceEntry>(StringComparer.OrdinalIgnoreCase);
             pendingLock = new object();
+            entriesLock = new object();
             buildSemaphore = new SemaphoreSlim(1, 1);
         }
 
@@ -115,8 +113,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Shader module manager has already been started.");
             }
 
-            manifestIndex = ShaderManifestIndex.Load(options.ManifestPath);
-            ValidateShaderToolPath();
+            EnsureDirectories();
+            LoadSourceEntries();
+            InitializePackageBuilder();
             StartWatcher();
             StartTimer();
             QueueInitialBuilds();
@@ -164,10 +163,32 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Ensures the shader source and output directories exist.
+        /// </summary>
+        void EnsureDirectories() {
+            Directory.CreateDirectory(options.ShaderRootPath);
+            Directory.CreateDirectory(options.PackageOutputPath);
+        }
+
+        /// <summary>
+        /// Loads the initial shader source catalog.
+        /// </summary>
+        void LoadSourceEntries() {
+            string[] files = EnumerateShaderFiles();
+            lock (entriesLock) {
+                entriesBySourcePath.Clear();
+                entriesByName.Clear();
+                for (int i = 0; i < files.Length; i++) {
+                    AddEntry(files[i]);
+                }
+            }
+        }
+
+        /// <summary>
         /// Starts the file system watcher for shader source files.
         /// </summary>
         void StartWatcher() {
-            watcher = new FileSystemWatcher(manifestIndex.RootPath);
+            watcher = new FileSystemWatcher(options.ShaderRootPath);
             watcher.IncludeSubdirectories = true;
             watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size;
             watcher.Filter = "*.*";
@@ -189,16 +210,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Validates that the shader tool path exists on disk.
+        /// Initializes the shader package builder for the current shader root.
         /// </summary>
-        void ValidateShaderToolPath() {
-            if (!File.Exists(options.ShaderToolPath)) {
-                throw new FileNotFoundException("Shader tool was not found.", options.ShaderToolPath);
-            }
+        void InitializePackageBuilder() {
+            ShaderCompileService compileService = BuildCompileService();
+            packageBuilder = new ShaderPackageBuilder(compileService, new ShaderModulePackageWriter(), options.BuildOptions);
         }
 
         /// <summary>
-        /// Queues initial builds for all shaders in the manifest.
+        /// Queues initial builds for all discovered shaders.
         /// </summary>
         void QueueInitialBuilds() {
             QueueAllBuilds();
@@ -218,9 +238,8 @@ namespace helengine.editor {
                 return;
             }
 
-            ShaderManifestIndexEntry entry;
-            if (!manifestIndex.TryGetBySourcePath(e.FullPath, out entry)) {
-                QueueAllBuilds();
+            ShaderSourceEntry entry = GetOrAddEntry(e.FullPath);
+            if (entry == null) {
                 return;
             }
 
@@ -241,13 +260,10 @@ namespace helengine.editor {
                 return;
             }
 
-            ShaderManifestIndexEntry entry;
-            if (!manifestIndex.TryGetBySourcePath(e.FullPath, out entry)) {
-                QueueAllBuilds();
-                return;
+            ShaderSourceEntry entry;
+            if (RemoveEntry(e.FullPath, out entry)) {
+                UnloadModule(entry.Name);
             }
-
-            UnloadModule(entry.Name);
         }
 
         /// <summary>
@@ -261,18 +277,16 @@ namespace helengine.editor {
             }
 
             if (IsShaderFile(e.OldFullPath)) {
-                ShaderManifestIndexEntry oldEntry;
-                if (manifestIndex.TryGetBySourcePath(e.OldFullPath, out oldEntry)) {
+                ShaderSourceEntry oldEntry;
+                if (RemoveEntry(e.OldFullPath, out oldEntry)) {
                     UnloadModule(oldEntry.Name);
                 }
             }
 
             if (IsShaderFile(e.FullPath)) {
-                ShaderManifestIndexEntry newEntry;
-                if (manifestIndex.TryGetBySourcePath(e.FullPath, out newEntry)) {
+                ShaderSourceEntry newEntry = GetOrAddEntry(e.FullPath);
+                if (newEntry != null) {
                     QueueBuild(newEntry);
-                } else {
-                    QueueAllBuilds();
                 }
             }
         }
@@ -318,8 +332,8 @@ namespace helengine.editor {
         /// <summary>
         /// Queues a shader build for the specified entry.
         /// </summary>
-        /// <param name="entry">Manifest entry to build.</param>
-        void QueueBuild(ShaderManifestIndexEntry entry) {
+        /// <param name="entry">Shader source entry to build.</param>
+        void QueueBuild(ShaderSourceEntry entry) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
             }
@@ -330,37 +344,38 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Queues builds for all shaders in the manifest.
+        /// Queues builds for all known shaders.
         /// </summary>
         void QueueAllBuilds() {
-            IReadOnlyList<ShaderManifestIndexEntry> entries = manifestIndex.Entries;
-            for (int i = 0; i < entries.Count; i++) {
+            ShaderSourceEntry[] entries = GetEntriesSnapshot();
+            for (int i = 0; i < entries.Length; i++) {
                 QueueBuild(entries[i]);
             }
         }
 
         /// <summary>
-        /// Executes the shader tool for a specific shader and loads the resulting module.
+        /// Executes shader compilation for a specific shader and loads the resulting package.
         /// </summary>
         /// <param name="shaderName">Shader name to build.</param>
         void BuildShader(string shaderName) {
-            ShaderManifestIndexEntry entry;
-            if (!manifestIndex.TryGetByName(shaderName, out entry)) {
+            ShaderSourceEntry entry;
+            if (!TryGetEntryByName(shaderName, out entry)) {
                 return;
             }
 
-            ShaderToolResult result = RunShaderTool(shaderName);
-            if (result.ExitCode != 0) {
-                Logger.WriteError($"Shader build failed for '{shaderName}': {result.ErrorOutput}");
+            ShaderPackageBuildResult buildResult = BuildShaderPackages(entry);
+            if (!buildResult.Success) {
+                Logger.WriteError($"Shader build failed for '{shaderName}': {buildResult.ErrorMessage}");
+                LogDiagnostics(buildResult.Results);
                 return;
             }
 
-            if (!File.Exists(entry.ModuleAssemblyPath)) {
-                Logger.WriteError($"Shader module was not produced: {entry.ModuleAssemblyPath}");
+            if (!File.Exists(buildResult.PackagePath)) {
+                Logger.WriteError($"Shader package was not produced: {buildResult.PackagePath}");
                 return;
             }
 
-            ShaderModuleHandle handle = loader.LoadModule(entry.ModuleAssemblyPath);
+            ShaderPackageHandle handle = loader.Load(buildResult.PackagePath);
             ReplaceModule(entry.Name, handle);
         }
 
@@ -377,45 +392,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Runs the shader tool to rebuild a specific shader.
+        /// Builds shader packages for the specified shader entry.
         /// </summary>
-        /// <param name="shaderName">Shader name to build.</param>
-        /// <returns>Result of the shader tool invocation.</returns>
-        ShaderToolResult RunShaderTool(string shaderName) {
-            ProcessStartInfo startInfo = new ProcessStartInfo {
-                FileName = options.ShaderToolPath,
-                Arguments = BuildShaderToolArguments(shaderName),
-                WorkingDirectory = manifestIndex.RootPath,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using (Process process = Process.Start(startInfo)) {
-                if (process == null) {
-                    throw new InvalidOperationException("Failed to start the shader tool process.");
-                }
-
-                string output = process.StandardOutput.ReadToEnd();
-                string error = process.StandardError.ReadToEnd();
-                process.WaitForExit();
-
-                return new ShaderToolResult(process.ExitCode, output, error);
-            }
-        }
-
-        /// <summary>
-        /// Builds the shader tool command line arguments for a shader name.
-        /// </summary>
-        /// <param name="shaderName">Shader name to build.</param>
-        /// <returns>Command line arguments.</returns>
-        string BuildShaderToolArguments(string shaderName) {
-            if (string.IsNullOrWhiteSpace(shaderName)) {
-                throw new ArgumentException("Shader name must be provided.", nameof(shaderName));
+        /// <param name="entry">Shader entry to build.</param>
+        /// <returns>Build result for the runtime target.</returns>
+        ShaderPackageBuildResult BuildShaderPackages(ShaderSourceEntry entry) {
+            if (packageBuilder == null) {
+                throw new InvalidOperationException("Shader package builder has not been initialized.");
             }
 
-            return $"{ShaderToolBuildCommand} {ShaderToolManifestArgument} \"{options.ManifestPath}\" {ShaderToolShaderArgument} \"{shaderName}\" {ShaderToolEmitModulesArgument}";
+            ShaderPackageBuildResult[] results = packageBuilder.BuildPackages(entry, options.PackageOutputPath);
+            return SelectRuntimeResult(results);
         }
 
         /// <summary>
@@ -439,11 +426,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Replaces an existing module handle with a new one.
+        /// Replaces an existing package handle with a new one.
         /// </summary>
         /// <param name="shaderName">Shader name to replace.</param>
-        /// <param name="handle">New module handle.</param>
-        void ReplaceModule(string shaderName, ShaderModuleHandle handle) {
+        /// <param name="handle">New package handle.</param>
+        void ReplaceModule(string shaderName, ShaderPackageHandle handle) {
             if (string.IsNullOrWhiteSpace(shaderName)) {
                 throw new ArgumentException("Shader name must be provided.", nameof(shaderName));
             }
@@ -452,7 +439,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(handle));
             }
 
-            ShaderModuleHandle existing;
+            ShaderPackageHandle existing;
             if (loadedModules.TryGetValue(shaderName, out existing)) {
                 existing.Dispose();
             }
@@ -469,7 +456,7 @@ namespace helengine.editor {
                 return;
             }
 
-            ShaderModuleHandle handle;
+            ShaderPackageHandle handle;
             if (loadedModules.TryGetValue(shaderName, out handle)) {
                 handle.Dispose();
                 loadedModules.Remove(shaderName);
@@ -485,6 +472,203 @@ namespace helengine.editor {
             }
 
             loadedModules.Clear();
+        }
+
+        /// <summary>
+        /// Builds a compile service configured for the shader source root.
+        /// </summary>
+        /// <returns>Initialized compile service.</returns>
+        ShaderCompileService BuildCompileService() {
+            ShaderFilesystemIncludeResolver includeResolver = new ShaderFilesystemIncludeResolver(options.ShaderRootPath);
+            ShaderMemoryCompileCache cache = new ShaderMemoryCompileCache();
+            ShaderSourceHasher hasher = new ShaderSourceHasher();
+            ShaderCompileService service = new ShaderCompileService(includeResolver, cache, hasher);
+            service.RegisterBackend(new helengine.directx11.DirectX11ShaderBackend());
+            return service;
+        }
+
+        /// <summary>
+        /// Selects the build result that matches the runtime target.
+        /// </summary>
+        /// <param name="results">Build results to search.</param>
+        /// <returns>Matching build result.</returns>
+        ShaderPackageBuildResult SelectRuntimeResult(IReadOnlyList<ShaderPackageBuildResult> results) {
+            for (int i = 0; i < results.Count; i++) {
+                ShaderPackageBuildResult result = results[i];
+                if (result.Target == options.RuntimeTarget) {
+                    return result;
+                }
+            }
+
+            throw new InvalidOperationException("No shader package build result matched the runtime target.");
+        }
+
+        /// <summary>
+        /// Logs compilation diagnostics for the provided results.
+        /// </summary>
+        /// <param name="results">Compilation results to log.</param>
+        void LogDiagnostics(IReadOnlyList<ShaderCompileResult> results) {
+            for (int i = 0; i < results.Count; i++) {
+                ShaderCompileResult result = results[i];
+                IReadOnlyList<ShaderCompileDiagnostic> diagnostics = result.Diagnostics;
+                for (int j = 0; j < diagnostics.Count; j++) {
+                    ShaderCompileDiagnostic diagnostic = diagnostics[j];
+                    LogDiagnostic(diagnostic);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Writes a single diagnostic message to the logger.
+        /// </summary>
+        /// <param name="diagnostic">Diagnostic to log.</param>
+        void LogDiagnostic(ShaderCompileDiagnostic diagnostic) {
+            if (diagnostic == null) {
+                return;
+            }
+
+            string message = diagnostic.Message;
+            switch (diagnostic.Severity) {
+                case ShaderDiagnosticSeverity.Info:
+                    Logger.WriteLine(message);
+                    break;
+                case ShaderDiagnosticSeverity.Warning:
+                    Logger.WriteWarning(message);
+                    break;
+                case ShaderDiagnosticSeverity.Error:
+                    Logger.WriteError(message);
+                    break;
+                default:
+                    Logger.WriteLine(message);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Enumerates shader source files under the shader root.
+        /// </summary>
+        /// <returns>Array of shader source file paths.</returns>
+        string[] EnumerateShaderFiles() {
+            List<string> files = new List<string>();
+            IEnumerable<string> candidates = Directory.EnumerateFiles(options.ShaderRootPath, "*.*", SearchOption.AllDirectories);
+            foreach (string candidate in candidates) {
+                if (IsShaderFile(candidate)) {
+                    files.Add(candidate);
+                }
+            }
+
+            return files.ToArray();
+        }
+
+        /// <summary>
+        /// Returns a snapshot array of the current shader entries.
+        /// </summary>
+        /// <returns>Array of shader entries.</returns>
+        ShaderSourceEntry[] GetEntriesSnapshot() {
+            lock (entriesLock) {
+                ShaderSourceEntry[] entries = new ShaderSourceEntry[entriesByName.Count];
+                int index = 0;
+                foreach (var pair in entriesByName) {
+                    entries[index++] = pair.Value;
+                }
+
+                return entries;
+            }
+        }
+
+        /// <summary>
+        /// Attempts to locate a shader entry by its logical name.
+        /// </summary>
+        /// <param name="shaderName">Shader name to find.</param>
+        /// <param name="entry">Matching entry when found.</param>
+        /// <returns>True when a matching entry is found.</returns>
+        bool TryGetEntryByName(string shaderName, out ShaderSourceEntry entry) {
+            if (string.IsNullOrWhiteSpace(shaderName)) {
+                entry = null;
+                return false;
+            }
+
+            lock (entriesLock) {
+                return entriesByName.TryGetValue(shaderName, out entry);
+            }
+        }
+
+        /// <summary>
+        /// Gets an existing shader entry or creates one for a new file.
+        /// </summary>
+        /// <param name="sourcePath">Absolute shader source path.</param>
+        /// <returns>Resolved shader entry, or null when the entry cannot be created.</returns>
+        ShaderSourceEntry GetOrAddEntry(string sourcePath) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                return null;
+            }
+
+            lock (entriesLock) {
+                ShaderSourceEntry existing;
+                if (entriesBySourcePath.TryGetValue(sourcePath, out existing)) {
+                    return existing;
+                }
+
+                return AddEntry(sourcePath);
+            }
+        }
+
+        /// <summary>
+        /// Removes a shader entry by its source path.
+        /// </summary>
+        /// <param name="sourcePath">Absolute shader source path.</param>
+        /// <param name="entry">Removed entry when found.</param>
+        /// <returns>True when the entry is removed.</returns>
+        bool RemoveEntry(string sourcePath, out ShaderSourceEntry entry) {
+            lock (entriesLock) {
+                if (!entriesBySourcePath.TryGetValue(sourcePath, out entry)) {
+                    return false;
+                }
+
+                entriesBySourcePath.Remove(sourcePath);
+                entriesByName.Remove(entry.Name);
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Adds a new shader entry for the provided source path.
+        /// </summary>
+        /// <param name="sourcePath">Absolute shader source path.</param>
+        /// <returns>New shader entry, or null when a name conflict exists.</returns>
+        ShaderSourceEntry AddEntry(string sourcePath) {
+            string relativePath = Path.GetRelativePath(options.ShaderRootPath, sourcePath);
+            string shaderName = BuildShaderName(relativePath);
+            ShaderSourceEntry existing;
+            if (entriesByName.TryGetValue(shaderName, out existing)) {
+                if (!string.Equals(existing.SourcePath, sourcePath, StringComparison.OrdinalIgnoreCase)) {
+                    Logger.WriteWarning($"Shader name conflict detected for '{shaderName}'.");
+                    return null;
+                }
+
+                return existing;
+            }
+
+            ShaderSourceEntry entry = new ShaderSourceEntry(shaderName, relativePath, sourcePath);
+            entriesBySourcePath[sourcePath] = entry;
+            entriesByName[shaderName] = entry;
+            return entry;
+        }
+
+        /// <summary>
+        /// Builds a logical shader name from a relative path.
+        /// </summary>
+        /// <param name="relativePath">Path relative to the shader root.</param>
+        /// <returns>Logical shader name.</returns>
+        string BuildShaderName(string relativePath) {
+            string withoutExtension = Path.ChangeExtension(relativePath, null);
+            if (string.IsNullOrWhiteSpace(withoutExtension)) {
+                throw new InvalidOperationException("Shader name could not be resolved from the path.");
+            }
+
+            string normalized = withoutExtension.Replace(Path.DirectorySeparatorChar, '.');
+            normalized = normalized.Replace(Path.AltDirectorySeparatorChar, '.');
+            return normalized;
         }
     }
 }

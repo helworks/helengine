@@ -65,11 +65,31 @@ namespace helengine {
         /// <returns>Absolute binary path.</returns>
         public string GetBinaryPath(string programName, string variant) {
             ShaderProgramBinary binary = GetBinary(programName, variant);
+            if (string.IsNullOrWhiteSpace(binary.Path)) {
+                throw new InvalidOperationException("The shader binary does not include a file path.");
+            }
+
             if (Path.IsPathRooted(binary.Path)) {
                 return binary.Path;
             }
 
             return Path.Combine(RootPath, binary.Path);
+        }
+
+        /// <summary>
+        /// Resolves the compiled bytecode for the requested program and variant.
+        /// </summary>
+        /// <param name="programName">Program name to locate.</param>
+        /// <param name="variant">Variant name to locate.</param>
+        /// <returns>Compiled shader bytecode.</returns>
+        public byte[] GetBinaryData(string programName, string variant) {
+            ShaderProgramBinary binary = GetBinary(programName, variant);
+            if (binary.Bytecode != null && binary.Bytecode.Length > 0) {
+                return binary.Bytecode;
+            }
+
+            string path = GetBinaryPath(programName, variant);
+            return File.ReadAllBytes(path);
         }
     }
 }

@@ -7,6 +7,7 @@ namespace helengine {
         /// Initializes a new shader compile request.
         /// </summary>
         /// <param name="source">Shader source information.</param>
+        /// <param name="programName">Logical program name for the entry point.</param>
         /// <param name="entryPoint">Entry point function name.</param>
         /// <param name="stage">Pipeline stage for the entry point.</param>
         /// <param name="target">Backend target to compile for.</param>
@@ -16,6 +17,7 @@ namespace helengine {
         /// <param name="options">Shared compilation options.</param>
         public ShaderCompileRequest(
             ShaderSourceInfo source,
+            string programName,
             string entryPoint,
             ShaderStage stage,
             ShaderCompileTarget target,
@@ -25,6 +27,10 @@ namespace helengine {
             ShaderCompileOptions options) {
             if (source == null) {
                 throw new ArgumentNullException(nameof(source));
+            }
+
+            if (string.IsNullOrWhiteSpace(programName)) {
+                throw new ArgumentException("Program name must be provided.", nameof(programName));
             }
 
             if (string.IsNullOrWhiteSpace(entryPoint)) {
@@ -48,6 +54,7 @@ namespace helengine {
             }
 
             Source = source;
+            ProgramName = programName;
             EntryPoint = entryPoint;
             Stage = stage;
             Target = target;
@@ -61,6 +68,11 @@ namespace helengine {
         /// Gets the shader source information.
         /// </summary>
         public ShaderSourceInfo Source { get; }
+
+        /// <summary>
+        /// Gets the logical program name for the entry point.
+        /// </summary>
+        public string ProgramName { get; }
 
         /// <summary>
         /// Gets the entry point function name.

@@ -12,6 +12,7 @@ namespace helengine {
         /// Initializes a new shader compile cache key.
         /// </summary>
         /// <param name="sourceHash">Hash of the shader source.</param>
+        /// <param name="programName">Logical program name.</param>
         /// <param name="entryPoint">Entry point function name.</param>
         /// <param name="stage">Shader stage.</param>
         /// <param name="target">Compilation target.</param>
@@ -21,6 +22,7 @@ namespace helengine {
         /// <param name="bindingPolicySignature">Signature string for the binding policy.</param>
         public ShaderCompileCacheKey(
             string sourceHash,
+            string programName,
             string entryPoint,
             ShaderStage stage,
             ShaderCompileTarget target,
@@ -30,6 +32,10 @@ namespace helengine {
             string bindingPolicySignature) {
             if (string.IsNullOrWhiteSpace(sourceHash)) {
                 throw new ArgumentException("Source hash must be provided.", nameof(sourceHash));
+            }
+
+            if (string.IsNullOrWhiteSpace(programName)) {
+                throw new ArgumentException("Program name must be provided.", nameof(programName));
             }
 
             if (string.IsNullOrWhiteSpace(entryPoint)) {
@@ -53,6 +59,7 @@ namespace helengine {
             }
 
             SourceHash = sourceHash;
+            ProgramName = programName;
             EntryPoint = entryPoint;
             Stage = stage;
             Target = target;
@@ -67,6 +74,11 @@ namespace helengine {
         /// Gets the hash of the shader source.
         /// </summary>
         public string SourceHash { get; }
+
+        /// <summary>
+        /// Gets the logical program name.
+        /// </summary>
+        public string ProgramName { get; }
 
         /// <summary>
         /// Gets the entry point function name.
@@ -119,6 +131,7 @@ namespace helengine {
             return string.Join(
                 "|",
                 SourceHash,
+                ProgramName,
                 EntryPoint,
                 Stage.ToString(),
                 Target.ToString(),

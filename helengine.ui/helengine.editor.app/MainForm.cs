@@ -116,8 +116,7 @@ namespace helengine.editor.app {
             renderer3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
             FontAsset uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
-            string shaderToolPath = ResolveShaderToolPath();
-            editorSession = new EditorSession(core, projectPath, uiFont, titleText, renderer3D, renderer2D, inputManager, renderWidth, renderHeight, shaderToolPath);
+            editorSession = new EditorSession(core, projectPath, uiFont, titleText, renderer3D, renderer2D, inputManager, renderWidth, renderHeight);
 
             TitleBarWindowAdapter.Attach(editorSession.TitleBar, this);
             SetWindowTitle(titleText);
@@ -157,19 +156,6 @@ namespace helengine.editor.app {
                     });
                 } catch { }
             }
-        }
-
-        /// <summary>
-        /// Resolves the helshader tool path from environment configuration.
-        /// </summary>
-        /// <returns>Absolute path to the helshader tool.</returns>
-        string ResolveShaderToolPath() {
-            string shaderToolPath = Environment.GetEnvironmentVariable(ShaderToolEnvironmentVariable, EnvironmentVariableTarget.Process);
-            if (string.IsNullOrWhiteSpace(shaderToolPath)) {
-                throw new InvalidOperationException("HELENGINE_SHADER_TOOL must be set to the helshader executable path.");
-            }
-
-            return Path.GetFullPath(shaderToolPath);
         }
 
         /// <summary>
