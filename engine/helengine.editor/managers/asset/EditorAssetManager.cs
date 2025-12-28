@@ -7,6 +7,10 @@ namespace helengine.editor {
         /// Name of the assets folder at the project root.
         /// </summary>
         const string AssetsFolderName = "assets";
+        /// <summary>
+        /// Extension used for asset import settings sidecar files.
+        /// </summary>
+        const string ImportSettingsExtension = ".hasset";
 
         /// <summary>
         /// Extensions treated as image assets.
@@ -126,6 +130,9 @@ namespace helengine.editor {
 
                     string relativePath = CombineRelativePath(currentRelativePath, name);
                     string extension = Path.GetExtension(filePath);
+                    if (string.Equals(extension, ImportSettingsExtension, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
                     entries.Add(new AssetBrowserEntry(name, relativePath, filePath, false, extension));
                 }
             } catch (Exception ex) {

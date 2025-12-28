@@ -116,7 +116,18 @@ namespace helengine.editor.app {
             renderer3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
             FontAsset uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
-            editorSession = new EditorSession(core, projectPath, uiFont, titleText, renderer3D, renderer2D, inputManager, renderWidth, renderHeight);
+            IReadOnlyList<TextureImporterRegistration> textureImporters = BuildTextureImporters();
+            editorSession = new EditorSession(
+                core,
+                projectPath,
+                uiFont,
+                titleText,
+                renderer3D,
+                renderer2D,
+                inputManager,
+                renderWidth,
+                renderHeight,
+                textureImporters);
 
             TitleBarWindowAdapter.Attach(editorSession.TitleBar, this);
             SetWindowTitle(titleText);
@@ -156,6 +167,18 @@ namespace helengine.editor.app {
                     });
                 } catch { }
             }
+        }
+
+        /// <summary>
+        /// Builds the default texture importer registrations for the editor.
+        /// </summary>
+        /// <returns>Importer registrations used for asset import settings.</returns>
+        IReadOnlyList<TextureImporterRegistration> BuildTextureImporters() {
+            string[] extensions = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif" };
+            var registrations = new TextureImporterRegistration[] {
+                new TextureImporterRegistration("gdi", new GDITextureImporter(), extensions)
+            };
+            return registrations;
         }
 
         /// <summary>

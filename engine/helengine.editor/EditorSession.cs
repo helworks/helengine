@@ -46,7 +46,7 @@ namespace helengine.editor {
         /// <summary>
         /// Main viewport dock panel.
         /// </summary>
-        readonly DockableViewport mainViewport;
+        readonly EditorViewport mainViewport;
         /// <summary>
         /// UI camera entity used for 2D rendering.
         /// </summary>
@@ -79,6 +79,10 @@ namespace helengine.editor {
         /// Shader module manager responsible for hot-reloading shader modules.
         /// </summary>
         readonly ShaderModuleManager shaderModuleManager;
+        /// <summary>
+        /// Asset import manager responsible for creating import settings and outputs.
+        /// </summary>
+        readonly AssetImportManager assetImportManager;
 
         /// <summary>
         /// Initializes a new editor session and sets up cameras, docking, and starter content.
@@ -92,6 +96,7 @@ namespace helengine.editor {
         /// <param name="input">Input manager instance.</param>
         /// <param name="renderWidth">Initial render width in pixels.</param>
         /// <param name="renderHeight">Initial render height in pixels.</param>
+        /// <param name="textureImporters">Texture importers to register for asset import settings.</param>
         public EditorSession(
             EditorCore core,
             string projectPath,
@@ -101,13 +106,16 @@ namespace helengine.editor {
             RenderManager2D render2D,
             InputManager input,
             int renderWidth,
-            int renderHeight) {
+            int renderHeight,
+            IReadOnlyList<TextureImporterRegistration> textureImporters) {
             this.core = core;
             this.projectPath = ResolveProjectRootPath(projectPath);
             this.uiFont = uiFont;
 
             core.Initialize(render3D, render2D, input);
             core.InputManager.SetKeyboardActive(true);
+
+            assetImportManager = InitializeAssetImports(textureImporters);
 
             uiCameraEntity = new EditorEntity();
             uiCameraEntity.InternalEntity = true;
@@ -157,7 +165,7 @@ namespace helengine.editor {
             dockingManager = new DockingManager();
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath);
-            mainViewport = new DockableViewport(sceneCameraComponent, uiFont);
+            mainViewport = new EditorViewport(sceneCameraComponent, uiFont);
             propertiesPanel = new PropertiesPanel(uiFont);
             loggerPanel = new LoggerPanel(uiFont);
 
@@ -202,6 +210,11 @@ namespace helengine.editor {
         public DockingManager DockingManager => dockingManager;
 
         /// <summary>
+        /// Gets the asset import manager for the current project.
+        /// </summary>
+        public AssetImportManager AssetImportManager => assetImportManager;
+
+        /// <summary>
         /// Gets the current docking cursor state.
         /// </summary>
         public DockingCursorState DockingCursorState => dockingManager.CursorState;
@@ -236,7 +249,7 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the primary dockable viewport panel.
         /// </summary>
-        public DockableViewport MainViewport => mainViewport;
+        public EditorViewport MainViewport => mainViewport;
 
         /// <summary>
         /// Gets the scene hierarchy panel.
@@ -412,8 +425,21 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Project root path is required to locate shader sources.");
             }
 
-            string shaderRootPath = Path.Combine(projectRoot, "assets");
-            return Path.GetFullPath(shaderRootPath);
+            return ResolveAssetsRootPath(projectRoot);
+        }
+
+        /// <summary>
+        /// Resolves the assets root path for the current project.
+        /// </summary>
+        /// <param name="projectRoot">Project root path.</param>
+        /// <returns>Absolute assets root path.</returns>
+        string ResolveAssetsRootPath(string projectRoot) {
+            if (string.IsNullOrWhiteSpace(projectRoot)) {
+                throw new InvalidOperationException("Project root path is required to locate assets.");
+            }
+
+            string assetsRootPath = Path.Combine(projectRoot, "assets");
+            return Path.GetFullPath(assetsRootPath);
         }
 
         /// <summary>
@@ -454,6 +480,27 @@ namespace helengine.editor {
             }
 
             return Path.GetFullPath(projectPath);
+        }
+
+        /// <summary>
+        /// Initializes asset import management and generates missing import settings.
+        /// </summary>
+        /// <param name="textureImporters">Texture importers to register.</param>
+        /// <returns>Initialized asset import manager.</returns>
+        AssetImportManager InitializeAssetImports(IReadOnlyList<TextureImporterRegistration> textureImporters) {
+            if (textureImporters == null) {
+                throw new ArgumentNullException(nameof(textureImporters));
+            }
+
+            string projectRootPath = ResolveProjectRootPath(projectPath);
+            var manager = new AssetImportManager(projectRootPath);
+            for (int i = 0; i < textureImporters.Count; i++) {
+                manager.RegisterTextureImporter(textureImporters[i]);
+            }
+
+            manager.GenerateMissingImportSettings();
+            manager.ImportTexturesMissingCache();
+            return manager;
         }
     }
 }

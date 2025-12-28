@@ -2,13 +2,13 @@ namespace helengine.editor {
     /// <summary>
     /// Dockable editor window that hosts a camera viewport and keeps its rectangle in sync with layout changes.
     /// </summary>
-    public class DockableViewport : DockableEntity {
+    public class EditorViewport : DockableEntity {
         /// <summary>
         /// Initializes a new dockable viewport and binds it to the provided camera.
         /// </summary>
         /// <param name="camera">Camera rendering into the viewport.</param>
         /// <param name="font">Font used by the base dockable entity title bar.</param>
-        public DockableViewport(CameraComponent camera, FontAsset font)
+        public EditorViewport(CameraComponent camera, FontAsset font)
             : base(font) {
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             Title = "Viewport";
