@@ -118,6 +118,10 @@ namespace helengine.editor {
         /// Gets or sets a value indicating whether the panel has completed initialization.
         /// </summary>
         bool isInitialized;
+        /// <summary>
+        /// Raised when a file entry is selected in the browser.
+        /// </summary>
+        public event Action<AssetBrowserEntry> AssetSelected;
 
         /// <summary>
         /// Initializes a new asset browser panel for the provided project path.
@@ -423,8 +427,12 @@ namespace helengine.editor {
                 case PointerInteraction.Release:
                     bool shouldActivate = row.IsPressed && row.IsHovering;
                     row.IsPressed = false;
-                    if (shouldActivate && row.Entry != null && row.Entry.IsDirectory) {
-                        NavigateTo(row.Entry.RelativePath);
+                    if (shouldActivate && row.Entry != null) {
+                        if (row.Entry.IsDirectory) {
+                            NavigateTo(row.Entry.RelativePath);
+                        } else {
+                            NotifyAssetSelected(row.Entry);
+                        }
                     }
                     break;
                 case PointerInteraction.Leave:
@@ -436,6 +444,18 @@ namespace helengine.editor {
             }
 
             UpdateRowBackground(row, row.BaseColor);
+        }
+
+        /// <summary>
+        /// Notifies listeners that a file entry was selected.
+        /// </summary>
+        /// <param name="entry">Selected file entry.</param>
+        void NotifyAssetSelected(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            AssetSelected?.Invoke(entry);
         }
 
         /// <summary>

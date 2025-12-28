@@ -9,11 +9,6 @@ namespace helengine.editor {
         const string SettingsExtension = ".hasset";
 
         /// <summary>
-        /// File extension used for serialized texture assets.
-        /// </summary>
-        const string TextureAssetExtension = ".texture.asset";
-
-        /// <summary>
         /// Folder name used for imported asset outputs.
         /// </summary>
         const string ImportFolderName = "cache";
@@ -257,6 +252,49 @@ namespace helengine.editor {
             }
 
             return importedAssets;
+        }
+
+        /// <summary>
+        /// Loads a texture asset for a source file, importing it when needed.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the texture source file.</param>
+        /// <param name="asset">Loaded texture asset when available.</param>
+        /// <returns>True when the source can be resolved to a texture asset.</returns>
+        public bool TryLoadTextureAsset(string sourcePath, out TextureAsset asset) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            if (!File.Exists(sourcePath)) {
+                throw new FileNotFoundException("Texture source file was not found.", sourcePath);
+            }
+
+            AssetImportSettings settings;
+            if (!TryLoadOrCreateImportSettings(sourcePath, out settings)) {
+                asset = null;
+                return false;
+            }
+
+            if (!IsTextureImporterRegistered(settings.ImporterId)) {
+                asset = null;
+                return false;
+            }
+
+            string outputPath = GetTextureAssetPath(settings.AssetId);
+            if (!File.Exists(outputPath)) {
+                asset = ImportTexture(sourcePath);
+                return true;
+            }
+
+            using (FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                Asset loadedAsset = AssetSerializer.Deserialize(stream);
+                if (loadedAsset is TextureAsset textureAsset) {
+                    asset = textureAsset;
+                    return true;
+                }
+            }
+
+            throw new InvalidOperationException($"Cached asset was not a texture: {outputPath}");
         }
 
         /// <summary>
@@ -512,8 +550,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Asset id must be provided.", nameof(assetId));
             }
 
-            string fileName = assetId + TextureAssetExtension;
-            return Path.Combine(importRootPath, fileName);
+            return Path.Combine(importRootPath, assetId);
         }
 
         /// <summary>

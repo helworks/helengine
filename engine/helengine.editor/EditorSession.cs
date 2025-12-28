@@ -44,6 +44,10 @@ namespace helengine.editor {
         /// </summary>
         readonly LoggerPanel loggerPanel;
         /// <summary>
+        /// Preview dock panel for texture assets.
+        /// </summary>
+        readonly PreviewPanel previewPanel;
+        /// <summary>
         /// Main viewport dock panel.
         /// </summary>
         readonly EditorViewport mainViewport;
@@ -168,22 +172,27 @@ namespace helengine.editor {
             mainViewport = new EditorViewport(sceneCameraComponent, uiFont);
             propertiesPanel = new PropertiesPanel(uiFont);
             loggerPanel = new LoggerPanel(uiFont);
+            previewPanel = new PreviewPanel(uiFont);
+            assetBrowserPanel.AssetSelected += HandleAssetSelected;
 
             sceneHierarchyPanel.Size = new int2(280, 600);
             assetBrowserPanel.Size = new int2(500, 240);
             propertiesPanel.Size = new int2(280, 600);
+            previewPanel.Size = new int2(propertiesPanel.Size.X, 240);
 
             dockingManager.Layout.Add(sceneHierarchyPanel);
             dockingManager.Layout.Add(assetBrowserPanel);
             dockingManager.Layout.Add(mainViewport);
             dockingManager.Layout.Add(propertiesPanel);
             dockingManager.Layout.Add(loggerPanel);
+            dockingManager.Layout.Add(previewPanel);
 
             dockingManager.Layout.DockAsRoot(mainViewport);
             dockingManager.Layout.DockRelative(assetBrowserPanel, mainViewport, DockInsertDirection.Bottom, 0.7f);
             dockingManager.Layout.DockRelative(sceneHierarchyPanel, mainViewport, DockInsertDirection.Left, 0.3f);
             dockingManager.Layout.DockRelative(propertiesPanel, mainViewport, DockInsertDirection.Right, 0.75f);
             dockingManager.Layout.DockRelative(loggerPanel, assetBrowserPanel, DockInsertDirection.Fill, 0.5f);
+            dockingManager.Layout.DockRelative(previewPanel, assetBrowserPanel, DockInsertDirection.Right, 0.5f);
 
             shaderModuleManager = BuildShaderModuleManager();
             shaderModuleManager.Start();
@@ -351,6 +360,7 @@ namespace helengine.editor {
         /// Disposes engine resources owned by the session.
         /// </summary>
         public void Dispose() {
+            assetBrowserPanel.AssetSelected -= HandleAssetSelected;
             shaderModuleManager.Dispose();
             loggerPanel.Detach();
             core.Dispose();
@@ -377,6 +387,47 @@ namespace helengine.editor {
             ModelAsset planeModelData = ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One);
             RuntimeModel planeRenderData = coreInstance.RenderManager3D.BuildModelFromRaw(planeModelData);
             planeMesh.Model = planeRenderData;
+        }
+
+        /// <summary>
+        /// Handles asset selections from the browser to display import settings.
+        /// </summary>
+        /// <param name="entry">Selected asset entry.</param>
+        void HandleAssetSelected(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            if (entry.IsDirectory) {
+                return;
+            }
+
+            try {
+                AssetImportSettings settings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
+                assetImportManager.SaveImportSettings(entry.FullPath, settings);
+                propertiesPanel.ShowImportSettings(entry, settings);
+                UpdatePreview(entry);
+            } catch (Exception ex) {
+                propertiesPanel.ShowImportError(entry, ex.Message);
+                previewPanel.ClearPreview();
+            }
+        }
+
+        /// <summary>
+        /// Updates the preview panel based on the selected asset.
+        /// </summary>
+        /// <param name="entry">Selected asset entry.</param>
+        void UpdatePreview(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            TextureAsset texture;
+            if (assetImportManager.TryLoadTextureAsset(entry.FullPath, out texture)) {
+                previewPanel.ShowTexture(texture);
+            } else {
+                previewPanel.ClearPreview();
+            }
         }
 
         /// <summary>
