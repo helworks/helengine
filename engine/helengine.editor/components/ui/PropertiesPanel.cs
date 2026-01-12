@@ -57,9 +57,22 @@ namespace helengine.editor {
         /// </summary>
         readonly TextComponent statusText;
         /// <summary>
+        /// View that renders asset import settings controls.
+        /// </summary>
+        readonly AssetImportSettingsView importSettingsView;
+        /// <summary>
+        /// Currently selected asset entry, if any.
+        /// </summary>
+        AssetBrowserEntry currentEntry;
+        /// <summary>
         /// Tracks whether the panel finished initialization.
         /// </summary>
         bool isInitialized;
+
+        /// <summary>
+        /// Raised when the user applies a pending import setting change.
+        /// </summary>
+        public event Action<AssetBrowserEntry, string> ImportSettingsApplyRequested;
 
         /// <summary>
         /// Initializes a new properties panel with the provided font.
@@ -91,6 +104,10 @@ namespace helengine.editor {
             assetIdText = AddLine();
             statusText = AddLine();
 
+            importSettingsView = new AssetImportSettingsView(font, LayerMask);
+            importSettingsView.ApplyRequested += HandleImportSettingsApplyRequested;
+            contentRoot.AddChild(importSettingsView.Root);
+
             ShowEmpty();
             isInitialized = true;
         }
@@ -100,7 +117,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entry">Selected asset entry.</param>
         /// <param name="settings">Import settings to display.</param>
-        public void ShowImportSettings(AssetBrowserEntry entry, AssetImportSettings settings) {
+        /// <param name="importerIds">Registered importer identifiers.</param>
+        public void ShowImportSettings(AssetBrowserEntry entry, AssetImportSettings settings, IReadOnlyList<string> importerIds) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
             }
@@ -109,13 +127,19 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            headerText.Text = "Properties";
-            pathText.Text = $"Asset: {BuildAssetLabel(entry)}";
-            importerText.Text = $"Importer: {settings.ImporterId}";
-            checksumText.Text = $"Checksum: {settings.SourceChecksum}";
-            assetIdText.Text = $"Asset Id: {settings.AssetId}";
+            if (importerIds == null) {
+                throw new ArgumentNullException(nameof(importerIds));
+            }
+
+            currentEntry = entry;
+            headerText.Text = string.Empty;
+            pathText.Text = string.Empty;
+            importerText.Text = string.Empty;
+            checksumText.Text = string.Empty;
+            assetIdText.Text = string.Empty;
             statusText.Text = string.Empty;
 
+            importSettingsView.Show(importerIds, settings.ImporterId);
             LayoutLines();
         }
 
@@ -140,6 +164,8 @@ namespace helengine.editor {
             assetIdText.Text = string.Empty;
             statusText.Text = $"Status: {message}";
 
+            currentEntry = null;
+            importSettingsView.Hide();
             LayoutLines();
         }
 
@@ -147,13 +173,15 @@ namespace helengine.editor {
         /// Resets the panel to its empty selection state.
         /// </summary>
         public void ShowEmpty() {
-            headerText.Text = "Properties";
+            headerText.Text = string.Empty;
             pathText.Text = string.Empty;
             importerText.Text = string.Empty;
             checksumText.Text = string.Empty;
             assetIdText.Text = string.Empty;
             statusText.Text = string.Empty;
 
+            currentEntry = null;
+            importSettingsView.Hide();
             LayoutLines();
         }
 
@@ -213,6 +241,29 @@ namespace helengine.editor {
                 host.Position = new float3(ContentPadding, (float)Math.Round(offsetY), 0.2f);
                 text.Size = new int2(maxWidth, (int)Math.Ceiling(lineHeight));
                 offsetY += lineHeight + LineSpacing;
+            }
+
+            if (importSettingsView.IsVisible) {
+                int viewTop = (int)Math.Round(offsetY);
+                importSettingsView.UpdateLayout(ContentPadding, viewTop, maxWidth);
+            }
+        }
+
+        /// <summary>
+        /// Forwards apply requests from the import settings view.
+        /// </summary>
+        /// <param name="importerId">Pending importer identifier to apply.</param>
+        void HandleImportSettingsApplyRequested(string importerId) {
+            if (string.IsNullOrWhiteSpace(importerId)) {
+                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
+            }
+
+            if (currentEntry == null) {
+                throw new InvalidOperationException("No asset is currently selected.");
+            }
+
+            if (ImportSettingsApplyRequested != null) {
+                ImportSettingsApplyRequested(currentEntry, importerId);
             }
         }
 

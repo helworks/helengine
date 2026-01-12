@@ -8,12 +8,12 @@ namespace helengine.directx11 {
         /// <summary>
         /// Gets or sets the vertex buffer for the model.
         /// </summary>
-        public Buffer VertexBuffer { get; internal set; } = null!;
+        public Buffer VertexBuffer { get; internal set; }
 
         /// <summary>
         /// Gets or sets the index buffer for the model, if present.
         /// </summary>
-        public Buffer? IndexBuffer { get; internal set; }
+        public Buffer IndexBuffer { get; internal set; }
 
         /// <summary>
         /// Gets or sets the total number of vertices.

@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace helengine.directx11 {
     [StructLayout(LayoutKind.Sequential)]
-    struct VertexPositionUV {
+    public struct VertexPositionUV {
         public float3 Position;
         public float2 TexCoord;
 

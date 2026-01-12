@@ -8,11 +8,11 @@ namespace helengine.directx11 {
         /// <summary>
         /// Gets or sets the underlying Direct3D texture.
         /// </summary>
-        public Texture2D Texture { get; internal set; } = null!;
+        public Texture2D Texture { get; internal set; }
 
         /// <summary>
         /// Gets or sets the shader resource view for the texture.
         /// </summary>
-        public ShaderResourceView Resource { get; internal set; } = null!;
+        public ShaderResourceView Resource { get; internal set; }
     }
 }

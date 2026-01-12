@@ -122,6 +122,19 @@ namespace helengine.editor {
         /// Raised when a file entry is selected in the browser.
         /// </summary>
         public event Action<AssetBrowserEntry> AssetSelected;
+        /// <summary>
+        /// Raised when the current selection is cleared.
+        /// </summary>
+        public event Action SelectionCleared;
+
+        /// <summary>
+        /// Host entity for list background hit testing.
+        /// </summary>
+        EditorEntity listHitHost;
+        /// <summary>
+        /// Interactable used to clear selection when clicking empty space.
+        /// </summary>
+        InteractableComponent listHitInteractable;
 
         /// <summary>
         /// Initializes a new asset browser panel for the provided project path.
@@ -146,6 +159,7 @@ namespace helengine.editor {
             AddChild(contentRoot);
 
             BuildToolbar();
+            BuildListHitArea();
 
             entries = new List<AssetBrowserEntry>(64);
             rows = new List<AssetBrowserRow>(32);
@@ -213,6 +227,21 @@ namespace helengine.editor {
             pathText.Size = new int2(1, (int)MathF.Ceiling(lineHeight));
             pathText.RenderOrder2D = textOrder;
             pathTextHost.AddComponent(pathText);
+        }
+
+        /// <summary>
+        /// Builds the hit area used to clear selection on empty list clicks.
+        /// </summary>
+        void BuildListHitArea() {
+            listHitHost = new EditorEntity();
+            listHitHost.LayerMask = LayerMask;
+            listHitHost.Position = new float3(0, ToolbarHeight, 0.05f);
+            contentRoot.AddChild(listHitHost);
+
+            listHitInteractable = new InteractableComponent();
+            listHitInteractable.Size = new int2(0, 0);
+            listHitInteractable.CursorEvent += HandleListHitCursor;
+            listHitHost.AddComponent(listHitInteractable);
         }
 
         /// <summary>
@@ -399,6 +428,10 @@ namespace helengine.editor {
                 row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
                 row.Label.Size = new int2(Math.Max(0, rowWidth - (int)labelX - LabelPadding), (int)MathF.Ceiling(labelMetrics.Height));
             }
+
+            int listHeight = Math.Max(0, Size.Y - ToolbarHeight);
+            listHitHost.Position = new float3(0f, ToolbarHeight, 0.05f);
+            listHitInteractable.Size = new int2(rowWidth, listHeight);
         }
 
         /// <summary>
@@ -456,6 +489,27 @@ namespace helengine.editor {
             }
 
             AssetSelected?.Invoke(entry);
+        }
+
+        /// <summary>
+        /// Notifies listeners that the current selection was cleared.
+        /// </summary>
+        void NotifySelectionCleared() {
+            if (SelectionCleared != null) {
+                SelectionCleared();
+            }
+        }
+
+        /// <summary>
+        /// Handles cursor interactions on the list background to clear selection.
+        /// </summary>
+        /// <param name="relPos">Relative pointer position.</param>
+        /// <param name="delta">Pointer delta.</param>
+        /// <param name="state">Pointer interaction state.</param>
+        void HandleListHitCursor(int2 relPos, int2 delta, PointerInteraction state) {
+            if (state == PointerInteraction.Release) {
+                NotifySelectionCleared();
+            }
         }
 
         /// <summary>

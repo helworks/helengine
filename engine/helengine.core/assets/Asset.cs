@@ -6,6 +6,7 @@ namespace helengine {
     [ProtoBuf.ProtoInclude(100, typeof(TextureAsset))]
     [ProtoBuf.ProtoInclude(101, typeof(ModelAsset))]
     [ProtoBuf.ProtoInclude(102, typeof(ShaderAsset))]
+    [ProtoBuf.ProtoInclude(103, typeof(TextAsset))]
     public class Asset {
         /// <summary>
         /// Gets or sets the asset identifier.

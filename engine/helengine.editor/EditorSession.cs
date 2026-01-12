@@ -101,6 +101,7 @@ namespace helengine.editor {
         /// <param name="renderWidth">Initial render width in pixels.</param>
         /// <param name="renderHeight">Initial render height in pixels.</param>
         /// <param name="textureImporters">Texture importers to register for asset import settings.</param>
+        /// <param name="textImporters">Text importers to register for asset import settings.</param>
         public EditorSession(
             EditorCore core,
             string projectPath,
@@ -111,7 +112,8 @@ namespace helengine.editor {
             InputManager input,
             int renderWidth,
             int renderHeight,
-            IReadOnlyList<TextureImporterRegistration> textureImporters) {
+            IReadOnlyList<TextureImporterRegistration> textureImporters,
+            IReadOnlyList<TextImporterRegistration> textImporters) {
             this.core = core;
             this.projectPath = ResolveProjectRootPath(projectPath);
             this.uiFont = uiFont;
@@ -119,7 +121,7 @@ namespace helengine.editor {
             core.Initialize(render3D, render2D, input);
             core.InputManager.SetKeyboardActive(true);
 
-            assetImportManager = InitializeAssetImports(textureImporters);
+            assetImportManager = InitializeAssetImports(textureImporters, textImporters);
 
             uiCameraEntity = new EditorEntity();
             uiCameraEntity.InternalEntity = true;
@@ -174,6 +176,8 @@ namespace helengine.editor {
             loggerPanel = new LoggerPanel(uiFont);
             previewPanel = new PreviewPanel(uiFont);
             assetBrowserPanel.AssetSelected += HandleAssetSelected;
+            assetBrowserPanel.SelectionCleared += HandleAssetSelectionCleared;
+            propertiesPanel.ImportSettingsApplyRequested += HandleImportSettingsApplyRequested;
 
             sceneHierarchyPanel.Size = new int2(280, 600);
             assetBrowserPanel.Size = new int2(500, 240);
@@ -192,7 +196,7 @@ namespace helengine.editor {
             dockingManager.Layout.DockRelative(sceneHierarchyPanel, mainViewport, DockInsertDirection.Left, 0.3f);
             dockingManager.Layout.DockRelative(propertiesPanel, mainViewport, DockInsertDirection.Right, 0.75f);
             dockingManager.Layout.DockRelative(loggerPanel, assetBrowserPanel, DockInsertDirection.Fill, 0.5f);
-            dockingManager.Layout.DockRelative(previewPanel, assetBrowserPanel, DockInsertDirection.Right, 0.5f);
+            dockingManager.Layout.DockRelative(previewPanel, assetBrowserPanel, DockInsertDirection.Right, 0.75f);
 
             shaderModuleManager = BuildShaderModuleManager();
             shaderModuleManager.Start();
@@ -361,6 +365,8 @@ namespace helengine.editor {
         /// </summary>
         public void Dispose() {
             assetBrowserPanel.AssetSelected -= HandleAssetSelected;
+            assetBrowserPanel.SelectionCleared -= HandleAssetSelectionCleared;
+            propertiesPanel.ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested;
             shaderModuleManager.Dispose();
             loggerPanel.Detach();
             core.Dispose();
@@ -403,14 +409,65 @@ namespace helengine.editor {
             }
 
             try {
-                AssetImportSettings settings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
+                AssetImportSettings settings;
+                if (!assetImportManager.TryLoadOrCreateImportSettings(entry.FullPath, out settings)) {
+                    propertiesPanel.ShowEmpty();
+                    previewPanel.ClearPreview();
+                    return;
+                }
+
                 assetImportManager.SaveImportSettings(entry.FullPath, settings);
-                propertiesPanel.ShowImportSettings(entry, settings);
+                IReadOnlyList<string> importerIds = assetImportManager.GetImporterIdsForExtension(entry.Extension);
+                if (importerIds.Count == 0) {
+                    propertiesPanel.ShowImportError(entry, "No importers are registered for this asset type.");
+                    previewPanel.ClearPreview();
+                    return;
+                }
+
+                propertiesPanel.ShowImportSettings(entry, settings, importerIds);
                 UpdatePreview(entry);
             } catch (Exception ex) {
                 propertiesPanel.ShowImportError(entry, ex.Message);
                 previewPanel.ClearPreview();
             }
+        }
+
+        /// <summary>
+        /// Applies a pending importer selection to the selected asset settings.
+        /// </summary>
+        /// <param name="entry">Selected asset entry.</param>
+        /// <param name="importerId">Importer identifier to apply.</param>
+        void HandleImportSettingsApplyRequested(AssetBrowserEntry entry, string importerId) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            if (string.IsNullOrWhiteSpace(importerId)) {
+                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
+            }
+
+            if (entry.IsDirectory) {
+                return;
+            }
+
+            try {
+                AssetImportSettings settings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
+                settings.ImporterId = importerId;
+                assetImportManager.SaveImportSettings(entry.FullPath, settings);
+
+                IReadOnlyList<string> importerIds = assetImportManager.GetImporterIdsForExtension(entry.Extension);
+                propertiesPanel.ShowImportSettings(entry, settings, importerIds);
+            } catch (Exception ex) {
+                propertiesPanel.ShowImportError(entry, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Clears property and preview panels when no asset is selected.
+        /// </summary>
+        void HandleAssetSelectionCleared() {
+            propertiesPanel.ShowEmpty();
+            previewPanel.ClearPreview();
         }
 
         /// <summary>
@@ -420,6 +477,11 @@ namespace helengine.editor {
         void UpdatePreview(AssetBrowserEntry entry) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
+            }
+
+            if (!assetImportManager.IsTextureExtension(entry.Extension)) {
+                previewPanel.ClearPreview();
+                return;
             }
 
             TextureAsset texture;
@@ -537,16 +599,25 @@ namespace helengine.editor {
         /// Initializes asset import management and generates missing import settings.
         /// </summary>
         /// <param name="textureImporters">Texture importers to register.</param>
+        /// <param name="textImporters">Text importers to register.</param>
         /// <returns>Initialized asset import manager.</returns>
-        AssetImportManager InitializeAssetImports(IReadOnlyList<TextureImporterRegistration> textureImporters) {
+        AssetImportManager InitializeAssetImports(
+            IReadOnlyList<TextureImporterRegistration> textureImporters,
+            IReadOnlyList<TextImporterRegistration> textImporters) {
             if (textureImporters == null) {
                 throw new ArgumentNullException(nameof(textureImporters));
+            }
+            if (textImporters == null) {
+                throw new ArgumentNullException(nameof(textImporters));
             }
 
             string projectRootPath = ResolveProjectRootPath(projectPath);
             var manager = new AssetImportManager(projectRootPath);
             for (int i = 0; i < textureImporters.Count; i++) {
                 manager.RegisterTextureImporter(textureImporters[i]);
+            }
+            for (int i = 0; i < textImporters.Count; i++) {
+                manager.RegisterTextImporter(textImporters[i]);
             }
 
             manager.GenerateMissingImportSettings();
