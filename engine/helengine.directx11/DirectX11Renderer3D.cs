@@ -639,8 +639,15 @@ namespace helengine.directx11 {
             float4x4 size;
             float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
 
+            float4x4 rotationScale;
+            float4x4.Multiply(ref rotation, ref size, out rotationScale);
+
+            float3 position = parent.Position;
+            float4x4 translation;
+            float4x4.CreateTranslation(ref position, out translation);
+
             float4x4 world;
-            float4x4.Multiply(ref rotation, ref size, out world);
+            float4x4.Multiply(ref rotationScale, ref translation, out world);
 
             float4x4 worldViewProj;
             float4x4.Multiply(ref world, ref currentViewProjection, out worldViewProj);

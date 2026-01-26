@@ -176,6 +176,7 @@ namespace helengine.editor {
             assetBrowserPanel.AssetSelected += HandleAssetSelected;
             assetBrowserPanel.SelectionCleared += HandleAssetSelectionCleared;
             propertiesPanel.ImportSettingsApplyRequested += HandleImportSettingsApplyRequested;
+            EditorSelectionService.SelectionChanged += HandleSelectionChanged;
 
             sceneHierarchyPanel.Size = new int2(280, 600);
             assetBrowserPanel.Size = new int2(500, 240);
@@ -365,6 +366,7 @@ namespace helengine.editor {
             assetBrowserPanel.AssetSelected -= HandleAssetSelected;
             assetBrowserPanel.SelectionCleared -= HandleAssetSelectionCleared;
             propertiesPanel.ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested;
+            EditorSelectionService.SelectionChanged -= HandleSelectionChanged;
             shaderModuleManager.Dispose();
             loggerPanel.Detach();
             core.Dispose();
@@ -524,6 +526,22 @@ namespace helengine.editor {
         void HandleAssetSelectionCleared() {
             propertiesPanel.ShowEmpty();
             previewPanel.ClearPreview();
+        }
+
+        /// <summary>
+        /// Updates the properties panel when the selection changes.
+        /// </summary>
+        /// <param name="args">Selection change data.</param>
+        void HandleSelectionChanged(EditorSelectionChangedEventArgs args) {
+            if (args == null) {
+                throw new ArgumentNullException(nameof(args));
+            }
+
+            if (args.HasSelection) {
+                propertiesPanel.ShowEntityProperties(args.SelectedEntity);
+            } else {
+                propertiesPanel.ShowEmpty();
+            }
         }
 
         /// <summary>

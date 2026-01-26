@@ -11,6 +11,22 @@ namespace helengine.editor {
         /// Spacing between stacked text lines.
         /// </summary>
         const int LineSpacing = 6;
+        /// <summary>
+        /// Height of each transform row.
+        /// </summary>
+        const int TransformRowHeight = 24;
+        /// <summary>
+        /// Width reserved for transform labels.
+        /// </summary>
+        const int TransformLabelWidth = 96;
+        /// <summary>
+        /// Spacing between transform fields.
+        /// </summary>
+        const int TransformFieldSpacing = 6;
+        /// <summary>
+        /// Height of each transform input field.
+        /// </summary>
+        const int TransformFieldHeight = 22;
 
         /// <summary>
         /// Font used for property text.
@@ -61,6 +77,86 @@ namespace helengine.editor {
         /// </summary>
         readonly AssetImportSettingsView importSettingsView;
         /// <summary>
+        /// Root entity hosting transform editing controls.
+        /// </summary>
+        readonly EditorEntity TransformRoot;
+        /// <summary>
+        /// Row entity for position fields.
+        /// </summary>
+        readonly EditorEntity PositionRow;
+        /// <summary>
+        /// Row entity for rotation fields.
+        /// </summary>
+        readonly EditorEntity RotationRow;
+        /// <summary>
+        /// Row entity for scale fields.
+        /// </summary>
+        readonly EditorEntity ScaleRow;
+        /// <summary>
+        /// Label component for the position row.
+        /// </summary>
+        readonly TextComponent PositionLabel;
+        /// <summary>
+        /// Label component for the rotation row.
+        /// </summary>
+        readonly TextComponent RotationLabel;
+        /// <summary>
+        /// Label component for the scale row.
+        /// </summary>
+        readonly TextComponent ScaleLabel;
+        /// <summary>
+        /// Host entities for the position input fields.
+        /// </summary>
+        readonly EditorEntity[] PositionFieldHosts;
+        /// <summary>
+        /// Host entities for the rotation input fields.
+        /// </summary>
+        readonly EditorEntity[] RotationFieldHosts;
+        /// <summary>
+        /// Host entities for the scale input fields.
+        /// </summary>
+        readonly EditorEntity[] ScaleFieldHosts;
+        /// <summary>
+        /// Position input fields in X, Y, Z order.
+        /// </summary>
+        readonly TextBoxComponent[] PositionFields;
+        /// <summary>
+        /// Rotation input fields in X, Y, Z order (degrees).
+        /// </summary>
+        readonly TextBoxComponent[] RotationFields;
+        /// <summary>
+        /// Scale input fields in X, Y, Z order.
+        /// </summary>
+        readonly TextBoxComponent[] ScaleFields;
+        /// <summary>
+        /// Cached text values for position fields.
+        /// </summary>
+        readonly string[] PositionTextCache;
+        /// <summary>
+        /// Cached text values for rotation fields.
+        /// </summary>
+        readonly string[] RotationTextCache;
+        /// <summary>
+        /// Cached text values for scale fields.
+        /// </summary>
+        readonly string[] ScaleTextCache;
+        /// <summary>
+        /// Currently selected entity, if any.
+        /// </summary>
+        Entity SelectedEntity;
+        /// <summary>
+        /// True when transform controls should be visible.
+        /// </summary>
+        bool ShowTransformControls;
+        /// <summary>
+        /// True when text fields are being synchronized from the entity.
+        /// </summary>
+        bool IsSynchronizingInputs;
+        /// <summary>
+        /// True when a transform apply has been requested.
+        /// </summary>
+        bool ApplyTransformRequested;
+        /// <summary>
         /// Currently selected asset entry, if any.
         /// </summary>
         AssetBrowserEntry currentEntry;
@@ -108,6 +204,25 @@ namespace helengine.editor {
             importSettingsView.ApplyRequested += HandleImportSettingsApplyRequested;
             contentRoot.AddChild(importSettingsView.Root);
 
+            TransformRoot = new EditorEntity();
+            TransformRoot.LayerMask = LayerMask;
+            TransformRoot.Position = new float3(0, 0, 0.2f);
+            contentRoot.AddChild(TransformRoot);
+
+            CreateTransformRow("Position", out PositionRow, out PositionLabel, out PositionFieldHosts, out PositionFields);
+            CreateTransformRow("Rotation", out RotationRow, out RotationLabel, out RotationFieldHosts, out RotationFields);
+            CreateTransformRow("Scale", out ScaleRow, out ScaleLabel, out ScaleFieldHosts, out ScaleFields);
+
+            PositionTextCache = new string[3];
+            RotationTextCache = new string[3];
+            ScaleTextCache = new string[3];
+
+            HookTransformEvents(PositionFields);
+            HookTransformEvents(RotationFields);
+            HookTransformEvents(ScaleFields);
+
+            AddComponent(new PropertiesPanelUpdater(this));
+
             ShowEmpty();
             isInitialized = true;
         }
@@ -132,14 +247,9 @@ namespace helengine.editor {
             }
 
             currentEntry = entry;
-            headerText.Text = string.Empty;
-            pathText.Text = string.Empty;
-            importerText.Text = string.Empty;
-            checksumText.Text = string.Empty;
-            assetIdText.Text = string.Empty;
-            statusText.Text = string.Empty;
-
             importSettingsView.Show(importerIds, settings.ImporterId);
+            SetTransformVisible(false);
+            ApplyLines(Array.Empty<string>());
             LayoutLines();
         }
 
@@ -157,15 +267,14 @@ namespace helengine.editor {
                 throw new ArgumentException("Message must be provided.", nameof(message));
             }
 
-            headerText.Text = "Properties";
-            pathText.Text = $"Asset: {BuildAssetLabel(entry)}";
-            importerText.Text = string.Empty;
-            checksumText.Text = string.Empty;
-            assetIdText.Text = string.Empty;
-            statusText.Text = $"Status: {message}";
-
             currentEntry = null;
             importSettingsView.Hide();
+            SetTransformVisible(false);
+            ApplyLines(new[] {
+                "Properties",
+                $"Asset: {BuildAssetLabel(entry)}",
+                $"Status: {message}"
+            });
             LayoutLines();
         }
 
@@ -173,15 +282,28 @@ namespace helengine.editor {
         /// Resets the panel to its empty selection state.
         /// </summary>
         public void ShowEmpty() {
-            headerText.Text = string.Empty;
-            pathText.Text = string.Empty;
-            importerText.Text = string.Empty;
-            checksumText.Text = string.Empty;
-            assetIdText.Text = string.Empty;
-            statusText.Text = string.Empty;
+            currentEntry = null;
+            importSettingsView.Hide();
+            SetTransformVisible(false);
+            ApplyLines(Array.Empty<string>());
+            LayoutLines();
+        }
+
+        /// <summary>
+        /// Shows transform and component details for a selected entity.
+        /// </summary>
+        /// <param name="entity">Selected entity to display.</param>
+        public void ShowEntityProperties(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
 
             currentEntry = null;
             importSettingsView.Hide();
+            SelectedEntity = entity;
+            ApplyLines(Array.Empty<string>());
+            SyncTransformFields(entity);
+            SetTransformVisible(true);
             LayoutLines();
         }
 
@@ -221,6 +343,444 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Ensures enough text lines are available to display the requested count.
+        /// </summary>
+        /// <param name="count">Number of lines required.</param>
+        void EnsureLineCount(int count) {
+            if (count < 0) {
+                throw new ArgumentOutOfRangeException(nameof(count), "Line count must be non-negative.");
+            }
+
+            for (int i = lineTexts.Count; i < count; i++) {
+                AddLine();
+            }
+        }
+
+        /// <summary>
+        /// Applies the provided lines to the visible text rows.
+        /// </summary>
+        /// <param name="lines">Lines to display.</param>
+        void ApplyLines(IReadOnlyList<string> lines) {
+            if (lines == null) {
+                throw new ArgumentNullException(nameof(lines));
+            }
+
+            EnsureLineCount(lines.Count);
+
+            for (int i = 0; i < lineTexts.Count; i++) {
+                TextComponent text = lineTexts[i];
+                text.Text = i < lines.Count ? lines[i] ?? string.Empty : string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// Creates a transform row with a label and three axis inputs.
+        /// </summary>
+        /// <param name="label">Label text for the row.</param>
+        /// <param name="row">Created row entity.</param>
+        /// <param name="labelText">Label text component.</param>
+        /// <param name="fieldHosts">Axis host entities.</param>
+        /// <param name="fields">Axis text box components.</param>
+        void CreateTransformRow(
+            string label,
+            out EditorEntity row,
+            out TextComponent labelText,
+            out EditorEntity[] fieldHosts,
+            out TextBoxComponent[] fields) {
+            if (string.IsNullOrWhiteSpace(label)) {
+                throw new ArgumentException("Label must be provided.", nameof(label));
+            }
+
+            row = new EditorEntity();
+            row.LayerMask = LayerMask;
+            row.Position = float3.Zero;
+            TransformRoot.AddChild(row);
+
+            var labelHost = new EditorEntity();
+            labelHost.LayerMask = LayerMask;
+            labelHost.Position = float3.Zero;
+            row.AddChild(labelHost);
+
+            labelText = new TextComponent();
+            labelText.Font = font;
+            labelText.Text = label;
+            labelText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            labelText.Size = new int2(TransformLabelWidth, TransformFieldHeight);
+            labelText.RenderOrder2D = textOrder;
+            labelHost.AddComponent(labelText);
+
+            fieldHosts = new EditorEntity[3];
+            fields = new TextBoxComponent[3];
+            string[] placeholders = new[] { "X", "Y", "Z" };
+            for (int i = 0; i < fieldHosts.Length; i++) {
+                var fieldHost = new EditorEntity();
+                fieldHost.LayerMask = LayerMask;
+                fieldHost.Position = float3.Zero;
+                row.AddChild(fieldHost);
+
+                var field = new TextBoxComponent(new int2(60, TransformFieldHeight), font, placeholders[i]);
+                fieldHost.AddComponent(field);
+
+                fieldHosts[i] = fieldHost;
+                fields[i] = field;
+            }
+        }
+
+        /// <summary>
+        /// Sets whether transform controls are visible.
+        /// </summary>
+        /// <param name="visible">True to show transform controls.</param>
+        void SetTransformVisible(bool visible) {
+            ShowTransformControls = visible;
+            if (!visible) {
+                SelectedEntity = null;
+                ApplyTransformRequested = false;
+            }
+        }
+
+        /// <summary>
+        /// Updates layout for transform rows and fields.
+        /// </summary>
+        /// <param name="top">Top offset within the content root.</param>
+        /// <param name="maxWidth">Maximum available width.</param>
+        void UpdateTransformLayout(int top, int maxWidth) {
+            TransformRoot.Enabled = true;
+            TransformRoot.Position = new float3(0, top, 0.2f);
+
+            int labelWidth = Math.Min(TransformLabelWidth, maxWidth);
+            int availableFieldWidth = Math.Max(0, maxWidth - labelWidth - (TransformFieldSpacing * 2));
+            int fieldWidth = Math.Max(48, availableFieldWidth / 3);
+            int rowSpacing = LineSpacing + 2;
+
+            int rowTop = 0;
+            LayoutTransformRow(PositionRow, PositionLabel, PositionFieldHosts, PositionFields, labelWidth, fieldWidth, rowTop);
+            rowTop += TransformRowHeight + rowSpacing;
+            LayoutTransformRow(RotationRow, RotationLabel, RotationFieldHosts, RotationFields, labelWidth, fieldWidth, rowTop);
+            rowTop += TransformRowHeight + rowSpacing;
+            LayoutTransformRow(ScaleRow, ScaleLabel, ScaleFieldHosts, ScaleFields, labelWidth, fieldWidth, rowTop);
+        }
+
+        /// <summary>
+        /// Updates the layout for a single transform row.
+        /// </summary>
+        /// <param name="row">Row entity to layout.</param>
+        /// <param name="label">Label component for the row.</param>
+        /// <param name="fieldHosts">Field host entities.</param>
+        /// <param name="fields">Field text box components.</param>
+        /// <param name="labelWidth">Width of the label region.</param>
+        /// <param name="fieldWidth">Width of each field.</param>
+        /// <param name="top">Top offset within the transform root.</param>
+        void LayoutTransformRow(
+            EditorEntity row,
+            TextComponent label,
+            EditorEntity[] fieldHosts,
+            TextBoxComponent[] fields,
+            int labelWidth,
+            int fieldWidth,
+            int top) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (label == null) {
+                throw new ArgumentNullException(nameof(label));
+            }
+            if (fieldHosts == null) {
+                throw new ArgumentNullException(nameof(fieldHosts));
+            }
+            if (fields == null) {
+                throw new ArgumentNullException(nameof(fields));
+            }
+
+            row.Position = new float3(ContentPadding, top, 0.2f);
+            label.Size = new int2(labelWidth, TransformFieldHeight);
+
+            int labelYOffset = Math.Max(0, (TransformRowHeight - TransformFieldHeight) / 2);
+            if (label.Parent is EditorEntity labelHost) {
+                labelHost.Position = new float3(0, labelYOffset, 0.2f);
+            }
+
+            int fieldX = labelWidth + TransformFieldSpacing;
+            for (int i = 0; i < fieldHosts.Length; i++) {
+                EditorEntity host = fieldHosts[i];
+                host.Position = new float3(fieldX, labelYOffset, 0.2f);
+                if (i < fields.Length) {
+                    fields[i].Size = new int2(fieldWidth, TransformFieldHeight);
+                }
+                fieldX += fieldWidth + TransformFieldSpacing;
+            }
+        }
+
+        /// <summary>
+        /// Syncs transform field text with the selected entity.
+        /// </summary>
+        /// <param name="entity">Entity to read transform values from.</param>
+        void SyncTransformFields(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            IsSynchronizingInputs = true;
+            try {
+                float3 position = entity.Position;
+                float3 scale = entity.Scale;
+                double pitch;
+                double yaw;
+                double roll;
+                GetOrientationDegrees(entity.Orientation, out pitch, out yaw, out roll);
+
+                SetVectorFields(PositionFields, PositionTextCache, position.X, position.Y, position.Z);
+                SetVectorFields(RotationFields, RotationTextCache, pitch, yaw, roll);
+                SetVectorFields(ScaleFields, ScaleTextCache, scale.X, scale.Y, scale.Z);
+            } finally {
+                IsSynchronizingInputs = false;
+            }
+        }
+
+        /// <summary>
+        /// Writes vector values to text fields and caches.
+        /// </summary>
+        /// <param name="fields">Fields to update.</param>
+        /// <param name="cache">Cache to update.</param>
+        /// <param name="x">X value.</param>
+        /// <param name="y">Y value.</param>
+        /// <param name="z">Z value.</param>
+        void SetVectorFields(TextBoxComponent[] fields, string[] cache, double x, double y, double z) {
+            if (fields == null) {
+                throw new ArgumentNullException(nameof(fields));
+            }
+            if (cache == null) {
+                throw new ArgumentNullException(nameof(cache));
+            }
+            if (fields.Length < 3 || cache.Length < 3) {
+                throw new InvalidOperationException("Transform fields are not initialized.");
+            }
+
+            string xText = FormatDouble(x);
+            string yText = FormatDouble(y);
+            string zText = FormatDouble(z);
+
+            fields[0].Text = xText;
+            fields[1].Text = yText;
+            fields[2].Text = zText;
+
+            cache[0] = xText;
+            cache[1] = yText;
+            cache[2] = zText;
+        }
+
+        /// <summary>
+        /// Applies transform edits if input fields have changed.
+        /// </summary>
+        internal void UpdateTransformEdits() {
+            if (!ShowTransformControls || SelectedEntity == null) {
+                return;
+            }
+
+            if (IsSynchronizingInputs) {
+                return;
+            }
+
+            if (!ApplyTransformRequested) {
+                return;
+            }
+
+            ApplyTransformRequested = false;
+
+            bool positionChanged = CacheFieldText(PositionFields, PositionTextCache);
+            bool rotationChanged = CacheFieldText(RotationFields, RotationTextCache);
+            bool scaleChanged = CacheFieldText(ScaleFields, ScaleTextCache);
+
+            if (positionChanged) {
+                double x;
+                double y;
+                double z;
+                if (TryReadVector(PositionFields, out x, out y, out z)) {
+                    SelectedEntity.Position = new float3((float)x, (float)y, (float)z);
+                    SetVectorFields(PositionFields, PositionTextCache, x, y, z);
+                }
+            }
+
+            if (rotationChanged) {
+                double pitch;
+                double yaw;
+                double roll;
+                if (TryReadVector(RotationFields, out pitch, out yaw, out roll)) {
+                    float4 rotation;
+                    double yawRad = yaw * (Math.PI / 180.0);
+                    double pitchRad = pitch * (Math.PI / 180.0);
+                    double rollRad = roll * (Math.PI / 180.0);
+                    float4.CreateFromYawPitchRoll((float)yawRad, (float)pitchRad, (float)rollRad, out rotation);
+                    SelectedEntity.Orientation = rotation;
+                    SetVectorFields(RotationFields, RotationTextCache, pitch, yaw, roll);
+                }
+            }
+
+            if (scaleChanged) {
+                double x;
+                double y;
+                double z;
+                if (TryReadVector(ScaleFields, out x, out y, out z)) {
+                    SelectedEntity.Scale = new float3((float)x, (float)y, (float)z);
+                    SetVectorFields(ScaleFields, ScaleTextCache, x, y, z);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Hooks submit events for a set of transform fields.
+        /// </summary>
+        /// <param name="fields">Fields to subscribe to.</param>
+        void HookTransformEvents(TextBoxComponent[] fields) {
+            if (fields == null) {
+                throw new ArgumentNullException(nameof(fields));
+            }
+
+            for (int i = 0; i < fields.Length; i++) {
+                TextBoxComponent field = fields[i];
+                if (field == null) {
+                    continue;
+                }
+
+                field.Submitted += HandleTransformSubmitted;
+            }
+        }
+
+        /// <summary>
+        /// Marks the transform as needing validation and apply.
+        /// </summary>
+        /// <param name="field">Field that was submitted.</param>
+        void HandleTransformSubmitted(TextBoxComponent field) {
+            if (field == null) {
+                throw new ArgumentNullException(nameof(field));
+            }
+
+            ApplyTransformRequested = true;
+        }
+
+        /// <summary>
+        /// Caches field text and reports whether any value changed.
+        /// </summary>
+        /// <param name="fields">Text fields to inspect.</param>
+        /// <param name="cache">Cache to update.</param>
+        /// <returns>True when any field text changed.</returns>
+        bool CacheFieldText(TextBoxComponent[] fields, string[] cache) {
+            if (fields == null) {
+                throw new ArgumentNullException(nameof(fields));
+            }
+            if (cache == null) {
+                throw new ArgumentNullException(nameof(cache));
+            }
+            if (fields.Length < 3 || cache.Length < 3) {
+                throw new InvalidOperationException("Transform fields are not initialized.");
+            }
+
+            bool changed = false;
+            for (int i = 0; i < 3; i++) {
+                string text = fields[i].Text ?? string.Empty;
+                if (!string.Equals(cache[i], text, StringComparison.Ordinal)) {
+                    changed = true;
+                    cache[i] = text;
+                }
+            }
+
+            return changed;
+        }
+
+        /// <summary>
+        /// Reads a vector from three text fields.
+        /// </summary>
+        /// <param name="fields">Text fields to parse.</param>
+        /// <param name="x">Parsed X value.</param>
+        /// <param name="y">Parsed Y value.</param>
+        /// <param name="z">Parsed Z value.</param>
+        /// <returns>True when all fields parsed successfully.</returns>
+        bool TryReadVector(TextBoxComponent[] fields, out double x, out double y, out double z) {
+            x = 0;
+            y = 0;
+            z = 0;
+            if (fields == null) {
+                throw new ArgumentNullException(nameof(fields));
+            }
+            if (fields.Length < 3) {
+                throw new InvalidOperationException("Transform fields are not initialized.");
+            }
+
+            if (!TryReadNumber(fields[0].Text, out x)) {
+                return false;
+            }
+            if (!TryReadNumber(fields[1].Text, out y)) {
+                return false;
+            }
+            if (!TryReadNumber(fields[2].Text, out z)) {
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Parses a numeric string with invariant culture.
+        /// </summary>
+        /// <param name="text">Text to parse.</param>
+        /// <param name="value">Parsed value.</param>
+        /// <returns>True when parsing succeeds.</returns>
+        bool TryReadNumber(string text, out double value) {
+            if (string.IsNullOrWhiteSpace(text)) {
+                value = 0;
+                return false;
+            }
+
+            return double.TryParse(
+                text,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out value);
+        }
+
+        /// <summary>
+        /// Converts a quaternion to pitch/yaw/roll in degrees.
+        /// </summary>
+        /// <param name="orientation">Quaternion orientation.</param>
+        /// <param name="pitch">Pitch angle in degrees.</param>
+        /// <param name="yaw">Yaw angle in degrees.</param>
+        /// <param name="roll">Roll angle in degrees.</param>
+        void GetOrientationDegrees(float4 orientation, out double pitch, out double yaw, out double roll) {
+            double x = orientation.X;
+            double y = orientation.Y;
+            double z = orientation.Z;
+            double w = orientation.W;
+
+            double sinPitch = 2.0 * (w * x - y * z);
+            if (Math.Abs(sinPitch) >= 1.0) {
+                pitch = Math.CopySign(Math.PI / 2.0, sinPitch);
+            } else {
+                pitch = Math.Asin(sinPitch);
+            }
+
+            double sinYaw = 2.0 * (w * y + x * z);
+            double cosYaw = 1.0 - 2.0 * (x * x + y * y);
+            yaw = Math.Atan2(sinYaw, cosYaw);
+
+            double sinRoll = 2.0 * (w * z + x * y);
+            double cosRoll = 1.0 - 2.0 * (y * y + z * z);
+            roll = Math.Atan2(sinRoll, cosRoll);
+
+            pitch = pitch * (180.0 / Math.PI);
+            yaw = yaw * (180.0 / Math.PI);
+            roll = roll * (180.0 / Math.PI);
+        }
+
+        /// <summary>
+        /// Formats a double value for display.
+        /// </summary>
+        /// <param name="value">Value to format.</param>
+        /// <returns>Formatted string.</returns>
+        string FormatDouble(double value) {
+            return value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+
+        /// <summary>
         /// Updates line positions and sizes based on the current text content.
         /// </summary>
         void LayoutLines() {
@@ -246,6 +806,13 @@ namespace helengine.editor {
             if (importSettingsView.IsVisible) {
                 int viewTop = (int)Math.Round(offsetY);
                 importSettingsView.UpdateLayout(ContentPadding, viewTop, maxWidth);
+            }
+
+            if (ShowTransformControls) {
+                int transformTop = (int)Math.Round(offsetY);
+                UpdateTransformLayout(transformTop, maxWidth);
+            } else {
+                TransformRoot.Enabled = false;
             }
         }
 

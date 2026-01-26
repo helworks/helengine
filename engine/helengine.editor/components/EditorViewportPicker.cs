@@ -164,6 +164,7 @@ namespace helengine.editor {
 
             int pickId = ReadPickId(directX11Target);
             if (pickId == 0) {
+                EditorSelectionService.ClearSelection();
                 return;
             }
 
@@ -171,6 +172,9 @@ namespace helengine.editor {
                 string label = GetEntityLabel(entity);
                 Console.WriteLine($"[Picker] Picked entity: {label}");
                 Logger.WriteLine($"Picked entity: {label}");
+                EditorSelectionService.SetSelectedEntity(entity);
+            } else {
+                EditorSelectionService.ClearSelection();
             }
         }
 

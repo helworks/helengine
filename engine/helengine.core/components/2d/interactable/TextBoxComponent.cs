@@ -17,6 +17,16 @@ namespace helengine {
         RoundedRectComponent backgroundSprite;
         TextComponent textComponent;
         InteractableComponent interactableComponent;
+
+        /// <summary>
+        /// Raised when the text box submits its value.
+        /// </summary>
+        public event Action<TextBoxComponent> Submitted;
+
+        /// <summary>
+        /// Raised when the focus state changes.
+        /// </summary>
+        public event Action<TextBoxComponent, bool> FocusChanged;
         
         /// <summary>
         /// Gets or sets the text content.
@@ -87,6 +97,10 @@ namespace helengine {
                 }
                 cursorVisible = true;
                 UpdateTextDisplay();
+                FocusChanged?.Invoke(this, isFocused);
+                if (!isFocused) {
+                    Submitted?.Invoke(this);
+                }
             }
         }
 
@@ -223,6 +237,10 @@ namespace helengine {
                     cursorPosition = text.Length;
                     UpdateTextDisplay();
                     break;
+                case Keys.Enter:
+                    Submitted?.Invoke(this);
+                    IsFocused = false;
+                    break;
                     
                 default:
                     char character = KeyToChar(key, isShiftPressed);
@@ -322,6 +340,23 @@ namespace helengine {
                 focusedTextBox = null;
             }
         }
+
+        /// <summary>
+        /// Determines whether a pointer is inside the text box bounds.
+        /// </summary>
+        /// <param name="pointer">Pointer position in window coordinates.</param>
+        /// <returns>True when the pointer is inside the text box.</returns>
+        public bool ContainsPointer(int2 pointer) {
+            if (Parent == null) {
+                return false;
+            }
+
+            float3 worldPosition = Parent.Position;
+            return pointer.X >= worldPosition.X &&
+                   pointer.X < worldPosition.X + size.X &&
+                   pointer.Y >= worldPosition.Y &&
+                   pointer.Y < worldPosition.Y + size.Y;
+        }
     }
 
     /// <summary>
@@ -343,6 +378,20 @@ namespace helengine {
         /// </summary>
         public override void Update() {
             textBox.Update();
+
+            if (!textBox.IsFocused) {
+                return;
+            }
+
+            InputManager input = Core.Instance.InputManager;
+            if (!input.WasMouseLeftButtonPressed()) {
+                return;
+            }
+
+            int2 pointer = input.GetMousePosition();
+            if (!textBox.ContainsPointer(pointer)) {
+                textBox.IsFocused = false;
+            }
         }
     }
 }
