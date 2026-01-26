@@ -34,6 +34,8 @@ namespace helengine.directx11 {
 
             using (var vertexShaderByteCode = ShaderBytecode.CompileFromFile(shaderPath, vertexEntry, "vs_4_0")) {
                 VertexShader = new VertexShader(device, vertexShaderByteCode);
+                var signature = ShaderSignature.GetInputSignature(vertexShaderByteCode);
+                InputLayout = new InputLayout(device, signature, VertexPositionNormalUV.Elements);
             }
 
             using (var pixelShaderByteCode = ShaderBytecode.CompileFromFile(shaderPath, pixelEntry, "ps_4_0")) {
@@ -67,9 +69,15 @@ namespace helengine.directx11 {
         public PixelShader PixelShader { get; }
 
         /// <summary>
+        /// Gets the input layout built for the vertex shader.
+        /// </summary>
+        public InputLayout InputLayout { get; }
+
+        /// <summary>
         /// Releases the shader resources.
         /// </summary>
         public void Dispose() {
+            InputLayout.Dispose();
             PixelShader.Dispose();
             VertexShader.Dispose();
         }

@@ -100,8 +100,7 @@ namespace helengine.editor {
         /// <param name="input">Input manager instance.</param>
         /// <param name="renderWidth">Initial render width in pixels.</param>
         /// <param name="renderHeight">Initial render height in pixels.</param>
-        /// <param name="textureImporters">Texture importers to register for asset import settings.</param>
-        /// <param name="textImporters">Text importers to register for asset import settings.</param>
+        /// <param name="importers">Asset importers to register for import settings.</param>
         public EditorSession(
             EditorCore core,
             string projectPath,
@@ -112,8 +111,7 @@ namespace helengine.editor {
             InputManager input,
             int renderWidth,
             int renderHeight,
-            IReadOnlyList<TextureImporterRegistration> textureImporters,
-            IReadOnlyList<TextImporterRegistration> textImporters) {
+            IReadOnlyList<IAssetImporterRegistration> importers) {
             this.core = core;
             this.projectPath = ResolveProjectRootPath(projectPath);
             this.uiFont = uiFont;
@@ -121,7 +119,7 @@ namespace helengine.editor {
             core.Initialize(render3D, render2D, input);
             core.InputManager.SetKeyboardActive(true);
 
-            assetImportManager = InitializeAssetImports(textureImporters, textImporters);
+            assetImportManager = InitializeAssetImports(importers);
 
             uiCameraEntity = new EditorEntity();
             uiCameraEntity.InternalEntity = true;
@@ -377,6 +375,7 @@ namespace helengine.editor {
         /// </summary>
         void BuildStartScene() {
             Core coreInstance = helengine.Core.Instance;
+            RuntimeMaterial defaultMaterial = BuildDefaultMeshMaterial();
             EditorEntity cube = new EditorEntity();
             cube.LayerMask = 0b0100000000000000;
             MeshComponent mesh = new MeshComponent();
@@ -384,6 +383,7 @@ namespace helengine.editor {
             ModelAsset modelData = ModelUtils.GenerateCubeMesh(float3.Zero, float3.One);
             RuntimeModel renderData = coreInstance.RenderManager3D.BuildModelFromRaw(modelData);
             mesh.Model = renderData;
+            mesh.Material = defaultMaterial;
 
             EditorEntity plane = new EditorEntity();
             plane.LayerMask = 0b0100000000000000;
@@ -393,6 +393,60 @@ namespace helengine.editor {
             ModelAsset planeModelData = ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One);
             RuntimeModel planeRenderData = coreInstance.RenderManager3D.BuildModelFromRaw(planeModelData);
             planeMesh.Model = planeRenderData;
+            planeMesh.Material = defaultMaterial;
+        }
+
+        /// <summary>
+        /// Builds the default material used for starter 3D meshes.
+        /// </summary>
+        /// <returns>Runtime material instance.</returns>
+        RuntimeMaterial BuildDefaultMeshMaterial() {
+            string shaderPath = ResolveBuiltInShaderPath("MiniCube.fx");
+            string shaderDirectory = Path.GetDirectoryName(shaderPath);
+            if (string.IsNullOrWhiteSpace(shaderDirectory)) {
+                throw new InvalidOperationException("Built-in shader directory could not be resolved.");
+            }
+
+            string shaderName = Path.GetFileNameWithoutExtension(shaderPath);
+            if (string.IsNullOrWhiteSpace(shaderName)) {
+                throw new InvalidOperationException("Built-in shader name could not be resolved.");
+            }
+
+            var shaderBuilder = new helengine.directx11.DirectX11ShaderAssetBuilder(shaderDirectory, new ShaderModel(4, 0));
+            ShaderAsset shaderAsset = shaderBuilder.BuildFromFile(shaderPath, shaderName);
+
+            if (string.IsNullOrWhiteSpace(shaderAsset.Id)) {
+                throw new InvalidOperationException("Shader asset id must be provided.");
+            }
+
+            var materialAsset = new MaterialAsset {
+                Id = string.Concat(shaderName, ".material"),
+                ShaderAssetId = shaderAsset.Id,
+                VertexProgram = string.Concat(shaderName, ".vs"),
+                PixelProgram = string.Concat(shaderName, ".ps"),
+                Variant = "default"
+            };
+
+            return core.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+        }
+
+        /// <summary>
+        /// Resolves the absolute path to a built-in shader file.
+        /// </summary>
+        /// <param name="shaderFileName">Shader file name to resolve.</param>
+        /// <returns>Absolute shader path.</returns>
+        string ResolveBuiltInShaderPath(string shaderFileName) {
+            if (string.IsNullOrWhiteSpace(shaderFileName)) {
+                throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
+            }
+
+            string baseDirectory = AppContext.BaseDirectory;
+            if (string.IsNullOrWhiteSpace(baseDirectory)) {
+                throw new InvalidOperationException("Base directory could not be resolved.");
+            }
+
+            string shaderPath = Path.Combine(baseDirectory, "shaders", shaderFileName);
+            return Path.GetFullPath(shaderPath);
         }
 
         /// <summary>
@@ -598,26 +652,23 @@ namespace helengine.editor {
         /// <summary>
         /// Initializes asset import management and generates missing import settings.
         /// </summary>
-        /// <param name="textureImporters">Texture importers to register.</param>
-        /// <param name="textImporters">Text importers to register.</param>
+        /// <param name="importers">Asset importers to register.</param>
         /// <returns>Initialized asset import manager.</returns>
         AssetImportManager InitializeAssetImports(
-            IReadOnlyList<TextureImporterRegistration> textureImporters,
-            IReadOnlyList<TextImporterRegistration> textImporters) {
-            if (textureImporters == null) {
-                throw new ArgumentNullException(nameof(textureImporters));
-            }
-            if (textImporters == null) {
-                throw new ArgumentNullException(nameof(textImporters));
+            IReadOnlyList<IAssetImporterRegistration> importers) {
+            if (importers == null) {
+                throw new ArgumentNullException(nameof(importers));
             }
 
             string projectRootPath = ResolveProjectRootPath(projectPath);
             var manager = new AssetImportManager(projectRootPath);
-            for (int i = 0; i < textureImporters.Count; i++) {
-                manager.RegisterTextureImporter(textureImporters[i]);
-            }
-            for (int i = 0; i < textImporters.Count; i++) {
-                manager.RegisterTextImporter(textImporters[i]);
+            for (int i = 0; i < importers.Count; i++) {
+                IAssetImporterRegistration registration = importers[i];
+                if (registration == null) {
+                    throw new InvalidOperationException("Importer registrations must not be null.");
+                }
+
+                registration.Register(manager);
             }
 
             manager.GenerateMissingImportSettings();

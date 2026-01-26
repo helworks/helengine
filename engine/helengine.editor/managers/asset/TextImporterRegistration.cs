@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Describes a text importer registration with supported extensions.
     /// </summary>
-    public class TextImporterRegistration {
+    public class TextImporterRegistration : IAssetImporterRegistration {
         /// <summary>
         /// Identifier used to reference the importer in settings.
         /// </summary>
@@ -60,6 +60,18 @@ namespace helengine.editor {
         /// Gets the supported file extensions for this importer.
         /// </summary>
         public IReadOnlyList<string> Extensions => extensions;
+
+        /// <summary>
+        /// Registers the importer with an asset import manager.
+        /// </summary>
+        /// <param name="manager">Manager to register with.</param>
+        public void Register(AssetImportManager manager) {
+            if (manager == null) {
+                throw new ArgumentNullException(nameof(manager));
+            }
+
+            manager.RegisterTextImporter(this);
+        }
 
         /// <summary>
         /// Normalizes extension strings to include a leading dot and lowercase text.

@@ -11,6 +11,11 @@ namespace helengine {
         public RuntimeModel Model { get; set; }
 
         /// <summary>
+        /// Gets or sets the runtime material to use for rendering.
+        /// </summary>
+        public RuntimeMaterial Material { get; set; }
+
+        /// <summary>
         /// Gets or sets the render order for this mesh.
         /// </summary>
         public byte RenderOrder3D {

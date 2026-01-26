@@ -16,6 +16,9 @@ namespace helengine.directx11 {
     /// DirectX11-backed renderer responsible for 3D rendering and swap chain management.
     /// </summary>
     public class DirectX11Renderer3D : RenderManager3D, IRenderVisitor3D {
+        /// <summary>
+        /// Number of buffers used by each swap chain.
+        /// </summary>
         const int SwapChainBufferCount = 2;
         /// <summary>
         /// Default forward axis for cameras before rotation.
@@ -25,15 +28,39 @@ namespace helengine.directx11 {
         /// Default up axis for cameras before rotation.
         /// </summary>
         static readonly float3 DefaultUp = new float3(0f, 1f, 0f);
+        /// <summary>
+        /// Shader filename used for missing-material rendering.
+        /// </summary>
+        const string MissingMaterialShaderFileName = "MissingMaterial.fx";
 
+        /// <summary>
+        /// Tracks elapsed time for frame statistics.
+        /// </summary>
         Stopwatch frameStopwatch = Stopwatch.StartNew();
+        /// <summary>
+        /// Draw call count accumulated during the current frame.
+        /// </summary>
         int drawCallsThisFrame;
+        /// <summary>
+        /// Draw call count from the previous frame.
+        /// </summary>
         int lastDrawCalls;
+        /// <summary>
+        /// Frames per second measured on the previous frame.
+        /// </summary>
         double lastFps;
+        /// <summary>
+        /// Frame time in milliseconds measured on the previous frame.
+        /// </summary>
         double lastFrameTimeMs;
+        /// <summary>
+        /// Swapchain surfaces tracked by this renderer.
+        /// </summary>
         List<DirectX11SwapChainSurface> surfaces;
+        /// <summary>
+        /// Lookup of swapchain surfaces by native window handle.
+        /// </summary>
         Dictionary<IntPtr, DirectX11SwapChainSurface> surfacesByHandle;
-        InputLayout inputLayout;
         /// <summary>
         /// Constant buffer for standard world-view-projection transforms.
         /// </summary>
@@ -43,20 +70,33 @@ namespace helengine.directx11 {
         /// </summary>
         Buffer customPassConstantBuffer;
         /// <summary>
-        /// Standard 3D vertex shader.
+        /// Cache of compiled DirectX11 shader resources.
         /// </summary>
-        VertexShader vertexShader;
-        /// <summary>
-        /// Standard 3D pixel shader.
-        /// </summary>
-        PixelShader pixelShader;
+        Dictionary<string, DirectX11ShaderResource> ShaderResourceCache;
         /// <summary>
         /// Blend state for standard rendering.
         /// </summary>
         BlendState blendState;
+        /// <summary>
+        /// 2D renderer used for overlays and UI.
+        /// </summary>
         DirectX11Renderer2D renderer2D;
+        /// <summary>
+        /// Rasterizer state used for 3D rendering.
+        /// </summary>
         RasterizerState rasterizerState3D;
+        /// <summary>
+        /// Depth-stencil state used for 3D rendering.
+        /// </summary>
         DepthStencilState depthStencilState3D;
+        /// <summary>
+        /// Tracks the active material for the current pass.
+        /// </summary>
+        DirectX11MaterialResource ActiveMaterial;
+        /// <summary>
+        /// Stores the fallback material used when a drawable has no material.
+        /// </summary>
+        DirectX11MaterialResource MissingMaterial;
         /// <summary>
         /// Tracks whether the current pass is a custom shader render.
         /// </summary>
@@ -94,6 +134,7 @@ namespace helengine.directx11 {
             surfacesByHandle = new Dictionary<IntPtr, DirectX11SwapChainSurface>();
             customPassRequests = new Dictionary<ICamera, DirectX11CustomPassRequest>();
             shaderPassCache = new Dictionary<string, DirectX11ShaderPass>(StringComparer.Ordinal);
+            ShaderResourceCache = new Dictionary<string, DirectX11ShaderResource>(StringComparer.Ordinal);
 
             WindowResized += OnWindowResized;
 
@@ -111,16 +152,6 @@ namespace helengine.directx11 {
                 FeatureLevel.Level_9_2,
                 FeatureLevel.Level_9_1,
             });
-
-            using (var vertexShaderByteCode = ShaderBytecode.CompileFromFile("shaders\\MiniCube.fx", "VS", "vs_4_0")) {
-                vertexShader = new VertexShader(Device, vertexShaderByteCode);
-                var signature = ShaderSignature.GetInputSignature(vertexShaderByteCode);
-                inputLayout = new InputLayout(Device, signature, VertexPositionNormalUV.Elements);
-            }
-
-            using (var pixelShaderByteCode = ShaderBytecode.CompileFromFile("shaders\\MiniCube.fx", "PS", "ps_4_0")) {
-                pixelShader = new PixelShader(Device, pixelShaderByteCode);
-            }
 
             constantBuffer = new Buffer(Device, Utilities.SizeOf<float4x4>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
@@ -196,9 +227,8 @@ namespace helengine.directx11 {
             blendState?.Dispose();
             customPassConstantBuffer?.Dispose();
             constantBuffer?.Dispose();
-            inputLayout?.Dispose();
-            pixelShader?.Dispose();
-            vertexShader?.Dispose();
+            DisposeMissingMaterial();
+            DisposeShaderResourceCache();
             DisposeShaderPassCache();
             Device?.Dispose();
             Adapter?.Dispose();
@@ -327,6 +357,33 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
+        /// Builds a runtime material from raw asset data and a shader asset.
+        /// </summary>
+        /// <param name="materialAsset">Raw material asset definition.</param>
+        /// <param name="shaderAsset">Shader asset used by the material.</param>
+        /// <returns>Runtime material instance.</returns>
+        public override RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+
+            if (shaderAsset == null) {
+                throw new ArgumentNullException(nameof(shaderAsset));
+            }
+
+            if (string.IsNullOrWhiteSpace(materialAsset.ShaderAssetId)) {
+                throw new InvalidOperationException("Material assets must reference a shader asset id.");
+            }
+
+            if (!string.Equals(materialAsset.ShaderAssetId, shaderAsset.Id, StringComparison.Ordinal)) {
+                throw new InvalidOperationException("Material asset shader id does not match the provided shader asset.");
+            }
+
+            DirectX11ShaderResource shaderResource = GetShaderResource(materialAsset, shaderAsset);
+            return new DirectX11MaterialResource(shaderResource);
+        }
+
+        /// <summary>
         /// Creates a DirectX11 render target suitable for camera output.
         /// </summary>
         /// <param name="width">Width of the render target in pixels.</param>
@@ -407,7 +464,7 @@ namespace helengine.directx11 {
             DirectX11ShaderPass shaderPass = GetShaderPass(request.ShaderPath, request.VertexEntry, request.PixelEntry);
 
             var context = Device.ImmediateContext;
-            context.InputAssembler.InputLayout = inputLayout;
+            context.InputAssembler.InputLayout = shaderPass.InputLayout;
             context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             context.Rasterizer.State = rasterizerState3D;
             context.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
@@ -533,9 +590,8 @@ namespace helengine.directx11 {
             context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             isCustomPassActive = false;
             customColorProvider = null;
+            ActiveMaterial = null;
             context.OutputMerger.SetBlendState(blendState);
-            context.VertexShader.Set(vertexShader);
-            context.PixelShader.Set(pixelShader);
             context.VertexShader.SetConstantBuffer(0, constantBuffer);
 
             IRenderQueue3D renderQueue = camera.RenderQueue3D;
@@ -554,6 +610,19 @@ namespace helengine.directx11 {
             }
 
             var context = Device.ImmediateContext;
+            if (!isCustomPassActive) {
+                RuntimeMaterial material = drawable.Material;
+                if (material == null) {
+                    ApplyMaterial(GetMissingMaterial());
+                } else {
+                    if (material is not DirectX11MaterialResource directX11Material) {
+                        throw new InvalidOperationException("Drawable materials must use DirectX11MaterialResource when rendering with DirectX11.");
+                    }
+
+                    ApplyMaterial(directX11Material);
+                }
+            }
+
             Entity parent = drawable.Parent;
             var data = (DirectX11ModelResource)drawable.Model;
 
@@ -631,7 +700,6 @@ namespace helengine.directx11 {
             UpdateFrameStats();
 
             var context = Device.ImmediateContext;
-            context.InputAssembler.InputLayout = inputLayout;
 
             RenderCustomPasses();
 
@@ -690,6 +758,256 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
+        /// Applies a material to the DirectX11 pipeline if it is not already active.
+        /// </summary>
+        /// <param name="material">Material to apply.</param>
+        void ApplyMaterial(DirectX11MaterialResource material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            if (ReferenceEquals(ActiveMaterial, material)) {
+                return;
+            }
+
+            DirectX11ShaderResource shaderResource = material.ShaderResource;
+            var context = Device.ImmediateContext;
+            context.InputAssembler.InputLayout = shaderResource.InputLayout;
+            context.VertexShader.Set(shaderResource.VertexShader);
+            context.PixelShader.Set(shaderResource.PixelShader);
+            ActiveMaterial = material;
+        }
+
+        /// <summary>
+        /// Gets the fallback material used for drawables without materials.
+        /// </summary>
+        /// <returns>Missing-material runtime material.</returns>
+        DirectX11MaterialResource GetMissingMaterial() {
+            if (MissingMaterial != null) {
+                return MissingMaterial;
+            }
+
+            DirectX11ShaderResource shaderResource = BuildMissingMaterialShaderResource();
+            MissingMaterial = new DirectX11MaterialResource(shaderResource);
+            return MissingMaterial;
+        }
+
+        /// <summary>
+        /// Builds the shader resource used for missing-material rendering.
+        /// </summary>
+        /// <returns>Compiled shader resource.</returns>
+        DirectX11ShaderResource BuildMissingMaterialShaderResource() {
+            string shaderPath = ResolveBuiltInShaderPath(MissingMaterialShaderFileName);
+            if (!File.Exists(shaderPath)) {
+                throw new FileNotFoundException("Missing-material shader was not found.", shaderPath);
+            }
+
+            byte[] vertexBytecode = CompileShaderBytecode(shaderPath, DefaultCustomVertexEntry, "vs_4_0");
+            byte[] pixelBytecode = CompileShaderBytecode(shaderPath, DefaultCustomPixelEntry, "ps_4_0");
+
+            string shaderName = Path.GetFileNameWithoutExtension(shaderPath);
+            if (string.IsNullOrWhiteSpace(shaderName)) {
+                throw new InvalidOperationException("Missing-material shader name could not be resolved.");
+            }
+
+            return new DirectX11ShaderResource(
+                Device,
+                vertexBytecode,
+                pixelBytecode,
+                VertexPositionNormalUV.Elements,
+                string.Concat(shaderName, ".vs"),
+                string.Concat(shaderName, ".ps"),
+                "default");
+        }
+
+        /// <summary>
+        /// Compiles HLSL source into shader bytecode.
+        /// </summary>
+        /// <param name="shaderPath">Path to the HLSL shader file.</param>
+        /// <param name="entryPoint">Entry point to compile.</param>
+        /// <param name="profile">Shader profile to target.</param>
+        /// <returns>Compiled shader bytecode.</returns>
+        byte[] CompileShaderBytecode(string shaderPath, string entryPoint, string profile) {
+            if (string.IsNullOrWhiteSpace(shaderPath)) {
+                throw new ArgumentException("Shader path must be provided.", nameof(shaderPath));
+            }
+
+            if (string.IsNullOrWhiteSpace(entryPoint)) {
+                throw new ArgumentException("Shader entry point must be provided.", nameof(entryPoint));
+            }
+
+            if (string.IsNullOrWhiteSpace(profile)) {
+                throw new ArgumentException("Shader profile must be provided.", nameof(profile));
+            }
+
+            using (CompilationResult result = ShaderBytecode.CompileFromFile(shaderPath, entryPoint, profile)) {
+                if (result == null) {
+                    throw new InvalidOperationException("Shader compilation produced no result.");
+                }
+
+                if (result.HasErrors) {
+                    throw new InvalidOperationException($"Shader compilation failed: {result.Message}");
+                }
+
+                if (result.Bytecode == null) {
+                    throw new InvalidOperationException("Shader compilation produced no bytecode.");
+                }
+
+                return result.Bytecode.Data;
+            }
+        }
+
+        /// <summary>
+        /// Resolves the absolute path to a built-in shader file.
+        /// </summary>
+        /// <param name="shaderFileName">Shader file name to resolve.</param>
+        /// <returns>Absolute shader path.</returns>
+        string ResolveBuiltInShaderPath(string shaderFileName) {
+            if (string.IsNullOrWhiteSpace(shaderFileName)) {
+                throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
+            }
+
+            string baseDirectory = AppContext.BaseDirectory;
+            if (string.IsNullOrWhiteSpace(baseDirectory)) {
+                throw new InvalidOperationException("Base directory could not be resolved.");
+            }
+
+            string shaderPath = Path.Combine(baseDirectory, "shaders", shaderFileName);
+            return Path.GetFullPath(shaderPath);
+        }
+
+        /// <summary>
+        /// Releases resources owned by the missing-material fallback.
+        /// </summary>
+        void DisposeMissingMaterial() {
+            if (MissingMaterial == null) {
+                return;
+            }
+
+            MissingMaterial.ShaderResource.Dispose();
+            MissingMaterial = null;
+        }
+
+        /// <summary>
+        /// Retrieves a shader resource for the requested material and shader assets.
+        /// </summary>
+        /// <param name="materialAsset">Material asset that defines program selections.</param>
+        /// <param name="shaderAsset">Shader asset containing compiled binaries.</param>
+        /// <returns>Compiled DirectX11 shader resource.</returns>
+        DirectX11ShaderResource GetShaderResource(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+
+            if (shaderAsset == null) {
+                throw new ArgumentNullException(nameof(shaderAsset));
+            }
+
+            if (string.IsNullOrWhiteSpace(materialAsset.VertexProgram)) {
+                throw new InvalidOperationException("Material assets must define a vertex program name.");
+            }
+
+            if (string.IsNullOrWhiteSpace(materialAsset.PixelProgram)) {
+                throw new InvalidOperationException("Material assets must define a pixel program name.");
+            }
+
+            if (string.IsNullOrWhiteSpace(materialAsset.Variant)) {
+                throw new InvalidOperationException("Material assets must define a shader variant.");
+            }
+
+            if (shaderAsset.Binaries == null || shaderAsset.Binaries.Length == 0) {
+                throw new InvalidOperationException("Shader assets must include compiled binaries.");
+            }
+
+            string targetName = ShaderTargetNames.GetTargetName(ShaderCompileTarget.DirectX11);
+            if (!string.Equals(shaderAsset.TargetName, targetName, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException("Shader asset target does not match the DirectX11 renderer.");
+            }
+
+            string cacheKey = GetShaderResourceCacheKey(
+                shaderAsset.Id,
+                materialAsset.VertexProgram,
+                materialAsset.PixelProgram,
+                materialAsset.Variant);
+            if (ShaderResourceCache.TryGetValue(cacheKey, out DirectX11ShaderResource cachedResource)) {
+                return cachedResource;
+            }
+
+            ShaderBinaryAsset vertexBinary = GetShaderBinary(shaderAsset, materialAsset.VertexProgram, ShaderStage.Vertex, materialAsset.Variant);
+            ShaderBinaryAsset pixelBinary = GetShaderBinary(shaderAsset, materialAsset.PixelProgram, ShaderStage.Pixel, materialAsset.Variant);
+
+            var shaderResource = new DirectX11ShaderResource(
+                Device,
+                vertexBinary.Bytecode,
+                pixelBinary.Bytecode,
+                VertexPositionNormalUV.Elements,
+                materialAsset.VertexProgram,
+                materialAsset.PixelProgram,
+                materialAsset.Variant);
+
+            ShaderResourceCache[cacheKey] = shaderResource;
+            return shaderResource;
+        }
+
+        /// <summary>
+        /// Locates a shader binary entry for the requested program, stage, and variant.
+        /// </summary>
+        /// <param name="shaderAsset">Shader asset containing binary data.</param>
+        /// <param name="programName">Program name to locate.</param>
+        /// <param name="stage">Shader stage to locate.</param>
+        /// <param name="variant">Variant name to locate.</param>
+        /// <returns>Matching shader binary asset.</returns>
+        ShaderBinaryAsset GetShaderBinary(ShaderAsset shaderAsset, string programName, ShaderStage stage, string variant) {
+            ShaderBinaryAsset[] binaries = shaderAsset.Binaries;
+            for (int i = 0; i < binaries.Length; i++) {
+                ShaderBinaryAsset binary = binaries[i];
+                if (binary == null) {
+                    continue;
+                }
+
+                if (!string.Equals(binary.TargetName, shaderAsset.TargetName, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                if (!string.Equals(binary.ProgramName, programName, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                if (binary.Stage != stage) {
+                    continue;
+                }
+
+                if (!string.Equals(binary.Variant, variant, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                if (binary.Bytecode == null || binary.Bytecode.Length == 0) {
+                    throw new InvalidOperationException("Shader binary does not include bytecode.");
+                }
+
+                return binary;
+            }
+
+            throw new InvalidOperationException("Shader binary was not found for the requested program.");
+        }
+
+        /// <summary>
+        /// Builds a cache key for a compiled shader resource.
+        /// </summary>
+        /// <param name="shaderAssetId">Shader asset identifier.</param>
+        /// <param name="vertexProgram">Vertex program name.</param>
+        /// <param name="pixelProgram">Pixel program name.</param>
+        /// <param name="variant">Variant name.</param>
+        /// <returns>Composite cache key.</returns>
+        string GetShaderResourceCacheKey(string shaderAssetId, string vertexProgram, string pixelProgram, string variant) {
+            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
+                throw new InvalidOperationException("Shader asset id must be provided.");
+            }
+
+            return string.Concat(shaderAssetId, "|", vertexProgram, "|", pixelProgram, "|", variant);
+        }
+
+        /// <summary>
         /// Retrieves a compiled shader pass from the cache or builds a new one.
         /// </summary>
         /// <param name="shaderPath">Path to the shader source file.</param>
@@ -737,6 +1055,17 @@ namespace helengine.directx11 {
             }
 
             shaderPassCache.Clear();
+        }
+
+        /// <summary>
+        /// Disposes and clears cached shader resources.
+        /// </summary>
+        void DisposeShaderResourceCache() {
+            foreach (var shaderResource in ShaderResourceCache.Values) {
+                shaderResource.Dispose();
+            }
+
+            ShaderResourceCache.Clear();
         }
     }
 }

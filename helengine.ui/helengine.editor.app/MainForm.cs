@@ -116,7 +116,7 @@ namespace helengine.editor.app {
             renderer3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
             FontAsset uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
-            IReadOnlyList<TextureImporterRegistration> textureImporters = BuildTextureImporters();
+            IReadOnlyList<IAssetImporterRegistration> importers = BuildImporters();
             editorSession = new EditorSession(
                 core,
                 projectPath,
@@ -127,7 +127,7 @@ namespace helengine.editor.app {
                 inputManager,
                 renderWidth,
                 renderHeight,
-                textureImporters);
+                importers);
 
             TitleBarWindowAdapter.Attach(editorSession.TitleBar, this);
             SetWindowTitle(titleText);
@@ -170,13 +170,15 @@ namespace helengine.editor.app {
         }
 
         /// <summary>
-        /// Builds the default texture importer registrations for the editor.
+        /// Builds the default asset importer registrations for the editor.
         /// </summary>
         /// <returns>Importer registrations used for asset import settings.</returns>
-        IReadOnlyList<TextureImporterRegistration> BuildTextureImporters() {
-            string[] extensions = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif" };
-            var registrations = new TextureImporterRegistration[] {
-                new TextureImporterRegistration("gdi", new GDITextureImporter(), extensions)
+        IReadOnlyList<IAssetImporterRegistration> BuildImporters() {
+            string[] textureExtensions = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif" };
+            string[] textExtensions = new[] { ".txt" };
+            var registrations = new IAssetImporterRegistration[] {
+                new TextureImporterRegistration("gdi", new GDITextureImporter(), textureExtensions),
+                new TextImporterRegistration("text", new TextImporter(), textExtensions)
             };
             return registrations;
         }

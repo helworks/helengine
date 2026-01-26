@@ -17,5 +17,10 @@ namespace helengine {
         /// Gets the runtime model associated with this drawable.
         /// </summary>
         RuntimeModel Model { get; }
+
+        /// <summary>
+        /// Gets or sets the runtime material used to render this drawable.
+        /// </summary>
+        RuntimeMaterial Material { get; set; }
     }
 }

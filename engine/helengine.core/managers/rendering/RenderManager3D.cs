@@ -47,6 +47,16 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Builds a runtime material from raw asset data and an associated shader asset.
+        /// </summary>
+        /// <param name="materialAsset">Raw material asset definition.</param>
+        /// <param name="shaderAsset">Shader asset used by the material.</param>
+        /// <returns>Runtime material instance.</returns>
+        public virtual RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
+            throw new NotSupportedException("This renderer does not support material creation.");
+        }
+
+        /// <summary>
         /// Performs per-frame update for 3D rendering systems.
         /// </summary>
         public virtual void Update() { }
