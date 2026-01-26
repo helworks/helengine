@@ -377,6 +377,7 @@ namespace helengine.editor {
             Core coreInstance = helengine.Core.Instance;
             RuntimeMaterial defaultMaterial = BuildDefaultMeshMaterial();
             EditorEntity cube = new EditorEntity();
+            cube.Name = "Cube";
             cube.LayerMask = 0b0100000000000000;
             MeshComponent mesh = new MeshComponent();
             cube.AddComponent(mesh);
@@ -386,6 +387,7 @@ namespace helengine.editor {
             mesh.Material = defaultMaterial;
 
             EditorEntity plane = new EditorEntity();
+            plane.Name = "Ground";
             plane.LayerMask = 0b0100000000000000;
             plane.Scale = new float3(10, 1, 10);
             MeshComponent planeMesh = new MeshComponent();
