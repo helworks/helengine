@@ -8,6 +8,18 @@ namespace helengine {
         int2 size;
         Action onClickAction;
         readonly float borderThickness;
+        /// <summary>
+        /// Tracks whether custom render orders were supplied for the button visuals.
+        /// </summary>
+        bool HasRenderOrderOverrides;
+        /// <summary>
+        /// Render order override for the rounded rectangle background.
+        /// </summary>
+        byte BackgroundRenderOrder;
+        /// <summary>
+        /// Render order override for the button label text.
+        /// </summary>
+        byte TextRenderOrder;
 
         // Child entities and components
         Entity textEntity;
@@ -42,6 +54,25 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Overrides the render order used for the button background and label.
+        /// </summary>
+        /// <param name="backgroundOrder">Render order for the rounded rectangle background.</param>
+        /// <param name="textOrder">Render order for the label text.</param>
+        public void SetRenderOrders(byte backgroundOrder, byte textOrder) {
+            HasRenderOrderOverrides = true;
+            BackgroundRenderOrder = backgroundOrder;
+            TextRenderOrder = textOrder;
+
+            if (roundedRect != null) {
+                roundedRect.RenderOrder2D = backgroundOrder;
+            }
+
+            if (textComponent != null) {
+                textComponent.RenderOrder2D = textOrder;
+            }
+        }
+
+        /// <summary>
         /// Creates child components and sets up interactivity when added to an enabled entity.
         /// </summary>
         /// <param name="entity">Owning entity.</param>
@@ -52,6 +83,10 @@ namespace helengine {
 
             byte backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
             byte textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
+            if (HasRenderOrderOverrides) {
+                backgroundOrder = BackgroundRenderOrder;
+                textOrder = TextRenderOrder;
+            }
 
             // Create rounded rectangle background
             roundedRect = new RoundedRectComponent();

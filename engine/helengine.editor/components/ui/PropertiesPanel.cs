@@ -89,6 +89,22 @@ namespace helengine.editor {
         /// </summary>
         readonly ComponentPropertiesView ComponentView;
         /// <summary>
+        /// Row entity for the entity name field.
+        /// </summary>
+        readonly EditorEntity NameRow;
+        /// <summary>
+        /// Label component for the name row.
+        /// </summary>
+        readonly TextComponent NameLabel;
+        /// <summary>
+        /// Host entity for the name input field.
+        /// </summary>
+        readonly EditorEntity NameFieldHost;
+        /// <summary>
+        /// Text box used to edit the entity name.
+        /// </summary>
+        readonly TextBoxComponent NameField;
+        /// <summary>
         /// Row entity for position fields.
         /// </summary>
         readonly EditorEntity PositionRow;
@@ -148,6 +164,10 @@ namespace helengine.editor {
         /// Cached text values for scale fields.
         /// </summary>
         readonly string[] ScaleTextCache;
+        /// <summary>
+        /// Cached text value for the name field.
+        /// </summary>
+        string NameTextCache;
         /// <summary>
         /// Currently selected entity, if any.
         /// </summary>
@@ -220,6 +240,7 @@ namespace helengine.editor {
             ComponentView = new ComponentPropertiesView(font);
             contentRoot.AddChild(ComponentView.Root);
 
+            CreateNameRow(out NameRow, out NameLabel, out NameFieldHost, out NameField);
             CreateTransformRow("Position", out PositionRow, out PositionLabel, out PositionFieldHosts, out PositionFields);
             CreateTransformRow("Rotation", out RotationRow, out RotationLabel, out RotationFieldHosts, out RotationFields);
             CreateTransformRow("Scale", out ScaleRow, out ScaleLabel, out ScaleFieldHosts, out ScaleFields);
@@ -227,7 +248,9 @@ namespace helengine.editor {
             PositionTextCache = new string[3];
             RotationTextCache = new string[3];
             ScaleTextCache = new string[3];
+            NameTextCache = string.Empty;
 
+            HookNameEvents(NameField);
             HookTransformEvents(PositionFields);
             HookTransformEvents(RotationFields);
             HookTransformEvents(ScaleFields);
@@ -442,6 +465,45 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates a single-line name row with a label and text input.
+        /// </summary>
+        /// <param name="row">Created row entity.</param>
+        /// <param name="labelText">Label text component.</param>
+        /// <param name="fieldHost">Host entity for the text field.</param>
+        /// <param name="field">Text field component.</param>
+        void CreateNameRow(
+            out EditorEntity row,
+            out TextComponent labelText,
+            out EditorEntity fieldHost,
+            out TextBoxComponent field) {
+            row = new EditorEntity();
+            row.LayerMask = LayerMask;
+            row.Position = float3.Zero;
+            TransformRoot.AddChild(row);
+
+            var labelHost = new EditorEntity();
+            labelHost.LayerMask = LayerMask;
+            labelHost.Position = float3.Zero;
+            row.AddChild(labelHost);
+
+            labelText = new TextComponent();
+            labelText.Font = font;
+            labelText.Text = "Name";
+            labelText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            labelText.Size = new int2(TransformLabelWidth, TransformFieldHeight);
+            labelText.RenderOrder2D = textOrder;
+            labelHost.AddComponent(labelText);
+
+            fieldHost = new EditorEntity();
+            fieldHost.LayerMask = LayerMask;
+            fieldHost.Position = float3.Zero;
+            row.AddChild(fieldHost);
+
+            field = new TextBoxComponent(new int2(120, TransformFieldHeight), font);
+            fieldHost.AddComponent(field);
+        }
+
+        /// <summary>
         /// Sets whether transform controls are visible.
         /// </summary>
         /// <param name="visible">True to show transform controls.</param>
@@ -463,11 +525,14 @@ namespace helengine.editor {
             TransformRoot.Position = new float3(0, top, 0.2f);
 
             int labelWidth = Math.Min(TransformLabelWidth, maxWidth);
+            int nameFieldWidth = Math.Max(48, maxWidth - labelWidth - TransformFieldSpacing);
             int availableFieldWidth = Math.Max(0, maxWidth - labelWidth - (TransformFieldSpacing * 2));
             int fieldWidth = Math.Max(48, availableFieldWidth / 3);
             int rowSpacing = LineSpacing + 2;
 
             int rowTop = 0;
+            LayoutNameRow(labelWidth, nameFieldWidth, rowTop);
+            rowTop += TransformRowHeight + rowSpacing;
             LayoutTransformRow(PositionRow, PositionLabel, PositionFieldHosts, PositionFields, labelWidth, fieldWidth, rowTop);
             rowTop += TransformRowHeight + rowSpacing;
             LayoutTransformRow(RotationRow, RotationLabel, RotationFieldHosts, RotationFields, labelWidth, fieldWidth, rowTop);
@@ -526,7 +591,26 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Syncs transform field text with the selected entity.
+        /// Updates layout for the name row label and field.
+        /// </summary>
+        /// <param name="labelWidth">Width of the label region.</param>
+        /// <param name="fieldWidth">Width of the name field.</param>
+        /// <param name="top">Top offset within the transform root.</param>
+        void LayoutNameRow(int labelWidth, int fieldWidth, int top) {
+            NameRow.Position = new float3(ContentPadding, top, 0.2f);
+            NameLabel.Size = new int2(labelWidth, TransformFieldHeight);
+
+            int labelYOffset = Math.Max(0, (TransformRowHeight - TransformFieldHeight) / 2);
+            if (NameLabel.Parent is EditorEntity labelHost) {
+                labelHost.Position = new float3(0, labelYOffset, 0.2f);
+            }
+
+            NameFieldHost.Position = new float3(labelWidth + TransformFieldSpacing, labelYOffset, 0.2f);
+            NameField.Size = new int2(fieldWidth, TransformFieldHeight);
+        }
+
+        /// <summary>
+        /// Syncs the name and transform field text with the selected entity.
         /// </summary>
         /// <param name="entity">Entity to read transform values from.</param>
         void SyncTransformFields(Entity entity) {
@@ -536,6 +620,7 @@ namespace helengine.editor {
 
             IsSynchronizingInputs = true;
             try {
+                SyncNameField(entity);
                 float3 position = entity.Position;
                 float3 scale = entity.Scale;
                 double pitch;
@@ -549,6 +634,29 @@ namespace helengine.editor {
             } finally {
                 IsSynchronizingInputs = false;
             }
+        }
+
+        /// <summary>
+        /// Syncs the name field text with the selected entity.
+        /// </summary>
+        /// <param name="entity">Entity to read the name from.</param>
+        void SyncNameField(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            string nameText;
+            if (entity is EditorEntity editorEntity) {
+                nameText = editorEntity.Name;
+                if (nameText == null) {
+                    throw new InvalidOperationException("Entity name was not initialized.");
+                }
+            } else {
+                nameText = entity.GetType().Name;
+            }
+
+            NameField.Text = nameText;
+            NameTextCache = nameText;
         }
 
         /// <summary>
@@ -601,9 +709,24 @@ namespace helengine.editor {
 
             ApplyTransformRequested = false;
 
+            bool nameChanged = CacheFieldText(NameField, ref NameTextCache);
             bool positionChanged = CacheFieldText(PositionFields, PositionTextCache);
             bool rotationChanged = CacheFieldText(RotationFields, RotationTextCache);
             bool scaleChanged = CacheFieldText(ScaleFields, ScaleTextCache);
+
+            if (nameChanged) {
+                if (SelectedEntity is EditorEntity editorEntity) {
+                    string text = NameField.Text;
+                    if (text == null) {
+                        throw new InvalidOperationException("Name field text was not initialized.");
+                    }
+
+                    editorEntity.Name = text;
+                    NameTextCache = text;
+                } else {
+                    SyncNameField(SelectedEntity);
+                }
+            }
 
             if (positionChanged) {
                 double x;
@@ -661,6 +784,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Hooks submit events for the name field.
+        /// </summary>
+        /// <param name="field">Name field to subscribe to.</param>
+        void HookNameEvents(TextBoxComponent field) {
+            if (field == null) {
+                throw new ArgumentNullException(nameof(field));
+            }
+
+            field.Submitted += HandleTransformSubmitted;
+        }
+
+        /// <summary>
         /// Marks the transform as needing validation and apply.
         /// </summary>
         /// <param name="field">Field that was submitted.</param>
@@ -699,6 +834,31 @@ namespace helengine.editor {
             }
 
             return changed;
+        }
+
+        /// <summary>
+        /// Caches a single text field and reports whether its value changed.
+        /// </summary>
+        /// <param name="field">Text field to inspect.</param>
+        /// <param name="cache">Cache to update.</param>
+        /// <returns>True when the field text changed.</returns>
+        bool CacheFieldText(TextBoxComponent field, ref string cache) {
+            if (field == null) {
+                throw new ArgumentNullException(nameof(field));
+            }
+
+            string text = field.Text;
+            if (text == null) {
+                throw new InvalidOperationException("Text field was not initialized.");
+            }
+
+            string cacheValue = cache ?? string.Empty;
+            if (string.Equals(cacheValue, text, StringComparison.Ordinal)) {
+                return false;
+            }
+
+            cache = text;
+            return true;
         }
 
         /// <summary>
@@ -840,7 +1000,7 @@ namespace helengine.editor {
         /// <returns>Height in pixels.</returns>
         int GetTransformSectionHeight() {
             int rowSpacing = LineSpacing + 2;
-            return (TransformRowHeight * 3) + (rowSpacing * 2);
+            return (TransformRowHeight * 4) + (rowSpacing * 3);
         }
 
         /// <summary>

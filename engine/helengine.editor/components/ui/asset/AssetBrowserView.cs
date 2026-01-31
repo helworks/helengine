@@ -35,7 +35,7 @@ namespace helengine.editor {
         /// <summary>
         /// Fixed size for the toolbar up button.
         /// </summary>
-        static readonly int2 UpButtonSize = new int2(46, 20);
+        static readonly int2 UpButtonSize = new int2(64, 22);
 
         /// <summary>
         /// Font used for toolbar and row labels.
@@ -187,7 +187,7 @@ namespace helengine.editor {
             };
             ToolbarRoot.AddChild(UpButtonHost);
 
-            UpButton = new ButtonComponent("Up", UpButtonSize, font, NavigateUp);
+            UpButton = new ButtonComponent("Up", UpButtonSize, font, NavigateUp, 0f);
             UpButtonHost.AddComponent(UpButton);
 
             PathTextHost = new EditorEntity {
@@ -236,6 +236,15 @@ namespace helengine.editor {
         /// Gets the root entity for attaching the view to a parent.
         /// </summary>
         public EditorEntity Entity => Root;
+
+        /// <summary>
+        /// Overrides the toolbar button render orders for modal or overlay contexts.
+        /// </summary>
+        /// <param name="backgroundOrder">Render order used for the button background.</param>
+        /// <param name="textOrder">Render order used for the button label.</param>
+        public void SetToolbarButtonRenderOrders(byte backgroundOrder, byte textOrder) {
+            UpButton.SetRenderOrders(backgroundOrder, textOrder);
+        }
 
         /// <summary>
         /// Sets an extension filter without refreshing entries.

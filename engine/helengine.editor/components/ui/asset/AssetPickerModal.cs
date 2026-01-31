@@ -42,7 +42,7 @@ namespace helengine.editor {
         /// <summary>
         /// Fixed size for the close button.
         /// </summary>
-        static readonly int2 CloseButtonSize = new int2(32, 20);
+        static readonly int2 CloseButtonSize = new int2(72, 22);
         /// <summary>
         /// Default radius for the modal panel background.
         /// </summary>
@@ -227,8 +227,9 @@ namespace helengine.editor {
             };
             HeaderRoot.AddChild(CloseButtonHost);
 
-            CloseButton = new ButtonComponent("X", CloseButtonSize, font, Hide);
+            CloseButton = new ButtonComponent("X", CloseButtonSize, font, Hide, 0f);
             CloseButtonHost.AddComponent(CloseButton);
+            CloseButton.SetRenderOrders(TextOrder, TextOrder);
 
             BrowserView = new AssetBrowserView(
                 Font,
@@ -238,6 +239,7 @@ namespace helengine.editor {
                 rowBackgroundOrder,
                 iconBackgroundOrder,
                 TextOrder);
+            BrowserView.SetToolbarButtonRenderOrders(TextOrder, TextOrder);
             BrowserView.AssetActivated += HandleAssetActivated;
             PanelRoot.AddChild(BrowserView.Entity);
 
