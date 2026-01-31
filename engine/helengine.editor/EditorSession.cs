@@ -48,6 +48,10 @@ namespace helengine.editor {
         /// </summary>
         readonly PreviewPanel previewPanel;
         /// <summary>
+        /// Modal used to pick an asset for editor fields.
+        /// </summary>
+        readonly AssetPickerModal assetPickerModal;
+        /// <summary>
         /// Main viewport dock panel.
         /// </summary>
         readonly EditorViewport mainViewport;
@@ -119,6 +123,8 @@ namespace helengine.editor {
             core.Initialize(render3D, render2D, input);
             core.InputManager.SetKeyboardActive(true);
 
+            EditorProjectPaths.Initialize(this.projectPath);
+
             assetImportManager = InitializeAssetImports(importers);
 
             uiCameraEntity = new EditorEntity();
@@ -173,10 +179,12 @@ namespace helengine.editor {
             propertiesPanel = new PropertiesPanel(uiFont);
             loggerPanel = new LoggerPanel(uiFont);
             previewPanel = new PreviewPanel(uiFont);
+            assetPickerModal = new AssetPickerModal(uiFont, this.projectPath);
             assetBrowserPanel.AssetSelected += HandleAssetSelected;
             assetBrowserPanel.SelectionCleared += HandleAssetSelectionCleared;
             propertiesPanel.ImportSettingsApplyRequested += HandleImportSettingsApplyRequested;
             EditorSelectionService.SelectionChanged += HandleSelectionChanged;
+            EditorAssetPickerService.PickRequested += HandleAssetPickRequested;
 
             sceneHierarchyPanel.Size = new int2(280, 600);
             assetBrowserPanel.Size = new int2(500, 240);
@@ -332,6 +340,23 @@ namespace helengine.editor {
 
             int availableHeight = Math.Max(0, height - titleBar.Height);
             dockingManager.Layout.Layout(new int2(width, availableHeight), new float3(0, titleBar.Height, 0));
+            assetPickerModal.UpdateLayout(width, height);
+            UpdateDockInputBlockers();
+        }
+
+        /// <summary>
+        /// Shows the asset picker modal and routes the selected asset to the provided callback.
+        /// </summary>
+        /// <param name="onPicked">Callback invoked when an asset is chosen.</param>
+        public void ShowAssetPicker(Action<AssetBrowserEntry> onPicked) {
+            assetPickerModal.Show(onPicked);
+        }
+
+        /// <summary>
+        /// Hides the asset picker modal if it is visible.
+        /// </summary>
+        public void HideAssetPicker() {
+            assetPickerModal.Hide();
         }
 
         /// <summary>
@@ -352,6 +377,30 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Updates input blockers for docked panels so viewport input is suppressed under UI regions.
+        /// </summary>
+        void UpdateDockInputBlockers() {
+            IReadOnlyList<DockableEntity> dockables = dockingManager.Layout.Dockables;
+            for (int i = 0; i < dockables.Count; i++) {
+                DockableEntity dockable = dockables[i];
+                if (!dockable.Enabled || ReferenceEquals(dockable, mainViewport)) {
+                    EditorInputCaptureService.ClearBlocker(dockable);
+                    continue;
+                }
+
+                int width = Math.Max(0, dockable.Size.X);
+                int height = Math.Max(0, dockable.Size.Y + DockableEntity.TitleBarHeight);
+                if (width <= 0 || height <= 0) {
+                    EditorInputCaptureService.ClearBlocker(dockable);
+                    continue;
+                }
+
+                int2 position = new int2((int)Math.Round(dockable.Position.X), (int)Math.Round(dockable.Position.Y));
+                EditorInputCaptureService.SetBlocker(dockable, position, new int2(width, height));
+            }
+        }
+
+        /// <summary>
         /// Enables or disables keyboard input capture for the host window.
         /// </summary>
         /// <param name="isActive">True to capture keyboard input; false to stop capture.</param>
@@ -367,9 +416,28 @@ namespace helengine.editor {
             assetBrowserPanel.SelectionCleared -= HandleAssetSelectionCleared;
             propertiesPanel.ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested;
             EditorSelectionService.SelectionChanged -= HandleSelectionChanged;
+            EditorAssetPickerService.PickRequested -= HandleAssetPickRequested;
+            assetPickerModal.Hide();
             shaderModuleManager.Dispose();
             loggerPanel.Detach();
             core.Dispose();
+        }
+
+        /// <summary>
+        /// Handles asset picker requests from editor UI.
+        /// </summary>
+        /// <param name="request">Request describing the pick operation.</param>
+        void HandleAssetPickRequested(AssetPickerRequest request) {
+            if (request == null) {
+                throw new ArgumentNullException(nameof(request));
+            }
+
+            if (string.IsNullOrWhiteSpace(request.ExtensionFilter)) {
+                assetPickerModal.Show(request.OnPicked);
+                return;
+            }
+
+            assetPickerModal.Show(request.OnPicked, request.ExtensionFilter);
         }
 
         /// <summary>

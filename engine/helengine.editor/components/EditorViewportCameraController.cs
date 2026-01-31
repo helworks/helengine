@@ -111,6 +111,7 @@ namespace helengine.editor {
         /// </summary>
         public override void Update() {
             InputManager input = Core.Instance.InputManager;
+            bool isPointerBlocked = EditorInputCaptureService.IsPointerBlocked(input.GetMousePosition());
 
             if (!hasOrientationState) {
                 InitializeYawPitchFromOrientation();
@@ -118,10 +119,15 @@ namespace helengine.editor {
             }
 
             if (input.WasMouseRightButtonPressed()) {
-                isActive = IsPointerInsideViewport(input);
-                if (isActive) {
-                    lastLookPosition = input.GetMousePosition();
-                    ignoreNextLookDelta = true;
+                if (isPointerBlocked) {
+                    isActive = false;
+                    ignoreNextLookDelta = false;
+                } else {
+                    isActive = IsPointerInsideViewport(input);
+                    if (isActive) {
+                        lastLookPosition = input.GetMousePosition();
+                        ignoreNextLookDelta = true;
+                    }
                 }
             }
 
@@ -131,10 +137,15 @@ namespace helengine.editor {
             }
 
             if (input.WasMouseMiddleButtonPressed()) {
-                isPanning = IsPointerInsideViewport(input);
-                if (isPanning) {
-                    lastPanPosition = input.GetMousePosition();
-                    ignoreNextPanDelta = true;
+                if (isPointerBlocked) {
+                    isPanning = false;
+                    ignoreNextPanDelta = false;
+                } else {
+                    isPanning = IsPointerInsideViewport(input);
+                    if (isPanning) {
+                        lastPanPosition = input.GetMousePosition();
+                        ignoreNextPanDelta = true;
+                    }
                 }
             }
 

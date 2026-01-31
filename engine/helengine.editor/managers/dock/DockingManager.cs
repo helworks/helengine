@@ -71,10 +71,14 @@ namespace helengine.editor {
         /// <returns>True when the layout should be recomputed.</returns>
         public bool Update(int2 pointer, ButtonState leftButton, int2 hostSize, float3 origin) {
             bool layoutDirty = false;
-            bool isDraggingDockable = IsDraggingDockable();
+            DockableEntity draggingDockable = GetDraggingDockable();
+            bool isDraggingDockable = draggingDockable != null;
+            bool pointerBlocked = EditorInputCaptureService.IsPointerBlocked(
+                pointer,
+                owner => ShouldBlockDockingOwner(owner, draggingDockable));
 
-            layoutDirty |= UpdateResize(pointer, leftButton, hostSize, origin, isDraggingDockable);
-            layoutDirty |= UpdateDockPreview(pointer, hostSize, origin);
+            layoutDirty |= UpdateResize(pointer, leftButton, hostSize, origin, isDraggingDockable, pointerBlocked);
+            layoutDirty |= UpdateDockPreview(pointer, hostSize, origin, pointerBlocked, draggingDockable);
 
             lastLeftButtonState = leftButton;
             return layoutDirty;
@@ -88,10 +92,25 @@ namespace helengine.editor {
         /// <param name="hostSize">Size of the host area.</param>
         /// <param name="origin">Origin of the host area.</param>
         /// <param name="isDraggingDockable">True when a dockable is actively being dragged.</param>
+        /// <param name="pointerBlocked">True when UI overlays should block resizing.</param>
         /// <returns>True when the layout should refresh.</returns>
-        bool UpdateResize(int2 pointer, ButtonState leftButton, int2 hostSize, float3 origin, bool isDraggingDockable) {
+        bool UpdateResize(
+            int2 pointer,
+            ButtonState leftButton,
+            int2 hostSize,
+            float3 origin,
+            bool isDraggingDockable,
+            bool pointerBlocked) {
             bool layoutDirty = false;
             bool isNewPress = leftButton == ButtonState.Pressed && lastLeftButtonState == ButtonState.Released;
+
+            if (pointerBlocked) {
+                if (layout.IsResizing) {
+                    layout.EndResize();
+                }
+                cursorState = DockingCursorState.Default;
+                return false;
+            }
 
             if (layout.IsResizing) {
                 layout.UpdateResize(pointer);
@@ -128,8 +147,10 @@ namespace helengine.editor {
         /// <param name="pointer">Pointer position in screen or host coordinates.</param>
         /// <param name="hostSize">Size of the host area.</param>
         /// <param name="origin">Origin of the host area.</param>
+        /// <param name="pointerBlocked">True when UI overlays should block docking previews.</param>
+        /// <param name="draggingDockable">Dockable entity currently being dragged, if any.</param>
         /// <returns>True when the layout should refresh.</returns>
-        bool UpdateDockPreview(int2 pointer, int2 hostSize, float3 origin) {
+        bool UpdateDockPreview(int2 pointer, int2 hostSize, float3 origin, bool pointerBlocked, DockableEntity draggingDockable) {
             if (layout.IsResizing) {
                 previewOverlay.Hide();
                 dockHintValid = false;
@@ -138,14 +159,12 @@ namespace helengine.editor {
             }
 
             bool layoutDirty = false;
-            DockableEntity? dragging = null;
-            var dockables = layout.Dockables;
-            for (int i = 0; i < dockables.Count; i++) {
-                var de = dockables[i];
-                if (de.IsDragging) {
-                    dragging = de;
-                    break;
-                }
+            DockableEntity dragging = draggingDockable;
+            if (pointerBlocked) {
+                previewOverlay.Hide();
+                dockHintValid = false;
+                lastDragging = dragging;
+                return false;
             }
 
             if (dragging == null) {
@@ -195,18 +214,40 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Checks whether any dockable entity is currently being dragged.
+        /// Returns the first dockable entity that is currently being dragged.
         /// </summary>
-        /// <returns>True when a dockable is being dragged; otherwise false.</returns>
-        bool IsDraggingDockable() {
+        /// <returns>The dragging dockable entity, or null when none are active.</returns>
+        DockableEntity GetDraggingDockable() {
             var dockables = layout.Dockables;
             for (int i = 0; i < dockables.Count; i++) {
                 if (dockables[i].IsDragging) {
-                    return true;
+                    return dockables[i];
                 }
             }
 
-            return false;
+            return null;
+        }
+
+        /// <summary>
+        /// Determines whether a blocker owner should suppress docking interactions.
+        /// </summary>
+        /// <param name="owner">Owner registered with the input capture service.</param>
+        /// <param name="draggingDockable">Dockable entity currently being dragged, if any.</param>
+        /// <returns>True when the owner should block docking interactions.</returns>
+        bool ShouldBlockDockingOwner(object owner, DockableEntity draggingDockable) {
+            if (owner == null) {
+                return false;
+            }
+
+            if (draggingDockable != null && ReferenceEquals(owner, draggingDockable)) {
+                return false;
+            }
+
+            if (owner is DockableEntity dockable) {
+                return !dockable.IsDocked;
+            }
+
+            return true;
         }
     }
 }

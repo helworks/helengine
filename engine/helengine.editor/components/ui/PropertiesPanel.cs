@@ -27,6 +27,10 @@ namespace helengine.editor {
         /// Height of each transform input field.
         /// </summary>
         const int TransformFieldHeight = 22;
+        /// <summary>
+        /// Spacing between transform controls and component properties.
+        /// </summary>
+        const int ComponentSectionSpacing = 10;
 
         /// <summary>
         /// Font used for property text.
@@ -80,6 +84,10 @@ namespace helengine.editor {
         /// Root entity hosting transform editing controls.
         /// </summary>
         readonly EditorEntity TransformRoot;
+        /// <summary>
+        /// View used to display component-specific properties.
+        /// </summary>
+        readonly ComponentPropertiesView ComponentView;
         /// <summary>
         /// Row entity for position fields.
         /// </summary>
@@ -209,6 +217,9 @@ namespace helengine.editor {
             TransformRoot.Position = new float3(0, 0, 0.2f);
             contentRoot.AddChild(TransformRoot);
 
+            ComponentView = new ComponentPropertiesView(font);
+            contentRoot.AddChild(ComponentView.Root);
+
             CreateTransformRow("Position", out PositionRow, out PositionLabel, out PositionFieldHosts, out PositionFields);
             CreateTransformRow("Rotation", out RotationRow, out RotationLabel, out RotationFieldHosts, out RotationFields);
             CreateTransformRow("Scale", out ScaleRow, out ScaleLabel, out ScaleFieldHosts, out ScaleFields);
@@ -249,6 +260,7 @@ namespace helengine.editor {
             currentEntry = entry;
             importSettingsView.Show(importerIds, settings.ImporterId);
             SetTransformVisible(false);
+            ComponentView.Hide();
             ApplyLines(Array.Empty<string>());
             LayoutLines();
         }
@@ -270,6 +282,7 @@ namespace helengine.editor {
             currentEntry = null;
             importSettingsView.Hide();
             SetTransformVisible(false);
+            ComponentView.Hide();
             ApplyLines(new[] {
                 "Properties",
                 $"Asset: {BuildAssetLabel(entry)}",
@@ -285,6 +298,7 @@ namespace helengine.editor {
             currentEntry = null;
             importSettingsView.Hide();
             SetTransformVisible(false);
+            ComponentView.Hide();
             ApplyLines(Array.Empty<string>());
             LayoutLines();
         }
@@ -303,6 +317,7 @@ namespace helengine.editor {
             SelectedEntity = entity;
             ApplyLines(Array.Empty<string>());
             SyncTransformFields(entity);
+            ComponentView.ShowComponents(entity);
             SetTransformVisible(true);
             LayoutLines();
         }
@@ -811,9 +826,21 @@ namespace helengine.editor {
             if (ShowTransformControls) {
                 int transformTop = (int)Math.Round(offsetY);
                 UpdateTransformLayout(transformTop, maxWidth);
+                int componentTop = transformTop + GetTransformSectionHeight() + ComponentSectionSpacing;
+                ComponentView.UpdateLayout(ContentPadding, componentTop, maxWidth);
             } else {
                 TransformRoot.Enabled = false;
+                ComponentView.Hide();
             }
+        }
+
+        /// <summary>
+        /// Calculates the total height consumed by the transform controls.
+        /// </summary>
+        /// <returns>Height in pixels.</returns>
+        int GetTransformSectionHeight() {
+            int rowSpacing = LineSpacing + 2;
+            return (TransformRowHeight * 3) + (rowSpacing * 2);
         }
 
         /// <summary>

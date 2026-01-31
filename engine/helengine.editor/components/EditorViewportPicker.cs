@@ -103,6 +103,10 @@ namespace helengine.editor {
                 ResolvePick();
             }
 
+            if (EditorInputCaptureService.IsPointerBlocked(input.GetMousePosition())) {
+                return;
+            }
+
             if (!input.WasMouseLeftButtonPressed()) {
                 return;
             }
