@@ -5,6 +5,16 @@ namespace helengine {
     [ProtoBuf.ProtoContract]
     public class ShaderProgramAsset {
         /// <summary>
+        /// Initializes a new shader program asset with empty collections.
+        /// </summary>
+        public ShaderProgramAsset() {
+            Bindings = Array.Empty<ShaderBindingAsset>();
+            Inputs = Array.Empty<ShaderVertexElementAsset>();
+            Outputs = Array.Empty<ShaderVertexElementAsset>();
+            Variants = Array.Empty<ShaderVariantAsset>();
+        }
+
+        /// <summary>
         /// Logical program name.
         /// </summary>
         [ProtoBuf.ProtoMember(1)]

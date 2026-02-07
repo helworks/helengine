@@ -238,6 +238,11 @@ namespace helengine.editor {
         public EditorEntity Entity => Root;
 
         /// <summary>
+        /// Gets the absolute path of the current folder displayed by the view.
+        /// </summary>
+        public string CurrentDirectoryPath => AssetManager.CurrentFullPath;
+
+        /// <summary>
         /// Overrides the toolbar button render orders for modal or overlay contexts.
         /// </summary>
         /// <param name="backgroundOrder">Render order used for the button background.</param>

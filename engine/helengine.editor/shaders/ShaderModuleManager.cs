@@ -10,6 +10,10 @@ namespace helengine.editor {
         /// Shader file extensions recognized by the manager.
         /// </summary>
         static readonly string[] ShaderExtensions = new[] { ".hlsl" };
+        /// <summary>
+        /// Interval in milliseconds between active shader validation checks.
+        /// </summary>
+        const int ActiveShaderCheckIntervalMilliseconds = 1000;
 
         /// <summary>
         /// Options controlling shader module compilation.
@@ -50,6 +54,26 @@ namespace helengine.editor {
         /// Synchronization object for shader entry access.
         /// </summary>
         readonly object entriesLock;
+        /// <summary>
+        /// Tracks shaders that are actively referenced by runtime materials.
+        /// </summary>
+        readonly Dictionary<string, DateTime> ActiveShaderChecks;
+        /// <summary>
+        /// Synchronization object for active shader tracking.
+        /// </summary>
+        readonly object ActiveLock;
+        /// <summary>
+        /// Hashes shader source files to detect content changes.
+        /// </summary>
+        readonly AssetFileHasher SourceHasher;
+        /// <summary>
+        /// Reads and writes cached shader metadata.
+        /// </summary>
+        readonly ShaderCacheMetadataStore MetadataStore;
+        /// <summary>
+        /// Synchronization object for metadata access.
+        /// </summary>
+        readonly object MetadataLock;
 
         /// <summary>
         /// Semaphore used to avoid concurrent build execution.
@@ -82,6 +106,11 @@ namespace helengine.editor {
         bool disposed;
 
         /// <summary>
+        /// Raised when a shader package is rebuilt successfully.
+        /// </summary>
+        public event Action<string, string> ShaderBuilt;
+
+        /// <summary>
         /// Initializes a new shader module manager.
         /// </summary>
         /// <param name="options">Manager options.</param>
@@ -98,6 +127,11 @@ namespace helengine.editor {
             entriesByName = new Dictionary<string, ShaderSourceEntry>(StringComparer.OrdinalIgnoreCase);
             pendingLock = new object();
             entriesLock = new object();
+            ActiveShaderChecks = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+            ActiveLock = new object();
+            SourceHasher = new AssetFileHasher();
+            MetadataStore = new ShaderCacheMetadataStore(options.PackageOutputPath, options.RuntimeTarget);
+            MetadataLock = new object();
             buildSemaphore = new SemaphoreSlim(1, 1);
         }
 
@@ -120,6 +154,60 @@ namespace helengine.editor {
             StartTimer();
             QueueInitialBuilds();
             started = true;
+        }
+
+        /// <summary>
+        /// Ensures a shader package is compiled and loaded for the specified shader name.
+        /// </summary>
+        /// <param name="shaderName">Shader name to validate and compile.</param>
+        /// <returns>True when the shader package is available.</returns>
+        public bool EnsureShaderCompiled(string shaderName) {
+            if (disposed) {
+                throw new ObjectDisposedException(nameof(ShaderModuleManager));
+            }
+
+            if (string.IsNullOrWhiteSpace(shaderName)) {
+                throw new ArgumentException("Shader name must be provided.", nameof(shaderName));
+            }
+
+            ShaderSourceEntry entry;
+            if (!TryGetEntryByName(shaderName, out entry)) {
+                return false;
+            }
+
+            buildSemaphore.Wait();
+            try {
+                if (TryLoadCachedModule(entry, true)) {
+                    return true;
+                }
+
+                BuildShader(entry.Name);
+                string packagePath = GetRuntimePackagePath(entry.Name);
+                return File.Exists(packagePath);
+            } catch (Exception ex) {
+                Logger.WriteError($"Shader ensure failed for '{shaderName}': {ex.Message}");
+                return false;
+            } finally {
+                buildSemaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// Records that a shader is actively used so it can be validated without relying on file system events.
+        /// </summary>
+        /// <param name="shaderName">Shader name to track.</param>
+        public void TrackShaderUsage(string shaderName) {
+            if (disposed) {
+                throw new ObjectDisposedException(nameof(ShaderModuleManager));
+            }
+
+            if (string.IsNullOrWhiteSpace(shaderName)) {
+                throw new ArgumentException("Shader name must be provided.", nameof(shaderName));
+            }
+
+            lock (ActiveLock) {
+                ActiveShaderChecks[shaderName] = DateTime.MinValue;
+            }
         }
 
         /// <summary>
@@ -215,7 +303,15 @@ namespace helengine.editor {
         /// Queues initial builds for all discovered shaders.
         /// </summary>
         void QueueInitialBuilds() {
-            QueueAllBuilds();
+            ShaderSourceEntry[] entries = GetEntriesSnapshot();
+            for (int i = 0; i < entries.Length; i++) {
+                ShaderSourceEntry entry = entries[i];
+                if (TryLoadCachedModule(entry, false)) {
+                    continue;
+                }
+
+                QueueBuild(entry);
+            }
         }
 
         /// <summary>
@@ -261,7 +357,9 @@ namespace helengine.editor {
                 return;
             }
 
-            QueueBuild(entry);
+            if (ShouldQueueBuild(entry)) {
+                QueueBuild(entry);
+            }
         }
 
         /// <summary>
@@ -280,6 +378,7 @@ namespace helengine.editor {
             ShaderSourceEntry entry;
             if (RemoveEntry(change.FullPath, out entry)) {
                 UnloadModule(entry.Name);
+                DeleteShaderMetadata(entry.Name);
             }
         }
 
@@ -304,13 +403,16 @@ namespace helengine.editor {
                 ShaderSourceEntry oldEntry;
                 if (RemoveEntry(change.OldFullPath, out oldEntry)) {
                     UnloadModule(oldEntry.Name);
+                    DeleteShaderMetadata(oldEntry.Name);
                 }
             }
 
             if (IsShaderFile(change.FullPath)) {
                 ShaderSourceEntry newEntry = GetOrAddEntry(change.FullPath);
                 if (newEntry != null) {
-                    QueueBuild(newEntry);
+                    if (ShouldQueueBuild(newEntry)) {
+                        QueueBuild(newEntry);
+                    }
                 }
             }
         }
@@ -348,6 +450,8 @@ namespace helengine.editor {
                 for (int i = 0; i < readyShaders.Count; i++) {
                     TryBuildShader(readyShaders[i]);
                 }
+
+                ValidateActiveShaders(now);
             } finally {
                 buildSemaphore.Release();
             }
@@ -368,13 +472,131 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Queues builds for all known shaders.
+        /// Queues a shader build when one is not already pending.
         /// </summary>
-        void QueueAllBuilds() {
-            ShaderSourceEntry[] entries = GetEntriesSnapshot();
-            for (int i = 0; i < entries.Length; i++) {
-                QueueBuild(entries[i]);
+        /// <param name="entry">Shader source entry to build.</param>
+        void QueueBuildIfNotPending(ShaderSourceEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
             }
+
+            lock (pendingLock) {
+                if (pendingBuilds.ContainsKey(entry.Name)) {
+                    return;
+                }
+
+                pendingBuilds[entry.Name] = DateTime.UtcNow;
+            }
+        }
+
+        /// <summary>
+        /// Determines whether a shader should be queued for rebuild based on its cached hash.
+        /// </summary>
+        /// <param name="entry">Shader entry to evaluate.</param>
+        /// <returns>True when the shader should be rebuilt.</returns>
+        bool ShouldQueueBuild(ShaderSourceEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            if (!File.Exists(entry.SourcePath)) {
+                return false;
+            }
+
+            string packagePath = GetRuntimePackagePath(entry.Name);
+            ShaderCacheMetadata metadata;
+            if (!TryLoadShaderMetadata(entry.Name, out metadata)) {
+                return true;
+            }
+
+            string sourceHash;
+            long writeTicks;
+            long length;
+            if (!TryComputeSourceHash(entry.SourcePath, out sourceHash, out writeTicks, out length)) {
+                return true;
+            }
+
+            if (!IsHashMatch(sourceHash, metadata.SourceHash)) {
+                return true;
+            }
+
+            bool metadataUpdated = false;
+            if (metadata.SourceWriteTimeUtcTicks != writeTicks) {
+                metadata.SourceWriteTimeUtcTicks = writeTicks;
+                metadataUpdated = true;
+            }
+
+            if (metadata.SourceLengthBytes != length) {
+                metadata.SourceLengthBytes = length;
+                metadataUpdated = true;
+            }
+
+            if (metadataUpdated) {
+                SaveShaderMetadata(entry.Name, metadata);
+            }
+
+            return !File.Exists(packagePath);
+        }
+
+        /// <summary>
+        /// Attempts to load a cached shader module if the source hash is up to date.
+        /// </summary>
+        /// <param name="entry">Shader entry to load.</param>
+        /// <param name="forceHashCheck">True to validate the source hash even when timestamps match.</param>
+        /// <returns>True when a cached module is loaded.</returns>
+        bool TryLoadCachedModule(ShaderSourceEntry entry, bool forceHashCheck) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            string packagePath = GetRuntimePackagePath(entry.Name);
+            if (!File.Exists(packagePath)) {
+                return false;
+            }
+
+            ShaderCacheMetadata metadata;
+            if (!TryLoadShaderMetadata(entry.Name, out metadata)) {
+                return false;
+            }
+
+            long writeTicks;
+            long length;
+            if (!TryGetSourceInfo(entry.SourcePath, out writeTicks, out length)) {
+                return false;
+            }
+
+            bool needsHashCheck = forceHashCheck
+                || metadata.SourceWriteTimeUtcTicks != writeTicks
+                || metadata.SourceLengthBytes != length;
+            if (needsHashCheck) {
+                string sourceHash;
+                long resolvedWriteTicks;
+                long resolvedLength;
+                if (!TryComputeSourceHash(entry.SourcePath, out sourceHash, out resolvedWriteTicks, out resolvedLength)) {
+                    return false;
+                }
+
+                if (!IsHashMatch(sourceHash, metadata.SourceHash)) {
+                    return false;
+                }
+
+                bool metadataUpdated = false;
+                if (metadata.SourceWriteTimeUtcTicks != resolvedWriteTicks) {
+                    metadata.SourceWriteTimeUtcTicks = resolvedWriteTicks;
+                    metadataUpdated = true;
+                }
+
+                if (metadata.SourceLengthBytes != resolvedLength) {
+                    metadata.SourceLengthBytes = resolvedLength;
+                    metadataUpdated = true;
+                }
+
+                if (metadataUpdated) {
+                    SaveShaderMetadata(entry.Name, metadata);
+                }
+            }
+
+            return TryLoadPackage(entry.Name, packagePath);
         }
 
         /// <summary>
@@ -401,6 +623,9 @@ namespace helengine.editor {
 
             ShaderPackageHandle handle = loader.Load(buildResult.PackagePath);
             ReplaceModule(entry.Name, handle);
+            UpdateShaderMetadata(entry);
+            Logger.WriteLine($"Shader build succeeded for '{shaderName}'.");
+            ShaderBuilt?.Invoke(shaderName, buildResult.PackagePath);
         }
 
         /// <summary>
@@ -427,6 +652,187 @@ namespace helengine.editor {
 
             ShaderPackageBuildResult[] results = packageBuilder.BuildPackages(entry, options.PackageOutputPath);
             return SelectRuntimeResult(results);
+        }
+
+        /// <summary>
+        /// Gets the runtime package path for a shader name.
+        /// </summary>
+        /// <param name="shaderName">Shader name to resolve.</param>
+        /// <returns>Absolute package path for the runtime target.</returns>
+        string GetRuntimePackagePath(string shaderName) {
+            return ShaderPackagePaths.GetPackagePath(options.PackageOutputPath, shaderName, options.RuntimeTarget);
+        }
+
+        /// <summary>
+        /// Attempts to load a shader package and replace the active module.
+        /// </summary>
+        /// <param name="shaderName">Shader name to load.</param>
+        /// <param name="packagePath">Package path to load.</param>
+        /// <returns>True when the package is loaded successfully.</returns>
+        bool TryLoadPackage(string shaderName, string packagePath) {
+            if (string.IsNullOrWhiteSpace(packagePath) || !File.Exists(packagePath)) {
+                return false;
+            }
+
+            try {
+                ShaderPackageHandle handle = loader.Load(packagePath);
+                ReplaceModule(shaderName, handle);
+                return true;
+            } catch (Exception ex) {
+                Logger.WriteError($"Shader package load failed for '{shaderName}': {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Updates cached metadata for a shader entry after a successful build.
+        /// </summary>
+        /// <param name="entry">Shader entry that was built.</param>
+        void UpdateShaderMetadata(ShaderSourceEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            ShaderCacheMetadata metadata;
+            if (!TryCreateShaderMetadata(entry.SourcePath, out metadata)) {
+                return;
+            }
+
+            SaveShaderMetadata(entry.Name, metadata);
+        }
+
+        /// <summary>
+        /// Attempts to create shader metadata for the specified source path.
+        /// </summary>
+        /// <param name="sourcePath">Shader source path.</param>
+        /// <param name="metadata">Created metadata instance.</param>
+        /// <returns>True when metadata was created.</returns>
+        bool TryCreateShaderMetadata(string sourcePath, out ShaderCacheMetadata metadata) {
+            string sourceHash;
+            long writeTicks;
+            long length;
+            if (!TryComputeSourceHash(sourcePath, out sourceHash, out writeTicks, out length)) {
+                metadata = null;
+                return false;
+            }
+
+            metadata = new ShaderCacheMetadata {
+                SourceHash = sourceHash,
+                SourceWriteTimeUtcTicks = writeTicks,
+                SourceLengthBytes = length
+            };
+            return true;
+        }
+
+        /// <summary>
+        /// Attempts to compute a source hash and write time for a shader file.
+        /// </summary>
+        /// <param name="sourcePath">Shader source path.</param>
+        /// <param name="sourceHash">Computed source hash.</param>
+        /// <param name="writeTicks">Last write time in UTC ticks.</param>
+        /// <param name="length">Source length in bytes.</param>
+        /// <returns>True when the hash and write time were computed.</returns>
+        bool TryComputeSourceHash(string sourcePath, out string sourceHash, out long writeTicks, out long length) {
+            sourceHash = string.Empty;
+            writeTicks = 0;
+            length = 0;
+
+            if (!TryGetSourceInfo(sourcePath, out writeTicks, out length)) {
+                return false;
+            }
+
+            try {
+                sourceHash = SourceHasher.ComputeHash(sourcePath);
+                return true;
+            } catch (Exception ex) {
+                Logger.WriteError($"Shader hash compute failed for '{sourcePath}': {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Attempts to read the last write time and length for a shader source file.
+        /// </summary>
+        /// <param name="sourcePath">Shader source path.</param>
+        /// <param name="writeTicks">Resolved write time in UTC ticks.</param>
+        /// <param name="length">Resolved source length in bytes.</param>
+        /// <returns>True when the source info was resolved.</returns>
+        bool TryGetSourceInfo(string sourcePath, out long writeTicks, out long length) {
+            writeTicks = 0;
+            length = 0;
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                return false;
+            }
+
+            FileInfo info = new FileInfo(sourcePath);
+            if (!info.Exists) {
+                return false;
+            }
+
+            writeTicks = info.LastWriteTimeUtc.Ticks;
+            length = info.Length;
+            return true;
+        }
+
+        /// <summary>
+        /// Attempts to load cached shader metadata.
+        /// </summary>
+        /// <param name="shaderName">Shader name to resolve.</param>
+        /// <param name="metadata">Loaded metadata instance.</param>
+        /// <returns>True when metadata was loaded.</returns>
+        bool TryLoadShaderMetadata(string shaderName, out ShaderCacheMetadata metadata) {
+            lock (MetadataLock) {
+                try {
+                    return MetadataStore.TryLoad(shaderName, out metadata);
+                } catch (Exception ex) {
+                    Logger.WriteError($"Shader metadata load failed for '{shaderName}': {ex.Message}");
+                    metadata = null;
+                    return false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Saves shader metadata to the cache store.
+        /// </summary>
+        /// <param name="shaderName">Shader name to save.</param>
+        /// <param name="metadata">Metadata to persist.</param>
+        void SaveShaderMetadata(string shaderName, ShaderCacheMetadata metadata) {
+            lock (MetadataLock) {
+                try {
+                    MetadataStore.Save(shaderName, metadata);
+                } catch (Exception ex) {
+                    Logger.WriteError($"Shader metadata save failed for '{shaderName}': {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Deletes cached metadata for the specified shader.
+        /// </summary>
+        /// <param name="shaderName">Shader name to delete.</param>
+        void DeleteShaderMetadata(string shaderName) {
+            lock (MetadataLock) {
+                try {
+                    MetadataStore.Delete(shaderName);
+                } catch (Exception ex) {
+                    Logger.WriteError($"Shader metadata delete failed for '{shaderName}': {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Compares two shader hashes for equality.
+        /// </summary>
+        /// <param name="left">First hash.</param>
+        /// <param name="right">Second hash.</param>
+        /// <returns>True when the hashes match.</returns>
+        bool IsHashMatch(string left, string right) {
+            if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right)) {
+                return false;
+            }
+
+            return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -597,6 +1003,52 @@ namespace helengine.editor {
                 }
 
                 return entries;
+            }
+        }
+
+        /// <summary>
+        /// Validates active shaders on a fixed interval and queues rebuilds when they change.
+        /// </summary>
+        /// <param name="now">Current UTC timestamp.</param>
+        void ValidateActiveShaders(DateTime now) {
+            List<string> shadersToCheck = new List<string>();
+            lock (ActiveLock) {
+                foreach (var pair in ActiveShaderChecks) {
+                    if ((now - pair.Value).TotalMilliseconds >= ActiveShaderCheckIntervalMilliseconds) {
+                        shadersToCheck.Add(pair.Key);
+                    }
+                }
+
+                for (int i = 0; i < shadersToCheck.Count; i++) {
+                    ActiveShaderChecks[shadersToCheck[i]] = now;
+                }
+            }
+
+            for (int i = 0; i < shadersToCheck.Count; i++) {
+                string shaderName = shadersToCheck[i];
+                ShaderSourceEntry entry;
+                if (!TryGetEntryByName(shaderName, out entry)) {
+                    RemoveActiveShader(shaderName);
+                    continue;
+                }
+
+                if (ShouldQueueBuild(entry)) {
+                    QueueBuildIfNotPending(entry);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Removes a shader from the active validation list.
+        /// </summary>
+        /// <param name="shaderName">Shader name to remove.</param>
+        void RemoveActiveShader(string shaderName) {
+            if (string.IsNullOrWhiteSpace(shaderName)) {
+                return;
+            }
+
+            lock (ActiveLock) {
+                ActiveShaderChecks.Remove(shaderName);
             }
         }
 

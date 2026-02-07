@@ -74,6 +74,10 @@ namespace helengine.directx11 {
         /// </summary>
         Dictionary<string, DirectX11ShaderResource> ShaderResourceCache;
         /// <summary>
+        /// Tracks materials grouped by shader asset id for hot reload updates.
+        /// </summary>
+        Dictionary<string, List<DirectX11MaterialResource>> MaterialsByShaderAssetId;
+        /// <summary>
         /// Blend state for standard rendering.
         /// </summary>
         BlendState blendState;
@@ -135,6 +139,7 @@ namespace helengine.directx11 {
             customPassRequests = new Dictionary<ICamera, DirectX11CustomPassRequest>();
             shaderPassCache = new Dictionary<string, DirectX11ShaderPass>(StringComparer.Ordinal);
             ShaderResourceCache = new Dictionary<string, DirectX11ShaderResource>(StringComparer.Ordinal);
+            MaterialsByShaderAssetId = new Dictionary<string, List<DirectX11MaterialResource>>(StringComparer.OrdinalIgnoreCase);
 
             WindowResized += OnWindowResized;
 
@@ -230,6 +235,7 @@ namespace helengine.directx11 {
             DisposeMissingMaterial();
             DisposeShaderResourceCache();
             DisposeShaderPassCache();
+            MaterialsByShaderAssetId.Clear();
             Device?.Dispose();
             Adapter?.Dispose();
 
@@ -380,7 +386,51 @@ namespace helengine.directx11 {
             }
 
             DirectX11ShaderResource shaderResource = GetShaderResource(materialAsset, shaderAsset);
-            return new DirectX11MaterialResource(shaderResource);
+            var material = new DirectX11MaterialResource(
+                shaderResource,
+                materialAsset.ShaderAssetId,
+                materialAsset.VertexProgram,
+                materialAsset.PixelProgram,
+                materialAsset.Variant);
+            RegisterMaterial(material);
+            return material;
+        }
+
+        /// <summary>
+        /// Invalidates cached shader resources and updates materials for the specified shader asset.
+        /// </summary>
+        /// <param name="shaderAssetId">Shader asset identifier to invalidate.</param>
+        /// <param name="shaderAsset">Updated shader asset data.</param>
+        public override void InvalidateShaderResources(string shaderAssetId, ShaderAsset shaderAsset) {
+            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
+                throw new ArgumentException("Shader asset id must be provided.", nameof(shaderAssetId));
+            }
+
+            if (shaderAsset == null) {
+                throw new ArgumentNullException(nameof(shaderAsset));
+            }
+
+            InvalidateShaderCache(shaderAssetId);
+            if (!MaterialsByShaderAssetId.TryGetValue(shaderAssetId, out List<DirectX11MaterialResource> materials)) {
+                return;
+            }
+
+            for (int i = 0; i < materials.Count; i++) {
+                DirectX11MaterialResource material = materials[i];
+                if (material == null) {
+                    continue;
+                }
+
+                DirectX11ShaderResource shaderResource = GetShaderResource(
+                    shaderAssetId,
+                    material.VertexProgram,
+                    material.PixelProgram,
+                    material.Variant,
+                    shaderAsset);
+                material.UpdateShaderResource(shaderResource);
+            }
+
+            ActiveMaterial = null;
         }
 
         /// <summary>
@@ -593,6 +643,7 @@ namespace helengine.directx11 {
             ActiveMaterial = null;
             context.OutputMerger.SetBlendState(blendState);
             context.VertexShader.SetConstantBuffer(0, constantBuffer);
+            context.PixelShader.SetConstantBuffer(0, null);
 
             IRenderQueue3D renderQueue = camera.RenderQueue3D;
             renderQueue.VisitOrdered(this);
@@ -931,29 +982,12 @@ namespace helengine.directx11 {
                 throw new InvalidOperationException("Shader asset target does not match the DirectX11 renderer.");
             }
 
-            string cacheKey = GetShaderResourceCacheKey(
-                shaderAsset.Id,
+            return GetShaderResource(
+                materialAsset.ShaderAssetId,
                 materialAsset.VertexProgram,
                 materialAsset.PixelProgram,
-                materialAsset.Variant);
-            if (ShaderResourceCache.TryGetValue(cacheKey, out DirectX11ShaderResource cachedResource)) {
-                return cachedResource;
-            }
-
-            ShaderBinaryAsset vertexBinary = GetShaderBinary(shaderAsset, materialAsset.VertexProgram, ShaderStage.Vertex, materialAsset.Variant);
-            ShaderBinaryAsset pixelBinary = GetShaderBinary(shaderAsset, materialAsset.PixelProgram, ShaderStage.Pixel, materialAsset.Variant);
-
-            var shaderResource = new DirectX11ShaderResource(
-                Device,
-                vertexBinary.Bytecode,
-                pixelBinary.Bytecode,
-                VertexPositionNormalUV.Elements,
-                materialAsset.VertexProgram,
-                materialAsset.PixelProgram,
-                materialAsset.Variant);
-
-            ShaderResourceCache[cacheKey] = shaderResource;
-            return shaderResource;
+                materialAsset.Variant,
+                shaderAsset);
         }
 
         /// <summary>
@@ -1012,6 +1046,116 @@ namespace helengine.directx11 {
             }
 
             return string.Concat(shaderAssetId, "|", vertexProgram, "|", pixelProgram, "|", variant);
+        }
+
+        /// <summary>
+        /// Retrieves a shader resource using explicit program names and variant.
+        /// </summary>
+        /// <param name="shaderAssetId">Shader asset identifier.</param>
+        /// <param name="vertexProgram">Vertex program name.</param>
+        /// <param name="pixelProgram">Pixel program name.</param>
+        /// <param name="variant">Variant name.</param>
+        /// <param name="shaderAsset">Shader asset containing compiled binaries.</param>
+        /// <returns>Compiled DirectX11 shader resource.</returns>
+        DirectX11ShaderResource GetShaderResource(
+            string shaderAssetId,
+            string vertexProgram,
+            string pixelProgram,
+            string variant,
+            ShaderAsset shaderAsset) {
+            if (string.IsNullOrWhiteSpace(vertexProgram)) {
+                throw new InvalidOperationException("Material assets must define a vertex program name.");
+            }
+
+            if (string.IsNullOrWhiteSpace(pixelProgram)) {
+                throw new InvalidOperationException("Material assets must define a pixel program name.");
+            }
+
+            if (string.IsNullOrWhiteSpace(variant)) {
+                throw new InvalidOperationException("Material assets must define a shader variant.");
+            }
+
+            if (shaderAsset == null) {
+                throw new ArgumentNullException(nameof(shaderAsset));
+            }
+
+            if (shaderAsset.Binaries == null || shaderAsset.Binaries.Length == 0) {
+                throw new InvalidOperationException("Shader assets must include compiled binaries.");
+            }
+
+            string targetName = ShaderTargetNames.GetTargetName(ShaderCompileTarget.DirectX11);
+            if (!string.Equals(shaderAsset.TargetName, targetName, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException("Shader asset target does not match the DirectX11 renderer.");
+            }
+
+            string cacheKey = GetShaderResourceCacheKey(shaderAssetId, vertexProgram, pixelProgram, variant);
+            if (ShaderResourceCache.TryGetValue(cacheKey, out DirectX11ShaderResource cachedResource)) {
+                return cachedResource;
+            }
+
+            ShaderBinaryAsset vertexBinary = GetShaderBinary(shaderAsset, vertexProgram, ShaderStage.Vertex, variant);
+            ShaderBinaryAsset pixelBinary = GetShaderBinary(shaderAsset, pixelProgram, ShaderStage.Pixel, variant);
+
+            var shaderResource = new DirectX11ShaderResource(
+                Device,
+                vertexBinary.Bytecode,
+                pixelBinary.Bytecode,
+                VertexPositionNormalUV.Elements,
+                vertexProgram,
+                pixelProgram,
+                variant);
+
+            ShaderResourceCache[cacheKey] = shaderResource;
+            return shaderResource;
+        }
+
+        /// <summary>
+        /// Registers a runtime material for shader hot reload updates.
+        /// </summary>
+        /// <param name="material">Material to register.</param>
+        void RegisterMaterial(DirectX11MaterialResource material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            string shaderAssetId = material.ShaderAssetId;
+            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
+                return;
+            }
+
+            if (!MaterialsByShaderAssetId.TryGetValue(shaderAssetId, out List<DirectX11MaterialResource> materials)) {
+                materials = new List<DirectX11MaterialResource>();
+                MaterialsByShaderAssetId[shaderAssetId] = materials;
+            }
+
+            materials.Add(material);
+        }
+
+        /// <summary>
+        /// Removes cached shader resources for a shader asset id.
+        /// </summary>
+        /// <param name="shaderAssetId">Shader asset identifier.</param>
+        void InvalidateShaderCache(string shaderAssetId) {
+            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
+                return;
+            }
+
+            string prefix = string.Concat(shaderAssetId, "|");
+            List<string> keysToRemove = new List<string>();
+            foreach (var pair in ShaderResourceCache) {
+                if (pair.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) {
+                    keysToRemove.Add(pair.Key);
+                }
+            }
+
+            for (int i = 0; i < keysToRemove.Count; i++) {
+                string key = keysToRemove[i];
+                if (ShaderResourceCache.TryGetValue(key, out DirectX11ShaderResource resource)) {
+                    resource.Dispose();
+                }
+
+                ShaderResourceCache.Remove(key);
+            }
         }
 
         /// <summary>

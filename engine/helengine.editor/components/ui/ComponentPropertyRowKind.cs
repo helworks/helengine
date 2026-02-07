@@ -16,6 +16,10 @@ namespace helengine.editor {
         /// </summary>
         Material,
         /// <summary>
+        /// Editable row for a model asset selection.
+        /// </summary>
+        Model,
+        /// <summary>
         /// Editable row for a scalar value.
         /// </summary>
         Scalar,

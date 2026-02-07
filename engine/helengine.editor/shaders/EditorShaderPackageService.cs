@@ -1,0 +1,76 @@
+namespace helengine.editor {
+    /// <summary>
+    /// Provides shared access to compiled shader packages in the editor.
+    /// </summary>
+    public static class EditorShaderPackageService {
+        /// <summary>
+        /// Shader module manager used to compile shaders on demand.
+        /// </summary>
+        static ShaderModuleManager ModuleManager;
+
+        /// <summary>
+        /// Initializes the shader package service with the active module manager.
+        /// </summary>
+        /// <param name="shaderModuleManager">Module manager used for on-demand compilation.</param>
+        public static void Initialize(ShaderModuleManager shaderModuleManager) {
+            if (shaderModuleManager == null) {
+                throw new ArgumentNullException(nameof(shaderModuleManager));
+            }
+
+            ModuleManager = shaderModuleManager;
+        }
+
+        /// <summary>
+        /// Loads a shader asset from the shader cache, compiling it if required.
+        /// </summary>
+        /// <param name="shaderId">Shader asset identifier to load.</param>
+        /// <returns>Loaded shader asset.</returns>
+        public static ShaderAsset LoadShaderAsset(string shaderId) {
+            if (string.IsNullOrWhiteSpace(shaderId)) {
+                throw new ArgumentException("Shader id must be provided.", nameof(shaderId));
+            }
+
+            if (ModuleManager == null) {
+                throw new InvalidOperationException("Shader package service has not been initialized.");
+            }
+
+            string shaderCachePath = EditorProjectPaths.ShaderCache;
+            if (string.IsNullOrWhiteSpace(shaderCachePath)) {
+                throw new InvalidOperationException("Shader cache path has not been initialized.");
+            }
+
+            string packagePath = ShaderPackagePaths.GetPackagePath(shaderCachePath, shaderId, ShaderCompileTarget.DirectX11);
+            bool compiled = ModuleManager.EnsureShaderCompiled(shaderId);
+            if (!compiled && !File.Exists(packagePath)) {
+                throw new FileNotFoundException("Shader package was not found.", packagePath);
+            }
+
+            ModuleManager.TrackShaderUsage(shaderId);
+            return LoadShaderAssetFromPackage(packagePath);
+        }
+
+        /// <summary>
+        /// Loads a shader asset from a compiled package file.
+        /// </summary>
+        /// <param name="packagePath">Shader package path.</param>
+        /// <returns>Loaded shader asset.</returns>
+        public static ShaderAsset LoadShaderAssetFromPackage(string packagePath) {
+            if (string.IsNullOrWhiteSpace(packagePath)) {
+                throw new ArgumentException("Shader package path must be provided.", nameof(packagePath));
+            }
+
+            if (!File.Exists(packagePath)) {
+                throw new FileNotFoundException("Shader package was not found.", packagePath);
+            }
+
+            using (FileStream stream = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                Asset asset = AssetSerializer.Deserialize(stream);
+                if (asset is ShaderAsset shaderAsset) {
+                    return shaderAsset;
+                }
+            }
+
+            throw new InvalidOperationException("Shader package did not contain a shader asset.");
+        }
+    }
+}

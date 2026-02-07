@@ -206,6 +206,8 @@ namespace helengine.editor {
             dockingManager.Layout.DockRelative(previewPanel, assetBrowserPanel, DockInsertDirection.Right, 0.75f);
 
             shaderModuleManager = BuildShaderModuleManager();
+            EditorShaderPackageService.Initialize(shaderModuleManager);
+            shaderModuleManager.ShaderBuilt += HandleShaderBuilt;
             shaderModuleManager.Start();
 
             BuildStartScene();
@@ -418,6 +420,7 @@ namespace helengine.editor {
             EditorSelectionService.SelectionChanged -= HandleSelectionChanged;
             EditorAssetPickerService.PickRequested -= HandleAssetPickRequested;
             assetPickerModal.Hide();
+            shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
             shaderModuleManager.Dispose();
             loggerPanel.Detach();
             core.Dispose();
@@ -534,6 +537,16 @@ namespace helengine.editor {
                 return;
             }
 
+            if (IsMaterialAssetEntry(entry)) {
+                try {
+                    MaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
+                    propertiesPanel.ShowMaterialSettings(entry, materialAsset);
+                } catch (Exception ex) {
+                    propertiesPanel.ShowImportError(entry, ex.Message);
+                }
+                return;
+            }
+
             try {
                 AssetImportSettings settings;
                 if (!assetImportManager.TryLoadOrCreateImportSettings(entry.FullPath, out settings)) {
@@ -555,6 +568,25 @@ namespace helengine.editor {
             } catch (Exception ex) {
                 propertiesPanel.ShowImportError(entry, ex.Message);
                 previewPanel.ClearPreview();
+            }
+        }
+
+        /// <summary>
+        /// Handles shader build notifications to refresh runtime shader resources.
+        /// </summary>
+        /// <param name="shaderName">Shader name that was rebuilt.</param>
+        /// <param name="packagePath">Package path containing the updated shader.</param>
+        void HandleShaderBuilt(string shaderName, string packagePath) {
+            if (string.IsNullOrWhiteSpace(packagePath)) {
+                return;
+            }
+
+            try {
+                ShaderAsset shaderAsset = EditorShaderPackageService.LoadShaderAssetFromPackage(packagePath);
+                string shaderAssetId = string.IsNullOrWhiteSpace(shaderAsset.Id) ? shaderName : shaderAsset.Id;
+                core.RenderManager3D.InvalidateShaderResources(shaderAssetId, shaderAsset);
+            } catch (Exception ex) {
+                Logger.WriteError($"Shader reload failed for '{shaderName}': {ex.Message}");
             }
         }
 
@@ -586,6 +618,44 @@ namespace helengine.editor {
             } catch (Exception ex) {
                 propertiesPanel.ShowImportError(entry, ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Determines whether the selected entry is a material asset.
+        /// </summary>
+        /// <param name="entry">Entry to evaluate.</param>
+        /// <returns>True when the entry is a material asset.</returns>
+        bool IsMaterialAssetEntry(AssetBrowserEntry entry) {
+            if (entry == null) {
+                return false;
+            }
+
+            string extension = entry.Extension;
+            return string.Equals(extension, EditorFileTemplateRegistry.MaterialExtension, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Loads a material asset from disk.
+        /// </summary>
+        /// <param name="path">Path to the material asset.</param>
+        /// <returns>Material asset instance.</returns>
+        MaterialAsset LoadMaterialAsset(string path) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                throw new ArgumentException("Material path must be provided.", nameof(path));
+            }
+
+            if (!File.Exists(path)) {
+                throw new FileNotFoundException("Material file was not found.", path);
+            }
+
+            using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                Asset asset = AssetSerializer.Deserialize(stream);
+                if (asset is MaterialAsset materialAsset) {
+                    return materialAsset;
+                }
+            }
+
+            throw new InvalidOperationException("Selected asset is not a material asset.");
         }
 
         /// <summary>

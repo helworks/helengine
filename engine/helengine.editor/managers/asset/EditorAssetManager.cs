@@ -75,6 +75,10 @@ namespace helengine.editor {
         /// Gets the current directory path relative to the assets root.
         /// </summary>
         public string CurrentRelativePath => currentRelativePath;
+        /// <summary>
+        /// Gets the absolute path for the current folder.
+        /// </summary>
+        public string CurrentFullPath => GetCurrentFullPath();
 
         /// <summary>
         /// Builds the display path used by the asset browser UI.

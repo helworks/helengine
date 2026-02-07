@@ -57,6 +57,14 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Invalidates shader resources associated with a compiled shader asset.
+        /// </summary>
+        /// <param name="shaderAssetId">Shader asset identifier to invalidate.</param>
+        /// <param name="shaderAsset">Updated shader asset data.</param>
+        public virtual void InvalidateShaderResources(string shaderAssetId, ShaderAsset shaderAsset) {
+        }
+
+        /// <summary>
         /// Performs per-frame update for 3D rendering systems.
         /// </summary>
         public virtual void Update() { }

@@ -43,6 +43,10 @@ namespace helengine.editor {
         /// </summary>
         const string EmptyAssetLabel = "None";
         /// <summary>
+        /// Placeholder text for assigned assets without a known label.
+        /// </summary>
+        const string AssignedAssetLabel = "Assigned";
+        /// <summary>
         /// Extension used for material assets.
         /// </summary>
         const string MaterialExtension = ".helmat";
@@ -72,6 +76,10 @@ namespace helengine.editor {
         /// </summary>
         readonly Dictionary<TextBoxComponent, ComponentPropertyRow> ScalarFieldRows;
         /// <summary>
+        /// Tracks display labels for runtime models assigned via the picker.
+        /// </summary>
+        readonly Dictionary<RuntimeModel, string> ModelLabels;
+        /// <summary>
         /// Render order used for label text.
         /// </summary>
         readonly byte TextOrder;
@@ -99,6 +107,7 @@ namespace helengine.editor {
             ActiveRows = new List<ComponentPropertyRow>(16);
             VectorFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
+            ModelLabels = new Dictionary<RuntimeModel, string>();
             TextOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
         }
 
@@ -228,6 +237,14 @@ namespace helengine.editor {
                     continue;
                 }
 
+                if (propertyType == typeof(RuntimeModel) && isEditable) {
+                    ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Model);
+                    BindPropertyRow(row, component, property);
+                    UpdateModelRow(row);
+                    ActiveRows.Add(row);
+                    continue;
+                }
+
                 if (IsEditableScalar(propertyType) && isEditable) {
                     ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Scalar);
                     BindPropertyRow(row, component, property);
@@ -300,6 +317,25 @@ namespace helengine.editor {
             } else {
                 row.ValueText.Text = EmptyAssetLabel;
             }
+        }
+
+        /// <summary>
+        /// Updates a model row with the component property value.
+        /// </summary>
+        /// <param name="row">Row to update.</param>
+        void UpdateModelRow(ComponentPropertyRow row) {
+            object rawValue = GetPropertyValue(row);
+            if (rawValue is RuntimeModel model) {
+                if (ModelLabels.TryGetValue(model, out string label) && !string.IsNullOrWhiteSpace(label)) {
+                    row.ValueText.Text = label;
+                    return;
+                }
+
+                row.ValueText.Text = string.IsNullOrWhiteSpace(model.Id) ? AssignedAssetLabel : model.Id;
+                return;
+            }
+
+            row.ValueText.Text = EmptyAssetLabel;
         }
 
         /// <summary>
@@ -676,6 +712,10 @@ namespace helengine.editor {
             }
 
             MaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
+            if (string.IsNullOrWhiteSpace(materialAsset.ShaderAssetId)) {
+                return null;
+            }
+
             ShaderAsset shaderAsset = LoadShaderAsset(materialAsset.ShaderAssetId);
             return Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
         }
@@ -714,24 +754,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material does not specify a shader asset id.");
             }
 
-            string shaderCachePath = EditorProjectPaths.ShaderCache;
-            if (string.IsNullOrWhiteSpace(shaderCachePath)) {
-                throw new InvalidOperationException("Shader cache path has not been initialized.");
-            }
-
-            string packagePath = ShaderPackagePaths.GetPackagePath(shaderCachePath, shaderId, ShaderCompileTarget.DirectX11);
-            if (!File.Exists(packagePath)) {
-                throw new FileNotFoundException("Shader package was not found.", packagePath);
-            }
-
-            using (FileStream stream = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                Asset asset = AssetSerializer.Deserialize(stream);
-                if (asset is ShaderAsset shaderAsset) {
-                    return shaderAsset;
-                }
-            }
-
-            throw new InvalidOperationException("Shader package did not contain a shader asset.");
+            return EditorShaderPackageService.LoadShaderAsset(shaderId);
         }
 
         /// <summary>
@@ -783,6 +806,9 @@ namespace helengine.editor {
                     LayoutVectorRow(row, width, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Material:
+                    LayoutMaterialRow(row, width, height, labelWidth);
+                    break;
+                case ComponentPropertyRowKind.Model:
                     LayoutMaterialRow(row, width, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Scalar:
@@ -940,6 +966,9 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Material:
                     BuildMaterialRow(row, rowEntity);
                     break;
+                case ComponentPropertyRowKind.Model:
+                    BuildModelRow(row, rowEntity);
+                    break;
                 case ComponentPropertyRowKind.Scalar:
                     BuildScalarRow(row, rowEntity);
                     break;
@@ -1012,6 +1041,108 @@ namespace helengine.editor {
             row.ActionButtonHost = buttonHost;
             row.ActionButton = button;
         }
+
+        /// <summary>
+        /// Builds the model field controls for a row.
+        /// </summary>
+        /// <param name="row">Row to populate.</param>
+        /// <param name="rowEntity">Row root entity.</param>
+        void BuildModelRow(ComponentPropertyRow row, EditorEntity rowEntity) {
+            var valueHost = new EditorEntity();
+            valueHost.LayerMask = RootEntity.LayerMask;
+            valueHost.Position = float3.Zero;
+            rowEntity.AddChild(valueHost);
+
+            var valueText = new TextComponent();
+            valueText.Font = Font;
+            valueText.Text = EmptyAssetLabel;
+            valueText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            valueText.Size = new int2(1, 1);
+            valueText.RenderOrder2D = TextOrder;
+            valueHost.AddComponent(valueText);
+
+            var buttonHost = new EditorEntity();
+            buttonHost.LayerMask = RootEntity.LayerMask;
+            buttonHost.Position = float3.Zero;
+            rowEntity.AddChild(buttonHost);
+
+            var button = new ButtonComponent("Pick", new int2(PickButtonWidth, PickButtonHeight), Font, () => RequestModelPick(row), 0f);
+            buttonHost.AddComponent(button);
+
+            row.ValueHost = valueHost;
+            row.ValueText = valueText;
+            row.ActionButtonHost = buttonHost;
+            row.ActionButton = button;
+        }
+
+        /// <summary>
+        /// Requests the asset picker for a model field.
+        /// </summary>
+        /// <param name="row">Model row to update.</param>
+        void RequestModelPick(ComponentPropertyRow row) {
+            EditorAssetPickerService.RequestPick(entry => HandleModelPicked(row, entry));
+        }
+
+        /// <summary>
+        /// Applies a picked model asset to the row property.
+        /// </summary>
+        /// <param name="row">Row to update.</param>
+        /// <param name="entry">Picked asset entry.</param>
+        void HandleModelPicked(ComponentPropertyRow row, AssetBrowserEntry entry) {
+            if (row.TargetComponent == null || row.Property == null) {
+                return;
+            }
+
+            try {
+                RuntimeModel model = LoadModel(entry);
+                row.Property.SetValue(row.TargetComponent, model);
+                if (entry != null) {
+                    ModelLabels[model] = entry.Name ?? string.Empty;
+                }
+                UpdateModelRow(row);
+            } catch (Exception ex) {
+                Logger.WriteError($"Model pick failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Loads a runtime model from the selected asset entry.
+        /// </summary>
+        /// <param name="entry">Asset entry to load.</param>
+        /// <returns>Runtime model instance.</returns>
+        RuntimeModel LoadModel(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            ModelAsset modelAsset = LoadModelAsset(entry.FullPath);
+            return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+        }
+
+        /// <summary>
+        /// Loads a model asset from disk.
+        /// </summary>
+        /// <param name="path">Path to the model asset.</param>
+        /// <returns>Model asset instance.</returns>
+        ModelAsset LoadModelAsset(string path) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                throw new ArgumentException("Model path must be provided.", nameof(path));
+            }
+
+            if (!File.Exists(path)) {
+                throw new FileNotFoundException("Model file was not found.", path);
+            }
+
+            using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                Asset asset = AssetSerializer.Deserialize(stream);
+                if (asset is ModelAsset modelAsset) {
+                    return modelAsset;
+                }
+            }
+
+            throw new InvalidOperationException("Selected asset is not a model asset.");
+        }
+
 
         /// <summary>
         /// Builds the scalar field controls for a row.

@@ -81,6 +81,10 @@ namespace helengine.editor {
         /// </summary>
         readonly AssetImportSettingsView importSettingsView;
         /// <summary>
+        /// View that renders material asset options.
+        /// </summary>
+        readonly MaterialAssetView MaterialView;
+        /// <summary>
         /// Root entity hosting transform editing controls.
         /// </summary>
         readonly EditorEntity TransformRoot;
@@ -232,6 +236,9 @@ namespace helengine.editor {
             importSettingsView.ApplyRequested += HandleImportSettingsApplyRequested;
             contentRoot.AddChild(importSettingsView.Root);
 
+            MaterialView = new MaterialAssetView(font, LayerMask);
+            contentRoot.AddChild(MaterialView.Root);
+
             TransformRoot = new EditorEntity();
             TransformRoot.LayerMask = LayerMask;
             TransformRoot.Position = new float3(0, 0, 0.2f);
@@ -282,6 +289,7 @@ namespace helengine.editor {
 
             currentEntry = entry;
             importSettingsView.Show(importerIds, settings.ImporterId);
+            MaterialView.Hide();
             SetTransformVisible(false);
             ComponentView.Hide();
             ApplyLines(Array.Empty<string>());
@@ -304,6 +312,7 @@ namespace helengine.editor {
 
             currentEntry = null;
             importSettingsView.Hide();
+            MaterialView.Hide();
             SetTransformVisible(false);
             ComponentView.Hide();
             ApplyLines(new[] {
@@ -320,6 +329,30 @@ namespace helengine.editor {
         public void ShowEmpty() {
             currentEntry = null;
             importSettingsView.Hide();
+            MaterialView.Hide();
+            SetTransformVisible(false);
+            ComponentView.Hide();
+            ApplyLines(Array.Empty<string>());
+            LayoutLines();
+        }
+
+        /// <summary>
+        /// Shows material options for a selected material asset.
+        /// </summary>
+        /// <param name="entry">Selected asset entry.</param>
+        /// <param name="materialAsset">Material asset to edit.</param>
+        public void ShowMaterialSettings(AssetBrowserEntry entry, MaterialAsset materialAsset) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+
+            currentEntry = entry;
+            importSettingsView.Hide();
+            MaterialView.Show(entry, materialAsset);
             SetTransformVisible(false);
             ComponentView.Hide();
             ApplyLines(Array.Empty<string>());
@@ -337,6 +370,7 @@ namespace helengine.editor {
 
             currentEntry = null;
             importSettingsView.Hide();
+            MaterialView.Hide();
             SelectedEntity = entity;
             ApplyLines(Array.Empty<string>());
             SyncTransformFields(entity);
@@ -981,6 +1015,11 @@ namespace helengine.editor {
             if (importSettingsView.IsVisible) {
                 int viewTop = (int)Math.Round(offsetY);
                 importSettingsView.UpdateLayout(ContentPadding, viewTop, maxWidth);
+            }
+
+            if (MaterialView.IsVisible) {
+                int viewTop = (int)Math.Round(offsetY);
+                MaterialView.UpdateLayout(ContentPadding, viewTop, maxWidth);
             }
 
             if (ShowTransformControls) {

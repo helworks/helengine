@@ -7,6 +7,10 @@ namespace helengine.editor {
         /// Package file extension used for serialized shader packages.
         /// </summary>
         public const string PackageExtension = ".shader.asset";
+        /// <summary>
+        /// Metadata file extension used for cached shader source data.
+        /// </summary>
+        public const string MetadataExtension = ".shader.meta";
 
         /// <summary>
         /// Builds the package path for a shader and target.
@@ -26,6 +30,27 @@ namespace helengine.editor {
 
             string targetName = ShaderTargetNames.GetTargetName(target);
             string fileName = string.Concat(shaderName, ".", targetName, PackageExtension);
+            return Path.GetFullPath(Path.Combine(outputDirectory, fileName));
+        }
+
+        /// <summary>
+        /// Builds the metadata path for a shader and target.
+        /// </summary>
+        /// <param name="outputDirectory">Directory where metadata is written.</param>
+        /// <param name="shaderName">Logical shader name.</param>
+        /// <param name="target">Target backend to include in the file name.</param>
+        /// <returns>Absolute path to the metadata file.</returns>
+        public static string GetMetadataPath(string outputDirectory, string shaderName, ShaderCompileTarget target) {
+            if (string.IsNullOrWhiteSpace(outputDirectory)) {
+                throw new ArgumentException("Output directory must be provided.", nameof(outputDirectory));
+            }
+
+            if (string.IsNullOrWhiteSpace(shaderName)) {
+                throw new ArgumentException("Shader name must be provided.", nameof(shaderName));
+            }
+
+            string targetName = ShaderTargetNames.GetTargetName(target);
+            string fileName = string.Concat(shaderName, ".", targetName, MetadataExtension);
             return Path.GetFullPath(Path.Combine(outputDirectory, fileName));
         }
     }
