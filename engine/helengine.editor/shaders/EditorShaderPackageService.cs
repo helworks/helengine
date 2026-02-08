@@ -7,17 +7,23 @@ namespace helengine.editor {
         /// Shader module manager used to compile shaders on demand.
         /// </summary>
         static ShaderModuleManager ModuleManager;
+        /// <summary>
+        /// Runtime shader target used to resolve shader package files.
+        /// </summary>
+        static ShaderCompileTarget RuntimeTarget = ShaderCompileTarget.DirectX11;
 
         /// <summary>
         /// Initializes the shader package service with the active module manager.
         /// </summary>
         /// <param name="shaderModuleManager">Module manager used for on-demand compilation.</param>
-        public static void Initialize(ShaderModuleManager shaderModuleManager) {
+        /// <param name="runtimeTarget">Runtime target used by the active renderer.</param>
+        public static void Initialize(ShaderModuleManager shaderModuleManager, ShaderCompileTarget runtimeTarget) {
             if (shaderModuleManager == null) {
                 throw new ArgumentNullException(nameof(shaderModuleManager));
             }
 
             ModuleManager = shaderModuleManager;
+            RuntimeTarget = runtimeTarget;
         }
 
         /// <summary>
@@ -39,7 +45,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Shader cache path has not been initialized.");
             }
 
-            string packagePath = ShaderPackagePaths.GetPackagePath(shaderCachePath, shaderId, ShaderCompileTarget.DirectX11);
+            string packagePath = ShaderPackagePaths.GetPackagePath(shaderCachePath, shaderId, RuntimeTarget);
             bool compiled = ModuleManager.EnsureShaderCompiled(shaderId);
             if (!compiled && !File.Exists(packagePath)) {
                 throw new FileNotFoundException("Shader package was not found.", packagePath);

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
+    <ProjectReference Include="..\helengine.core.windows\helengine.core.windows.csproj" />
+    <ProjectReference Include="..\helengine.directx11\helengine.directx11.csproj" />
+    <ProjectReference Include="..\helengine.vulkan\helengine.vulkan.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\helengine.directx11\shaders\*.fx">
+      <Link>shaders\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

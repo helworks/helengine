@@ -21,6 +21,10 @@ namespace helengine.vulkan {
         /// Maximum number of descriptor sets allocated for textures.
         /// </summary>
         const int MaxDescriptorSets = 2048;
+        /// <summary>
+        /// Maximum number of quads that can be recorded in a single frame.
+        /// </summary>
+        const int MaxQuadsPerFrame = 8192;
 
         /// <summary>
         /// Shared Vulkan context for device access.
@@ -107,6 +111,10 @@ namespace helengine.vulkan {
         /// </summary>
         bool frameActive;
         /// <summary>
+        /// Tracks how many quads have been written into the dynamic vertex buffer for the current frame.
+        /// </summary>
+        int recordedQuadCount;
+        /// <summary>
         /// Tracks whether the renderer has been disposed.
         /// </summary>
         bool disposed;
@@ -153,6 +161,7 @@ namespace helengine.vulkan {
             currentSurface = surface;
             currentCommandBuffer = commandBuffer;
             frameActive = true;
+            recordedQuadCount = 0;
 
             EnsurePipeline(surface);
         }
@@ -167,6 +176,7 @@ namespace helengine.vulkan {
             currentViewportHeight = 0;
             currentViewportOffsetX = 0;
             currentViewportOffsetY = 0;
+            recordedQuadCount = 0;
         }
 
         /// <summary>
@@ -203,12 +213,16 @@ namespace helengine.vulkan {
             double pixelOffsetY = offsetY * pixelScaleY;
             double pixelWidth = width * pixelScaleX;
             double pixelHeight = height * pixelScaleY;
+            double snappedPixelOffsetX = Math.Round(pixelOffsetX);
+            double snappedPixelOffsetY = Math.Round(pixelOffsetY);
+            double snappedPixelWidth = Math.Max(1.0, Math.Round(pixelWidth));
+            double snappedPixelHeight = Math.Max(1.0, Math.Round(pixelHeight));
 
-            currentViewportOffsetX = offsetX;
-            currentViewportOffsetY = offsetY;
-            currentViewportWidth = width;
-            currentViewportHeight = height;
-            SetViewportAndScissor(pixelOffsetX, pixelOffsetY, pixelWidth, pixelHeight);
+            currentViewportOffsetX = snappedPixelOffsetX / pixelScaleX;
+            currentViewportOffsetY = snappedPixelOffsetY / pixelScaleY;
+            currentViewportWidth = snappedPixelWidth / pixelScaleX;
+            currentViewportHeight = snappedPixelHeight / pixelScaleY;
+            SetViewportAndScissor(snappedPixelOffsetX, snappedPixelOffsetY, snappedPixelWidth, snappedPixelHeight);
 
             IRenderQueue2D renderQueue = camera.RenderQueue2D;
             renderQueue.VisitOrdered(this);
@@ -504,8 +518,8 @@ namespace helengine.vulkan {
         unsafe void CreateSampler() {
             SamplerCreateInfo samplerInfo = new SamplerCreateInfo {
                 SType = StructureType.SamplerCreateInfo,
-                MagFilter = Filter.Linear,
-                MinFilter = Filter.Linear,
+                MagFilter = Filter.Nearest,
+                MinFilter = Filter.Nearest,
                 AddressModeU = SamplerAddressMode.ClampToEdge,
                 AddressModeV = SamplerAddressMode.ClampToEdge,
                 AddressModeW = SamplerAddressMode.ClampToEdge,
@@ -514,7 +528,7 @@ namespace helengine.vulkan {
                 BorderColor = BorderColor.FloatOpaqueWhite,
                 UnnormalizedCoordinates = false,
                 CompareEnable = false,
-                MipmapMode = SamplerMipmapMode.Linear,
+                MipmapMode = SamplerMipmapMode.Nearest,
                 MinLod = 0,
                 MaxLod = 0
             };
@@ -537,7 +551,7 @@ namespace helengine.vulkan {
         /// Creates the per-quad vertex and index buffers.
         /// </summary>
         void CreateQuadBuffers() {
-            ulong vertexSize = (ulong)(VulkanSpriteVertex.SizeInBytes * QuadVertexCount);
+            ulong vertexSize = (ulong)(VulkanSpriteVertex.SizeInBytes * QuadVertexCount * MaxQuadsPerFrame);
             vertexBuffer = new VulkanGpuBuffer(
                 context,
                 vertexSize,
@@ -1074,18 +1088,38 @@ namespace helengine.vulkan {
         /// <param name="width">Viewport width in physical pixels.</param>
         /// <param name="height">Viewport height in physical pixels.</param>
         unsafe void SetViewportAndScissor(double offsetX, double offsetY, double width, double height) {
+            int viewportX = (int)Math.Round(offsetX);
+            int viewportY = (int)Math.Round(offsetY);
+            int viewportWidth = Math.Max(1, (int)Math.Round(width));
+            int viewportHeight = Math.Max(1, (int)Math.Round(height));
+
+            int maxWidth = (int)currentSurface.Extent.Width;
+            int maxHeight = (int)currentSurface.Extent.Height;
+            if (viewportX < 0) {
+                viewportWidth += viewportX;
+                viewportX = 0;
+            }
+
+            if (viewportY < 0) {
+                viewportHeight += viewportY;
+                viewportY = 0;
+            }
+
+            viewportWidth = Math.Min(viewportWidth, Math.Max(1, maxWidth - viewportX));
+            viewportHeight = Math.Min(viewportHeight, Math.Max(1, maxHeight - viewportY));
+
             Viewport vkViewport = new Viewport {
-                X = (float)offsetX,
-                Y = (float)offsetY,
-                Width = (float)width,
-                Height = (float)height,
+                X = viewportX,
+                Y = viewportY,
+                Width = viewportWidth,
+                Height = viewportHeight,
                 MinDepth = 0f,
                 MaxDepth = 1f
             };
 
             Rect2D scissor = new Rect2D {
-                Offset = new Offset2D((int)offsetX, (int)offsetY),
-                Extent = new Extent2D((uint)width, (uint)height)
+                Offset = new Offset2D(viewportX, viewportY),
+                Extent = new Extent2D((uint)viewportWidth, (uint)viewportHeight)
             };
 
             Viewport* viewports = stackalloc Viewport[] { vkViewport };
@@ -1107,6 +1141,10 @@ namespace helengine.vulkan {
         unsafe void DrawQuad(VulkanTextureResource texture, double x, double y, double width, double height, float4 uvRect, byte4 color) {
             if (currentViewportWidth <= 0.0 || currentViewportHeight <= 0.0) {
                 return;
+            }
+
+            if (recordedQuadCount >= MaxQuadsPerFrame) {
+                throw new InvalidOperationException("Exceeded the Vulkan 2D per-frame quad capacity.");
             }
 
             double left = x;
@@ -1136,7 +1174,10 @@ namespace helengine.vulkan {
             vertices[2] = new VulkanSpriteVertex(new float2(ndcRight, ndcBottom), new float2(u1, v1), colorVector);
             vertices[3] = new VulkanSpriteVertex(new float2(ndcLeft, ndcBottom), new float2(u0, v1), colorVector);
 
-            vertexBuffer.Update(vertices);
+            int quadIndex = recordedQuadCount;
+            ulong vertexByteOffset = (ulong)(quadIndex * QuadVertexCount * VulkanSpriteVertex.SizeInBytes);
+            vertexBuffer.Update(vertices, vertexByteOffset);
+            recordedQuadCount++;
 
             context.Api.CmdBindPipeline(currentCommandBuffer, PipelineBindPoint.Graphics, pipeline);
 
@@ -1144,7 +1185,7 @@ namespace helengine.vulkan {
             DescriptorSet* descriptorSets = stackalloc DescriptorSet[] { descriptorSet };
             context.Api.CmdBindDescriptorSets(currentCommandBuffer, PipelineBindPoint.Graphics, pipelineLayout, 0, 1, descriptorSets, 0, null);
 
-            ulong offset = 0;
+            ulong offset = vertexByteOffset;
             VkBuffer* vertexBuffers = stackalloc VkBuffer[] { vertexBuffer.Handle };
             ulong* offsets = stackalloc ulong[] { offset };
             context.Api.CmdBindVertexBuffers(currentCommandBuffer, 0, 1, vertexBuffers, offsets);

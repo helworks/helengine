@@ -28,7 +28,10 @@ namespace helengine.editor {
             "    float4 pos : SV_POSITION;\n" +
             "};\n" +
             "\n" +
-            "float4x4 worldViewProj;\n" +
+            "cbuffer TransformBuffer : register(b0)\n" +
+            "{\n" +
+            "    float4x4 worldViewProj;\n" +
+            "};\n" +
             "\n" +
             "PS_IN VS(VS_IN input)\n" +
             "{\n" +

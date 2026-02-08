@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
     <ProjectReference Include="..\helengine.directx11\helengine.directx11.csproj" />
+    <ProjectReference Include="..\helengine.vulkan\helengine.vulkan.csproj" />
   </ItemGroup>
 
   <ItemGroup>

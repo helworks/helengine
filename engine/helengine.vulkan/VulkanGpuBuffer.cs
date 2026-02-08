@@ -62,15 +62,42 @@ namespace helengine.vulkan {
         /// <typeparam name="T">Struct type of the data.</typeparam>
         /// <param name="data">Array of data elements to copy.</param>
         public unsafe void Update<T>(T[] data) where T : unmanaged {
+            Update(data, 0);
+        }
+
+        /// <summary>
+        /// Uploads structured data into the buffer at a specific byte offset.
+        /// </summary>
+        /// <typeparam name="T">Struct type of the data.</typeparam>
+        /// <param name="data">Array of data elements to copy.</param>
+        /// <param name="destinationOffsetBytes">Destination byte offset in the target buffer.</param>
+        public unsafe void Update<T>(T[] data, ulong destinationOffsetBytes) where T : unmanaged {
+            if (data == null) {
+                throw new ArgumentNullException(nameof(data));
+            }
+
             ulong byteCount = (ulong)(data.Length * sizeof(T));
-            if (byteCount > size) {
-                throw new ArgumentOutOfRangeException(nameof(data), "Data exceeds the size of the Vulkan buffer.");
+            if (byteCount == 0) {
+                return;
+            }
+
+            if (destinationOffsetBytes > size) {
+                throw new ArgumentOutOfRangeException(nameof(destinationOffsetBytes), "Destination offset exceeds the size of the Vulkan buffer.");
+            }
+
+            ulong remaining = size - destinationOffsetBytes;
+            if (byteCount > remaining) {
+                throw new ArgumentOutOfRangeException(nameof(data), "Data exceeds the available Vulkan buffer range at the requested destination offset.");
             }
 
             void* mapped;
-            context.Api.MapMemory(context.Device, memory, 0, size, 0, &mapped);
+            Result mapResult = context.Api.MapMemory(context.Device, memory, destinationOffsetBytes, byteCount, 0, &mapped);
+            if (mapResult != Result.Success) {
+                throw new InvalidOperationException($"Failed to map Vulkan buffer memory: {mapResult}.");
+            }
+
             fixed (T* source = data) {
-                System.Buffer.MemoryCopy(source, mapped, size, byteCount);
+                System.Buffer.MemoryCopy(source, mapped, byteCount, byteCount);
             }
             context.Api.UnmapMemory(context.Device, memory);
         }

@@ -8,6 +8,57 @@ namespace helengine.editor {
         /// </summary>
         const int ShaderBuildDelayMilliseconds = 250;
         /// <summary>
+        /// Built-in runtime shader name used for Vulkan starter-scene materials.
+        /// </summary>
+        const string DefaultRuntimeShaderName = "EditorDefaultMesh";
+        /// <summary>
+        /// Built-in runtime shader variant.
+        /// </summary>
+        const string DefaultRuntimeShaderVariant = "default";
+        /// <summary>
+        /// Built-in runtime shader vertex entry point.
+        /// </summary>
+        const string DefaultRuntimeVertexEntryPoint = "VS";
+        /// <summary>
+        /// Built-in runtime shader pixel entry point.
+        /// </summary>
+        const string DefaultRuntimePixelEntryPoint = "PS";
+        /// <summary>
+        /// Built-in HLSL source used to generate Vulkan starter-scene materials.
+        /// </summary>
+        const string DefaultRuntimeShaderSource =
+            "cbuffer TransformBuffer : register(b0)\n" +
+            "{\n" +
+            "    float4x4 worldViewProj;\n" +
+            "};\n" +
+            "\n" +
+            "struct VS_IN\n" +
+            "{\n" +
+            "    float3 pos : POSITION;\n" +
+            "    float3 normal : NORMAL;\n" +
+            "    float2 texCoord : TEXCOORD0;\n" +
+            "};\n" +
+            "\n" +
+            "struct PS_IN\n" +
+            "{\n" +
+            "    float4 pos : SV_POSITION;\n" +
+            "    float3 normal : NORMAL;\n" +
+            "};\n" +
+            "\n" +
+            "PS_IN VS(VS_IN input)\n" +
+            "{\n" +
+            "    PS_IN output;\n" +
+            "    output.pos = mul(float4(input.pos, 1.0f), worldViewProj);\n" +
+            "    output.normal = input.normal;\n" +
+            "    return output;\n" +
+            "}\n" +
+            "\n" +
+            "float4 PS(PS_IN input) : SV_Target\n" +
+            "{\n" +
+            "    float3 displayNormal = normalize(input.normal) * 0.5 + 0.5;\n" +
+            "    return float4(displayNormal, 1.0);\n" +
+            "}\n";
+        /// <summary>
         /// Editor core driving updates and rendering.
         /// </summary>
         readonly EditorCore core;
@@ -162,13 +213,17 @@ namespace helengine.editor {
             hiddenCameraComponent.LayerMask = sceneCameraComponent.LayerMask;
             hiddenCameraComponent.Viewport = new float4(0, 0, 640, 360);
             hiddenCameraComponent.ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
-            hiddenCameraTarget = render3D.CreateRenderTarget(640, 360);
-            hiddenCameraComponent.RenderTarget = hiddenCameraTarget;
-            hiddenCameraEntity.AddComponent(hiddenCameraComponent);
-            if (render3D is not helengine.directx11.DirectX11Renderer3D pickerRenderer) {
-                throw new InvalidOperationException("Editor picker requires a DirectX11 renderer.");
+            if (render3D is helengine.directx11.DirectX11Renderer3D pickerRenderer) {
+                hiddenCameraTarget = render3D.CreateRenderTarget(640, 360);
+                hiddenCameraComponent.RenderTarget = hiddenCameraTarget;
+                hiddenCameraEntity.AddComponent(hiddenCameraComponent);
+                sceneCameraEntity.AddComponent(new EditorViewportPicker(sceneCameraComponent, hiddenCameraEntity, hiddenCameraComponent, pickerRenderer));
+            } else {
+                hiddenCameraTarget = null;
+                hiddenCameraComponent.RenderTarget = null;
+                hiddenCameraEntity.AddComponent(hiddenCameraComponent);
+                Logger.WriteWarning("Scene picking is currently available only on the DirectX11 renderer.");
             }
-            sceneCameraEntity.AddComponent(new EditorViewportPicker(sceneCameraComponent, hiddenCameraEntity, hiddenCameraComponent, pickerRenderer));
 
             titleBar = new EditorTitleBar(uiFont, Math.Max(1, renderWidth), titleText ?? string.Empty);
 
@@ -205,8 +260,9 @@ namespace helengine.editor {
             dockingManager.Layout.DockRelative(loggerPanel, assetBrowserPanel, DockInsertDirection.Fill, 0.5f);
             dockingManager.Layout.DockRelative(previewPanel, assetBrowserPanel, DockInsertDirection.Right, 0.75f);
 
-            shaderModuleManager = BuildShaderModuleManager();
-            EditorShaderPackageService.Initialize(shaderModuleManager);
+            ShaderCompileTarget runtimeTarget = ResolveRuntimeShaderTarget(render3D);
+            shaderModuleManager = BuildShaderModuleManager(runtimeTarget);
+            EditorShaderPackageService.Initialize(shaderModuleManager, runtimeTarget);
             shaderModuleManager.ShaderBuilt += HandleShaderBuilt;
             shaderModuleManager.Start();
 
@@ -476,6 +532,22 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Runtime material instance.</returns>
         RuntimeMaterial BuildDefaultMeshMaterial() {
+            if (core.RenderManager3D is helengine.directx11.DirectX11Renderer3D) {
+                return BuildDirectX11DefaultMeshMaterial();
+            }
+
+            if (core.RenderManager3D is helengine.vulkan.VulkanRenderer3D) {
+                return BuildVulkanDefaultMeshMaterial();
+            }
+
+            throw new InvalidOperationException("Unsupported renderer backend for default mesh material creation.");
+        }
+
+        /// <summary>
+        /// Builds the starter-scene material for the DirectX11 renderer.
+        /// </summary>
+        /// <returns>Runtime material instance.</returns>
+        RuntimeMaterial BuildDirectX11DefaultMeshMaterial() {
             string shaderPath = ResolveBuiltInShaderPath("MiniCube.fx");
             string shaderDirectory = Path.GetDirectoryName(shaderPath);
             if (string.IsNullOrWhiteSpace(shaderDirectory)) {
@@ -503,6 +575,197 @@ namespace helengine.editor {
             };
 
             return core.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+        }
+
+        /// <summary>
+        /// Builds the starter-scene material for the Vulkan renderer.
+        /// </summary>
+        /// <returns>Runtime material instance.</returns>
+        RuntimeMaterial BuildVulkanDefaultMeshMaterial() {
+            ShaderAsset shaderAsset = BuildRuntimeShaderAsset(
+                ShaderCompileTarget.Vulkan,
+                DefaultRuntimeShaderName,
+                DefaultRuntimeShaderSource,
+                DefaultRuntimeVertexEntryPoint,
+                DefaultRuntimePixelEntryPoint);
+
+            string shaderName = DefaultRuntimeShaderName;
+            var materialAsset = new MaterialAsset {
+                Id = string.Concat(shaderName, ".material"),
+                ShaderAssetId = shaderAsset.Id,
+                VertexProgram = string.Concat(shaderName, ".vs"),
+                PixelProgram = string.Concat(shaderName, ".ps"),
+                Variant = DefaultRuntimeShaderVariant
+            };
+
+            return core.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+        }
+
+        /// <summary>
+        /// Builds a runtime shader asset for the specified target from in-memory HLSL source.
+        /// </summary>
+        /// <param name="target">Shader compile target.</param>
+        /// <param name="shaderName">Logical shader name.</param>
+        /// <param name="source">HLSL shader source.</param>
+        /// <param name="vertexEntryPoint">Vertex entry point.</param>
+        /// <param name="pixelEntryPoint">Pixel entry point.</param>
+        /// <returns>Compiled shader asset.</returns>
+        ShaderAsset BuildRuntimeShaderAsset(
+            ShaderCompileTarget target,
+            string shaderName,
+            string source,
+            string vertexEntryPoint,
+            string pixelEntryPoint) {
+            if (string.IsNullOrWhiteSpace(shaderName)) {
+                throw new ArgumentException("Shader name must be provided.", nameof(shaderName));
+            }
+
+            if (string.IsNullOrWhiteSpace(source)) {
+                throw new ArgumentException("Shader source must be provided.", nameof(source));
+            }
+
+            if (string.IsNullOrWhiteSpace(vertexEntryPoint)) {
+                throw new ArgumentException("Vertex entry point must be provided.", nameof(vertexEntryPoint));
+            }
+
+            if (string.IsNullOrWhiteSpace(pixelEntryPoint)) {
+                throw new ArgumentException("Pixel entry point must be provided.", nameof(pixelEntryPoint));
+            }
+
+            ShaderCompileService compileService = CreateRuntimeShaderCompileService(target);
+            string sourcePath = string.Concat(shaderName, ".hlsl");
+            ShaderSourceInfo sourceInfo = new ShaderSourceInfo(sourcePath, source);
+            ShaderCompileOptions compileOptions = new ShaderCompileOptions(
+                ShaderBindingPolicies.Default,
+                true,
+                false,
+                false);
+            ShaderDefine[] defines = Array.Empty<ShaderDefine>();
+
+            string vertexProgramName = string.Concat(shaderName, ".vs");
+            string pixelProgramName = string.Concat(shaderName, ".ps");
+
+            ShaderCompileResult vertexResult = CompileRuntimeShaderProgram(
+                compileService,
+                sourceInfo,
+                target,
+                ShaderStage.Vertex,
+                vertexProgramName,
+                vertexEntryPoint,
+                compileOptions,
+                defines);
+            ShaderCompileResult pixelResult = CompileRuntimeShaderProgram(
+                compileService,
+                sourceInfo,
+                target,
+                ShaderStage.Pixel,
+                pixelProgramName,
+                pixelEntryPoint,
+                compileOptions,
+                defines);
+
+            ValidateRuntimeCompileResult(vertexResult, "vertex");
+            ValidateRuntimeCompileResult(pixelResult, "pixel");
+
+            string targetName = ShaderTargetNames.GetTargetName(target);
+            ShaderProgramDefinition[] programs = new[] {
+                vertexResult.ProgramDefinition,
+                pixelResult.ProgramDefinition
+            };
+            ShaderProgramBinary[] binaries = new[] {
+                new ShaderProgramBinary(vertexProgramName, ShaderStage.Vertex, targetName, DefaultRuntimeShaderVariant, vertexResult.Binary.Bytecode),
+                new ShaderProgramBinary(pixelProgramName, ShaderStage.Pixel, targetName, DefaultRuntimeShaderVariant, pixelResult.Binary.Bytecode)
+            };
+            var moduleDefinition = new ShaderModuleDefinition(shaderName, programs, binaries);
+            ShaderAsset shaderAsset = ShaderAsset.FromDefinition(moduleDefinition, target);
+
+            if (string.IsNullOrWhiteSpace(shaderAsset.Id)) {
+                throw new InvalidOperationException("Runtime shader asset id must be provided.");
+            }
+
+            return shaderAsset;
+        }
+
+        /// <summary>
+        /// Creates a compile service configured for the specified runtime target.
+        /// </summary>
+        /// <param name="target">Runtime shader compile target.</param>
+        /// <returns>Configured compile service.</returns>
+        ShaderCompileService CreateRuntimeShaderCompileService(ShaderCompileTarget target) {
+            string rootPath = ResolveAssetsRootPath(ResolveProjectRootPath(projectPath));
+            var includeResolver = new ShaderFilesystemIncludeResolver(rootPath);
+            var cache = new ShaderMemoryCompileCache();
+            var hasher = new ShaderSourceHasher();
+            var compileService = new ShaderCompileService(includeResolver, cache, hasher);
+
+            switch (target) {
+                case ShaderCompileTarget.DirectX11:
+                    compileService.RegisterBackend(new helengine.directx11.DirectX11ShaderBackend());
+                    break;
+                case ShaderCompileTarget.Vulkan:
+                    compileService.RegisterBackend(new helengine.vulkan.VulkanShaderBackend());
+                    break;
+                default:
+                    throw new InvalidOperationException("Unsupported runtime shader target.");
+            }
+
+            return compileService;
+        }
+
+        /// <summary>
+        /// Compiles a runtime shader stage.
+        /// </summary>
+        /// <param name="compileService">Compile service used for compilation.</param>
+        /// <param name="sourceInfo">Shader source and source path.</param>
+        /// <param name="target">Shader compile target.</param>
+        /// <param name="stage">Shader stage to compile.</param>
+        /// <param name="programName">Program name for the compiled stage.</param>
+        /// <param name="entryPoint">Entry point for the compiled stage.</param>
+        /// <param name="compileOptions">Compile options.</param>
+        /// <param name="defines">Define set.</param>
+        /// <returns>Compile result for the stage.</returns>
+        ShaderCompileResult CompileRuntimeShaderProgram(
+            ShaderCompileService compileService,
+            ShaderSourceInfo sourceInfo,
+            ShaderCompileTarget target,
+            ShaderStage stage,
+            string programName,
+            string entryPoint,
+            ShaderCompileOptions compileOptions,
+            IReadOnlyList<ShaderDefine> defines) {
+            var request = new ShaderCompileRequest(
+                sourceInfo,
+                programName,
+                entryPoint,
+                stage,
+                target,
+                new ShaderModel(4, 0),
+                DefaultRuntimeShaderVariant,
+                defines,
+                compileOptions);
+            return compileService.Compile(request);
+        }
+
+        /// <summary>
+        /// Validates runtime compile results and throws on failure diagnostics.
+        /// </summary>
+        /// <param name="result">Compile result to validate.</param>
+        /// <param name="stageName">Display stage name for diagnostics.</param>
+        void ValidateRuntimeCompileResult(ShaderCompileResult result, string stageName) {
+            if (result == null) {
+                throw new ArgumentNullException(nameof(result));
+            }
+
+            if (result.Success) {
+                return;
+            }
+
+            string message = string.Concat("Runtime ", stageName, " shader compilation failed.");
+            if (result.Diagnostics.Count > 0 && !string.IsNullOrWhiteSpace(result.Diagnostics[0].Message)) {
+                message = result.Diagnostics[0].Message;
+            }
+
+            throw new InvalidOperationException(message);
         }
 
         /// <summary>
@@ -708,16 +971,16 @@ namespace helengine.editor {
         /// Builds a shader module manager for the current project path.
         /// </summary>
         /// <returns>Configured shader module manager.</returns>
-        ShaderModuleManager BuildShaderModuleManager() {
+        ShaderModuleManager BuildShaderModuleManager(ShaderCompileTarget runtimeTarget) {
             string projectRoot = ResolveProjectRootPath(projectPath);
             string shaderRootPath = ResolveShaderRootPath(projectRoot);
             string packageOutputPath = ResolveShaderPackageOutputPath(projectRoot);
-            ShaderPackageBuildOptions buildOptions = BuildShaderPackageOptions();
+            ShaderPackageBuildOptions buildOptions = BuildShaderPackageOptions(runtimeTarget);
             var options = new ShaderModuleManagerOptions(
                 shaderRootPath,
                 packageOutputPath,
                 buildOptions,
-                ShaderCompileTarget.DirectX11,
+                runtimeTarget,
                 ShaderBuildDelayMilliseconds);
             return new ShaderModuleManager(options);
         }
@@ -726,10 +989,20 @@ namespace helengine.editor {
         /// Builds the default shader package build options for the editor.
         /// </summary>
         /// <returns>Shader package build options.</returns>
-        ShaderPackageBuildOptions BuildShaderPackageOptions() {
-            ShaderTargetBuildOptions[] targets = new[] {
-                new ShaderTargetBuildOptions(ShaderCompileTarget.DirectX11, new ShaderModel(4, 0))
-            };
+        ShaderPackageBuildOptions BuildShaderPackageOptions(ShaderCompileTarget runtimeTarget) {
+            ShaderTargetBuildOptions targetOptions;
+            switch (runtimeTarget) {
+                case ShaderCompileTarget.DirectX11:
+                    targetOptions = new ShaderTargetBuildOptions(ShaderCompileTarget.DirectX11, new ShaderModel(4, 0));
+                    break;
+                case ShaderCompileTarget.Vulkan:
+                    targetOptions = new ShaderTargetBuildOptions(ShaderCompileTarget.Vulkan, new ShaderModel(4, 0));
+                    break;
+                default:
+                    throw new InvalidOperationException("Unsupported runtime shader target.");
+            }
+
+            ShaderTargetBuildOptions[] targets = new[] { targetOptions };
             ShaderDefine[] defines = Array.Empty<ShaderDefine>();
             return new ShaderPackageBuildOptions(
                 targets,
@@ -738,6 +1011,27 @@ namespace helengine.editor {
                 false,
                 false,
                 defines);
+        }
+
+        /// <summary>
+        /// Resolves the runtime shader target from the active renderer instance.
+        /// </summary>
+        /// <param name="render3D">Renderer instance used by the editor session.</param>
+        /// <returns>Shader compile target that matches the runtime renderer.</returns>
+        ShaderCompileTarget ResolveRuntimeShaderTarget(RenderManager3D render3D) {
+            if (render3D == null) {
+                throw new ArgumentNullException(nameof(render3D));
+            }
+
+            if (render3D is helengine.directx11.DirectX11Renderer3D) {
+                return ShaderCompileTarget.DirectX11;
+            }
+
+            if (render3D is helengine.vulkan.VulkanRenderer3D) {
+                return ShaderCompileTarget.Vulkan;
+            }
+
+            throw new InvalidOperationException("Unsupported renderer for shader runtime target resolution.");
         }
 
         /// <summary>

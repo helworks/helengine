@@ -1,11 +1,29 @@
 using Silk.NET.Vulkan;
 using System.Collections.Generic;
+using VkBuffer = Silk.NET.Vulkan.Buffer;
 
 namespace helengine.vulkan {
     /// <summary>
     /// Vulkan-backed renderer responsible for swapchain management and 3D rendering.
     /// </summary>
     public class VulkanRenderer3D : RenderManager3D, IRenderVisitor3D {
+        /// <summary>
+        /// Maximum number of per-draw transform matrices reserved in the dynamic uniform buffer.
+        /// </summary>
+        const uint MaxTransformMatricesPerFrame = 4096;
+        /// <summary>
+        /// Size in bytes of a single world-view-projection matrix.
+        /// </summary>
+        const uint TransformMatrixSizeBytes = 64;
+        /// <summary>
+        /// Default forward axis for cameras before rotation.
+        /// </summary>
+        static readonly float3 DefaultForward = new float3(0f, 0f, -1f);
+        /// <summary>
+        /// Default up axis for cameras before rotation.
+        /// </summary>
+        static readonly float3 DefaultUp = new float3(0f, 1f, 0f);
+
         /// <summary>
         /// Shared Vulkan context for the renderer.
         /// </summary>
@@ -23,6 +41,54 @@ namespace helengine.vulkan {
         /// </summary>
         readonly VulkanRenderer2D renderer2D;
         /// <summary>
+        /// Materials grouped by shader asset id for hot reload updates.
+        /// </summary>
+        readonly Dictionary<string, List<VulkanMaterialResource>> materialsByShaderAssetId;
+        /// <summary>
+        /// Descriptor set layout used for the dynamic transform uniform buffer.
+        /// </summary>
+        DescriptorSetLayout materialDescriptorSetLayout;
+        /// <summary>
+        /// Pipeline layout used for 3D material pipelines.
+        /// </summary>
+        PipelineLayout materialPipelineLayout;
+        /// <summary>
+        /// Descriptor pool used to allocate the transform descriptor set.
+        /// </summary>
+        DescriptorPool materialDescriptorPool;
+        /// <summary>
+        /// Dynamic uniform buffer storing world-view-projection matrices.
+        /// </summary>
+        VulkanGpuBuffer transformUniformBuffer;
+        /// <summary>
+        /// Descriptor set bound for all 3D draws that reference the transform buffer.
+        /// </summary>
+        DescriptorSet transformDescriptorSet;
+        /// <summary>
+        /// Stride in bytes between matrix entries in the dynamic uniform buffer.
+        /// </summary>
+        ulong transformBufferStride;
+        /// <summary>
+        /// Tracks how many transform entries have been written for the active frame.
+        /// </summary>
+        uint transformDrawCount;
+        /// <summary>
+        /// Surface currently being rendered.
+        /// </summary>
+        VulkanSwapchainSurface activeSurface;
+        /// <summary>
+        /// Command buffer currently recording 3D draw calls.
+        /// </summary>
+        CommandBuffer activeCommandBuffer;
+        /// <summary>
+        /// Cached view-projection matrix for the active camera render pass.
+        /// </summary>
+        float4x4 currentViewProjection;
+        /// <summary>
+        /// Tracks whether the renderer is inside an active surface frame.
+        /// </summary>
+        bool frameActive;
+        /// <summary>
         /// Tracks whether the renderer has been disposed.
         /// </summary>
         bool disposed;
@@ -35,7 +101,9 @@ namespace helengine.vulkan {
             surfaces = new List<VulkanSwapchainSurface>();
             surfacesByHandle = new Dictionary<IntPtr, VulkanSwapchainSurface>();
             renderer2D = new VulkanRenderer2D(context);
+            materialsByShaderAssetId = new Dictionary<string, List<VulkanMaterialResource>>(StringComparer.OrdinalIgnoreCase);
 
+            CreateMaterialResources();
             WindowResized += OnWindowResized;
         }
 
@@ -102,7 +170,7 @@ namespace helengine.vulkan {
                 MemoryPropertyFlags.MemoryPropertyHostVisibleBit | MemoryPropertyFlags.MemoryPropertyHostCoherentBit);
             vertexBuffer.Update(vertices);
 
-            VulkanGpuBuffer? indexBuffer = null;
+            VulkanGpuBuffer indexBuffer = null;
             int indexCount = 0;
             if (data.Indices16 != null && data.Indices16.Length > 0) {
                 indexCount = data.Indices16.Length;
@@ -126,6 +194,89 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
+        /// Creates a Vulkan render target descriptor.
+        /// </summary>
+        /// <param name="width">Render target width in pixels.</param>
+        /// <param name="height">Render target height in pixels.</param>
+        /// <returns>Render target descriptor for camera assignment.</returns>
+        public override RenderTarget CreateRenderTarget(int width, int height) {
+            return new VulkanRenderTargetResource(width, height);
+        }
+
+        /// <summary>
+        /// Builds a runtime material from raw asset data.
+        /// </summary>
+        /// <param name="materialAsset">Raw material asset definition.</param>
+        /// <param name="shaderAsset">Shader asset used by the material.</param>
+        /// <returns>Runtime material instance.</returns>
+        public override RuntimeMaterial BuildMaterialFromRaw(MaterialAsset materialAsset, ShaderAsset shaderAsset) {
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+
+            if (shaderAsset == null) {
+                throw new ArgumentNullException(nameof(shaderAsset));
+            }
+
+            if (string.IsNullOrWhiteSpace(materialAsset.ShaderAssetId)) {
+                throw new InvalidOperationException("Material assets must reference a shader asset id.");
+            }
+
+            if (!string.Equals(materialAsset.ShaderAssetId, shaderAsset.Id, StringComparison.Ordinal)) {
+                throw new InvalidOperationException("Material asset shader id does not match the provided shader asset.");
+            }
+
+            string targetName = ShaderTargetNames.GetTargetName(ShaderCompileTarget.Vulkan);
+            if (!string.Equals(shaderAsset.TargetName, targetName, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException("Shader asset target does not match the Vulkan renderer.");
+            }
+
+            ShaderBinaryAsset vertexBinary = GetShaderBinary(shaderAsset, materialAsset.VertexProgram, ShaderStage.Vertex, materialAsset.Variant);
+            ShaderBinaryAsset pixelBinary = GetShaderBinary(shaderAsset, materialAsset.PixelProgram, ShaderStage.Pixel, materialAsset.Variant);
+
+            var material = new VulkanMaterialResource(
+                context,
+                materialAsset.ShaderAssetId,
+                materialAsset.VertexProgram,
+                materialAsset.PixelProgram,
+                materialAsset.Variant,
+                vertexBinary.Bytecode,
+                pixelBinary.Bytecode);
+            RegisterMaterial(material);
+            return material;
+        }
+
+        /// <summary>
+        /// Invalidates cached shader resources and updates materials for the specified shader asset.
+        /// </summary>
+        /// <param name="shaderAssetId">Shader asset identifier to invalidate.</param>
+        /// <param name="shaderAsset">Updated shader asset data.</param>
+        public override void InvalidateShaderResources(string shaderAssetId, ShaderAsset shaderAsset) {
+            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
+                throw new ArgumentException("Shader asset id must be provided.", nameof(shaderAssetId));
+            }
+
+            if (shaderAsset == null) {
+                throw new ArgumentNullException(nameof(shaderAsset));
+            }
+
+            if (!materialsByShaderAssetId.TryGetValue(shaderAssetId, out List<VulkanMaterialResource> materials)) {
+                return;
+            }
+
+            for (int i = 0; i < materials.Count; i++) {
+                VulkanMaterialResource material = materials[i];
+                if (material == null) {
+                    continue;
+                }
+
+                ShaderBinaryAsset vertexBinary = GetShaderBinary(shaderAsset, material.VertexProgram, ShaderStage.Vertex, material.Variant);
+                ShaderBinaryAsset pixelBinary = GetShaderBinary(shaderAsset, material.PixelProgram, ShaderStage.Pixel, material.Variant);
+                material.UpdateShaderBytecode(vertexBinary.Bytecode, pixelBinary.Bytecode);
+            }
+        }
+
+        /// <summary>
         /// Executes the full render pass for all windows and cameras.
         /// </summary>
         public override void Draw() {
@@ -144,7 +295,7 @@ namespace helengine.vulkan {
         /// <summary>
         /// Releases Vulkan resources owned by the renderer.
         /// </summary>
-        public override void Dispose() {
+        public override unsafe void Dispose() {
             if (disposed) {
                 return;
             }
@@ -152,8 +303,10 @@ namespace helengine.vulkan {
             disposed = true;
 
             WindowResized -= OnWindowResized;
+            context.Api.DeviceWaitIdle(context.Device);
 
             renderer2D.Dispose();
+            DisposeMaterials();
 
             for (int i = 0; i < surfaces.Count; i++) {
                 surfaces[i].Dispose();
@@ -161,6 +314,27 @@ namespace helengine.vulkan {
 
             surfaces.Clear();
             surfacesByHandle.Clear();
+
+            if (transformUniformBuffer != null) {
+                transformUniformBuffer.Dispose();
+                transformUniformBuffer = null;
+            }
+
+            if (materialDescriptorPool.Handle != 0) {
+                context.Api.DestroyDescriptorPool(context.Device, materialDescriptorPool, null);
+                materialDescriptorPool = default;
+            }
+
+            if (materialPipelineLayout.Handle != 0) {
+                context.Api.DestroyPipelineLayout(context.Device, materialPipelineLayout, null);
+                materialPipelineLayout = default;
+            }
+
+            if (materialDescriptorSetLayout.Handle != 0) {
+                context.Api.DestroyDescriptorSetLayout(context.Device, materialDescriptorSetLayout, null);
+                materialDescriptorSetLayout = default;
+            }
+
             context.Dispose();
 
             base.Dispose();
@@ -170,12 +344,67 @@ namespace helengine.vulkan {
         /// Draws a single 3D drawable encountered during queue traversal.
         /// </summary>
         /// <param name="drawable">Drawable to render.</param>
-        public void Visit(IDrawable3D drawable) {
+        public unsafe void Visit(IDrawable3D drawable) {
+            if (!frameActive) {
+                throw new InvalidOperationException("Cannot render 3D drawables outside of an active frame.");
+            }
+
             if (drawable?.Parent == null || !drawable.Parent.Enabled) {
                 return;
             }
 
-            // 3D rendering pipeline will be added in a future pass.
+            RuntimeMaterial runtimeMaterial = drawable.Material;
+            if (runtimeMaterial == null) {
+                return;
+            }
+
+            if (runtimeMaterial is not VulkanMaterialResource material) {
+                throw new InvalidOperationException("Drawable materials must use VulkanMaterialResource when rendering with Vulkan.");
+            }
+
+            if (drawable.Model is not VulkanModelResource model) {
+                throw new InvalidOperationException("Drawable models must use VulkanModelResource when rendering with Vulkan.");
+            }
+
+            if (model.VertexBuffer == null || model.VertexCount <= 0) {
+                return;
+            }
+
+            Pipeline pipeline = material.EnsurePipeline(activeSurface, materialPipelineLayout);
+            context.Api.CmdBindPipeline(activeCommandBuffer, PipelineBindPoint.Graphics, pipeline);
+
+            ulong vertexOffset = 0;
+            VkBuffer vertexBuffer = model.VertexBuffer.Handle;
+            VkBuffer* vertexBuffers = stackalloc VkBuffer[] { vertexBuffer };
+            ulong* vertexOffsets = stackalloc ulong[] { vertexOffset };
+            context.Api.CmdBindVertexBuffers(activeCommandBuffer, 0, 1, vertexBuffers, vertexOffsets);
+
+            if (model.IndexBuffer != null && model.IndexCount > 0) {
+                context.Api.CmdBindIndexBuffer(activeCommandBuffer, model.IndexBuffer.Handle, 0, IndexType.Uint16);
+            }
+
+            uint dynamicOffset = ReserveTransformSlot();
+            float4x4 worldViewProjection = BuildWorldViewProjection(drawable.Parent);
+            UpdateTransformBuffer(worldViewProjection, dynamicOffset);
+
+            DescriptorSet descriptorSet = transformDescriptorSet;
+            DescriptorSet* descriptorSets = stackalloc DescriptorSet[] { descriptorSet };
+            uint* dynamicOffsets = stackalloc uint[] { dynamicOffset };
+            context.Api.CmdBindDescriptorSets(
+                activeCommandBuffer,
+                PipelineBindPoint.Graphics,
+                materialPipelineLayout,
+                0,
+                1,
+                descriptorSets,
+                1,
+                dynamicOffsets);
+
+            if (model.IndexBuffer != null && model.IndexCount > 0) {
+                context.Api.CmdDrawIndexed(activeCommandBuffer, (uint)model.IndexCount, 1, 0, 0, 0);
+            } else {
+                context.Api.CmdDraw(activeCommandBuffer, (uint)model.VertexCount, 1, 0, 0);
+            }
         }
 
         /// <summary>
@@ -185,7 +414,7 @@ namespace helengine.vulkan {
         /// <param name="width">New width.</param>
         /// <param name="height">New height.</param>
         void OnWindowResized(IntPtr handle, int width, int height) {
-            if (!surfacesByHandle.TryGetValue(handle, out var surface)) {
+            if (!surfacesByHandle.TryGetValue(handle, out VulkanSwapchainSurface surface)) {
                 return;
             }
 
@@ -205,14 +434,22 @@ namespace helengine.vulkan {
                 return;
             }
 
-            surface.BeginRenderPass(commandBuffer, imageIndex, 1f, 0.5f, 0f, 1f);
+            float4 clearColor = ResolveSurfaceClearColor(cameras);
+            surface.BeginRenderPass(commandBuffer, imageIndex, clearColor.X, clearColor.Y, clearColor.Z, clearColor.W);
 
             renderer2D.BeginFrame(surface, commandBuffer);
+            frameActive = true;
+            activeSurface = surface;
+            activeCommandBuffer = commandBuffer;
+            transformDrawCount = 0;
 
             for (int i = 0; i < cameras.Count; i++) {
-                RenderCamera(cameras[i]);
+                RenderCamera(cameras[i], surface);
             }
 
+            frameActive = false;
+            activeSurface = null;
+            activeCommandBuffer = default;
             renderer2D.EndFrame();
             surface.EndRenderPass(commandBuffer);
 
@@ -220,14 +457,431 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
+        /// Resolves the clear color for the surface render pass from active camera settings.
+        /// </summary>
+        /// <param name="cameras">Cameras rendered on the surface.</param>
+        /// <returns>Clear color used to begin the render pass.</returns>
+        float4 ResolveSurfaceClearColor(IReadOnlyList<ICamera> cameras) {
+            if (cameras == null) {
+                throw new ArgumentNullException(nameof(cameras));
+            }
+
+            for (int i = 0; i < cameras.Count; i++) {
+                ICamera camera = cameras[i];
+                if (camera == null || camera.Parent == null || !camera.Parent.Enabled) {
+                    continue;
+                }
+
+                CameraClearSettings clearSettings = camera.ClearSettings;
+                if (!clearSettings.ClearColorEnabled) {
+                    continue;
+                }
+
+                return clearSettings.ClearColor;
+            }
+
+            return new float4(0f, 0f, 0f, 1f);
+        }
+
+        /// <summary>
         /// Renders the 3D queue followed by the 2D overlay for a camera.
         /// </summary>
         /// <param name="camera">Camera to render.</param>
-        void RenderCamera(ICamera camera) {
+        /// <param name="surface">Surface currently being rendered.</param>
+        void RenderCamera(ICamera camera, VulkanSwapchainSurface surface) {
+            if (camera == null || camera.Parent == null || !camera.Parent.Enabled) {
+                return;
+            }
+
+            double aspectRatio = SetViewportAndScissor(camera, surface);
+            if (aspectRatio <= 0.0) {
+                return;
+            }
+
+            float4x4 view;
+            float3 cameraPos = camera.Parent.Position;
+            float4 cameraOrientation = camera.Parent.Orientation;
+            float3 cameraForward = float4.RotateVector(DefaultForward, cameraOrientation);
+            float3 cameraUp = float4.RotateVector(DefaultUp, cameraOrientation);
+            float3 cameraTarget = cameraPos + cameraForward;
+            float4x4.CreateLookAt(ref cameraPos, ref cameraTarget, ref cameraUp, out view);
+
+            float4x4 projection;
+            float4x4.CreatePerspectiveFieldOfView((float)(Math.PI / 4.0), (float)aspectRatio, 0.1f, 100f, out projection);
+            ApplyVulkanProjectionAdjustments(ref projection);
+            float4x4.Multiply(ref view, ref projection, out currentViewProjection);
+
             IRenderQueue3D renderQueue = camera.RenderQueue3D;
             renderQueue.VisitOrdered(this);
 
             renderer2D.RenderCamera(camera);
+        }
+
+        /// <summary>
+        /// Configures the Vulkan viewport and scissor for the active camera.
+        /// </summary>
+        /// <param name="camera">Camera being rendered.</param>
+        /// <param name="surface">Surface receiving the render output.</param>
+        /// <returns>Aspect ratio used for projection matrix creation.</returns>
+        unsafe double SetViewportAndScissor(ICamera camera, VulkanSwapchainSurface surface) {
+            float4 viewport = camera.Viewport;
+            double offsetX = viewport.X;
+            double offsetY = viewport.Y;
+            double width = viewport.Z;
+            double height = viewport.W;
+            double logicalSurfaceWidth = surface.LogicalWidth;
+            double logicalSurfaceHeight = surface.LogicalHeight;
+
+            if (width <= 1.0 && height <= 1.0) {
+                offsetX *= logicalSurfaceWidth;
+                offsetY *= logicalSurfaceHeight;
+                width *= logicalSurfaceWidth;
+                height *= logicalSurfaceHeight;
+            }
+
+            if (width <= 0.0 || height <= 0.0) {
+                return 0.0;
+            }
+
+            double pixelScaleX = surface.Extent.Width / logicalSurfaceWidth;
+            double pixelScaleY = surface.Extent.Height / logicalSurfaceHeight;
+            double pixelOffsetX = offsetX * pixelScaleX;
+            double pixelOffsetY = offsetY * pixelScaleY;
+            double pixelWidth = width * pixelScaleX;
+            double pixelHeight = height * pixelScaleY;
+            int viewportX = (int)Math.Round(pixelOffsetX);
+            int viewportY = (int)Math.Round(pixelOffsetY);
+            int viewportWidth = Math.Max(1, (int)Math.Round(pixelWidth));
+            int viewportHeight = Math.Max(1, (int)Math.Round(pixelHeight));
+
+            int maxWidth = (int)surface.Extent.Width;
+            int maxHeight = (int)surface.Extent.Height;
+            if (viewportX < 0) {
+                viewportWidth += viewportX;
+                viewportX = 0;
+            }
+
+            if (viewportY < 0) {
+                viewportHeight += viewportY;
+                viewportY = 0;
+            }
+
+            viewportWidth = Math.Min(viewportWidth, Math.Max(1, maxWidth - viewportX));
+            viewportHeight = Math.Min(viewportHeight, Math.Max(1, maxHeight - viewportY));
+
+            Viewport vkViewport = new Viewport {
+                X = viewportX,
+                Y = viewportY,
+                Width = viewportWidth,
+                Height = viewportHeight,
+                MinDepth = 0f,
+                MaxDepth = 1f
+            };
+
+            Rect2D scissor = new Rect2D {
+                Offset = new Offset2D(viewportX, viewportY),
+                Extent = new Extent2D((uint)viewportWidth, (uint)viewportHeight)
+            };
+
+            Viewport* viewports = stackalloc Viewport[] { vkViewport };
+            Rect2D* scissors = stackalloc Rect2D[] { scissor };
+            context.Api.CmdSetViewport(activeCommandBuffer, 0, 1, viewports);
+            context.Api.CmdSetScissor(activeCommandBuffer, 0, 1, scissors);
+
+            return viewportWidth / (double)viewportHeight;
+        }
+
+        /// <summary>
+        /// Applies Vulkan-specific clip-space adjustments to keep world orientation aligned with DirectX output.
+        /// </summary>
+        /// <param name="projection">Projection matrix to adjust in place.</param>
+        void ApplyVulkanProjectionAdjustments(ref float4x4 projection) {
+            projection.M22 = -projection.M22;
+        }
+
+        /// <summary>
+        /// Builds a transposed world-view-projection matrix for a drawable entity.
+        /// </summary>
+        /// <param name="entity">Entity to build transform data for.</param>
+        /// <returns>Transposed world-view-projection matrix.</returns>
+        float4x4 BuildWorldViewProjection(Entity entity) {
+            float4 orientation = entity.Orientation;
+            float4x4 rotation;
+            float4x4.CreateFromQuaternion(ref orientation, out rotation);
+
+            float3 scale = entity.Scale;
+            float4x4 size;
+            float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
+
+            float4x4 rotationScale;
+            float4x4.Multiply(ref rotation, ref size, out rotationScale);
+
+            float3 position = entity.Position;
+            float4x4 translation;
+            float4x4.CreateTranslation(ref position, out translation);
+
+            float4x4 world;
+            float4x4.Multiply(ref rotationScale, ref translation, out world);
+
+            float4x4 worldViewProj;
+            float4x4.Multiply(ref world, ref currentViewProjection, out worldViewProj);
+
+            float4x4 transposed;
+            float4x4.Transpose(ref worldViewProj, out transposed);
+            return transposed;
+        }
+
+        /// <summary>
+        /// Reserves the next aligned transform offset in the dynamic uniform buffer.
+        /// </summary>
+        /// <returns>Dynamic buffer offset in bytes.</returns>
+        uint ReserveTransformSlot() {
+            if (transformDrawCount >= MaxTransformMatricesPerFrame) {
+                throw new InvalidOperationException("Exceeded the per-frame Vulkan transform buffer capacity.");
+            }
+
+            uint offset = (uint)(transformDrawCount * transformBufferStride);
+            transformDrawCount++;
+            return offset;
+        }
+
+        /// <summary>
+        /// Writes a transform matrix to the dynamic uniform buffer at the specified offset.
+        /// </summary>
+        /// <param name="worldViewProjection">Transposed world-view-projection matrix.</param>
+        /// <param name="offset">Byte offset into the dynamic uniform buffer.</param>
+        unsafe void UpdateTransformBuffer(float4x4 worldViewProjection, uint offset) {
+            void* mapped;
+            Result mapResult = context.Api.MapMemory(
+                context.Device,
+                transformUniformBuffer.Memory,
+                offset,
+                TransformMatrixSizeBytes,
+                0,
+                &mapped);
+            if (mapResult != Result.Success) {
+                throw new InvalidOperationException($"Failed to map Vulkan transform buffer: {mapResult}.");
+            }
+
+            try {
+                float4x4[] values = new[] { worldViewProjection };
+                fixed (float4x4* source = values) {
+                    System.Buffer.MemoryCopy(source, mapped, TransformMatrixSizeBytes, TransformMatrixSizeBytes);
+                }
+            } finally {
+                context.Api.UnmapMemory(context.Device, transformUniformBuffer.Memory);
+            }
+        }
+
+        /// <summary>
+        /// Creates descriptor, pipeline layout, and uniform buffer resources for 3D materials.
+        /// </summary>
+        unsafe void CreateMaterialResources() {
+            PhysicalDeviceProperties properties;
+            context.Api.GetPhysicalDeviceProperties(context.PhysicalDevice, out properties);
+            ulong alignment = properties.Limits.MinUniformBufferOffsetAlignment;
+            if (alignment == 0) {
+                alignment = TransformMatrixSizeBytes;
+            }
+
+            transformBufferStride = AlignUp(TransformMatrixSizeBytes, alignment);
+            ulong transformBufferSize = transformBufferStride * MaxTransformMatricesPerFrame;
+
+            transformUniformBuffer = new VulkanGpuBuffer(
+                context,
+                transformBufferSize,
+                BufferUsageFlags.BufferUsageUniformBufferBit,
+                MemoryPropertyFlags.MemoryPropertyHostVisibleBit | MemoryPropertyFlags.MemoryPropertyHostCoherentBit);
+
+            DescriptorSetLayoutBinding transformBinding = new DescriptorSetLayoutBinding {
+                Binding = 0,
+                DescriptorType = DescriptorType.UniformBufferDynamic,
+                DescriptorCount = 1,
+                StageFlags = ShaderStageFlags.ShaderStageVertexBit | ShaderStageFlags.ShaderStageFragmentBit
+            };
+
+            DescriptorSetLayoutCreateInfo layoutInfo = new DescriptorSetLayoutCreateInfo {
+                SType = StructureType.DescriptorSetLayoutCreateInfo,
+                BindingCount = 1,
+                PBindings = &transformBinding
+            };
+
+            Result layoutResult = context.Api.CreateDescriptorSetLayout(context.Device, layoutInfo, null, out materialDescriptorSetLayout);
+            if (layoutResult != Result.Success) {
+                throw new InvalidOperationException($"Failed to create Vulkan material descriptor set layout: {layoutResult}.");
+            }
+
+            DescriptorSetLayout* layouts = stackalloc DescriptorSetLayout[] { materialDescriptorSetLayout };
+            PipelineLayoutCreateInfo pipelineLayoutInfo = new PipelineLayoutCreateInfo {
+                SType = StructureType.PipelineLayoutCreateInfo,
+                SetLayoutCount = 1,
+                PSetLayouts = layouts
+            };
+
+            Result pipelineLayoutResult = context.Api.CreatePipelineLayout(context.Device, pipelineLayoutInfo, null, out materialPipelineLayout);
+            if (pipelineLayoutResult != Result.Success) {
+                throw new InvalidOperationException($"Failed to create Vulkan material pipeline layout: {pipelineLayoutResult}.");
+            }
+
+            DescriptorPoolSize poolSize = new DescriptorPoolSize {
+                Type = DescriptorType.UniformBufferDynamic,
+                DescriptorCount = 1
+            };
+
+            DescriptorPoolCreateInfo poolInfo = new DescriptorPoolCreateInfo {
+                SType = StructureType.DescriptorPoolCreateInfo,
+                PoolSizeCount = 1,
+                PPoolSizes = &poolSize,
+                MaxSets = 1
+            };
+
+            Result poolResult = context.Api.CreateDescriptorPool(context.Device, poolInfo, null, out materialDescriptorPool);
+            if (poolResult != Result.Success) {
+                throw new InvalidOperationException($"Failed to create Vulkan material descriptor pool: {poolResult}.");
+            }
+
+            DescriptorSetAllocateInfo allocInfo = new DescriptorSetAllocateInfo {
+                SType = StructureType.DescriptorSetAllocateInfo,
+                DescriptorPool = materialDescriptorPool,
+                DescriptorSetCount = 1,
+                PSetLayouts = layouts
+            };
+
+            Result allocResult = context.Api.AllocateDescriptorSets(context.Device, allocInfo, out transformDescriptorSet);
+            if (allocResult != Result.Success) {
+                throw new InvalidOperationException($"Failed to allocate Vulkan material descriptor set: {allocResult}.");
+            }
+
+            DescriptorBufferInfo bufferInfo = new DescriptorBufferInfo {
+                Buffer = transformUniformBuffer.Handle,
+                Offset = 0,
+                Range = TransformMatrixSizeBytes
+            };
+
+            WriteDescriptorSet descriptorWrite = new WriteDescriptorSet {
+                SType = StructureType.WriteDescriptorSet,
+                DstSet = transformDescriptorSet,
+                DstBinding = 0,
+                DescriptorCount = 1,
+                DescriptorType = DescriptorType.UniformBufferDynamic,
+                PBufferInfo = &bufferInfo
+            };
+
+            WriteDescriptorSet* descriptorWrites = stackalloc WriteDescriptorSet[] { descriptorWrite };
+            context.Api.UpdateDescriptorSets(context.Device, 1, descriptorWrites, 0, null);
+        }
+
+        /// <summary>
+        /// Returns an aligned byte size for dynamic uniform buffer offsets.
+        /// </summary>
+        /// <param name="value">Requested byte count.</param>
+        /// <param name="alignment">Alignment requirement.</param>
+        /// <returns>Aligned byte count.</returns>
+        ulong AlignUp(ulong value, ulong alignment) {
+            if (alignment == 0) {
+                return value;
+            }
+
+            ulong mask = alignment - 1;
+            return (value + mask) & ~mask;
+        }
+
+        /// <summary>
+        /// Locates a shader binary entry for the requested program, stage, and variant.
+        /// </summary>
+        /// <param name="shaderAsset">Shader asset containing binary data.</param>
+        /// <param name="programName">Program name to locate.</param>
+        /// <param name="stage">Shader stage to locate.</param>
+        /// <param name="variant">Variant name to locate.</param>
+        /// <returns>Matching shader binary asset.</returns>
+        ShaderBinaryAsset GetShaderBinary(ShaderAsset shaderAsset, string programName, ShaderStage stage, string variant) {
+            if (shaderAsset == null) {
+                throw new ArgumentNullException(nameof(shaderAsset));
+            }
+
+            if (string.IsNullOrWhiteSpace(programName)) {
+                throw new InvalidOperationException("Material assets must define a shader program name.");
+            }
+
+            if (string.IsNullOrWhiteSpace(variant)) {
+                throw new InvalidOperationException("Material assets must define a shader variant.");
+            }
+
+            if (shaderAsset.Binaries == null || shaderAsset.Binaries.Length == 0) {
+                throw new InvalidOperationException("Shader assets must include compiled binaries.");
+            }
+
+            string targetName = ShaderTargetNames.GetTargetName(ShaderCompileTarget.Vulkan);
+            for (int i = 0; i < shaderAsset.Binaries.Length; i++) {
+                ShaderBinaryAsset binary = shaderAsset.Binaries[i];
+                if (binary == null) {
+                    continue;
+                }
+
+                if (!string.Equals(binary.TargetName, targetName, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                if (!string.Equals(binary.ProgramName, programName, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                if (binary.Stage != stage) {
+                    continue;
+                }
+
+                if (!string.Equals(binary.Variant, variant, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                if (binary.Bytecode == null || binary.Bytecode.Length == 0) {
+                    throw new InvalidOperationException("Shader binary does not include bytecode.");
+                }
+
+                return binary;
+            }
+
+            throw new InvalidOperationException("Shader binary was not found for the requested Vulkan program.");
+        }
+
+        /// <summary>
+        /// Registers a runtime material for shader hot reload updates.
+        /// </summary>
+        /// <param name="material">Material to register.</param>
+        void RegisterMaterial(VulkanMaterialResource material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            string shaderAssetId = material.ShaderAssetId;
+            if (!materialsByShaderAssetId.TryGetValue(shaderAssetId, out List<VulkanMaterialResource> materials)) {
+                materials = new List<VulkanMaterialResource>();
+                materialsByShaderAssetId[shaderAssetId] = materials;
+            }
+
+            materials.Add(material);
+        }
+
+        /// <summary>
+        /// Disposes all tracked runtime materials and clears material registries.
+        /// </summary>
+        void DisposeMaterials() {
+            var visitedMaterials = new HashSet<VulkanMaterialResource>();
+            foreach (var pair in materialsByShaderAssetId) {
+                List<VulkanMaterialResource> materials = pair.Value;
+                for (int i = 0; i < materials.Count; i++) {
+                    VulkanMaterialResource material = materials[i];
+                    if (material == null) {
+                        continue;
+                    }
+
+                    if (visitedMaterials.Add(material)) {
+                        material.Dispose();
+                    }
+                }
+            }
+
+            materialsByShaderAssetId.Clear();
         }
     }
 }

@@ -19,6 +19,10 @@ namespace helengine.editor.app {
         /// </summary>
         const string ShaderToolEnvironmentVariable = "HELENGINE_SHADER_TOOL";
         /// <summary>
+        /// File path used to persist editor loop exceptions.
+        /// </summary>
+        static readonly string LoopErrorLogPath = Path.Combine(Path.GetTempPath(), "helengine.editor.loop-errors.log");
+        /// <summary>
         /// Background thread that drives the editor update loop.
         /// </summary>
         Thread thread;
@@ -34,6 +38,10 @@ namespace helengine.editor.app {
         /// Stores the project path used to locate project assets.
         /// </summary>
         string projectPath = string.Empty;
+        /// <summary>
+        /// Tracks whether a loop exception has been recorded to avoid log spam.
+        /// </summary>
+        bool loopExceptionRecorded;
 
         /// <summary>
         /// Editor session that owns core editor state and panels.
@@ -96,6 +104,8 @@ namespace helengine.editor.app {
                     throw new InvalidOperationException($"Unsupported renderer backend '{rendererBackend}'. Use 'vulkan' or 'directx11'.");
                 }
             }
+
+            useVulkan = true;
 
             RenderManager2D renderer2D;
             if (useVulkan) {
@@ -165,7 +175,36 @@ namespace helengine.editor.app {
                         editorSession.UpdateFrame(renderWidth, renderHeight);
                         UpdateDockingCursor();
                     });
-                } catch { }
+                } catch (Exception ex) {
+                    RecordLoopException(ex);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Persists a render-loop exception so runtime failures are visible outside the debugger.
+        /// </summary>
+        /// <param name="exception">Exception to record.</param>
+        void RecordLoopException(Exception exception) {
+            if (exception == null) {
+                throw new ArgumentNullException(nameof(exception));
+            }
+
+            if (loopExceptionRecorded) {
+                return;
+            }
+
+            loopExceptionRecorded = true;
+
+            try {
+                string message = string.Concat(
+                    DateTime.UtcNow.ToString("O"),
+                    " | ",
+                    exception.ToString(),
+                    Environment.NewLine,
+                    Environment.NewLine);
+                File.AppendAllText(LoopErrorLogPath, message);
+            } catch {
             }
         }
 
