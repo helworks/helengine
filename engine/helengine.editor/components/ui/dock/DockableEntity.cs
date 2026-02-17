@@ -13,6 +13,14 @@ namespace helengine.editor {
         /// </summary>
         public const int DragUndockThreshold = 4;
         /// <summary>
+        /// Thickness in pixels for the panel outline.
+        /// </summary>
+        const float PanelOutlineThickness = 1f;
+        /// <summary>
+        /// Semi-transparent near-white color used for dockable panel outlines.
+        /// </summary>
+        static readonly byte4 PanelOutlineColor = new byte4(255, 255, 255, 72);
+        /// <summary>
         /// Font used by the dockable title bar.
         /// </summary>
         readonly FontAsset font;
@@ -28,6 +36,10 @@ namespace helengine.editor {
         /// Render order for text labels.
         /// </summary>
         readonly byte textOrder;
+        /// <summary>
+        /// Outline rendered around the full dockable panel area.
+        /// </summary>
+        readonly RoundedRectComponent panelOutline;
 
         bool isDragging;
         bool isPointerDown;
@@ -96,6 +108,14 @@ namespace helengine.editor {
             areaSprite.RenderOrder2D = backgroundOrder;
             sceneViewArea.AddComponent(areaSprite);
 
+            panelOutline = new RoundedRectComponent();
+            panelOutline.Radius = 0f;
+            panelOutline.FillColor = new byte4(255, 255, 255, 0);
+            panelOutline.BorderThickness = PanelOutlineThickness;
+            panelOutline.BorderColor = PanelOutlineColor;
+            panelOutline.RenderOrder2D = textOrder;
+            AddComponent(panelOutline);
+
             titleBarInteractivity = new InteractableComponent();
             titleBarInteractivity.Size = new int2(300, TitleBarHeight);
             titleBarInteractivity.CursorEvent += TitleBarInteractivity_CursorEvent;
@@ -114,6 +134,7 @@ namespace helengine.editor {
                 size = value;
                 titleBar.Size = new int2(value.X, TitleBarHeight);
                 areaSprite.Size = new int2(value.X, value.Y);
+                panelOutline.Size = new int2(value.X, value.Y + TitleBarHeight);
                 if (titleBarInteractivity != null) {
                     titleBarInteractivity.Size = titleBarInteractableEnabled
                         ? new int2(value.X, TitleBarHeight)
