@@ -105,7 +105,7 @@ namespace helengine.editor.app {
                 }
             }
 
-            useVulkan = true;
+            useVulkan = false;
 
             RenderManager2D renderer2D;
             if (useVulkan) {

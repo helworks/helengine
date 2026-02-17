@@ -267,7 +267,7 @@ namespace helengine.vulkan {
                     RasterizerDiscardEnable = false,
                     PolygonMode = PolygonMode.Fill,
                     LineWidth = 1.0f,
-                    CullMode = CullModeFlags.CullModeNone,
+                    CullMode = CullModeFlags.CullModeBackBit,
                     FrontFace = FrontFace.CounterClockwise,
                     DepthBiasEnable = false
                 };
@@ -282,7 +282,7 @@ namespace helengine.vulkan {
                     SType = StructureType.PipelineDepthStencilStateCreateInfo,
                     DepthTestEnable = true,
                     DepthWriteEnable = true,
-                    DepthCompareOp = CompareOp.LessOrEqual,
+                    DepthCompareOp = CompareOp.Less,
                     DepthBoundsTestEnable = false,
                     StencilTestEnable = false
                 };

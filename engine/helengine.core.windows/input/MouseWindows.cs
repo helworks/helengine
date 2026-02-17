@@ -42,6 +42,23 @@ namespace helengine {
         internal static extern int MapWindowPoints(HandleRef hWndFrom, HandleRef hWndTo, out Point pt, int cPoints);
 
         /// <summary>
+        /// Gets the handle for the current foreground window.
+        /// </summary>
+        /// <returns>Foreground window handle.</returns>
+        [DllImport("user32.dll", ExactSpelling = true)]
+        static extern IntPtr GetForegroundWindow();
+
+        /// <summary>
+        /// Determines whether the specified window is a child of another window.
+        /// </summary>
+        /// <param name="parentWindow">Candidate parent window handle.</param>
+        /// <param name="childWindow">Candidate child window handle.</param>
+        /// <returns>True when <paramref name="childWindow"/> is a child of <paramref name="parentWindow"/>.</returns>
+        [DllImport("user32.dll", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool IsChild(IntPtr parentWindow, IntPtr childWindow);
+
+        /// <summary>
         /// Window control used to convert screen coordinates into client coordinates.
         /// </summary>
         private Control _window;
@@ -64,6 +81,11 @@ namespace helengine {
         /// <returns>Mouse state snapshot.</returns>
         public override MouseState GetState() {
             if (!IsWindowReady()) {
+                return mouseState;
+            }
+
+            if (!IsWindowForegroundActive()) {
+                ReleaseAllButtons();
                 return mouseState;
             }
 
@@ -108,6 +130,35 @@ namespace helengine {
         /// <returns>True when the window exists and has a valid handle.</returns>
         bool IsWindowReady() {
             return _window != null && !_window.IsDisposed && !_window.Disposing && _window.IsHandleCreated;
+        }
+
+        /// <summary>
+        /// Determines whether the target window currently owns foreground input focus.
+        /// </summary>
+        /// <returns>True when the target window is foreground or contains the foreground child window.</returns>
+        bool IsWindowForegroundActive() {
+            IntPtr foregroundWindow = GetForegroundWindow();
+            if (foregroundWindow == IntPtr.Zero) {
+                return false;
+            }
+
+            IntPtr windowHandle = _window.Handle;
+            if (foregroundWindow == windowHandle) {
+                return true;
+            }
+
+            return IsChild(windowHandle, foregroundWindow);
+        }
+
+        /// <summary>
+        /// Clears all button states so background windows cannot receive click interactions.
+        /// </summary>
+        void ReleaseAllButtons() {
+            mouseState.LeftButton = ButtonState.Released;
+            mouseState.MiddleButton = ButtonState.Released;
+            mouseState.RightButton = ButtonState.Released;
+            mouseState.XButton1 = ButtonState.Released;
+            mouseState.XButton2 = ButtonState.Released;
         }
     }
 }

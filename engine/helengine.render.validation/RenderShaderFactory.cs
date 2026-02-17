@@ -11,17 +11,33 @@ namespace helengine.render.validation {
         /// </summary>
         const string ShaderAssetId = "ValidationShader";
         /// <summary>
+        /// Shader asset identifier used by transform gizmo validation materials.
+        /// </summary>
+        const string TransformGizmoShaderAssetId = "ValidationTransformGizmoShader";
+        /// <summary>
         /// Material asset identifier used by validation meshes.
         /// </summary>
         const string MaterialAssetId = "ValidationMaterial.material";
+        /// <summary>
+        /// Material asset identifier used by transform gizmo validation meshes.
+        /// </summary>
+        const string TransformGizmoMaterialAssetId = "ValidationTransformGizmoMaterial.material";
         /// <summary>
         /// Vertex program name for validation shaders.
         /// </summary>
         const string VertexProgramName = "ValidationShader.vs";
         /// <summary>
+        /// Vertex program name for transform gizmo validation shaders.
+        /// </summary>
+        const string TransformGizmoVertexProgramName = "ValidationTransformGizmoShader.vs";
+        /// <summary>
         /// Pixel program name for validation shaders.
         /// </summary>
         const string PixelProgramName = "ValidationShader.ps";
+        /// <summary>
+        /// Pixel program name for transform gizmo validation shaders.
+        /// </summary>
+        const string TransformGizmoPixelProgramName = "ValidationTransformGizmoShader.ps";
         /// <summary>
         /// Variant name used during shader compilation.
         /// </summary>
@@ -30,6 +46,10 @@ namespace helengine.render.validation {
         /// In-memory source path identifier used for diagnostics.
         /// </summary>
         const string SourcePath = "ValidationShader.hlsl";
+        /// <summary>
+        /// In-memory source path identifier used for transform gizmo diagnostics.
+        /// </summary>
+        const string TransformGizmoSourcePath = "ValidationTransformGizmoShader.hlsl";
         /// <summary>
         /// HLSL source used for backend validation.
         /// </summary>
@@ -62,6 +82,64 @@ namespace helengine.render.validation {
             "{\n" +
             "    return float4(0.0, 1.0, 0.0, 1.0);\n" +
             "}\n";
+        /// <summary>
+        /// HLSL source used for transform gizmo validation.
+        /// </summary>
+        const string TransformGizmoShaderSource =
+            "cbuffer TransformBuffer : register(b0)\n" +
+            "{\n" +
+            "    float4x4 worldViewProj;\n" +
+            "};\n" +
+            "\n" +
+            "struct VS_IN\n" +
+            "{\n" +
+            "    float3 pos : POSITION;\n" +
+            "    float3 normal : NORMAL;\n" +
+            "    float2 texCoord : TEXCOORD0;\n" +
+            "};\n" +
+            "\n" +
+            "struct PS_IN\n" +
+            "{\n" +
+            "    float4 pos : SV_POSITION;\n" +
+            "    float3 normal : NORMAL;\n" +
+            "    float2 marker : TEXCOORD0;\n" +
+            "};\n" +
+            "\n" +
+            "float3 DecodeAxisColor(float2 marker)\n" +
+            "{\n" +
+            "    if (marker.y > 0.5f)\n" +
+            "    {\n" +
+            "        return float3(0.20f, 0.50f, 1.00f);\n" +
+            "    }\n" +
+            "\n" +
+            "    if (marker.x > 0.5f)\n" +
+            "    {\n" +
+            "        return float3(0.20f, 0.95f, 0.35f);\n" +
+            "    }\n" +
+            "\n" +
+            "    return float3(1.00f, 0.30f, 0.30f);\n" +
+            "}\n" +
+            "\n" +
+            "PS_IN VS(VS_IN input)\n" +
+            "{\n" +
+            "    PS_IN output;\n" +
+            "    output.pos = mul(float4(input.pos, 1.0f), worldViewProj);\n" +
+            "    output.normal = input.normal;\n" +
+            "    output.marker = input.texCoord;\n" +
+            "    return output;\n" +
+            "}\n" +
+            "\n" +
+            "float4 PS(PS_IN input) : SV_Target\n" +
+            "{\n" +
+            "    float3 normal = normalize(input.normal);\n" +
+            "    float3 lightDirection0 = normalize(float3(0.45f, 0.85f, -0.30f));\n" +
+            "    float3 lightDirection1 = normalize(float3(-0.60f, 0.55f, 0.65f));\n" +
+            "    float diffuse0 = saturate(dot(normal, lightDirection0));\n" +
+            "    float diffuse1 = saturate(dot(normal, lightDirection1));\n" +
+            "    float lighting = 0.22f + diffuse0 * 0.72f + diffuse1 * 0.28f;\n" +
+            "    float3 axisColor = DecodeAxisColor(input.marker);\n" +
+            "    return float4(axisColor * lighting, 1.0f);\n" +
+            "}\n";
 
         /// <summary>
         /// Creates a shader asset for the selected render backend.
@@ -69,10 +147,95 @@ namespace helengine.render.validation {
         /// <param name="backend">Backend requiring compiled shader binaries.</param>
         /// <returns>Compiled shader asset.</returns>
         public static ShaderAsset BuildShaderAsset(RenderBackend backend) {
+            return BuildShaderAssetInternal(
+                backend,
+                ShaderAssetId,
+                VertexProgramName,
+                PixelProgramName,
+                SourcePath,
+                ShaderSource);
+        }
+
+        /// <summary>
+        /// Creates a transform gizmo shader asset for the selected render backend.
+        /// </summary>
+        /// <param name="backend">Backend requiring compiled shader binaries.</param>
+        /// <returns>Compiled transform gizmo shader asset.</returns>
+        public static ShaderAsset BuildTransformGizmoShaderAsset(RenderBackend backend) {
+            return BuildShaderAssetInternal(
+                backend,
+                TransformGizmoShaderAssetId,
+                TransformGizmoVertexProgramName,
+                TransformGizmoPixelProgramName,
+                TransformGizmoSourcePath,
+                TransformGizmoShaderSource);
+        }
+
+        /// <summary>
+        /// Creates the material asset matching the validation shader.
+        /// </summary>
+        /// <returns>Material asset configured with validation program names.</returns>
+        public static MaterialAsset BuildMaterialAsset() {
+            return BuildMaterialAssetInternal(
+                MaterialAssetId,
+                ShaderAssetId,
+                VertexProgramName,
+                PixelProgramName);
+        }
+
+        /// <summary>
+        /// Creates the material asset matching the transform gizmo validation shader.
+        /// </summary>
+        /// <returns>Material asset configured with transform gizmo program names.</returns>
+        public static MaterialAsset BuildTransformGizmoMaterialAsset() {
+            return BuildMaterialAssetInternal(
+                TransformGizmoMaterialAssetId,
+                TransformGizmoShaderAssetId,
+                TransformGizmoVertexProgramName,
+                TransformGizmoPixelProgramName);
+        }
+
+        /// <summary>
+        /// Creates a shader asset from the supplied source and program names.
+        /// </summary>
+        /// <param name="backend">Backend requiring compiled shader binaries.</param>
+        /// <param name="shaderAssetId">Shader asset identifier.</param>
+        /// <param name="vertexProgramName">Vertex program name.</param>
+        /// <param name="pixelProgramName">Pixel program name.</param>
+        /// <param name="sourcePath">In-memory source path used for diagnostics.</param>
+        /// <param name="shaderSource">HLSL source to compile.</param>
+        /// <returns>Compiled shader asset.</returns>
+        static ShaderAsset BuildShaderAssetInternal(
+            RenderBackend backend,
+            string shaderAssetId,
+            string vertexProgramName,
+            string pixelProgramName,
+            string sourcePath,
+            string shaderSource) {
+            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
+                throw new ArgumentException("Shader asset id must be provided.", nameof(shaderAssetId));
+            }
+
+            if (string.IsNullOrWhiteSpace(vertexProgramName)) {
+                throw new ArgumentException("Vertex program name must be provided.", nameof(vertexProgramName));
+            }
+
+            if (string.IsNullOrWhiteSpace(pixelProgramName)) {
+                throw new ArgumentException("Pixel program name must be provided.", nameof(pixelProgramName));
+            }
+
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            if (string.IsNullOrWhiteSpace(shaderSource)) {
+                throw new ArgumentException("Shader source must be provided.", nameof(shaderSource));
+            }
+
             ShaderCompileTarget target = ResolveTarget(backend);
             ShaderCompileService compileService = CreateCompileService(target);
             ShaderCompileOptions compileOptions = CreateCompileOptions();
-            ShaderSourceInfo sourceInfo = new ShaderSourceInfo(SourcePath, ShaderSource);
+            ShaderSourceInfo sourceInfo = new ShaderSourceInfo(sourcePath, shaderSource);
             ShaderDefine[] defines = Array.Empty<ShaderDefine>();
 
             ShaderCompileResult vertexResult = CompileStage(
@@ -80,7 +243,7 @@ namespace helengine.render.validation {
                 sourceInfo,
                 target,
                 ShaderStage.Vertex,
-                VertexProgramName,
+                vertexProgramName,
                 "VS",
                 compileOptions,
                 defines);
@@ -89,7 +252,7 @@ namespace helengine.render.validation {
                 sourceInfo,
                 target,
                 ShaderStage.Pixel,
-                PixelProgramName,
+                pixelProgramName,
                 "PS",
                 compileOptions,
                 defines);
@@ -103,23 +266,47 @@ namespace helengine.render.validation {
                 pixelResult.ProgramDefinition
             };
             ShaderProgramBinary[] binaries = new[] {
-                new ShaderProgramBinary(VertexProgramName, ShaderStage.Vertex, targetName, VariantName, vertexResult.Binary.Bytecode),
-                new ShaderProgramBinary(PixelProgramName, ShaderStage.Pixel, targetName, VariantName, pixelResult.Binary.Bytecode)
+                new ShaderProgramBinary(vertexProgramName, ShaderStage.Vertex, targetName, VariantName, vertexResult.Binary.Bytecode),
+                new ShaderProgramBinary(pixelProgramName, ShaderStage.Pixel, targetName, VariantName, pixelResult.Binary.Bytecode)
             };
-            var definition = new ShaderModuleDefinition(ShaderAssetId, programs, binaries);
+            var definition = new ShaderModuleDefinition(shaderAssetId, programs, binaries);
             return ShaderAsset.FromDefinition(definition, target);
         }
 
         /// <summary>
-        /// Creates the material asset matching the validation shader.
+        /// Creates a material asset for the supplied shader and program identifiers.
         /// </summary>
-        /// <returns>Material asset configured with validation program names.</returns>
-        public static MaterialAsset BuildMaterialAsset() {
+        /// <param name="materialAssetId">Material asset identifier.</param>
+        /// <param name="shaderAssetId">Shader asset identifier referenced by the material.</param>
+        /// <param name="vertexProgramName">Vertex program name.</param>
+        /// <param name="pixelProgramName">Pixel program name.</param>
+        /// <returns>Material asset configured with supplied program names.</returns>
+        static MaterialAsset BuildMaterialAssetInternal(
+            string materialAssetId,
+            string shaderAssetId,
+            string vertexProgramName,
+            string pixelProgramName) {
+            if (string.IsNullOrWhiteSpace(materialAssetId)) {
+                throw new ArgumentException("Material asset id must be provided.", nameof(materialAssetId));
+            }
+
+            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
+                throw new ArgumentException("Shader asset id must be provided.", nameof(shaderAssetId));
+            }
+
+            if (string.IsNullOrWhiteSpace(vertexProgramName)) {
+                throw new ArgumentException("Vertex program name must be provided.", nameof(vertexProgramName));
+            }
+
+            if (string.IsNullOrWhiteSpace(pixelProgramName)) {
+                throw new ArgumentException("Pixel program name must be provided.", nameof(pixelProgramName));
+            }
+
             return new MaterialAsset {
-                Id = MaterialAssetId,
-                ShaderAssetId = ShaderAssetId,
-                VertexProgram = VertexProgramName,
-                PixelProgram = PixelProgramName,
+                Id = materialAssetId,
+                ShaderAssetId = shaderAssetId,
+                VertexProgram = vertexProgramName,
+                PixelProgram = pixelProgramName,
                 Variant = VariantName
             };
         }

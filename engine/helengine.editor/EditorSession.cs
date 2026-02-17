@@ -24,6 +24,14 @@ namespace helengine.editor {
         /// </summary>
         const string DefaultRuntimePixelEntryPoint = "PS";
         /// <summary>
+        /// Draw order used by the main scene camera.
+        /// </summary>
+        const byte SceneCameraDrawOrder = 0;
+        /// <summary>
+        /// Draw order used by the gizmo overlay camera.
+        /// </summary>
+        const byte GizmoCameraDrawOrder = 1;
+        /// <summary>
         /// Built-in HLSL source used to generate Vulkan starter-scene materials.
         /// </summary>
         const string DefaultRuntimeShaderSource =
@@ -57,6 +65,68 @@ namespace helengine.editor {
             "{\n" +
             "    float3 displayNormal = normalize(input.normal) * 0.5 + 0.5;\n" +
             "    return float4(displayNormal, 1.0);\n" +
+            "}\n";
+        /// <summary>
+        /// Built-in runtime shader name used for Vulkan transform-gizmo materials.
+        /// </summary>
+        const string TransformGizmoRuntimeShaderName = "EditorTransformGizmo";
+        /// <summary>
+        /// Built-in HLSL source used to generate Vulkan transform-gizmo materials.
+        /// </summary>
+        const string TransformGizmoRuntimeShaderSource =
+            "cbuffer TransformBuffer : register(b0)\n" +
+            "{\n" +
+            "    float4x4 worldViewProj;\n" +
+            "};\n" +
+            "\n" +
+            "struct VS_IN\n" +
+            "{\n" +
+            "    float3 pos : POSITION;\n" +
+            "    float3 normal : NORMAL;\n" +
+            "    float2 texCoord : TEXCOORD0;\n" +
+            "};\n" +
+            "\n" +
+            "struct PS_IN\n" +
+            "{\n" +
+            "    float4 pos : SV_POSITION;\n" +
+            "    float3 normal : NORMAL;\n" +
+            "    float2 marker : TEXCOORD0;\n" +
+            "};\n" +
+            "\n" +
+            "float3 DecodeAxisColor(float2 marker)\n" +
+            "{\n" +
+            "    if (marker.y > 0.5f)\n" +
+            "    {\n" +
+            "        return float3(0.20f, 0.50f, 1.00f);\n" +
+            "    }\n" +
+            "\n" +
+            "    if (marker.x > 0.5f)\n" +
+            "    {\n" +
+            "        return float3(0.20f, 0.95f, 0.35f);\n" +
+            "    }\n" +
+            "\n" +
+            "    return float3(1.00f, 0.30f, 0.30f);\n" +
+            "}\n" +
+            "\n" +
+            "PS_IN VS(VS_IN input)\n" +
+            "{\n" +
+            "    PS_IN output;\n" +
+            "    output.pos = mul(float4(input.pos, 1.0f), worldViewProj);\n" +
+            "    output.normal = input.normal;\n" +
+            "    output.marker = input.texCoord;\n" +
+            "    return output;\n" +
+            "}\n" +
+            "\n" +
+            "float4 PS(PS_IN input) : SV_Target\n" +
+            "{\n" +
+            "    float3 normal = normalize(input.normal);\n" +
+            "    float3 lightDirection0 = normalize(float3(0.45f, 0.85f, -0.30f));\n" +
+            "    float3 lightDirection1 = normalize(float3(-0.60f, 0.55f, 0.65f));\n" +
+            "    float diffuse0 = saturate(dot(normal, lightDirection0));\n" +
+            "    float diffuse1 = saturate(dot(normal, lightDirection1));\n" +
+            "    float lighting = 0.22f + diffuse0 * 0.72f + diffuse1 * 0.28f;\n" +
+            "    float3 axisColor = DecodeAxisColor(input.marker);\n" +
+            "    return float4(axisColor * lighting, 1.0f);\n" +
             "}\n";
         /// <summary>
         /// Editor core driving updates and rendering.
@@ -123,6 +193,10 @@ namespace helengine.editor {
         /// </summary>
         readonly CameraComponent sceneCameraComponent;
         /// <summary>
+        /// Overlay camera component that renders gizmos on top of scene geometry.
+        /// </summary>
+        readonly CameraComponent gizmoCameraComponent;
+        /// <summary>
         /// Hidden editor camera entity used for offscreen rendering.
         /// </summary>
         readonly EditorEntity hiddenCameraEntity;
@@ -182,7 +256,7 @@ namespace helengine.editor {
             uiCameraEntity.InternalEntity = true;
             uiCameraEntity.Position = new float3(0, 3, -8);
             uiCameraComponent = new CameraComponent();
-            uiCameraComponent.LayerMask = 0b1000000000000000;
+            uiCameraComponent.LayerMask = EditorLayerMasks.EditorUi;
             uiCameraComponent.CameraDrawOrder = 255;
             uiCameraComponent.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), false, 1.0f, false, 0);
             uiCameraEntity.AddComponent(uiCameraComponent);
@@ -191,9 +265,16 @@ namespace helengine.editor {
             sceneCameraEntity.InternalEntity = true;
             sceneCameraEntity.Position = new float3(0, 3, -8);
             sceneCameraComponent = new CameraComponent();
-            sceneCameraComponent.LayerMask = 0b0100000000000000;
+            sceneCameraComponent.LayerMask = EditorLayerMasks.SceneObjects;
+            sceneCameraComponent.CameraDrawOrder = SceneCameraDrawOrder;
             sceneCameraComponent.ClearSettings = new CameraClearSettings(true, new float4(0.39215687f, 0.58431375f, 0.92941177f, 1f), true, 1.0f, false, 0);
             sceneCameraEntity.AddComponent(sceneCameraComponent);
+            gizmoCameraComponent = new CameraComponent();
+            gizmoCameraComponent.LayerMask = EditorLayerMasks.SceneGizmo;
+            gizmoCameraComponent.CameraDrawOrder = GizmoCameraDrawOrder;
+            gizmoCameraComponent.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
+            gizmoCameraComponent.Viewport = sceneCameraComponent.Viewport;
+            sceneCameraEntity.AddComponent(gizmoCameraComponent);
             sceneCameraEntity.AddComponent(new EditorViewportCameraController(sceneCameraComponent));
 
             float3 toOrigin = float3.Normalize(new float3(-sceneCameraEntity.Position.X, -sceneCameraEntity.Position.Y, -sceneCameraEntity.Position.Z));
@@ -208,9 +289,9 @@ namespace helengine.editor {
             hiddenCameraEntity.Enabled = false;
             hiddenCameraEntity.Position = sceneCameraEntity.Position;
             hiddenCameraEntity.Orientation = sceneCameraEntity.Orientation;
-            hiddenCameraEntity.LayerMask = sceneCameraComponent.LayerMask;
+            hiddenCameraEntity.LayerMask = EditorLayerMasks.SceneObjects;
             hiddenCameraComponent = new CameraComponent();
-            hiddenCameraComponent.LayerMask = sceneCameraComponent.LayerMask;
+            hiddenCameraComponent.LayerMask = EditorLayerMasks.SceneObjects;
             hiddenCameraComponent.Viewport = new float4(0, 0, 640, 360);
             hiddenCameraComponent.ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
             if (render3D is helengine.directx11.DirectX11Renderer3D pickerRenderer) {
@@ -221,7 +302,6 @@ namespace helengine.editor {
             } else {
                 hiddenCameraTarget = null;
                 hiddenCameraComponent.RenderTarget = null;
-                hiddenCameraEntity.AddComponent(hiddenCameraComponent);
                 Logger.WriteWarning("Scene picking is currently available only on the DirectX11 renderer.");
             }
 
@@ -266,7 +346,10 @@ namespace helengine.editor {
             shaderModuleManager.ShaderBuilt += HandleShaderBuilt;
             shaderModuleManager.Start();
 
-            BuildStartScene();
+            RuntimeMaterial defaultMeshMaterial = BuildDefaultMeshMaterial();
+            RuntimeMaterial transformGizmoMaterial = BuildTransformGizmoMaterial();
+            TransformTranslationGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial);
+            BuildStartScene(defaultMeshMaterial);
             sceneHierarchyPanel.RefreshHierarchy();
 
             UpdateLayout(renderWidth, renderHeight);
@@ -398,6 +481,7 @@ namespace helengine.editor {
 
             int availableHeight = Math.Max(0, height - titleBar.Height);
             dockingManager.Layout.Layout(new int2(width, availableHeight), new float3(0, titleBar.Height, 0));
+            gizmoCameraComponent.Viewport = sceneCameraComponent.Viewport;
             assetPickerModal.UpdateLayout(width, height);
             UpdateDockInputBlockers();
         }
@@ -502,12 +586,16 @@ namespace helengine.editor {
         /// <summary>
         /// Creates a starter scene with a cube and a ground plane.
         /// </summary>
-        void BuildStartScene() {
+        /// <param name="defaultMaterial">Material used by starter-scene meshes.</param>
+        void BuildStartScene(RuntimeMaterial defaultMaterial) {
+            if (defaultMaterial == null) {
+                throw new ArgumentNullException(nameof(defaultMaterial));
+            }
+
             Core coreInstance = helengine.Core.Instance;
-            RuntimeMaterial defaultMaterial = BuildDefaultMeshMaterial();
             EditorEntity cube = new EditorEntity();
             cube.Name = "Cube";
-            cube.LayerMask = 0b0100000000000000;
+            cube.LayerMask = EditorLayerMasks.SceneObjects;
             MeshComponent mesh = new MeshComponent();
             cube.AddComponent(mesh);
             ModelAsset modelData = ModelUtils.GenerateCubeMesh(float3.Zero, float3.One);
@@ -517,7 +605,7 @@ namespace helengine.editor {
 
             EditorEntity plane = new EditorEntity();
             plane.Name = "Ground";
-            plane.LayerMask = 0b0100000000000000;
+            plane.LayerMask = EditorLayerMasks.SceneObjects;
             plane.Scale = new float3(10, 1, 10);
             MeshComponent planeMesh = new MeshComponent();
             plane.AddComponent(planeMesh);
@@ -544,11 +632,61 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds the material used by transform gizmo meshes.
+        /// </summary>
+        /// <returns>Runtime material instance.</returns>
+        RuntimeMaterial BuildTransformGizmoMaterial() {
+            if (core.RenderManager3D is helengine.directx11.DirectX11Renderer3D) {
+                return BuildDirectX11TransformGizmoMaterial();
+            }
+
+            if (core.RenderManager3D is helengine.vulkan.VulkanRenderer3D) {
+                return BuildVulkanTransformGizmoMaterial();
+            }
+
+            throw new InvalidOperationException("Unsupported renderer backend for transform gizmo material creation.");
+        }
+
+        /// <summary>
         /// Builds the starter-scene material for the DirectX11 renderer.
         /// </summary>
         /// <returns>Runtime material instance.</returns>
         RuntimeMaterial BuildDirectX11DefaultMeshMaterial() {
             string shaderPath = ResolveBuiltInShaderPath("MiniCube.fx");
+            string shaderDirectory = Path.GetDirectoryName(shaderPath);
+            if (string.IsNullOrWhiteSpace(shaderDirectory)) {
+                throw new InvalidOperationException("Built-in shader directory could not be resolved.");
+            }
+
+            string shaderName = Path.GetFileNameWithoutExtension(shaderPath);
+            if (string.IsNullOrWhiteSpace(shaderName)) {
+                throw new InvalidOperationException("Built-in shader name could not be resolved.");
+            }
+
+            var shaderBuilder = new helengine.directx11.DirectX11ShaderAssetBuilder(shaderDirectory, new ShaderModel(4, 0));
+            ShaderAsset shaderAsset = shaderBuilder.BuildFromFile(shaderPath, shaderName);
+
+            if (string.IsNullOrWhiteSpace(shaderAsset.Id)) {
+                throw new InvalidOperationException("Shader asset id must be provided.");
+            }
+
+            var materialAsset = new MaterialAsset {
+                Id = string.Concat(shaderName, ".material"),
+                ShaderAssetId = shaderAsset.Id,
+                VertexProgram = string.Concat(shaderName, ".vs"),
+                PixelProgram = string.Concat(shaderName, ".ps"),
+                Variant = "default"
+            };
+
+            return core.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+        }
+
+        /// <summary>
+        /// Builds the transform-gizmo material for the DirectX11 renderer.
+        /// </summary>
+        /// <returns>Runtime material instance.</returns>
+        RuntimeMaterial BuildDirectX11TransformGizmoMaterial() {
+            string shaderPath = ResolveBuiltInShaderPath("TransformGizmo.fx");
             string shaderDirectory = Path.GetDirectoryName(shaderPath);
             if (string.IsNullOrWhiteSpace(shaderDirectory)) {
                 throw new InvalidOperationException("Built-in shader directory could not be resolved.");
@@ -590,6 +728,30 @@ namespace helengine.editor {
                 DefaultRuntimePixelEntryPoint);
 
             string shaderName = DefaultRuntimeShaderName;
+            var materialAsset = new MaterialAsset {
+                Id = string.Concat(shaderName, ".material"),
+                ShaderAssetId = shaderAsset.Id,
+                VertexProgram = string.Concat(shaderName, ".vs"),
+                PixelProgram = string.Concat(shaderName, ".ps"),
+                Variant = DefaultRuntimeShaderVariant
+            };
+
+            return core.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+        }
+
+        /// <summary>
+        /// Builds the transform-gizmo material for the Vulkan renderer.
+        /// </summary>
+        /// <returns>Runtime material instance.</returns>
+        RuntimeMaterial BuildVulkanTransformGizmoMaterial() {
+            ShaderAsset shaderAsset = BuildRuntimeShaderAsset(
+                ShaderCompileTarget.Vulkan,
+                TransformGizmoRuntimeShaderName,
+                TransformGizmoRuntimeShaderSource,
+                DefaultRuntimeVertexEntryPoint,
+                DefaultRuntimePixelEntryPoint);
+
+            string shaderName = TransformGizmoRuntimeShaderName;
             var materialAsset = new MaterialAsset {
                 Id = string.Concat(shaderName, ".material"),
                 ShaderAssetId = shaderAsset.Id,

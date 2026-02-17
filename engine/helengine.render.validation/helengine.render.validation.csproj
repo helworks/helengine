@@ -12,6 +12,7 @@
     <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
     <ProjectReference Include="..\helengine.core.windows\helengine.core.windows.csproj" />
     <ProjectReference Include="..\helengine.directx11\helengine.directx11.csproj" />
+    <ProjectReference Include="..\helengine.editor\helengine.editor.csproj" />
     <ProjectReference Include="..\helengine.vulkan\helengine.vulkan.csproj" />
   </ItemGroup>
 

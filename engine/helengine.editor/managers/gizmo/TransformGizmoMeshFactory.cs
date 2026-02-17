@@ -1,0 +1,302 @@
+namespace helengine.editor {
+    /// <summary>
+    /// Generates primitive meshes used by editor transform gizmos.
+    /// </summary>
+    public static class TransformGizmoMeshFactory {
+        /// <summary>
+        /// Builds a cylinder mesh aligned to +Y with its base at Y=0.
+        /// </summary>
+        /// <param name="radius">Cylinder radius in world units.</param>
+        /// <param name="height">Cylinder height in world units.</param>
+        /// <param name="segments">Segment count used for roundness.</param>
+        /// <returns>Generated cylinder model asset.</returns>
+        public static ModelAsset CreateCylinder(float radius, float height, int segments) {
+            ValidatePrimitiveArguments(radius, height, segments);
+
+            List<float3> positions = new List<float3>(segments * 6 + 2);
+            List<float3> normals = new List<float3>(segments * 6 + 2);
+            List<float2> texCoords = new List<float2>(segments * 6 + 2);
+            List<int> indices = new List<int>(segments * 24);
+
+            for (int i = 0; i < segments; i++) {
+                double fraction = (double)i / segments;
+                double angle = fraction * Math.PI * 2.0;
+                float x = (float)(Math.Cos(angle) * radius);
+                float z = (float)(Math.Sin(angle) * radius);
+                float3 radialNormal = NormalizeXZ(x, z);
+
+                positions.Add(new float3(x, 0f, z));
+                normals.Add(radialNormal);
+                texCoords.Add(new float2((float)fraction, 0f));
+
+                positions.Add(new float3(x, height, z));
+                normals.Add(radialNormal);
+                texCoords.Add(new float2((float)fraction, 1f));
+            }
+
+            for (int i = 0; i < segments; i++) {
+                int currentBottom = i * 2;
+                int currentTop = currentBottom + 1;
+                int nextBottom = ((i + 1) % segments) * 2;
+                int nextTop = nextBottom + 1;
+
+                AddDoubleSidedTriangle(indices, currentBottom, currentTop, nextTop);
+                AddDoubleSidedTriangle(indices, currentBottom, nextTop, nextBottom);
+            }
+
+            int bottomCenterIndex = positions.Count;
+            positions.Add(new float3(0f, 0f, 0f));
+            normals.Add(new float3(0f, -1f, 0f));
+            texCoords.Add(new float2(0.5f, 0.5f));
+            int bottomRingStart = positions.Count;
+            for (int i = 0; i < segments; i++) {
+                double fraction = (double)i / segments;
+                double angle = fraction * Math.PI * 2.0;
+                float x = (float)(Math.Cos(angle) * radius);
+                float z = (float)(Math.Sin(angle) * radius);
+                positions.Add(new float3(x, 0f, z));
+                normals.Add(new float3(0f, -1f, 0f));
+                texCoords.Add(new float2((x / radius + 1f) * 0.5f, (z / radius + 1f) * 0.5f));
+            }
+
+            for (int i = 0; i < segments; i++) {
+                int current = bottomRingStart + i;
+                int next = bottomRingStart + ((i + 1) % segments);
+                AddDoubleSidedTriangle(indices, bottomCenterIndex, next, current);
+            }
+
+            int topCenterIndex = positions.Count;
+            positions.Add(new float3(0f, height, 0f));
+            normals.Add(new float3(0f, 1f, 0f));
+            texCoords.Add(new float2(0.5f, 0.5f));
+            int topRingStart = positions.Count;
+            for (int i = 0; i < segments; i++) {
+                double fraction = (double)i / segments;
+                double angle = fraction * Math.PI * 2.0;
+                float x = (float)(Math.Cos(angle) * radius);
+                float z = (float)(Math.Sin(angle) * radius);
+                positions.Add(new float3(x, height, z));
+                normals.Add(new float3(0f, 1f, 0f));
+                texCoords.Add(new float2((x / radius + 1f) * 0.5f, (z / radius + 1f) * 0.5f));
+            }
+
+            for (int i = 0; i < segments; i++) {
+                int current = topRingStart + i;
+                int next = topRingStart + ((i + 1) % segments);
+                AddDoubleSidedTriangle(indices, topCenterIndex, current, next);
+            }
+
+            return CreateModelAsset(positions, normals, texCoords, indices);
+        }
+
+        /// <summary>
+        /// Builds a cone mesh aligned to +Y with its base at Y=0.
+        /// </summary>
+        /// <param name="radius">Cone base radius in world units.</param>
+        /// <param name="height">Cone height in world units.</param>
+        /// <param name="segments">Segment count used for roundness.</param>
+        /// <returns>Generated cone model asset.</returns>
+        public static ModelAsset CreateCone(float radius, float height, int segments) {
+            ValidatePrimitiveArguments(radius, height, segments);
+
+            List<float3> positions = new List<float3>(segments * 2 + 2);
+            List<float3> normals = new List<float3>(segments * 2 + 2);
+            List<float2> texCoords = new List<float2>(segments * 2 + 2);
+            List<int> indices = new List<int>(segments * 12);
+
+            double slope = radius / height;
+            for (int i = 0; i < segments; i++) {
+                double fraction = (double)i / segments;
+                double angle = fraction * Math.PI * 2.0;
+                float x = (float)(Math.Cos(angle) * radius);
+                float z = (float)(Math.Sin(angle) * radius);
+                float3 sideNormal = Normalize3(new float3(x, (float)slope, z));
+
+                positions.Add(new float3(x, 0f, z));
+                normals.Add(sideNormal);
+                texCoords.Add(new float2((float)fraction, 0f));
+            }
+
+            int tipIndex = positions.Count;
+            positions.Add(new float3(0f, height, 0f));
+            normals.Add(new float3(0f, 1f, 0f));
+            texCoords.Add(new float2(0.5f, 1f));
+
+            for (int i = 0; i < segments; i++) {
+                int current = i;
+                int next = (i + 1) % segments;
+                AddDoubleSidedTriangle(indices, current, tipIndex, next);
+            }
+
+            int baseCenterIndex = positions.Count;
+            positions.Add(new float3(0f, 0f, 0f));
+            normals.Add(new float3(0f, -1f, 0f));
+            texCoords.Add(new float2(0.5f, 0.5f));
+
+            int baseRingStart = positions.Count;
+            for (int i = 0; i < segments; i++) {
+                double fraction = (double)i / segments;
+                double angle = fraction * Math.PI * 2.0;
+                float x = (float)(Math.Cos(angle) * radius);
+                float z = (float)(Math.Sin(angle) * radius);
+                positions.Add(new float3(x, 0f, z));
+                normals.Add(new float3(0f, -1f, 0f));
+                texCoords.Add(new float2((x / radius + 1f) * 0.5f, (z / radius + 1f) * 0.5f));
+            }
+
+            for (int i = 0; i < segments; i++) {
+                int current = baseRingStart + i;
+                int next = baseRingStart + ((i + 1) % segments);
+                AddDoubleSidedTriangle(indices, baseCenterIndex, current, next);
+            }
+
+            return CreateModelAsset(positions, normals, texCoords, indices);
+        }
+
+        /// <summary>
+        /// Validates basic primitive generation arguments.
+        /// </summary>
+        /// <param name="radius">Primitive radius.</param>
+        /// <param name="height">Primitive height.</param>
+        /// <param name="segments">Primitive segment count.</param>
+        static void ValidatePrimitiveArguments(float radius, float height, int segments) {
+            if (radius <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(radius), "Radius must be greater than zero.");
+            }
+
+            if (height <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(height), "Height must be greater than zero.");
+            }
+
+            if (segments < 3) {
+                throw new ArgumentOutOfRangeException(nameof(segments), "At least three segments are required.");
+            }
+        }
+
+        /// <summary>
+        /// Creates a model asset from generated vertex streams and triangle indices.
+        /// </summary>
+        /// <param name="positions">Generated vertex positions.</param>
+        /// <param name="normals">Generated vertex normals.</param>
+        /// <param name="texCoords">Generated vertex texture coordinates.</param>
+        /// <param name="indices">Generated triangle indices.</param>
+        /// <returns>Generated model asset.</returns>
+        static ModelAsset CreateModelAsset(
+            List<float3> positions,
+            List<float3> normals,
+            List<float2> texCoords,
+            List<int> indices) {
+            if (positions == null) {
+                throw new ArgumentNullException(nameof(positions));
+            }
+
+            if (normals == null) {
+                throw new ArgumentNullException(nameof(normals));
+            }
+
+            if (texCoords == null) {
+                throw new ArgumentNullException(nameof(texCoords));
+            }
+
+            if (indices == null) {
+                throw new ArgumentNullException(nameof(indices));
+            }
+
+            if (positions.Count == 0) {
+                throw new InvalidOperationException("Mesh generation produced no vertices.");
+            }
+
+            if (positions.Count != normals.Count) {
+                throw new InvalidOperationException("Vertex position and normal counts must match.");
+            }
+
+            if (positions.Count != texCoords.Count) {
+                throw new InvalidOperationException("Vertex position and UV counts must match.");
+            }
+
+            if (positions.Count > ushort.MaxValue) {
+                throw new InvalidOperationException("Mesh uses more vertices than 16-bit indices support.");
+            }
+
+            ModelAsset modelAsset = new ModelAsset();
+            modelAsset.Id = Guid.NewGuid().ToString("N");
+            modelAsset.Positions = positions.ToArray();
+            modelAsset.Normals = normals.ToArray();
+            modelAsset.TexCoords = texCoords.ToArray();
+            modelAsset.Indices16 = ConvertIndices(indices);
+            return modelAsset;
+        }
+
+        /// <summary>
+        /// Converts integer triangle indices to 16-bit indices with range validation.
+        /// </summary>
+        /// <param name="indices">Triangle indices to convert.</param>
+        /// <returns>Converted 16-bit index buffer.</returns>
+        static ushort[] ConvertIndices(List<int> indices) {
+            if (indices == null) {
+                throw new ArgumentNullException(nameof(indices));
+            }
+
+            ushort[] converted = new ushort[indices.Count];
+            for (int i = 0; i < indices.Count; i++) {
+                int index = indices[i];
+                if (index < 0 || index > ushort.MaxValue) {
+                    throw new InvalidOperationException("Mesh index exceeds 16-bit range.");
+                }
+
+                converted[i] = (ushort)index;
+            }
+
+            return converted;
+        }
+
+        /// <summary>
+        /// Adds a triangle to the index list in both winding orders.
+        /// </summary>
+        /// <param name="indices">Index list to append to.</param>
+        /// <param name="a">First vertex index.</param>
+        /// <param name="b">Second vertex index.</param>
+        /// <param name="c">Third vertex index.</param>
+        static void AddDoubleSidedTriangle(List<int> indices, int a, int b, int c) {
+            if (indices == null) {
+                throw new ArgumentNullException(nameof(indices));
+            }
+
+            indices.Add(a);
+            indices.Add(b);
+            indices.Add(c);
+            indices.Add(a);
+            indices.Add(c);
+            indices.Add(b);
+        }
+
+        /// <summary>
+        /// Normalizes an XZ vector into a unit vector on the XZ plane.
+        /// </summary>
+        /// <param name="x">X component.</param>
+        /// <param name="z">Z component.</param>
+        /// <returns>Normalized XZ vector.</returns>
+        static float3 NormalizeXZ(float x, float z) {
+            double length = Math.Sqrt(x * x + z * z);
+            if (length <= 0.0) {
+                throw new InvalidOperationException("Cannot normalize a zero-length XZ vector.");
+            }
+
+            return new float3((float)(x / length), 0f, (float)(z / length));
+        }
+
+        /// <summary>
+        /// Normalizes a 3D vector.
+        /// </summary>
+        /// <param name="value">Vector to normalize.</param>
+        /// <returns>Normalized vector.</returns>
+        static float3 Normalize3(float3 value) {
+            double length = Math.Sqrt(value.X * value.X + value.Y * value.Y + value.Z * value.Z);
+            if (length <= 0.0) {
+                throw new InvalidOperationException("Cannot normalize a zero-length vector.");
+            }
+
+            return new float3((float)(value.X / length), (float)(value.Y / length), (float)(value.Z / length));
+        }
+    }
+}
