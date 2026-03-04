@@ -246,11 +246,19 @@ namespace helengine.editor {
         /// <param name="pickId">Pick identifier read from the picker target.</param>
         void ResolveSelectionPick(int pickId) {
             if (pickId == 0) {
+                if (!ShouldClearSelectionForMissedPick()) {
+                    return;
+                }
+
                 EditorSelectionService.ClearSelection();
                 return;
             }
 
             if (!PickEntitiesById.TryGetValue(pickId, out Entity entity)) {
+                if (!ShouldClearSelectionForMissedPick()) {
+                    return;
+                }
+
                 EditorSelectionService.ClearSelection();
                 return;
             }
@@ -664,6 +672,31 @@ namespace helengine.editor {
         /// <returns>True when the scene viewport tool mode is translation.</returns>
         bool IsTranslateToolActive() {
             return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Translate;
+        }
+
+        /// <summary>
+        /// Determines whether a missed selection pick should clear the current selection.
+        /// </summary>
+        /// <returns>True when the original pick request came from an unblocked scene-viewport click.</returns>
+        bool ShouldClearSelectionForMissedPick() {
+            if (EditorInputCaptureService.IsPointerBlocked(PendingPointer)) {
+                return false;
+            }
+
+            return IsPointerInsideViewport(PendingPointer, PendingViewport);
+        }
+
+        /// <summary>
+        /// Determines whether a pointer is inside a viewport rectangle.
+        /// </summary>
+        /// <param name="pointer">Pointer position in window coordinates.</param>
+        /// <param name="viewport">Viewport rectangle in window coordinates.</param>
+        /// <returns>True when the pointer lies inside the viewport bounds.</returns>
+        bool IsPointerInsideViewport(int2 pointer, float4 viewport) {
+            return pointer.X >= viewport.X &&
+                   pointer.X < viewport.X + viewport.Z &&
+                   pointer.Y >= viewport.Y &&
+                   pointer.Y < viewport.Y + viewport.W;
         }
     }
 }
