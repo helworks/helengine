@@ -4,17 +4,13 @@ namespace helengine.editor {
     /// </summary>
     public class EditorViewport : DockableEntity {
         /// <summary>
-        /// Horizontal padding from viewport content edge to the toolbar.
+        /// Horizontal padding from the toolbar edge to the first tool button.
         /// </summary>
         const int ToolbarPadding = 6;
         /// <summary>
         /// Height of the in-viewport tool toolbar.
         /// </summary>
         const int ToolbarHeight = 24;
-        /// <summary>
-        /// Horizontal inner padding for toolbar content.
-        /// </summary>
-        const int ToolbarInnerPadding = 3;
         /// <summary>
         /// Spacing between tool buttons.
         /// </summary>
@@ -340,7 +336,10 @@ namespace helengine.editor {
                 return;
             }
 
-            Camera.Viewport = new float4(Position.X, Position.Y + TitleBarHeight, Size.X, Size.Y);
+            float viewportWidth = Math.Max(1f, Size.X);
+            float viewportHeight = Math.Max(1f, Size.Y - ToolbarHeight);
+            float viewportTop = Position.Y + TitleBarHeight + ToolbarHeight;
+            Camera.Viewport = new float4(Position.X, viewportTop, viewportWidth, viewportHeight);
             LayoutToolbar();
             RefreshInputBlockers();
         }
@@ -349,8 +348,8 @@ namespace helengine.editor {
         /// Lays out toolbar and tool-button positions based on current panel dimensions.
         /// </summary>
         void LayoutToolbar() {
-            float toolbarX = ToolbarPadding;
-            float toolbarY = TitleBarHeight + ToolbarPadding;
+            float toolbarX = 0f;
+            float toolbarY = TitleBarHeight;
             ToolbarRoot.Position = new float3(toolbarX, toolbarY, 0.2f);
 
             int toolbarWidth = GetToolbarWidth();
@@ -365,7 +364,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                float buttonX = ToolbarInnerPadding + buttonIndex * (ToolButtonWidth + ToolbarButtonSpacing);
+                float buttonX = ToolbarPadding + buttonIndex * (ToolButtonWidth + ToolbarButtonSpacing);
                 buttonRoot.Position = new float3(buttonX, buttonY, 0.1f);
                 buttonBackground.Size = new int2(ToolButtonWidth, ToolButtonHeight);
                 buttonInteractable.Size = new int2(ToolButtonWidth, ToolButtonHeight);
@@ -405,13 +404,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Computes the toolbar width based on fixed button and spacing constants.
+        /// Computes the toolbar width so the bar spans the full viewport panel width.
         /// </summary>
         /// <returns>Toolbar width in pixels.</returns>
         int GetToolbarWidth() {
-            return (ToolbarInnerPadding * 2) +
-                   (ToolModes.Length * ToolButtonWidth) +
-                   ((ToolModes.Length - 1) * ToolbarButtonSpacing);
+            return Math.Max(1, Size.X);
         }
 
         /// <summary>
