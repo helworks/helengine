@@ -162,6 +162,10 @@ namespace helengine.editor {
         /// Clears input blockers owned by this viewport toolbar.
         /// </summary>
         public void ClearInputBlockers() {
+            if (ToolbarInputBlockerOwner == null) {
+                return;
+            }
+
             EditorInputCaptureService.ClearBlocker(ToolbarInputBlockerOwner);
         }
 
@@ -327,6 +331,10 @@ namespace helengine.editor {
         /// Updates the camera viewport, toolbar layout, and toolbar input-blocker bounds.
         /// </summary>
         void UpdateViewport() {
+            if (Camera == null) {
+                return;
+            }
+
             if (!Enabled) {
                 ClearInputBlockers();
                 return;
