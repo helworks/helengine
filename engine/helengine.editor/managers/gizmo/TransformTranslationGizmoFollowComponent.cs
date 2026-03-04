@@ -24,6 +24,26 @@ namespace helengine.editor {
         /// </summary>
         const double MaximumScale = 100000.0;
         /// <summary>
+        /// Smallest horizontal camera-to-gizmo magnitude used for facing-orientation decisions.
+        /// </summary>
+        const double MinimumHorizontalFacingLengthSquared = 0.000000000001;
+        /// <summary>
+        /// World-space up axis used for gizmo yaw rotations.
+        /// </summary>
+        static readonly float3 WorldUpAxis = new float3(0f, 1f, 0f);
+        /// <summary>
+        /// Horizontal forward reference used to decide whether the gizmo should be flipped.
+        /// </summary>
+        static readonly float3 HorizontalForwardAxis = new float3(0f, 0f, 1f);
+        /// <summary>
+        /// Identity orientation used when the gizmo should keep its default facing.
+        /// </summary>
+        static readonly float4 DefaultFacingOrientation = float4.Identity;
+        /// <summary>
+        /// Half-turn around world up used to flip the gizmo in 180-degree intervals.
+        /// </summary>
+        static readonly float4 FlippedFacingOrientation = CreateFlippedFacingOrientation();
+        /// <summary>
         /// Scene camera used to compute distance-based gizmo scaling.
         /// </summary>
         readonly CameraComponent SceneCamera;
@@ -81,6 +101,8 @@ namespace helengine.editor {
             if (cameraEntity == null) {
                 throw new InvalidOperationException("Scene camera must belong to an entity.");
             }
+
+            UpdateFacingOrientation(selectedPosition, cameraEntity.Position);
 
             float4 viewport = SceneCamera.Viewport;
             double viewportHeight = viewport.W;
@@ -323,6 +345,41 @@ namespace helengine.editor {
         /// <returns>True when the viewport tool mode is translation.</returns>
         bool IsTranslateToolActive() {
             return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Translate;
+        }
+
+        /// <summary>
+        /// Updates gizmo yaw so it snaps to 0 or 180 degrees around world up and faces the viewer.
+        /// </summary>
+        /// <param name="gizmoPosition">Current gizmo world position.</param>
+        /// <param name="cameraPosition">Scene camera world position.</param>
+        void UpdateFacingOrientation(float3 gizmoPosition, float3 cameraPosition) {
+            float3 toCamera = cameraPosition - gizmoPosition;
+            float3 horizontalToCamera = new float3(toCamera.X, 0f, toCamera.Z);
+            double horizontalLengthSquared =
+                (horizontalToCamera.X * horizontalToCamera.X) +
+                (horizontalToCamera.Z * horizontalToCamera.Z);
+            if (horizontalLengthSquared <= MinimumHorizontalFacingLengthSquared) {
+                return;
+            }
+
+            double inverseLength = 1.0 / Math.Sqrt(horizontalLengthSquared);
+            float3 horizontalDirection = new float3(
+                (float)(horizontalToCamera.X * inverseLength),
+                0f,
+                (float)(horizontalToCamera.Z * inverseLength));
+            double facingDot = float3.Dot(horizontalDirection, HorizontalForwardAxis);
+            GizmoRoot.Orientation = facingDot < 0.0 ? FlippedFacingOrientation : DefaultFacingOrientation;
+        }
+
+        /// <summary>
+        /// Creates a quaternion that rotates 180 degrees around world up.
+        /// </summary>
+        /// <returns>Half-turn quaternion around the world Y axis.</returns>
+        static float4 CreateFlippedFacingOrientation() {
+            float3 axis = WorldUpAxis;
+            float4 orientation;
+            float4.CreateFromAxisAngle(ref axis, (float)Math.PI, out orientation);
+            return orientation;
         }
     }
 }
