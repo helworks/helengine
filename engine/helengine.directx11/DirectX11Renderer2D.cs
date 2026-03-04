@@ -140,14 +140,27 @@ namespace helengine.directx11 {
             }
 
             var context = Device.ImmediateContext;
-            var data = (DirectX11TextureResource)drawable.Texture;
+            ShaderResourceView resourceView;
+            int textureWidth;
+            int textureHeight;
+            if (drawable.Texture is DirectX11TextureResource textureData) {
+                resourceView = textureData.Resource;
+                textureWidth = textureData.Width;
+                textureHeight = textureData.Height;
+            } else if (drawable.Texture is DirectX11RenderTargetResource renderTargetData) {
+                resourceView = renderTargetData.ShaderResourceView;
+                textureWidth = renderTargetData.Width;
+                textureHeight = renderTargetData.Height;
+            } else {
+                throw new InvalidOperationException("Sprite textures must be DirectX11 texture or render target resources.");
+            }
 
-            context.PixelShader.SetShaderResource(0, data.Resource);
+            context.PixelShader.SetShaderResource(0, resourceView);
             context.PixelShader.SetSampler(0, spriteSampler);
 
             int2 size = drawable.Size;
             if (size.X <= 0 || size.Y <= 0) {
-                size = new int2(data.Width, data.Height);
+                size = new int2(textureWidth, textureHeight);
             }
 
             float3 pos = drawable.Parent.Position;
@@ -781,3 +794,4 @@ namespace helengine.directx11 {
         }
     }
 }
+

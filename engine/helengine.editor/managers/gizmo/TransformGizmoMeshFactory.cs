@@ -154,6 +154,64 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds a square plane mesh aligned to local XY with its lower-left corner at the origin.
+        /// </summary>
+        /// <param name="size">Side length in world units.</param>
+        /// <returns>Generated square plane model asset.</returns>
+        public static ModelAsset CreatePlaneSquare(float size) {
+            if (size <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(size), "Plane size must be greater than zero.");
+            }
+
+            List<float3> positions = new List<float3>(8);
+            List<float3> normals = new List<float3>(8);
+            List<float2> texCoords = new List<float2>(8);
+            List<int> indices = new List<int>(12);
+
+            positions.Add(new float3(0f, 0f, 0f));
+            positions.Add(new float3(size, 0f, 0f));
+            positions.Add(new float3(size, size, 0f));
+            positions.Add(new float3(0f, size, 0f));
+            normals.Add(new float3(0f, 0f, 1f));
+            normals.Add(new float3(0f, 0f, 1f));
+            normals.Add(new float3(0f, 0f, 1f));
+            normals.Add(new float3(0f, 0f, 1f));
+            texCoords.Add(new float2(0f, 0f));
+            texCoords.Add(new float2(1f, 0f));
+            texCoords.Add(new float2(1f, 1f));
+            texCoords.Add(new float2(0f, 1f));
+
+            positions.Add(new float3(0f, 0f, 0f));
+            positions.Add(new float3(0f, size, 0f));
+            positions.Add(new float3(size, size, 0f));
+            positions.Add(new float3(size, 0f, 0f));
+            normals.Add(new float3(0f, 0f, -1f));
+            normals.Add(new float3(0f, 0f, -1f));
+            normals.Add(new float3(0f, 0f, -1f));
+            normals.Add(new float3(0f, 0f, -1f));
+            texCoords.Add(new float2(0f, 0f));
+            texCoords.Add(new float2(0f, 1f));
+            texCoords.Add(new float2(1f, 1f));
+            texCoords.Add(new float2(1f, 0f));
+
+            indices.Add(0);
+            indices.Add(1);
+            indices.Add(2);
+            indices.Add(0);
+            indices.Add(2);
+            indices.Add(3);
+
+            indices.Add(4);
+            indices.Add(5);
+            indices.Add(6);
+            indices.Add(4);
+            indices.Add(6);
+            indices.Add(7);
+
+            return CreateModelAsset(positions, normals, texCoords, indices);
+        }
+
+        /// <summary>
         /// Validates basic primitive generation arguments.
         /// </summary>
         /// <param name="radius">Primitive radius.</param>

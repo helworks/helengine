@@ -24,6 +24,14 @@ namespace helengine.editor {
         /// </summary>
         public const float AxisLength = ShaftLength + TipLength;
         /// <summary>
+        /// Side length of planar translation handles.
+        /// </summary>
+        public const float PlaneSize = 0.25f;
+        /// <summary>
+        /// Offset from the origin where planar translation handles begin.
+        /// </summary>
+        public const float PlaneInset = 0.20f;
+        /// <summary>
         /// Segment count used by generated cylinders and cones.
         /// </summary>
         const int AxisSegments = 18;
@@ -39,15 +47,46 @@ namespace helengine.editor {
         /// Marker UV written to Z-axis meshes for shader-side axis color decoding.
         /// </summary>
         static readonly float2 ZAxisMarker = new float2(0.1f, 0.9f);
-
         /// <summary>
-        /// Creates a translation gizmo root entity and registers it in the scene.
+        /// Marker UV written to XY-plane handle meshes for shader-side color decoding.
+        /// </summary>
+        static readonly float2 XyPlaneMarker = new float2(0.9f, 0.9f);
+        /// <summary>
+        /// Marker UV written to XZ-plane handle meshes for shader-side color decoding.
+        /// </summary>
+        static readonly float2 XzPlaneMarker = new float2(0.5f, 0.9f);
+        /// <summary>
+        /// Marker UV written to YZ-plane handle meshes for shader-side color decoding.
+        /// </summary>
+        static readonly float2 YzPlaneMarker = new float2(0.9f, 0.5f);
+        /// <summary>
+        /// Creates a translation gizmo using the same material for normal and highlighted states.
         /// </summary>
         /// <param name="render3D">Renderer used to build runtime mesh resources.</param>
         /// <param name="sceneCamera">Scene camera used for gizmo distance scaling.</param>
         /// <param name="gizmoMaterial">Material used by gizmo meshes.</param>
         /// <returns>Created gizmo root entity.</returns>
         public static EditorEntity Create(RenderManager3D render3D, CameraComponent sceneCamera, RuntimeMaterial gizmoMaterial) {
+            if (gizmoMaterial == null) {
+                throw new ArgumentNullException(nameof(gizmoMaterial));
+            }
+
+            return Create(render3D, sceneCamera, gizmoMaterial, gizmoMaterial);
+        }
+
+        /// <summary>
+        /// Creates a translation gizmo root entity and registers it in the scene.
+        /// </summary>
+        /// <param name="render3D">Renderer used to build runtime mesh resources.</param>
+        /// <param name="sceneCamera">Scene camera used for gizmo distance scaling.</param>
+        /// <param name="gizmoMaterial">Base material used by gizmo meshes.</param>
+        /// <param name="gizmoHighlightMaterial">Highlight material used when an axis is hovered.</param>
+        /// <returns>Created gizmo root entity.</returns>
+        public static EditorEntity Create(
+            RenderManager3D render3D,
+            CameraComponent sceneCamera,
+            RuntimeMaterial gizmoMaterial,
+            RuntimeMaterial gizmoHighlightMaterial) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
@@ -60,12 +99,19 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(gizmoMaterial));
             }
 
+            if (gizmoHighlightMaterial == null) {
+                throw new ArgumentNullException(nameof(gizmoHighlightMaterial));
+            }
+
             ModelAsset xShaftAsset = TransformGizmoMeshFactory.CreateCylinder(ShaftRadius, ShaftLength, AxisSegments);
             ModelAsset xTipAsset = TransformGizmoMeshFactory.CreateCone(TipRadius, TipLength, AxisSegments);
             ModelAsset yShaftAsset = TransformGizmoMeshFactory.CreateCylinder(ShaftRadius, ShaftLength, AxisSegments);
             ModelAsset yTipAsset = TransformGizmoMeshFactory.CreateCone(TipRadius, TipLength, AxisSegments);
             ModelAsset zShaftAsset = TransformGizmoMeshFactory.CreateCylinder(ShaftRadius, ShaftLength, AxisSegments);
             ModelAsset zTipAsset = TransformGizmoMeshFactory.CreateCone(TipRadius, TipLength, AxisSegments);
+            ModelAsset xyPlaneAsset = TransformGizmoMeshFactory.CreatePlaneSquare(PlaneSize);
+            ModelAsset xzPlaneAsset = TransformGizmoMeshFactory.CreatePlaneSquare(PlaneSize);
+            ModelAsset yzPlaneAsset = TransformGizmoMeshFactory.CreatePlaneSquare(PlaneSize);
 
             ApplyAxisMarker(xShaftAsset, XAxisMarker);
             ApplyAxisMarker(xTipAsset, XAxisMarker);
@@ -73,6 +119,9 @@ namespace helengine.editor {
             ApplyAxisMarker(yTipAsset, YAxisMarker);
             ApplyAxisMarker(zShaftAsset, ZAxisMarker);
             ApplyAxisMarker(zTipAsset, ZAxisMarker);
+            ApplyAxisMarker(xyPlaneAsset, XyPlaneMarker);
+            ApplyAxisMarker(xzPlaneAsset, XzPlaneMarker);
+            ApplyAxisMarker(yzPlaneAsset, YzPlaneMarker);
 
             RuntimeModel xShaftModel = render3D.BuildModelFromRaw(xShaftAsset);
             RuntimeModel xTipModel = render3D.BuildModelFromRaw(xTipAsset);
@@ -80,12 +129,15 @@ namespace helengine.editor {
             RuntimeModel yTipModel = render3D.BuildModelFromRaw(yTipAsset);
             RuntimeModel zShaftModel = render3D.BuildModelFromRaw(zShaftAsset);
             RuntimeModel zTipModel = render3D.BuildModelFromRaw(zTipAsset);
+            RuntimeModel xyPlaneModel = render3D.BuildModelFromRaw(xyPlaneAsset);
+            RuntimeModel xzPlaneModel = render3D.BuildModelFromRaw(xzPlaneAsset);
+            RuntimeModel yzPlaneModel = render3D.BuildModelFromRaw(yzPlaneAsset);
 
             EditorEntity gizmoRoot = new EditorEntity();
             gizmoRoot.Name = "Transform Translation Gizmo";
             gizmoRoot.InternalEntity = true;
             gizmoRoot.LayerMask = EditorLayerMasks.SceneGizmo;
-            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot));
+            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, gizmoMaterial, gizmoHighlightMaterial));
 
             float4 xAxisOrientation = CreateXAxisOrientation();
             float4 yAxisOrientation = float4.Identity;
@@ -94,6 +146,27 @@ namespace helengine.editor {
             CreateAxisEntity(gizmoRoot, "Transform Gizmo X", xAxisOrientation, new float3(ShaftLength, 0f, 0f), xShaftModel, xTipModel, gizmoMaterial);
             CreateAxisEntity(gizmoRoot, "Transform Gizmo Y", yAxisOrientation, new float3(0f, ShaftLength, 0f), yShaftModel, yTipModel, gizmoMaterial);
             CreateAxisEntity(gizmoRoot, "Transform Gizmo Z", zAxisOrientation, new float3(0f, 0f, ShaftLength), zShaftModel, zTipModel, gizmoMaterial);
+            CreatePlaneEntity(
+                gizmoRoot,
+                "Transform Gizmo XY Plane",
+                float4.Identity,
+                new float3(PlaneInset, PlaneInset, 0f),
+                xyPlaneModel,
+                gizmoMaterial);
+            CreatePlaneEntity(
+                gizmoRoot,
+                "Transform Gizmo XZ Plane",
+                CreateXzPlaneOrientation(),
+                new float3(PlaneInset, 0f, PlaneInset),
+                xzPlaneModel,
+                gizmoMaterial);
+            CreatePlaneEntity(
+                gizmoRoot,
+                "Transform Gizmo YZ Plane",
+                CreateYzPlaneOrientation(),
+                new float3(0f, PlaneInset, PlaneInset),
+                yzPlaneModel,
+                gizmoMaterial);
 
             return gizmoRoot;
         }
@@ -158,6 +231,7 @@ namespace helengine.editor {
             axisEntity.Enabled = false;
             axisEntity.Scale = float3.Zero;
             axisEntity.Orientation = axisOrientation;
+            axisEntity.AddComponent(new TransformGizmoHandleComponent(new float3(0f, 1f, 0f)));
             gizmoRoot.AddChild(axisEntity);
 
             EditorEntity shaftEntity = new EditorEntity();
@@ -187,6 +261,52 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates one plane handle entity used for planar translation.
+        /// </summary>
+        /// <param name="gizmoRoot">Root entity that owns the handle.</param>
+        /// <param name="handleName">Display name for the plane handle entity.</param>
+        /// <param name="handleOrientation">Handle orientation relative to the root.</param>
+        /// <param name="handleOffset">Handle local position relative to the root.</param>
+        /// <param name="planeModel">Runtime mesh used by the handle.</param>
+        /// <param name="material">Material used by the handle mesh.</param>
+        static void CreatePlaneEntity(
+            EditorEntity gizmoRoot,
+            string handleName,
+            float4 handleOrientation,
+            float3 handleOffset,
+            RuntimeModel planeModel,
+            RuntimeMaterial material) {
+            if (gizmoRoot == null) {
+                throw new ArgumentNullException(nameof(gizmoRoot));
+            }
+
+            if (planeModel == null) {
+                throw new ArgumentNullException(nameof(planeModel));
+            }
+
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            EditorEntity planeEntity = new EditorEntity();
+            planeEntity.Name = handleName;
+            planeEntity.InternalEntity = true;
+            planeEntity.LayerMask = EditorLayerMasks.SceneGizmo;
+            planeEntity.Enabled = false;
+            planeEntity.Scale = float3.Zero;
+            planeEntity.Position = handleOffset;
+            planeEntity.Orientation = handleOrientation;
+            planeEntity.AddComponent(new TransformGizmoHandleComponent(new float3(1f, 0f, 0f), new float3(0f, 1f, 0f)));
+
+            MeshComponent planeMesh = new MeshComponent();
+            planeMesh.Model = planeModel;
+            planeMesh.Material = material;
+            planeEntity.AddComponent(planeMesh);
+
+            gizmoRoot.AddChild(planeEntity);
+        }
+
+        /// <summary>
         /// Creates the axis rotation that maps +Y geometry into +X direction.
         /// </summary>
         /// <returns>Quaternion rotating +Y to +X.</returns>
@@ -207,5 +327,28 @@ namespace helengine.editor {
             float4.CreateFromAxisAngle(ref xAxis, (float)(Math.PI * 0.5), out orientation);
             return orientation;
         }
+
+        /// <summary>
+        /// Creates the plane rotation that maps local XY plane to world XZ plane.
+        /// </summary>
+        /// <returns>Quaternion rotating local +Y to world +Z.</returns>
+        static float4 CreateXzPlaneOrientation() {
+            float3 xAxis = new float3(1f, 0f, 0f);
+            float4 orientation;
+            float4.CreateFromAxisAngle(ref xAxis, (float)(Math.PI * 0.5), out orientation);
+            return orientation;
+        }
+
+        /// <summary>
+        /// Creates the plane rotation that maps local XY plane to world YZ plane.
+        /// </summary>
+        /// <returns>Quaternion rotating local +X to world +Z and local +Z to world +X.</returns>
+        static float4 CreateYzPlaneOrientation() {
+            float3 yAxis = new float3(0f, 1f, 0f);
+            float4 orientation;
+            float4.CreateFromAxisAngle(ref yAxis, (float)(-Math.PI * 0.5), out orientation);
+            return orientation;
+        }
     }
 }
+

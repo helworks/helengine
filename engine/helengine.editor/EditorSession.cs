@@ -93,8 +93,23 @@ namespace helengine.editor {
             "    float2 marker : TEXCOORD0;\n" +
             "};\n" +
             "\n" +
-            "float3 DecodeAxisColor(float2 marker)\n" +
+            "float3 DecodeHandleColor(float2 marker)\n" +
             "{\n" +
+            "    if (marker.x > 0.85f && marker.y > 0.85f)\n" +
+            "    {\n" +
+            "        return float3(1.00f, 0.90f, 0.20f);\n" +
+            "    }\n" +
+            "\n" +
+            "    if (marker.x > 0.45f && marker.x < 0.55f && marker.y > 0.85f)\n" +
+            "    {\n" +
+            "        return float3(1.00f, 0.35f, 0.95f);\n" +
+            "    }\n" +
+            "\n" +
+            "    if (marker.x > 0.85f && marker.y > 0.45f && marker.y < 0.55f)\n" +
+            "    {\n" +
+            "        return float3(0.25f, 0.95f, 0.95f);\n" +
+            "    }\n" +
+            "\n" +
             "    if (marker.y > 0.5f)\n" +
             "    {\n" +
             "        return float3(0.20f, 0.50f, 1.00f);\n" +
@@ -125,8 +140,85 @@ namespace helengine.editor {
             "    float diffuse0 = saturate(dot(normal, lightDirection0));\n" +
             "    float diffuse1 = saturate(dot(normal, lightDirection1));\n" +
             "    float lighting = 0.22f + diffuse0 * 0.72f + diffuse1 * 0.28f;\n" +
-            "    float3 axisColor = DecodeAxisColor(input.marker);\n" +
-            "    return float4(axisColor * lighting, 1.0f);\n" +
+            "    float3 handleColor = DecodeHandleColor(input.marker);\n" +
+            "    return float4(handleColor * lighting, 1.0f);\n" +
+            "}\n";
+        /// <summary>
+        /// Built-in runtime shader name used for Vulkan transform-gizmo highlight materials.
+        /// </summary>
+        const string TransformGizmoHighlightRuntimeShaderName = "EditorTransformGizmoHighlight";
+        /// <summary>
+        /// Built-in HLSL source used to generate Vulkan transform-gizmo highlight materials.
+        /// </summary>
+        const string TransformGizmoHighlightRuntimeShaderSource =
+            "cbuffer TransformBuffer : register(b0)\n" +
+            "{\n" +
+            "    float4x4 worldViewProj;\n" +
+            "};\n" +
+            "\n" +
+            "struct VS_IN\n" +
+            "{\n" +
+            "    float3 pos : POSITION;\n" +
+            "    float3 normal : NORMAL;\n" +
+            "    float2 texCoord : TEXCOORD0;\n" +
+            "};\n" +
+            "\n" +
+            "struct PS_IN\n" +
+            "{\n" +
+            "    float4 pos : SV_POSITION;\n" +
+            "    float3 normal : NORMAL;\n" +
+            "    float2 marker : TEXCOORD0;\n" +
+            "};\n" +
+            "\n" +
+            "float3 DecodeHandleColor(float2 marker)\n" +
+            "{\n" +
+            "    if (marker.x > 0.85f && marker.y > 0.85f)\n" +
+            "    {\n" +
+            "        return float3(1.00f, 0.90f, 0.20f);\n" +
+            "    }\n" +
+            "\n" +
+            "    if (marker.x > 0.45f && marker.x < 0.55f && marker.y > 0.85f)\n" +
+            "    {\n" +
+            "        return float3(1.00f, 0.35f, 0.95f);\n" +
+            "    }\n" +
+            "\n" +
+            "    if (marker.x > 0.85f && marker.y > 0.45f && marker.y < 0.55f)\n" +
+            "    {\n" +
+            "        return float3(0.25f, 0.95f, 0.95f);\n" +
+            "    }\n" +
+            "\n" +
+            "    if (marker.y > 0.5f)\n" +
+            "    {\n" +
+            "        return float3(0.20f, 0.50f, 1.00f);\n" +
+            "    }\n" +
+            "\n" +
+            "    if (marker.x > 0.5f)\n" +
+            "    {\n" +
+            "        return float3(0.20f, 0.95f, 0.35f);\n" +
+            "    }\n" +
+            "\n" +
+            "    return float3(1.00f, 0.30f, 0.30f);\n" +
+            "}\n" +
+            "\n" +
+            "PS_IN VS(VS_IN input)\n" +
+            "{\n" +
+            "    PS_IN output;\n" +
+            "    output.pos = mul(float4(input.pos, 1.0f), worldViewProj);\n" +
+            "    output.normal = input.normal;\n" +
+            "    output.marker = input.texCoord;\n" +
+            "    return output;\n" +
+            "}\n" +
+            "\n" +
+            "float4 PS(PS_IN input) : SV_Target\n" +
+            "{\n" +
+            "    float3 normal = normalize(input.normal);\n" +
+            "    float3 lightDirection0 = normalize(float3(0.45f, 0.85f, -0.30f));\n" +
+            "    float3 lightDirection1 = normalize(float3(-0.60f, 0.55f, 0.65f));\n" +
+            "    float diffuse0 = saturate(dot(normal, lightDirection0));\n" +
+            "    float diffuse1 = saturate(dot(normal, lightDirection1));\n" +
+            "    float lighting = 0.22f + diffuse0 * 0.72f + diffuse1 * 0.28f;\n" +
+            "    float3 handleColor = DecodeHandleColor(input.marker);\n" +
+            "    return float4(1.0f, 1.0f, 1.0f, 1.0f);\n" +
             "}\n";
         /// <summary>
         /// Editor core driving updates and rendering.
@@ -276,6 +368,7 @@ namespace helengine.editor {
             gizmoCameraComponent.Viewport = sceneCameraComponent.Viewport;
             sceneCameraEntity.AddComponent(gizmoCameraComponent);
             sceneCameraEntity.AddComponent(new EditorViewportCameraController(sceneCameraComponent));
+            sceneCameraEntity.AddComponent(new TransformTranslationGizmoDragComponent(sceneCameraComponent));
 
             float3 toOrigin = float3.Normalize(new float3(-sceneCameraEntity.Position.X, -sceneCameraEntity.Position.Y, -sceneCameraEntity.Position.Z));
             double yaw = Math.Atan2(toOrigin.X, -toOrigin.Z);
@@ -298,7 +391,7 @@ namespace helengine.editor {
                 hiddenCameraTarget = render3D.CreateRenderTarget(640, 360);
                 hiddenCameraComponent.RenderTarget = hiddenCameraTarget;
                 hiddenCameraEntity.AddComponent(hiddenCameraComponent);
-                sceneCameraEntity.AddComponent(new EditorViewportPicker(sceneCameraComponent, hiddenCameraEntity, hiddenCameraComponent, pickerRenderer));
+                sceneCameraEntity.AddComponent(new EditorViewportPicker(sceneCameraComponent, gizmoCameraComponent, hiddenCameraEntity, hiddenCameraComponent, pickerRenderer));
             } else {
                 hiddenCameraTarget = null;
                 hiddenCameraComponent.RenderTarget = null;
@@ -347,8 +440,9 @@ namespace helengine.editor {
             shaderModuleManager.Start();
 
             RuntimeMaterial defaultMeshMaterial = BuildDefaultMeshMaterial();
-            RuntimeMaterial transformGizmoMaterial = BuildTransformGizmoMaterial();
-            TransformTranslationGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial);
+            RuntimeMaterial transformGizmoMaterial = BuildTransformGizmoNormalMaterial();
+            RuntimeMaterial transformGizmoHighlightMaterial = BuildTransformGizmoHighlightMaterial();
+            TransformTranslationGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial, transformGizmoHighlightMaterial);
             BuildStartScene(defaultMeshMaterial);
             sceneHierarchyPanel.RefreshHierarchy();
 
@@ -632,19 +726,35 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the material used by transform gizmo meshes.
+        /// Builds the default material used by transform gizmo meshes.
         /// </summary>
         /// <returns>Runtime material instance.</returns>
-        RuntimeMaterial BuildTransformGizmoMaterial() {
+        RuntimeMaterial BuildTransformGizmoNormalMaterial() {
             if (core.RenderManager3D is helengine.directx11.DirectX11Renderer3D) {
-                return BuildDirectX11TransformGizmoMaterial();
+                return BuildDirectX11TransformGizmoNormalMaterial();
             }
 
             if (core.RenderManager3D is helengine.vulkan.VulkanRenderer3D) {
-                return BuildVulkanTransformGizmoMaterial();
+                return BuildVulkanTransformGizmoNormalMaterial();
             }
 
             throw new InvalidOperationException("Unsupported renderer backend for transform gizmo material creation.");
+        }
+
+        /// <summary>
+        /// Builds the highlighted material used by transform gizmo meshes.
+        /// </summary>
+        /// <returns>Runtime material instance.</returns>
+        RuntimeMaterial BuildTransformGizmoHighlightMaterial() {
+            if (core.RenderManager3D is helengine.directx11.DirectX11Renderer3D) {
+                return BuildDirectX11TransformGizmoHighlightMaterial();
+            }
+
+            if (core.RenderManager3D is helengine.vulkan.VulkanRenderer3D) {
+                return BuildVulkanTransformGizmoHighlightMaterial();
+            }
+
+            throw new InvalidOperationException("Unsupported renderer backend for transform gizmo highlight material creation.");
         }
 
         /// <summary>
@@ -652,41 +762,36 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Runtime material instance.</returns>
         RuntimeMaterial BuildDirectX11DefaultMeshMaterial() {
-            string shaderPath = ResolveBuiltInShaderPath("MiniCube.fx");
-            string shaderDirectory = Path.GetDirectoryName(shaderPath);
-            if (string.IsNullOrWhiteSpace(shaderDirectory)) {
-                throw new InvalidOperationException("Built-in shader directory could not be resolved.");
-            }
-
-            string shaderName = Path.GetFileNameWithoutExtension(shaderPath);
-            if (string.IsNullOrWhiteSpace(shaderName)) {
-                throw new InvalidOperationException("Built-in shader name could not be resolved.");
-            }
-
-            var shaderBuilder = new helengine.directx11.DirectX11ShaderAssetBuilder(shaderDirectory, new ShaderModel(4, 0));
-            ShaderAsset shaderAsset = shaderBuilder.BuildFromFile(shaderPath, shaderName);
-
-            if (string.IsNullOrWhiteSpace(shaderAsset.Id)) {
-                throw new InvalidOperationException("Shader asset id must be provided.");
-            }
-
-            var materialAsset = new MaterialAsset {
-                Id = string.Concat(shaderName, ".material"),
-                ShaderAssetId = shaderAsset.Id,
-                VertexProgram = string.Concat(shaderName, ".vs"),
-                PixelProgram = string.Concat(shaderName, ".ps"),
-                Variant = "default"
-            };
-
-            return core.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            return BuildDirectX11MaterialFromBuiltInShader("MiniCube.fx");
         }
 
         /// <summary>
-        /// Builds the transform-gizmo material for the DirectX11 renderer.
+        /// Builds the default transform-gizmo material for the DirectX11 renderer.
         /// </summary>
         /// <returns>Runtime material instance.</returns>
-        RuntimeMaterial BuildDirectX11TransformGizmoMaterial() {
-            string shaderPath = ResolveBuiltInShaderPath("TransformGizmo.fx");
+        RuntimeMaterial BuildDirectX11TransformGizmoNormalMaterial() {
+            return BuildDirectX11MaterialFromBuiltInShader("TransformGizmo.fx");
+        }
+
+        /// <summary>
+        /// Builds the highlighted transform-gizmo material for the DirectX11 renderer.
+        /// </summary>
+        /// <returns>Runtime material instance.</returns>
+        RuntimeMaterial BuildDirectX11TransformGizmoHighlightMaterial() {
+            return BuildDirectX11MaterialFromBuiltInShader("TransformGizmoHighlight.fx");
+        }
+
+        /// <summary>
+        /// Builds a DirectX11 runtime material from a built-in shader file.
+        /// </summary>
+        /// <param name="shaderFileName">Built-in shader file name.</param>
+        /// <returns>Runtime material instance.</returns>
+        RuntimeMaterial BuildDirectX11MaterialFromBuiltInShader(string shaderFileName) {
+            if (string.IsNullOrWhiteSpace(shaderFileName)) {
+                throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
+            }
+
+            string shaderPath = ResolveBuiltInShaderPath(shaderFileName);
             string shaderDirectory = Path.GetDirectoryName(shaderPath);
             if (string.IsNullOrWhiteSpace(shaderDirectory)) {
                 throw new InvalidOperationException("Built-in shader directory could not be resolved.");
@@ -709,7 +814,7 @@ namespace helengine.editor {
                 ShaderAssetId = shaderAsset.Id,
                 VertexProgram = string.Concat(shaderName, ".vs"),
                 PixelProgram = string.Concat(shaderName, ".ps"),
-                Variant = "default"
+                Variant = DefaultRuntimeShaderVariant
             };
 
             return core.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
@@ -740,10 +845,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the transform-gizmo material for the Vulkan renderer.
+        /// Builds the default transform-gizmo material for the Vulkan renderer.
         /// </summary>
         /// <returns>Runtime material instance.</returns>
-        RuntimeMaterial BuildVulkanTransformGizmoMaterial() {
+        RuntimeMaterial BuildVulkanTransformGizmoNormalMaterial() {
             ShaderAsset shaderAsset = BuildRuntimeShaderAsset(
                 ShaderCompileTarget.Vulkan,
                 TransformGizmoRuntimeShaderName,
@@ -752,6 +857,30 @@ namespace helengine.editor {
                 DefaultRuntimePixelEntryPoint);
 
             string shaderName = TransformGizmoRuntimeShaderName;
+            var materialAsset = new MaterialAsset {
+                Id = string.Concat(shaderName, ".material"),
+                ShaderAssetId = shaderAsset.Id,
+                VertexProgram = string.Concat(shaderName, ".vs"),
+                PixelProgram = string.Concat(shaderName, ".ps"),
+                Variant = DefaultRuntimeShaderVariant
+            };
+
+            return core.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+        }
+
+        /// <summary>
+        /// Builds the highlighted transform-gizmo material for the Vulkan renderer.
+        /// </summary>
+        /// <returns>Runtime material instance.</returns>
+        RuntimeMaterial BuildVulkanTransformGizmoHighlightMaterial() {
+            ShaderAsset shaderAsset = BuildRuntimeShaderAsset(
+                ShaderCompileTarget.Vulkan,
+                TransformGizmoHighlightRuntimeShaderName,
+                TransformGizmoHighlightRuntimeShaderSource,
+                DefaultRuntimeVertexEntryPoint,
+                DefaultRuntimePixelEntryPoint);
+
+            string shaderName = TransformGizmoHighlightRuntimeShaderName;
             var materialAsset = new MaterialAsset {
                 Id = string.Concat(shaderName, ".material"),
                 ShaderAssetId = shaderAsset.Id,
@@ -1291,3 +1420,7 @@ namespace helengine.editor {
         }
     }
 }
+
+
+
+

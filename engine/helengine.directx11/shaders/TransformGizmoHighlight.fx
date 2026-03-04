@@ -55,12 +55,5 @@ PS_IN VS(VS_IN input)
 
 float4 PS(PS_IN input) : SV_Target
 {
-    float3 normal = normalize(input.normal);
-    float3 lightDirection0 = normalize(float3(0.45f, 0.85f, -0.30f));
-    float3 lightDirection1 = normalize(float3(-0.60f, 0.55f, 0.65f));
-    float diffuse0 = saturate(dot(normal, lightDirection0));
-    float diffuse1 = saturate(dot(normal, lightDirection1));
-    float lighting = 0.22f + diffuse0 * 0.72f + diffuse1 * 0.28f;
-    float3 handleColor = DecodeHandleColor(input.marker);
-    return float4(handleColor * lighting, 1.0f);
+    return float4(1.0f, 1.0f, 1.0f, 1.0f);
 }

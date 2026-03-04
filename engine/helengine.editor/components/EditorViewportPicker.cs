@@ -6,13 +6,33 @@ using System.Runtime.InteropServices;
 
 namespace helengine.editor {
     /// <summary>
-    /// Triggers a one-frame picker render when the user clicks inside a scene viewport.
+    /// Triggers one-frame picker renders for scene selection and transform-axis hover detection.
     /// </summary>
     public class EditorViewportPicker : UpdateComponent {
+        /// <summary>
+        /// Picker mode used to resolve scene object selection from a click.
+        /// </summary>
+        const int PickModeSelection = 1;
+        /// <summary>
+        /// Picker mode used to resolve hovered transform gizmo axis from pointer position.
+        /// </summary>
+        const int PickModeHoverAxis = 2;
+        /// <summary>
+        /// Shader path used by picker passes.
+        /// </summary>
+        const string PickerShaderPath = "shaders\\PickerShader.fx";
+        /// <summary>
+        /// Layer mask used for transform gizmo handles.
+        /// </summary>
+        const ushort TransformGizmoLayerMask = EditorLayerMasks.SceneGizmo;
         /// <summary>
         /// Camera representing the active scene view.
         /// </summary>
         readonly CameraComponent SceneCamera;
+        /// <summary>
+        /// Camera used to render visible transform gizmos.
+        /// </summary>
+        readonly CameraComponent GizmoCamera;
         /// <summary>
         /// Entity that owns the picker camera.
         /// </summary>
@@ -62,19 +82,29 @@ namespace helengine.editor {
         /// </summary>
         bool PickReadbackPending;
         /// <summary>
+        /// Pending pick mode for the readback currently queued.
+        /// </summary>
+        int PendingPickMode;
+
+        /// <summary>
         /// Initializes a new picker controller for the specified cameras.
         /// </summary>
-        /// <param name="sceneCamera">Scene view camera that provides the viewport and transform.</param>
+        /// <param name="sceneCamera">Scene view camera that provides scene-object viewport and transform.</param>
+        /// <param name="gizmoCamera">Gizmo overlay camera that provides transform-axis viewport and transform.</param>
         /// <param name="pickerEntity">Entity owning the picker camera.</param>
         /// <param name="pickerCamera">Camera that renders the picker pass.</param>
         /// <param name="pickerRenderer">Renderer that executes the picker pass.</param>
         public EditorViewportPicker(
             CameraComponent sceneCamera,
+            CameraComponent gizmoCamera,
             EditorEntity pickerEntity,
             CameraComponent pickerCamera,
             helengine.directx11.DirectX11Renderer3D pickerRenderer) {
             if (sceneCamera == null) {
                 throw new ArgumentNullException(nameof(sceneCamera));
+            }
+            if (gizmoCamera == null) {
+                throw new ArgumentNullException(nameof(gizmoCamera));
             }
             if (pickerEntity == null) {
                 throw new ArgumentNullException(nameof(pickerEntity));
@@ -87,6 +117,7 @@ namespace helengine.editor {
             }
 
             SceneCamera = sceneCamera;
+            GizmoCamera = gizmoCamera;
             PickerEntity = pickerEntity;
             PickerCamera = pickerCamera;
             PickerRenderer = pickerRenderer;
@@ -95,7 +126,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Checks for left-clicks inside the scene viewport and triggers a pick render.
+        /// Checks pointer state and queues picker renders for click selection and gizmo hover detection.
         /// </summary>
         public override void Update() {
             InputManager input = Core.Instance.InputManager;
@@ -103,19 +134,33 @@ namespace helengine.editor {
                 ResolvePick();
             }
 
-            if (EditorInputCaptureService.IsPointerBlocked(input.GetMousePosition())) {
+            Entity hoveredAxis = EditorGizmoHoverService.HoveredAxisEntity;
+            if (hoveredAxis != null && input.GetMouseLeftButtonState() == ButtonState.Pressed) {
                 return;
             }
 
-            if (!input.WasMouseLeftButtonPressed()) {
+            int2 pointer = input.GetMousePosition();
+            if (EditorInputCaptureService.IsPointerBlocked(pointer)) {
+                EditorGizmoHoverService.ClearHoveredHandle();
                 return;
             }
 
             if (!IsPointerInsideViewport(input)) {
+                EditorGizmoHoverService.ClearHoveredHandle();
                 return;
             }
 
-            QueuePick(input);
+            if (input.WasMouseLeftButtonPressed()) {
+                if (hoveredAxis != null) {
+                    return;
+                }
+
+                EditorGizmoHoverService.ClearHoveredHandle();
+                QueuePick(input, EditorLayerMasks.SceneObjects, PickModeSelection);
+                return;
+            }
+
+            QueuePick(input, EditorLayerMasks.SceneGizmo, PickModeHoverAxis);
         }
 
         /// <summary>
@@ -125,34 +170,43 @@ namespace helengine.editor {
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
             DisposeReadbackTexture();
+            DisposePickerRenderTarget();
+            EditorGizmoHoverService.ClearHoveredHandle();
         }
 
         /// <summary>
         /// Queues a picker render for the current pointer state.
         /// </summary>
         /// <param name="input">Input manager providing pointer data.</param>
-        void QueuePick(InputManager input) {
+        /// <param name="layerMask">Layer mask rendered by the picker camera for the request.</param>
+        /// <param name="pickMode">Pick mode used to resolve readback results.</param>
+        void QueuePick(InputManager input, ushort layerMask, int pickMode) {
             if (input == null) {
                 throw new ArgumentNullException(nameof(input));
             }
 
-            Entity sceneEntity = SceneCamera.Parent;
-            if (sceneEntity == null) {
+            CameraComponent sourceCamera = GetSourceCameraForMode(pickMode);
+            Entity sourceCameraEntity = sourceCamera.Parent;
+            if (sourceCameraEntity == null) {
                 return;
             }
 
-            PickerEntity.Position = sceneEntity.Position;
-            PickerEntity.Orientation = sceneEntity.Orientation;
+            PickerEntity.Position = sourceCameraEntity.Position;
+            PickerEntity.Orientation = sourceCameraEntity.Orientation;
+            PickerCamera.LayerMask = layerMask;
             PendingPointer = input.GetMousePosition();
-            PendingViewport = SceneCamera.Viewport;
+            PendingViewport = sourceCamera.Viewport;
 
+            EnsurePickerRenderTargetSize(PendingViewport);
+            RebuildPickerRenderQueue(layerMask);
             BuildPickColors();
-            PickerRenderer.RequestShaderPass(PickerCamera, SceneCamera.RenderQueue3D, "shaders\\PickerShader.fx", GetPickColor);
+            PickerRenderer.RequestShaderPass(PickerCamera, PickerCamera.RenderQueue3D, PickerShaderPath, GetPickColor);
+            PendingPickMode = pickMode;
             PickReadbackPending = true;
         }
 
         /// <summary>
-        /// Resolves the most recent picker render into an entity selection.
+        /// Resolves the most recent picker render into an entity selection or hovered gizmo axis.
         /// </summary>
         void ResolvePick() {
             PickReadbackPending = false;
@@ -167,18 +221,122 @@ namespace helengine.editor {
             }
 
             int pickId = ReadPickId(directX11Target);
+            if (PendingPickMode == PickModeSelection) {
+                ResolveSelectionPick(pickId);
+                return;
+            }
+
+            if (PendingPickMode == PickModeHoverAxis) {
+                ResolveHoverPick(pickId);
+                return;
+            }
+
+            throw new InvalidOperationException("Picker mode is not supported.");
+        }
+
+        /// <summary>
+        /// Resolves a selection pick identifier into editor selection state.
+        /// </summary>
+        /// <param name="pickId">Pick identifier read from the picker target.</param>
+        void ResolveSelectionPick(int pickId) {
             if (pickId == 0) {
                 EditorSelectionService.ClearSelection();
                 return;
             }
 
-            if (PickEntitiesById.TryGetValue(pickId, out Entity entity)) {
-                string label = GetEntityLabel(entity);
-                Console.WriteLine($"[Picker] Picked entity: {label}");
-                Logger.WriteLine($"Picked entity: {label}");
-                EditorSelectionService.SetSelectedEntity(entity);
-            } else {
+            if (!PickEntitiesById.TryGetValue(pickId, out Entity entity)) {
                 EditorSelectionService.ClearSelection();
+                return;
+            }
+
+            string label = GetEntityLabel(entity);
+            Console.WriteLine($"[Picker] Picked entity: {label}");
+            Logger.WriteLine($"Picked entity: {label}");
+            EditorSelectionService.SetSelectedEntity(entity);
+        }
+
+        /// <summary>
+        /// Resolves a hover pick identifier into transform gizmo hover state.
+        /// </summary>
+        /// <param name="pickId">Pick identifier read from the picker target.</param>
+        void ResolveHoverPick(int pickId) {
+            if (pickId == 0) {
+                EditorGizmoHoverService.ClearHoveredHandle();
+                return;
+            }
+
+            if (!PickEntitiesById.TryGetValue(pickId, out Entity entity)) {
+                EditorGizmoHoverService.ClearHoveredHandle();
+                return;
+            }
+
+            Entity hoveredAxis = ResolveTransformHandleEntity(entity);
+            if (hoveredAxis == null) {
+                EditorGizmoHoverService.ClearHoveredHandle();
+                return;
+            }
+
+            EditorGizmoHoverService.SetHoveredHandle(hoveredAxis);
+        }
+
+        /// <summary>
+        /// Ensures the picker camera render target and viewport match the active scene viewport size.
+        /// </summary>
+        /// <param name="viewport">Scene viewport used for picking.</param>
+        void EnsurePickerRenderTargetSize(float4 viewport) {
+            double viewportWidth = Math.Max(1.0, viewport.Z);
+            double viewportHeight = Math.Max(1.0, viewport.W);
+            int targetWidth = Math.Max(1, (int)Math.Ceiling(viewportWidth));
+            int targetHeight = Math.Max(1, (int)Math.Ceiling(viewportHeight));
+
+            bool requiresResize = true;
+            if (PickerCamera.RenderTarget is DirectX11RenderTargetResource currentTarget) {
+                requiresResize = currentTarget.Width != targetWidth || currentTarget.Height != targetHeight;
+            }
+
+            if (requiresResize) {
+                DisposePickerRenderTarget();
+                PickerCamera.RenderTarget = PickerRenderer.CreateRenderTarget(targetWidth, targetHeight);
+            }
+
+            PickerCamera.Viewport = new float4(0f, 0f, (float)viewportWidth, (float)viewportHeight);
+        }
+
+        /// <summary>
+        /// Disposes the picker camera render target when it is a DirectX11 resource.
+        /// </summary>
+        void DisposePickerRenderTarget() {
+            if (PickerCamera.RenderTarget is DirectX11RenderTargetResource target) {
+                target.Dispose();
+            }
+
+            PickerCamera.RenderTarget = null;
+        }
+
+        /// <summary>
+        /// Rebuilds the picker camera render queue for the requested layer mask.
+        /// </summary>
+        /// <param name="layerMask">Layer mask to include in the queue.</param>
+        void RebuildPickerRenderQueue(ushort layerMask) {
+            IRenderQueue3D queue = PickerCamera.RenderQueue3D;
+            if (queue == null) {
+                throw new InvalidOperationException("Picker camera must provide a render queue.");
+            }
+
+            queue.Clear();
+
+            List<IDrawable3D> drawables = Core.Instance.ObjectManager.Drawables3D;
+            for (int i = 0; i < drawables.Count; i++) {
+                IDrawable3D drawable = drawables[i];
+                if (drawable == null || drawable.Parent == null || !drawable.Parent.Enabled) {
+                    continue;
+                }
+
+                if ((drawable.Parent.LayerMask & layerMask) == 0) {
+                    continue;
+                }
+
+                queue.Add(drawable);
             }
         }
 
@@ -283,11 +441,11 @@ namespace helengine.editor {
             double localY = pointer.Y - viewport.Y;
             double normalizedX = localX / viewportWidth;
             double normalizedY = localY / viewportHeight;
-            double scaledX = normalizedX * (targetWidth - 1);
-            double scaledY = normalizedY * (targetHeight - 1);
+            double clampedNormalizedX = Math.Clamp(normalizedX, 0.0, 0.999999999);
+            double clampedNormalizedY = Math.Clamp(normalizedY, 0.0, 0.999999999);
 
-            int mappedX = ClampToRange((int)Math.Round(scaledX), 0, targetWidth - 1);
-            int mappedY = ClampToRange((int)Math.Round(scaledY), 0, targetHeight - 1);
+            int mappedX = ClampToRange((int)Math.Floor(clampedNormalizedX * targetWidth), 0, targetWidth - 1);
+            int mappedY = ClampToRange((int)Math.Floor(clampedNormalizedY * targetHeight), 0, targetHeight - 1);
             return new int2(mappedX, mappedY);
         }
 
@@ -416,6 +574,82 @@ namespace helengine.editor {
                    pointer.X < viewport.X + viewport.Z &&
                    pointer.Y >= viewport.Y &&
                    pointer.Y < viewport.Y + viewport.W;
+        }
+
+        /// <summary>
+        /// Resolves a picked gizmo sub-entity to its owning handle entity.
+        /// </summary>
+        /// <param name="pickedEntity">Picked entity from the picker map.</param>
+        /// <returns>Handle entity when found; otherwise null.</returns>
+        Entity ResolveTransformHandleEntity(Entity pickedEntity) {
+            Entity current = pickedEntity;
+            while (current != null) {
+                if (IsTransformHandleEntity(current)) {
+                    return current;
+                }
+
+                current = current.Parent;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Determines whether an entity is a transform gizmo handle root.
+        /// </summary>
+        /// <param name="entity">Entity to evaluate.</param>
+        /// <returns>True when the entity represents a handle root.</returns>
+        bool IsTransformHandleEntity(Entity entity) {
+            if (entity is not EditorEntity) {
+                return false;
+            }
+
+            if (entity.LayerMask != TransformGizmoLayerMask) {
+                return false;
+            }
+
+            TransformGizmoHandleComponent handleComponent = FindTransformHandleComponent(entity);
+            return handleComponent != null;
+        }
+
+        /// <summary>
+        /// Finds the transform-gizmo handle component on an entity.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <returns>Handle component when found; otherwise null.</returns>
+        TransformGizmoHandleComponent FindTransformHandleComponent(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            if (entity.Components == null) {
+                return null;
+            }
+
+            for (int i = 0; i < entity.Components.Count; i++) {
+                if (entity.Components[i] is TransformGizmoHandleComponent handleComponent) {
+                    return handleComponent;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Resolves which camera should drive picker alignment for the specified pick mode.
+        /// </summary>
+        /// <param name="pickMode">Pick mode being queued.</param>
+        /// <returns>Camera used to align picker transform and viewport.</returns>
+        CameraComponent GetSourceCameraForMode(int pickMode) {
+            if (pickMode == PickModeHoverAxis) {
+                return GizmoCamera;
+            }
+
+            if (pickMode == PickModeSelection) {
+                return SceneCamera;
+            }
+
+            throw new InvalidOperationException("Picker mode is not supported.");
         }
     }
 }

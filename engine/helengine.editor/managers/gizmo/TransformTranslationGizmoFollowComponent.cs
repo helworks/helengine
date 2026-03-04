@@ -31,15 +31,31 @@ namespace helengine.editor {
         /// Root entity that owns all translation gizmo meshes.
         /// </summary>
         readonly EditorEntity GizmoRoot;
+        /// <summary>
+        /// Material used when an axis is not hovered.
+        /// </summary>
+        readonly RuntimeMaterial NormalAxisMaterial;
+        /// <summary>
+        /// Material used when an axis is hovered.
+        /// </summary>
+        readonly RuntimeMaterial HighlightAxisMaterial;
 
         /// <summary>
         /// Initializes a new gizmo follow component.
         /// </summary>
         /// <param name="sceneCamera">Scene camera that views the gizmo.</param>
         /// <param name="gizmoRoot">Root entity for the translation gizmo.</param>
-        public TransformTranslationGizmoFollowComponent(CameraComponent sceneCamera, EditorEntity gizmoRoot) {
+        /// <param name="normalAxisMaterial">Material used for non-hovered axis visuals.</param>
+        /// <param name="highlightAxisMaterial">Material used for hovered axis visuals.</param>
+        public TransformTranslationGizmoFollowComponent(
+            CameraComponent sceneCamera,
+            EditorEntity gizmoRoot,
+            RuntimeMaterial normalAxisMaterial,
+            RuntimeMaterial highlightAxisMaterial) {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
             GizmoRoot = gizmoRoot ?? throw new ArgumentNullException(nameof(gizmoRoot));
+            NormalAxisMaterial = normalAxisMaterial ?? throw new ArgumentNullException(nameof(normalAxisMaterial));
+            HighlightAxisMaterial = highlightAxisMaterial ?? throw new ArgumentNullException(nameof(highlightAxisMaterial));
         }
 
         /// <summary>
@@ -79,6 +95,7 @@ namespace helengine.editor {
             float scale = (float)scaleValue;
             GizmoRoot.Scale = new float3(scale, scale, scale);
             UpdateAxisTipOffsets(scale);
+            UpdateAxisHighlightMaterials();
         }
 
         /// <summary>
@@ -106,6 +123,80 @@ namespace helengine.editor {
                     axisChild.Enabled = enabled;
                 }
             }
+        }
+
+        /// <summary>
+        /// Applies highlight material state based on the currently hovered gizmo handle.
+        /// </summary>
+        void UpdateAxisHighlightMaterials() {
+            Entity hoveredAxis = EditorGizmoHoverService.HoveredHandleEntity;
+            for (int axisIndex = 0; axisIndex < GizmoRoot.Children.Count; axisIndex++) {
+                if (GizmoRoot.Children[axisIndex] is not EditorEntity axisEntity) {
+                    continue;
+                }
+
+                bool isHoveredAxis = hoveredAxis != null && ReferenceEquals(axisEntity, hoveredAxis);
+                RuntimeMaterial material = isHoveredAxis ? HighlightAxisMaterial : NormalAxisMaterial;
+                ApplyAxisMaterial(axisEntity, material);
+            }
+        }
+
+        /// <summary>
+        /// Applies one material to all mesh children of an axis entity.
+        /// </summary>
+        /// <param name="axisEntity">Axis entity whose mesh children are updated.</param>
+        /// <param name="material">Material to apply.</param>
+        void ApplyAxisMaterial(EditorEntity axisEntity, RuntimeMaterial material) {
+            if (axisEntity == null) {
+                throw new ArgumentNullException(nameof(axisEntity));
+            }
+
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            MeshComponent selfMesh = FindMeshComponent(axisEntity);
+            if (selfMesh != null && !ReferenceEquals(selfMesh.Material, material)) {
+                selfMesh.Material = material;
+            }
+
+            for (int childIndex = 0; childIndex < axisEntity.Children.Count; childIndex++) {
+                if (axisEntity.Children[childIndex] is not Entity childEntity) {
+                    continue;
+                }
+
+                MeshComponent mesh = FindMeshComponent(childEntity);
+                if (mesh == null) {
+                    continue;
+                }
+
+                if (!ReferenceEquals(mesh.Material, material)) {
+                    mesh.Material = material;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Finds the first mesh component attached to an entity.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <returns>Mesh component when present; otherwise null.</returns>
+        MeshComponent FindMeshComponent(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            if (entity.Components == null) {
+                return null;
+            }
+
+            for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                if (entity.Components[componentIndex] is MeshComponent meshComponent) {
+                    return meshComponent;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
