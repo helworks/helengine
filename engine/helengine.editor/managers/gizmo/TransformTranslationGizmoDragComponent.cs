@@ -78,6 +78,13 @@ namespace helengine.editor {
         /// Updates drag activation and applies translation while dragging.
         /// </summary>
         public override void Update() {
+            if (!IsTranslateToolActive()) {
+                if (IsDragging) {
+                    EndDrag();
+                }
+                return;
+            }
+
             InputManager input = Core.Instance.InputManager;
             if (IsDragging) {
                 UpdateActiveDrag(input);
@@ -498,6 +505,14 @@ namespace helengine.editor {
                 (float)(value.X * inverseLength),
                 (float)(value.Y * inverseLength),
                 (float)(value.Z * inverseLength));
+        }
+
+        /// <summary>
+        /// Determines whether translation drag interactions should be active for the scene camera viewport.
+        /// </summary>
+        /// <returns>True when the viewport tool mode is translation.</returns>
+        bool IsTranslateToolActive() {
+            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Translate;
         }
     }
 }

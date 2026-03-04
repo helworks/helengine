@@ -62,6 +62,11 @@ namespace helengine.editor {
         /// Updates gizmo visibility, position, and scale from the current editor selection.
         /// </summary>
         public override void Update() {
+            if (!IsTranslateToolActive()) {
+                SetAxisVisualState(false);
+                return;
+            }
+
             Entity selectedEntity = EditorSelectionService.SelectedEntity;
             if (!ShouldDisplayForSelection(selectedEntity)) {
                 SetAxisVisualState(false);
@@ -310,6 +315,14 @@ namespace helengine.editor {
 
             double targetWorldAxisLength = targetAxisPixels * (2.0 * distance * tanHalfFov) / viewportHeight;
             return targetWorldAxisLength / TransformTranslationGizmoFactory.AxisLength;
+        }
+
+        /// <summary>
+        /// Determines whether translation gizmos should be active for the current viewport camera.
+        /// </summary>
+        /// <returns>True when the viewport tool mode is translation.</returns>
+        bool IsTranslateToolActive() {
+            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Translate;
         }
     }
 }

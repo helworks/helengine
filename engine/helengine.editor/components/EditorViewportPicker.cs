@@ -134,7 +134,9 @@ namespace helengine.editor {
                 ResolvePick();
             }
 
-            Entity hoveredAxis = EditorGizmoHoverService.HoveredAxisEntity;
+            bool isTranslateToolActive = IsTranslateToolActive();
+            Entity hoveredAxis = isTranslateToolActive ? EditorGizmoHoverService.HoveredAxisEntity : null;
+
             if (hoveredAxis != null && input.GetMouseLeftButtonState() == ButtonState.Pressed) {
                 return;
             }
@@ -157,6 +159,10 @@ namespace helengine.editor {
 
                 EditorGizmoHoverService.ClearHoveredHandle();
                 QueuePick(input, EditorLayerMasks.SceneObjects, PickModeSelection);
+                return;
+            }
+
+            if (!isTranslateToolActive) {
                 return;
             }
 
@@ -650,6 +656,14 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException("Picker mode is not supported.");
+        }
+
+        /// <summary>
+        /// Determines whether translation-handle hover picking should be active.
+        /// </summary>
+        /// <returns>True when the scene viewport tool mode is translation.</returns>
+        bool IsTranslateToolActive() {
+            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Translate;
         }
     }
 }

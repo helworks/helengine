@@ -577,6 +577,7 @@ namespace helengine.editor {
             dockingManager.Layout.Layout(new int2(width, availableHeight), new float3(0, titleBar.Height, 0));
             gizmoCameraComponent.Viewport = sceneCameraComponent.Viewport;
             assetPickerModal.UpdateLayout(width, height);
+            mainViewport.RefreshInputBlockers();
             UpdateDockInputBlockers();
         }
 
@@ -653,6 +654,8 @@ namespace helengine.editor {
             propertiesPanel.ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested;
             EditorSelectionService.SelectionChanged -= HandleSelectionChanged;
             EditorAssetPickerService.PickRequested -= HandleAssetPickRequested;
+            mainViewport.ClearInputBlockers();
+            EditorViewportToolService.ClearToolMode(sceneCameraComponent);
             assetPickerModal.Hide();
             shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
             shaderModuleManager.Dispose();
