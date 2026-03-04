@@ -36,10 +36,6 @@ namespace helengine.editor {
         /// </summary>
         static readonly float3 HorizontalForwardAxis = new float3(0f, 0f, 1f);
         /// <summary>
-        /// Identity orientation used when the gizmo should keep its default facing.
-        /// </summary>
-        static readonly float4 DefaultFacingOrientation = float4.Identity;
-        /// <summary>
         /// Half-turn around world up used to flip the gizmo in 180-degree intervals.
         /// </summary>
         static readonly float4 FlippedFacingOrientation = CreateFlippedFacingOrientation();
@@ -59,6 +55,18 @@ namespace helengine.editor {
         /// Material used when an axis is hovered.
         /// </summary>
         readonly RuntimeMaterial HighlightAxisMaterial;
+        /// <summary>
+        /// Cached base local positions for direct gizmo-handle children.
+        /// </summary>
+        readonly Dictionary<Entity, float3> BaseHandlePositions;
+        /// <summary>
+        /// Cached base local orientations for direct gizmo-handle children.
+        /// </summary>
+        readonly Dictionary<Entity, float4> BaseHandleOrientations;
+        /// <summary>
+        /// True when base handle transforms were captured from the factory layout.
+        /// </summary>
+        bool HandleBaseTransformsCached;
 
         /// <summary>
         /// Initializes a new gizmo follow component.
@@ -76,6 +84,9 @@ namespace helengine.editor {
             GizmoRoot = gizmoRoot ?? throw new ArgumentNullException(nameof(gizmoRoot));
             NormalAxisMaterial = normalAxisMaterial ?? throw new ArgumentNullException(nameof(normalAxisMaterial));
             HighlightAxisMaterial = highlightAxisMaterial ?? throw new ArgumentNullException(nameof(highlightAxisMaterial));
+            BaseHandlePositions = new Dictionary<Entity, float3>();
+            BaseHandleOrientations = new Dictionary<Entity, float4>();
+            HandleBaseTransformsCached = false;
         }
 
         /// <summary>
@@ -94,6 +105,7 @@ namespace helengine.editor {
             }
 
             float3 selectedPosition = selectedEntity.Position;
+            GizmoRoot.Orientation = float4.Identity;
             GizmoRoot.Position = selectedPosition;
             SetAxisVisualState(true);
 
@@ -102,7 +114,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Scene camera must belong to an entity.");
             }
 
-            UpdateFacingOrientation(selectedPosition, cameraEntity.Position);
+            EnsureHandleBaseTransformsCached();
+            bool useFlippedFacing = ShouldUseFlippedFacing(selectedPosition, cameraEntity.Position);
+            ApplyFacingToHandles(useFlippedFacing);
 
             float4 viewport = SceneCamera.Viewport;
             double viewportHeight = viewport.W;
@@ -348,18 +362,79 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Updates gizmo yaw so it snaps to 0 or 180 degrees around world up and faces the viewer.
+        /// Captures base local transforms for direct gizmo children on first use.
+        /// </summary>
+        void EnsureHandleBaseTransformsCached() {
+            if (HandleBaseTransformsCached) {
+                return;
+            }
+
+            if (GizmoRoot.Children == null) {
+                throw new InvalidOperationException("Gizmo root children must be initialized.");
+            }
+
+            BaseHandlePositions.Clear();
+            BaseHandleOrientations.Clear();
+            for (int handleIndex = 0; handleIndex < GizmoRoot.Children.Count; handleIndex++) {
+                Entity handle = GizmoRoot.Children[handleIndex];
+                if (handle == null) {
+                    continue;
+                }
+
+                float3 baseLocalPosition = handle.Position - GizmoRoot.Position;
+                BaseHandlePositions[handle] = baseLocalPosition;
+                BaseHandleOrientations[handle] = handle.Orientation;
+            }
+
+            HandleBaseTransformsCached = true;
+        }
+
+        /// <summary>
+        /// Applies snapped 0/180-degree facing transforms to direct gizmo-handle children.
+        /// </summary>
+        /// <param name="useFlippedFacing">True to apply the 180-degree yaw flip; false for default orientation.</param>
+        void ApplyFacingToHandles(bool useFlippedFacing) {
+            if (GizmoRoot.Children == null) {
+                throw new InvalidOperationException("Gizmo root children must be initialized.");
+            }
+
+            for (int handleIndex = 0; handleIndex < GizmoRoot.Children.Count; handleIndex++) {
+                Entity handle = GizmoRoot.Children[handleIndex];
+                if (handle == null) {
+                    continue;
+                }
+
+                if (!BaseHandlePositions.TryGetValue(handle, out float3 basePosition)) {
+                    continue;
+                }
+                if (!BaseHandleOrientations.TryGetValue(handle, out float4 baseOrientation)) {
+                    continue;
+                }
+
+                if (useFlippedFacing) {
+                    handle.Position = new float3(-basePosition.X, basePosition.Y, -basePosition.Z);
+                    handle.Orientation = FlippedFacingOrientation * baseOrientation;
+                } else {
+                    handle.Position = basePosition;
+                    handle.Orientation = baseOrientation;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Determines whether the gizmo should use the 180-degree flipped yaw facing.
         /// </summary>
         /// <param name="gizmoPosition">Current gizmo world position.</param>
         /// <param name="cameraPosition">Scene camera world position.</param>
-        void UpdateFacingOrientation(float3 gizmoPosition, float3 cameraPosition) {
+        /// <returns>True when the flipped facing should be used.</returns>
+        bool ShouldUseFlippedFacing(float3 gizmoPosition, float3 cameraPosition) {
             float3 toCamera = cameraPosition - gizmoPosition;
             float3 horizontalToCamera = new float3(toCamera.X, 0f, toCamera.Z);
             double horizontalLengthSquared =
                 (horizontalToCamera.X * horizontalToCamera.X) +
                 (horizontalToCamera.Z * horizontalToCamera.Z);
             if (horizontalLengthSquared <= MinimumHorizontalFacingLengthSquared) {
-                return;
+                return false;
             }
 
             double inverseLength = 1.0 / Math.Sqrt(horizontalLengthSquared);
@@ -368,7 +443,7 @@ namespace helengine.editor {
                 0f,
                 (float)(horizontalToCamera.Z * inverseLength));
             double facingDot = float3.Dot(horizontalDirection, HorizontalForwardAxis);
-            GizmoRoot.Orientation = facingDot < 0.0 ? FlippedFacingOrientation : DefaultFacingOrientation;
+            return facingDot < 0.0;
         }
 
         /// <summary>
