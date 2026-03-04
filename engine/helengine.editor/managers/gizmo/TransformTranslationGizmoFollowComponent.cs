@@ -303,7 +303,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(axisEntity));
             }
 
-            float3 primaryDirection = ResolveHandlePrimaryDirection(axisEntity);
+            float3 primaryDirection = ResolveHandleLocalPrimaryDirection(axisEntity);
             if (primaryDirection == float3.Zero) {
                 return float3.Zero;
             }
@@ -445,11 +445,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the world-space primary direction for a transform gizmo handle.
+        /// Resolves the local-space primary direction for a transform gizmo handle.
         /// </summary>
         /// <param name="axisEntity">Handle entity to evaluate.</param>
-        /// <returns>Normalized world-space primary direction, or zero when unavailable.</returns>
-        float3 ResolveHandlePrimaryDirection(Entity axisEntity) {
+        /// <returns>Normalized local-space primary direction, or zero when unavailable.</returns>
+        float3 ResolveHandleLocalPrimaryDirection(Entity axisEntity) {
             if (axisEntity == null) {
                 throw new ArgumentNullException(nameof(axisEntity));
             }
@@ -458,8 +458,7 @@ namespace helengine.editor {
                 return float3.Zero;
             }
 
-            float3 worldPrimary = float4.RotateVector(handleComponent.LocalPrimaryDirection, axisEntity.Orientation);
-            return NormalizeDirection(worldPrimary);
+            return NormalizeDirection(handleComponent.LocalPrimaryDirection);
         }
 
         /// <summary>

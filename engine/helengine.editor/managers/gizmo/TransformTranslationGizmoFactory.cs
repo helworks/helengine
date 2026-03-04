@@ -143,9 +143,9 @@ namespace helengine.editor {
             float4 yAxisOrientation = float4.Identity;
             float4 zAxisOrientation = CreateZAxisOrientation();
 
-            CreateAxisEntity(gizmoRoot, "Transform Gizmo X", xAxisOrientation, new float3(ShaftLength, 0f, 0f), xShaftModel, xTipModel, gizmoMaterial);
+            CreateAxisEntity(gizmoRoot, "Transform Gizmo X", xAxisOrientation, new float3(0f, ShaftLength, 0f), xShaftModel, xTipModel, gizmoMaterial);
             CreateAxisEntity(gizmoRoot, "Transform Gizmo Y", yAxisOrientation, new float3(0f, ShaftLength, 0f), yShaftModel, yTipModel, gizmoMaterial);
-            CreateAxisEntity(gizmoRoot, "Transform Gizmo Z", zAxisOrientation, new float3(0f, 0f, ShaftLength), zShaftModel, zTipModel, gizmoMaterial);
+            CreateAxisEntity(gizmoRoot, "Transform Gizmo Z", zAxisOrientation, new float3(0f, ShaftLength, 0f), zShaftModel, zTipModel, gizmoMaterial);
             CreatePlaneEntity(
                 gizmoRoot,
                 "Transform Gizmo XY Plane",
@@ -196,7 +196,7 @@ namespace helengine.editor {
         /// <param name="gizmoRoot">Root entity that owns the axis.</param>
         /// <param name="axisName">Display name for the axis entity.</param>
         /// <param name="axisOrientation">Axis orientation relative to the root.</param>
-        /// <param name="tipOffset">World-axis offset from origin to the cone tip base.</param>
+        /// <param name="tipOffset">Axis-local offset from origin to the cone tip base.</param>
         /// <param name="shaftModel">Runtime mesh used by the shaft.</param>
         /// <param name="tipModel">Runtime mesh used by the cone tip.</param>
         /// <param name="material">Material shared by shaft and tip meshes.</param>

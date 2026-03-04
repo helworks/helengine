@@ -22,14 +22,15 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets or sets the world position. If a parent exists, the position is relative to the parent.
+        /// Gets or sets the local position relative to the parent and resolves world position through parent transforms.
         /// </summary>
         public virtual float3 Position {
             get {
                 float3 pos = position;
 
                 if (Parent != null) {
-                    pos += Parent.Position;
+                    float3 rotatedLocal = float4.RotateVector(pos, Parent.Orientation);
+                    pos = rotatedLocal + Parent.Position;
                 }
 
                 return pos;
