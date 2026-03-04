@@ -28,17 +28,17 @@ namespace helengine.editor {
         /// </summary>
         const double MinimumHorizontalFacingLengthSquared = 0.000000000001;
         /// <summary>
+        /// Smallest squared vector magnitude treated as non-zero for normalized direction solving.
+        /// </summary>
+        const double MinimumDirectionLengthSquared = 0.000000000001;
+        /// <summary>
+        /// Quarter-turn angle used for 90-degree Y-axis snapping.
+        /// </summary>
+        const double QuarterTurnRadians = Math.PI * 0.5;
+        /// <summary>
         /// World-space up axis used for gizmo yaw rotations.
         /// </summary>
         static readonly float3 WorldUpAxis = new float3(0f, 1f, 0f);
-        /// <summary>
-        /// Horizontal forward reference used to decide whether the gizmo should be flipped.
-        /// </summary>
-        static readonly float3 HorizontalForwardAxis = new float3(0f, 0f, 1f);
-        /// <summary>
-        /// Half-turn around world up used to flip the gizmo in 180-degree intervals.
-        /// </summary>
-        static readonly float4 FlippedFacingOrientation = CreateFlippedFacingOrientation();
         /// <summary>
         /// Scene camera used to compute distance-based gizmo scaling.
         /// </summary>
@@ -115,8 +115,8 @@ namespace helengine.editor {
             }
 
             EnsureHandleBaseTransformsCached();
-            bool useFlippedFacing = ShouldUseFlippedFacing(selectedPosition, cameraEntity.Position);
-            ApplyFacingToHandles(useFlippedFacing);
+            float4 yawFacingOrientation = ComputeSnappedYawFacingOrientation(selectedPosition, cameraEntity.Position);
+            ApplyFacingToHandles(yawFacingOrientation);
 
             float4 viewport = SceneCamera.Viewport;
             double viewportHeight = viewport.W;
@@ -272,7 +272,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                float3 tipOffset = ResolveAxisTipOffset(axisEntity.Name, axisOffset);
+                float3 tipOffset = ResolveAxisTipOffset(axisEntity, axisOffset);
                 if (tipOffset == float3.Zero) {
                     continue;
                 }
@@ -293,25 +293,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the world-axis tip offset for a translation axis name.
+        /// Resolves the world-axis tip offset for a translation handle entity.
         /// </summary>
-        /// <param name="axisName">Axis entity display name.</param>
+        /// <param name="axisEntity">Axis handle entity.</param>
         /// <param name="axisOffset">Offset magnitude from origin to shaft end.</param>
         /// <returns>Tip offset vector for the given axis.</returns>
-        float3 ResolveAxisTipOffset(string axisName, float axisOffset) {
-            if (axisName.EndsWith(" X", StringComparison.Ordinal)) {
-                return new float3(axisOffset, 0f, 0f);
+        float3 ResolveAxisTipOffset(Entity axisEntity, float axisOffset) {
+            if (axisEntity == null) {
+                throw new ArgumentNullException(nameof(axisEntity));
             }
 
-            if (axisName.EndsWith(" Y", StringComparison.Ordinal)) {
-                return new float3(0f, axisOffset, 0f);
+            float3 primaryDirection = ResolveHandlePrimaryDirection(axisEntity);
+            if (primaryDirection == float3.Zero) {
+                return float3.Zero;
             }
 
-            if (axisName.EndsWith(" Z", StringComparison.Ordinal)) {
-                return new float3(0f, 0f, axisOffset);
-            }
-
-            return float3.Zero;
+            return primaryDirection * axisOffset;
         }
 
         /// <summary>
@@ -390,10 +387,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies snapped 0/180-degree facing transforms to direct gizmo-handle children.
+        /// Applies snapped yaw facing transforms to direct gizmo-handle children.
         /// </summary>
-        /// <param name="useFlippedFacing">True to apply the 180-degree yaw flip; false for default orientation.</param>
-        void ApplyFacingToHandles(bool useFlippedFacing) {
+        /// <param name="yawFacingOrientation">Quaternion representing the snapped world-space Y-axis yaw orientation.</param>
+        void ApplyFacingToHandles(float4 yawFacingOrientation) {
             if (GizmoRoot.Children == null) {
                 throw new InvalidOperationException("Gizmo root children must be initialized.");
             }
@@ -411,30 +408,25 @@ namespace helengine.editor {
                     continue;
                 }
 
-                if (useFlippedFacing) {
-                    handle.Position = new float3(-basePosition.X, basePosition.Y, -basePosition.Z);
-                    handle.Orientation = FlippedFacingOrientation * baseOrientation;
-                } else {
-                    handle.Position = basePosition;
-                    handle.Orientation = baseOrientation;
-                }
+                handle.Position = float4.RotateVector(basePosition, yawFacingOrientation);
+                handle.Orientation = yawFacingOrientation * baseOrientation;
             }
         }
 
         /// <summary>
-        /// Determines whether the gizmo should use the 180-degree flipped yaw facing.
+        /// Computes a snapped 90-degree yaw orientation that keeps the inner gizmo arrow facing the camera.
         /// </summary>
         /// <param name="gizmoPosition">Current gizmo world position.</param>
         /// <param name="cameraPosition">Scene camera world position.</param>
-        /// <returns>True when the flipped facing should be used.</returns>
-        bool ShouldUseFlippedFacing(float3 gizmoPosition, float3 cameraPosition) {
+        /// <returns>Snapped world-space yaw orientation around the Y axis.</returns>
+        float4 ComputeSnappedYawFacingOrientation(float3 gizmoPosition, float3 cameraPosition) {
             float3 toCamera = cameraPosition - gizmoPosition;
             float3 horizontalToCamera = new float3(toCamera.X, 0f, toCamera.Z);
             double horizontalLengthSquared =
                 (horizontalToCamera.X * horizontalToCamera.X) +
                 (horizontalToCamera.Z * horizontalToCamera.Z);
             if (horizontalLengthSquared <= MinimumHorizontalFacingLengthSquared) {
-                return false;
+                return float4.Identity;
             }
 
             double inverseLength = 1.0 / Math.Sqrt(horizontalLengthSquared);
@@ -442,19 +434,80 @@ namespace helengine.editor {
                 (float)(horizontalToCamera.X * inverseLength),
                 0f,
                 (float)(horizontalToCamera.Z * inverseLength));
-            double facingDot = float3.Dot(horizontalDirection, HorizontalForwardAxis);
-            return facingDot < 0.0;
+            double angleToCamera = Math.Atan2(horizontalDirection.X, horizontalDirection.Z);
+            double snappedQuarterTurns = Math.Round(angleToCamera / QuarterTurnRadians);
+            double snappedYaw = snappedQuarterTurns * QuarterTurnRadians;
+
+            float3 axis = WorldUpAxis;
+            float4 orientation;
+            float4.CreateFromAxisAngle(ref axis, (float)snappedYaw, out orientation);
+            return orientation;
         }
 
         /// <summary>
-        /// Creates a quaternion that rotates 180 degrees around world up.
+        /// Resolves the world-space primary direction for a transform gizmo handle.
         /// </summary>
-        /// <returns>Half-turn quaternion around the world Y axis.</returns>
-        static float4 CreateFlippedFacingOrientation() {
-            float3 axis = WorldUpAxis;
-            float4 orientation;
-            float4.CreateFromAxisAngle(ref axis, (float)Math.PI, out orientation);
-            return orientation;
+        /// <param name="axisEntity">Handle entity to evaluate.</param>
+        /// <returns>Normalized world-space primary direction, or zero when unavailable.</returns>
+        float3 ResolveHandlePrimaryDirection(Entity axisEntity) {
+            if (axisEntity == null) {
+                throw new ArgumentNullException(nameof(axisEntity));
+            }
+
+            if (!TryFindTransformHandleComponent(axisEntity, out TransformGizmoHandleComponent handleComponent)) {
+                return float3.Zero;
+            }
+
+            float3 worldPrimary = float4.RotateVector(handleComponent.LocalPrimaryDirection, axisEntity.Orientation);
+            return NormalizeDirection(worldPrimary);
+        }
+
+        /// <summary>
+        /// Finds a transform-gizmo handle component on an entity.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <param name="handleComponent">Resolved handle component when present.</param>
+        /// <returns>True when the component is present; otherwise false.</returns>
+        bool TryFindTransformHandleComponent(Entity entity, out TransformGizmoHandleComponent handleComponent) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            if (entity.Components == null) {
+                handleComponent = null;
+                return false;
+            }
+
+            for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                if (entity.Components[componentIndex] is TransformGizmoHandleComponent transformHandle) {
+                    handleComponent = transformHandle;
+                    return true;
+                }
+            }
+
+            handleComponent = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Normalizes a direction vector and returns zero when its magnitude is too small.
+        /// </summary>
+        /// <param name="value">Vector to normalize.</param>
+        /// <returns>Normalized vector, or zero when input magnitude is too small.</returns>
+        float3 NormalizeDirection(float3 value) {
+            double lengthSquared =
+                (value.X * value.X) +
+                (value.Y * value.Y) +
+                (value.Z * value.Z);
+            if (lengthSquared <= MinimumDirectionLengthSquared) {
+                return float3.Zero;
+            }
+
+            double inverseLength = 1.0 / Math.Sqrt(lengthSquared);
+            return new float3(
+                (float)(value.X * inverseLength),
+                (float)(value.Y * inverseLength),
+                (float)(value.Z * inverseLength));
         }
     }
 }
