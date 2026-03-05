@@ -169,6 +169,7 @@ namespace helengine.editor {
             DragPrimaryDirection = primaryDirection;
             DragPlaneNormal = planeNormal;
             DragStartEntityPosition = selectionStartPosition;
+            EditorGizmoDragService.BeginDrag(SceneCamera, selectedEntity);
             EditorGizmoHoverService.SetHoveredHandle(hoveredHandle);
         }
 
@@ -226,6 +227,7 @@ namespace helengine.editor {
         /// Ends the active drag and clears cached drag state.
         /// </summary>
         void EndDrag() {
+            EditorGizmoDragService.EndDrag(SceneCamera);
             IsDragging = false;
             DraggedEntity = null;
             DragHandleEntity = null;

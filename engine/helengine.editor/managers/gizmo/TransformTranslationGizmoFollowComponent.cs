@@ -36,6 +36,10 @@ namespace helengine.editor {
         /// </summary>
         const double QuarterTurnRadians = Math.PI * 0.5;
         /// <summary>
+        /// Signed angular distance from a snapped quarter-turn center at which facing advances to the next quarter turn.
+        /// </summary>
+        const double FacingAdvanceThresholdRadians = Math.PI * (40.0 / 180.0);
+        /// <summary>
         /// World-space up axis used for gizmo yaw rotations.
         /// </summary>
         static readonly float3 WorldUpAxis = new float3(0f, 1f, 0f);
@@ -109,33 +113,36 @@ namespace helengine.editor {
             GizmoRoot.Position = selectedPosition;
             SetAxisVisualState(true);
 
-            Entity cameraEntity = SceneCamera.Parent;
-            if (cameraEntity == null) {
-                throw new InvalidOperationException("Scene camera must belong to an entity.");
+            if (!EditorGizmoDragService.IsDragging(SceneCamera)) {
+                Entity cameraEntity = SceneCamera.Parent;
+                if (cameraEntity == null) {
+                    throw new InvalidOperationException("Scene camera must belong to an entity.");
+                }
+
+                EnsureHandleBaseTransformsCached();
+                float4 yawFacingOrientation = float4.Identity;
+                ApplyFacingToHandles(yawFacingOrientation);
+
+                float4 viewport = SceneCamera.Viewport;
+                double viewportHeight = viewport.W;
+                if (viewportHeight <= 0.0) {
+                    throw new InvalidOperationException("Scene camera viewport height must be greater than zero.");
+                }
+
+                double targetAxisPixels = viewportHeight * TargetViewportHeightFraction;
+                double scaleValue = ComputeScaleForTargetPixels(selectedPosition, cameraEntity.Position, viewportHeight, targetAxisPixels);
+                if (scaleValue < MinimumScale) {
+                    scaleValue = MinimumScale;
+                }
+                if (scaleValue > MaximumScale) {
+                    scaleValue = MaximumScale;
+                }
+
+                float scale = (float)scaleValue;
+                GizmoRoot.Scale = new float3(scale, scale, scale);
+                UpdateAxisTipOffsets(scale);
             }
 
-            EnsureHandleBaseTransformsCached();
-            float4 yawFacingOrientation = ComputeSnappedYawFacingOrientation(selectedPosition, cameraEntity.Position);
-            ApplyFacingToHandles(yawFacingOrientation);
-
-            float4 viewport = SceneCamera.Viewport;
-            double viewportHeight = viewport.W;
-            if (viewportHeight <= 0.0) {
-                throw new InvalidOperationException("Scene camera viewport height must be greater than zero.");
-            }
-
-            double targetAxisPixels = viewportHeight * TargetViewportHeightFraction;
-            double scaleValue = ComputeScaleForTargetPixels(selectedPosition, cameraEntity.Position, viewportHeight, targetAxisPixels);
-            if (scaleValue < MinimumScale) {
-                scaleValue = MinimumScale;
-            }
-            if (scaleValue > MaximumScale) {
-                scaleValue = MaximumScale;
-            }
-
-            float scale = (float)scaleValue;
-            GizmoRoot.Scale = new float3(scale, scale, scale);
-            UpdateAxisTipOffsets(scale);
             UpdateAxisHighlightMaterials();
         }
 
@@ -434,14 +441,43 @@ namespace helengine.editor {
                 (float)(horizontalToCamera.X * inverseLength),
                 0f,
                 (float)(horizontalToCamera.Z * inverseLength));
-            double angleToCamera = Math.Atan2(horizontalDirection.X, horizontalDirection.Z);
-            double snappedQuarterTurns = Math.Round(angleToCamera / QuarterTurnRadians);
+            double angleToCamera = -NormalizeAngleRadians(Math.Atan2(horizontalDirection.X, horizontalDirection.Z));
+            double snapBias = (QuarterTurnRadians * 0.5) - FacingAdvanceThresholdRadians;
+            double sign = Math.Sign(angleToCamera);
+            double biasedAngle = angleToCamera + (sign * snapBias);
+            double snappedQuarterTurns = Math.Round(biasedAngle / QuarterTurnRadians, MidpointRounding.AwayFromZero);
             double snappedYaw = snappedQuarterTurns * QuarterTurnRadians;
+            return CreateYawOrientation(snappedYaw);
+        }
 
+        /// <summary>
+        /// Creates a world-up yaw orientation quaternion from an angle in radians.
+        /// </summary>
+        /// <param name="yawRadians">Yaw angle in radians.</param>
+        /// <returns>Yaw orientation quaternion.</returns>
+        float4 CreateYawOrientation(double yawRadians) {
             float3 axis = WorldUpAxis;
             float4 orientation;
-            float4.CreateFromAxisAngle(ref axis, (float)snappedYaw, out orientation);
+            float4.CreateFromAxisAngle(ref axis, (float)NormalizeAngleRadians(yawRadians), out orientation);
             return orientation;
+        }
+
+        /// <summary>
+        /// Normalizes an angle in radians into the [-PI, PI] interval.
+        /// </summary>
+        /// <param name="angleRadians">Angle to normalize.</param>
+        /// <returns>Normalized angle in radians.</returns>
+        double NormalizeAngleRadians(double angleRadians) {
+            double twoPi = Math.PI * 2.0;
+            double normalized = angleRadians;
+            while (normalized > Math.PI) {
+                normalized -= twoPi;
+            }
+            while (normalized < -Math.PI) {
+                normalized += twoPi;
+            }
+
+            return normalized;
         }
 
         /// <summary>
