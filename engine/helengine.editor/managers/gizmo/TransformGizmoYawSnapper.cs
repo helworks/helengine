@@ -28,7 +28,7 @@ namespace helengine.editor {
         /// <returns>Snapped world-space yaw orientation around the Y axis.</returns>
         public static float4 ComputeSnappedYawFacingOrientation(float3 gizmoPosition, float3 cameraPosition) {
             int snappedQuarterTurns = ComputeSnappedQuarterTurns(gizmoPosition, cameraPosition);
-            double snappedYaw = snappedQuarterTurns * QuarterTurnRadians;
+            double snappedYaw = (snappedQuarterTurns * QuarterTurnRadians) - QuarterTurnRadians;
             return CreateYawOrientation(snappedYaw);
         }
 

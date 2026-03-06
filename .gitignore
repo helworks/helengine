@@ -1,3 +1,5 @@
-﻿.vs/
+.vs/
 obj/
 bin/
+render-validation-output/
+**/render-validation-output/
