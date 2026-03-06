@@ -159,11 +159,16 @@ namespace helengine.render.validation {
                 bool gizmoScalePass;
                 string gizmoScaleMessage;
                 ValidateGizmoScaleStability(core, window, outputPath, gizmoCamera, out gizmoScalePass, out gizmoScaleMessage);
+                string gizmoOrbitMessage = "GizmoOrbit=SKIP";
+                if (Options.CaptureGizmoOrbitSweep) {
+                    int orbitCaptureCount = CaptureGizmoOrbitSweep(core, window, outputPath, gizmoCamera, Options.GizmoOrbitStepDegrees);
+                    gizmoOrbitMessage = $"GizmoOrbit=CAPTURED count={orbitCaptureCount} step={Options.GizmoOrbitStepDegrees}deg";
+                }
 
                 bool passed = basePass && gizmoScalePass;
                 string status = passed
-                    ? $"Center={RenderImageCapture.FormatColor(centerPixel)} redPixels={redOverlayPixelCount} yellowPixels={yellowOverlayPixelCount} matched expected mesh and overlay output. {gizmoScaleMessage}"
-                    : $"Center={RenderImageCapture.FormatColor(centerPixel)} redPixels={redOverlayPixelCount} yellowPixels={yellowOverlayPixelCount} did not match expected mesh and overlay output. {gizmoScaleMessage}";
+                    ? $"Center={RenderImageCapture.FormatColor(centerPixel)} redPixels={redOverlayPixelCount} yellowPixels={yellowOverlayPixelCount} matched expected mesh and overlay output. {gizmoScaleMessage} {gizmoOrbitMessage}"
+                    : $"Center={RenderImageCapture.FormatColor(centerPixel)} redPixels={redOverlayPixelCount} yellowPixels={yellowOverlayPixelCount} did not match expected mesh and overlay output. {gizmoScaleMessage} {gizmoOrbitMessage}";
                 return new RenderValidationResult(backend, outputPath, centerPixel, passed, status);
             } catch (Exception ex) {
                 return new RenderValidationResult(backend, outputPath, Color.Empty, false, ex.ToString());
@@ -417,6 +422,83 @@ namespace helengine.render.validation {
         }
 
         /// <summary>
+        /// Captures transform gizmo screenshots across a full horizontal camera orbit.
+        /// </summary>
+        /// <param name="core">Core instance driving updates and draws.</param>
+        /// <param name="window">Window whose client area is captured.</param>
+        /// <param name="baseOutputPath">Base output path used to derive orbit capture file names.</param>
+        /// <param name="gizmoCamera">Camera used to render transform gizmo captures.</param>
+        /// <param name="stepDegrees">Angle step in degrees between captures.</param>
+        /// <returns>Number of captured orbit screenshots.</returns>
+        int CaptureGizmoOrbitSweep(
+            Core core,
+            RenderValidationWindow window,
+            string baseOutputPath,
+            CameraComponent gizmoCamera,
+            int stepDegrees) {
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+
+            if (window == null) {
+                throw new ArgumentNullException(nameof(window));
+            }
+
+            if (string.IsNullOrWhiteSpace(baseOutputPath)) {
+                throw new ArgumentException("Base output path must be provided.", nameof(baseOutputPath));
+            }
+
+            if (gizmoCamera == null) {
+                throw new ArgumentNullException(nameof(gizmoCamera));
+            }
+
+            if (gizmoCamera.Parent == null) {
+                throw new InvalidOperationException("Gizmo camera must be attached to an entity.");
+            }
+
+            if (stepDegrees <= 0 || stepDegrees > 360) {
+                throw new ArgumentOutOfRangeException(nameof(stepDegrees), "Orbit step must be between 1 and 360 degrees.");
+            }
+
+            int captureCount = 0;
+            for (int angleDegrees = 0; angleDegrees < 360; angleDegrees += stepDegrees) {
+                MoveGizmoCameraToOrbitAngle(gizmoCamera.Parent, ValidationSceneCameraDistance, angleDegrees);
+                RenderFrames(core, Options.FrameCount);
+
+                string capturePath = BuildGizmoOrbitCapturePath(baseOutputPath, angleDegrees);
+                RenderImageCapture.CaptureClientArea(window, capturePath);
+                captureCount++;
+            }
+
+            return captureCount;
+        }
+
+        /// <summary>
+        /// Moves the gizmo camera along a horizontal orbit and orients it toward the world origin.
+        /// </summary>
+        /// <param name="cameraEntity">Camera entity to move.</param>
+        /// <param name="distance">Orbit radius in world units.</param>
+        /// <param name="angleDegrees">Orbit angle in degrees where zero is along positive Z.</param>
+        void MoveGizmoCameraToOrbitAngle(Entity cameraEntity, double distance, int angleDegrees) {
+            if (cameraEntity == null) {
+                throw new ArgumentNullException(nameof(cameraEntity));
+            }
+
+            if (distance <= 0.0) {
+                throw new ArgumentOutOfRangeException(nameof(distance), "Orbit distance must be greater than zero.");
+            }
+
+            double angleRadians = angleDegrees * (Math.PI / 180.0);
+            double positionX = Math.Sin(angleRadians) * distance;
+            double positionZ = Math.Cos(angleRadians) * distance;
+            float3 cameraPosition = new float3((float)positionX, 0f, (float)positionZ);
+            cameraEntity.Position = cameraPosition;
+            float4 orientation;
+            float4.CreateFromYawPitchRoll((float)angleRadians, 0f, 0f, out orientation);
+            cameraEntity.Orientation = orientation;
+        }
+
+        /// <summary>
         /// Moves the gizmo validation camera to a specified Z-axis distance from the origin.
         /// </summary>
         /// <param name="cameraEntity">Camera entity to reposition.</param>
@@ -465,6 +547,40 @@ namespace helengine.render.validation {
             }
 
             string fileName = $"{baseFileName}.gizmo-{index + 1}{extension}";
+            return Path.Combine(directory, fileName);
+        }
+
+        /// <summary>
+        /// Builds the output file path for a gizmo orbit capture at a specific angle.
+        /// </summary>
+        /// <param name="baseOutputPath">Base validation output path.</param>
+        /// <param name="angleDegrees">Capture angle in degrees.</param>
+        /// <returns>Output path for the orbit capture image.</returns>
+        string BuildGizmoOrbitCapturePath(string baseOutputPath, int angleDegrees) {
+            if (string.IsNullOrWhiteSpace(baseOutputPath)) {
+                throw new ArgumentException("Base output path must be provided.", nameof(baseOutputPath));
+            }
+
+            if (angleDegrees < 0 || angleDegrees >= 360) {
+                throw new ArgumentOutOfRangeException(nameof(angleDegrees), "Orbit angle must be between 0 and 359 degrees.");
+            }
+
+            string directory = Path.GetDirectoryName(baseOutputPath);
+            if (string.IsNullOrWhiteSpace(directory)) {
+                throw new InvalidOperationException("Base output path must include a directory.");
+            }
+
+            string baseFileName = Path.GetFileNameWithoutExtension(baseOutputPath);
+            if (string.IsNullOrWhiteSpace(baseFileName)) {
+                throw new InvalidOperationException("Base output file name must be provided.");
+            }
+
+            string extension = Path.GetExtension(baseOutputPath);
+            if (string.IsNullOrWhiteSpace(extension)) {
+                extension = ".png";
+            }
+
+            string fileName = $"{baseFileName}.gizmo-orbit-{angleDegrees:000}{extension}";
             return Path.Combine(directory, fileName);
         }
 

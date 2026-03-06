@@ -11,12 +11,16 @@ namespace helengine.render.validation {
         /// <param name="frameWidth">Render width in pixels.</param>
         /// <param name="frameHeight">Render height in pixels.</param>
         /// <param name="frameCount">Number of frames to render before capture.</param>
+        /// <param name="captureGizmoOrbitSweep">True to capture transform gizmo screenshots around a full orbit.</param>
+        /// <param name="gizmoOrbitStepDegrees">Orbit angle step in degrees for gizmo screenshot capture.</param>
         public RenderValidationOptions(
             RenderBackendSelection backendSelection,
             string outputDirectory,
             int frameWidth,
             int frameHeight,
-            int frameCount) {
+            int frameCount,
+            bool captureGizmoOrbitSweep,
+            int gizmoOrbitStepDegrees) {
             if (string.IsNullOrWhiteSpace(outputDirectory)) {
                 throw new ArgumentException("Output directory must be provided.", nameof(outputDirectory));
             }
@@ -33,11 +37,17 @@ namespace helengine.render.validation {
                 throw new ArgumentOutOfRangeException(nameof(frameCount), "Frame count must be greater than zero.");
             }
 
+            if (gizmoOrbitStepDegrees <= 0 || gizmoOrbitStepDegrees > 360) {
+                throw new ArgumentOutOfRangeException(nameof(gizmoOrbitStepDegrees), "Gizmo orbit step must be between 1 and 360 degrees.");
+            }
+
             BackendSelection = backendSelection;
             OutputDirectory = Path.GetFullPath(outputDirectory);
             FrameWidth = frameWidth;
             FrameHeight = frameHeight;
             FrameCount = frameCount;
+            CaptureGizmoOrbitSweep = captureGizmoOrbitSweep;
+            GizmoOrbitStepDegrees = gizmoOrbitStepDegrees;
         }
 
         /// <summary>
@@ -64,6 +74,14 @@ namespace helengine.render.validation {
         /// Gets the number of frames rendered before capture.
         /// </summary>
         public int FrameCount { get; }
+        /// <summary>
+        /// Gets a value indicating whether full-angle gizmo orbit screenshots should be captured.
+        /// </summary>
+        public bool CaptureGizmoOrbitSweep { get; }
+        /// <summary>
+        /// Gets the angle step in degrees used for gizmo orbit screenshots.
+        /// </summary>
+        public int GizmoOrbitStepDegrees { get; }
 
         /// <summary>
         /// Parses command-line options for the validation runner.
@@ -76,6 +94,8 @@ namespace helengine.render.validation {
             int frameWidth = 512;
             int frameHeight = 512;
             int frameCount = 10;
+            bool captureGizmoOrbitSweep = false;
+            int gizmoOrbitStepDegrees = 1;
 
             int index = 0;
             while (index < args.Length) {
@@ -115,6 +135,15 @@ namespace helengine.render.validation {
                     }
 
                     frameCount = ParsePositiveInt(args[index], "--frames");
+                } else if (string.Equals(argument, "--gizmo-orbit", StringComparison.OrdinalIgnoreCase)) {
+                    captureGizmoOrbitSweep = true;
+                } else if (string.Equals(argument, "--gizmo-orbit-step", StringComparison.OrdinalIgnoreCase)) {
+                    index++;
+                    if (index >= args.Length) {
+                        throw new InvalidOperationException("Missing value for --gizmo-orbit-step.");
+                    }
+
+                    gizmoOrbitStepDegrees = ParsePositiveInt(args[index], "--gizmo-orbit-step");
                 } else {
                     throw new InvalidOperationException($"Unknown argument '{argument}'.");
                 }
@@ -122,7 +151,14 @@ namespace helengine.render.validation {
                 index++;
             }
 
-            return new RenderValidationOptions(backendSelection, outputDirectory, frameWidth, frameHeight, frameCount);
+            return new RenderValidationOptions(
+                backendSelection,
+                outputDirectory,
+                frameWidth,
+                frameHeight,
+                frameCount,
+                captureGizmoOrbitSweep,
+                gizmoOrbitStepDegrees);
         }
 
         /// <summary>
