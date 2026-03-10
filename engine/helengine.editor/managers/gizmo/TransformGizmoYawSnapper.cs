@@ -12,9 +12,9 @@ namespace helengine.editor {
         /// </summary>
         const double QuarterTurnRadians = Math.PI * 0.5;
         /// <summary>
-        /// Directional yaw bias that delays rightward snapping and advances leftward snapping.
+        /// Number of snapped quarter-turn sectors in one full horizontal orbit.
         /// </summary>
-        const double DirectionalSnapBiasRadians = Math.PI * (5.0 / 180.0);
+        const int FullOrbitQuarterTurnCount = 4;
         /// <summary>
         /// World-space up axis used for gizmo yaw rotations.
         /// </summary>
@@ -54,9 +54,16 @@ namespace helengine.editor {
                 0f,
                 (float)(horizontalToCamera.Z * inverseLength));
             double angleToCamera = NormalizeAngleRadians(Math.Atan2(horizontalDirection.X, horizontalDirection.Z));
-            double biasedAngle = angleToCamera - DirectionalSnapBiasRadians;
-            double quarterTurns = biasedAngle / QuarterTurnRadians;
-            return (int)Math.Round(quarterTurns, MidpointRounding.AwayFromZero);
+            int snappedSectorIndex = (int)Math.Floor(angleToCamera / QuarterTurnRadians);
+            while (snappedSectorIndex >= FullOrbitQuarterTurnCount / 2) {
+                snappedSectorIndex -= FullOrbitQuarterTurnCount;
+            }
+
+            while (snappedSectorIndex < -(FullOrbitQuarterTurnCount / 2)) {
+                snappedSectorIndex += FullOrbitQuarterTurnCount;
+            }
+
+            return snappedSectorIndex + 1;
         }
 
         /// <summary>
