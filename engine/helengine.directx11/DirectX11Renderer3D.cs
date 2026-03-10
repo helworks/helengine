@@ -82,6 +82,10 @@ namespace helengine.directx11 {
         /// </summary>
         BlendState blendState;
         /// <summary>
+        /// Sampler state shared by textured 3D materials.
+        /// </summary>
+        SamplerState materialTextureSampler;
+        /// <summary>
         /// 2D renderer used for overlays and UI.
         /// </summary>
         DirectX11Renderer2D renderer2D;
@@ -164,6 +168,7 @@ namespace helengine.directx11 {
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
 
             blendState = CreateBlendState(BlendOption.SourceAlpha, BlendOption.InverseSourceAlpha, BlendOperation.Add);
+            materialTextureSampler = CreateMaterialTextureSampler();
 
             renderer2D = new DirectX11Renderer2D(this);
             DebugInfoRegistry.Register(new DirectX11Renderer3DDebugInfoProvider(this));
@@ -229,6 +234,7 @@ namespace helengine.directx11 {
 
             depthStencilState3D?.Dispose();
             rasterizerState3D?.Dispose();
+            materialTextureSampler?.Dispose();
             blendState?.Dispose();
             customPassConstantBuffer?.Dispose();
             constantBuffer?.Dispose();
@@ -816,6 +822,24 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
+        /// Creates the sampler used by textured 3D materials.
+        /// </summary>
+        /// <returns>Configured sampler state.</returns>
+        SamplerState CreateMaterialTextureSampler() {
+            var samplerDesc = new SamplerStateDescription {
+                Filter = Filter.MinMagMipPoint,
+                AddressU = TextureAddressMode.Clamp,
+                AddressV = TextureAddressMode.Clamp,
+                AddressW = TextureAddressMode.Clamp,
+                ComparisonFunction = Comparison.Never,
+                MinimumLod = 0,
+                MaximumLod = float.MaxValue
+            };
+
+            return new SamplerState(Device, samplerDesc);
+        }
+
+        /// <summary>
         /// Applies a material to the DirectX11 pipeline if it is not already active.
         /// </summary>
         /// <param name="material">Material to apply.</param>
@@ -824,16 +848,40 @@ namespace helengine.directx11 {
                 throw new ArgumentNullException(nameof(material));
             }
 
-            if (ReferenceEquals(ActiveMaterial, material)) {
-                return;
-            }
-
             DirectX11ShaderResource shaderResource = material.ShaderResource;
             var context = Device.ImmediateContext;
-            context.InputAssembler.InputLayout = shaderResource.InputLayout;
-            context.VertexShader.Set(shaderResource.VertexShader);
-            context.PixelShader.Set(shaderResource.PixelShader);
-            ActiveMaterial = material;
+            if (!ReferenceEquals(ActiveMaterial, material)) {
+                context.InputAssembler.InputLayout = shaderResource.InputLayout;
+                context.VertexShader.Set(shaderResource.VertexShader);
+                context.PixelShader.Set(shaderResource.PixelShader);
+                ActiveMaterial = material;
+            }
+
+            ShaderResourceView resourceView = ResolveMaterialTextureResourceView(material);
+            context.PixelShader.SetShaderResource(0, resourceView);
+            context.PixelShader.SetSampler(0, materialTextureSampler);
+        }
+
+        /// <summary>
+        /// Resolves the shader resource view sampled by a textured 3D material.
+        /// </summary>
+        /// <param name="material">Material whose texture binding should be resolved.</param>
+        /// <returns>Shader resource view to bind for the material.</returns>
+        ShaderResourceView ResolveMaterialTextureResourceView(RuntimeMaterial material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            RuntimeTexture runtimeTexture = material.Texture ?? TextureUtils.PixelTexture;
+            if (runtimeTexture is not DirectX11TextureResource textureResource) {
+                throw new InvalidOperationException("3D material textures must be DirectX11 texture resources.");
+            }
+
+            if (textureResource.Resource == null) {
+                throw new InvalidOperationException("DirectX11 texture resources must expose a shader resource view.");
+            }
+
+            return textureResource.Resource;
         }
 
         /// <summary>

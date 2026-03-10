@@ -73,9 +73,21 @@ namespace helengine.render.validation {
         /// </summary>
         const double GizmoDiagonalPixelTolerance = 6.0;
         /// <summary>
+        /// Minimum number of bright label pixels expected for each captured axis-label image.
+        /// </summary>
+        const int MinimumAxisLabelPixelCount = 700;
+        /// <summary>
+        /// Minimum number of dark outline pixels expected for each captured axis-label image.
+        /// </summary>
+        const int MinimumAxisLabelOutlinePixelCount = 120;
+        /// <summary>
         /// Camera distances used when validating constant on-screen gizmo size.
         /// </summary>
         static readonly double[] GizmoValidationDistances = new double[] { 3.0, 6.0, 12.0, 18.0 };
+        /// <summary>
+        /// Horizontal orbit angles used when validating axis-label visibility.
+        /// </summary>
+        static readonly int[] AxisLabelValidationAnglesDegrees = new[] { 0, 90, 180, 270 };
 
         /// <summary>
         /// Options controlling the validation run.
@@ -159,16 +171,19 @@ namespace helengine.render.validation {
                 bool gizmoScalePass;
                 string gizmoScaleMessage;
                 ValidateGizmoScaleStability(core, window, outputPath, gizmoCamera, out gizmoScalePass, out gizmoScaleMessage);
+                bool axisLabelPass;
+                string axisLabelMessage;
+                ValidateAxisLabelVisibility(core, window, outputPath, gizmoCamera, renderer2D, out axisLabelPass, out axisLabelMessage);
                 string gizmoOrbitMessage = "GizmoOrbit=SKIP";
                 if (Options.CaptureGizmoOrbitSweep) {
                     int orbitCaptureCount = CaptureGizmoOrbitSweep(core, window, outputPath, gizmoCamera, Options.GizmoOrbitStepDegrees);
                     gizmoOrbitMessage = $"GizmoOrbit=CAPTURED count={orbitCaptureCount} step={Options.GizmoOrbitStepDegrees}deg";
                 }
 
-                bool passed = basePass && gizmoScalePass;
+                bool passed = basePass && gizmoScalePass && axisLabelPass;
                 string status = passed
-                    ? $"Center={RenderImageCapture.FormatColor(centerPixel)} redPixels={redOverlayPixelCount} yellowPixels={yellowOverlayPixelCount} matched expected mesh and overlay output. {gizmoScaleMessage} {gizmoOrbitMessage}"
-                    : $"Center={RenderImageCapture.FormatColor(centerPixel)} redPixels={redOverlayPixelCount} yellowPixels={yellowOverlayPixelCount} did not match expected mesh and overlay output. {gizmoScaleMessage} {gizmoOrbitMessage}";
+                    ? $"Center={RenderImageCapture.FormatColor(centerPixel)} redPixels={redOverlayPixelCount} yellowPixels={yellowOverlayPixelCount} matched expected mesh and overlay output. {gizmoScaleMessage} {axisLabelMessage} {gizmoOrbitMessage}"
+                    : $"Center={RenderImageCapture.FormatColor(centerPixel)} redPixels={redOverlayPixelCount} yellowPixels={yellowOverlayPixelCount} did not match expected mesh and overlay output. {gizmoScaleMessage} {axisLabelMessage} {gizmoOrbitMessage}";
                 return new RenderValidationResult(backend, outputPath, centerPixel, passed, status);
             } catch (Exception ex) {
                 return new RenderValidationResult(backend, outputPath, Color.Empty, false, ex.ToString());
@@ -422,6 +437,92 @@ namespace helengine.render.validation {
         }
 
         /// <summary>
+        /// Validates that the world-space transform-gizmo axis labels remain visible across a representative horizontal orbit.
+        /// </summary>
+        /// <param name="core">Core instance driving updates and draws.</param>
+        /// <param name="window">Window whose client area is captured.</param>
+        /// <param name="baseOutputPath">Base capture path used to derive label output file names.</param>
+        /// <param name="gizmoCamera">Camera used to render the transform gizmo layer.</param>
+        /// <param name="renderer2D">Renderer used to build the deterministic label atlas texture.</param>
+        /// <param name="passed">True when every capture contains enough visible label pixels.</param>
+        /// <param name="statusMessage">Status summary describing measured label pixel counts.</param>
+        void ValidateAxisLabelVisibility(
+            Core core,
+            RenderValidationWindow window,
+            string baseOutputPath,
+            CameraComponent gizmoCamera,
+            RenderManager2D renderer2D,
+            out bool passed,
+            out string statusMessage) {
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+
+            if (window == null) {
+                throw new ArgumentNullException(nameof(window));
+            }
+
+            if (string.IsNullOrWhiteSpace(baseOutputPath)) {
+                throw new ArgumentException("Base output path must be provided.", nameof(baseOutputPath));
+            }
+
+            if (gizmoCamera == null) {
+                throw new ArgumentNullException(nameof(gizmoCamera));
+            }
+
+            if (renderer2D == null) {
+                throw new ArgumentNullException(nameof(renderer2D));
+            }
+
+            if (gizmoCamera.Parent == null) {
+                throw new InvalidOperationException("Gizmo camera must be attached to an entity.");
+            }
+
+            Entity selectedEntity = EditorSelectionService.SelectedEntity;
+            if (selectedEntity == null) {
+                throw new InvalidOperationException("Axis-label validation requires an active selected entity.");
+            }
+
+            FontAsset font = CreateAxisLabelValidationFont(renderer2D);
+            EditorEntity overlayOwner = CreateAxisLabelValidationOverlay(gizmoCamera, font);
+            EditorViewportToolService.SetToolMode(gizmoCamera, EditorViewportToolMode.Translate);
+
+            int[] pixelCounts = new int[AxisLabelValidationAnglesDegrees.Length];
+            int[] outlinePixelCounts = new int[AxisLabelValidationAnglesDegrees.Length];
+            try {
+                for (int angleIndex = 0; angleIndex < AxisLabelValidationAnglesDegrees.Length; angleIndex++) {
+                    int angleDegrees = AxisLabelValidationAnglesDegrees[angleIndex];
+                    MoveGizmoCameraToOrbitAngle(gizmoCamera.Parent, ValidationSceneCameraDistance, angleDegrees);
+                    RenderFrames(core, Options.FrameCount);
+
+                    string capturePath = BuildAxisLabelCapturePath(baseOutputPath, angleDegrees);
+                    RenderImageCapture.CaptureClientArea(window, capturePath);
+
+                    pixelCounts[angleIndex] = CountAxisLabelPixels(capturePath);
+                    if (pixelCounts[angleIndex] < MinimumAxisLabelPixelCount) {
+                        passed = false;
+                        statusMessage = $"AxisLabel=FAIL angle={angleDegrees}deg produced too few visible label pixels ({pixelCounts[angleIndex]}).";
+                        return;
+                    }
+
+                    outlinePixelCounts[angleIndex] = CountAxisLabelOutlinePixels(capturePath);
+                    if (outlinePixelCounts[angleIndex] < MinimumAxisLabelOutlinePixelCount) {
+                        passed = false;
+                        statusMessage = $"AxisLabel=FAIL angle={angleDegrees}deg produced too few outline pixels ({outlinePixelCounts[angleIndex]}).";
+                        return;
+                    }
+                }
+
+                passed = true;
+                statusMessage = $"AxisLabel=PASS {BuildAxisLabelMeasurementSummary(pixelCounts, outlinePixelCounts)}";
+            } finally {
+                RenderFrames(core, 1);
+                overlayOwner.Enabled = false;
+                EditorViewportToolService.ClearToolMode(gizmoCamera);
+            }
+        }
+
+        /// <summary>
         /// Captures transform gizmo screenshots across a full horizontal camera orbit.
         /// </summary>
         /// <param name="core">Core instance driving updates and draws.</param>
@@ -514,6 +615,232 @@ namespace helengine.render.validation {
 
             cameraEntity.Position = new float3(0f, 0f, (float)distance);
             cameraEntity.Orientation = float4.Identity;
+        }
+
+        /// <summary>
+        /// Builds the output file path for an axis-label capture at a specific orbit angle.
+        /// </summary>
+        /// <param name="baseOutputPath">Base validation output path.</param>
+        /// <param name="angleDegrees">Camera orbit angle used for the capture.</param>
+        /// <returns>Output path for the axis-label capture image.</returns>
+        string BuildAxisLabelCapturePath(string baseOutputPath, int angleDegrees) {
+            if (string.IsNullOrWhiteSpace(baseOutputPath)) {
+                throw new ArgumentException("Base output path must be provided.", nameof(baseOutputPath));
+            }
+
+            if (angleDegrees < 0 || angleDegrees >= 360) {
+                throw new ArgumentOutOfRangeException(nameof(angleDegrees), "Axis-label capture angle must be between 0 and 359 degrees.");
+            }
+
+            string directory = Path.GetDirectoryName(baseOutputPath);
+            if (string.IsNullOrWhiteSpace(directory)) {
+                throw new InvalidOperationException("Base output path must include a directory.");
+            }
+
+            string baseFileName = Path.GetFileNameWithoutExtension(baseOutputPath);
+            if (string.IsNullOrWhiteSpace(baseFileName)) {
+                throw new InvalidOperationException("Base output file name must be provided.");
+            }
+
+            string extension = Path.GetExtension(baseOutputPath);
+            if (string.IsNullOrWhiteSpace(extension)) {
+                extension = ".png";
+            }
+
+            string fileName = $"{baseFileName}.axis-label-{angleDegrees:000}{extension}";
+            return Path.Combine(directory, fileName);
+        }
+
+        /// <summary>
+        /// Creates a deterministic font atlas used to validate the 3D transform-gizmo axis label.
+        /// </summary>
+        /// <param name="renderer2D">Renderer used to upload the atlas texture.</param>
+        /// <returns>Font asset containing predictable x and + glyphs.</returns>
+        FontAsset CreateAxisLabelValidationFont(RenderManager2D renderer2D) {
+            if (renderer2D == null) {
+                throw new ArgumentNullException(nameof(renderer2D));
+            }
+
+            const int atlasWidth = 64;
+            const int atlasHeight = 16;
+            byte[] colors = new byte[atlasWidth * atlasHeight * 4];
+            FillTextureRectangle(colors, atlasWidth, atlasHeight, 1, 1, 10, 14, Color.White);
+            FillTextureRectangle(colors, atlasWidth, atlasHeight, 14, 1, 10, 14, Color.White);
+            FillTextureRectangle(colors, atlasWidth, atlasHeight, 27, 1, 10, 14, Color.White);
+            FillTextureRectangle(colors, atlasWidth, atlasHeight, 40, 4, 8, 8, Color.White);
+            FillTextureRectangle(colors, atlasWidth, atlasHeight, 51, 7, 8, 2, Color.White);
+
+            var textureAsset = new TextureAsset {
+                Width = (ushort)atlasWidth,
+                Height = (ushort)atlasHeight,
+                Colors = colors
+            };
+            RuntimeTexture texture = renderer2D.BuildTextureFromRaw(textureAsset);
+
+            var characters = new Dictionary<char, FontChar> {
+                ['x'] = new FontChar(new float4(1f / atlasWidth, 1f / atlasHeight, 10f / atlasWidth, 14f / atlasHeight), 0f, 11f, 0f, 0f),
+                ['y'] = new FontChar(new float4(14f / atlasWidth, 1f / atlasHeight, 10f / atlasWidth, 14f / atlasHeight), 0f, 11f, 0f, 0f),
+                ['z'] = new FontChar(new float4(27f / atlasWidth, 1f / atlasHeight, 10f / atlasWidth, 14f / atlasHeight), 0f, 11f, 0f, 0f),
+                ['+'] = new FontChar(new float4(40f / atlasWidth, 4f / atlasHeight, 8f / atlasWidth, 8f / atlasHeight), 3f, 9f, 0f, 0f),
+                ['-'] = new FontChar(new float4(51f / atlasWidth, 7f / atlasHeight, 8f / atlasWidth, 2f / atlasHeight), 6f, 9f, 0f, 0f)
+            };
+            return new FontAsset(new FontInfo("AxisLabelValidation", 16, 4f), texture, characters, 16f, atlasWidth, atlasHeight);
+        }
+
+        /// <summary>
+        /// Fills a rectangular region of an RGBA texture buffer with a single solid color.
+        /// </summary>
+        /// <param name="colors">Texture color buffer in RGBA order.</param>
+        /// <param name="textureWidth">Texture width in pixels.</param>
+        /// <param name="textureHeight">Texture height in pixels.</param>
+        /// <param name="x">Rectangle left coordinate in pixels.</param>
+        /// <param name="y">Rectangle top coordinate in pixels.</param>
+        /// <param name="width">Rectangle width in pixels.</param>
+        /// <param name="height">Rectangle height in pixels.</param>
+        /// <param name="color">Solid color written into the rectangle.</param>
+        void FillTextureRectangle(byte[] colors, int textureWidth, int textureHeight, int x, int y, int width, int height, Color color) {
+            if (colors == null) {
+                throw new ArgumentNullException(nameof(colors));
+            }
+
+            if (textureWidth <= 0 || textureHeight <= 0) {
+                throw new InvalidOperationException("Texture dimensions must be greater than zero.");
+            }
+
+            if (x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > textureWidth || y + height > textureHeight) {
+                throw new ArgumentOutOfRangeException(nameof(width), "Filled texture rectangle must lie within the atlas bounds.");
+            }
+
+            for (int pixelY = y; pixelY < y + height; pixelY++) {
+                for (int pixelX = x; pixelX < x + width; pixelX++) {
+                    int bufferIndex = ((pixelY * textureWidth) + pixelX) * 4;
+                    colors[bufferIndex] = color.R;
+                    colors[bufferIndex + 1] = color.G;
+                    colors[bufferIndex + 2] = color.B;
+                    colors[bufferIndex + 3] = color.A;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Creates the overlay component that owns the world-space axis labels during validation.
+        /// </summary>
+        /// <param name="gizmoCamera">Scene camera used by the overlay component.</param>
+        /// <param name="font">Font asset used to build the label mesh and material.</param>
+        /// <returns>Owner entity whose update component drives the axis label.</returns>
+        EditorEntity CreateAxisLabelValidationOverlay(CameraComponent gizmoCamera, FontAsset font) {
+            if (gizmoCamera == null) {
+                throw new ArgumentNullException(nameof(gizmoCamera));
+            }
+
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+
+            var overlayOwner = new EditorEntity {
+                Name = "Axis Label Validation Overlay",
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.EditorUi
+            };
+            overlayOwner.AddComponent(new EditorViewportCameraAngleOverlayComponent(gizmoCamera, font, 0));
+            return overlayOwner;
+        }
+
+        /// <summary>
+        /// Counts bright axis-label pixels in a capture image.
+        /// </summary>
+        /// <param name="imagePath">Path to the captured image.</param>
+        /// <returns>Number of pixels classified as axis-label pixels.</returns>
+        int CountAxisLabelPixels(string imagePath) {
+            return CountMatchingPixels(imagePath, IsAxisLabelPixel);
+        }
+
+        /// <summary>
+        /// Counts dark outline pixels surrounding the axis-label glyphs in a capture image.
+        /// </summary>
+        /// <param name="imagePath">Path to the captured image.</param>
+        /// <returns>Number of pixels classified as part of the rendered axis-label outline.</returns>
+        int CountAxisLabelOutlinePixels(string imagePath) {
+            return CountMatchingPixels(imagePath, IsAxisLabelOutlinePixel);
+        }
+
+        /// <summary>
+        /// Determines whether a pixel matches the expected bright white axis-label color profile.
+        /// </summary>
+        /// <param name="pixel">Pixel to evaluate.</param>
+        /// <returns>True when the pixel is classified as part of the rendered axis label.</returns>
+        bool IsAxisLabelPixel(Color pixel) {
+            if (IsNearCornflowerBlue(pixel)) {
+                return false;
+            }
+
+            if (pixel.R < 215 || pixel.G < 215 || pixel.B < 215) {
+                return false;
+            }
+
+            int maxChannel = Math.Max(pixel.R, Math.Max(pixel.G, pixel.B));
+            int minChannel = Math.Min(pixel.R, Math.Min(pixel.G, pixel.B));
+            return maxChannel - minChannel <= 20;
+        }
+
+        /// <summary>
+        /// Determines whether a pixel matches the expected dark axis-label outline color profile.
+        /// </summary>
+        /// <param name="pixel">Pixel to evaluate.</param>
+        /// <returns>True when the pixel is classified as part of the rendered outline.</returns>
+        bool IsAxisLabelOutlinePixel(Color pixel) {
+            if (IsNearCornflowerBlue(pixel)) {
+                return false;
+            }
+
+            if (pixel.R > 45 || pixel.G > 45 || pixel.B > 45) {
+                return false;
+            }
+
+            int maxChannel = Math.Max(pixel.R, Math.Max(pixel.G, pixel.B));
+            int minChannel = Math.Min(pixel.R, Math.Min(pixel.G, pixel.B));
+            return maxChannel - minChannel <= 18;
+        }
+
+        /// <summary>
+        /// Builds a compact summary of measured axis-label pixel counts.
+        /// </summary>
+        /// <param name="pixelCounts">Measured white label-pixel counts ordered by validation angle.</param>
+        /// <returns>Formatted summary string.</returns>
+        string BuildAxisLabelMeasurementSummary(int[] pixelCounts, int[] outlinePixelCounts) {
+            if (pixelCounts == null) {
+                throw new ArgumentNullException(nameof(pixelCounts));
+            }
+
+            if (outlinePixelCounts == null) {
+                throw new ArgumentNullException(nameof(outlinePixelCounts));
+            }
+
+            if (pixelCounts.Length != AxisLabelValidationAnglesDegrees.Length) {
+                throw new InvalidOperationException("Axis-label measurement count must match the configured validation-angle count.");
+            }
+
+            if (outlinePixelCounts.Length != AxisLabelValidationAnglesDegrees.Length) {
+                throw new InvalidOperationException("Axis-label outline measurement count must match the configured validation-angle count.");
+            }
+
+            string summary = "samples=";
+            for (int i = 0; i < pixelCounts.Length; i++) {
+                if (i > 0) {
+                    summary = string.Concat(summary, " | ");
+                }
+
+                summary = string.Concat(
+                    summary,
+                    "a=",
+                    AxisLabelValidationAnglesDegrees[i].ToString(),
+                    ":fill=",
+                    pixelCounts[i].ToString(),
+                    ",outline=",
+                    outlinePixelCounts[i].ToString());
+            }
+
+            return summary;
         }
 
         /// <summary>

@@ -8,15 +8,6 @@ namespace helengine.vulkan {
     /// </summary>
     public sealed unsafe class VulkanMaterialResource : RuntimeMaterial, IDisposable {
         /// <summary>
-        /// Vertex shader entry point expected in compiled SPIR-V modules.
-        /// </summary>
-        const string VertexEntryPoint = "VS";
-        /// <summary>
-        /// Fragment shader entry point expected in compiled SPIR-V modules.
-        /// </summary>
-        const string PixelEntryPoint = "PS";
-
-        /// <summary>
         /// Shared Vulkan context used to create and destroy GPU objects.
         /// </summary>
         readonly VulkanContext Context;
@@ -45,6 +36,8 @@ namespace helengine.vulkan {
         /// <param name="vertexProgram">Vertex program selected by the material.</param>
         /// <param name="pixelProgram">Pixel program selected by the material.</param>
         /// <param name="variant">Shader variant selected by the material.</param>
+        /// <param name="vertexEntryPoint">Vertex shader entry point exported by the compiled module.</param>
+        /// <param name="pixelEntryPoint">Fragment shader entry point exported by the compiled module.</param>
         /// <param name="vertexBytecode">Compiled vertex SPIR-V bytecode.</param>
         /// <param name="pixelBytecode">Compiled fragment SPIR-V bytecode.</param>
         public VulkanMaterialResource(
@@ -53,6 +46,8 @@ namespace helengine.vulkan {
             string vertexProgram,
             string pixelProgram,
             string variant,
+            string vertexEntryPoint,
+            string pixelEntryPoint,
             byte[] vertexBytecode,
             byte[] pixelBytecode) {
             if (context == null) {
@@ -75,6 +70,14 @@ namespace helengine.vulkan {
                 throw new InvalidOperationException("Material variant must be provided.");
             }
 
+            if (string.IsNullOrWhiteSpace(vertexEntryPoint)) {
+                throw new InvalidOperationException("Vulkan vertex shader entry point must be provided.");
+            }
+
+            if (string.IsNullOrWhiteSpace(pixelEntryPoint)) {
+                throw new InvalidOperationException("Vulkan pixel shader entry point must be provided.");
+            }
+
             if (vertexBytecode == null || vertexBytecode.Length == 0) {
                 throw new InvalidOperationException("Vulkan vertex shader bytecode must be provided.");
             }
@@ -88,6 +91,8 @@ namespace helengine.vulkan {
             VertexProgram = vertexProgram;
             PixelProgram = pixelProgram;
             Variant = variant;
+            VertexEntryPoint = vertexEntryPoint;
+            PixelEntryPoint = pixelEntryPoint;
             VertexShaderModule = CreateShaderModule(vertexBytecode);
             PixelShaderModule = CreateShaderModule(pixelBytecode);
             PipelineSwapchainVersion = -1;
@@ -114,6 +119,16 @@ namespace helengine.vulkan {
         public string Variant { get; }
 
         /// <summary>
+        /// Gets the exported entry point used by the compiled vertex module.
+        /// </summary>
+        public string VertexEntryPoint { get; }
+
+        /// <summary>
+        /// Gets the exported entry point used by the compiled fragment module.
+        /// </summary>
+        public string PixelEntryPoint { get; }
+
+        /// <summary>
         /// Gets the compiled Vulkan vertex shader module.
         /// </summary>
         public ShaderModule VertexShaderModule { get; private set; }
@@ -122,6 +137,11 @@ namespace helengine.vulkan {
         /// Gets the compiled Vulkan fragment shader module.
         /// </summary>
         public ShaderModule PixelShaderModule { get; private set; }
+
+        /// <summary>
+        /// Gets or sets the descriptor set that supplies the material texture resources.
+        /// </summary>
+        public DescriptorSet TextureDescriptorSet { get; set; }
 
         /// <summary>
         /// Ensures the graphics pipeline is valid for the current surface and returns it.
@@ -288,7 +308,13 @@ namespace helengine.vulkan {
                 };
 
                 PipelineColorBlendAttachmentState colorBlendAttachment = new PipelineColorBlendAttachmentState {
-                    BlendEnable = false,
+                    BlendEnable = true,
+                    SrcColorBlendFactor = BlendFactor.SrcAlpha,
+                    DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha,
+                    ColorBlendOp = BlendOp.Add,
+                    SrcAlphaBlendFactor = BlendFactor.One,
+                    DstAlphaBlendFactor = BlendFactor.Zero,
+                    AlphaBlendOp = BlendOp.Add,
                     ColorWriteMask = ColorComponentFlags.ColorComponentRBit |
                                      ColorComponentFlags.ColorComponentGBit |
                                      ColorComponentFlags.ColorComponentBBit |

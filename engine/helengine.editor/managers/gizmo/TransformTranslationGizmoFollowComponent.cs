@@ -28,6 +28,11 @@ namespace helengine.editor {
         /// </summary>
         const double MinimumDirectionLengthSquared = 0.000000000001;
         /// <summary>
+        /// Active translation gizmo follow components keyed by the viewport camera that owns them.
+        /// </summary>
+        static readonly Dictionary<CameraComponent, TransformTranslationGizmoFollowComponent> FollowComponentByCamera =
+            new Dictionary<CameraComponent, TransformTranslationGizmoFollowComponent>();
+        /// <summary>
         /// Scene camera used to compute distance-based gizmo scaling.
         /// </summary>
         readonly CameraComponent SceneCamera;
@@ -75,6 +80,52 @@ namespace helengine.editor {
             BaseHandlePositions = new Dictionary<Entity, float3>();
             BaseHandleOrientations = new Dictionary<Entity, float4>();
             HandleBaseTransformsCached = false;
+        }
+
+        /// <summary>
+        /// Gets the viewport camera that drives this translation gizmo instance.
+        /// </summary>
+        public CameraComponent Camera => SceneCamera;
+
+        /// <summary>
+        /// Gets the current uniform gizmo scale applied to the translation handles.
+        /// </summary>
+        public float CurrentScale => GizmoRoot.Scale.X;
+
+        /// <summary>
+        /// Gets the registered translation-gizmo follow component for the supplied viewport camera.
+        /// </summary>
+        /// <param name="camera">Viewport camera that owns the translation gizmo.</param>
+        /// <returns>Registered follow component when present; otherwise null.</returns>
+        public static TransformTranslationGizmoFollowComponent GetForCamera(CameraComponent camera) {
+            if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            }
+
+            FollowComponentByCamera.TryGetValue(camera, out TransformTranslationGizmoFollowComponent followComponent);
+            return followComponent;
+        }
+
+        /// <summary>
+        /// Registers this follow component for its viewport camera when attached.
+        /// </summary>
+        /// <param name="entity">Owning gizmo root entity.</param>
+        public override void ComponentAdded(Entity entity) {
+            base.ComponentAdded(entity);
+            FollowComponentByCamera[SceneCamera] = this;
+        }
+
+        /// <summary>
+        /// Removes this follow component from the camera registry when detached.
+        /// </summary>
+        /// <param name="entity">Owning gizmo root entity.</param>
+        public override void ComponentRemoved(Entity entity) {
+            base.ComponentRemoved(entity);
+
+            if (FollowComponentByCamera.TryGetValue(SceneCamera, out TransformTranslationGizmoFollowComponent followComponent) &&
+                ReferenceEquals(followComponent, this)) {
+                FollowComponentByCamera.Remove(SceneCamera);
+            }
         }
 
         /// <summary>

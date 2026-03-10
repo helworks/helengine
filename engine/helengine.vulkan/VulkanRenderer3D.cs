@@ -16,6 +16,10 @@ namespace helengine.vulkan {
         /// </summary>
         const uint TransformMatrixSizeBytes = 64;
         /// <summary>
+        /// Maximum number of textured 3D materials that can allocate descriptor sets.
+        /// </summary>
+        const uint MaxMaterialTextures = 2048;
+        /// <summary>
         /// Default forward axis for cameras before rotation.
         /// </summary>
         static readonly float3 DefaultForward = new float3(0f, 0f, -1f);
@@ -45,17 +49,29 @@ namespace helengine.vulkan {
         /// </summary>
         readonly Dictionary<string, List<VulkanMaterialResource>> materialsByShaderAssetId;
         /// <summary>
+        /// Tracks the runtime texture currently written into each material texture descriptor set.
+        /// </summary>
+        readonly Dictionary<VulkanMaterialResource, RuntimeTexture> materialBoundTextures;
+        /// <summary>
         /// Descriptor set layout used for the dynamic transform uniform buffer.
         /// </summary>
-        DescriptorSetLayout materialDescriptorSetLayout;
+        DescriptorSetLayout materialTransformDescriptorSetLayout;
+        /// <summary>
+        /// Descriptor set layout used for textured 3D material sampling.
+        /// </summary>
+        DescriptorSetLayout materialTextureDescriptorSetLayout;
         /// <summary>
         /// Pipeline layout used for 3D material pipelines.
         /// </summary>
         PipelineLayout materialPipelineLayout;
         /// <summary>
-        /// Descriptor pool used to allocate the transform descriptor set.
+        /// Descriptor pool used to allocate 3D material descriptor sets.
         /// </summary>
         DescriptorPool materialDescriptorPool;
+        /// <summary>
+        /// Sampler shared by textured 3D materials.
+        /// </summary>
+        Sampler materialTextureSampler;
         /// <summary>
         /// Dynamic uniform buffer storing world-view-projection matrices.
         /// </summary>
@@ -102,6 +118,7 @@ namespace helengine.vulkan {
             surfacesByHandle = new Dictionary<IntPtr, VulkanSwapchainSurface>();
             renderer2D = new VulkanRenderer2D(context);
             materialsByShaderAssetId = new Dictionary<string, List<VulkanMaterialResource>>(StringComparer.OrdinalIgnoreCase);
+            materialBoundTextures = new Dictionary<VulkanMaterialResource, RuntimeTexture>();
 
             CreateMaterialResources();
             WindowResized += OnWindowResized;
@@ -233,6 +250,8 @@ namespace helengine.vulkan {
 
             ShaderBinaryAsset vertexBinary = GetShaderBinary(shaderAsset, materialAsset.VertexProgram, ShaderStage.Vertex, materialAsset.Variant);
             ShaderBinaryAsset pixelBinary = GetShaderBinary(shaderAsset, materialAsset.PixelProgram, ShaderStage.Pixel, materialAsset.Variant);
+            ShaderProgramAsset vertexProgram = GetShaderProgram(shaderAsset, materialAsset.VertexProgram, ShaderStage.Vertex);
+            ShaderProgramAsset pixelProgram = GetShaderProgram(shaderAsset, materialAsset.PixelProgram, ShaderStage.Pixel);
 
             var material = new VulkanMaterialResource(
                 context,
@@ -240,8 +259,11 @@ namespace helengine.vulkan {
                 materialAsset.VertexProgram,
                 materialAsset.PixelProgram,
                 materialAsset.Variant,
+                vertexProgram.EntryPoint,
+                pixelProgram.EntryPoint,
                 vertexBinary.Bytecode,
                 pixelBinary.Bytecode);
+            material.TextureDescriptorSet = AllocateMaterialTextureDescriptorSet();
             RegisterMaterial(material);
             return material;
         }
@@ -325,14 +347,24 @@ namespace helengine.vulkan {
                 materialDescriptorPool = default;
             }
 
+            if (materialTextureSampler.Handle != 0) {
+                context.Api.DestroySampler(context.Device, materialTextureSampler, null);
+                materialTextureSampler = default;
+            }
+
             if (materialPipelineLayout.Handle != 0) {
                 context.Api.DestroyPipelineLayout(context.Device, materialPipelineLayout, null);
                 materialPipelineLayout = default;
             }
 
-            if (materialDescriptorSetLayout.Handle != 0) {
-                context.Api.DestroyDescriptorSetLayout(context.Device, materialDescriptorSetLayout, null);
-                materialDescriptorSetLayout = default;
+            if (materialTextureDescriptorSetLayout.Handle != 0) {
+                context.Api.DestroyDescriptorSetLayout(context.Device, materialTextureDescriptorSetLayout, null);
+                materialTextureDescriptorSetLayout = default;
+            }
+
+            if (materialTransformDescriptorSetLayout.Handle != 0) {
+                context.Api.DestroyDescriptorSetLayout(context.Device, materialTransformDescriptorSetLayout, null);
+                materialTransformDescriptorSetLayout = default;
             }
 
             context.Dispose();
@@ -388,14 +420,15 @@ namespace helengine.vulkan {
             UpdateTransformBuffer(worldViewProjection, dynamicOffset);
 
             DescriptorSet descriptorSet = transformDescriptorSet;
-            DescriptorSet* descriptorSets = stackalloc DescriptorSet[] { descriptorSet };
+            DescriptorSet textureDescriptorSet = EnsureMaterialTextureDescriptorSet(material);
+            DescriptorSet* descriptorSets = stackalloc DescriptorSet[] { descriptorSet, textureDescriptorSet };
             uint* dynamicOffsets = stackalloc uint[] { dynamicOffset };
             context.Api.CmdBindDescriptorSets(
                 activeCommandBuffer,
                 PipelineBindPoint.Graphics,
                 materialPipelineLayout,
                 0,
-                1,
+                2,
                 descriptorSets,
                 1,
                 dynamicOffsets);
@@ -699,22 +732,46 @@ namespace helengine.vulkan {
                 DescriptorCount = 1,
                 StageFlags = ShaderStageFlags.ShaderStageVertexBit | ShaderStageFlags.ShaderStageFragmentBit
             };
+            DescriptorSetLayoutBinding textureImageBinding = new DescriptorSetLayoutBinding {
+                Binding = 0,
+                DescriptorType = DescriptorType.SampledImage,
+                DescriptorCount = 1,
+                StageFlags = ShaderStageFlags.ShaderStageFragmentBit
+            };
+            DescriptorSetLayoutBinding textureSamplerBinding = new DescriptorSetLayoutBinding {
+                Binding = 1,
+                DescriptorType = DescriptorType.Sampler,
+                DescriptorCount = 1,
+                StageFlags = ShaderStageFlags.ShaderStageFragmentBit
+            };
 
-            DescriptorSetLayoutCreateInfo layoutInfo = new DescriptorSetLayoutCreateInfo {
+            DescriptorSetLayoutCreateInfo transformLayoutInfo = new DescriptorSetLayoutCreateInfo {
                 SType = StructureType.DescriptorSetLayoutCreateInfo,
                 BindingCount = 1,
                 PBindings = &transformBinding
             };
 
-            Result layoutResult = context.Api.CreateDescriptorSetLayout(context.Device, layoutInfo, null, out materialDescriptorSetLayout);
-            if (layoutResult != Result.Success) {
-                throw new InvalidOperationException($"Failed to create Vulkan material descriptor set layout: {layoutResult}.");
+            Result transformLayoutResult = context.Api.CreateDescriptorSetLayout(context.Device, transformLayoutInfo, null, out materialTransformDescriptorSetLayout);
+            if (transformLayoutResult != Result.Success) {
+                throw new InvalidOperationException($"Failed to create Vulkan material descriptor set layout: {transformLayoutResult}.");
             }
 
-            DescriptorSetLayout* layouts = stackalloc DescriptorSetLayout[] { materialDescriptorSetLayout };
+            DescriptorSetLayoutBinding* textureBindings = stackalloc DescriptorSetLayoutBinding[] { textureImageBinding, textureSamplerBinding };
+            DescriptorSetLayoutCreateInfo textureLayoutInfo = new DescriptorSetLayoutCreateInfo {
+                SType = StructureType.DescriptorSetLayoutCreateInfo,
+                BindingCount = 2,
+                PBindings = textureBindings
+            };
+
+            Result textureLayoutResult = context.Api.CreateDescriptorSetLayout(context.Device, textureLayoutInfo, null, out materialTextureDescriptorSetLayout);
+            if (textureLayoutResult != Result.Success) {
+                throw new InvalidOperationException($"Failed to create Vulkan material texture descriptor set layout: {textureLayoutResult}.");
+            }
+
+            DescriptorSetLayout* layouts = stackalloc DescriptorSetLayout[] { materialTransformDescriptorSetLayout, materialTextureDescriptorSetLayout };
             PipelineLayoutCreateInfo pipelineLayoutInfo = new PipelineLayoutCreateInfo {
                 SType = StructureType.PipelineLayoutCreateInfo,
-                SetLayoutCount = 1,
+                SetLayoutCount = 2,
                 PSetLayouts = layouts
             };
 
@@ -723,16 +780,29 @@ namespace helengine.vulkan {
                 throw new InvalidOperationException($"Failed to create Vulkan material pipeline layout: {pipelineLayoutResult}.");
             }
 
-            DescriptorPoolSize poolSize = new DescriptorPoolSize {
+            DescriptorPoolSize transformPoolSize = new DescriptorPoolSize {
                 Type = DescriptorType.UniformBufferDynamic,
                 DescriptorCount = 1
+            };
+            DescriptorPoolSize sampledImagePoolSize = new DescriptorPoolSize {
+                Type = DescriptorType.SampledImage,
+                DescriptorCount = MaxMaterialTextures
+            };
+            DescriptorPoolSize samplerPoolSize = new DescriptorPoolSize {
+                Type = DescriptorType.Sampler,
+                DescriptorCount = MaxMaterialTextures
+            };
+            DescriptorPoolSize* poolSizes = stackalloc DescriptorPoolSize[] {
+                transformPoolSize,
+                sampledImagePoolSize,
+                samplerPoolSize
             };
 
             DescriptorPoolCreateInfo poolInfo = new DescriptorPoolCreateInfo {
                 SType = StructureType.DescriptorPoolCreateInfo,
-                PoolSizeCount = 1,
-                PPoolSizes = &poolSize,
-                MaxSets = 1
+                PoolSizeCount = 3,
+                PPoolSizes = poolSizes,
+                MaxSets = 1 + MaxMaterialTextures
             };
 
             Result poolResult = context.Api.CreateDescriptorPool(context.Device, poolInfo, null, out materialDescriptorPool);
@@ -740,11 +810,13 @@ namespace helengine.vulkan {
                 throw new InvalidOperationException($"Failed to create Vulkan material descriptor pool: {poolResult}.");
             }
 
+            CreateMaterialTextureSampler();
+
             DescriptorSetAllocateInfo allocInfo = new DescriptorSetAllocateInfo {
                 SType = StructureType.DescriptorSetAllocateInfo,
                 DescriptorPool = materialDescriptorPool,
                 DescriptorSetCount = 1,
-                PSetLayouts = layouts
+                PSetLayouts = &layouts[0]
             };
 
             Result allocResult = context.Api.AllocateDescriptorSets(context.Device, allocInfo, out transformDescriptorSet);
@@ -772,6 +844,118 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
+        /// Creates the sampler shared by textured 3D materials.
+        /// </summary>
+        unsafe void CreateMaterialTextureSampler() {
+            SamplerCreateInfo samplerInfo = new SamplerCreateInfo {
+                SType = StructureType.SamplerCreateInfo,
+                MagFilter = Filter.Nearest,
+                MinFilter = Filter.Nearest,
+                MipmapMode = SamplerMipmapMode.Nearest,
+                AddressModeU = SamplerAddressMode.ClampToEdge,
+                AddressModeV = SamplerAddressMode.ClampToEdge,
+                AddressModeW = SamplerAddressMode.ClampToEdge,
+                MaxAnisotropy = 1.0f,
+                MinLod = 0f,
+                MaxLod = 0f,
+                BorderColor = BorderColor.IntOpaqueBlack
+            };
+
+            Result samplerResult = context.Api.CreateSampler(context.Device, samplerInfo, null, out materialTextureSampler);
+            if (samplerResult != Result.Success) {
+                throw new InvalidOperationException($"Failed to create Vulkan material sampler: {samplerResult}.");
+            }
+        }
+
+        /// <summary>
+        /// Allocates a descriptor set used to bind a material texture and sampler.
+        /// </summary>
+        /// <returns>Allocated descriptor set.</returns>
+        unsafe DescriptorSet AllocateMaterialTextureDescriptorSet() {
+            DescriptorSetLayout descriptorSetLayout = materialTextureDescriptorSetLayout;
+            DescriptorSetAllocateInfo allocInfo = new DescriptorSetAllocateInfo {
+                SType = StructureType.DescriptorSetAllocateInfo,
+                DescriptorPool = materialDescriptorPool,
+                DescriptorSetCount = 1,
+                PSetLayouts = &descriptorSetLayout
+            };
+
+            DescriptorSet descriptorSet;
+            Result allocResult = context.Api.AllocateDescriptorSets(context.Device, allocInfo, out descriptorSet);
+            if (allocResult != Result.Success) {
+                throw new InvalidOperationException($"Failed to allocate Vulkan material texture descriptor set: {allocResult}.");
+            }
+
+            return descriptorSet;
+        }
+
+        /// <summary>
+        /// Ensures the descriptor set bound for a material references the current texture.
+        /// </summary>
+        /// <param name="material">Material whose texture binding should be resolved.</param>
+        /// <returns>Descriptor set to bind for the material.</returns>
+        DescriptorSet EnsureMaterialTextureDescriptorSet(VulkanMaterialResource material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            if (material.TextureDescriptorSet.Handle == 0) {
+                material.TextureDescriptorSet = AllocateMaterialTextureDescriptorSet();
+            }
+
+            RuntimeTexture runtimeTexture = material.Texture ?? TextureUtils.PixelTexture;
+            if (!materialBoundTextures.TryGetValue(material, out RuntimeTexture boundTexture) || !ReferenceEquals(boundTexture, runtimeTexture)) {
+                if (runtimeTexture is not VulkanTextureResource textureResource) {
+                    throw new InvalidOperationException("3D material textures must use Vulkan texture resources.");
+                }
+
+                UpdateMaterialTextureDescriptorSet(material.TextureDescriptorSet, textureResource);
+                materialBoundTextures[material] = runtimeTexture;
+            }
+
+            return material.TextureDescriptorSet;
+        }
+
+        /// <summary>
+        /// Writes image and sampler bindings for a textured 3D material descriptor set.
+        /// </summary>
+        /// <param name="descriptorSet">Descriptor set to update.</param>
+        /// <param name="texture">Texture resource that will be sampled by the material.</param>
+        unsafe void UpdateMaterialTextureDescriptorSet(DescriptorSet descriptorSet, VulkanTextureResource texture) {
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+
+            DescriptorImageInfo imageInfo = new DescriptorImageInfo {
+                ImageView = texture.ImageView,
+                ImageLayout = ImageLayout.ShaderReadOnlyOptimal
+            };
+            DescriptorImageInfo samplerInfo = new DescriptorImageInfo {
+                Sampler = materialTextureSampler
+            };
+
+            WriteDescriptorSet* descriptorWrites = stackalloc WriteDescriptorSet[2];
+            descriptorWrites[0] = new WriteDescriptorSet {
+                SType = StructureType.WriteDescriptorSet,
+                DstSet = descriptorSet,
+                DstBinding = 0,
+                DescriptorCount = 1,
+                DescriptorType = DescriptorType.SampledImage,
+                PImageInfo = &imageInfo
+            };
+            descriptorWrites[1] = new WriteDescriptorSet {
+                SType = StructureType.WriteDescriptorSet,
+                DstSet = descriptorSet,
+                DstBinding = 1,
+                DescriptorCount = 1,
+                DescriptorType = DescriptorType.Sampler,
+                PImageInfo = &samplerInfo
+            };
+
+            context.Api.UpdateDescriptorSets(context.Device, 2, descriptorWrites, 0, null);
+        }
+
+        /// <summary>
         /// Returns an aligned byte size for dynamic uniform buffer offsets.
         /// </summary>
         /// <param name="value">Requested byte count.</param>
@@ -784,6 +968,50 @@ namespace helengine.vulkan {
 
             ulong mask = alignment - 1;
             return (value + mask) & ~mask;
+        }
+
+        /// <summary>
+        /// Locates a shader program entry for the requested program and stage.
+        /// </summary>
+        /// <param name="shaderAsset">Shader asset containing program metadata.</param>
+        /// <param name="programName">Program name to locate.</param>
+        /// <param name="stage">Shader stage to locate.</param>
+        /// <returns>Matching shader program metadata.</returns>
+        ShaderProgramAsset GetShaderProgram(ShaderAsset shaderAsset, string programName, ShaderStage stage) {
+            if (shaderAsset == null) {
+                throw new ArgumentNullException(nameof(shaderAsset));
+            }
+
+            if (string.IsNullOrWhiteSpace(programName)) {
+                throw new InvalidOperationException("Material assets must define a shader program name.");
+            }
+
+            if (shaderAsset.Programs == null || shaderAsset.Programs.Length == 0) {
+                throw new InvalidOperationException("Shader assets must include shader program metadata.");
+            }
+
+            for (int i = 0; i < shaderAsset.Programs.Length; i++) {
+                ShaderProgramAsset program = shaderAsset.Programs[i];
+                if (program == null) {
+                    continue;
+                }
+
+                if (!string.Equals(program.Name, programName, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                if (program.Stage != stage) {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(program.EntryPoint)) {
+                    throw new InvalidOperationException("Shader program metadata must define an entry point.");
+                }
+
+                return program;
+            }
+
+            throw new InvalidOperationException("Shader program metadata was not found for the requested Vulkan program.");
         }
 
         /// <summary>
@@ -882,6 +1110,7 @@ namespace helengine.vulkan {
             }
 
             materialsByShaderAssetId.Clear();
+            materialBoundTextures.Clear();
         }
     }
 }
