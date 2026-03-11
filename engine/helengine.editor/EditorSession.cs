@@ -321,6 +321,7 @@ namespace helengine.editor {
         /// <param name="input">Input manager instance.</param>
         /// <param name="renderWidth">Initial render width in pixels.</param>
         /// <param name="renderHeight">Initial render height in pixels.</param>
+        /// <param name="toolbarIcons">Toolbar icon textures used by the main viewport tool buttons.</param>
         /// <param name="importers">Asset importers to register for import settings.</param>
         public EditorSession(
             EditorCore core,
@@ -332,10 +333,12 @@ namespace helengine.editor {
             InputManager input,
             int renderWidth,
             int renderHeight,
+            EditorViewportToolbarIconSet toolbarIcons,
             IReadOnlyList<IAssetImporterRegistration> importers) {
             this.core = core;
             this.projectPath = ResolveProjectRootPath(projectPath);
             this.uiFont = uiFont;
+            toolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
 
             core.Initialize(render3D, render2D, input);
             core.InputManager.SetKeyboardActive(true);
@@ -369,6 +372,8 @@ namespace helengine.editor {
             sceneCameraEntity.AddComponent(gizmoCameraComponent);
             sceneCameraEntity.AddComponent(new EditorViewportCameraController(sceneCameraComponent));
             sceneCameraEntity.AddComponent(new TransformTranslationGizmoDragComponent(sceneCameraComponent));
+            sceneCameraEntity.AddComponent(new TransformRotationGizmoDragComponent(sceneCameraComponent));
+            sceneCameraEntity.AddComponent(new TransformScaleGizmoDragComponent(sceneCameraComponent));
 
             float3 toOrigin = float3.Normalize(new float3(-sceneCameraEntity.Position.X, -sceneCameraEntity.Position.Y, -sceneCameraEntity.Position.Z));
             double yaw = Math.Atan2(toOrigin.X, -toOrigin.Z);
@@ -403,7 +408,7 @@ namespace helengine.editor {
             dockingManager = new DockingManager();
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath);
-            mainViewport = new EditorViewport(sceneCameraComponent, uiFont);
+            mainViewport = new EditorViewport(sceneCameraComponent, uiFont, toolbarIcons);
             propertiesPanel = new PropertiesPanel(uiFont);
             loggerPanel = new LoggerPanel(uiFont);
             previewPanel = new PreviewPanel(uiFont);
@@ -443,6 +448,8 @@ namespace helengine.editor {
             RuntimeMaterial transformGizmoMaterial = BuildTransformGizmoNormalMaterial();
             RuntimeMaterial transformGizmoHighlightMaterial = BuildTransformGizmoHighlightMaterial();
             TransformTranslationGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial, transformGizmoHighlightMaterial);
+            TransformRotationGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial, transformGizmoHighlightMaterial);
+            TransformScaleGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial, transformGizmoHighlightMaterial);
             BuildStartScene(defaultMeshMaterial);
             sceneHierarchyPanel.RefreshHierarchy();
 

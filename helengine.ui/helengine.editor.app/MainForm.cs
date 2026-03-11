@@ -126,6 +126,7 @@ namespace helengine.editor.app {
             renderer3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
             FontAsset uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
+            EditorViewportToolbarIconSet toolbarIcons = EditorToolbarIconLoader.LoadDefaultToolbarIcons();
             IReadOnlyList<IAssetImporterRegistration> importers = BuildImporters();
             editorSession = new EditorSession(
                 core,
@@ -137,6 +138,7 @@ namespace helengine.editor.app {
                 inputManager,
                 renderWidth,
                 renderHeight,
+                toolbarIcons,
                 importers);
 
             TitleBarWindowAdapter.Attach(editorSession.TitleBar, this);

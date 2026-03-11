@@ -154,6 +154,88 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds a box mesh aligned to +Y with its base resting at Y=0.
+        /// </summary>
+        /// <param name="width">Box width along local X.</param>
+        /// <param name="height">Box height along local Y.</param>
+        /// <param name="depth">Box depth along local Z.</param>
+        /// <returns>Generated box model asset.</returns>
+        public static ModelAsset CreateBox(float width, float height, float depth) {
+            ValidateBoxArguments(width, height, depth);
+
+            float halfWidth = width * 0.5f;
+            float halfDepth = depth * 0.5f;
+
+            List<float3> positions = new List<float3>(24);
+            List<float3> normals = new List<float3>(24);
+            List<float2> texCoords = new List<float2>(24);
+            List<int> indices = new List<int>(36);
+
+            AddBoxFace(
+                positions,
+                normals,
+                texCoords,
+                indices,
+                new float3(-halfWidth, 0f, -halfDepth),
+                new float3(halfWidth, 0f, -halfDepth),
+                new float3(halfWidth, height, -halfDepth),
+                new float3(-halfWidth, height, -halfDepth),
+                new float3(0f, 0f, -1f));
+            AddBoxFace(
+                positions,
+                normals,
+                texCoords,
+                indices,
+                new float3(-halfWidth, 0f, halfDepth),
+                new float3(-halfWidth, height, halfDepth),
+                new float3(halfWidth, height, halfDepth),
+                new float3(halfWidth, 0f, halfDepth),
+                new float3(0f, 0f, 1f));
+            AddBoxFace(
+                positions,
+                normals,
+                texCoords,
+                indices,
+                new float3(halfWidth, 0f, -halfDepth),
+                new float3(halfWidth, 0f, halfDepth),
+                new float3(halfWidth, height, halfDepth),
+                new float3(halfWidth, height, -halfDepth),
+                new float3(1f, 0f, 0f));
+            AddBoxFace(
+                positions,
+                normals,
+                texCoords,
+                indices,
+                new float3(-halfWidth, 0f, halfDepth),
+                new float3(-halfWidth, 0f, -halfDepth),
+                new float3(-halfWidth, height, -halfDepth),
+                new float3(-halfWidth, height, halfDepth),
+                new float3(-1f, 0f, 0f));
+            AddBoxFace(
+                positions,
+                normals,
+                texCoords,
+                indices,
+                new float3(-halfWidth, height, -halfDepth),
+                new float3(halfWidth, height, -halfDepth),
+                new float3(halfWidth, height, halfDepth),
+                new float3(-halfWidth, height, halfDepth),
+                new float3(0f, 1f, 0f));
+            AddBoxFace(
+                positions,
+                normals,
+                texCoords,
+                indices,
+                new float3(-halfWidth, 0f, halfDepth),
+                new float3(halfWidth, 0f, halfDepth),
+                new float3(halfWidth, 0f, -halfDepth),
+                new float3(-halfWidth, 0f, -halfDepth),
+                new float3(0f, -1f, 0f));
+
+            return CreateModelAsset(positions, normals, texCoords, indices);
+        }
+
+        /// <summary>
         /// Builds a square plane mesh aligned to local XY with its lower-left corner at the origin.
         /// </summary>
         /// <param name="size">Side length in world units.</param>
@@ -212,6 +294,128 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds a hollow tube ring centered at the origin around the local Y axis.
+        /// </summary>
+        /// <param name="innerRadius">Inner radius of the ring hole.</param>
+        /// <param name="outerRadius">Outer radius of the ring body.</param>
+        /// <param name="height">Axial thickness of the ring along local Y.</param>
+        /// <param name="segments">Segment count around the circular ring.</param>
+        /// <returns>Generated hollow tube-ring model asset.</returns>
+        public static ModelAsset CreateTubeRing(float innerRadius, float outerRadius, float height, int segments) {
+            ValidateTubeRingArguments(innerRadius, outerRadius, height, segments);
+
+            List<float3> positions = new List<float3>(segments * 8);
+            List<float3> normals = new List<float3>(segments * 8);
+            List<float2> texCoords = new List<float2>(segments * 8);
+            List<int> indices = new List<int>(segments * 48);
+            float halfHeight = height * 0.5f;
+
+            int outerSideStart = positions.Count;
+            for (int segmentIndex = 0; segmentIndex < segments; segmentIndex++) {
+                double fraction = (double)segmentIndex / segments;
+                double angle = fraction * Math.PI * 2.0;
+                float x = (float)(Math.Cos(angle) * outerRadius);
+                float z = (float)(Math.Sin(angle) * outerRadius);
+                float3 normal = NormalizeXZ(x, z);
+
+                positions.Add(new float3(x, -halfHeight, z));
+                positions.Add(new float3(x, halfHeight, z));
+                normals.Add(normal);
+                normals.Add(normal);
+                texCoords.Add(new float2((float)fraction, 0f));
+                texCoords.Add(new float2((float)fraction, 1f));
+            }
+
+            for (int segmentIndex = 0; segmentIndex < segments; segmentIndex++) {
+                int currentBottom = outerSideStart + (segmentIndex * 2);
+                int currentTop = currentBottom + 1;
+                int nextBottom = outerSideStart + (((segmentIndex + 1) % segments) * 2);
+                int nextTop = nextBottom + 1;
+                AddDoubleSidedTriangle(indices, currentBottom, currentTop, nextTop);
+                AddDoubleSidedTriangle(indices, currentBottom, nextTop, nextBottom);
+            }
+
+            int innerSideStart = positions.Count;
+            for (int segmentIndex = 0; segmentIndex < segments; segmentIndex++) {
+                double fraction = (double)segmentIndex / segments;
+                double angle = fraction * Math.PI * 2.0;
+                float x = (float)(Math.Cos(angle) * innerRadius);
+                float z = (float)(Math.Sin(angle) * innerRadius);
+                float3 normal = NormalizeXZ(-x, -z);
+
+                positions.Add(new float3(x, -halfHeight, z));
+                positions.Add(new float3(x, halfHeight, z));
+                normals.Add(normal);
+                normals.Add(normal);
+                texCoords.Add(new float2((float)fraction, 0f));
+                texCoords.Add(new float2((float)fraction, 1f));
+            }
+
+            for (int segmentIndex = 0; segmentIndex < segments; segmentIndex++) {
+                int currentBottom = innerSideStart + (segmentIndex * 2);
+                int currentTop = currentBottom + 1;
+                int nextBottom = innerSideStart + (((segmentIndex + 1) % segments) * 2);
+                int nextTop = nextBottom + 1;
+                AddDoubleSidedTriangle(indices, currentBottom, nextBottom, nextTop);
+                AddDoubleSidedTriangle(indices, currentBottom, nextTop, currentTop);
+            }
+
+            int topCapStart = positions.Count;
+            for (int segmentIndex = 0; segmentIndex < segments; segmentIndex++) {
+                double fraction = (double)segmentIndex / segments;
+                double angle = fraction * Math.PI * 2.0;
+                float outerX = (float)(Math.Cos(angle) * outerRadius);
+                float outerZ = (float)(Math.Sin(angle) * outerRadius);
+                float innerX = (float)(Math.Cos(angle) * innerRadius);
+                float innerZ = (float)(Math.Sin(angle) * innerRadius);
+
+                positions.Add(new float3(outerX, halfHeight, outerZ));
+                positions.Add(new float3(innerX, halfHeight, innerZ));
+                normals.Add(new float3(0f, 1f, 0f));
+                normals.Add(new float3(0f, 1f, 0f));
+                texCoords.Add(new float2((float)fraction, 0f));
+                texCoords.Add(new float2((float)fraction, 1f));
+            }
+
+            for (int segmentIndex = 0; segmentIndex < segments; segmentIndex++) {
+                int currentOuter = topCapStart + (segmentIndex * 2);
+                int currentInner = currentOuter + 1;
+                int nextOuter = topCapStart + (((segmentIndex + 1) % segments) * 2);
+                int nextInner = nextOuter + 1;
+                AddDoubleSidedTriangle(indices, currentOuter, currentInner, nextInner);
+                AddDoubleSidedTriangle(indices, currentOuter, nextInner, nextOuter);
+            }
+
+            int bottomCapStart = positions.Count;
+            for (int segmentIndex = 0; segmentIndex < segments; segmentIndex++) {
+                double fraction = (double)segmentIndex / segments;
+                double angle = fraction * Math.PI * 2.0;
+                float outerX = (float)(Math.Cos(angle) * outerRadius);
+                float outerZ = (float)(Math.Sin(angle) * outerRadius);
+                float innerX = (float)(Math.Cos(angle) * innerRadius);
+                float innerZ = (float)(Math.Sin(angle) * innerRadius);
+
+                positions.Add(new float3(outerX, -halfHeight, outerZ));
+                positions.Add(new float3(innerX, -halfHeight, innerZ));
+                normals.Add(new float3(0f, -1f, 0f));
+                normals.Add(new float3(0f, -1f, 0f));
+                texCoords.Add(new float2((float)fraction, 0f));
+                texCoords.Add(new float2((float)fraction, 1f));
+            }
+
+            for (int segmentIndex = 0; segmentIndex < segments; segmentIndex++) {
+                int currentOuter = bottomCapStart + (segmentIndex * 2);
+                int currentInner = currentOuter + 1;
+                int nextOuter = bottomCapStart + (((segmentIndex + 1) % segments) * 2);
+                int nextInner = nextOuter + 1;
+                AddDoubleSidedTriangle(indices, currentOuter, nextOuter, nextInner);
+                AddDoubleSidedTriangle(indices, currentOuter, nextInner, currentInner);
+            }
+
+            return CreateModelAsset(positions, normals, texCoords, indices);
+        }
+
+        /// <summary>
         /// Validates basic primitive generation arguments.
         /// </summary>
         /// <param name="radius">Primitive radius.</param>
@@ -228,6 +432,51 @@ namespace helengine.editor {
 
             if (segments < 3) {
                 throw new ArgumentOutOfRangeException(nameof(segments), "At least three segments are required.");
+            }
+        }
+
+        /// <summary>
+        /// Validates hollow tube-ring generation arguments.
+        /// </summary>
+        /// <param name="innerRadius">Inner radius of the ring hole.</param>
+        /// <param name="outerRadius">Outer radius of the ring body.</param>
+        /// <param name="height">Axial thickness of the ring along local Y.</param>
+        /// <param name="segments">Segment count around the circular ring.</param>
+        static void ValidateTubeRingArguments(float innerRadius, float outerRadius, float height, int segments) {
+            if (innerRadius <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(innerRadius), "Inner radius must be greater than zero.");
+            }
+
+            if (outerRadius <= innerRadius) {
+                throw new ArgumentOutOfRangeException(nameof(outerRadius), "Outer radius must be greater than inner radius.");
+            }
+
+            if (height <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(height), "Ring height must be greater than zero.");
+            }
+
+            if (segments < 3) {
+                throw new ArgumentOutOfRangeException(nameof(segments), "At least three ring segments are required.");
+            }
+        }
+
+        /// <summary>
+        /// Validates box generation arguments.
+        /// </summary>
+        /// <param name="width">Box width along local X.</param>
+        /// <param name="height">Box height along local Y.</param>
+        /// <param name="depth">Box depth along local Z.</param>
+        static void ValidateBoxArguments(float width, float height, float depth) {
+            if (width <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(width), "Box width must be greater than zero.");
+            }
+
+            if (height <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(height), "Box height must be greater than zero.");
+            }
+
+            if (depth <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(depth), "Box depth must be greater than zero.");
             }
         }
 
@@ -306,6 +555,68 @@ namespace helengine.editor {
             }
 
             return converted;
+        }
+
+        /// <summary>
+        /// Adds one outward-facing box face to the supplied mesh streams.
+        /// </summary>
+        /// <param name="positions">Vertex-position stream to append to.</param>
+        /// <param name="normals">Vertex-normal stream to append to.</param>
+        /// <param name="texCoords">Vertex-UV stream to append to.</param>
+        /// <param name="indices">Triangle-index stream to append to.</param>
+        /// <param name="bottomLeft">Lower-left corner of the face.</param>
+        /// <param name="bottomRight">Lower-right corner of the face.</param>
+        /// <param name="topRight">Upper-right corner of the face.</param>
+        /// <param name="topLeft">Upper-left corner of the face.</param>
+        /// <param name="normal">Outward face normal.</param>
+        static void AddBoxFace(
+            List<float3> positions,
+            List<float3> normals,
+            List<float2> texCoords,
+            List<int> indices,
+            float3 bottomLeft,
+            float3 bottomRight,
+            float3 topRight,
+            float3 topLeft,
+            float3 normal) {
+            if (positions == null) {
+                throw new ArgumentNullException(nameof(positions));
+            }
+
+            if (normals == null) {
+                throw new ArgumentNullException(nameof(normals));
+            }
+
+            if (texCoords == null) {
+                throw new ArgumentNullException(nameof(texCoords));
+            }
+
+            if (indices == null) {
+                throw new ArgumentNullException(nameof(indices));
+            }
+
+            int startIndex = positions.Count;
+            positions.Add(bottomLeft);
+            positions.Add(bottomRight);
+            positions.Add(topRight);
+            positions.Add(topLeft);
+
+            normals.Add(normal);
+            normals.Add(normal);
+            normals.Add(normal);
+            normals.Add(normal);
+
+            texCoords.Add(new float2(0f, 0f));
+            texCoords.Add(new float2(1f, 0f));
+            texCoords.Add(new float2(1f, 1f));
+            texCoords.Add(new float2(0f, 1f));
+
+            indices.Add(startIndex + 0);
+            indices.Add(startIndex + 1);
+            indices.Add(startIndex + 2);
+            indices.Add(startIndex + 0);
+            indices.Add(startIndex + 2);
+            indices.Add(startIndex + 3);
         }
 
         /// <summary>

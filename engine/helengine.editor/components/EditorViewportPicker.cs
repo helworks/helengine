@@ -134,8 +134,8 @@ namespace helengine.editor {
                 ResolvePick();
             }
 
-            bool isTranslateToolActive = IsTranslateToolActive();
-            Entity hoveredAxis = isTranslateToolActive ? EditorGizmoHoverService.HoveredAxisEntity : null;
+            bool isTransformGizmoToolActive = IsTransformGizmoToolActive();
+            Entity hoveredAxis = isTransformGizmoToolActive ? EditorGizmoHoverService.HoveredAxisEntity : null;
 
             if (hoveredAxis != null && input.GetMouseLeftButtonState() == ButtonState.Pressed) {
                 return;
@@ -162,7 +162,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (!isTranslateToolActive) {
+            if (!isTransformGizmoToolActive) {
                 return;
             }
 
@@ -667,11 +667,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Determines whether translation-handle hover picking should be active.
+        /// Determines whether transform-gizmo hover picking should be active.
         /// </summary>
-        /// <returns>True when the scene viewport tool mode is translation.</returns>
-        bool IsTranslateToolActive() {
-            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Translate;
+        /// <returns>True when the scene viewport tool mode is currently backed by a live gizmo.</returns>
+        bool IsTransformGizmoToolActive() {
+            EditorViewportToolMode toolMode = EditorViewportToolService.GetToolMode(SceneCamera);
+            return toolMode == EditorViewportToolMode.Translate ||
+                   toolMode == EditorViewportToolMode.Rotate ||
+                   toolMode == EditorViewportToolMode.Scale;
         }
 
         /// <summary>

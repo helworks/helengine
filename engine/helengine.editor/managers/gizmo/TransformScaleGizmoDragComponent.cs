@@ -1,8 +1,8 @@
 namespace helengine.editor {
     /// <summary>
-    /// Translates the selected entity while the user drags a hovered translation gizmo handle.
+    /// Scales the selected entity while the user drags a hovered scale gizmo handle.
     /// </summary>
-    public class TransformTranslationGizmoDragComponent : UpdateComponent {
+    public class TransformScaleGizmoDragComponent : UpdateComponent {
         /// <summary>
         /// Perspective vertical field of view used by scene camera rendering.
         /// </summary>
@@ -20,6 +20,10 @@ namespace helengine.editor {
         /// </summary>
         const double MinimumPlaneIntersectionDenominator = 0.000000000001;
         /// <summary>
+        /// Smallest allowed scale value for any single component.
+        /// </summary>
+        const float MinimumScaleComponent = 0.0001f;
+        /// <summary>
         /// Forward axis used by cameras before orientation is applied.
         /// </summary>
         static readonly float3 CameraForwardAxis = new float3(0f, 0f, -1f);
@@ -34,7 +38,7 @@ namespace helengine.editor {
         /// </summary>
         bool IsDragging;
         /// <summary>
-        /// Selected entity being translated by the active drag.
+        /// Selected entity being scaled by the active drag.
         /// </summary>
         Entity DraggedEntity;
         /// <summary>
@@ -46,17 +50,21 @@ namespace helengine.editor {
         /// </summary>
         TransformGizmoHandleConstraintType DragConstraintType;
         /// <summary>
-        /// World-space primary drag direction used by axis constraints.
+        /// World-space primary drag direction used by axis and plane constraints.
         /// </summary>
         float3 DragPrimaryDirection;
+        /// <summary>
+        /// World-space secondary drag direction used by plane constraints.
+        /// </summary>
+        float3 DragSecondaryDirection;
         /// <summary>
         /// World-space plane normal used by plane constraints.
         /// </summary>
         float3 DragPlaneNormal;
         /// <summary>
-        /// World-space secondary drag direction used by plane constraints.
+        /// Selected entity scale captured when dragging started.
         /// </summary>
-        float3 DragSecondaryDirection;
+        float3 DragStartEntityScale;
         /// <summary>
         /// Selected entity position captured when dragging started.
         /// </summary>
@@ -71,18 +79,18 @@ namespace helengine.editor {
         float3 DragStartPlanePoint;
 
         /// <summary>
-        /// Initializes a new gizmo drag controller.
+        /// Initializes a new scale gizmo drag controller.
         /// </summary>
         /// <param name="sceneCamera">Scene camera used for mouse ray construction.</param>
-        public TransformTranslationGizmoDragComponent(CameraComponent sceneCamera) {
+        public TransformScaleGizmoDragComponent(CameraComponent sceneCamera) {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
         }
 
         /// <summary>
-        /// Updates drag activation and applies translation while dragging.
+        /// Updates drag activation and applies scaling while dragging.
         /// </summary>
         public override void Update() {
-            if (!IsTranslateToolActive()) {
+            if (!IsScaleToolActive()) {
                 if (IsDragging) {
                     EndDrag();
                 }
@@ -135,7 +143,7 @@ namespace helengine.editor {
             }
 
             Entity selectedEntity = EditorSelectionService.SelectedEntity;
-            if (!CanTranslateSelection(selectedEntity)) {
+            if (!CanScaleSelection(selectedEntity)) {
                 return;
             }
 
@@ -174,13 +182,14 @@ namespace helengine.editor {
             DragPrimaryDirection = primaryDirection;
             DragSecondaryDirection = secondaryDirection;
             DragPlaneNormal = planeNormal;
+            DragStartEntityScale = selectedEntity.Scale;
             DragStartEntityPosition = selectionStartPosition;
             EditorGizmoDragService.BeginDrag(SceneCamera, selectedEntity);
             EditorGizmoHoverService.SetHoveredHandle(hoveredHandle);
         }
 
         /// <summary>
-        /// Updates the active drag and applies the translated position to the selected entity.
+        /// Updates the active drag and applies the scaled size to the selected entity.
         /// </summary>
         /// <param name="input">Input manager used to query pointer and button state.</param>
         void UpdateActiveDrag(InputManager input) {
@@ -211,17 +220,24 @@ namespace helengine.editor {
                 }
 
                 double deltaParameter = currentAxisParameter - DragStartAxisParameter;
-                float3 axisOffset = ResolveAxisTranslationOffset(deltaParameter, input);
-                DraggedEntity.Position = DragStartEntityPosition + axisOffset;
+                DraggedEntity.Scale = TransformScaleGizmoScaleResolver.ResolveAxisScale(
+                    DragStartEntityScale,
+                    DragPrimaryDirection,
+                    deltaParameter,
+                    MinimumScaleComponent);
             } else if (DragConstraintType == TransformGizmoHandleConstraintType.Plane) {
                 if (!TryComputePlanePoint(pointer, DragStartEntityPosition, DragPlaneNormal, out float3 currentPlanePoint)) {
                     EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
                     return;
                 }
 
-                float3 delta = currentPlanePoint - DragStartPlanePoint;
-                float3 planeOffset = ResolvePlaneTranslationOffset(delta, input);
-                DraggedEntity.Position = DragStartEntityPosition + planeOffset;
+                float3 planeDelta = ProjectVectorOntoPlane(currentPlanePoint - DragStartPlanePoint, DragPlaneNormal);
+                DraggedEntity.Scale = TransformScaleGizmoScaleResolver.ResolvePlaneScale(
+                    DragStartEntityScale,
+                    DragPrimaryDirection,
+                    DragSecondaryDirection,
+                    planeDelta,
+                    MinimumScaleComponent);
             } else {
                 throw new InvalidOperationException("Transform gizmo handle constraint type is not supported.");
             }
@@ -241,17 +257,18 @@ namespace helengine.editor {
             DragPrimaryDirection = float3.Zero;
             DragSecondaryDirection = float3.Zero;
             DragPlaneNormal = float3.Zero;
+            DragStartEntityScale = float3.Zero;
             DragStartEntityPosition = float3.Zero;
             DragStartAxisParameter = 0.0;
             DragStartPlanePoint = float3.Zero;
         }
 
         /// <summary>
-        /// Determines whether an entity can be translated through gizmo interaction.
+        /// Determines whether an entity can be scaled through gizmo interaction.
         /// </summary>
         /// <param name="selectedEntity">Entity currently selected in the editor.</param>
-        /// <returns>True when the entity is valid for translation.</returns>
-        bool CanTranslateSelection(Entity selectedEntity) {
+        /// <returns>True when the entity is valid for scaling.</returns>
+        bool CanScaleSelection(Entity selectedEntity) {
             if (selectedEntity == null) {
                 return false;
             }
@@ -374,8 +391,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            for (int i = 0; i < entity.Components.Count; i++) {
-                if (entity.Components[i] is TransformGizmoHandleComponent transformHandle) {
+            for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                if (entity.Components[componentIndex] is TransformGizmoHandleComponent transformHandle) {
                     handleComponent = transformHandle;
                     return true;
                 }
@@ -504,56 +521,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the axis translation offset for the current drag update, applying snap when a modifier is held.
-        /// </summary>
-        /// <param name="deltaParameter">Signed drag delta along the active axis.</param>
-        /// <param name="input">Input manager used to read snap modifiers.</param>
-        /// <returns>Resolved world-space axis offset.</returns>
-        float3 ResolveAxisTranslationOffset(double deltaParameter, InputManager input) {
-            double activeSnapValue = ResolveActiveTranslationSnapValue(input);
-            if (activeSnapValue <= 0.0) {
-                return DragPrimaryDirection * (float)deltaParameter;
-            }
-
-            return TransformTranslationGizmoSnapResolver.ResolveAxisOffset(DragPrimaryDirection, deltaParameter, activeSnapValue);
-        }
-
-        /// <summary>
-        /// Resolves the plane translation offset for the current drag update, applying snap when a modifier is held.
-        /// </summary>
-        /// <param name="planeDelta">World-space pointer delta measured on the drag plane.</param>
-        /// <param name="input">Input manager used to read snap modifiers.</param>
-        /// <returns>Resolved world-space plane offset.</returns>
-        float3 ResolvePlaneTranslationOffset(float3 planeDelta, InputManager input) {
-            float3 projectedPlaneDelta = ProjectVectorOntoPlane(planeDelta, DragPlaneNormal);
-            double activeSnapValue = ResolveActiveTranslationSnapValue(input);
-            if (activeSnapValue <= 0.0) {
-                return projectedPlaneDelta;
-            }
-
-            return TransformTranslationGizmoSnapResolver.ResolvePlaneOffset(
-                DragPrimaryDirection,
-                DragSecondaryDirection,
-                projectedPlaneDelta,
-                activeSnapValue);
-        }
-
-        /// <summary>
-        /// Resolves the currently active translation snap value from control and shift modifiers.
-        /// </summary>
-        /// <param name="input">Input manager used to read keyboard state.</param>
-        /// <returns>Active translation snap value, or zero when no snap modifier is held.</returns>
-        double ResolveActiveTranslationSnapValue(InputManager input) {
-            if (input == null) {
-                throw new ArgumentNullException(nameof(input));
-            }
-
-            bool isControlDown = input.IsKeyDown(Keys.LeftControl) || input.IsKeyDown(Keys.RightControl);
-            bool isShiftDown = input.IsKeyDown(Keys.LeftShift) || input.IsKeyDown(Keys.RightShift);
-            return TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Translate, isControlDown, isShiftDown);
-        }
-
-        /// <summary>
         /// Normalizes a vector or returns a fallback when the magnitude is too small.
         /// </summary>
         /// <param name="value">Vector to normalize.</param>
@@ -576,11 +543,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Determines whether translation drag interactions should be active for the scene camera viewport.
+        /// Determines whether scale drag interactions should be active for the scene camera viewport.
         /// </summary>
-        /// <returns>True when the viewport tool mode is translation.</returns>
-        bool IsTranslateToolActive() {
-            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Translate;
+        /// <returns>True when the viewport tool mode is scale.</returns>
+        bool IsScaleToolActive() {
+            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Scale;
         }
     }
 }

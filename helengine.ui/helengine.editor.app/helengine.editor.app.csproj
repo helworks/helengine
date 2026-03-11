@@ -29,6 +29,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<Content Include="content\icons\toolbar\*.png">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<TargetPath>content\icons\toolbar\%(Filename)%(Extension)</TargetPath>
+		</Content>
+	</ItemGroup>
+
+	<ItemGroup>
 		<ProjectReference Include="..\..\engine\helengine.core.windows\helengine.core.windows.csproj" />
 		<ProjectReference Include="..\..\engine\helengine.core\helengine.core.csproj" />
 		<ProjectReference Include="..\..\engine\helengine.editor.fbximporter\helengine.editor.assimp.csproj" />
