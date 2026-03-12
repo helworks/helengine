@@ -49,7 +49,7 @@ namespace helengine.editor {
             RegisterProcessorIfMissing(
                 contentManager,
                 EditorContentProcessorIds.AssetImportSettings,
-                new ProtoBufContentProcessor<AssetImportSettings>(),
+                new BinaryContentProcessor<AssetImportSettings>(AssetImportSettingsBinarySerializer.Deserialize),
                 new[] { AssetImportManager.SettingsExtension });
         }
 

@@ -2,42 +2,35 @@ namespace helengine {
     /// <summary>
     /// Represents serialized data for a shader resource binding.
     /// </summary>
-    [ProtoBuf.ProtoContract]
     public class ShaderBindingAsset {
         /// <summary>
         /// Resource name as declared in the shader.
         /// </summary>
-        [ProtoBuf.ProtoMember(1)]
         public string Name;
 
         /// <summary>
         /// Resource type classification.
         /// </summary>
-        [ProtoBuf.ProtoMember(2)]
         public ShaderResourceType Type;
 
         /// <summary>
         /// Logical descriptor set or register space.
         /// </summary>
-        [ProtoBuf.ProtoMember(3)]
         public int Set;
 
         /// <summary>
         /// Binding slot within the set or space.
         /// </summary>
-        [ProtoBuf.ProtoMember(4)]
         public int Slot;
 
         /// <summary>
         /// Size in bytes for constant buffers, otherwise zero.
         /// </summary>
-        [ProtoBuf.ProtoMember(5)]
         public int Size;
 
         /// <summary>
         /// Constant buffer members associated with the binding.
         /// </summary>
-        [ProtoBuf.ProtoMember(6)]
         public ShaderConstantMemberAsset[] Members;
 
         /// <summary>
@@ -79,21 +72,13 @@ namespace helengine {
         void Validate() {
             if (string.IsNullOrWhiteSpace(Name)) {
                 throw new InvalidOperationException("Binding name must be provided.");
-            }
-
-            if (Set < 0) {
+            } else if (Set < 0) {
                 throw new InvalidOperationException("Binding set cannot be negative.");
-            }
-
-            if (Slot < 0) {
+            } else if (Slot < 0) {
                 throw new InvalidOperationException("Binding slot cannot be negative.");
-            }
-
-            if (Size < 0) {
+            } else if (Size < 0) {
                 throw new InvalidOperationException("Binding size cannot be negative.");
-            }
-
-            if (Members == null) {
+            } else if (Members == null) {
                 throw new InvalidOperationException("Binding members must be provided.");
             }
         }

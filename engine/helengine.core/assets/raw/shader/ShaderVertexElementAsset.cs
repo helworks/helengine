@@ -2,24 +2,20 @@ namespace helengine {
     /// <summary>
     /// Represents serialized data for a shader input/output vertex element.
     /// </summary>
-    [ProtoBuf.ProtoContract]
     public class ShaderVertexElementAsset {
         /// <summary>
         /// Semantic name such as POSITION or TEXCOORD.
         /// </summary>
-        [ProtoBuf.ProtoMember(1)]
         public string Semantic;
 
         /// <summary>
         /// Semantic index for the element.
         /// </summary>
-        [ProtoBuf.ProtoMember(2)]
         public int Index;
 
         /// <summary>
         /// Type or format name such as float3.
         /// </summary>
-        [ProtoBuf.ProtoMember(3)]
         public string Format;
 
         /// <summary>
@@ -56,13 +52,9 @@ namespace helengine {
         void Validate() {
             if (string.IsNullOrWhiteSpace(Semantic)) {
                 throw new InvalidOperationException("Vertex element semantic must be provided.");
-            }
-
-            if (string.IsNullOrWhiteSpace(Format)) {
+            } else if (string.IsNullOrWhiteSpace(Format)) {
                 throw new InvalidOperationException("Vertex element format must be provided.");
-            }
-
-            if (Index < 0) {
+            } else if (Index < 0) {
                 throw new InvalidOperationException("Vertex element index cannot be negative.");
             }
         }

@@ -2,18 +2,15 @@ namespace helengine {
     /// <summary>
     /// Represents serialized data for a shader compile variant.
     /// </summary>
-    [ProtoBuf.ProtoContract]
     public class ShaderVariantAsset {
         /// <summary>
         /// Variant identifier used for selection.
         /// </summary>
-        [ProtoBuf.ProtoMember(1)]
         public string Name;
 
         /// <summary>
         /// Define list used for the variant.
         /// </summary>
-        [ProtoBuf.ProtoMember(2)]
         public string[] Defines;
 
         /// <summary>
@@ -50,9 +47,7 @@ namespace helengine {
         void Validate() {
             if (string.IsNullOrWhiteSpace(Name)) {
                 throw new InvalidOperationException("Variant name must be provided.");
-            }
-
-            if (Defines == null) {
+            } else if (Defines == null) {
                 throw new InvalidOperationException("Variant defines must be provided.");
             }
         }

@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Deserializes protobuf-backed asset files into a specific asset type.
+    /// Deserializes HELE-backed asset files into a specific asset type.
     /// </summary>
     /// <typeparam name="TAsset">Asset type expected from the serialized data.</typeparam>
     public class AssetContentProcessor<TAsset> : IContentProcessor<TAsset> where TAsset : Asset {

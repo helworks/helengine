@@ -399,7 +399,7 @@ namespace helengine.editor {
             string settingsPath = GetSettingsPath(sourcePath);
             EnsureDirectoryForFile(settingsPath);
             using (FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                ProtoBuf.Serializer.Serialize(stream, settings);
+                AssetImportSettingsBinarySerializer.Serialize(stream, settings);
             }
         }
 

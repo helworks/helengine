@@ -1,10 +1,10 @@
 namespace helengine {
     /// <summary>
-    /// Provides protobuf serialization helpers for asset instances.
+    /// Provides HELE binary serialization helpers for asset instances.
     /// </summary>
     public static class AssetSerializer {
         /// <summary>
-        /// Serializes an asset into the provided stream using protobuf.
+        /// Serializes an asset into the provided stream using the editor asset binary format.
         /// </summary>
         /// <param name="stream">Destination stream for the encoded asset.</param>
         /// <param name="asset">Asset instance to serialize.</param>
@@ -12,17 +12,15 @@ namespace helengine {
         public static void Serialize(Stream stream, Asset asset) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
-            }
-
-            if (asset == null) {
+            } else if (asset == null) {
                 throw new ArgumentNullException(nameof(asset));
             }
 
-            ProtoBuf.Serializer.Serialize(stream, asset);
+            EditorAssetBinarySerializer.Serialize(stream, asset);
         }
 
         /// <summary>
-        /// Deserializes an asset from the provided stream using protobuf.
+        /// Deserializes an asset from the provided stream using the HELE header and registered format readers.
         /// </summary>
         /// <param name="stream">Stream containing the encoded asset.</param>
         /// <returns>Deserialized asset instance.</returns>
@@ -32,11 +30,16 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            return ProtoBuf.Serializer.Deserialize<Asset>(stream);
+            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+            if (header.FormatId == EditorAssetBinarySerializer.FormatId) {
+                return EditorAssetBinarySerializer.Deserialize(stream, header);
+            }
+
+            throw new InvalidOperationException($"Unsupported asset binary format id '{header.FormatId}'.");
         }
 
         /// <summary>
-        /// Serializes an asset into a new byte array using protobuf.
+        /// Serializes an asset into a new byte array using the editor asset binary format.
         /// </summary>
         /// <param name="asset">Asset instance to serialize.</param>
         /// <returns>Encoded byte array.</returns>
@@ -47,12 +50,12 @@ namespace helengine {
             }
 
             using var stream = new MemoryStream();
-            ProtoBuf.Serializer.Serialize(stream, asset);
+            Serialize(stream, asset);
             return stream.ToArray();
         }
 
         /// <summary>
-        /// Deserializes an asset from a byte array using protobuf.
+        /// Deserializes an asset from a byte array using the HELE header and registered format readers.
         /// </summary>
         /// <param name="data">Encoded asset data.</param>
         /// <returns>Deserialized asset instance.</returns>
@@ -63,7 +66,7 @@ namespace helengine {
             }
 
             using var stream = new MemoryStream(data, false);
-            return ProtoBuf.Serializer.Deserialize<Asset>(stream);
+            return Deserialize(stream);
         }
     }
 }

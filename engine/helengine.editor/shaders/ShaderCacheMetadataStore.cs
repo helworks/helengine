@@ -40,7 +40,7 @@ namespace helengine.editor {
             }
 
             using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                metadata = ProtoBuf.Serializer.Deserialize<ShaderCacheMetadata>(stream);
+                metadata = ShaderCacheMetadataBinarySerializer.Deserialize(stream);
                 return metadata != null;
             }
         }
@@ -63,7 +63,7 @@ namespace helengine.editor {
 
             Directory.CreateDirectory(directory);
             using (FileStream stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                ProtoBuf.Serializer.Serialize(stream, metadata);
+                ShaderCacheMetadataBinarySerializer.Serialize(stream, metadata);
             }
         }
 

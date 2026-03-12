@@ -2,36 +2,30 @@ namespace helengine {
     /// <summary>
     /// Represents serialized data for a compiled shader binary.
     /// </summary>
-    [ProtoBuf.ProtoContract]
     public class ShaderBinaryAsset {
         /// <summary>
         /// Name of the shader program this binary represents.
         /// </summary>
-        [ProtoBuf.ProtoMember(1)]
         public string ProgramName;
 
         /// <summary>
         /// Pipeline stage for the compiled binary.
         /// </summary>
-        [ProtoBuf.ProtoMember(2)]
         public ShaderStage Stage;
 
         /// <summary>
         /// Target backend name associated with the binary.
         /// </summary>
-        [ProtoBuf.ProtoMember(3)]
         public string TargetName;
 
         /// <summary>
         /// Variant name that produced the binary.
         /// </summary>
-        [ProtoBuf.ProtoMember(4)]
         public string Variant;
 
         /// <summary>
         /// Compiled shader bytecode payload.
         /// </summary>
-        [ProtoBuf.ProtoMember(5)]
         public byte[] Bytecode;
 
         /// <summary>
@@ -74,17 +68,11 @@ namespace helengine {
         void Validate() {
             if (string.IsNullOrWhiteSpace(ProgramName)) {
                 throw new InvalidOperationException("Binary program name must be provided.");
-            }
-
-            if (string.IsNullOrWhiteSpace(TargetName)) {
+            } else if (string.IsNullOrWhiteSpace(TargetName)) {
                 throw new InvalidOperationException("Binary target name must be provided.");
-            }
-
-            if (string.IsNullOrWhiteSpace(Variant)) {
+            } else if (string.IsNullOrWhiteSpace(Variant)) {
                 throw new InvalidOperationException("Binary variant name must be provided.");
-            }
-
-            if (Bytecode == null || Bytecode.Length == 0) {
+            } else if (Bytecode == null || Bytecode.Length == 0) {
                 throw new InvalidOperationException("Binary bytecode payload must be provided.");
             }
         }

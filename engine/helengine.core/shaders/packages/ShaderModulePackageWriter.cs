@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Writes shader module packages to disk using protobuf serialization.
+    /// Writes shader module packages to disk using the engine's HELE asset serialization.
     /// </summary>
     public class ShaderModulePackageWriter {
         /// <summary>

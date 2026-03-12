@@ -2,30 +2,25 @@ namespace helengine {
     /// <summary>
     /// Represents serialized data for a constant buffer member.
     /// </summary>
-    [ProtoBuf.ProtoContract]
     public class ShaderConstantMemberAsset {
         /// <summary>
         /// Member name as declared in the shader.
         /// </summary>
-        [ProtoBuf.ProtoMember(1)]
         public string Name;
 
         /// <summary>
         /// Type name such as float4x4.
         /// </summary>
-        [ProtoBuf.ProtoMember(2)]
         public string Type;
 
         /// <summary>
         /// Byte offset of the member within the constant buffer.
         /// </summary>
-        [ProtoBuf.ProtoMember(3)]
         public int Offset;
 
         /// <summary>
         /// Size in bytes occupied by the member.
         /// </summary>
-        [ProtoBuf.ProtoMember(4)]
         public int Size;
 
         /// <summary>
@@ -63,17 +58,11 @@ namespace helengine {
         void Validate() {
             if (string.IsNullOrWhiteSpace(Name)) {
                 throw new InvalidOperationException("Member name must be provided.");
-            }
-
-            if (string.IsNullOrWhiteSpace(Type)) {
+            } else if (string.IsNullOrWhiteSpace(Type)) {
                 throw new InvalidOperationException("Member type must be provided.");
-            }
-
-            if (Offset < 0) {
+            } else if (Offset < 0) {
                 throw new InvalidOperationException("Member offset cannot be negative.");
-            }
-
-            if (Size < 0) {
+            } else if (Size < 0) {
                 throw new InvalidOperationException("Member size cannot be negative.");
             }
         }

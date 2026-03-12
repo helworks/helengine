@@ -2,30 +2,25 @@ namespace helengine {
     /// <summary>
     /// Represents a serialized shader module package for a specific target backend.
     /// </summary>
-    [ProtoBuf.ProtoContract]
     public class ShaderAsset : Asset {
         /// <summary>
         /// Friendly module name for the shader package.
         /// </summary>
-        [ProtoBuf.ProtoMember(1)]
         public string Name;
 
         /// <summary>
         /// Target name associated with the shader package.
         /// </summary>
-        [ProtoBuf.ProtoMember(2)]
         public string TargetName;
 
         /// <summary>
         /// Shader program definitions included in the package.
         /// </summary>
-        [ProtoBuf.ProtoMember(3)]
         public ShaderProgramAsset[] Programs;
 
         /// <summary>
         /// Compiled shader binaries included in the package.
         /// </summary>
-        [ProtoBuf.ProtoMember(4)]
         public ShaderBinaryAsset[] Binaries;
 
         /// <summary>
@@ -72,25 +67,15 @@ namespace helengine {
         void Validate() {
             if (string.IsNullOrWhiteSpace(Name)) {
                 throw new InvalidOperationException("Shader asset name must be provided.");
-            }
-
-            if (string.IsNullOrWhiteSpace(TargetName)) {
+            } else if (string.IsNullOrWhiteSpace(TargetName)) {
                 throw new InvalidOperationException("Shader asset target name must be provided.");
-            }
-
-            if (Programs == null) {
+            } else if (Programs == null) {
                 throw new InvalidOperationException("Shader asset programs must be provided.");
-            }
-
-            if (Programs.Length == 0) {
+            } else if (Programs.Length == 0) {
                 throw new InvalidOperationException("Shader asset must include at least one program.");
-            }
-
-            if (Binaries == null) {
+            } else if (Binaries == null) {
                 throw new InvalidOperationException("Shader asset binaries must be provided.");
-            }
-
-            if (Binaries.Length == 0) {
+            } else if (Binaries.Length == 0) {
                 throw new InvalidOperationException("Shader asset must include at least one binary.");
             }
         }

@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Reads shader module packages from disk using protobuf serialization.
+    /// Reads shader module packages from disk using the engine's HELE asset serialization.
     /// </summary>
     public class ShaderModulePackageReader {
         /// <summary>

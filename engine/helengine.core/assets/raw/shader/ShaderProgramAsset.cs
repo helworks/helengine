@@ -2,7 +2,6 @@ namespace helengine {
     /// <summary>
     /// Represents serialized metadata for a shader entry point.
     /// </summary>
-    [ProtoBuf.ProtoContract]
     public class ShaderProgramAsset {
         /// <summary>
         /// Initializes a new shader program asset with empty collections.
@@ -17,43 +16,36 @@ namespace helengine {
         /// <summary>
         /// Logical program name.
         /// </summary>
-        [ProtoBuf.ProtoMember(1)]
         public string Name;
 
         /// <summary>
         /// Pipeline stage for the entry point.
         /// </summary>
-        [ProtoBuf.ProtoMember(2)]
         public ShaderStage Stage;
 
         /// <summary>
         /// Entry point function name.
         /// </summary>
-        [ProtoBuf.ProtoMember(3)]
         public string EntryPoint;
 
         /// <summary>
         /// Resource bindings used by the program.
         /// </summary>
-        [ProtoBuf.ProtoMember(4)]
         public ShaderBindingAsset[] Bindings;
 
         /// <summary>
         /// Input signature elements.
         /// </summary>
-        [ProtoBuf.ProtoMember(5)]
         public ShaderVertexElementAsset[] Inputs;
 
         /// <summary>
         /// Output signature elements.
         /// </summary>
-        [ProtoBuf.ProtoMember(6)]
         public ShaderVertexElementAsset[] Outputs;
 
         /// <summary>
         /// Compile-time variants available for the program.
         /// </summary>
-        [ProtoBuf.ProtoMember(7)]
         public ShaderVariantAsset[] Variants;
 
         /// <summary>
@@ -99,25 +91,15 @@ namespace helengine {
         void Validate() {
             if (string.IsNullOrWhiteSpace(Name)) {
                 throw new InvalidOperationException("Program name must be provided.");
-            }
-
-            if (string.IsNullOrWhiteSpace(EntryPoint)) {
+            } else if (string.IsNullOrWhiteSpace(EntryPoint)) {
                 throw new InvalidOperationException("Program entry point must be provided.");
-            }
-
-            if (Bindings == null) {
+            } else if (Bindings == null) {
                 throw new InvalidOperationException("Program bindings must be provided.");
-            }
-
-            if (Inputs == null) {
+            } else if (Inputs == null) {
                 throw new InvalidOperationException("Program inputs must be provided.");
-            }
-
-            if (Outputs == null) {
+            } else if (Outputs == null) {
                 throw new InvalidOperationException("Program outputs must be provided.");
-            }
-
-            if (Variants == null) {
+            } else if (Variants == null) {
                 throw new InvalidOperationException("Program variants must be provided.");
             }
         }
