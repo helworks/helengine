@@ -4,6 +4,24 @@ namespace helengine {
     /// </summary>
     public class ShaderModulePackageReader {
         /// <summary>
+        /// Content manager used to load serialized shader package assets.
+        /// </summary>
+        readonly ContentManager PackageContentManager;
+
+        /// <summary>
+        /// Initializes a new package reader rooted at the provided package directory.
+        /// </summary>
+        /// <param name="rootDirectory">Root directory used to resolve relative package paths.</param>
+        public ShaderModulePackageReader(string rootDirectory) {
+            if (string.IsNullOrWhiteSpace(rootDirectory)) {
+                throw new ArgumentException("Root directory must be provided.", nameof(rootDirectory));
+            }
+
+            PackageContentManager = new ContentManager(rootDirectory);
+            PackageContentManager.RegisterProcessor("shader-package", new AssetContentProcessor<ShaderAsset>(), new[] { ".shader.asset" });
+        }
+
+        /// <summary>
         /// Reads a shader module package from disk.
         /// </summary>
         /// <param name="packagePath">Package file path to read.</param>
@@ -34,14 +52,7 @@ namespace helengine {
         /// <param name="packagePath">Package file path to read.</param>
         /// <returns>Deserialized shader asset.</returns>
         ShaderAsset ReadAsset(string packagePath) {
-            using (FileStream stream = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                Asset asset = AssetSerializer.Deserialize(stream);
-                if (!(asset is ShaderAsset shaderAsset)) {
-                    throw new InvalidOperationException("Package does not contain a shader asset.");
-                }
-
-                return shaderAsset;
-            }
+            return PackageContentManager.Load<ShaderAsset>(packagePath, "shader-package");
         }
     }
 }

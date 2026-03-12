@@ -32,6 +32,10 @@ namespace helengine.editor {
         /// Stores the build options applied during compilation.
         /// </summary>
         readonly ShaderPackageBuildOptions options;
+        /// <summary>
+        /// Content manager used to load shader source text.
+        /// </summary>
+        readonly ContentManager ShaderSourceContentManager;
 
         /// <summary>
         /// Initializes a new shader package builder.
@@ -39,10 +43,12 @@ namespace helengine.editor {
         /// <param name="compileService">Compile service used for shader compilation.</param>
         /// <param name="packageWriter">Package writer used to serialize outputs.</param>
         /// <param name="options">Build options applied during compilation.</param>
+        /// <param name="contentManager">Content manager used to read shader source files.</param>
         public ShaderPackageBuilder(
             ShaderCompileService compileService,
             ShaderModulePackageWriter packageWriter,
-            ShaderPackageBuildOptions options) {
+            ShaderPackageBuildOptions options,
+            ContentManager contentManager) {
             if (compileService == null) {
                 throw new ArgumentNullException(nameof(compileService));
             }
@@ -54,10 +60,14 @@ namespace helengine.editor {
             if (options == null) {
                 throw new ArgumentNullException(nameof(options));
             }
+            if (contentManager == null) {
+                throw new ArgumentNullException(nameof(contentManager));
+            }
 
             this.compileService = compileService;
             this.packageWriter = packageWriter;
             this.options = options;
+            ShaderSourceContentManager = contentManager;
         }
 
         /// <summary>
@@ -96,8 +106,8 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute shader source path.</param>
         /// <returns>Loaded source info.</returns>
         ShaderSourceInfo LoadSource(string sourcePath) {
-            string source = File.ReadAllText(sourcePath);
-            return new ShaderSourceInfo(sourcePath, source);
+            TextContent sourceContent = ShaderSourceContentManager.Load<TextContent>(sourcePath);
+            return new ShaderSourceInfo(sourcePath, sourceContent.Text);
         }
 
         /// <summary>

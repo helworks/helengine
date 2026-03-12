@@ -32,13 +32,13 @@ namespace helengine.directx11 {
             VertexEntry = vertexEntry;
             PixelEntry = pixelEntry;
 
-            using (var vertexShaderByteCode = ShaderBytecode.CompileFromFile(shaderPath, vertexEntry, "vs_4_0")) {
+            using (var vertexShaderByteCode = DirectX11ShaderSourceCompiler.CompileFromContent(shaderPath, vertexEntry, "vs_4_0")) {
                 VertexShader = new VertexShader(device, vertexShaderByteCode);
                 var signature = ShaderSignature.GetInputSignature(vertexShaderByteCode);
                 InputLayout = new InputLayout(device, signature, VertexPositionNormalUV.Elements);
             }
 
-            using (var pixelShaderByteCode = ShaderBytecode.CompileFromFile(shaderPath, pixelEntry, "ps_4_0")) {
+            using (var pixelShaderByteCode = DirectX11ShaderSourceCompiler.CompileFromContent(shaderPath, pixelEntry, "ps_4_0")) {
                 PixelShader = new PixelShader(device, pixelShaderByteCode);
             }
         }

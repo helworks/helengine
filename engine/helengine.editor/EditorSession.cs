@@ -233,6 +233,10 @@ namespace helengine.editor {
         /// </summary>
         readonly FontAsset uiFont;
         /// <summary>
+        /// Content manager used to load editor and project asset files.
+        /// </summary>
+        readonly ContentManager EditorContentManager;
+        /// <summary>
         /// Title bar UI for the editor.
         /// </summary>
         readonly EditorTitleBar titleBar;
@@ -335,8 +339,10 @@ namespace helengine.editor {
             int renderHeight,
             EditorViewportToolbarIconSet toolbarIcons,
             IReadOnlyList<IAssetImporterRegistration> importers) {
-            this.core = core;
+            this.core = core ?? throw new ArgumentNullException(nameof(core));
             this.projectPath = ResolveProjectRootPath(projectPath);
+            EditorContentManager = this.core.GetContentManager();
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(EditorContentManager);
             this.uiFont = uiFont;
             toolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
 
@@ -409,7 +415,7 @@ namespace helengine.editor {
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath);
             mainViewport = new EditorViewport(sceneCameraComponent, uiFont, toolbarIcons);
-            propertiesPanel = new PropertiesPanel(uiFont);
+            propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager);
             loggerPanel = new LoggerPanel(uiFont);
             previewPanel = new PreviewPanel(uiFont);
             assetPickerModal = new AssetPickerModal(uiFont, this.projectPath);
@@ -440,7 +446,7 @@ namespace helengine.editor {
 
             ShaderCompileTarget runtimeTarget = ResolveRuntimeShaderTarget(render3D);
             shaderModuleManager = BuildShaderModuleManager(runtimeTarget);
-            EditorShaderPackageService.Initialize(shaderModuleManager, runtimeTarget);
+            EditorShaderPackageService.Initialize(shaderModuleManager, runtimeTarget, EditorContentManager);
             shaderModuleManager.ShaderBuilt += HandleShaderBuilt;
             shaderModuleManager.Start();
 
@@ -1208,18 +1214,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Material path must be provided.", nameof(path));
             }
 
-            if (!File.Exists(path)) {
-                throw new FileNotFoundException("Material file was not found.", path);
-            }
-
-            using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                Asset asset = AssetSerializer.Deserialize(stream);
-                if (asset is MaterialAsset materialAsset) {
-                    return materialAsset;
-                }
-            }
-
-            throw new InvalidOperationException("Selected asset is not a material asset.");
+            return EditorContentManager.Load<MaterialAsset>(path, EditorContentProcessorIds.MaterialAsset);
         }
 
         /// <summary>
@@ -1414,7 +1409,9 @@ namespace helengine.editor {
             }
 
             string projectRootPath = ResolveProjectRootPath(projectPath);
-            var manager = new AssetImportManager(projectRootPath);
+            string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
+            ContentManager projectContentManager = core.GetContentManager(projectAssetsRootPath);
+            var manager = new AssetImportManager(projectRootPath, projectContentManager);
             for (int i = 0; i < importers.Count; i++) {
                 IAssetImporterRegistration registration = importers[i];
                 if (registration == null) {

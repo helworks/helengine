@@ -42,6 +42,10 @@ namespace helengine.directx11 {
         /// Stores the define list applied to compilation.
         /// </summary>
         readonly ShaderDefine[] Defines;
+        /// <summary>
+        /// Content manager used to read shader source files.
+        /// </summary>
+        readonly ContentManager SourceContentManager;
 
         /// <summary>
         /// Initializes a new shader asset builder for DirectX11.
@@ -61,6 +65,7 @@ namespace helengine.directx11 {
             Target = ShaderCompileTarget.DirectX11;
             Defines = ShaderPlatformDefines.BuildDefines(Target, TargetShaderModel, Array.Empty<ShaderDefine>());
             CompileOptions = new ShaderCompileOptions(ShaderBindingPolicies.Default, false, false, false);
+            SourceContentManager = new ContentManager(includeRootPath);
 
             ShaderFilesystemIncludeResolver includeResolver = new ShaderFilesystemIncludeResolver(includeRootPath);
             ShaderMemoryCompileCache cache = new ShaderMemoryCompileCache();
@@ -101,8 +106,8 @@ namespace helengine.directx11 {
         /// <param name="shaderPath">Absolute shader source path.</param>
         /// <returns>Loaded source info.</returns>
         ShaderSourceInfo LoadSource(string shaderPath) {
-            string source = File.ReadAllText(shaderPath);
-            return new ShaderSourceInfo(shaderPath, source);
+            TextContent sourceContent = SourceContentManager.Load<TextContent>(shaderPath);
+            return new ShaderSourceInfo(shaderPath, sourceContent.Text);
         }
 
         /// <summary>

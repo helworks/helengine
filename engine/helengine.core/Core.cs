@@ -4,6 +4,16 @@ namespace helengine {
     /// </summary>
     public class Core : IDisposable {
         /// <summary>
+        /// Cached content managers keyed by normalized root path.
+        /// </summary>
+        readonly Dictionary<string, ContentManager> ContentManagersByRootPath;
+
+        /// <summary>
+        /// Synchronizes content-manager creation for shared roots.
+        /// </summary>
+        readonly object ContentManagerLock;
+
+        /// <summary>
         /// Initializes a new core instance with default initialization options.
         /// </summary>
         public Core() : this(new CoreInitializationOptions()) { }
@@ -17,6 +27,8 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(options));
             }
 
+            ContentManagersByRootPath = new Dictionary<string, ContentManager>(StringComparer.OrdinalIgnoreCase);
+            ContentManagerLock = new object();
             Instance = this;
             InitializationOptions = options;
             InitializationOptions.Normalize();
@@ -31,6 +43,11 @@ namespace helengine {
         /// Gets the initialization options used to configure core systems.
         /// </summary>
         public CoreInitializationOptions InitializationOptions { get; private set; }
+
+        /// <summary>
+        /// Gets the default content manager rooted at <see cref="CoreInitializationOptions.ContentRootPath"/>.
+        /// </summary>
+        public ContentManager ContentManager => GetContentManager();
 
         /// <summary>
         /// Gets the object manager responsible for updating entities and components.
@@ -86,6 +103,36 @@ namespace helengine {
             InitializationOptions = options;
 
             ObjectManager = new ObjectManager(options);
+        }
+
+        /// <summary>
+        /// Gets the default content manager configured for the current core instance.
+        /// </summary>
+        /// <returns>Cached content manager rooted at the configured content root path.</returns>
+        public ContentManager GetContentManager() {
+            return GetContentManager(InitializationOptions.ContentRootPath);
+        }
+
+        /// <summary>
+        /// Gets a cached content manager for a specific root directory, creating it the first time that root is requested.
+        /// </summary>
+        /// <param name="rootDirectory">Directory used to resolve relative content paths.</param>
+        /// <returns>Cached content manager for the requested root.</returns>
+        public ContentManager GetContentManager(string rootDirectory) {
+            if (string.IsNullOrWhiteSpace(rootDirectory)) {
+                throw new ArgumentException("Root directory must be provided.", nameof(rootDirectory));
+            }
+
+            string normalizedRootDirectory = Path.GetFullPath(rootDirectory);
+            lock (ContentManagerLock) {
+                if (ContentManagersByRootPath.TryGetValue(normalizedRootDirectory, out ContentManager contentManager)) {
+                    return contentManager;
+                }
+
+                contentManager = new ContentManager(normalizedRootDirectory);
+                ContentManagersByRootPath.Add(normalizedRootDirectory, contentManager);
+                return contentManager;
+            }
         }
 
         /// <summary>

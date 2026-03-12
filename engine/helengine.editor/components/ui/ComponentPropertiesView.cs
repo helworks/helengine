@@ -56,6 +56,10 @@ namespace helengine.editor {
         /// </summary>
         readonly FontAsset Font;
         /// <summary>
+        /// Content manager used to load serialized editor assets.
+        /// </summary>
+        readonly ContentManager AssetContentManager;
+        /// <summary>
         /// Root entity that hosts the component property rows.
         /// </summary>
         readonly EditorEntity RootEntity;
@@ -92,12 +96,17 @@ namespace helengine.editor {
         /// Initializes a new component properties view.
         /// </summary>
         /// <param name="font">Font used for row labels.</param>
-        public ComponentPropertiesView(FontAsset font) {
+        /// <param name="contentManager">Content manager used to load serialized assets.</param>
+        public ComponentPropertiesView(FontAsset font, ContentManager contentManager) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
+            if (contentManager == null) {
+                throw new ArgumentNullException(nameof(contentManager));
+            }
 
             Font = font;
+            AssetContentManager = contentManager;
             RootEntity = new EditorEntity();
             RootEntity.LayerMask = 0b1000000000000000;
             RootEntity.Position = float3.Zero;
@@ -730,18 +739,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Material path must be provided.", nameof(path));
             }
 
-            if (!File.Exists(path)) {
-                throw new FileNotFoundException("Material file was not found.", path);
-            }
-
-            using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                Asset asset = AssetSerializer.Deserialize(stream);
-                if (asset is MaterialAsset materialAsset) {
-                    return materialAsset;
-                }
-            }
-
-            throw new InvalidOperationException("Selected asset is not a material asset.");
+            return AssetContentManager.Load<MaterialAsset>(path, EditorContentProcessorIds.MaterialAsset);
         }
 
         /// <summary>
@@ -1129,18 +1127,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Model path must be provided.", nameof(path));
             }
 
-            if (!File.Exists(path)) {
-                throw new FileNotFoundException("Model file was not found.", path);
-            }
-
-            using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                Asset asset = AssetSerializer.Deserialize(stream);
-                if (asset is ModelAsset modelAsset) {
-                    return modelAsset;
-                }
-            }
-
-            throw new InvalidOperationException("Selected asset is not a model asset.");
+            return AssetContentManager.Load<ModelAsset>(path, EditorContentProcessorIds.ModelAsset);
         }
 
 

@@ -11,19 +11,28 @@ namespace helengine.editor {
         /// Runtime shader target used to resolve shader package files.
         /// </summary>
         static ShaderCompileTarget RuntimeTarget = ShaderCompileTarget.DirectX11;
+        /// <summary>
+        /// Content manager used to load serialized shader packages.
+        /// </summary>
+        static ContentManager PackageContentManager;
 
         /// <summary>
         /// Initializes the shader package service with the active module manager.
         /// </summary>
         /// <param name="shaderModuleManager">Module manager used for on-demand compilation.</param>
         /// <param name="runtimeTarget">Runtime target used by the active renderer.</param>
-        public static void Initialize(ShaderModuleManager shaderModuleManager, ShaderCompileTarget runtimeTarget) {
+        /// <param name="contentManager">Content manager used to read compiled shader packages.</param>
+        public static void Initialize(ShaderModuleManager shaderModuleManager, ShaderCompileTarget runtimeTarget, ContentManager contentManager) {
             if (shaderModuleManager == null) {
                 throw new ArgumentNullException(nameof(shaderModuleManager));
+            }
+            if (contentManager == null) {
+                throw new ArgumentNullException(nameof(contentManager));
             }
 
             ModuleManager = shaderModuleManager;
             RuntimeTarget = runtimeTarget;
+            PackageContentManager = contentManager;
         }
 
         /// <summary>
@@ -65,18 +74,11 @@ namespace helengine.editor {
                 throw new ArgumentException("Shader package path must be provided.", nameof(packagePath));
             }
 
-            if (!File.Exists(packagePath)) {
-                throw new FileNotFoundException("Shader package was not found.", packagePath);
+            if (PackageContentManager == null) {
+                throw new InvalidOperationException("Shader package service has not been initialized.");
             }
 
-            using (FileStream stream = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                Asset asset = AssetSerializer.Deserialize(stream);
-                if (asset is ShaderAsset shaderAsset) {
-                    return shaderAsset;
-                }
-            }
-
-            throw new InvalidOperationException("Shader package did not contain a shader asset.");
+            return PackageContentManager.Load<ShaderAsset>(packagePath, EditorContentProcessorIds.ShaderAsset);
         }
     }
 }

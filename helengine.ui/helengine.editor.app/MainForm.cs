@@ -93,6 +93,8 @@ namespace helengine.editor.app {
         /// <param name="titleText">Initial window title text.</param>
         private void InitializeEditor(string titleText) {
             EditorCore core = new EditorCore(null);
+            string projectRootPath = ResolveProjectRootPath(projectPath);
+            string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
 
             string rendererBackend = Environment.GetEnvironmentVariable(RendererBackendEnvironmentVariable, EnvironmentVariableTarget.Process);
             bool useVulkan = false;
@@ -118,7 +120,9 @@ namespace helengine.editor.app {
                 renderer2D = directX11Renderer.Render2D;
             }
             InputManager inputManager = new InputManagerWindows(this.Handle);
-            CoreInitializationOptions initOptions = new CoreInitializationOptions();
+            CoreInitializationOptions initOptions = new CoreInitializationOptions {
+                ContentRootPath = projectAssetsRootPath
+            };
             core.Initialize(renderer3D, renderer2D, inputManager, initOptions);
 
             int renderWidth = Math.Max(1, ClientSize.Width);
@@ -126,7 +130,9 @@ namespace helengine.editor.app {
             renderer3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
             FontAsset uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
-            EditorViewportToolbarIconSet toolbarIcons = EditorToolbarIconLoader.LoadDefaultToolbarIcons();
+            ContentManager contentManager = core.ContentManager;
+            ConfigureApplicationContentManager(contentManager);
+            EditorViewportToolbarIconSet toolbarIcons = EditorToolbarIconLoader.LoadDefaultToolbarIcons(contentManager, AppContext.BaseDirectory);
             IReadOnlyList<IAssetImporterRegistration> importers = BuildImporters();
             editorSession = new EditorSession(
                 core,
@@ -222,6 +228,66 @@ namespace helengine.editor.app {
                 new TextImporterRegistration("text", new TextImporter(), textExtensions)
             };
             return registrations;
+        }
+
+        /// <summary>
+        /// Configures the core-owned editor content manager used to load built-in and project assets.
+        /// </summary>
+        /// <param name="contentManager">Shared content manager rooted at the project assets directory.</param>
+        void ConfigureApplicationContentManager(ContentManager contentManager) {
+            if (contentManager == null) {
+                throw new ArgumentNullException(nameof(contentManager));
+            }
+
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            string[] textureExtensions = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif" };
+            string[] textExtensions = new[] { ".txt" };
+            if (!contentManager.IsProcessorRegistered("gdi")) {
+                contentManager.RegisterProcessor("gdi", new TextureImporterContentProcessor(new GDITextureImporter()), textureExtensions);
+            }
+
+            if (!contentManager.IsProcessorRegistered("text")) {
+                contentManager.RegisterProcessor("text", new TextImporterContentProcessor(new TextImporter()), textExtensions);
+            }
+        }
+
+        /// <summary>
+        /// Resolves the absolute project root path from the configured project input.
+        /// </summary>
+        /// <param name="inputProjectPath">Project directory path or project file path.</param>
+        /// <returns>Absolute project root path.</returns>
+        string ResolveProjectRootPath(string inputProjectPath) {
+            if (string.IsNullOrWhiteSpace(inputProjectPath)) {
+                throw new InvalidOperationException("Project path must be provided.");
+            }
+
+            if (Directory.Exists(inputProjectPath)) {
+                return Path.GetFullPath(inputProjectPath);
+            }
+
+            if (File.Exists(inputProjectPath)) {
+                string directory = Path.GetDirectoryName(inputProjectPath);
+                if (string.IsNullOrWhiteSpace(directory)) {
+                    throw new InvalidOperationException("Project file path does not include a directory.");
+                }
+
+                return Path.GetFullPath(directory);
+            }
+
+            throw new DirectoryNotFoundException($"Project path '{inputProjectPath}' does not exist.");
+        }
+
+        /// <summary>
+        /// Resolves the absolute assets root path for the current project.
+        /// </summary>
+        /// <param name="inputProjectRootPath">Absolute project root path.</param>
+        /// <returns>Absolute assets root path.</returns>
+        string ResolveAssetsRootPath(string inputProjectRootPath) {
+            if (string.IsNullOrWhiteSpace(inputProjectRootPath)) {
+                throw new InvalidOperationException("Project root path is required to locate assets.");
+            }
+
+            return Path.GetFullPath(Path.Combine(inputProjectRootPath, "assets"));
         }
 
         /// <summary>

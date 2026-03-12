@@ -946,13 +946,9 @@ namespace helengine.directx11 {
                 throw new ArgumentException("Shader profile must be provided.", nameof(profile));
             }
 
-            using (CompilationResult result = ShaderBytecode.CompileFromFile(shaderPath, entryPoint, profile)) {
+            using (CompilationResult result = DirectX11ShaderSourceCompiler.CompileFromContent(shaderPath, entryPoint, profile)) {
                 if (result == null) {
                     throw new InvalidOperationException("Shader compilation produced no result.");
-                }
-
-                if (result.HasErrors) {
-                    throw new InvalidOperationException($"Shader compilation failed: {result.Message}");
                 }
 
                 if (result.Bytecode == null) {

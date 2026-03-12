@@ -120,7 +120,7 @@ namespace helengine.editor {
             }
 
             this.options = options;
-            loader = new ShaderPackageLoader(new ShaderModulePackageReader());
+            loader = new ShaderPackageLoader(new ShaderModulePackageReader(options.PackageOutputPath));
             loadedModules = new Dictionary<string, ShaderPackageHandle>(StringComparer.OrdinalIgnoreCase);
             pendingBuilds = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
             entriesBySourcePath = new Dictionary<string, ShaderSourceEntry>(StringComparer.OrdinalIgnoreCase);
@@ -296,7 +296,11 @@ namespace helengine.editor {
         /// </summary>
         void InitializePackageBuilder() {
             ShaderCompileService compileService = BuildCompileService();
-            packageBuilder = new ShaderPackageBuilder(compileService, new ShaderModulePackageWriter(), options.BuildOptions);
+            packageBuilder = new ShaderPackageBuilder(
+                compileService,
+                new ShaderModulePackageWriter(),
+                options.BuildOptions,
+                new ContentManager(options.ShaderRootPath));
         }
 
         /// <summary>

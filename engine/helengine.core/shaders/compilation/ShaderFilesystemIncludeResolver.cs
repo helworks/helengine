@@ -7,6 +7,10 @@ namespace helengine {
         /// Stores the root directory used to resolve absolute include paths.
         /// </summary>
         readonly string rootDirectory;
+        /// <summary>
+        /// Content manager used to read include source text.
+        /// </summary>
+        readonly ContentManager IncludeContentManager;
 
         /// <summary>
         /// Initializes a new filesystem include resolver.
@@ -22,6 +26,7 @@ namespace helengine {
             }
 
             this.rootDirectory = rootDirectory;
+            IncludeContentManager = new ContentManager(rootDirectory);
         }
 
         /// <summary>
@@ -40,8 +45,8 @@ namespace helengine {
             }
 
             string resolvedPath = ResolvePath(requestingFile, includePath);
-            string source = File.ReadAllText(resolvedPath);
-            return new ShaderIncludeResult(resolvedPath, source);
+            TextContent sourceContent = IncludeContentManager.Load<TextContent>(resolvedPath);
+            return new ShaderIncludeResult(resolvedPath, sourceContent.Text);
         }
 
         /// <summary>

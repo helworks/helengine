@@ -116,7 +116,14 @@ namespace helengine {
                 throw new FileNotFoundException("Shader source file does not exist.", path);
             }
 
-            string source = File.ReadAllText(path);
+            string directory = Path.GetDirectoryName(Path.GetFullPath(path));
+            if (string.IsNullOrWhiteSpace(directory)) {
+                throw new InvalidOperationException("Shader source directory could not be resolved.");
+            }
+
+            ContentManager contentManager = new ContentManager(directory);
+            TextContent sourceContent = contentManager.Load<TextContent>(path);
+            string source = sourceContent.Text;
             ShaderSourceInfo sourceInfo = new ShaderSourceInfo(path, source);
             ShaderCompileRequest request = new ShaderCompileRequest(
                 sourceInfo,

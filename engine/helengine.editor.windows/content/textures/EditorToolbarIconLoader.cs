@@ -4,56 +4,60 @@ namespace helengine.editor {
     /// </summary>
     public static class EditorToolbarIconLoader {
         /// <summary>
-        /// Output-relative directory that stores the toolbar icon PNGs.
+        /// Root-relative path for the translate toolbar icon.
         /// </summary>
-        static readonly string ToolbarIconDirectory = Path.Combine(AppContext.BaseDirectory, "content", "icons", "toolbar");
+        static readonly string TranslateIconPath = Path.Combine("content", "icons", "toolbar", "transform.png");
         /// <summary>
-        /// File path for the translate toolbar icon.
+        /// Root-relative path for the rotate toolbar icon.
         /// </summary>
-        static readonly string TranslateIconPath = Path.Combine(ToolbarIconDirectory, "transform.png");
+        static readonly string RotateIconPath = Path.Combine("content", "icons", "toolbar", "rotate.png");
         /// <summary>
-        /// File path for the rotate toolbar icon.
+        /// Root-relative path for the scale toolbar icon.
         /// </summary>
-        static readonly string RotateIconPath = Path.Combine(ToolbarIconDirectory, "rotate.png");
+        static readonly string ScaleIconPath = Path.Combine("content", "icons", "toolbar", "scale.png");
         /// <summary>
-        /// File path for the scale toolbar icon.
+        /// Root-relative path for the snap increase toolbar icon.
         /// </summary>
-        static readonly string ScaleIconPath = Path.Combine(ToolbarIconDirectory, "scale.png");
+        static readonly string SnapIncreaseIconPath = Path.Combine("content", "icons", "toolbar", "snap-increase.png");
         /// <summary>
-        /// File path for the snap increase toolbar icon.
+        /// Root-relative path for the snap decrease toolbar icon.
         /// </summary>
-        static readonly string SnapIncreaseIconPath = Path.Combine(ToolbarIconDirectory, "snap-increase.png");
+        static readonly string SnapDecreaseIconPath = Path.Combine("content", "icons", "toolbar", "snap-decrease.png");
         /// <summary>
-        /// File path for the snap decrease toolbar icon.
+        /// Root-relative path for the snap magnet toolbar label icon.
         /// </summary>
-        static readonly string SnapDecreaseIconPath = Path.Combine(ToolbarIconDirectory, "snap-decrease.png");
+        static readonly string MagnetIconPath = Path.Combine("content", "icons", "toolbar", "magnet.png");
         /// <summary>
-        /// File path for the snap magnet toolbar label icon.
+        /// Root-relative path for the control-key toolbar label icon.
         /// </summary>
-        static readonly string MagnetIconPath = Path.Combine(ToolbarIconDirectory, "magnet.png");
+        static readonly string CtrlKeyIconPath = Path.Combine("content", "icons", "toolbar", "key-ctrl.png");
         /// <summary>
-        /// File path for the control-key toolbar label icon.
+        /// Root-relative path for the shift-key toolbar label icon.
         /// </summary>
-        static readonly string CtrlKeyIconPath = Path.Combine(ToolbarIconDirectory, "key-ctrl.png");
-        /// <summary>
-        /// File path for the shift-key toolbar label icon.
-        /// </summary>
-        static readonly string ShiftKeyIconPath = Path.Combine(ToolbarIconDirectory, "key-shift.png");
+        static readonly string ShiftKeyIconPath = Path.Combine("content", "icons", "toolbar", "key-shift.png");
 
         /// <summary>
         /// Loads the default toolbar icon set used by the editor viewport.
         /// </summary>
+        /// <param name="content">Content manager used to resolve and parse the icon files.</param>
+        /// <param name="applicationRootPath">Absolute application root path used to resolve built-in editor content.</param>
         /// <returns>Runtime texture set that can be assigned to the viewport toolbar.</returns>
-        public static EditorViewportToolbarIconSet LoadDefaultToolbarIcons() {
-            GDITextureImporter importer = new GDITextureImporter();
-            RuntimeTexture translateIcon = LoadTexture(importer, TranslateIconPath);
-            RuntimeTexture rotateIcon = LoadTexture(importer, RotateIconPath);
-            RuntimeTexture scaleIcon = LoadTexture(importer, ScaleIconPath);
-            RuntimeTexture snapIncreaseIcon = LoadTexture(importer, SnapIncreaseIconPath);
-            RuntimeTexture snapDecreaseIcon = LoadTexture(importer, SnapDecreaseIconPath);
-            RuntimeTexture magnetIcon = LoadTexture(importer, MagnetIconPath);
-            RuntimeTexture ctrlKeyIcon = LoadTexture(importer, CtrlKeyIconPath);
-            RuntimeTexture shiftKeyIcon = LoadTexture(importer, ShiftKeyIconPath);
+        public static EditorViewportToolbarIconSet LoadDefaultToolbarIcons(ContentManager content, string applicationRootPath) {
+            if (content == null) {
+                throw new ArgumentNullException(nameof(content));
+            }
+            if (string.IsNullOrWhiteSpace(applicationRootPath)) {
+                throw new ArgumentException("Application root path must be provided.", nameof(applicationRootPath));
+            }
+
+            RuntimeTexture translateIcon = LoadTexture(content, applicationRootPath, TranslateIconPath);
+            RuntimeTexture rotateIcon = LoadTexture(content, applicationRootPath, RotateIconPath);
+            RuntimeTexture scaleIcon = LoadTexture(content, applicationRootPath, ScaleIconPath);
+            RuntimeTexture snapIncreaseIcon = LoadTexture(content, applicationRootPath, SnapIncreaseIconPath);
+            RuntimeTexture snapDecreaseIcon = LoadTexture(content, applicationRootPath, SnapDecreaseIconPath);
+            RuntimeTexture magnetIcon = LoadTexture(content, applicationRootPath, MagnetIconPath);
+            RuntimeTexture ctrlKeyIcon = LoadTexture(content, applicationRootPath, CtrlKeyIconPath);
+            RuntimeTexture shiftKeyIcon = LoadTexture(content, applicationRootPath, ShiftKeyIconPath);
             return new EditorViewportToolbarIconSet(
                 translateIcon,
                 rotateIcon,
@@ -68,23 +72,41 @@ namespace helengine.editor {
         /// <summary>
         /// Loads one PNG file from disk and uploads it into the active 2D renderer.
         /// </summary>
-        /// <param name="importer">Texture importer used to decode PNG data.</param>
-        /// <param name="filePath">Absolute file path to the PNG file.</param>
+        /// <param name="content">Content manager used to decode the PNG data.</param>
+        /// <param name="applicationRootPath">Absolute application root path used to resolve built-in editor content.</param>
+        /// <param name="filePath">Application-relative file path to the PNG file.</param>
         /// <returns>Renderer-owned runtime texture built from the decoded image.</returns>
-        static RuntimeTexture LoadTexture(GDITextureImporter importer, string filePath) {
-            if (importer == null) {
-                throw new ArgumentNullException(nameof(importer));
+        static RuntimeTexture LoadTexture(ContentManager content, string applicationRootPath, string filePath) {
+            if (content == null) {
+                throw new ArgumentNullException(nameof(content));
+            }
+            if (string.IsNullOrWhiteSpace(applicationRootPath)) {
+                throw new ArgumentException("Application root path must be provided.", nameof(applicationRootPath));
             }
             if (string.IsNullOrWhiteSpace(filePath)) {
                 throw new ArgumentException("Toolbar icon path must be provided.", nameof(filePath));
             }
-            if (!File.Exists(filePath)) {
-                throw new FileNotFoundException("Toolbar icon PNG was not found.", filePath);
+
+            string absoluteFilePath = ResolveApplicationContentPath(applicationRootPath, filePath);
+            TextureAsset textureAsset = content.Load<TextureAsset>(absoluteFilePath);
+            return Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+        }
+
+        /// <summary>
+        /// Resolves one built-in editor content path relative to the application root.
+        /// </summary>
+        /// <param name="applicationRootPath">Absolute application root path used to resolve built-in editor content.</param>
+        /// <param name="filePath">Application-relative file path.</param>
+        /// <returns>Absolute file path for the requested built-in content.</returns>
+        static string ResolveApplicationContentPath(string applicationRootPath, string filePath) {
+            if (string.IsNullOrWhiteSpace(applicationRootPath)) {
+                throw new ArgumentException("Application root path must be provided.", nameof(applicationRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(filePath)) {
+                throw new ArgumentException("Toolbar icon path must be provided.", nameof(filePath));
             }
 
-            using FileStream stream = File.OpenRead(filePath);
-            TextureAsset textureAsset = importer.ImportTexture(stream);
-            return Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+            return Path.GetFullPath(Path.Combine(applicationRootPath, filePath));
         }
     }
 }

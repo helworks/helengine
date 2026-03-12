@@ -4,6 +4,11 @@ namespace helengine {
     /// </summary>
     public class CoreInitializationOptions {
         /// <summary>
+        /// Gets or sets the root directory used by the core-owned content manager.
+        /// </summary>
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+
+        /// <summary>
         /// Gets or sets the number of update order layers available for convenience helpers.
         /// </summary>
         public byte UpdateOrderLayers { get; set; } = 4;
@@ -37,6 +42,10 @@ namespace helengine {
         /// Validates option values for initialization.
         /// </summary>
         public void Normalize() {
+            if (string.IsNullOrWhiteSpace(ContentRootPath)) {
+                throw new InvalidOperationException("ContentRootPath must be provided.");
+            }
+
             if (UpdateOrderLayers < 1) {
                 throw new InvalidOperationException("UpdateOrderLayers must be at least 1.");
             }

@@ -6,7 +6,7 @@ namespace helengine.editor {
         /// <summary>
         /// File extension for import settings sidecar files.
         /// </summary>
-        const string SettingsExtension = ".hasset";
+        internal const string SettingsExtension = ".hasset";
 
         /// <summary>
         /// Folder name used for imported asset outputs.
@@ -57,14 +57,22 @@ namespace helengine.editor {
         /// File hasher used to generate content checksums.
         /// </summary>
         readonly AssetFileHasher fileHasher;
+        /// <summary>
+        /// Content manager used to load source files, cached assets, and import settings.
+        /// </summary>
+        readonly ContentManager AssetContentManager;
 
         /// <summary>
         /// Initializes a new asset import manager for a project.
         /// </summary>
         /// <param name="projectRootPath">Absolute path to the project root.</param>
-        public AssetImportManager(string projectRootPath) {
+        /// <param name="contentManager">Core-owned content manager used to load project assets and settings.</param>
+        public AssetImportManager(string projectRootPath, ContentManager contentManager) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+            if (contentManager == null) {
+                throw new ArgumentNullException(nameof(contentManager));
             }
 
             this.projectRootPath = Path.GetFullPath(projectRootPath);
@@ -76,6 +84,8 @@ namespace helengine.editor {
             textImportersById = new Dictionary<string, ITextImporter>(StringComparer.OrdinalIgnoreCase);
             defaultTextImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             fileHasher = new AssetFileHasher();
+            AssetContentManager = contentManager;
+            EditorContentManagerConfiguration.ConfigureProjectContentManager(AssetContentManager);
 
             Directory.CreateDirectory(this.projectRootPath);
             Directory.CreateDirectory(assetsRootPath);
@@ -110,6 +120,7 @@ namespace helengine.editor {
             }
 
             textureImportersById.Add(registration.ImporterId, registration.Importer);
+            AssetContentManager.RegisterProcessor(registration.ImporterId, new TextureImporterContentProcessor(registration.Importer), registration.Extensions);
             IReadOnlyList<string> extensions = registration.Extensions;
             for (int i = 0; i < extensions.Count; i++) {
                 string extension = NormalizeExtension(extensions[i]);
@@ -141,6 +152,7 @@ namespace helengine.editor {
             }
 
             textImportersById.Add(registration.ImporterId, registration.Importer);
+            AssetContentManager.RegisterProcessor(registration.ImporterId, new TextImporterContentProcessor(registration.Importer), registration.Extensions);
             IReadOnlyList<string> extensions = registration.Extensions;
             for (int i = 0; i < extensions.Count; i++) {
                 string extension = NormalizeExtension(extensions[i]);
@@ -295,11 +307,8 @@ namespace helengine.editor {
             AssetImportSettings settings = LoadOrCreateImportSettings(sourcePath);
             EnsureImportSettingsValid(settings);
 
-            ITextureImporter importer = GetTextureImporter(settings.ImporterId);
-            TextureAsset asset;
-            using (FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                asset = importer.ImportTexture(stream);
-            }
+            EnsureTextureImporterExists(settings.ImporterId);
+            TextureAsset asset = AssetContentManager.Load<TextureAsset>(sourcePath, settings.ImporterId);
 
             if (asset == null) {
                 throw new InvalidOperationException($"Texture importer '{settings.ImporterId}' did not return an asset.");
@@ -334,11 +343,8 @@ namespace helengine.editor {
             AssetImportSettings settings = LoadOrCreateImportSettings(sourcePath);
             EnsureImportSettingsValid(settings);
 
-            ITextImporter importer = GetTextImporter(settings.ImporterId);
-            TextAsset asset;
-            using (FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                asset = importer.ImportText(stream);
-            }
+            EnsureTextImporterExists(settings.ImporterId);
+            TextAsset asset = AssetContentManager.Load<TextAsset>(sourcePath, settings.ImporterId);
 
             if (asset == null) {
                 throw new InvalidOperationException($"Text importer '{settings.ImporterId}' did not return an asset.");
@@ -482,15 +488,8 @@ namespace helengine.editor {
                 return true;
             }
 
-            using (FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                Asset loadedAsset = AssetSerializer.Deserialize(stream);
-                if (loadedAsset is TextureAsset textureAsset) {
-                    asset = textureAsset;
-                    return true;
-                }
-            }
-
-            throw new InvalidOperationException($"Cached asset was not a texture: {outputPath}");
+            asset = AssetContentManager.Load<TextureAsset>(outputPath, EditorContentProcessorIds.TextureAsset);
+            return true;
         }
 
         /// <summary>
@@ -525,15 +524,8 @@ namespace helengine.editor {
                 return true;
             }
 
-            using (FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                Asset loadedAsset = AssetSerializer.Deserialize(stream);
-                if (loadedAsset is TextAsset textAsset) {
-                    asset = textAsset;
-                    return true;
-                }
-            }
-
-            throw new InvalidOperationException($"Cached asset was not text: {outputPath}");
+            asset = AssetContentManager.Load<TextAsset>(outputPath, EditorContentProcessorIds.TextAsset);
+            return true;
         }
 
         /// <summary>
@@ -546,9 +538,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Settings path must be provided.", nameof(settingsPath));
             }
 
-            using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                return ProtoBuf.Serializer.Deserialize<AssetImportSettings>(stream);
-            }
+            return AssetContentManager.Load<AssetImportSettings>(settingsPath, EditorContentProcessorIds.AssetImportSettings);
         }
 
         /// <summary>

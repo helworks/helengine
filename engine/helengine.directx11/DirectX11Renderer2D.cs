@@ -386,7 +386,7 @@ namespace helengine.directx11 {
 
             spriteQuadBuffer = Buffer.Create(Device, BindFlags.VertexBuffer, vertices);
 
-            using (var spriteVs = ShaderBytecode.CompileFromFile("shaders\\SpriteShader.fx", "VS", "vs_4_0")) {
+            using (var spriteVs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\SpriteShader.fx", "VS", "vs_4_0")) {
                 spriteVertexShader = new VertexShader(Device, spriteVs);
                 spriteInputLayout = new InputLayout(Device, spriteVs, new[] {
                     new InputElement("POSITION", 0, Format.R32G32B32_Float, 0, 0),
@@ -394,11 +394,11 @@ namespace helengine.directx11 {
                 });
             }
 
-            using (var spritePs = ShaderBytecode.CompileFromFile("shaders\\SpriteShader.fx", "PS", "ps_4_0")) {
+            using (var spritePs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\SpriteShader.fx", "PS", "ps_4_0")) {
                 spritePixelShader = new PixelShader(Device, spritePs);
             }
 
-            using (var uiVs = ShaderBytecode.CompileFromFile("shaders\\UIShapeShader.fx", "VS", "vs_4_0")) {
+            using (var uiVs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\UIShapeShader.fx", "VS", "vs_4_0")) {
                 uiShapeVertexShader = new VertexShader(Device, uiVs);
                 uiShapeInputLayout = new InputLayout(Device, uiVs, new[] {
                     new InputElement("POSITION", 0, Format.R32G32B32_Float, 0, 0),
@@ -406,11 +406,11 @@ namespace helengine.directx11 {
                 });
             }
 
-            using (var uiPs = ShaderBytecode.CompileFromFile("shaders\\UIShapeShader.fx", "PS", "ps_4_0")) {
+            using (var uiPs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\UIShapeShader.fx", "PS", "ps_4_0")) {
                 uiShapePixelShader = new PixelShader(Device, uiPs);
             }
 
-            using (var colVs = ShaderBytecode.CompileFromFile("shaders\\BasicColorShader.fx", "VS", "vs_4_0")) {
+            using (var colVs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\BasicColorShader.fx", "VS", "vs_4_0")) {
                 basicColorVertexShader = new VertexShader(Device, colVs);
                 basicColorInputLayout = new InputLayout(Device, colVs, new[] {
                     new InputElement("POSITION", 0, Format.R32G32B32_Float, 0, 0),
@@ -418,7 +418,7 @@ namespace helengine.directx11 {
                 });
             }
 
-            using (var colPs = ShaderBytecode.CompileFromFile("shaders\\BasicColorShader.fx", "PS", "ps_4_0")) {
+            using (var colPs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\BasicColorShader.fx", "PS", "ps_4_0")) {
                 basicColorPixelShader = new PixelShader(Device, colPs);
             }
 
