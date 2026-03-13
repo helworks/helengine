@@ -18,6 +18,7 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.Equal("EditorTransformGizmoAxisLabel", shaderAsset.Id);
             Assert.Equal(ShaderTargetNames.GetTargetName(ShaderCompileTarget.DirectX11), shaderAsset.TargetName);
             Assert.Equal(2, shaderAsset.Binaries.Length);
+            AssertAxisLabelLayout(shaderAsset);
         }
 
         /// <summary>
@@ -30,6 +31,7 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.Equal("EditorTransformGizmoAxisLabel", shaderAsset.Id);
             Assert.Equal(ShaderTargetNames.GetTargetName(ShaderCompileTarget.Vulkan), shaderAsset.TargetName);
             Assert.Equal(2, shaderAsset.Binaries.Length);
+            AssertAxisLabelLayout(shaderAsset);
         }
 
         /// <summary>
@@ -50,6 +52,44 @@ namespace helengine.editor.tests.managers.gizmo {
             }
 
             return shaderAsset;
+        }
+
+        /// <summary>
+        /// Verifies that the compiled shader asset exposes the axis-label texture and sampler bindings to the material system.
+        /// </summary>
+        /// <param name="shaderAsset">Shader asset to validate.</param>
+        static void AssertAxisLabelLayout(ShaderAsset shaderAsset) {
+            if (shaderAsset == null) {
+                throw new ArgumentNullException(nameof(shaderAsset));
+            }
+
+            MaterialAsset materialAsset = CreateMaterialAsset(shaderAsset.Id);
+            MaterialLayout layout = MaterialLayoutBuilder.Build(materialAsset, shaderAsset);
+
+            Assert.Equal(0, layout.FindTextureBindingIndex("LabelTexture"));
+            Assert.Equal(0, layout.FindSamplerBindingIndex("LabelSampler"));
+            Assert.Single(layout.TextureBindings);
+            Assert.Single(layout.SamplerBindings);
+        }
+
+        /// <summary>
+        /// Creates the material asset shape used by the runtime axis-label material factory.
+        /// </summary>
+        /// <param name="shaderAssetId">Shader asset identifier selected by the material.</param>
+        /// <returns>Material asset configured for axis-label layout validation.</returns>
+        static MaterialAsset CreateMaterialAsset(string shaderAssetId) {
+            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
+                throw new ArgumentException("Shader asset id must be provided.", nameof(shaderAssetId));
+            }
+
+            return new MaterialAsset {
+                Id = "EditorTransformGizmoAxisLabel.material",
+                ShaderAssetId = shaderAssetId,
+                VertexProgram = "EditorTransformGizmoAxisLabel.vs",
+                PixelProgram = "EditorTransformGizmoAxisLabel.ps",
+                Variant = "default",
+                RenderState = new MaterialRenderState()
+            };
         }
     }
 }

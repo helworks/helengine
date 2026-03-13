@@ -8,21 +8,21 @@ namespace helengine.editor {
         /// </summary>
         const int ShaderBuildDelayMilliseconds = 250;
         /// <summary>
-        /// Built-in runtime shader name used for Vulkan starter-scene materials.
+        /// Built-in runtime shader file used for starter-scene materials.
         /// </summary>
-        const string DefaultRuntimeShaderName = "EditorDefaultMesh";
+        const string DefaultMeshShaderFileName = "EditorDefaultMesh.hlsl";
+        /// <summary>
+        /// Built-in runtime shader file used for transform-gizmo materials.
+        /// </summary>
+        const string TransformGizmoShaderFileName = "EditorTransformGizmo.hlsl";
+        /// <summary>
+        /// Built-in runtime shader file used for highlighted transform-gizmo materials.
+        /// </summary>
+        const string TransformGizmoHighlightShaderFileName = "EditorTransformGizmoHighlight.hlsl";
         /// <summary>
         /// Built-in runtime shader variant.
         /// </summary>
         const string DefaultRuntimeShaderVariant = "default";
-        /// <summary>
-        /// Built-in runtime shader vertex entry point.
-        /// </summary>
-        const string DefaultRuntimeVertexEntryPoint = "VS";
-        /// <summary>
-        /// Built-in runtime shader pixel entry point.
-        /// </summary>
-        const string DefaultRuntimePixelEntryPoint = "PS";
         /// <summary>
         /// Draw order used by the main scene camera.
         /// </summary>
@@ -31,195 +31,6 @@ namespace helengine.editor {
         /// Draw order used by the gizmo overlay camera.
         /// </summary>
         const byte GizmoCameraDrawOrder = 1;
-        /// <summary>
-        /// Built-in HLSL source used to generate Vulkan starter-scene materials.
-        /// </summary>
-        const string DefaultRuntimeShaderSource =
-            "cbuffer TransformBuffer : register(b0)\n" +
-            "{\n" +
-            "    float4x4 worldViewProj;\n" +
-            "};\n" +
-            "\n" +
-            "struct VS_IN\n" +
-            "{\n" +
-            "    float3 pos : POSITION;\n" +
-            "    float3 normal : NORMAL;\n" +
-            "    float2 texCoord : TEXCOORD0;\n" +
-            "};\n" +
-            "\n" +
-            "struct PS_IN\n" +
-            "{\n" +
-            "    float4 pos : SV_POSITION;\n" +
-            "    float3 normal : NORMAL;\n" +
-            "};\n" +
-            "\n" +
-            "PS_IN VS(VS_IN input)\n" +
-            "{\n" +
-            "    PS_IN output;\n" +
-            "    output.pos = mul(float4(input.pos, 1.0f), worldViewProj);\n" +
-            "    output.normal = input.normal;\n" +
-            "    return output;\n" +
-            "}\n" +
-            "\n" +
-            "float4 PS(PS_IN input) : SV_Target\n" +
-            "{\n" +
-            "    float3 displayNormal = normalize(input.normal) * 0.5 + 0.5;\n" +
-            "    return float4(displayNormal, 1.0);\n" +
-            "}\n";
-        /// <summary>
-        /// Built-in runtime shader name used for Vulkan transform-gizmo materials.
-        /// </summary>
-        const string TransformGizmoRuntimeShaderName = "EditorTransformGizmo";
-        /// <summary>
-        /// Built-in HLSL source used to generate Vulkan transform-gizmo materials.
-        /// </summary>
-        const string TransformGizmoRuntimeShaderSource =
-            "cbuffer TransformBuffer : register(b0)\n" +
-            "{\n" +
-            "    float4x4 worldViewProj;\n" +
-            "};\n" +
-            "\n" +
-            "struct VS_IN\n" +
-            "{\n" +
-            "    float3 pos : POSITION;\n" +
-            "    float3 normal : NORMAL;\n" +
-            "    float2 texCoord : TEXCOORD0;\n" +
-            "};\n" +
-            "\n" +
-            "struct PS_IN\n" +
-            "{\n" +
-            "    float4 pos : SV_POSITION;\n" +
-            "    float3 normal : NORMAL;\n" +
-            "    float2 marker : TEXCOORD0;\n" +
-            "};\n" +
-            "\n" +
-            "float3 DecodeHandleColor(float2 marker)\n" +
-            "{\n" +
-            "    if (marker.x > 0.85f && marker.y > 0.85f)\n" +
-            "    {\n" +
-            "        return float3(1.00f, 0.90f, 0.20f);\n" +
-            "    }\n" +
-            "\n" +
-            "    if (marker.x > 0.45f && marker.x < 0.55f && marker.y > 0.85f)\n" +
-            "    {\n" +
-            "        return float3(1.00f, 0.35f, 0.95f);\n" +
-            "    }\n" +
-            "\n" +
-            "    if (marker.x > 0.85f && marker.y > 0.45f && marker.y < 0.55f)\n" +
-            "    {\n" +
-            "        return float3(0.25f, 0.95f, 0.95f);\n" +
-            "    }\n" +
-            "\n" +
-            "    if (marker.y > 0.5f)\n" +
-            "    {\n" +
-            "        return float3(0.20f, 0.50f, 1.00f);\n" +
-            "    }\n" +
-            "\n" +
-            "    if (marker.x > 0.5f)\n" +
-            "    {\n" +
-            "        return float3(0.20f, 0.95f, 0.35f);\n" +
-            "    }\n" +
-            "\n" +
-            "    return float3(1.00f, 0.30f, 0.30f);\n" +
-            "}\n" +
-            "\n" +
-            "PS_IN VS(VS_IN input)\n" +
-            "{\n" +
-            "    PS_IN output;\n" +
-            "    output.pos = mul(float4(input.pos, 1.0f), worldViewProj);\n" +
-            "    output.normal = input.normal;\n" +
-            "    output.marker = input.texCoord;\n" +
-            "    return output;\n" +
-            "}\n" +
-            "\n" +
-            "float4 PS(PS_IN input) : SV_Target\n" +
-            "{\n" +
-            "    float3 normal = normalize(input.normal);\n" +
-            "    float3 lightDirection0 = normalize(float3(0.45f, 0.85f, -0.30f));\n" +
-            "    float3 lightDirection1 = normalize(float3(-0.60f, 0.55f, 0.65f));\n" +
-            "    float diffuse0 = saturate(dot(normal, lightDirection0));\n" +
-            "    float diffuse1 = saturate(dot(normal, lightDirection1));\n" +
-            "    float lighting = 0.22f + diffuse0 * 0.72f + diffuse1 * 0.28f;\n" +
-            "    float3 handleColor = DecodeHandleColor(input.marker);\n" +
-            "    return float4(handleColor * lighting, 1.0f);\n" +
-            "}\n";
-        /// <summary>
-        /// Built-in runtime shader name used for Vulkan transform-gizmo highlight materials.
-        /// </summary>
-        const string TransformGizmoHighlightRuntimeShaderName = "EditorTransformGizmoHighlight";
-        /// <summary>
-        /// Built-in HLSL source used to generate Vulkan transform-gizmo highlight materials.
-        /// </summary>
-        const string TransformGizmoHighlightRuntimeShaderSource =
-            "cbuffer TransformBuffer : register(b0)\n" +
-            "{\n" +
-            "    float4x4 worldViewProj;\n" +
-            "};\n" +
-            "\n" +
-            "struct VS_IN\n" +
-            "{\n" +
-            "    float3 pos : POSITION;\n" +
-            "    float3 normal : NORMAL;\n" +
-            "    float2 texCoord : TEXCOORD0;\n" +
-            "};\n" +
-            "\n" +
-            "struct PS_IN\n" +
-            "{\n" +
-            "    float4 pos : SV_POSITION;\n" +
-            "    float3 normal : NORMAL;\n" +
-            "    float2 marker : TEXCOORD0;\n" +
-            "};\n" +
-            "\n" +
-            "float3 DecodeHandleColor(float2 marker)\n" +
-            "{\n" +
-            "    if (marker.x > 0.85f && marker.y > 0.85f)\n" +
-            "    {\n" +
-            "        return float3(1.00f, 0.90f, 0.20f);\n" +
-            "    }\n" +
-            "\n" +
-            "    if (marker.x > 0.45f && marker.x < 0.55f && marker.y > 0.85f)\n" +
-            "    {\n" +
-            "        return float3(1.00f, 0.35f, 0.95f);\n" +
-            "    }\n" +
-            "\n" +
-            "    if (marker.x > 0.85f && marker.y > 0.45f && marker.y < 0.55f)\n" +
-            "    {\n" +
-            "        return float3(0.25f, 0.95f, 0.95f);\n" +
-            "    }\n" +
-            "\n" +
-            "    if (marker.y > 0.5f)\n" +
-            "    {\n" +
-            "        return float3(0.20f, 0.50f, 1.00f);\n" +
-            "    }\n" +
-            "\n" +
-            "    if (marker.x > 0.5f)\n" +
-            "    {\n" +
-            "        return float3(0.20f, 0.95f, 0.35f);\n" +
-            "    }\n" +
-            "\n" +
-            "    return float3(1.00f, 0.30f, 0.30f);\n" +
-            "}\n" +
-            "\n" +
-            "PS_IN VS(VS_IN input)\n" +
-            "{\n" +
-            "    PS_IN output;\n" +
-            "    output.pos = mul(float4(input.pos, 1.0f), worldViewProj);\n" +
-            "    output.normal = input.normal;\n" +
-            "    output.marker = input.texCoord;\n" +
-            "    return output;\n" +
-            "}\n" +
-            "\n" +
-            "float4 PS(PS_IN input) : SV_Target\n" +
-            "{\n" +
-            "    float3 normal = normalize(input.normal);\n" +
-            "    float3 lightDirection0 = normalize(float3(0.45f, 0.85f, -0.30f));\n" +
-            "    float3 lightDirection1 = normalize(float3(-0.60f, 0.55f, 0.65f));\n" +
-            "    float diffuse0 = saturate(dot(normal, lightDirection0));\n" +
-            "    float diffuse1 = saturate(dot(normal, lightDirection1));\n" +
-            "    float lighting = 0.22f + diffuse0 * 0.72f + diffuse1 * 0.28f;\n" +
-            "    float3 handleColor = DecodeHandleColor(input.marker);\n" +
-            "    return float4(1.0f, 1.0f, 1.0f, 1.0f);\n" +
-            "}\n";
         /// <summary>
         /// Editor core driving updates and rendering.
         /// </summary>
@@ -732,15 +543,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Runtime material instance.</returns>
         RuntimeMaterial BuildDefaultMeshMaterial() {
-            if (core.RenderManager3D is helengine.directx11.DirectX11Renderer3D) {
-                return BuildDirectX11DefaultMeshMaterial();
-            }
-
-            if (core.RenderManager3D is helengine.vulkan.VulkanRenderer3D) {
-                return BuildVulkanDefaultMeshMaterial();
-            }
-
-            throw new InvalidOperationException("Unsupported renderer backend for default mesh material creation.");
+            return BuildBuiltInRuntimeMaterial(DefaultMeshShaderFileName);
         }
 
         /// <summary>
@@ -748,15 +551,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Runtime material instance.</returns>
         RuntimeMaterial BuildTransformGizmoNormalMaterial() {
-            if (core.RenderManager3D is helengine.directx11.DirectX11Renderer3D) {
-                return BuildDirectX11TransformGizmoNormalMaterial();
-            }
-
-            if (core.RenderManager3D is helengine.vulkan.VulkanRenderer3D) {
-                return BuildVulkanTransformGizmoNormalMaterial();
-            }
-
-            throw new InvalidOperationException("Unsupported renderer backend for transform gizmo material creation.");
+            return BuildBuiltInRuntimeMaterial(TransformGizmoShaderFileName);
         }
 
         /// <summary>
@@ -764,64 +559,24 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Runtime material instance.</returns>
         RuntimeMaterial BuildTransformGizmoHighlightMaterial() {
-            if (core.RenderManager3D is helengine.directx11.DirectX11Renderer3D) {
-                return BuildDirectX11TransformGizmoHighlightMaterial();
-            }
-
-            if (core.RenderManager3D is helengine.vulkan.VulkanRenderer3D) {
-                return BuildVulkanTransformGizmoHighlightMaterial();
-            }
-
-            throw new InvalidOperationException("Unsupported renderer backend for transform gizmo highlight material creation.");
+            return BuildBuiltInRuntimeMaterial(TransformGizmoHighlightShaderFileName);
         }
 
         /// <summary>
-        /// Builds the starter-scene material for the DirectX11 renderer.
+        /// Builds a runtime material from one built-in editor shader source file.
         /// </summary>
+        /// <param name="shaderFileName">Built-in editor shader source file name.</param>
         /// <returns>Runtime material instance.</returns>
-        RuntimeMaterial BuildDirectX11DefaultMeshMaterial() {
-            return BuildDirectX11MaterialFromBuiltInShader("MiniCube.fx");
-        }
-
-        /// <summary>
-        /// Builds the default transform-gizmo material for the DirectX11 renderer.
-        /// </summary>
-        /// <returns>Runtime material instance.</returns>
-        RuntimeMaterial BuildDirectX11TransformGizmoNormalMaterial() {
-            return BuildDirectX11MaterialFromBuiltInShader("TransformGizmo.fx");
-        }
-
-        /// <summary>
-        /// Builds the highlighted transform-gizmo material for the DirectX11 renderer.
-        /// </summary>
-        /// <returns>Runtime material instance.</returns>
-        RuntimeMaterial BuildDirectX11TransformGizmoHighlightMaterial() {
-            return BuildDirectX11MaterialFromBuiltInShader("TransformGizmoHighlight.fx");
-        }
-
-        /// <summary>
-        /// Builds a DirectX11 runtime material from a built-in shader file.
-        /// </summary>
-        /// <param name="shaderFileName">Built-in shader file name.</param>
-        /// <returns>Runtime material instance.</returns>
-        RuntimeMaterial BuildDirectX11MaterialFromBuiltInShader(string shaderFileName) {
+        RuntimeMaterial BuildBuiltInRuntimeMaterial(string shaderFileName) {
             if (string.IsNullOrWhiteSpace(shaderFileName)) {
                 throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
             }
 
-            string shaderPath = ResolveBuiltInShaderPath(shaderFileName);
-            string shaderDirectory = Path.GetDirectoryName(shaderPath);
-            if (string.IsNullOrWhiteSpace(shaderDirectory)) {
-                throw new InvalidOperationException("Built-in shader directory could not be resolved.");
-            }
-
-            string shaderName = Path.GetFileNameWithoutExtension(shaderPath);
+            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(core.RenderManager3D, shaderFileName);
+            string shaderName = Path.GetFileNameWithoutExtension(shaderFileName);
             if (string.IsNullOrWhiteSpace(shaderName)) {
                 throw new InvalidOperationException("Built-in shader name could not be resolved.");
             }
-
-            var shaderBuilder = new helengine.directx11.DirectX11ShaderAssetBuilder(shaderDirectory, new ShaderModel(4, 0));
-            ShaderAsset shaderAsset = shaderBuilder.BuildFromFile(shaderPath, shaderName);
 
             if (string.IsNullOrWhiteSpace(shaderAsset.Id)) {
                 throw new InvalidOperationException("Shader asset id must be provided.");
@@ -836,264 +591,6 @@ namespace helengine.editor {
             };
 
             return core.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-        }
-
-        /// <summary>
-        /// Builds the starter-scene material for the Vulkan renderer.
-        /// </summary>
-        /// <returns>Runtime material instance.</returns>
-        RuntimeMaterial BuildVulkanDefaultMeshMaterial() {
-            ShaderAsset shaderAsset = BuildRuntimeShaderAsset(
-                ShaderCompileTarget.Vulkan,
-                DefaultRuntimeShaderName,
-                DefaultRuntimeShaderSource,
-                DefaultRuntimeVertexEntryPoint,
-                DefaultRuntimePixelEntryPoint);
-
-            string shaderName = DefaultRuntimeShaderName;
-            var materialAsset = new MaterialAsset {
-                Id = string.Concat(shaderName, ".material"),
-                ShaderAssetId = shaderAsset.Id,
-                VertexProgram = string.Concat(shaderName, ".vs"),
-                PixelProgram = string.Concat(shaderName, ".ps"),
-                Variant = DefaultRuntimeShaderVariant
-            };
-
-            return core.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-        }
-
-        /// <summary>
-        /// Builds the default transform-gizmo material for the Vulkan renderer.
-        /// </summary>
-        /// <returns>Runtime material instance.</returns>
-        RuntimeMaterial BuildVulkanTransformGizmoNormalMaterial() {
-            ShaderAsset shaderAsset = BuildRuntimeShaderAsset(
-                ShaderCompileTarget.Vulkan,
-                TransformGizmoRuntimeShaderName,
-                TransformGizmoRuntimeShaderSource,
-                DefaultRuntimeVertexEntryPoint,
-                DefaultRuntimePixelEntryPoint);
-
-            string shaderName = TransformGizmoRuntimeShaderName;
-            var materialAsset = new MaterialAsset {
-                Id = string.Concat(shaderName, ".material"),
-                ShaderAssetId = shaderAsset.Id,
-                VertexProgram = string.Concat(shaderName, ".vs"),
-                PixelProgram = string.Concat(shaderName, ".ps"),
-                Variant = DefaultRuntimeShaderVariant
-            };
-
-            return core.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-        }
-
-        /// <summary>
-        /// Builds the highlighted transform-gizmo material for the Vulkan renderer.
-        /// </summary>
-        /// <returns>Runtime material instance.</returns>
-        RuntimeMaterial BuildVulkanTransformGizmoHighlightMaterial() {
-            ShaderAsset shaderAsset = BuildRuntimeShaderAsset(
-                ShaderCompileTarget.Vulkan,
-                TransformGizmoHighlightRuntimeShaderName,
-                TransformGizmoHighlightRuntimeShaderSource,
-                DefaultRuntimeVertexEntryPoint,
-                DefaultRuntimePixelEntryPoint);
-
-            string shaderName = TransformGizmoHighlightRuntimeShaderName;
-            var materialAsset = new MaterialAsset {
-                Id = string.Concat(shaderName, ".material"),
-                ShaderAssetId = shaderAsset.Id,
-                VertexProgram = string.Concat(shaderName, ".vs"),
-                PixelProgram = string.Concat(shaderName, ".ps"),
-                Variant = DefaultRuntimeShaderVariant
-            };
-
-            return core.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-        }
-
-        /// <summary>
-        /// Builds a runtime shader asset for the specified target from in-memory HLSL source.
-        /// </summary>
-        /// <param name="target">Shader compile target.</param>
-        /// <param name="shaderName">Logical shader name.</param>
-        /// <param name="source">HLSL shader source.</param>
-        /// <param name="vertexEntryPoint">Vertex entry point.</param>
-        /// <param name="pixelEntryPoint">Pixel entry point.</param>
-        /// <returns>Compiled shader asset.</returns>
-        ShaderAsset BuildRuntimeShaderAsset(
-            ShaderCompileTarget target,
-            string shaderName,
-            string source,
-            string vertexEntryPoint,
-            string pixelEntryPoint) {
-            if (string.IsNullOrWhiteSpace(shaderName)) {
-                throw new ArgumentException("Shader name must be provided.", nameof(shaderName));
-            }
-
-            if (string.IsNullOrWhiteSpace(source)) {
-                throw new ArgumentException("Shader source must be provided.", nameof(source));
-            }
-
-            if (string.IsNullOrWhiteSpace(vertexEntryPoint)) {
-                throw new ArgumentException("Vertex entry point must be provided.", nameof(vertexEntryPoint));
-            }
-
-            if (string.IsNullOrWhiteSpace(pixelEntryPoint)) {
-                throw new ArgumentException("Pixel entry point must be provided.", nameof(pixelEntryPoint));
-            }
-
-            ShaderCompileService compileService = CreateRuntimeShaderCompileService(target);
-            string sourcePath = string.Concat(shaderName, ".hlsl");
-            ShaderSourceInfo sourceInfo = new ShaderSourceInfo(sourcePath, source);
-            ShaderCompileOptions compileOptions = new ShaderCompileOptions(
-                ShaderBindingPolicies.Default,
-                true,
-                false,
-                false);
-            ShaderDefine[] defines = Array.Empty<ShaderDefine>();
-
-            string vertexProgramName = string.Concat(shaderName, ".vs");
-            string pixelProgramName = string.Concat(shaderName, ".ps");
-
-            ShaderCompileResult vertexResult = CompileRuntimeShaderProgram(
-                compileService,
-                sourceInfo,
-                target,
-                ShaderStage.Vertex,
-                vertexProgramName,
-                vertexEntryPoint,
-                compileOptions,
-                defines);
-            ShaderCompileResult pixelResult = CompileRuntimeShaderProgram(
-                compileService,
-                sourceInfo,
-                target,
-                ShaderStage.Pixel,
-                pixelProgramName,
-                pixelEntryPoint,
-                compileOptions,
-                defines);
-
-            ValidateRuntimeCompileResult(vertexResult, "vertex");
-            ValidateRuntimeCompileResult(pixelResult, "pixel");
-
-            string targetName = ShaderTargetNames.GetTargetName(target);
-            ShaderProgramDefinition[] programs = new[] {
-                vertexResult.ProgramDefinition,
-                pixelResult.ProgramDefinition
-            };
-            ShaderProgramBinary[] binaries = new[] {
-                new ShaderProgramBinary(vertexProgramName, ShaderStage.Vertex, targetName, DefaultRuntimeShaderVariant, vertexResult.Binary.Bytecode),
-                new ShaderProgramBinary(pixelProgramName, ShaderStage.Pixel, targetName, DefaultRuntimeShaderVariant, pixelResult.Binary.Bytecode)
-            };
-            var moduleDefinition = new ShaderModuleDefinition(shaderName, programs, binaries);
-            ShaderAsset shaderAsset = ShaderAsset.FromDefinition(moduleDefinition, target);
-
-            if (string.IsNullOrWhiteSpace(shaderAsset.Id)) {
-                throw new InvalidOperationException("Runtime shader asset id must be provided.");
-            }
-
-            return shaderAsset;
-        }
-
-        /// <summary>
-        /// Creates a compile service configured for the specified runtime target.
-        /// </summary>
-        /// <param name="target">Runtime shader compile target.</param>
-        /// <returns>Configured compile service.</returns>
-        ShaderCompileService CreateRuntimeShaderCompileService(ShaderCompileTarget target) {
-            string rootPath = ResolveAssetsRootPath(ResolveProjectRootPath(projectPath));
-            var includeResolver = new ShaderFilesystemIncludeResolver(rootPath);
-            var cache = new ShaderMemoryCompileCache();
-            var hasher = new ShaderSourceHasher();
-            var compileService = new ShaderCompileService(includeResolver, cache, hasher);
-
-            switch (target) {
-                case ShaderCompileTarget.DirectX11:
-                    compileService.RegisterBackend(new helengine.directx11.DirectX11ShaderBackend());
-                    break;
-                case ShaderCompileTarget.Vulkan:
-                    compileService.RegisterBackend(new helengine.vulkan.VulkanShaderBackend());
-                    break;
-                default:
-                    throw new InvalidOperationException("Unsupported runtime shader target.");
-            }
-
-            return compileService;
-        }
-
-        /// <summary>
-        /// Compiles a runtime shader stage.
-        /// </summary>
-        /// <param name="compileService">Compile service used for compilation.</param>
-        /// <param name="sourceInfo">Shader source and source path.</param>
-        /// <param name="target">Shader compile target.</param>
-        /// <param name="stage">Shader stage to compile.</param>
-        /// <param name="programName">Program name for the compiled stage.</param>
-        /// <param name="entryPoint">Entry point for the compiled stage.</param>
-        /// <param name="compileOptions">Compile options.</param>
-        /// <param name="defines">Define set.</param>
-        /// <returns>Compile result for the stage.</returns>
-        ShaderCompileResult CompileRuntimeShaderProgram(
-            ShaderCompileService compileService,
-            ShaderSourceInfo sourceInfo,
-            ShaderCompileTarget target,
-            ShaderStage stage,
-            string programName,
-            string entryPoint,
-            ShaderCompileOptions compileOptions,
-            IReadOnlyList<ShaderDefine> defines) {
-            var request = new ShaderCompileRequest(
-                sourceInfo,
-                programName,
-                entryPoint,
-                stage,
-                target,
-                new ShaderModel(4, 0),
-                DefaultRuntimeShaderVariant,
-                defines,
-                compileOptions);
-            return compileService.Compile(request);
-        }
-
-        /// <summary>
-        /// Validates runtime compile results and throws on failure diagnostics.
-        /// </summary>
-        /// <param name="result">Compile result to validate.</param>
-        /// <param name="stageName">Display stage name for diagnostics.</param>
-        void ValidateRuntimeCompileResult(ShaderCompileResult result, string stageName) {
-            if (result == null) {
-                throw new ArgumentNullException(nameof(result));
-            }
-
-            if (result.Success) {
-                return;
-            }
-
-            string message = string.Concat("Runtime ", stageName, " shader compilation failed.");
-            if (result.Diagnostics.Count > 0 && !string.IsNullOrWhiteSpace(result.Diagnostics[0].Message)) {
-                message = result.Diagnostics[0].Message;
-            }
-
-            throw new InvalidOperationException(message);
-        }
-
-        /// <summary>
-        /// Resolves the absolute path to a built-in shader file.
-        /// </summary>
-        /// <param name="shaderFileName">Shader file name to resolve.</param>
-        /// <returns>Absolute shader path.</returns>
-        string ResolveBuiltInShaderPath(string shaderFileName) {
-            if (string.IsNullOrWhiteSpace(shaderFileName)) {
-                throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
-            }
-
-            string baseDirectory = AppContext.BaseDirectory;
-            if (string.IsNullOrWhiteSpace(baseDirectory)) {
-                throw new InvalidOperationException("Base directory could not be resolved.");
-            }
-
-            string shaderPath = Path.Combine(baseDirectory, "shaders", shaderFileName);
-            return Path.GetFullPath(shaderPath);
         }
 
         /// <summary>

@@ -111,7 +111,7 @@ namespace helengine.directx11 {
         /// <param name="request">Shader compilation request.</param>
         /// <returns>Program definition instance.</returns>
         ShaderProgramDefinition BuildProgramDefinition(ShaderCompileRequest request) {
-            ShaderBinding[] bindings = Array.Empty<ShaderBinding>();
+            ShaderBinding[] bindings = HlslShaderBindingParser.ParseBindings(request.Source.Source, request.Options.BindingPolicy);
             ShaderVertexElement[] inputs = Array.Empty<ShaderVertexElement>();
             ShaderVertexElement[] outputs = Array.Empty<ShaderVertexElement>();
             ShaderVariant[] variants = BuildVariants(request);

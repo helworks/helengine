@@ -259,7 +259,7 @@ namespace helengine.vulkan {
         /// <param name="request">Compile request that produced the bytecode.</param>
         /// <returns>Program definition with variant metadata.</returns>
         ShaderProgramDefinition BuildProgramDefinition(ShaderCompileRequest request) {
-            ShaderBinding[] bindings = Array.Empty<ShaderBinding>();
+            ShaderBinding[] bindings = HlslShaderBindingParser.ParseBindings(request.Source.Source, request.Options.BindingPolicy);
             ShaderVertexElement[] inputs = Array.Empty<ShaderVertexElement>();
             ShaderVertexElement[] outputs = Array.Empty<ShaderVertexElement>();
             ShaderVariant[] variants = BuildVariants(request);
