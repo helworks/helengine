@@ -115,5 +115,31 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.InRange(Math.Abs(minZ + 0.2f), 0f, FloatTolerance);
             Assert.InRange(Math.Abs(maxZ - 0.2f), 0f, FloatTolerance);
         }
+
+        /// <summary>
+        /// Ensures the centered plane generator produces a plane symmetrically around the local origin.
+        /// </summary>
+        [Fact]
+        public void CreateCenteredPlaneSquare_CentersPlaneAroundOrigin() {
+            ModelAsset model = TransformGizmoMeshFactory.CreateCenteredPlaneSquare(48f);
+
+            float minX = float.MaxValue;
+            float maxX = float.MinValue;
+            float minY = float.MaxValue;
+            float maxY = float.MinValue;
+            for (int positionIndex = 0; positionIndex < model.Positions.Length; positionIndex++) {
+                float3 position = model.Positions[positionIndex];
+                minX = Math.Min(minX, position.X);
+                maxX = Math.Max(maxX, position.X);
+                minY = Math.Min(minY, position.Y);
+                maxY = Math.Max(maxY, position.Y);
+            }
+
+            Assert.InRange(Math.Abs(minX + 24f), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs(maxX - 24f), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs(minY + 24f), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs(maxY - 24f), 0f, FloatTolerance);
+            Assert.Equal(12, model.Indices16.Length);
+        }
     }
 }

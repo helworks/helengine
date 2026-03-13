@@ -22,7 +22,7 @@ namespace helengine {
             get { return renderOrder3D; }
             set {
                 if (renderOrder3D != value) {
-                    if (Parent.Enabled) {
+                    if (Parent != null && Parent.Enabled) {
                         Core.Instance.ObjectManager.RemoveFromRender3D(this);
                         renderOrder3D = value;
                         Core.Instance.ObjectManager.RegisterForRender3D(this);

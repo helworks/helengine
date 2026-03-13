@@ -294,6 +294,65 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds a square plane mesh aligned to local XY and centered on the local origin.
+        /// </summary>
+        /// <param name="size">Side length in local units.</param>
+        /// <returns>Generated centered square plane model asset.</returns>
+        public static ModelAsset CreateCenteredPlaneSquare(float size) {
+            if (size <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(size), "Plane size must be greater than zero.");
+            }
+
+            float halfSize = size * 0.5f;
+            List<float3> positions = new List<float3>(8);
+            List<float3> normals = new List<float3>(8);
+            List<float2> texCoords = new List<float2>(8);
+            List<int> indices = new List<int>(12);
+
+            positions.Add(new float3(-halfSize, -halfSize, 0f));
+            positions.Add(new float3(halfSize, -halfSize, 0f));
+            positions.Add(new float3(halfSize, halfSize, 0f));
+            positions.Add(new float3(-halfSize, halfSize, 0f));
+            normals.Add(new float3(0f, 0f, 1f));
+            normals.Add(new float3(0f, 0f, 1f));
+            normals.Add(new float3(0f, 0f, 1f));
+            normals.Add(new float3(0f, 0f, 1f));
+            texCoords.Add(new float2(0f, 0f));
+            texCoords.Add(new float2(1f, 0f));
+            texCoords.Add(new float2(1f, 1f));
+            texCoords.Add(new float2(0f, 1f));
+
+            positions.Add(new float3(-halfSize, -halfSize, 0f));
+            positions.Add(new float3(-halfSize, halfSize, 0f));
+            positions.Add(new float3(halfSize, halfSize, 0f));
+            positions.Add(new float3(halfSize, -halfSize, 0f));
+            normals.Add(new float3(0f, 0f, -1f));
+            normals.Add(new float3(0f, 0f, -1f));
+            normals.Add(new float3(0f, 0f, -1f));
+            normals.Add(new float3(0f, 0f, -1f));
+            texCoords.Add(new float2(0f, 0f));
+            texCoords.Add(new float2(0f, 1f));
+            texCoords.Add(new float2(1f, 1f));
+            texCoords.Add(new float2(1f, 0f));
+
+            indices.Add(0);
+            indices.Add(1);
+            indices.Add(2);
+            indices.Add(0);
+            indices.Add(2);
+            indices.Add(3);
+
+            indices.Add(4);
+            indices.Add(5);
+            indices.Add(6);
+            indices.Add(4);
+            indices.Add(6);
+            indices.Add(7);
+
+            return CreateModelAsset(positions, normals, texCoords, indices);
+        }
+
+        /// <summary>
         /// Builds a hollow tube ring centered at the origin around the local Y axis.
         /// </summary>
         /// <param name="innerRadius">Inner radius of the ring hole.</param>

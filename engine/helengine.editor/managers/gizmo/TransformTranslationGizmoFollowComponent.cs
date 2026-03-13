@@ -49,6 +49,10 @@ namespace helengine.editor {
         /// </summary>
         readonly RuntimeMaterial HighlightAxisMaterial;
         /// <summary>
+        /// Reusable preview entity that visualizes active translation snapping.
+        /// </summary>
+        readonly EditorEntity SnapPreviewEntity;
+        /// <summary>
         /// Cached base local positions for direct gizmo-handle children.
         /// </summary>
         readonly Dictionary<Entity, float3> BaseHandlePositions;
@@ -68,15 +72,18 @@ namespace helengine.editor {
         /// <param name="gizmoRoot">Root entity for the translation gizmo.</param>
         /// <param name="normalAxisMaterial">Material used for non-hovered axis visuals.</param>
         /// <param name="highlightAxisMaterial">Material used for hovered axis visuals.</param>
+        /// <param name="snapPreviewEntity">Reusable grid-preview entity shown while snap modifiers are held.</param>
         public TransformTranslationGizmoFollowComponent(
             CameraComponent sceneCamera,
             EditorEntity gizmoRoot,
             RuntimeMaterial normalAxisMaterial,
-            RuntimeMaterial highlightAxisMaterial) {
+            RuntimeMaterial highlightAxisMaterial,
+            EditorEntity snapPreviewEntity) {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
             GizmoRoot = gizmoRoot ?? throw new ArgumentNullException(nameof(gizmoRoot));
             NormalAxisMaterial = normalAxisMaterial ?? throw new ArgumentNullException(nameof(normalAxisMaterial));
             HighlightAxisMaterial = highlightAxisMaterial ?? throw new ArgumentNullException(nameof(highlightAxisMaterial));
+            SnapPreviewEntity = snapPreviewEntity ?? throw new ArgumentNullException(nameof(snapPreviewEntity));
             BaseHandlePositions = new Dictionary<Entity, float3>();
             BaseHandleOrientations = new Dictionary<Entity, float4>();
             HandleBaseTransformsCached = false;
@@ -179,6 +186,7 @@ namespace helengine.editor {
             }
 
             UpdateAxisHighlightMaterials();
+            UpdateSnapPreview(selectedPosition, cameraEntity.Position);
         }
 
         /// <summary>
@@ -188,7 +196,7 @@ namespace helengine.editor {
         void SetAxisVisualState(bool enabled) {
             for (int axisIndex = 0; axisIndex < GizmoRoot.Children.Count; axisIndex++) {
                 Entity axis = GizmoRoot.Children[axisIndex];
-                if (axis == null) {
+                if (axis == null || !IsHandleEntity(axis)) {
                     continue;
                 }
 
@@ -206,6 +214,10 @@ namespace helengine.editor {
                     axisChild.Enabled = enabled;
                 }
             }
+
+            if (!enabled) {
+                SetSnapPreviewVisible(false);
+            }
         }
 
         /// <summary>
@@ -214,7 +226,7 @@ namespace helengine.editor {
         void UpdateAxisHighlightMaterials() {
             Entity hoveredAxis = EditorGizmoHoverService.HoveredHandleEntity;
             for (int axisIndex = 0; axisIndex < GizmoRoot.Children.Count; axisIndex++) {
-                if (GizmoRoot.Children[axisIndex] is not EditorEntity axisEntity) {
+                if (GizmoRoot.Children[axisIndex] is not EditorEntity axisEntity || !IsHandleEntity(axisEntity)) {
                     continue;
                 }
 
@@ -310,7 +322,7 @@ namespace helengine.editor {
         void UpdateAxisTipOffsets(float scale) {
             float axisOffset = TransformTranslationGizmoFactory.ShaftLength * scale;
             for (int axisIndex = 0; axisIndex < GizmoRoot.Children.Count; axisIndex++) {
-                if (GizmoRoot.Children[axisIndex] is not EditorEntity axisEntity) {
+                if (GizmoRoot.Children[axisIndex] is not EditorEntity axisEntity || !IsHandleEntity(axisEntity)) {
                     continue;
                 }
 
@@ -416,7 +428,7 @@ namespace helengine.editor {
             BaseHandleOrientations.Clear();
             for (int handleIndex = 0; handleIndex < GizmoRoot.Children.Count; handleIndex++) {
                 Entity handle = GizmoRoot.Children[handleIndex];
-                if (handle == null) {
+                if (handle == null || !IsHandleEntity(handle)) {
                     continue;
                 }
 
@@ -470,6 +482,109 @@ namespace helengine.editor {
             }
 
             return NormalizeDirection(handleComponent.LocalPrimaryDirection);
+        }
+
+        /// <summary>
+        /// Updates the reusable snap-preview entity from the active modifier keys and hovered translation handle.
+        /// </summary>
+        /// <param name="selectedPosition">World-space gizmo origin at the selected entity.</param>
+        /// <param name="cameraPosition">World-space camera position used for axis-plane orientation.</param>
+        void UpdateSnapPreview(float3 selectedPosition, float3 cameraPosition) {
+            InputManager input = Core.Instance.InputManager;
+            if (input == null) {
+                SetSnapPreviewVisible(false);
+                return;
+            }
+
+            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Translate);
+            if (activeSnapValue <= 0.0) {
+                SetSnapPreviewVisible(false);
+                return;
+            }
+
+            Entity hoveredHandle = EditorGizmoHoverService.HoveredHandleEntity;
+            if (hoveredHandle == null || !IsOwnedHandleEntity(hoveredHandle)) {
+                SetSnapPreviewVisible(false);
+                return;
+            }
+
+            float currentScale = CurrentScale;
+            if (currentScale <= 0f) {
+                SetSnapPreviewVisible(false);
+                return;
+            }
+
+            if (!TransformTranslationSnapPreviewResolver.TryResolvePreviewOrientation(
+                hoveredHandle,
+                selectedPosition,
+                cameraPosition,
+                out float4 previewOrientation)) {
+                SetSnapPreviewVisible(false);
+                return;
+            }
+
+            float desiredWorldGridScale = (float)activeSnapValue;
+            if (desiredWorldGridScale <= 0f) {
+                SetSnapPreviewVisible(false);
+                return;
+            }
+
+            float localGridScale = desiredWorldGridScale - currentScale;
+            SnapPreviewEntity.Position = float3.Zero;
+            SnapPreviewEntity.Orientation = previewOrientation;
+            SnapPreviewEntity.Scale = new float3(localGridScale, localGridScale, localGridScale);
+            SetSnapPreviewVisible(true);
+        }
+
+        /// <summary>
+        /// Enables or disables the reusable snap-preview entity.
+        /// </summary>
+        /// <param name="visible">True to render the preview grid; false to hide it.</param>
+        void SetSnapPreviewVisible(bool visible) {
+            if (SnapPreviewEntity == null) {
+                return;
+            }
+
+            SnapPreviewEntity.Enabled = visible;
+        }
+
+        /// <summary>
+        /// Determines whether the supplied entity belongs to this gizmo's direct-handle set.
+        /// </summary>
+        /// <param name="handleEntity">Entity to test.</param>
+        /// <returns>True when the entity is a direct translation handle owned by this gizmo.</returns>
+        bool IsOwnedHandleEntity(Entity handleEntity) {
+            if (handleEntity == null) {
+                throw new ArgumentNullException(nameof(handleEntity));
+            }
+
+            if (GizmoRoot.Children == null) {
+                return false;
+            }
+
+            for (int childIndex = 0; childIndex < GizmoRoot.Children.Count; childIndex++) {
+                Entity childEntity = GizmoRoot.Children[childIndex];
+                if (childEntity == null || !ReferenceEquals(childEntity, handleEntity)) {
+                    continue;
+                }
+
+                return IsHandleEntity(childEntity);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Determines whether the supplied entity is one of the translation gizmo's drag handles.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <returns>True when the entity exposes a transform-gizmo handle component; otherwise false.</returns>
+        bool IsHandleEntity(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            return TryFindTransformHandleComponent(entity, out TransformGizmoHandleComponent _);
         }
 
         /// <summary>

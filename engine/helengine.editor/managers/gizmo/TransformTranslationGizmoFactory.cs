@@ -60,6 +60,10 @@ namespace helengine.editor {
         /// </summary>
         static readonly float2 YzPlaneMarker = new float2(0.9f, 0.5f);
         /// <summary>
+        /// Render order used by the snap-preview grid so it renders after solid gizmo handles.
+        /// </summary>
+        const byte SnapPreviewRenderOrder3D = 1;
+        /// <summary>
         /// Creates a translation gizmo using the same material for normal and highlighted states.
         /// </summary>
         /// <param name="render3D">Renderer used to build runtime mesh resources.</param>
@@ -132,12 +136,16 @@ namespace helengine.editor {
             RuntimeModel xyPlaneModel = render3D.BuildModelFromRaw(xyPlaneAsset);
             RuntimeModel xzPlaneModel = render3D.BuildModelFromRaw(xzPlaneAsset);
             RuntimeModel yzPlaneModel = render3D.BuildModelFromRaw(yzPlaneAsset);
+            RuntimeModel snapPreviewModel = render3D.BuildModelFromRaw(TransformGizmoMeshFactory.CreateCenteredPlaneSquare(TransformGizmoGridPreviewMaterialFactory.PreviewCellSpan));
+            RuntimeMaterial snapPreviewMaterial = TransformGizmoGridPreviewMaterialFactory.Create(render3D);
+
+            EditorEntity snapPreviewEntity = CreateSnapPreviewEntity(snapPreviewModel, snapPreviewMaterial);
 
             EditorEntity gizmoRoot = new EditorEntity();
             gizmoRoot.Name = "Transform Translation Gizmo";
             gizmoRoot.InternalEntity = true;
             gizmoRoot.LayerMask = EditorLayerMasks.SceneGizmo;
-            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, gizmoMaterial, gizmoHighlightMaterial));
+            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, gizmoMaterial, gizmoHighlightMaterial, snapPreviewEntity));
 
             float4 xAxisOrientation = CreateXAxisOrientation();
             float4 yAxisOrientation = float4.Identity;
@@ -167,6 +175,7 @@ namespace helengine.editor {
                 new float3(0f, PlaneInset, PlaneInset),
                 yzPlaneModel,
                 gizmoMaterial);
+            gizmoRoot.AddChild(snapPreviewEntity);
 
             return gizmoRoot;
         }
@@ -304,6 +313,36 @@ namespace helengine.editor {
             planeEntity.AddComponent(planeMesh);
 
             gizmoRoot.AddChild(planeEntity);
+        }
+
+        /// <summary>
+        /// Creates the reusable grid-preview entity used to visualize active translation snapping.
+        /// </summary>
+        /// <param name="previewModel">Runtime plane mesh used by the preview.</param>
+        /// <param name="previewMaterial">Material used to render the procedural preview grid.</param>
+        /// <returns>Configured snap-preview entity.</returns>
+        static EditorEntity CreateSnapPreviewEntity(RuntimeModel previewModel, RuntimeMaterial previewMaterial) {
+            if (previewModel == null) {
+                throw new ArgumentNullException(nameof(previewModel));
+            }
+
+            if (previewMaterial == null) {
+                throw new ArgumentNullException(nameof(previewMaterial));
+            }
+
+            var previewEntity = new EditorEntity {
+                Name = "Transform Gizmo Snap Preview",
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.SceneGizmo,
+                Enabled = false
+            };
+            var previewMesh = new MeshComponent {
+                Model = previewModel,
+                Material = previewMaterial,
+                RenderOrder3D = SnapPreviewRenderOrder3D
+            };
+            previewEntity.AddComponent(previewMesh);
+            return previewEntity;
         }
 
         /// <summary>
