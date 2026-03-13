@@ -40,18 +40,20 @@ namespace helengine.editor.tests.managers.gizmo {
             CameraComponent sceneCamera = CreateSceneCamera();
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
+            RuntimeMaterial previewMaterial = new TestRuntimeMaterial();
 
-            EditorEntity gizmoRoot = TransformRotationGizmoFactory.Create(render3D, sceneCamera, normalMaterial, highlightMaterial);
+            EditorEntity gizmoRoot = TransformRotationGizmoFactory.Create(render3D, sceneCamera, normalMaterial, highlightMaterial, previewMaterial);
 
             Assert.Equal("Transform Rotation Gizmo", gizmoRoot.Name);
             Assert.True(gizmoRoot.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneGizmo, gizmoRoot.LayerMask);
-            Assert.Equal(3, gizmoRoot.Children.Count);
+            Assert.Equal(4, gizmoRoot.Children.Count);
             Assert.Equal(3, render3D.BuiltModelAssets.Count);
 
             AssertRingHandle((EditorEntity)gizmoRoot.Children[0], "Transform Rotation Gizmo X", new float3(1f, 0f, 0f), normalMaterial);
             AssertRingHandle((EditorEntity)gizmoRoot.Children[1], "Transform Rotation Gizmo Y", new float3(0f, 1f, 0f), normalMaterial);
             AssertRingHandle((EditorEntity)gizmoRoot.Children[2], "Transform Rotation Gizmo Z", new float3(0f, 0f, 1f), normalMaterial);
+            AssertSnapPreview((EditorEntity)gizmoRoot.Children[3], previewMaterial);
         }
 
         /// <summary>
@@ -67,11 +69,29 @@ namespace helengine.editor.tests.managers.gizmo {
                 render3D,
                 sceneCamera,
                 new TestRuntimeMaterial(),
+                new TestRuntimeMaterial(),
                 new TestRuntimeMaterial());
 
             AssertUniformMarker(render3D.BuiltModelAssets[0], new float2(0.1f, 0.1f));
             AssertUniformMarker(render3D.BuiltModelAssets[1], new float2(0.9f, 0.1f));
             AssertUniformMarker(render3D.BuiltModelAssets[2], new float2(0.1f, 0.9f));
+        }
+
+        /// <summary>
+        /// Validates the reusable rotation snap-preview entity created by the factory.
+        /// </summary>
+        /// <param name="previewEntity">Preview entity to inspect.</param>
+        /// <param name="expectedMaterial">Expected preview material assigned to the preview mesh.</param>
+        void AssertSnapPreview(EditorEntity previewEntity, RuntimeMaterial expectedMaterial) {
+            Assert.Equal("Transform Rotation Gizmo Snap Preview", previewEntity.Name);
+            Assert.True(previewEntity.InternalEntity);
+            Assert.Equal(EditorLayerMasks.SceneGizmo, previewEntity.LayerMask);
+            Assert.False(previewEntity.Enabled);
+
+            MeshComponent meshComponent = FindMeshComponent(previewEntity);
+            Assert.NotNull(meshComponent);
+            Assert.Same(expectedMaterial, meshComponent.Material);
+            Assert.Null(meshComponent.Model);
         }
 
         /// <summary>

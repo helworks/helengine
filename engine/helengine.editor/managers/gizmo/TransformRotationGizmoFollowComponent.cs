@@ -28,6 +28,10 @@ namespace helengine.editor {
         /// </summary>
         readonly CameraComponent SceneCamera;
         /// <summary>
+        /// Renderer used to build cached preview models for active snap values.
+        /// </summary>
+        readonly RenderManager3D Render3D;
+        /// <summary>
         /// Root entity that owns all rotation gizmo meshes.
         /// </summary>
         readonly EditorEntity GizmoRoot;
@@ -39,23 +43,43 @@ namespace helengine.editor {
         /// Material used when a ring is hovered.
         /// </summary>
         readonly RuntimeMaterial HighlightAxisMaterial;
+        /// <summary>
+        /// Reusable preview entity that visualizes active rotation snapping.
+        /// </summary>
+        readonly EditorEntity SnapPreviewEntity;
+        /// <summary>
+        /// Mesh component used by the reusable rotation snap-preview entity.
+        /// </summary>
+        readonly MeshComponent SnapPreviewMesh;
+        /// <summary>
+        /// Cached runtime preview models keyed by their encoded snap angle in degrees.
+        /// </summary>
+        readonly Dictionary<double, RuntimeModel> PreviewModelsBySnapDegrees;
 
         /// <summary>
         /// Initializes a new rotation gizmo follow component.
         /// </summary>
         /// <param name="sceneCamera">Scene camera that views the gizmo.</param>
+        /// <param name="render3D">Renderer used to build cached preview meshes.</param>
         /// <param name="gizmoRoot">Root entity for the rotation gizmo.</param>
         /// <param name="normalAxisMaterial">Material used for non-hovered axis visuals.</param>
         /// <param name="highlightAxisMaterial">Material used for hovered axis visuals.</param>
+        /// <param name="snapPreviewEntity">Reusable disc-preview entity shown while snap modifiers are held.</param>
         public TransformRotationGizmoFollowComponent(
             CameraComponent sceneCamera,
+            RenderManager3D render3D,
             EditorEntity gizmoRoot,
             RuntimeMaterial normalAxisMaterial,
-            RuntimeMaterial highlightAxisMaterial) {
+            RuntimeMaterial highlightAxisMaterial,
+            EditorEntity snapPreviewEntity) {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
+            Render3D = render3D ?? throw new ArgumentNullException(nameof(render3D));
             GizmoRoot = gizmoRoot ?? throw new ArgumentNullException(nameof(gizmoRoot));
             NormalAxisMaterial = normalAxisMaterial ?? throw new ArgumentNullException(nameof(normalAxisMaterial));
             HighlightAxisMaterial = highlightAxisMaterial ?? throw new ArgumentNullException(nameof(highlightAxisMaterial));
+            SnapPreviewEntity = snapPreviewEntity ?? throw new ArgumentNullException(nameof(snapPreviewEntity));
+            SnapPreviewMesh = FindMeshComponent(snapPreviewEntity) ?? throw new InvalidOperationException("Rotation snap-preview entity must include a mesh component.");
+            PreviewModelsBySnapDegrees = new Dictionary<double, RuntimeModel>();
         }
 
         /// <summary>
@@ -96,6 +120,7 @@ namespace helengine.editor {
             }
 
             UpdateAxisHighlightMaterials();
+            UpdateSnapPreview();
         }
 
         /// <summary>
@@ -105,11 +130,15 @@ namespace helengine.editor {
         void SetHandleVisualState(bool enabled) {
             for (int ringIndex = 0; ringIndex < GizmoRoot.Children.Count; ringIndex++) {
                 Entity ringEntity = GizmoRoot.Children[ringIndex];
-                if (ringEntity == null) {
+                if (ringEntity == null || !IsHandleEntity(ringEntity)) {
                     continue;
                 }
 
                 ringEntity.Enabled = enabled;
+            }
+
+            if (!enabled) {
+                SetSnapPreviewVisible(false);
             }
         }
 
@@ -119,7 +148,7 @@ namespace helengine.editor {
         void UpdateAxisHighlightMaterials() {
             Entity hoveredAxis = EditorGizmoHoverService.HoveredHandleEntity;
             for (int ringIndex = 0; ringIndex < GizmoRoot.Children.Count; ringIndex++) {
-                if (GizmoRoot.Children[ringIndex] is not EditorEntity ringEntity) {
+                if (GizmoRoot.Children[ringIndex] is not EditorEntity ringEntity || !IsHandleEntity(ringEntity)) {
                     continue;
                 }
 
@@ -235,6 +264,137 @@ namespace helengine.editor {
         /// <returns>True when the viewport tool mode is rotation.</returns>
         bool IsRotateToolActive() {
             return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Rotate;
+        }
+
+        /// <summary>
+        /// Updates the reusable snap-preview entity from the active modifier keys and hovered rotation ring.
+        /// </summary>
+        void UpdateSnapPreview() {
+            InputManager input = Core.Instance.InputManager;
+            if (input == null) {
+                SetSnapPreviewVisible(false);
+                return;
+            }
+
+            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Rotate);
+            if (activeSnapValue <= 0.0) {
+                SetSnapPreviewVisible(false);
+                return;
+            }
+
+            Entity hoveredHandle = EditorGizmoHoverService.HoveredHandleEntity;
+            if (hoveredHandle == null || !IsOwnedHandleEntity(hoveredHandle)) {
+                SetSnapPreviewVisible(false);
+                return;
+            }
+
+            if (!TransformRotationSnapPreviewResolver.TryResolvePreviewOrientation(hoveredHandle, out float4 previewOrientation)) {
+                SetSnapPreviewVisible(false);
+                return;
+            }
+
+            RuntimeModel previewModel = ResolvePreviewModel(activeSnapValue);
+            if (!ReferenceEquals(SnapPreviewMesh.Model, previewModel)) {
+                SnapPreviewMesh.Model = previewModel;
+            }
+
+            SnapPreviewEntity.Position = float3.Zero;
+            SnapPreviewEntity.Orientation = previewOrientation;
+            SnapPreviewEntity.Scale = float3.Zero;
+            SetSnapPreviewVisible(true);
+        }
+
+        /// <summary>
+        /// Resolves the cached runtime preview model for the supplied snap value, building it on first use.
+        /// </summary>
+        /// <param name="snapDegrees">Angular snap interval in degrees.</param>
+        /// <returns>Runtime preview model for the requested snap interval.</returns>
+        RuntimeModel ResolvePreviewModel(double snapDegrees) {
+            if (snapDegrees <= 0.0) {
+                throw new ArgumentOutOfRangeException(nameof(snapDegrees), "Snap value must be greater than zero.");
+            }
+
+            if (PreviewModelsBySnapDegrees.TryGetValue(snapDegrees, out RuntimeModel previewModel)) {
+                return previewModel;
+            }
+
+            previewModel = Render3D.BuildModelFromRaw(TransformRotationSnapPreviewModelFactory.Create(snapDegrees));
+            PreviewModelsBySnapDegrees[snapDegrees] = previewModel;
+            return previewModel;
+        }
+
+        /// <summary>
+        /// Enables or disables the reusable snap-preview entity.
+        /// </summary>
+        /// <param name="visible">True to render the preview disc; false to hide it.</param>
+        void SetSnapPreviewVisible(bool visible) {
+            SnapPreviewEntity.Enabled = visible;
+        }
+
+        /// <summary>
+        /// Determines whether the supplied entity belongs to this gizmo's direct-handle set.
+        /// </summary>
+        /// <param name="handleEntity">Entity to test.</param>
+        /// <returns>True when the entity is a direct rotation handle owned by this gizmo.</returns>
+        bool IsOwnedHandleEntity(Entity handleEntity) {
+            if (handleEntity == null) {
+                throw new ArgumentNullException(nameof(handleEntity));
+            }
+
+            if (GizmoRoot.Children == null) {
+                return false;
+            }
+
+            for (int childIndex = 0; childIndex < GizmoRoot.Children.Count; childIndex++) {
+                Entity childEntity = GizmoRoot.Children[childIndex];
+                if (childEntity == null || !ReferenceEquals(childEntity, handleEntity)) {
+                    continue;
+                }
+
+                return IsHandleEntity(childEntity);
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Determines whether the supplied entity is one of the rotation gizmo's drag handles.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <returns>True when the entity exposes a transform-gizmo handle component; otherwise false.</returns>
+        bool IsHandleEntity(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            return TryFindTransformHandleComponent(entity, out TransformGizmoHandleComponent _);
+        }
+
+        /// <summary>
+        /// Finds a transform-gizmo handle component on an entity.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <param name="handleComponent">Resolved handle component when present.</param>
+        /// <returns>True when the component is present; otherwise false.</returns>
+        bool TryFindTransformHandleComponent(Entity entity, out TransformGizmoHandleComponent handleComponent) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            if (entity.Components == null) {
+                handleComponent = null;
+                return false;
+            }
+
+            for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                if (entity.Components[componentIndex] is TransformGizmoHandleComponent transformHandle) {
+                    handleComponent = transformHandle;
+                    return true;
+                }
+            }
+
+            handleComponent = null;
+            return false;
         }
     }
 }

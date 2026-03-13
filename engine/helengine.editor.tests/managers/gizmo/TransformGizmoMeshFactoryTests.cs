@@ -141,5 +141,18 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.InRange(Math.Abs(maxY - 24f), 0f, FloatTolerance);
             Assert.Equal(12, model.Indices16.Length);
         }
+
+        /// <summary>
+        /// Ensures the uniform-UV centered plane overload writes the same texture coordinate to every vertex.
+        /// </summary>
+        [Fact]
+        public void CreateCenteredPlaneSquare_WithUniformTexCoord_WritesSameTexCoordToEveryVertex() {
+            ModelAsset model = TransformGizmoMeshFactory.CreateCenteredPlaneSquare(4f, new float2(15f, 2f));
+
+            for (int texCoordIndex = 0; texCoordIndex < model.TexCoords.Length; texCoordIndex++) {
+                Assert.InRange(Math.Abs(model.TexCoords[texCoordIndex].X - 15f), 0f, FloatTolerance);
+                Assert.InRange(Math.Abs(model.TexCoords[texCoordIndex].Y - 2f), 0f, FloatTolerance);
+            }
+        }
     }
 }

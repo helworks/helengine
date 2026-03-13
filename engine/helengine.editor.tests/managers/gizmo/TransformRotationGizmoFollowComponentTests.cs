@@ -5,9 +5,13 @@ using Xunit;
 
 namespace helengine.editor.tests.managers.gizmo {
     /// <summary>
-    /// Verifies rotation-gizmo follow visibility, scale, and highlight behavior.
+    /// Verifies rotation-gizmo follow visibility, scale, highlight behavior, and snap-preview state.
     /// </summary>
     public class TransformRotationGizmoFollowComponentTests : IDisposable {
+        /// <summary>
+        /// Tolerance used for floating-point comparisons.
+        /// </summary>
+        const float FloatTolerance = 0.001f;
         /// <summary>
         /// Camera created for the current test so static tool and drag state can be cleaned up.
         /// </summary>
@@ -31,20 +35,24 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         [Fact]
         public void Update_WhenRotateToolIsActive_ShowsAndHighlightsRotationRings() {
-            InitializeCore();
+            TestInputManager input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
             EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Rotate);
 
+            TestRenderManager3D render3D = new TestRenderManager3D();
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
-            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
+            EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, previewEntity);
             EditorEntity hoveredRing = (EditorEntity)gizmoRoot.Children[1];
-            gizmoRoot.AddComponent(new TransformRotationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial));
+            gizmoRoot.AddComponent(new TransformRotationGizmoFollowComponent(sceneCamera, render3D, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
             EditorEntity selectedEntity = new EditorEntity();
             selectedEntity.Position = new float3(3f, 4f, 5f);
             EditorSelectionService.SetSelectedEntity(selectedEntity);
             EditorGizmoHoverService.SetHoveredHandle(hoveredRing);
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -53,13 +61,14 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.Equal(gizmoRoot.Scale.X, gizmoRoot.Scale.Y);
             Assert.Equal(gizmoRoot.Scale.X, gizmoRoot.Scale.Z);
 
-            for (int childIndex = 0; childIndex < gizmoRoot.Children.Count; childIndex++) {
+            for (int childIndex = 0; childIndex < 3; childIndex++) {
                 Assert.True(gizmoRoot.Children[childIndex].Enabled);
             }
 
             Assert.Same(normalMaterial, FindMeshComponent(gizmoRoot.Children[0]).Material);
             Assert.Same(highlightMaterial, FindMeshComponent(gizmoRoot.Children[1]).Material);
             Assert.Same(normalMaterial, FindMeshComponent(gizmoRoot.Children[2]).Material);
+            Assert.False(previewEntity.Enabled);
         }
 
         /// <summary>
@@ -71,21 +80,26 @@ namespace helengine.editor.tests.managers.gizmo {
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
             EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
+            TestRenderManager3D render3D = new TestRenderManager3D();
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
-            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
-            for (int childIndex = 0; childIndex < gizmoRoot.Children.Count; childIndex++) {
+            EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, previewEntity);
+            for (int childIndex = 0; childIndex < 3; childIndex++) {
                 gizmoRoot.Children[childIndex].Enabled = true;
             }
-            gizmoRoot.AddComponent(new TransformRotationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, new TestRuntimeMaterial()));
+            previewEntity.Enabled = true;
+            gizmoRoot.AddComponent(new TransformRotationGizmoFollowComponent(sceneCamera, render3D, gizmoRoot, normalMaterial, new TestRuntimeMaterial(), previewEntity));
 
             EditorEntity selectedEntity = new EditorEntity();
             EditorSelectionService.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
 
-            for (int childIndex = 0; childIndex < gizmoRoot.Children.Count; childIndex++) {
+            for (int childIndex = 0; childIndex < 3; childIndex++) {
                 Assert.False(gizmoRoot.Children[childIndex].Enabled);
             }
+
+            Assert.False(previewEntity.Enabled);
         }
 
         /// <summary>
@@ -93,17 +107,21 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         [Fact]
         public void Update_WhileDragging_PreservesExistingScaleUntilDragEnds() {
-            InitializeCore();
+            TestInputManager input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
             EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Rotate);
 
+            TestRenderManager3D render3D = new TestRenderManager3D();
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
-            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
-            gizmoRoot.AddComponent(new TransformRotationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, new TestRuntimeMaterial()));
+            EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, previewEntity);
+            gizmoRoot.AddComponent(new TransformRotationGizmoFollowComponent(sceneCamera, render3D, gizmoRoot, normalMaterial, new TestRuntimeMaterial(), previewEntity));
 
             EditorEntity selectedEntity = new EditorEntity();
             selectedEntity.Position = new float3(0f, 0f, 0f);
             EditorSelectionService.SetSelectedEntity(selectedEntity);
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
 
             UpdateFollowComponent(gizmoRoot);
             float initialScale = gizmoRoot.Scale.X;
@@ -122,11 +140,82 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
-        /// Initializes a fresh core with an object manager for entity-based tests.
+        /// Ensures holding control shows the reusable rotation preview, aligns it to the hovered ring, and caches the built preview model.
         /// </summary>
-        void InitializeCore() {
+        [Fact]
+        public void Update_WhenControlSnapIsActive_ShowsPreviewAndBuildsOneCachedModel() {
+            TestInputManager input = InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Rotate);
+
+            TestRenderManager3D render3D = new TestRenderManager3D();
+            RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
+            RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
+            EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, previewEntity);
+            EditorEntity hoveredRing = (EditorEntity)gizmoRoot.Children[1];
+            gizmoRoot.AddComponent(new TransformRotationGizmoFollowComponent(sceneCamera, render3D, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
+
+            EditorSelectionService.SetSelectedEntity(new EditorEntity());
+            EditorGizmoHoverService.SetHoveredHandle(hoveredRing);
+            input.SetKeyboardState(new KeyboardState(Keys.LeftControl));
+            input.EarlyUpdate();
+
+            UpdateFollowComponent(gizmoRoot);
+            UpdateFollowComponent(gizmoRoot);
+
+            Assert.True(previewEntity.Enabled);
+            Assert.NotNull(FindMeshComponent(previewEntity).Model);
+            Assert.Single(render3D.BuiltModelAssets);
+
+            ModelAsset previewModelAsset = render3D.BuiltModelAssets[0];
+            double expectedSnapValue = TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1);
+            for (int texCoordIndex = 0; texCoordIndex < previewModelAsset.TexCoords.Length; texCoordIndex++) {
+                Assert.InRange(Math.Abs(previewModelAsset.TexCoords[texCoordIndex].X - (float)expectedSnapValue), 0f, FloatTolerance);
+            }
+
+            float3 previewNormal = float4.RotateVector(new float3(0f, 0f, 1f), previewEntity.Orientation);
+            Assert.InRange(Math.Abs(previewNormal.X - 0f), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs(previewNormal.Y - 1f), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs(previewNormal.Z - 0f), 0f, FloatTolerance);
+        }
+
+        /// <summary>
+        /// Ensures the rotation preview stays hidden when no snap modifier is active.
+        /// </summary>
+        [Fact]
+        public void Update_WhenNoSnapModifierIsActive_HidesPreview() {
+            TestInputManager input = InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Rotate);
+
+            TestRenderManager3D render3D = new TestRenderManager3D();
+            RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
+            RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
+            EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, previewEntity);
+            gizmoRoot.AddComponent(new TransformRotationGizmoFollowComponent(sceneCamera, render3D, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
+
+            EditorSelectionService.SetSelectedEntity(new EditorEntity());
+            EditorGizmoHoverService.SetHoveredHandle(gizmoRoot.Children[0]);
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+
+            UpdateFollowComponent(gizmoRoot);
+
+            Assert.False(previewEntity.Enabled);
+            Assert.Empty(render3D.BuiltModelAssets);
+        }
+
+        /// <summary>
+        /// Initializes a fresh core with a configurable input manager for entity-based tests.
+        /// </summary>
+        /// <returns>Input manager used by the current test.</returns>
+        TestInputManager InitializeCore() {
             Core core = new Core();
-            core.Initialize(null, null, null);
+            var input = new TestInputManager();
+            core.Initialize(null, null, input);
+            return input;
         }
 
         /// <summary>
@@ -148,11 +237,12 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
-        /// Creates a rotation gizmo root with three ring children for follow-component tests.
+        /// Creates a rotation gizmo root with three ring children and one preview child for follow-component tests.
         /// </summary>
         /// <param name="material">Material assigned to the ring meshes.</param>
+        /// <param name="previewEntity">Reusable preview entity attached as the final child.</param>
         /// <returns>Configured rotation gizmo root entity.</returns>
-        EditorEntity CreateGizmoRoot(RuntimeMaterial material) {
+        EditorEntity CreateGizmoRoot(RuntimeMaterial material, EditorEntity previewEntity) {
             EditorEntity gizmoRoot = new EditorEntity();
             gizmoRoot.InternalEntity = true;
             gizmoRoot.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -161,6 +251,7 @@ namespace helengine.editor.tests.managers.gizmo {
             gizmoRoot.AddChild(CreateRingEntity("Transform Rotation Gizmo X", CreateXAxisOrientation(), material));
             gizmoRoot.AddChild(CreateRingEntity("Transform Rotation Gizmo Y", float4.Identity, material));
             gizmoRoot.AddChild(CreateRingEntity("Transform Rotation Gizmo Z", CreateZAxisOrientation(), material));
+            gizmoRoot.AddChild(previewEntity);
             return gizmoRoot;
         }
 
@@ -186,6 +277,24 @@ namespace helengine.editor.tests.managers.gizmo {
             meshComponent.Material = material;
             ringEntity.AddComponent(meshComponent);
             return ringEntity;
+        }
+
+        /// <summary>
+        /// Creates the reusable preview entity attached to the rotation gizmo root.
+        /// </summary>
+        /// <param name="material">Material assigned to the preview mesh.</param>
+        /// <returns>Configured preview entity.</returns>
+        EditorEntity CreatePreviewEntity(RuntimeMaterial material) {
+            var previewEntity = new EditorEntity {
+                Name = "Transform Rotation Gizmo Snap Preview",
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.SceneGizmo,
+                Enabled = false
+            };
+            MeshComponent previewMesh = new MeshComponent();
+            previewMesh.Material = material;
+            previewEntity.AddComponent(previewMesh);
+            return previewEntity;
         }
 
         /// <summary>

@@ -441,7 +441,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Imports textures that are missing cache files or still use a legacy cache format.
+        /// Imports textures that are missing cache files.
         /// </summary>
         /// <returns>Paths to cached assets created during the scan.</returns>
         public List<string> ImportTexturesMissingCache() {
@@ -549,10 +549,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Attempts to load a cached texture asset and treats legacy non-HELE files as missing cache.
+        /// Attempts to load a cached texture asset.
         /// </summary>
         /// <param name="outputPath">Absolute path to the cached texture asset.</param>
-        /// <param name="asset">Loaded texture asset when the cache file is current.</param>
+        /// <param name="asset">Loaded texture asset when the cache file exists and contains the expected payload type.</param>
         /// <returns>True when the cached asset was loaded successfully.</returns>
         bool TryLoadCachedTextureAsset(string outputPath, out TextureAsset asset) {
             if (string.IsNullOrWhiteSpace(outputPath)) {
@@ -570,15 +570,14 @@ namespace helengine.editor {
                 return true;
             }
 
-            Logger.WriteWarning($"Texture cache file '{outputPath}' did not contain a TextureAsset payload. Reimporting texture.");
-            return false;
+            throw new InvalidOperationException($"Texture cache file '{outputPath}' did not contain a TextureAsset payload.");
         }
 
         /// <summary>
-        /// Attempts to load a cached text asset and treats legacy non-HELE files as missing cache.
+        /// Attempts to load a cached text asset.
         /// </summary>
         /// <param name="outputPath">Absolute path to the cached text asset.</param>
-        /// <param name="asset">Loaded text asset when the cache file is current.</param>
+        /// <param name="asset">Loaded text asset when the cache file exists and contains the expected payload type.</param>
         /// <returns>True when the cached asset was loaded successfully.</returns>
         bool TryLoadCachedTextAsset(string outputPath, out TextAsset asset) {
             if (string.IsNullOrWhiteSpace(outputPath)) {
@@ -596,17 +595,16 @@ namespace helengine.editor {
                 return true;
             }
 
-            Logger.WriteWarning($"Text cache file '{outputPath}' did not contain a TextAsset payload. Reimporting text asset.");
-            return false;
+            throw new InvalidOperationException($"Text cache file '{outputPath}' did not contain a TextAsset payload.");
         }
 
         /// <summary>
-        /// Attempts to load a cached serialized asset and treats legacy non-HELE files as invalid cache entries.
+        /// Attempts to load a cached serialized asset.
         /// </summary>
         /// <param name="outputPath">Absolute path to the cached asset file.</param>
-        /// <param name="assetTypeName">Logical asset type name used in warning output.</param>
-        /// <param name="asset">Loaded cached asset when the file uses the current HELE format.</param>
-        /// <returns>True when the cache file contained a current serialized asset.</returns>
+        /// <param name="assetTypeName">Logical asset type name expected inside the cache file.</param>
+        /// <param name="asset">Loaded cached asset when the file contains a serialized asset.</param>
+        /// <returns>True when the cache file contained a serialized asset.</returns>
         bool TryLoadCachedAsset(string outputPath, string assetTypeName, out Asset asset) {
             if (string.IsNullOrWhiteSpace(outputPath)) {
                 throw new ArgumentException("Output path must be provided.", nameof(outputPath));
@@ -614,12 +612,8 @@ namespace helengine.editor {
                 throw new ArgumentException("Asset type name must be provided.", nameof(assetTypeName));
             }
 
-            asset = null;
             using (FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                if (!AssetSerializer.TryDeserialize(stream, out asset)) {
-                    Logger.WriteWarning($"{assetTypeName} cache file '{outputPath}' is not in the current HELE format. Reimporting asset.");
-                    return false;
-                }
+                asset = AssetSerializer.Deserialize(stream);
             }
 
             return true;
@@ -629,7 +623,7 @@ namespace helengine.editor {
         /// Attempts to load import settings from a settings file.
         /// </summary>
         /// <param name="settingsPath">Absolute path to the settings file.</param>
-        /// <param name="settings">Deserialized import settings when the file uses the current format.</param>
+        /// <param name="settings">Deserialized import settings when the file exists.</param>
         /// <returns>True when the settings file was loaded successfully.</returns>
         bool TryLoadImportSettings(string settingsPath, out AssetImportSettings settings) {
             if (string.IsNullOrWhiteSpace(settingsPath)) {
@@ -642,10 +636,7 @@ namespace helengine.editor {
             }
 
             using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                if (!AssetImportSettingsBinarySerializer.TryDeserialize(stream, out settings)) {
-                    Logger.WriteWarning($"Import settings file '{settingsPath}' is not in the current HELE format. Regenerating defaults.");
-                    return false;
-                }
+                settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
             }
 
             return true;

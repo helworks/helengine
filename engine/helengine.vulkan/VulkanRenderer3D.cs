@@ -263,6 +263,10 @@ namespace helengine.vulkan {
                 pixelProgram.EntryPoint,
                 vertexBinary.Bytecode,
                 pixelBinary.Bytecode);
+            MaterialLayout layout = MaterialLayoutBuilder.Build(materialAsset, shaderAsset);
+            material.SetLayout(layout);
+            material.SetRenderState(materialAsset.RenderState);
+            material.ApplyConstantBufferDefaults(materialAsset.ConstantBuffers ?? Array.Empty<MaterialConstantBufferAsset>());
             material.TextureDescriptorSet = AllocateMaterialTextureDescriptorSet();
             RegisterMaterial(material);
             return material;
@@ -294,7 +298,9 @@ namespace helengine.vulkan {
 
                 ShaderBinaryAsset vertexBinary = GetShaderBinary(shaderAsset, material.VertexProgram, ShaderStage.Vertex, material.Variant);
                 ShaderBinaryAsset pixelBinary = GetShaderBinary(shaderAsset, material.PixelProgram, ShaderStage.Pixel, material.Variant);
+                MaterialLayout layout = BuildMaterialLayout(material, shaderAsset);
                 material.UpdateShaderBytecode(vertexBinary.Bytecode, pixelBinary.Bytecode);
+                material.SetLayout(layout);
             }
         }
 
@@ -390,8 +396,9 @@ namespace helengine.vulkan {
                 return;
             }
 
-            if (runtimeMaterial is not VulkanMaterialResource material) {
-                throw new InvalidOperationException("Drawable materials must use VulkanMaterialResource when rendering with Vulkan.");
+            RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
+            if (rootMaterial is not VulkanMaterialResource material) {
+                throw new InvalidOperationException("Drawable materials must resolve to VulkanMaterialResource through their parent chain.");
             }
 
             if (drawable.Model is not VulkanModelResource model) {
@@ -420,7 +427,7 @@ namespace helengine.vulkan {
             UpdateTransformBuffer(worldViewProjection, dynamicOffset);
 
             DescriptorSet descriptorSet = transformDescriptorSet;
-            DescriptorSet textureDescriptorSet = EnsureMaterialTextureDescriptorSet(material);
+            DescriptorSet textureDescriptorSet = EnsureMaterialTextureDescriptorSet(material, runtimeMaterial);
             DescriptorSet* descriptorSets = stackalloc DescriptorSet[] { descriptorSet, textureDescriptorSet };
             uint* dynamicOffsets = stackalloc uint[] { dynamicOffset };
             context.Api.CmdBindDescriptorSets(
@@ -892,18 +899,21 @@ namespace helengine.vulkan {
         /// <summary>
         /// Ensures the descriptor set bound for a material references the current texture.
         /// </summary>
-        /// <param name="material">Material whose texture binding should be resolved.</param>
+        /// <param name="material">Concrete Vulkan material that owns the descriptor set.</param>
+        /// <param name="runtimeMaterial">Resolved runtime material instance that provides texture values.</param>
         /// <returns>Descriptor set to bind for the material.</returns>
-        DescriptorSet EnsureMaterialTextureDescriptorSet(VulkanMaterialResource material) {
+        DescriptorSet EnsureMaterialTextureDescriptorSet(VulkanMaterialResource material, RuntimeMaterial runtimeMaterial) {
             if (material == null) {
                 throw new ArgumentNullException(nameof(material));
+            } else if (runtimeMaterial == null) {
+                throw new ArgumentNullException(nameof(runtimeMaterial));
             }
 
             if (material.TextureDescriptorSet.Handle == 0) {
                 material.TextureDescriptorSet = AllocateMaterialTextureDescriptorSet();
             }
 
-            RuntimeTexture runtimeTexture = material.Texture ?? TextureUtils.PixelTexture;
+            RuntimeTexture runtimeTexture = ResolveDescriptorTexture(runtimeMaterial);
             if (!materialBoundTextures.TryGetValue(material, out RuntimeTexture boundTexture) || !ReferenceEquals(boundTexture, runtimeTexture)) {
                 if (runtimeTexture is not VulkanTextureResource textureResource) {
                     throw new InvalidOperationException("3D material textures must use Vulkan texture resources.");
@@ -914,6 +924,21 @@ namespace helengine.vulkan {
             }
 
             return material.TextureDescriptorSet;
+        }
+
+        /// <summary>
+        /// Resolves the texture resource that should be written into the Vulkan material descriptor set.
+        /// </summary>
+        /// <param name="runtimeMaterial">Resolved runtime material instance that provides texture values.</param>
+        /// <returns>Texture resource to bind for the descriptor set.</returns>
+        RuntimeTexture ResolveDescriptorTexture(RuntimeMaterial runtimeMaterial) {
+            if (runtimeMaterial == null) {
+                throw new ArgumentNullException(nameof(runtimeMaterial));
+            } else if (runtimeMaterial.Layout.TextureBindings.Length == 0) {
+                return TextureUtils.PixelTexture;
+            }
+
+            return runtimeMaterial.ResolveTexture();
         }
 
         /// <summary>
@@ -953,6 +978,30 @@ namespace helengine.vulkan {
             };
 
             context.Api.UpdateDescriptorSets(context.Device, 2, descriptorWrites, 0, null);
+        }
+
+        /// <summary>
+        /// Rebuilds a material layout from a hot-reloaded shader asset while preserving the material's current render state.
+        /// </summary>
+        /// <param name="material">Runtime material whose layout is being rebuilt.</param>
+        /// <param name="shaderAsset">Updated shader metadata.</param>
+        /// <returns>Rebuilt material layout.</returns>
+        MaterialLayout BuildMaterialLayout(VulkanMaterialResource material, ShaderAsset shaderAsset) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            } else if (shaderAsset == null) {
+                throw new ArgumentNullException(nameof(shaderAsset));
+            }
+
+            var materialAsset = new MaterialAsset {
+                ShaderAssetId = material.ShaderAssetId,
+                VertexProgram = material.VertexProgram,
+                PixelProgram = material.PixelProgram,
+                Variant = material.Variant,
+                RenderState = material.RenderState
+            };
+
+            return MaterialLayoutBuilder.Build(materialAsset, shaderAsset);
         }
 
         /// <summary>

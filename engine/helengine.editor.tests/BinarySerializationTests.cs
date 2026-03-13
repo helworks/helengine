@@ -123,13 +123,34 @@ namespace helengine.editor.tests {
             MaterialAsset asset = CreateMaterialAsset();
 
             byte[] data = AssetSerializer.SerializeToBytes(asset);
+            EngineBinaryHeader header = ReadHeader(data);
             MaterialAsset deserialized = (MaterialAsset)AssetSerializer.DeserializeFromBytes(data);
 
+            Assert.Equal(EditorAssetBinarySerializer.CurrentVersion, header.Version);
             Assert.Equal(asset.Id, deserialized.Id);
             Assert.Equal(asset.ShaderAssetId, deserialized.ShaderAssetId);
             Assert.Equal(asset.VertexProgram, deserialized.VertexProgram);
             Assert.Equal(asset.PixelProgram, deserialized.PixelProgram);
             Assert.Equal(asset.Variant, deserialized.Variant);
+            Assert.Equal(asset.RenderState.BlendMode, deserialized.RenderState.BlendMode);
+            Assert.Equal(asset.RenderState.CullMode, deserialized.RenderState.CullMode);
+            Assert.Equal(asset.RenderState.DepthTestEnabled, deserialized.RenderState.DepthTestEnabled);
+            Assert.Equal(asset.RenderState.DepthWriteEnabled, deserialized.RenderState.DepthWriteEnabled);
+            Assert.Equal(asset.ConstantBuffers.Length, deserialized.ConstantBuffers.Length);
+            Assert.Equal(asset.ConstantBuffers[0].Name, deserialized.ConstantBuffers[0].Name);
+            Assert.Equal(asset.ConstantBuffers[0].Data, deserialized.ConstantBuffers[0].Data);
+        }
+
+        /// <summary>
+        /// Ensures material assets serialized with an unsupported editor asset version are rejected.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_MaterialAssetWithUnsupportedVersion_Throws() {
+            MaterialAsset asset = CreateMaterialAsset();
+            byte[] data = AssetSerializer.SerializeToBytes(asset);
+            data[5] = 2;
+
+            Assert.Throws<InvalidOperationException>(() => AssetSerializer.DeserializeFromBytes(data));
         }
 
         /// <summary>
@@ -179,16 +200,13 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures legacy non-HELE asset payloads are rejected without throwing by the non-throwing asset parser.
+        /// Ensures invalid asset payload headers are rejected.
         /// </summary>
         [Fact]
-        public void AssetSerializer_TryDeserialize_WithLegacyPayload_ReturnsFalse() {
-            using MemoryStream stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("legacy-asset"));
+        public void AssetSerializer_Deserialize_WithInvalidHeader_Throws() {
+            byte[] data = System.Text.Encoding.UTF8.GetBytes("legacy-asset");
 
-            bool deserialized = AssetSerializer.TryDeserialize(stream, out Asset asset);
-
-            Assert.False(deserialized);
-            Assert.Null(asset);
+            Assert.Throws<InvalidOperationException>(() => AssetSerializer.DeserializeFromBytes(data));
         }
 
         /// <summary>
@@ -215,16 +233,13 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures legacy non-HELE import-settings payloads are rejected without throwing by the non-throwing parser.
+        /// Ensures invalid import-settings payload headers are rejected.
         /// </summary>
         [Fact]
-        public void AssetImportSettingsBinarySerializer_TryDeserialize_WithLegacyPayload_ReturnsFalse() {
+        public void AssetImportSettingsBinarySerializer_Deserialize_WithInvalidHeader_Throws() {
             using MemoryStream stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("legacy-settings"));
 
-            bool deserialized = AssetImportSettingsBinarySerializer.TryDeserialize(stream, out AssetImportSettings settings);
-
-            Assert.False(deserialized);
-            Assert.Null(settings);
+            Assert.Throws<InvalidOperationException>(() => AssetImportSettingsBinarySerializer.Deserialize(stream));
         }
 
         /// <summary>
@@ -293,19 +308,16 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures legacy non-HELE shader metadata files are ignored and deleted so the cache can rebuild cleanly.
+        /// Ensures invalid shader metadata files are rejected.
         /// </summary>
         [Fact]
-        public void ShaderCacheMetadataStore_TryLoad_WithLegacyMetadata_DeletesFileAndReturnsFalse() {
+        public void ShaderCacheMetadataStore_TryLoad_WithInvalidMetadata_Throws() {
             ShaderCacheMetadataStore store = new ShaderCacheMetadataStore(TempRootPath, ShaderCompileTarget.DirectX11);
             string metadataPath = ShaderPackagePaths.GetMetadataPath(TempRootPath, "legacyShader", ShaderCompileTarget.DirectX11);
             File.WriteAllText(metadataPath, "legacy-metadata");
 
-            bool loaded = store.TryLoad("legacyShader", out ShaderCacheMetadata metadata);
-
-            Assert.False(loaded);
-            Assert.Null(metadata);
-            Assert.False(File.Exists(metadataPath));
+            Assert.Throws<InvalidOperationException>(() => store.TryLoad("legacyShader", out _));
+            Assert.True(File.Exists(metadataPath));
         }
 
         /// <summary>
@@ -357,7 +369,19 @@ namespace helengine.editor.tests {
                 ShaderAssetId = "shader/test",
                 VertexProgram = "ProgramMain",
                 PixelProgram = "ProgramPixel",
-                Variant = "Default"
+                Variant = "Default",
+                RenderState = new MaterialRenderState {
+                    BlendMode = MaterialBlendMode.AlphaBlend,
+                    CullMode = MaterialCullMode.None,
+                    DepthTestEnabled = true,
+                    DepthWriteEnabled = false
+                },
+                ConstantBuffers = new[] {
+                    new MaterialConstantBufferAsset {
+                        Name = "MaterialParams",
+                        Data = new byte[] { 9, 8, 7, 6 }
+                    }
+                }
             };
         }
 

@@ -1,46 +1,38 @@
 namespace helengine.editor {
     /// <summary>
-    /// Builds the procedural material used to render world-space transform-gizmo snap previews.
+    /// Builds the procedural material used to render rotation snap-preview discs.
     /// </summary>
-    public static class TransformGizmoGridPreviewMaterialFactory {
+    public static class TransformGizmoRotationPreviewMaterialFactory {
         /// <summary>
-        /// Logical width of the preview plane expressed in grid-cell units.
+        /// Shader asset identifier used by the rotation-preview material.
         /// </summary>
-        public const float PreviewCellSpan = 48f;
+        const string ShaderAssetId = "EditorTransformGizmoRotationPreview";
         /// <summary>
-        /// Half-width of the preview plane expressed in grid-cell units.
+        /// Material asset identifier used by the rotation-preview material.
         /// </summary>
-        const double PreviewHalfCellSpan = PreviewCellSpan * 0.5;
+        const string MaterialAssetId = "EditorTransformGizmoRotationPreview.material";
         /// <summary>
-        /// Shader asset identifier used by the grid-preview material.
+        /// Vertex program name used by the runtime preview shader.
         /// </summary>
-        const string ShaderAssetId = "EditorTransformGizmoGridPreview";
+        const string VertexProgramName = "EditorTransformGizmoRotationPreview.vs";
         /// <summary>
-        /// Material asset identifier used by the grid-preview material.
+        /// Pixel program name used by the runtime preview shader.
         /// </summary>
-        const string MaterialAssetId = "EditorTransformGizmoGridPreview.material";
+        const string PixelProgramName = "EditorTransformGizmoRotationPreview.ps";
         /// <summary>
-        /// Vertex program name used by the grid-preview material.
-        /// </summary>
-        const string VertexProgramName = "EditorTransformGizmoGridPreview.vs";
-        /// <summary>
-        /// Pixel program name used by the grid-preview material.
-        /// </summary>
-        const string PixelProgramName = "EditorTransformGizmoGridPreview.ps";
-        /// <summary>
-        /// Variant name used for the runtime grid-preview shader.
+        /// Variant name used for the runtime preview shader.
         /// </summary>
         const string VariantName = "default";
         /// <summary>
         /// Logical source path used for shader diagnostics.
         /// </summary>
-        const string SourcePath = "EditorTransformGizmoGridPreview.hlsl";
+        const string SourcePath = "EditorTransformGizmoRotationPreview.hlsl";
 
         /// <summary>
-        /// Builds the runtime material used by transform-gizmo snap previews.
+        /// Builds the runtime material used by rotation snap previews.
         /// </summary>
         /// <param name="render3D">Renderer that will own the runtime material.</param>
-        /// <returns>Runtime material configured for procedural grid previews.</returns>
+        /// <returns>Runtime material configured for procedural rotation previews.</returns>
         public static RuntimeMaterial Create(RenderManager3D render3D) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
@@ -66,7 +58,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the runtime shader asset required by the grid-preview material.
+        /// Builds the runtime shader asset required by the rotation-preview material.
         /// </summary>
         /// <param name="target">Renderer backend target that will consume the shader.</param>
         /// <returns>Compiled shader asset for the selected backend.</returns>
@@ -120,18 +112,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the Vulkan shader asset required by the grid-preview material.
+        /// Builds the Vulkan shader asset required by the rotation-preview material.
         /// </summary>
         /// <returns>Compiled Vulkan shader asset.</returns>
         static ShaderAsset BuildVulkanShaderAsset() {
             byte[] vertexBytecode = helengine.vulkan.VulkanShaderCompiler.CompileGlslToSpirv(
                 GetVulkanVertexShaderSource(),
                 Silk.NET.Shaderc.ShaderKind.VertexShader,
-                "EditorTransformGizmoGridPreview.vert");
+                "EditorTransformGizmoRotationPreview.vert");
             byte[] pixelBytecode = helengine.vulkan.VulkanShaderCompiler.CompileGlslToSpirv(
                 GetVulkanFragmentShaderSource(),
                 Silk.NET.Shaderc.ShaderKind.FragmentShader,
-                "EditorTransformGizmoGridPreview.frag");
+                "EditorTransformGizmoRotationPreview.frag");
 
             string targetName = ShaderTargetNames.GetTargetName(ShaderCompileTarget.Vulkan);
             ShaderVariant[] variants = new[] { new ShaderVariant(VariantName, Array.Empty<string>()) };
@@ -215,7 +207,7 @@ namespace helengine.editor {
                     compileService.RegisterBackend(new helengine.vulkan.VulkanShaderBackend());
                     return compileService;
                 default:
-                    throw new InvalidOperationException("Unsupported renderer backend for transform-gizmo grid previews.");
+                    throw new InvalidOperationException("Unsupported renderer backend for transform-gizmo rotation previews.");
             }
         }
 
@@ -237,7 +229,7 @@ namespace helengine.editor {
                 return ShaderCompileTarget.Vulkan;
             }
 
-            throw new InvalidOperationException("Unsupported renderer backend for transform-gizmo grid previews.");
+            throw new InvalidOperationException("Unsupported renderer backend for transform-gizmo rotation previews.");
         }
 
         /// <summary>
@@ -254,7 +246,7 @@ namespace helengine.editor {
                 return;
             }
 
-            string message = string.Concat("Transform gizmo grid-preview ", stageName, " shader compilation failed.");
+            string message = string.Concat("Transform gizmo rotation-preview ", stageName, " shader compilation failed.");
             if (result.Diagnostics.Count > 0 && !string.IsNullOrWhiteSpace(result.Diagnostics[0].Message)) {
                 message = result.Diagnostics[0].Message;
             }
@@ -263,11 +255,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the DirectX11 HLSL source used to render the procedural grid preview.
+        /// Builds the DirectX11 HLSL source used to render the procedural rotation preview.
         /// </summary>
-        /// <returns>HLSL shader source for the grid preview material.</returns>
+        /// <returns>HLSL shader source for the rotation preview material.</returns>
         static string GetDirectX11ShaderSource() {
-            string halfExtentText = PreviewHalfCellSpan.ToString("0.0############", System.Globalization.CultureInfo.InvariantCulture);
+            string previewRadiusText = TransformRotationSnapPreviewModelFactory.PreviewRadius.ToString("0.0############", System.Globalization.CultureInfo.InvariantCulture);
             return
                 "cbuffer TransformBuffer : register(b0)\n" +
                 "{\n" +
@@ -285,12 +277,11 @@ namespace helengine.editor {
                 "{\n" +
                 "    float4 pos : SV_POSITION;\n" +
                 "    float2 localPos : TEXCOORD0;\n" +
+                "    float snapDegrees : TEXCOORD1;\n" +
                 "};\n" +
                 "\n" +
-                "float ComputeLine(float value)\n" +
+                "float ComputeLine(float distanceToLine, float lineWidth)\n" +
                 "{\n" +
-                "    float distanceToLine = abs(frac(value + 0.5f) - 0.5f);\n" +
-                "    float lineWidth = 0.06f;\n" +
                 "    return saturate((lineWidth - distanceToLine) / lineWidth);\n" +
                 "}\n" +
                 "\n" +
@@ -299,33 +290,40 @@ namespace helengine.editor {
                 "    PS_IN output;\n" +
                 "    output.pos = mul(float4(input.pos, 1.0f), worldViewProj);\n" +
                 "    output.localPos = input.pos.xy;\n" +
+                "    output.snapDegrees = input.texCoord.x;\n" +
                 "    return output;\n" +
                 "}\n" +
                 "\n" +
                 "float4 PS(PS_IN input) : SV_Target\n" +
                 "{\n" +
                 "    float2 localPos = input.localPos;\n" +
-                "    float radial = saturate(length(localPos) / " + halfExtentText + ");\n" +
-                "    float edgeFade = 1.0f - radial;\n" +
+                "    float radius = length(localPos);\n" +
+                "    float previewRadius = " + previewRadiusText + "f;\n" +
+                "    float normalizedRadius = radius / previewRadius;\n" +
+                "    float edgeFade = saturate(1.0f - normalizedRadius);\n" +
                 "    edgeFade *= edgeFade;\n" +
-                "    float lineMask = max(ComputeLine(localPos.x), ComputeLine(localPos.y));\n" +
-                "    float centerGlow = saturate(1.0f - (length(localPos) / 2.5f));\n" +
+                "    float outerRing = ComputeLine(abs(normalizedRadius - 0.96f), 0.08f);\n" +
+                "    float centerGlow = saturate(1.0f - (radius / (previewRadius * 0.58f)));\n" +
                 "    centerGlow *= centerGlow;\n" +
-                "    float axisGlow = max(\n" +
-                "        saturate((0.10f - abs(localPos.x)) / 0.10f),\n" +
-                "        saturate((0.10f - abs(localPos.y)) / 0.10f));\n" +
-                "    float brightness = saturate((lineMask * 0.45f) + (centerGlow * 0.75f) + (axisGlow * 0.35f));\n" +
+                "    float snapRadians = max(radians(max(input.snapDegrees, 1.0f)), 0.0001f);\n" +
+                "    float angle = atan2(localPos.y, localPos.x);\n" +
+                "    float spokePhase = frac((angle + 3.14159265f) / snapRadians);\n" +
+                "    float spokeDistance = abs(spokePhase - 0.5f);\n" +
+                "    float spokeMask = ComputeLine(spokeDistance, 0.035f);\n" +
+                "    float spokeRadialFade = saturate((normalizedRadius - 0.12f) / 0.18f) * saturate((1.0f - normalizedRadius) / 0.05f);\n" +
+                "    spokeMask *= spokeRadialFade;\n" +
+                "    float brightness = saturate((spokeMask * 0.52f) + (centerGlow * 0.78f) + (outerRing * 0.26f));\n" +
                 "    float3 color = lerp(float3(0.72f, 0.72f, 0.76f), float3(1.0f, 1.0f, 1.0f), brightness);\n" +
-                "    float alpha = edgeFade * ((lineMask * 0.24f) + (centerGlow * 0.28f) + (axisGlow * 0.14f) + 0.04f);\n" +
+                "    float alpha = edgeFade * ((spokeMask * 0.18f) + (centerGlow * 0.24f) + (outerRing * 0.10f) + 0.03f);\n" +
                 "    clip(alpha - 0.01f);\n" +
                 "    return float4(color, alpha);\n" +
                 "}\n";
         }
 
         /// <summary>
-        /// Builds the Vulkan GLSL vertex shader used to render the procedural grid preview.
+        /// Builds the Vulkan GLSL vertex shader used to render the procedural rotation preview.
         /// </summary>
-        /// <returns>GLSL vertex shader source for the grid preview material.</returns>
+        /// <returns>GLSL vertex shader source for the rotation preview material.</returns>
         static string GetVulkanVertexShaderSource() {
             return
                 "#version 450\n" +
@@ -338,45 +336,52 @@ namespace helengine.editor {
                 "layout(location = 2) in vec2 inTexCoord;\n" +
                 "\n" +
                 "layout(location = 0) out vec2 fragLocalPos;\n" +
+                "layout(location = 1) out float fragSnapDegrees;\n" +
                 "\n" +
                 "void main() {\n" +
                 "    gl_Position = worldViewProj * vec4(inPos, 1.0);\n" +
                 "    fragLocalPos = inPos.xy;\n" +
+                "    fragSnapDegrees = inTexCoord.x;\n" +
                 "}\n";
         }
 
         /// <summary>
-        /// Builds the Vulkan GLSL fragment shader used to render the procedural grid preview.
+        /// Builds the Vulkan GLSL fragment shader used to render the procedural rotation preview.
         /// </summary>
-        /// <returns>GLSL fragment shader source for the grid preview material.</returns>
+        /// <returns>GLSL fragment shader source for the rotation preview material.</returns>
         static string GetVulkanFragmentShaderSource() {
-            string halfExtentText = PreviewHalfCellSpan.ToString("0.0############", System.Globalization.CultureInfo.InvariantCulture);
+            string previewRadiusText = TransformRotationSnapPreviewModelFactory.PreviewRadius.ToString("0.0############", System.Globalization.CultureInfo.InvariantCulture);
             return
                 "#version 450\n" +
                 "\n" +
                 "layout(location = 0) in vec2 fragLocalPos;\n" +
+                "layout(location = 1) in float fragSnapDegrees;\n" +
                 "layout(location = 0) out vec4 outColor;\n" +
                 "\n" +
-                "float computeLine(float value) {\n" +
-                "    float distanceToLine = abs(fract(value + 0.5) - 0.5);\n" +
-                "    float lineWidth = 0.06;\n" +
+                "float computeLine(float distanceToLine, float lineWidth) {\n" +
                 "    return clamp((lineWidth - distanceToLine) / lineWidth, 0.0, 1.0);\n" +
                 "}\n" +
                 "\n" +
                 "void main() {\n" +
                 "    vec2 localPos = fragLocalPos;\n" +
-                "    float radial = clamp(length(localPos) / " + halfExtentText + ", 0.0, 1.0);\n" +
-                "    float edgeFade = 1.0 - radial;\n" +
+                "    float radius = length(localPos);\n" +
+                "    float previewRadius = " + previewRadiusText + ";\n" +
+                "    float normalizedRadius = radius / previewRadius;\n" +
+                "    float edgeFade = clamp(1.0 - normalizedRadius, 0.0, 1.0);\n" +
                 "    edgeFade *= edgeFade;\n" +
-                "    float lineMask = max(computeLine(localPos.x), computeLine(localPos.y));\n" +
-                "    float centerGlow = clamp(1.0 - (length(localPos) / 2.5), 0.0, 1.0);\n" +
+                "    float outerRing = computeLine(abs(normalizedRadius - 0.96), 0.08);\n" +
+                "    float centerGlow = clamp(1.0 - (radius / (previewRadius * 0.58)), 0.0, 1.0);\n" +
                 "    centerGlow *= centerGlow;\n" +
-                "    float axisGlow = max(\n" +
-                "        clamp((0.10 - abs(localPos.x)) / 0.10, 0.0, 1.0),\n" +
-                "        clamp((0.10 - abs(localPos.y)) / 0.10, 0.0, 1.0));\n" +
-                "    float brightness = clamp((lineMask * 0.45) + (centerGlow * 0.75) + (axisGlow * 0.35), 0.0, 1.0);\n" +
+                "    float snapRadians = max(radians(max(fragSnapDegrees, 1.0)), 0.0001);\n" +
+                "    float angle = atan(localPos.y, localPos.x);\n" +
+                "    float spokePhase = fract((angle + 3.14159265) / snapRadians);\n" +
+                "    float spokeDistance = abs(spokePhase - 0.5);\n" +
+                "    float spokeMask = computeLine(spokeDistance, 0.035);\n" +
+                "    float spokeRadialFade = clamp((normalizedRadius - 0.12) / 0.18, 0.0, 1.0) * clamp((1.0 - normalizedRadius) / 0.05, 0.0, 1.0);\n" +
+                "    spokeMask *= spokeRadialFade;\n" +
+                "    float brightness = clamp((spokeMask * 0.52) + (centerGlow * 0.78) + (outerRing * 0.26), 0.0, 1.0);\n" +
                 "    vec3 color = mix(vec3(0.72, 0.72, 0.76), vec3(1.0, 1.0, 1.0), brightness);\n" +
-                "    float alpha = edgeFade * ((lineMask * 0.24) + (centerGlow * 0.28) + (axisGlow * 0.14) + 0.04);\n" +
+                "    float alpha = edgeFade * ((spokeMask * 0.18) + (centerGlow * 0.24) + (outerRing * 0.10) + 0.03);\n" +
                 "    if (alpha <= 0.01) {\n" +
                 "        discard;\n" +
                 "    }\n" +

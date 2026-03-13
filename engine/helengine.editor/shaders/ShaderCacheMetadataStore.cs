@@ -39,18 +39,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            bool shouldDeleteFile = false;
             using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                if (!ShaderCacheMetadataBinarySerializer.TryDeserialize(stream, out metadata)) {
-                    shouldDeleteFile = true;
-                }
-            }
-
-            if (shouldDeleteFile) {
-                Logger.WriteWarning($"Shader metadata file '{path}' is not in the current HELE format. Rebuilding metadata.");
-                File.Delete(path);
-                metadata = null;
-                return false;
+                metadata = ShaderCacheMetadataBinarySerializer.Deserialize(stream);
             }
 
             return true;

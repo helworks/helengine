@@ -70,36 +70,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Attempts to deserialize asset import settings without throwing for legacy non-HELE payloads.
-        /// </summary>
-        /// <param name="stream">Source stream containing the payload.</param>
-        /// <param name="settings">Deserialized settings instance when the payload matches the current format.</param>
-        /// <returns>True when settings were deserialized successfully.</returns>
-        public static bool TryDeserialize(Stream stream, out AssetImportSettings settings) {
-            if (stream == null) {
-                throw new ArgumentNullException(nameof(stream));
-            }
-
-            settings = null;
-            EngineBinaryHeader header;
-            if (!EngineBinaryHeaderSerializer.TryRead(stream, out header)) {
-                return false;
-            }
-
-            if (!IsExpectedHeader(header)) {
-                return false;
-            }
-
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
-            settings = new AssetImportSettings {
-                ImporterId = reader.ReadString(),
-                SourceChecksum = reader.ReadString(),
-                AssetId = reader.ReadString()
-            };
-            return true;
-        }
-
-        /// <summary>
         /// Validates that the provided header matches the asset import settings format.
         /// </summary>
         /// <param name="header">Header metadata to validate.</param>
@@ -115,22 +85,6 @@ namespace helengine.editor {
             } else if (header.Version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported asset import settings binary version '{header.Version}'.");
             }
-        }
-
-        /// <summary>
-        /// Determines whether the header matches the current asset import settings format.
-        /// </summary>
-        /// <param name="header">Header metadata to evaluate.</param>
-        /// <returns>True when the header matches the expected payload layout.</returns>
-        static bool IsExpectedHeader(EngineBinaryHeader header) {
-            if (header == null) {
-                throw new ArgumentNullException(nameof(header));
-            }
-
-            return header.FormatId == EditorAssetBinarySerializer.FormatId &&
-                header.RecordKind == (ushort)RecordKind &&
-                header.ValueKind == (ushort)ValueKind &&
-                header.Version == CurrentVersion;
         }
     }
 }

@@ -24,6 +24,10 @@ namespace helengine.editor {
         /// </summary>
         const int RingSegments = 48;
         /// <summary>
+        /// Render order used by the snap-preview disc so it renders after solid gizmo handles.
+        /// </summary>
+        const byte SnapPreviewRenderOrder3D = 1;
+        /// <summary>
         /// Marker UV written to X-axis meshes for shader-side axis color decoding.
         /// </summary>
         static readonly float2 XAxisMarker = new float2(0.1f, 0.1f);
@@ -64,6 +68,25 @@ namespace helengine.editor {
             CameraComponent sceneCamera,
             RuntimeMaterial gizmoMaterial,
             RuntimeMaterial gizmoHighlightMaterial) {
+            RuntimeMaterial snapPreviewMaterial = TransformGizmoRotationPreviewMaterialFactory.Create(render3D);
+            return Create(render3D, sceneCamera, gizmoMaterial, gizmoHighlightMaterial, snapPreviewMaterial);
+        }
+
+        /// <summary>
+        /// Creates a rotation gizmo root entity and injects the material used by its snap-preview disc.
+        /// </summary>
+        /// <param name="render3D">Renderer used to build runtime mesh resources.</param>
+        /// <param name="sceneCamera">Scene camera used for gizmo distance scaling.</param>
+        /// <param name="gizmoMaterial">Base material used by gizmo meshes.</param>
+        /// <param name="gizmoHighlightMaterial">Highlight material used when a ring is hovered.</param>
+        /// <param name="snapPreviewMaterial">Material used by the reusable rotation snap-preview disc.</param>
+        /// <returns>Created rotation gizmo root entity.</returns>
+        public static EditorEntity Create(
+            RenderManager3D render3D,
+            CameraComponent sceneCamera,
+            RuntimeMaterial gizmoMaterial,
+            RuntimeMaterial gizmoHighlightMaterial,
+            RuntimeMaterial snapPreviewMaterial) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
@@ -78,6 +101,10 @@ namespace helengine.editor {
 
             if (gizmoHighlightMaterial == null) {
                 throw new ArgumentNullException(nameof(gizmoHighlightMaterial));
+            }
+
+            if (snapPreviewMaterial == null) {
+                throw new ArgumentNullException(nameof(snapPreviewMaterial));
             }
 
             ModelAsset xRingAsset = TransformGizmoMeshFactory.CreateTubeRing(InnerRadius, OuterRadius, RingHeight, RingSegments);
@@ -95,11 +122,13 @@ namespace helengine.editor {
             gizmoRoot.Name = "Transform Rotation Gizmo";
             gizmoRoot.InternalEntity = true;
             gizmoRoot.LayerMask = EditorLayerMasks.SceneGizmo;
-            gizmoRoot.AddComponent(new TransformRotationGizmoFollowComponent(sceneCamera, gizmoRoot, gizmoMaterial, gizmoHighlightMaterial));
+            EditorEntity snapPreviewEntity = CreateSnapPreviewEntity(snapPreviewMaterial);
+            gizmoRoot.AddComponent(new TransformRotationGizmoFollowComponent(sceneCamera, render3D, gizmoRoot, gizmoMaterial, gizmoHighlightMaterial, snapPreviewEntity));
 
             CreateRingEntity(gizmoRoot, "Transform Rotation Gizmo X", CreateXAxisOrientation(), xRingModel, gizmoMaterial);
             CreateRingEntity(gizmoRoot, "Transform Rotation Gizmo Y", float4.Identity, yRingModel, gizmoMaterial);
             CreateRingEntity(gizmoRoot, "Transform Rotation Gizmo Z", CreateZAxisOrientation(), zRingModel, gizmoMaterial);
+            gizmoRoot.AddChild(snapPreviewEntity);
             return gizmoRoot;
         }
 
@@ -163,6 +192,30 @@ namespace helengine.editor {
             ringEntity.AddComponent(ringMesh);
 
             gizmoRoot.AddChild(ringEntity);
+        }
+
+        /// <summary>
+        /// Creates the reusable snap-preview entity used to visualize active rotation snapping.
+        /// </summary>
+        /// <param name="previewMaterial">Material used to render the procedural preview disc.</param>
+        /// <returns>Configured snap-preview entity.</returns>
+        static EditorEntity CreateSnapPreviewEntity(RuntimeMaterial previewMaterial) {
+            if (previewMaterial == null) {
+                throw new ArgumentNullException(nameof(previewMaterial));
+            }
+
+            var previewEntity = new EditorEntity {
+                Name = "Transform Rotation Gizmo Snap Preview",
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.SceneGizmo,
+                Enabled = false
+            };
+            var previewMesh = new MeshComponent {
+                Material = previewMaterial,
+                RenderOrder3D = SnapPreviewRenderOrder3D
+            };
+            previewEntity.AddComponent(previewMesh);
+            return previewEntity;
         }
 
         /// <summary>

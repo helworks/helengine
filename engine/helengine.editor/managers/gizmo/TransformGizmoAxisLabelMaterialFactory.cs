@@ -165,7 +165,7 @@ namespace helengine.editor {
             };
 
             RuntimeMaterial material = render3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-            material.Texture = font.Texture;
+            material.Properties.SetTexture("LabelTexture", font.Texture);
             return material;
         }
 
@@ -252,7 +252,10 @@ namespace helengine.editor {
                     PixelProgramName,
                     ShaderStage.Pixel,
                     "main",
-                    Array.Empty<ShaderBinding>(),
+                    new[] {
+                        new ShaderBinding("LabelTexture", ShaderResourceType.Texture2D, 1, 0, 0, Array.Empty<ShaderConstantMember>()),
+                        new ShaderBinding("LabelSampler", ShaderResourceType.Sampler, 1, 1, 0, Array.Empty<ShaderConstantMember>())
+                    },
                     Array.Empty<ShaderVertexElement>(),
                     Array.Empty<ShaderVertexElement>(),
                     variants)

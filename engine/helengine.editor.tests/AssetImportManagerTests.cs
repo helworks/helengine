@@ -3,7 +3,7 @@ using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies asset import manager behavior for legacy sidecars and cache files during project startup.
+    /// Verifies asset import manager behavior for current sidecars and cache files during project startup.
     /// </summary>
     public class AssetImportManagerTests : IDisposable {
         /// <summary>
@@ -42,24 +42,25 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures a legacy non-HELE import-settings sidecar is rewritten and the texture cache is generated.
+        /// Ensures a current import-settings sidecar is consumed and the texture cache is generated.
         /// </summary>
         [Fact]
-        public void ImportTexturesMissingCache_WithLegacySettings_RewritesSettingsAndImportsTexture() {
-            string sourcePath = WriteSourceTexture("legacy-settings.png");
+        public void ImportTexturesMissingCache_WithCurrentSettings_ImportsTexture() {
+            string sourcePath = WriteSourceTexture("current-settings.png");
             string settingsPath = sourcePath + ".hasset";
-            File.WriteAllText(settingsPath, "legacy-settings");
             AssetImportManager manager = CreateManager();
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            manager.SaveImportSettings(sourcePath, settings);
 
             List<string> importedAssets = manager.ImportTexturesMissingCache();
 
             Assert.Single(importedAssets);
             using (FileStream settingsStream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                AssetImportSettings settings = AssetImportSettingsBinarySerializer.Deserialize(settingsStream);
-                Assert.Equal("test-texture", settings.ImporterId);
-                Assert.False(string.IsNullOrWhiteSpace(settings.SourceChecksum));
-                Assert.False(string.IsNullOrWhiteSpace(settings.AssetId));
-                Assert.Equal(Path.Combine(CacheRootPath, settings.AssetId), importedAssets[0]);
+                AssetImportSettings loadedSettings = AssetImportSettingsBinarySerializer.Deserialize(settingsStream);
+                Assert.Equal("test-texture", loadedSettings.ImporterId);
+                Assert.False(string.IsNullOrWhiteSpace(loadedSettings.SourceChecksum));
+                Assert.False(string.IsNullOrWhiteSpace(loadedSettings.AssetId));
+                Assert.Equal(Path.Combine(CacheRootPath, loadedSettings.AssetId), importedAssets[0]);
             }
 
             using (FileStream assetStream = new FileStream(importedAssets[0], FileMode.Open, FileAccess.Read, FileShare.Read)) {
@@ -71,22 +72,18 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures a legacy non-HELE cached texture is treated as stale cache and rebuilt during startup import scanning.
+        /// Ensures an existing current cached texture is reused during startup import scanning.
         /// </summary>
         [Fact]
-        public void ImportTexturesMissingCache_WithLegacyCachedAsset_ReimportsTexture() {
-            string sourcePath = WriteSourceTexture("legacy-cache.png");
+        public void ImportTexturesMissingCache_WithCurrentCachedAsset_SkipsImport() {
+            string sourcePath = WriteSourceTexture("current-cache.png");
             AssetImportManager manager = CreateManager();
-            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
-            manager.SaveImportSettings(sourcePath, settings);
-
-            string outputPath = Path.Combine(CacheRootPath, settings.AssetId);
-            File.WriteAllText(outputPath, "legacy-cache");
+            TextureAsset importedAsset = manager.ImportTexture(sourcePath);
+            string outputPath = Path.Combine(CacheRootPath, importedAsset.Id);
 
             List<string> importedAssets = manager.ImportTexturesMissingCache();
 
-            Assert.Single(importedAssets);
-            Assert.Equal(outputPath, importedAssets[0]);
+            Assert.Empty(importedAssets);
             using (FileStream assetStream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
                 TextureAsset asset = (TextureAsset)AssetSerializer.Deserialize(assetStream);
                 Assert.Equal((ushort)1, asset.Width);

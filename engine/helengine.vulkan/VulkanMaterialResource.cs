@@ -27,6 +27,10 @@ namespace helengine.vulkan {
         /// Swapchain version associated with the active pipeline.
         /// </summary>
         int PipelineSwapchainVersion;
+        /// <summary>
+        /// Material render-state key associated with the active pipeline.
+        /// </summary>
+        int PipelineRenderStateKey;
 
         /// <summary>
         /// Initializes a new Vulkan material resource and creates shader modules from SPIR-V bytecode.
@@ -96,6 +100,7 @@ namespace helengine.vulkan {
             VertexShaderModule = CreateShaderModule(vertexBytecode);
             PixelShaderModule = CreateShaderModule(pixelBytecode);
             PipelineSwapchainVersion = -1;
+            PipelineRenderStateKey = -1;
         }
 
         /// <summary>
@@ -162,9 +167,11 @@ namespace helengine.vulkan {
                 throw new InvalidOperationException("Pipeline layout must be created before material pipeline creation.");
             }
 
+            int renderStateKey = MaterialRenderStateKeyBuilder.Build(RenderState);
             if (Pipeline.Handle != 0 &&
                 PipelineRenderPass.Handle == surface.RenderPass.Handle &&
-                PipelineSwapchainVersion == surface.SwapchainVersion) {
+                PipelineSwapchainVersion == surface.SwapchainVersion &&
+                PipelineRenderStateKey == renderStateKey) {
                 return Pipeline;
             }
 
@@ -172,6 +179,7 @@ namespace helengine.vulkan {
             CreatePipeline(surface, pipelineLayout);
             PipelineRenderPass = surface.RenderPass;
             PipelineSwapchainVersion = surface.SwapchainVersion;
+            PipelineRenderStateKey = renderStateKey;
             return Pipeline;
         }
 
@@ -218,6 +226,7 @@ namespace helengine.vulkan {
         /// <param name="surface">Surface to render into.</param>
         /// <param name="pipelineLayout">Pipeline layout to bind.</param>
         void CreatePipeline(VulkanSwapchainSurface surface, PipelineLayout pipelineLayout) {
+            MaterialRenderState renderState = RenderState ?? throw new InvalidOperationException("Material render state must be provided.");
             nint vertexEntry = SilkMarshal.StringToPtr(VertexEntryPoint);
             nint pixelEntry = SilkMarshal.StringToPtr(PixelEntryPoint);
             try {
@@ -287,7 +296,7 @@ namespace helengine.vulkan {
                     RasterizerDiscardEnable = false,
                     PolygonMode = PolygonMode.Fill,
                     LineWidth = 1.0f,
-                    CullMode = CullModeFlags.CullModeBackBit,
+                    CullMode = ResolveCullMode(renderState),
                     FrontFace = FrontFace.CounterClockwise,
                     DepthBiasEnable = false
                 };
@@ -300,26 +309,14 @@ namespace helengine.vulkan {
 
                 PipelineDepthStencilStateCreateInfo depthStencil = new PipelineDepthStencilStateCreateInfo {
                     SType = StructureType.PipelineDepthStencilStateCreateInfo,
-                    DepthTestEnable = true,
-                    DepthWriteEnable = true,
+                    DepthTestEnable = renderState.DepthTestEnabled,
+                    DepthWriteEnable = renderState.DepthWriteEnabled,
                     DepthCompareOp = CompareOp.Less,
                     DepthBoundsTestEnable = false,
                     StencilTestEnable = false
                 };
 
-                PipelineColorBlendAttachmentState colorBlendAttachment = new PipelineColorBlendAttachmentState {
-                    BlendEnable = true,
-                    SrcColorBlendFactor = BlendFactor.SrcAlpha,
-                    DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha,
-                    ColorBlendOp = BlendOp.Add,
-                    SrcAlphaBlendFactor = BlendFactor.One,
-                    DstAlphaBlendFactor = BlendFactor.Zero,
-                    AlphaBlendOp = BlendOp.Add,
-                    ColorWriteMask = ColorComponentFlags.ColorComponentRBit |
-                                     ColorComponentFlags.ColorComponentGBit |
-                                     ColorComponentFlags.ColorComponentBBit |
-                                     ColorComponentFlags.ColorComponentABit
-                };
+                PipelineColorBlendAttachmentState colorBlendAttachment = CreateColorBlendAttachment(renderState);
 
                 PipelineColorBlendStateCreateInfo colorBlending = new PipelineColorBlendStateCreateInfo {
                     SType = StructureType.PipelineColorBlendStateCreateInfo,
@@ -377,6 +374,7 @@ namespace helengine.vulkan {
             Pipeline = default;
             PipelineRenderPass = default;
             PipelineSwapchainVersion = -1;
+            PipelineRenderStateKey = -1;
         }
 
         /// <summary>
@@ -418,6 +416,64 @@ namespace helengine.vulkan {
             } finally {
                 SilkMarshal.Free(codePtr);
             }
+        }
+
+        /// <summary>
+        /// Resolves Vulkan cull-mode flags for the supplied material render state.
+        /// </summary>
+        /// <param name="renderState">Render state whose cull mode should be translated.</param>
+        /// <returns>Vulkan cull-mode flags.</returns>
+        CullModeFlags ResolveCullMode(MaterialRenderState renderState) {
+            if (renderState == null) {
+                throw new ArgumentNullException(nameof(renderState));
+            } else if (renderState.CullMode == MaterialCullMode.None) {
+                return CullModeFlags.CullModeNone;
+            } else if (renderState.CullMode == MaterialCullMode.Front) {
+                return CullModeFlags.CullModeFrontBit;
+            } else if (renderState.CullMode == MaterialCullMode.Back) {
+                return CullModeFlags.CullModeBackBit;
+            }
+
+            throw new InvalidOperationException($"Unsupported material cull mode '{renderState.CullMode}'.");
+        }
+
+        /// <summary>
+        /// Builds the Vulkan color-blend attachment state required by the supplied material render state.
+        /// </summary>
+        /// <param name="renderState">Render state whose blend mode should be translated.</param>
+        /// <returns>Configured Vulkan color-blend attachment state.</returns>
+        PipelineColorBlendAttachmentState CreateColorBlendAttachment(MaterialRenderState renderState) {
+            if (renderState == null) {
+                throw new ArgumentNullException(nameof(renderState));
+            }
+
+            PipelineColorBlendAttachmentState attachmentState = new PipelineColorBlendAttachmentState {
+                ColorWriteMask = ColorComponentFlags.ColorComponentRBit |
+                                 ColorComponentFlags.ColorComponentGBit |
+                                 ColorComponentFlags.ColorComponentBBit |
+                                 ColorComponentFlags.ColorComponentABit
+            };
+            if (renderState.BlendMode == MaterialBlendMode.Opaque) {
+                attachmentState.BlendEnable = false;
+                attachmentState.SrcColorBlendFactor = BlendFactor.One;
+                attachmentState.DstColorBlendFactor = BlendFactor.Zero;
+                attachmentState.ColorBlendOp = BlendOp.Add;
+                attachmentState.SrcAlphaBlendFactor = BlendFactor.One;
+                attachmentState.DstAlphaBlendFactor = BlendFactor.Zero;
+                attachmentState.AlphaBlendOp = BlendOp.Add;
+                return attachmentState;
+            } else if (renderState.BlendMode == MaterialBlendMode.AlphaBlend) {
+                attachmentState.BlendEnable = true;
+                attachmentState.SrcColorBlendFactor = BlendFactor.SrcAlpha;
+                attachmentState.DstColorBlendFactor = BlendFactor.OneMinusSrcAlpha;
+                attachmentState.ColorBlendOp = BlendOp.Add;
+                attachmentState.SrcAlphaBlendFactor = BlendFactor.One;
+                attachmentState.DstAlphaBlendFactor = BlendFactor.Zero;
+                attachmentState.AlphaBlendOp = BlendOp.Add;
+                return attachmentState;
+            }
+
+            throw new InvalidOperationException($"Unsupported material blend mode '{renderState.BlendMode}'.");
         }
     }
 }

@@ -251,6 +251,8 @@ namespace helengine {
             writer.WriteString(asset.VertexProgram);
             writer.WriteString(asset.PixelProgram);
             writer.WriteString(asset.Variant);
+            WriteMaterialRenderState(writer, asset.RenderState);
+            writer.WriteArray(asset.ConstantBuffers, WriteMaterialConstantBufferAsset);
         }
 
         /// <summary>
@@ -259,12 +261,76 @@ namespace helengine {
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized material asset.</returns>
         static MaterialAsset ReadMaterialAsset(EngineBinaryReader reader) {
-            return new MaterialAsset {
+            var materialAsset = new MaterialAsset {
                 Id = reader.ReadString(),
                 ShaderAssetId = reader.ReadString(),
                 VertexProgram = reader.ReadString(),
                 PixelProgram = reader.ReadString(),
-                Variant = reader.ReadString()
+                Variant = reader.ReadString(),
+                RenderState = ReadMaterialRenderState(reader),
+                ConstantBuffers = reader.ReadArray(ReadMaterialConstantBufferAsset) ?? Array.Empty<MaterialConstantBufferAsset>()
+            };
+
+            return materialAsset;
+        }
+
+        /// <summary>
+        /// Writes one material render-state payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="renderState">Render state to serialize.</param>
+        static void WriteMaterialRenderState(EngineBinaryWriter writer, MaterialRenderState renderState) {
+            if (renderState == null) {
+                throw new ArgumentNullException(nameof(renderState));
+            }
+
+            writer.WriteInt32((int)renderState.BlendMode);
+            writer.WriteInt32((int)renderState.CullMode);
+            writer.WriteByte(renderState.DepthTestEnabled ? (byte)1 : (byte)0);
+            writer.WriteByte(renderState.DepthWriteEnabled ? (byte)1 : (byte)0);
+        }
+
+        /// <summary>
+        /// Reads one material render-state payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized material render-state.</returns>
+        static MaterialRenderState ReadMaterialRenderState(EngineBinaryReader reader) {
+            return new MaterialRenderState {
+                BlendMode = (MaterialBlendMode)reader.ReadInt32(),
+                CullMode = (MaterialCullMode)reader.ReadInt32(),
+                DepthTestEnabled = reader.ReadByte() != 0,
+                DepthWriteEnabled = reader.ReadByte() != 0
+            };
+        }
+
+        /// <summary>
+        /// Writes one material constant-buffer payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">Material constant-buffer asset to serialize.</param>
+        static void WriteMaterialConstantBufferAsset(EngineBinaryWriter writer, MaterialConstantBufferAsset asset) {
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            } else if (string.IsNullOrWhiteSpace(asset.Name)) {
+                throw new InvalidOperationException("Material constant-buffer assets must define a binding name.");
+            } else if (asset.Data == null) {
+                throw new InvalidOperationException("Material constant-buffer assets must define a byte payload.");
+            }
+
+            writer.WriteString(asset.Name);
+            writer.WriteByteArray(asset.Data);
+        }
+
+        /// <summary>
+        /// Reads one material constant-buffer payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized material constant-buffer asset.</returns>
+        static MaterialConstantBufferAsset ReadMaterialConstantBufferAsset(EngineBinaryReader reader) {
+            return new MaterialConstantBufferAsset {
+                Name = reader.ReadString(),
+                Data = reader.ReadByteArray()
             };
         }
 
