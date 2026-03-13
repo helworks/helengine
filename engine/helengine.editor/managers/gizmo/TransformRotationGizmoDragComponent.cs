@@ -46,6 +46,14 @@ namespace helengine.editor {
         /// </summary>
         float3 DragRotationCenter;
         /// <summary>
+        /// Orientation captured from the selected entity when dragging started.
+        /// </summary>
+        float4 DragStartEntityOrientation;
+        /// <summary>
+        /// Total unsnapped signed drag angle accumulated since the drag started.
+        /// </summary>
+        double DragAccumulatedAngle;
+        /// <summary>
         /// Last solved world-space vector from the rotation center to the pointer plane hit.
         /// </summary>
         float3 DragPreviousVector;
@@ -138,13 +146,15 @@ namespace helengine.editor {
             DragHandleEntity = hoveredHandle;
             DragRotationAxis = rotationAxis;
             DragRotationCenter = rotationCenter;
+            DragStartEntityOrientation = selectedEntity.Orientation;
+            DragAccumulatedAngle = 0.0;
             DragPreviousVector = dragVector;
             EditorGizmoDragService.BeginDrag(SceneCamera, selectedEntity);
             EditorGizmoHoverService.SetHoveredHandle(hoveredHandle);
         }
 
         /// <summary>
-        /// Updates the active drag and applies incremental rotation to the selected entity.
+        /// Updates the active drag and applies snapped or unsnapped rotation to the selected entity.
         /// </summary>
         /// <param name="input">Input manager used to query pointer and button state.</param>
         void UpdateActiveDrag(InputManager input) {
@@ -181,12 +191,15 @@ namespace helengine.editor {
 
             double deltaAngle = ComputeSignedAngle(DragPreviousVector, currentVector, DragRotationAxis);
             if (Math.Abs(deltaAngle) > 0.0) {
-                float4 deltaRotation;
-                float4.CreateFromAxisAngle(ref DragRotationAxis, (float)deltaAngle, out deltaRotation);
-                DraggedEntity.Orientation = deltaRotation * DraggedEntity.Orientation;
+                DragAccumulatedAngle += deltaAngle;
                 DragPreviousVector = currentVector;
             }
 
+            double resolvedAngle = ResolveActiveRotationAngle(input);
+            float3 rotationAxis = DragRotationAxis;
+            float4 deltaRotation;
+            float4.CreateFromAxisAngle(ref rotationAxis, (float)resolvedAngle, out deltaRotation);
+            DraggedEntity.Orientation = deltaRotation * DragStartEntityOrientation;
             EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
         }
 
@@ -200,6 +213,8 @@ namespace helengine.editor {
             DragHandleEntity = null;
             DragRotationAxis = float3.Zero;
             DragRotationCenter = float3.Zero;
+            DragStartEntityOrientation = float4.Identity;
+            DragAccumulatedAngle = 0.0;
             DragPreviousVector = float3.Zero;
         }
 
@@ -384,6 +399,20 @@ namespace helengine.editor {
             float3 cross = float3.Cross(from, to);
             double signedMagnitude = float3.Dot(cross, axis);
             return Math.Atan2(signedMagnitude, dot);
+        }
+
+        /// <summary>
+        /// Resolves the rotation angle that should be applied for the current drag update.
+        /// </summary>
+        /// <param name="input">Input manager used to read snap modifiers.</param>
+        /// <returns>Signed rotation angle in radians after optional snapping.</returns>
+        double ResolveActiveRotationAngle(InputManager input) {
+            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Rotate);
+            if (activeSnapValue <= 0.0) {
+                return DragAccumulatedAngle;
+            }
+
+            return TransformRotationGizmoSnapResolver.ResolveSnappedDeltaAngle(DragAccumulatedAngle, activeSnapValue);
         }
 
         /// <summary>

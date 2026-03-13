@@ -4,6 +4,11 @@ namespace helengine.editor {
     /// </summary>
     public static class EditorToolbarIconLoader {
         /// <summary>
+        /// Shared PNG content processor used to decode built-in editor toolbar icons without mutating the shared content manager configuration.
+        /// </summary>
+        static readonly TextureImporterContentProcessor ToolbarIconContentProcessor = new TextureImporterContentProcessor(new GDITextureImporter());
+
+        /// <summary>
         /// Root-relative path for the translate toolbar icon.
         /// </summary>
         static readonly string TranslateIconPath = Path.Combine("content", "icons", "toolbar", "transform.png");
@@ -88,7 +93,7 @@ namespace helengine.editor {
             }
 
             string absoluteFilePath = ResolveApplicationContentPath(applicationRootPath, filePath);
-            TextureAsset textureAsset = content.Load<TextureAsset>(absoluteFilePath);
+            TextureAsset textureAsset = content.Load(absoluteFilePath, ToolbarIconContentProcessor);
             return Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
         }
 

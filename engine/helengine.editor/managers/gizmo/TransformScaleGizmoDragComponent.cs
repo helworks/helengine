@@ -220,11 +220,7 @@ namespace helengine.editor {
                 }
 
                 double deltaParameter = currentAxisParameter - DragStartAxisParameter;
-                DraggedEntity.Scale = TransformScaleGizmoScaleResolver.ResolveAxisScale(
-                    DragStartEntityScale,
-                    DragPrimaryDirection,
-                    deltaParameter,
-                    MinimumScaleComponent);
+                DraggedEntity.Scale = ResolveAxisDragScale(deltaParameter, input);
             } else if (DragConstraintType == TransformGizmoHandleConstraintType.Plane) {
                 if (!TryComputePlanePoint(pointer, DragStartEntityPosition, DragPlaneNormal, out float3 currentPlanePoint)) {
                     EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
@@ -232,12 +228,7 @@ namespace helengine.editor {
                 }
 
                 float3 planeDelta = ProjectVectorOntoPlane(currentPlanePoint - DragStartPlanePoint, DragPlaneNormal);
-                DraggedEntity.Scale = TransformScaleGizmoScaleResolver.ResolvePlaneScale(
-                    DragStartEntityScale,
-                    DragPrimaryDirection,
-                    DragSecondaryDirection,
-                    planeDelta,
-                    MinimumScaleComponent);
+                DraggedEntity.Scale = ResolvePlaneDragScale(planeDelta, input);
             } else {
                 throw new InvalidOperationException("Transform gizmo handle constraint type is not supported.");
             }
@@ -518,6 +509,56 @@ namespace helengine.editor {
         float3 ProjectVectorOntoPlane(float3 value, float3 planeNormal) {
             double normalDot = float3.Dot(value, planeNormal);
             return value - (planeNormal * (float)normalDot);
+        }
+
+        /// <summary>
+        /// Resolves the axis scale for the current drag update, applying snap when a modifier is held.
+        /// </summary>
+        /// <param name="deltaParameter">Signed drag delta along the active axis.</param>
+        /// <param name="input">Input manager used to read snap modifiers.</param>
+        /// <returns>Resolved scale vector for the selected entity.</returns>
+        float3 ResolveAxisDragScale(double deltaParameter, InputManager input) {
+            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Scale);
+            if (activeSnapValue <= 0.0) {
+                return TransformScaleGizmoScaleResolver.ResolveAxisScale(
+                    DragStartEntityScale,
+                    DragPrimaryDirection,
+                    deltaParameter,
+                    MinimumScaleComponent);
+            }
+
+            return TransformScaleGizmoScaleResolver.ResolveSnappedAxisScale(
+                DragStartEntityScale,
+                DragPrimaryDirection,
+                deltaParameter,
+                activeSnapValue,
+                MinimumScaleComponent);
+        }
+
+        /// <summary>
+        /// Resolves the plane scale for the current drag update, applying snap when a modifier is held.
+        /// </summary>
+        /// <param name="planeDelta">World-space pointer delta measured on the drag plane.</param>
+        /// <param name="input">Input manager used to read snap modifiers.</param>
+        /// <returns>Resolved scale vector for the selected entity.</returns>
+        float3 ResolvePlaneDragScale(float3 planeDelta, InputManager input) {
+            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Scale);
+            if (activeSnapValue <= 0.0) {
+                return TransformScaleGizmoScaleResolver.ResolvePlaneScale(
+                    DragStartEntityScale,
+                    DragPrimaryDirection,
+                    DragSecondaryDirection,
+                    planeDelta,
+                    MinimumScaleComponent);
+            }
+
+            return TransformScaleGizmoScaleResolver.ResolveSnappedPlaneScale(
+                DragStartEntityScale,
+                DragPrimaryDirection,
+                DragSecondaryDirection,
+                planeDelta,
+                activeSnapValue,
+                MinimumScaleComponent);
         }
 
         /// <summary>

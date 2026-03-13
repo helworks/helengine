@@ -40,6 +40,23 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures axis scaling snaps the drag delta to the configured increment before updating the target component.
+        /// </summary>
+        [Fact]
+        public void ResolveSnappedAxisScale_UsesConfiguredIncrement() {
+            float3 resolvedScale = TransformScaleGizmoScaleResolver.ResolveSnappedAxisScale(
+                new float3(1f, 2f, 3f),
+                new float3(1f, 0f, 0f),
+                0.16,
+                0.1,
+                0.0001f);
+
+            Assert.Equal(1.2f, resolvedScale.X);
+            Assert.Equal(2f, resolvedScale.Y);
+            Assert.Equal(3f, resolvedScale.Z);
+        }
+
+        /// <summary>
         /// Ensures plane scaling updates both mapped components using the world-plane delta.
         /// </summary>
         [Fact]
@@ -71,6 +88,24 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.Equal(1.5f, resolvedScale.X);
             Assert.Equal(2f, resolvedScale.Y);
             Assert.Equal(3.25f, resolvedScale.Z);
+        }
+
+        /// <summary>
+        /// Ensures plane scaling snaps both basis directions independently before applying the scale update.
+        /// </summary>
+        [Fact]
+        public void ResolveSnappedPlaneScale_SnapsBothPlaneComponents() {
+            float3 resolvedScale = TransformScaleGizmoScaleResolver.ResolveSnappedPlaneScale(
+                new float3(1f, 2f, 3f),
+                new float3(1f, 0f, 0f),
+                new float3(0f, 1f, 0f),
+                new float3(0.13f, 0.36f, 0f),
+                0.25,
+                0.0001f);
+
+            Assert.Equal(1.25f, resolvedScale.X);
+            Assert.Equal(2.25f, resolvedScale.Y);
+            Assert.Equal(3f, resolvedScale.Z);
         }
     }
 }

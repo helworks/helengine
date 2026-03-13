@@ -28,6 +28,29 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves a snapped scaled vector for a single-axis scale drag.
+        /// </summary>
+        /// <param name="startScale">Scale captured when dragging started.</param>
+        /// <param name="worldAxisDirection">World-space axis direction currently driven by the handle.</param>
+        /// <param name="axisDelta">Signed drag delta measured along the handle axis.</param>
+        /// <param name="snapValue">Snap interval applied to the drag delta.</param>
+        /// <param name="minimumScaleComponent">Smallest allowed scale component value.</param>
+        /// <returns>Resolved scale vector after the snapped axis drag.</returns>
+        public static float3 ResolveSnappedAxisScale(
+            float3 startScale,
+            float3 worldAxisDirection,
+            double axisDelta,
+            double snapValue,
+            float minimumScaleComponent) {
+            if (snapValue <= 0.0) {
+                throw new ArgumentOutOfRangeException(nameof(snapValue), "Snap value must be greater than zero.");
+            }
+
+            double snappedAxisDelta = SnapScalar(axisDelta, snapValue);
+            return ResolveAxisScale(startScale, worldAxisDirection, snappedAxisDelta, minimumScaleComponent);
+        }
+
+        /// <summary>
         /// Resolves a scaled vector for a plane scale drag that affects two axes at once.
         /// </summary>
         /// <param name="startScale">Scale captured when dragging started.</param>
@@ -58,6 +81,44 @@ namespace helengine.editor {
             float3 resolvedScale = SetScaleComponent(startScale, primaryAxisIndex, (float)resolvedPrimary);
             resolvedScale = SetScaleComponent(resolvedScale, secondaryAxisIndex, (float)resolvedSecondary);
             return resolvedScale;
+        }
+
+        /// <summary>
+        /// Resolves a snapped scaled vector for a plane scale drag that affects two axes at once.
+        /// </summary>
+        /// <param name="startScale">Scale captured when dragging started.</param>
+        /// <param name="worldPrimaryDirection">First world-space plane basis direction currently driven by the handle.</param>
+        /// <param name="worldSecondaryDirection">Second world-space plane basis direction currently driven by the handle.</param>
+        /// <param name="planeDelta">World-space pointer delta across the drag plane.</param>
+        /// <param name="snapValue">Snap interval applied independently along each plane basis direction.</param>
+        /// <param name="minimumScaleComponent">Smallest allowed scale component value.</param>
+        /// <returns>Resolved scale vector after the snapped plane drag.</returns>
+        public static float3 ResolveSnappedPlaneScale(
+            float3 startScale,
+            float3 worldPrimaryDirection,
+            float3 worldSecondaryDirection,
+            float3 planeDelta,
+            double snapValue,
+            float minimumScaleComponent) {
+            if (snapValue <= 0.0) {
+                throw new ArgumentOutOfRangeException(nameof(snapValue), "Snap value must be greater than zero.");
+            }
+
+            float3 normalizedPrimary = NormalizeDirection(worldPrimaryDirection);
+            float3 normalizedSecondary = NormalizeDirection(worldSecondaryDirection);
+            double primaryDelta = float3.Dot(planeDelta, normalizedPrimary);
+            double secondaryDelta = float3.Dot(planeDelta, normalizedSecondary);
+            double snappedPrimary = SnapScalar(primaryDelta, snapValue);
+            double snappedSecondary = SnapScalar(secondaryDelta, snapValue);
+            float3 snappedPlaneDelta =
+                (normalizedPrimary * (float)snappedPrimary) +
+                (normalizedSecondary * (float)snappedSecondary);
+            return ResolvePlaneScale(
+                startScale,
+                normalizedPrimary,
+                normalizedSecondary,
+                snappedPlaneDelta,
+                minimumScaleComponent);
         }
 
         /// <summary>
@@ -158,6 +219,17 @@ namespace helengine.editor {
             }
 
             return value < minimumScaleComponent ? minimumScaleComponent : value;
+        }
+
+        /// <summary>
+        /// Snaps one signed scalar to the nearest configured step.
+        /// </summary>
+        /// <param name="value">Scalar value to snap.</param>
+        /// <param name="snapValue">Step size used by the snap.</param>
+        /// <returns>Snapped scalar value.</returns>
+        static double SnapScalar(double value, double snapValue) {
+            double snappedStepCount = Math.Round(value / snapValue, MidpointRounding.AwayFromZero);
+            return snappedStepCount * snapValue;
         }
     }
 }

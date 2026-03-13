@@ -130,14 +130,15 @@ namespace helengine.editor.app {
             renderer3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
             FontAsset uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
+            FontAsset snapModifierFont = GDIFontProcessor.ImportFont(new Font("Consolas", 15, FontStyle.Bold, GraphicsUnit.Pixel));
             ContentManager contentManager = core.ContentManager;
-            ConfigureApplicationContentManager(contentManager);
             EditorViewportToolbarIconSet toolbarIcons = EditorToolbarIconLoader.LoadDefaultToolbarIcons(contentManager, AppContext.BaseDirectory);
             IReadOnlyList<IAssetImporterRegistration> importers = BuildImporters();
             editorSession = new EditorSession(
                 core,
                 projectPath,
                 uiFont,
+                snapModifierFont,
                 titleText,
                 renderer3D,
                 renderer2D,
@@ -228,27 +229,6 @@ namespace helengine.editor.app {
                 new TextImporterRegistration("text", new TextImporter(), textExtensions)
             };
             return registrations;
-        }
-
-        /// <summary>
-        /// Configures the core-owned editor content manager used to load built-in and project assets.
-        /// </summary>
-        /// <param name="contentManager">Shared content manager rooted at the project assets directory.</param>
-        void ConfigureApplicationContentManager(ContentManager contentManager) {
-            if (contentManager == null) {
-                throw new ArgumentNullException(nameof(contentManager));
-            }
-
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
-            string[] textureExtensions = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif" };
-            string[] textExtensions = new[] { ".txt" };
-            if (!contentManager.IsProcessorRegistered("gdi")) {
-                contentManager.RegisterProcessor("gdi", new TextureImporterContentProcessor(new GDITextureImporter()), textureExtensions);
-            }
-
-            if (!contentManager.IsProcessorRegistered("text")) {
-                contentManager.RegisterProcessor("text", new TextImporterContentProcessor(new TextImporter()), textExtensions);
-            }
         }
 
         /// <summary>

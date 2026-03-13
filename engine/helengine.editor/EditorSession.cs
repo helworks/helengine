@@ -319,6 +319,7 @@ namespace helengine.editor {
         /// <param name="core">Editor core instance that owns shared state.</param>
         /// <param name="projectPath">Path to the project root or project file being edited.</param>
         /// <param name="uiFont">Font used for editor UI text.</param>
+        /// <param name="snapModifierFont">Font used for the viewport snap modifier labels.</param>
         /// <param name="titleText">Initial window title text.</param>
         /// <param name="render3D">3D renderer instance.</param>
         /// <param name="render2D">2D renderer instance.</param>
@@ -331,6 +332,7 @@ namespace helengine.editor {
             EditorCore core,
             string projectPath,
             FontAsset uiFont,
+            FontAsset snapModifierFont,
             string titleText,
             RenderManager3D render3D,
             RenderManager2D render2D,
@@ -342,8 +344,8 @@ namespace helengine.editor {
             this.core = core ?? throw new ArgumentNullException(nameof(core));
             this.projectPath = ResolveProjectRootPath(projectPath);
             EditorContentManager = this.core.GetContentManager();
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(EditorContentManager);
-            this.uiFont = uiFont;
+            this.uiFont = uiFont ?? throw new ArgumentNullException(nameof(uiFont));
+            snapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
             toolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
 
             core.Initialize(render3D, render2D, input);
@@ -414,7 +416,7 @@ namespace helengine.editor {
             dockingManager = new DockingManager();
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath);
-            mainViewport = new EditorViewport(sceneCameraComponent, uiFont, toolbarIcons);
+            mainViewport = new EditorViewport(sceneCameraComponent, uiFont, snapModifierFont, toolbarIcons);
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager);
             loggerPanel = new LoggerPanel(uiFont);
             previewPanel = new PreviewPanel(uiFont);

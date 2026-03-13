@@ -120,7 +120,10 @@ namespace helengine.editor {
             }
 
             textureImportersById.Add(registration.ImporterId, registration.Importer);
-            AssetContentManager.RegisterProcessor(registration.ImporterId, new TextureImporterContentProcessor(registration.Importer), registration.Extensions);
+            AssetContentManager.RegisterProcessor(
+                registration.ImporterId,
+                new TextureImporterContentProcessor(registration.Importer),
+                registration.Extensions);
             IReadOnlyList<string> extensions = registration.Extensions;
             for (int i = 0; i < extensions.Count; i++) {
                 string extension = NormalizeExtension(extensions[i]);
@@ -152,7 +155,10 @@ namespace helengine.editor {
             }
 
             textImportersById.Add(registration.ImporterId, registration.Importer);
-            AssetContentManager.RegisterProcessor(registration.ImporterId, new TextImporterContentProcessor(registration.Importer), registration.Extensions);
+            AssetContentManager.RegisterProcessor(
+                registration.ImporterId,
+                new TextImporterContentProcessor(registration.Importer),
+                registration.Extensions);
             IReadOnlyList<string> extensions = registration.Extensions;
             for (int i = 0; i < extensions.Count; i++) {
                 string extension = NormalizeExtension(extensions[i]);
@@ -373,11 +379,17 @@ namespace helengine.editor {
             }
 
             string settingsPath = GetSettingsPath(sourcePath);
-            AssetImportSettings settings = File.Exists(settingsPath)
-                ? LoadImportSettings(settingsPath)
-                : CreateDefaultSettings(sourcePath);
+            bool settingsFileExists = File.Exists(settingsPath);
+            AssetImportSettings settings = null;
+            bool loadedFromDisk = settingsFileExists && TryLoadImportSettings(settingsPath, out settings);
+            if (!loadedFromDisk) {
+                settings = CreateDefaultSettings(sourcePath);
+            }
 
             UpdateSettingsChecksum(settings, sourcePath);
+            if (settingsFileExists && !loadedFromDisk) {
+                SaveImportSettings(sourcePath, settings);
+            }
 
             return settings;
         }
@@ -429,7 +441,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Imports textures that do not yet have cached outputs.
+        /// Imports textures that are missing cache files or still use a legacy cache format.
         /// </summary>
         /// <returns>Paths to cached assets created during the scan.</returns>
         public List<string> ImportTexturesMissingCache() {
@@ -445,7 +457,7 @@ namespace helengine.editor {
                 }
 
                 string outputPath = GetTextureAssetPath(settings.AssetId);
-                if (File.Exists(outputPath)) {
+                if (File.Exists(outputPath) && TryLoadCachedTextureAsset(outputPath, out _)) {
                     continue;
                 }
 
@@ -488,7 +500,11 @@ namespace helengine.editor {
                 return true;
             }
 
-            asset = AssetContentManager.Load<TextureAsset>(outputPath, EditorContentProcessorIds.TextureAsset);
+            if (TryLoadCachedTextureAsset(outputPath, out asset)) {
+                return true;
+            }
+
+            asset = ImportTexture(sourcePath);
             return true;
         }
 
@@ -524,21 +540,115 @@ namespace helengine.editor {
                 return true;
             }
 
-            asset = AssetContentManager.Load<TextAsset>(outputPath, EditorContentProcessorIds.TextAsset);
+            if (TryLoadCachedTextAsset(outputPath, out asset)) {
+                return true;
+            }
+
+            asset = ImportText(sourcePath);
             return true;
         }
 
         /// <summary>
-        /// Loads import settings from a settings file.
+        /// Attempts to load a cached texture asset and treats legacy non-HELE files as missing cache.
+        /// </summary>
+        /// <param name="outputPath">Absolute path to the cached texture asset.</param>
+        /// <param name="asset">Loaded texture asset when the cache file is current.</param>
+        /// <returns>True when the cached asset was loaded successfully.</returns>
+        bool TryLoadCachedTextureAsset(string outputPath, out TextureAsset asset) {
+            if (string.IsNullOrWhiteSpace(outputPath)) {
+                throw new ArgumentException("Output path must be provided.", nameof(outputPath));
+            }
+
+            asset = null;
+            Asset cachedAsset;
+            if (!TryLoadCachedAsset(outputPath, "TextureAsset", out cachedAsset)) {
+                return false;
+            }
+
+            if (cachedAsset is TextureAsset textureAsset) {
+                asset = textureAsset;
+                return true;
+            }
+
+            Logger.WriteWarning($"Texture cache file '{outputPath}' did not contain a TextureAsset payload. Reimporting texture.");
+            return false;
+        }
+
+        /// <summary>
+        /// Attempts to load a cached text asset and treats legacy non-HELE files as missing cache.
+        /// </summary>
+        /// <param name="outputPath">Absolute path to the cached text asset.</param>
+        /// <param name="asset">Loaded text asset when the cache file is current.</param>
+        /// <returns>True when the cached asset was loaded successfully.</returns>
+        bool TryLoadCachedTextAsset(string outputPath, out TextAsset asset) {
+            if (string.IsNullOrWhiteSpace(outputPath)) {
+                throw new ArgumentException("Output path must be provided.", nameof(outputPath));
+            }
+
+            asset = null;
+            Asset cachedAsset;
+            if (!TryLoadCachedAsset(outputPath, "TextAsset", out cachedAsset)) {
+                return false;
+            }
+
+            if (cachedAsset is TextAsset textAsset) {
+                asset = textAsset;
+                return true;
+            }
+
+            Logger.WriteWarning($"Text cache file '{outputPath}' did not contain a TextAsset payload. Reimporting text asset.");
+            return false;
+        }
+
+        /// <summary>
+        /// Attempts to load a cached serialized asset and treats legacy non-HELE files as invalid cache entries.
+        /// </summary>
+        /// <param name="outputPath">Absolute path to the cached asset file.</param>
+        /// <param name="assetTypeName">Logical asset type name used in warning output.</param>
+        /// <param name="asset">Loaded cached asset when the file uses the current HELE format.</param>
+        /// <returns>True when the cache file contained a current serialized asset.</returns>
+        bool TryLoadCachedAsset(string outputPath, string assetTypeName, out Asset asset) {
+            if (string.IsNullOrWhiteSpace(outputPath)) {
+                throw new ArgumentException("Output path must be provided.", nameof(outputPath));
+            } else if (string.IsNullOrWhiteSpace(assetTypeName)) {
+                throw new ArgumentException("Asset type name must be provided.", nameof(assetTypeName));
+            }
+
+            asset = null;
+            using (FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                if (!AssetSerializer.TryDeserialize(stream, out asset)) {
+                    Logger.WriteWarning($"{assetTypeName} cache file '{outputPath}' is not in the current HELE format. Reimporting asset.");
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Attempts to load import settings from a settings file.
         /// </summary>
         /// <param name="settingsPath">Absolute path to the settings file.</param>
-        /// <returns>Deserialized import settings.</returns>
-        AssetImportSettings LoadImportSettings(string settingsPath) {
+        /// <param name="settings">Deserialized import settings when the file uses the current format.</param>
+        /// <returns>True when the settings file was loaded successfully.</returns>
+        bool TryLoadImportSettings(string settingsPath, out AssetImportSettings settings) {
             if (string.IsNullOrWhiteSpace(settingsPath)) {
                 throw new ArgumentException("Settings path must be provided.", nameof(settingsPath));
             }
 
-            return AssetContentManager.Load<AssetImportSettings>(settingsPath, EditorContentProcessorIds.AssetImportSettings);
+            settings = null;
+            if (!File.Exists(settingsPath)) {
+                return false;
+            }
+
+            using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                if (!AssetImportSettingsBinarySerializer.TryDeserialize(stream, out settings)) {
+                    Logger.WriteWarning($"Import settings file '{settingsPath}' is not in the current HELE format. Regenerating defaults.");
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -566,8 +676,8 @@ namespace helengine.editor {
             }
 
             string settingsPath = GetSettingsPath(sourcePath);
-            if (File.Exists(settingsPath)) {
-                settings = LoadImportSettings(settingsPath);
+            bool settingsFileExists = File.Exists(settingsPath);
+            if (settingsFileExists && TryLoadImportSettings(settingsPath, out settings)) {
                 UpdateSettingsChecksum(settings, sourcePath);
                 return true;
             }
@@ -577,6 +687,10 @@ namespace helengine.editor {
             }
 
             UpdateSettingsChecksum(settings, sourcePath);
+            if (settingsFileExists) {
+                SaveImportSettings(sourcePath, settings);
+            }
+
             return true;
         }
 

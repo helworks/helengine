@@ -62,12 +62,20 @@ namespace helengine.editor.tests {
         [Fact]
         public void GetActiveSnapValue_ReturnsCurrentToolModeSlotValue() {
             double inactiveValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Translate, false, false);
-            double controlValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Translate, true, false);
-            double shiftValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Translate, false, true);
+            double translateControlValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Translate, true, false);
+            double translateShiftValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Translate, false, true);
+            double rotateControlValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Rotate, true, false);
+            double rotateShiftValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Rotate, false, true);
+            double scaleControlValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Scale, true, false);
+            double scaleShiftValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Scale, false, true);
 
             Assert.Equal(0.0, inactiveValue);
-            Assert.Equal(0.25, controlValue);
-            Assert.Equal(1.0, shiftValue);
+            Assert.Equal(0.25, translateControlValue);
+            Assert.Equal(1.0, translateShiftValue);
+            Assert.Equal(5.0, rotateControlValue);
+            Assert.Equal(15.0, rotateShiftValue);
+            Assert.Equal(0.1, scaleControlValue);
+            Assert.Equal(0.25, scaleShiftValue);
         }
     }
 }

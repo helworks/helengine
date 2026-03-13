@@ -84,5 +84,6 @@ namespace helengine.editor.tests {
             Assert.True(contentManager.IsProcessorRegistered(EditorContentProcessorIds.AssetImportSettings));
             Assert.True(contentManager.IsProcessorRegistered(EditorContentProcessorIds.TextureAsset));
         }
+
     }
 }

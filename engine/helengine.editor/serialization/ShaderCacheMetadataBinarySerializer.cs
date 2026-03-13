@@ -70,6 +70,36 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Attempts to deserialize shader cache metadata without throwing for legacy non-HELE payloads.
+        /// </summary>
+        /// <param name="stream">Source stream containing the payload.</param>
+        /// <param name="metadata">Deserialized metadata instance when the payload matches the current format.</param>
+        /// <returns>True when metadata was deserialized successfully.</returns>
+        public static bool TryDeserialize(Stream stream, out ShaderCacheMetadata metadata) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            }
+
+            metadata = null;
+            EngineBinaryHeader header;
+            if (!EngineBinaryHeaderSerializer.TryRead(stream, out header)) {
+                return false;
+            }
+
+            if (!IsExpectedHeader(header)) {
+                return false;
+            }
+
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+            metadata = new ShaderCacheMetadata {
+                SourceHash = reader.ReadString(),
+                SourceWriteTimeUtcTicks = reader.ReadInt64(),
+                SourceLengthBytes = reader.ReadInt64()
+            };
+            return true;
+        }
+
+        /// <summary>
         /// Validates that the provided header matches the shader cache metadata format.
         /// </summary>
         /// <param name="header">Header metadata to validate.</param>
@@ -85,6 +115,22 @@ namespace helengine.editor {
             } else if (header.Version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported shader cache metadata binary version '{header.Version}'.");
             }
+        }
+
+        /// <summary>
+        /// Determines whether the header matches the current shader cache metadata format.
+        /// </summary>
+        /// <param name="header">Header metadata to evaluate.</param>
+        /// <returns>True when the header matches the expected payload layout.</returns>
+        static bool IsExpectedHeader(EngineBinaryHeader header) {
+            if (header == null) {
+                throw new ArgumentNullException(nameof(header));
+            }
+
+            return header.FormatId == EditorAssetBinarySerializer.FormatId &&
+                header.RecordKind == (ushort)RecordKind &&
+                header.ValueKind == (ushort)ValueKind &&
+                header.Version == CurrentVersion;
         }
     }
 }

@@ -23,7 +23,7 @@ namespace helengine.directx11 {
                 throw new ArgumentException("Shader profile must be provided.", nameof(profile));
             }
 
-            string fullPath = Path.GetFullPath(shaderPath);
+            string fullPath = ResolveShaderPath(shaderPath);
             string shaderDirectory = Path.GetDirectoryName(fullPath);
             if (string.IsNullOrWhiteSpace(shaderDirectory)) {
                 throw new InvalidOperationException("Shader directory could not be resolved.");
@@ -54,6 +54,33 @@ namespace helengine.directx11 {
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Resolves an absolute shader path for source compilation.
+        /// </summary>
+        /// <param name="shaderPath">Absolute path or app-relative shader path.</param>
+        /// <returns>Absolute path to the shader source file.</returns>
+        static string ResolveShaderPath(string shaderPath) {
+            if (string.IsNullOrWhiteSpace(shaderPath)) {
+                throw new ArgumentException("Shader path must be provided.", nameof(shaderPath));
+            }
+
+            if (Path.IsPathRooted(shaderPath)) {
+                return Path.GetFullPath(shaderPath);
+            }
+
+            string baseDirectory = AppContext.BaseDirectory;
+            if (string.IsNullOrWhiteSpace(baseDirectory)) {
+                throw new InvalidOperationException("Base directory could not be resolved.");
+            }
+
+            string applicationRelativePath = Path.GetFullPath(Path.Combine(baseDirectory, shaderPath));
+            if (File.Exists(applicationRelativePath)) {
+                return applicationRelativePath;
+            }
+
+            return Path.GetFullPath(shaderPath);
         }
     }
 }

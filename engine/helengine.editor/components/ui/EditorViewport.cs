@@ -30,15 +30,15 @@ namespace helengine.editor {
         /// <summary>
         /// Width used by the snap adjustment icon sprites.
         /// </summary>
-        const int SnapButtonIconWidth = 10;
+        const int SnapButtonIconWidth = 16;
         /// <summary>
         /// Height used by the snap adjustment icon sprites.
         /// </summary>
-        const int SnapButtonIconHeight = 10;
+        const int SnapButtonIconHeight = 16;
         /// <summary>
         /// Height used by snap label icons.
         /// </summary>
-        const int SnapLabelIconHeight = 14;
+        const int SnapLabelIconHeight = 18;
         /// <summary>
         /// Horizontal gap between the magnet icon and modifier keycap inside one snap label.
         /// </summary>
@@ -72,6 +72,10 @@ namespace helengine.editor {
         /// Font used by toolbar text content such as value readouts.
         /// </summary>
         readonly FontAsset Font;
+        /// <summary>
+        /// Font used by the snap modifier labels so CTRL and SHIFT remain readable in the toolbar.
+        /// </summary>
+        readonly FontAsset SnapModifierFont;
         /// <summary>
         /// Runtime textures used by the toolbar controls on this viewport.
         /// </summary>
@@ -125,9 +129,9 @@ namespace helengine.editor {
         /// </summary>
         readonly SpriteComponent[] SnapLabelMagnetIcons;
         /// <summary>
-        /// Modifier key icons used for snap-slot labels.
+        /// Modifier key text labels used for snap-slot labels.
         /// </summary>
-        readonly SpriteComponent[] SnapLabelModifierIcons;
+        readonly TextComponent[] SnapLabelModifierTexts;
         /// <summary>
         /// Root entities for snap value boxes.
         /// </summary>
@@ -194,11 +198,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="camera">Camera rendering into the viewport.</param>
         /// <param name="font">Font used by the base dockable entity title bar.</param>
+        /// <param name="snapModifierFont">Font used by the snap modifier labels.</param>
         /// <param name="toolbarIcons">Runtime toolbar icon textures used by the transform and snap buttons.</param>
-        public EditorViewport(CameraComponent camera, FontAsset font, EditorViewportToolbarIconSet toolbarIcons)
+        public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons)
             : base(font) {
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             Font = font ?? throw new ArgumentNullException(nameof(font));
+            SnapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
             ToolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
             Title = "Viewport";
             SetContentBackgroundColor(new byte4(0, 0, 0, 0));
@@ -223,7 +229,7 @@ namespace helengine.editor {
             };
             SnapLabelRoots = new EditorEntity[SnapSlots.Length];
             SnapLabelMagnetIcons = new SpriteComponent[SnapSlots.Length];
-            SnapLabelModifierIcons = new SpriteComponent[SnapSlots.Length];
+            SnapLabelModifierTexts = new TextComponent[SnapSlots.Length];
             SnapValueRoots = new EditorEntity[SnapSlots.Length];
             SnapValueBackgrounds = new SpriteComponent[SnapSlots.Length];
             SnapValueTexts = new TextComponent[SnapSlots.Length];
@@ -421,19 +427,20 @@ namespace helengine.editor {
             };
             magnetIconRoot.AddComponent(magnetIcon);
 
-            EditorEntity modifierIconRoot = new EditorEntity {
+            EditorEntity modifierTextRoot = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = new float3(0f, 0f, 0.1f)
             };
-            labelRoot.AddChild(modifierIconRoot);
+            labelRoot.AddChild(modifierTextRoot);
 
-            SpriteComponent modifierIcon = new SpriteComponent {
-                Texture = ToolbarIcons.GetSnapModifierIcon(snapSlot),
-                Color = new byte4(255, 255, 255, 255),
-                Size = new int2(SnapLabelIconHeight, SnapLabelIconHeight),
+            TextComponent modifierText = new TextComponent {
+                Font = SnapModifierFont,
+                Text = GetSnapModifierLabel(snapSlot),
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                Size = new int2(1, 1),
                 RenderOrder2D = ToolbarForegroundOrder
             };
-            modifierIconRoot.AddComponent(modifierIcon);
+            modifierTextRoot.AddComponent(modifierText);
 
             EditorEntity valueRoot = new EditorEntity {
                 LayerMask = LayerMask,
@@ -466,7 +473,7 @@ namespace helengine.editor {
             SnapSlots[slotIndex] = snapSlot;
             SnapLabelRoots[slotIndex] = labelRoot;
             SnapLabelMagnetIcons[slotIndex] = magnetIcon;
-            SnapLabelModifierIcons[slotIndex] = modifierIcon;
+            SnapLabelModifierTexts[slotIndex] = modifierText;
             SnapValueRoots[slotIndex] = valueRoot;
             SnapValueBackgrounds[slotIndex] = valueBackground;
             SnapValueTexts[slotIndex] = valueText;
@@ -907,19 +914,77 @@ namespace helengine.editor {
         /// Computes the full width consumed by one snap-slot label.
         /// </summary>
         /// <param name="magnetIcon">Magnet icon sprite.</param>
-        /// <param name="modifierIcon">Modifier key icon sprite.</param>
+        /// <param name="modifierText">Modifier key text label.</param>
         /// <returns>Total snap label width in pixels.</returns>
-        int GetSnapLabelWidth(SpriteComponent magnetIcon, SpriteComponent modifierIcon) {
+        int GetSnapLabelWidth(SpriteComponent magnetIcon, TextComponent modifierText) {
             if (magnetIcon == null) {
                 throw new ArgumentNullException(nameof(magnetIcon));
             }
-            if (modifierIcon == null) {
-                throw new ArgumentNullException(nameof(modifierIcon));
+            if (modifierText == null) {
+                throw new ArgumentNullException(nameof(modifierText));
             }
 
             int magnetWidth = GetToolbarIconWidthForHeight(magnetIcon.Texture, SnapLabelIconHeight);
-            int modifierWidth = GetToolbarIconWidthForHeight(modifierIcon.Texture, SnapLabelIconHeight);
+            int modifierWidth = GetToolbarInlineTextWidth(modifierText);
             return magnetWidth + SnapLabelIconSpacing + modifierWidth;
+        }
+
+        /// <summary>
+        /// Computes the display width of one inline toolbar text label.
+        /// </summary>
+        /// <param name="text">Text component whose label width should be measured.</param>
+        /// <returns>Display width in pixels.</returns>
+        int GetToolbarInlineTextWidth(TextComponent text) {
+            if (text == null) {
+                throw new ArgumentNullException(nameof(text));
+            }
+            if (text.Font == null) {
+                throw new InvalidOperationException("Toolbar text font must be assigned before layout.");
+            }
+
+            FontTightMetrics metrics = text.Font.MeasureTight(text.Text);
+            return Math.Max(1, (int)Math.Ceiling(metrics.Width));
+        }
+
+        /// <summary>
+        /// Lays out one inline toolbar text label.
+        /// </summary>
+        /// <param name="text">Text component to layout.</param>
+        /// <param name="x">Left position inside the label group.</param>
+        /// <param name="containerHeight">Height of the containing toolbar row.</param>
+        void LayoutInlineToolbarText(TextComponent text, float x, int containerHeight) {
+            if (text == null) {
+                throw new ArgumentNullException(nameof(text));
+            }
+            if (text.Font == null) {
+                throw new InvalidOperationException("Toolbar text font must be assigned before layout.");
+            }
+
+            FontTightMetrics metrics = text.Font.MeasureTight(text.Text);
+            float textY = GetTextTopOffset(containerHeight, metrics);
+            if (text.Parent != null) {
+                text.Parent.Position = new float3(x, textY, 0.1f);
+            }
+
+            text.Size = new int2(
+                Math.Max(1, (int)Math.Ceiling(metrics.Width)),
+                Math.Max(1, (int)Math.Ceiling(metrics.Height)));
+        }
+
+        /// <summary>
+        /// Resolves the modifier label text shown for a snap slot.
+        /// </summary>
+        /// <param name="snapSlot">Snap slot whose modifier label should be displayed.</param>
+        /// <returns>Modifier label text for the slot.</returns>
+        string GetSnapModifierLabel(TransformGizmoSnapSlot snapSlot) {
+            switch (snapSlot) {
+                case TransformGizmoSnapSlot.Snap1:
+                    return "CTRL";
+                case TransformGizmoSnapSlot.Snap2:
+                    return "SHIFT";
+                default:
+                    throw new InvalidOperationException("Toolbar snap label text is not defined for the requested snap slot.");
+            }
         }
 
         /// <summary>
@@ -949,8 +1014,11 @@ namespace helengine.editor {
             if (buttonText == null) {
                 throw new ArgumentNullException(nameof(buttonText));
             }
+            if (buttonText.Font == null) {
+                throw new InvalidOperationException("Toolbar text font must be assigned before layout.");
+            }
 
-            FontTightMetrics metrics = Font.MeasureTight(buttonText.Text);
+            FontTightMetrics metrics = buttonText.Font.MeasureTight(buttonText.Text);
             float textX = (float)Math.Round((buttonWidth - metrics.Width) * 0.5);
             float textY = GetTextTopOffset(buttonHeight, metrics);
             if (buttonText.Parent != null) {
@@ -974,7 +1042,7 @@ namespace helengine.editor {
             for (int slotIndex = 0; slotIndex < SnapSlots.Length; slotIndex++) {
                 EditorEntity labelRoot = SnapLabelRoots[slotIndex];
                 SpriteComponent magnetIcon = SnapLabelMagnetIcons[slotIndex];
-                SpriteComponent modifierIcon = SnapLabelModifierIcons[slotIndex];
+                TextComponent modifierText = SnapLabelModifierTexts[slotIndex];
                 EditorEntity valueRoot = SnapValueRoots[slotIndex];
                 SpriteComponent valueBackground = SnapValueBackgrounds[slotIndex];
                 TextComponent valueText = SnapValueTexts[slotIndex];
@@ -988,7 +1056,7 @@ namespace helengine.editor {
                 InteractableComponent decreaseButtonInteractable = SnapDecreaseButtonInteractables[slotIndex];
                 if (labelRoot == null ||
                     magnetIcon == null ||
-                    modifierIcon == null ||
+                    modifierText == null ||
                     valueRoot == null ||
                     valueBackground == null ||
                     valueText == null ||
@@ -1007,9 +1075,9 @@ namespace helengine.editor {
                 labelRoot.Position = new float3(labelX, buttonY, 0.1f);
                 float labelIconY = (float)Math.Round((ToolButtonHeight - SnapLabelIconHeight) * 0.5);
                 int magnetWidth = LayoutInlineToolbarIcon(magnetIcon, 0f, labelIconY, SnapLabelIconHeight);
-                LayoutInlineToolbarIcon(modifierIcon, magnetWidth + SnapLabelIconSpacing, labelIconY, SnapLabelIconHeight);
+                LayoutInlineToolbarText(modifierText, magnetWidth + SnapLabelIconSpacing, ToolButtonHeight);
 
-                currentX += GetSnapLabelWidth(magnetIcon, modifierIcon) + SnapLabelSpacing;
+                currentX += GetSnapLabelWidth(magnetIcon, modifierText) + SnapLabelSpacing;
 
                 float valueX = (float)Math.Round(currentX);
                 valueRoot.Position = new float3(valueX, buttonY, 0.1f);

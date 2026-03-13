@@ -179,6 +179,19 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures legacy non-HELE asset payloads are rejected without throwing by the non-throwing asset parser.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_TryDeserialize_WithLegacyPayload_ReturnsFalse() {
+            using MemoryStream stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("legacy-asset"));
+
+            bool deserialized = AssetSerializer.TryDeserialize(stream, out Asset asset);
+
+            Assert.False(deserialized);
+            Assert.Null(asset);
+        }
+
+        /// <summary>
         /// Ensures asset import settings round-trip through the custom binary serializer and emit the expected header.
         /// </summary>
         [Fact]
@@ -199,6 +212,19 @@ namespace helengine.editor.tests {
             Assert.Equal(settings.ImporterId, deserialized.ImporterId);
             Assert.Equal(settings.SourceChecksum, deserialized.SourceChecksum);
             Assert.Equal(settings.AssetId, deserialized.AssetId);
+        }
+
+        /// <summary>
+        /// Ensures legacy non-HELE import-settings payloads are rejected without throwing by the non-throwing parser.
+        /// </summary>
+        [Fact]
+        public void AssetImportSettingsBinarySerializer_TryDeserialize_WithLegacyPayload_ReturnsFalse() {
+            using MemoryStream stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("legacy-settings"));
+
+            bool deserialized = AssetImportSettingsBinarySerializer.TryDeserialize(stream, out AssetImportSettings settings);
+
+            Assert.False(deserialized);
+            Assert.Null(settings);
         }
 
         /// <summary>
@@ -264,6 +290,22 @@ namespace helengine.editor.tests {
             Assert.Equal(metadata.SourceLengthBytes, loadedMetadata.SourceLengthBytes);
             Assert.False(existsAfterDelete);
             Assert.Null(deletedMetadata);
+        }
+
+        /// <summary>
+        /// Ensures legacy non-HELE shader metadata files are ignored and deleted so the cache can rebuild cleanly.
+        /// </summary>
+        [Fact]
+        public void ShaderCacheMetadataStore_TryLoad_WithLegacyMetadata_DeletesFileAndReturnsFalse() {
+            ShaderCacheMetadataStore store = new ShaderCacheMetadataStore(TempRootPath, ShaderCompileTarget.DirectX11);
+            string metadataPath = ShaderPackagePaths.GetMetadataPath(TempRootPath, "legacyShader", ShaderCompileTarget.DirectX11);
+            File.WriteAllText(metadataPath, "legacy-metadata");
+
+            bool loaded = store.TryLoad("legacyShader", out ShaderCacheMetadata metadata);
+
+            Assert.False(loaded);
+            Assert.Null(metadata);
+            Assert.False(File.Exists(metadataPath));
         }
 
         /// <summary>

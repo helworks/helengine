@@ -544,13 +544,7 @@ namespace helengine.editor {
         /// <param name="input">Input manager used to read keyboard state.</param>
         /// <returns>Active translation snap value, or zero when no snap modifier is held.</returns>
         double ResolveActiveTranslationSnapValue(InputManager input) {
-            if (input == null) {
-                throw new ArgumentNullException(nameof(input));
-            }
-
-            bool isControlDown = input.IsKeyDown(Keys.LeftControl) || input.IsKeyDown(Keys.RightControl);
-            bool isShiftDown = input.IsKeyDown(Keys.LeftShift) || input.IsKeyDown(Keys.RightShift);
-            return TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Translate, isControlDown, isShiftDown);
+            return TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Translate);
         }
 
         /// <summary>
