@@ -49,6 +49,10 @@ namespace helengine.directx11 {
         Buffer spriteConstantBuffer = null!;
         Buffer uiShapeConstantBuffer = null!;
         Buffer basicColorConstantBuffer = null!;
+        /// <summary>
+        /// Blend state used for alpha-blended 2D UI rendering.
+        /// </summary>
+        BlendState alphaBlendState2D = null!;
         Buffer geometryVertexBuffer = null!;
         int geometryVertexCapacity;
         float4x4 projectionMatrix2D;
@@ -339,6 +343,7 @@ namespace helengine.directx11 {
             spriteConstantBuffer?.Dispose();
             uiShapeConstantBuffer?.Dispose();
             basicColorConstantBuffer?.Dispose();
+            alphaBlendState2D?.Dispose();
             geometryVertexBuffer?.Dispose();
             rasterizerState2D?.Dispose();
             depthStencilState2D?.Dispose();
@@ -352,6 +357,7 @@ namespace helengine.directx11 {
             var context = Device.ImmediateContext;
             context.Rasterizer.State = rasterizerState2D;
             context.OutputMerger.SetDepthStencilState(depthStencilState2D, 0);
+            context.OutputMerger.SetBlendState(alphaBlendState2D);
             context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleStrip;
             context.VertexShader.Set(spriteVertexShader);
             context.PixelShader.Set(spritePixelShader);
@@ -366,11 +372,27 @@ namespace helengine.directx11 {
             var context = Device.ImmediateContext;
             context.Rasterizer.State = rasterizerState2D;
             context.OutputMerger.SetDepthStencilState(depthStencilState2D, 0);
+            context.OutputMerger.SetBlendState(alphaBlendState2D);
             context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleStrip;
             context.VertexShader.Set(uiShapeVertexShader);
             context.PixelShader.Set(uiShapePixelShader);
             context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(spriteQuadBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
             context.InputAssembler.InputLayout = uiShapeInputLayout;
+        }
+
+        /// <summary>
+        /// Configures shared state for the solid-color geometry pipeline used by rounded rectangles.
+        /// </summary>
+        void ConfigureBasicColorPipeline() {
+            var context = Device.ImmediateContext;
+            context.Rasterizer.State = rasterizerState2D;
+            context.OutputMerger.SetDepthStencilState(depthStencilState2D, 0);
+            context.OutputMerger.SetBlendState(alphaBlendState2D);
+            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(geometryVertexBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
+            context.InputAssembler.InputLayout = basicColorInputLayout;
+            context.VertexShader.Set(basicColorVertexShader);
+            context.PixelShader.Set(basicColorPixelShader);
         }
 
         /// <summary>
@@ -433,6 +455,23 @@ namespace helengine.directx11 {
             };
 
             spriteSampler = new SamplerState(Device, samplerDesc);
+
+            alphaBlendState2D = new BlendState(Device, new BlendStateDescription {
+                AlphaToCoverageEnable = false,
+                IndependentBlendEnable = false,
+                RenderTarget = {
+                    [0] = new RenderTargetBlendDescription {
+                        IsBlendEnabled = true,
+                        SourceBlend = BlendOption.SourceAlpha,
+                        DestinationBlend = BlendOption.InverseSourceAlpha,
+                        BlendOperation = BlendOperation.Add,
+                        SourceAlphaBlend = BlendOption.One,
+                        DestinationAlphaBlend = BlendOption.Zero,
+                        AlphaBlendOperation = BlendOperation.Add,
+                        RenderTargetWriteMask = ColorWriteMaskFlags.All
+                    }
+                }
+            });
 
             spriteConstantBuffer = new Buffer(Device, new BufferDescription(
                 Marshal.SizeOf<SpriteShaderData>(),
@@ -730,11 +769,7 @@ namespace helengine.directx11 {
 
             context.UnmapSubresource(geometryVertexBuffer, 0);
 
-            context.Rasterizer.State = rasterizerState2D;
-            context.OutputMerger.SetDepthStencilState(depthStencilState2D, 0);
-            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(geometryVertexBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
-            context.InputAssembler.InputLayout = basicColorInputLayout;
+            ConfigureBasicColorPipeline();
 
             float4x4 transposedWorld;
             float4x4.Transpose(ref projectionMatrix2D, out transposedWorld);
@@ -749,8 +784,6 @@ namespace helengine.directx11 {
                 )
             };
 
-            context.VertexShader.Set(basicColorVertexShader);
-            context.PixelShader.Set(basicColorPixelShader);
             context.VertexShader.SetConstantBuffer(0, basicColorConstantBuffer);
             context.PixelShader.SetConstantBuffer(0, basicColorConstantBuffer);
             context.UpdateSubresource(ref colorData, basicColorConstantBuffer);

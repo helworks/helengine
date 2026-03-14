@@ -213,6 +213,8 @@ namespace helengine.vulkan {
             shaderc.CompileOptionsSetHlslIoMapping(options, true);
             shaderc.CompileOptionsSetAutoMapLocations(options, true);
             shaderc.CompileOptionsSetAutoBindUniforms(options, true);
+            shaderc.CompileOptionsSetPreserveBindings(options, true);
+            ConfigureBindingBases(shaderc, options, request.Options.BindingPolicy);
 
             if (request.Options.GenerateDebugInfo) {
                 shaderc.CompileOptionsSetGenerateDebugInfo(options);
@@ -238,6 +240,27 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
+        /// Configures Vulkan descriptor binding bases so plain HLSL register declarations map directly to the engine's unified binding slots.
+        /// </summary>
+        /// <param name="shaderc">Shaderc API entry point.</param>
+        /// <param name="options">Compile options to configure.</param>
+        /// <param name="bindingPolicy">Binding policy that defines the engine's unified binding slots.</param>
+        unsafe void ConfigureBindingBases(Shaderc shaderc, CompileOptions* options, ShaderBindingPolicy bindingPolicy) {
+            if (bindingPolicy == null) {
+                throw new ArgumentNullException(nameof(bindingPolicy));
+            }
+
+            shaderc.CompileOptionsSetBindingBase(
+                options,
+                UniformKind.Texture,
+                (uint)bindingPolicy.GetSlot(ShaderResourceType.Texture2D, 0));
+            shaderc.CompileOptionsSetBindingBase(
+                options,
+                UniformKind.Sampler,
+                (uint)bindingPolicy.GetSlot(ShaderResourceType.Sampler, 0));
+        }
+
+        /// <summary>
         /// Maps engine shader stages to shaderc stage kinds.
         /// </summary>
         /// <param name="stage">Engine shader stage.</param>
@@ -259,7 +282,10 @@ namespace helengine.vulkan {
         /// <param name="request">Compile request that produced the bytecode.</param>
         /// <returns>Program definition with variant metadata.</returns>
         ShaderProgramDefinition BuildProgramDefinition(ShaderCompileRequest request) {
-            ShaderBinding[] bindings = HlslShaderBindingParser.ParseBindings(request.Source.Source, request.Options.BindingPolicy);
+            ShaderBinding[] bindings = HlslShaderBindingParser.ParseBindings(
+                request.Source.Source,
+                request.Options.BindingPolicy,
+                request.Defines);
             ShaderVertexElement[] inputs = Array.Empty<ShaderVertexElement>();
             ShaderVertexElement[] outputs = Array.Empty<ShaderVertexElement>();
             ShaderVariant[] variants = BuildVariants(request);

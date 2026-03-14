@@ -37,6 +37,10 @@ namespace helengine.render.validation {
         /// </summary>
         const int OverlaySpriteMargin = 24;
         /// <summary>
+        /// Size of the transparent overlay sprite placed over the scene center to validate alpha blending.
+        /// </summary>
+        const int TransparentOverlaySize = 96;
+        /// <summary>
         /// Minimum number of red overlay pixels expected in the captured image.
         /// </summary>
         const int MinimumRedOverlayPixelCount = 900;
@@ -1179,6 +1183,7 @@ namespace helengine.render.validation {
                 new byte4(255, 240, 32, 255),
                 11,
                 pixelTexture);
+            CreateTransparentCenterOverlay(pixelTexture);
         }
 
         /// <summary>
@@ -1203,6 +1208,26 @@ namespace helengine.render.validation {
                 RenderOrder2D = renderOrder
             };
             overlayEntity.AddComponent(sprite);
+        }
+
+        /// <summary>
+        /// Creates a fully transparent center overlay so validation fails when alpha-blended UI rendering is broken.
+        /// </summary>
+        /// <param name="texture">Texture used by the overlay sprite.</param>
+        void CreateTransparentCenterOverlay(RuntimeTexture texture) {
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+
+            int2 windowSize = Core.Instance.RenderManager3D.MainWindowSize;
+            int centerX = Math.Max(0, (windowSize.X - TransparentOverlaySize) / 2);
+            int centerY = Math.Max(0, (windowSize.Y - TransparentOverlaySize) / 2);
+            CreateOverlaySprite(
+                centerX,
+                centerY,
+                new byte4(255, 255, 255, 0),
+                12,
+                texture);
         }
 
         /// <summary>

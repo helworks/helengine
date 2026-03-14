@@ -125,7 +125,7 @@ namespace helengine.editor {
                 true,
                 false,
                 false);
-            IReadOnlyList<ShaderDefine> defines = Array.Empty<ShaderDefine>();
+            ShaderDefine[] defines = ShaderPlatformDefines.BuildDefines(target, ShaderModelValue, Array.Empty<ShaderDefine>());
             ShaderCompileResult vertexResult = CompileStage(
                 compileService,
                 sourceInfo,

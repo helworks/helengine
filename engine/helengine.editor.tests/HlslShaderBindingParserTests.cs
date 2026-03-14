@@ -65,6 +65,28 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures conditional platform branches are reduced before binding parsing so only the active resource declarations are exposed.
+        /// </summary>
+        [Fact]
+        public void ParseBindings_WithPlatformConditionalBranch_UsesActiveDefines() {
+            ShaderDefine[] defines = new[] {
+                new ShaderDefine("HEL_API_VULKAN", "1")
+            };
+            ShaderBinding[] bindings = HlslShaderBindingParser.ParseBindings(
+                CreatePlatformConditionalTextureSource(),
+                ShaderBindingPolicies.Default,
+                defines);
+
+            Assert.Equal(2, bindings.Length);
+            Assert.Equal("VulkanTexture", bindings[0].Name);
+            Assert.Equal(0, bindings[0].Set);
+            Assert.Equal(100, bindings[0].Slot);
+            Assert.Equal("VulkanSampler", bindings[1].Name);
+            Assert.Equal(0, bindings[1].Set);
+            Assert.Equal(200, bindings[1].Slot);
+        }
+
+        /// <summary>
         /// Creates representative textured shader source containing a transform buffer, one texture, and one sampler.
         /// </summary>
         /// <returns>Representative textured shader source.</returns>
@@ -106,6 +128,21 @@ namespace helengine.editor.tests {
                 "};\n" +
                 "\n" +
                 "Texture2D DiffuseTexture : register(t3, space2);\n";
+        }
+
+        /// <summary>
+        /// Creates shader source whose texture declarations switch names based on the active platform define.
+        /// </summary>
+        /// <returns>Representative shader source containing conditional platform-specific resource bindings.</returns>
+        static string CreatePlatformConditionalTextureSource() {
+            return
+                "#if HEL_API_VULKAN\n" +
+                "Texture2D VulkanTexture : register(t0);\n" +
+                "SamplerState VulkanSampler : register(s0);\n" +
+                "#else\n" +
+                "Texture2D DirectTexture : register(t0);\n" +
+                "SamplerState DirectSampler : register(s0);\n" +
+                "#endif\n";
         }
     }
 }

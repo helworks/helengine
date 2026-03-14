@@ -18,11 +18,11 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.Equal("EditorTransformGizmoAxisLabel", shaderAsset.Id);
             Assert.Equal(ShaderTargetNames.GetTargetName(ShaderCompileTarget.DirectX11), shaderAsset.TargetName);
             Assert.Equal(2, shaderAsset.Binaries.Length);
-            AssertAxisLabelLayout(shaderAsset);
+            AssertAxisLabelLayout(shaderAsset, 0);
         }
 
         /// <summary>
-        /// Ensures the axis-label shader source compiles into a Vulkan shader asset with explicit texture bindings.
+        /// Ensures the axis-label shader source compiles into a Vulkan shader asset using the same texture declarations as DirectX11.
         /// </summary>
         [Fact]
         public void BuildShaderAsset_CompilesForVulkan() {
@@ -31,7 +31,7 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.Equal("EditorTransformGizmoAxisLabel", shaderAsset.Id);
             Assert.Equal(ShaderTargetNames.GetTargetName(ShaderCompileTarget.Vulkan), shaderAsset.TargetName);
             Assert.Equal(2, shaderAsset.Binaries.Length);
-            AssertAxisLabelLayout(shaderAsset);
+            AssertAxisLabelLayout(shaderAsset, 0);
         }
 
         /// <summary>
@@ -58,7 +58,8 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Verifies that the compiled shader asset exposes the axis-label texture and sampler bindings to the material system.
         /// </summary>
         /// <param name="shaderAsset">Shader asset to validate.</param>
-        static void AssertAxisLabelLayout(ShaderAsset shaderAsset) {
+        /// <param name="expectedSet">Expected descriptor set used by the textured material bindings.</param>
+        static void AssertAxisLabelLayout(ShaderAsset shaderAsset, int expectedSet) {
             if (shaderAsset == null) {
                 throw new ArgumentNullException(nameof(shaderAsset));
             }
@@ -70,6 +71,8 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.Equal(0, layout.FindSamplerBindingIndex("LabelSampler"));
             Assert.Single(layout.TextureBindings);
             Assert.Single(layout.SamplerBindings);
+            Assert.Equal(expectedSet, layout.TextureBindings[0].Set);
+            Assert.Equal(expectedSet, layout.SamplerBindings[0].Set);
         }
 
         /// <summary>

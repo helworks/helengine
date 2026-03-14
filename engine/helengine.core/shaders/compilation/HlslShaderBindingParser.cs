@@ -49,6 +49,20 @@ namespace helengine {
         /// <param name="bindingPolicy">Binding policy used to normalize slots.</param>
         /// <returns>Array of inferred shader bindings.</returns>
         public static ShaderBinding[] ParseBindings(string source, ShaderBindingPolicy bindingPolicy) {
+            return ParseBindings(source, bindingPolicy, Array.Empty<ShaderDefine>());
+        }
+
+        /// <summary>
+        /// Parses shader bindings from HLSL source text while respecting the provided compile-time defines.
+        /// </summary>
+        /// <param name="source">HLSL source text to inspect.</param>
+        /// <param name="bindingPolicy">Binding policy used to normalize slots.</param>
+        /// <param name="defines">Compile-time defines that control active conditional branches.</param>
+        /// <returns>Array of inferred shader bindings.</returns>
+        public static ShaderBinding[] ParseBindings(
+            string source,
+            ShaderBindingPolicy bindingPolicy,
+            IReadOnlyList<ShaderDefine> defines) {
             if (string.IsNullOrWhiteSpace(source)) {
                 throw new ArgumentException("Shader source must be provided.", nameof(source));
             }
@@ -57,7 +71,12 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(bindingPolicy));
             }
 
-            string normalizedSource = StripComments(source);
+            if (defines == null) {
+                throw new ArgumentNullException(nameof(defines));
+            }
+
+            string preprocessedSource = ShaderConditionalPreprocessor.Preprocess(source, defines);
+            string normalizedSource = StripComments(preprocessedSource);
             List<ShaderBinding> bindings = new List<ShaderBinding>();
             AddConstantBufferBindings(normalizedSource, bindingPolicy, bindings);
             AddResourceBindings(normalizedSource, bindingPolicy, bindings);

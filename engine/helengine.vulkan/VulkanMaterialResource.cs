@@ -144,9 +144,9 @@ namespace helengine.vulkan {
         public ShaderModule PixelShaderModule { get; private set; }
 
         /// <summary>
-        /// Gets or sets the descriptor set that supplies the material texture resources.
+        /// Gets or sets the descriptor set that supplies the full material resource table for one draw.
         /// </summary>
-        public DescriptorSet TextureDescriptorSet { get; set; }
+        public DescriptorSet MaterialDescriptorSet { get; set; }
 
         /// <summary>
         /// Ensures the graphics pipeline is valid for the current surface and returns it.
