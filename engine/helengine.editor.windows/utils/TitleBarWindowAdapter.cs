@@ -1,4 +1,6 @@
 using Nucleus.Platform.Windows.Interop;
+using System;
+using System.Windows.Forms;
 
 namespace helengine.editor.windows {
     /// <summary>
@@ -13,9 +15,20 @@ namespace helengine.editor.windows {
         /// </summary>
         /// <param name="titleBar">Editor title bar instance.</param>
         /// <param name="hostForm">Host window receiving drag and window state requests.</param>
-        public static void Attach(EditorTitleBar titleBar, Form hostForm) {
+        /// <param name="toggleMaximize">Callback invoked when maximize/restore is requested.</param>
+        public static void Attach(EditorTitleBar titleBar, Form hostForm, Action toggleMaximize) {
+            if (titleBar == null) {
+                throw new ArgumentNullException(nameof(titleBar));
+            }
+            if (hostForm == null) {
+                throw new ArgumentNullException(nameof(hostForm));
+            }
+            if (toggleMaximize == null) {
+                throw new ArgumentNullException(nameof(toggleMaximize));
+            }
+
             titleBar.DragRequested += () => StartWindowDrag(hostForm.Handle);
-            titleBar.ToggleMaximizeRequested += () => ToggleWindowState(hostForm);
+            titleBar.ToggleMaximizeRequested += toggleMaximize;
             titleBar.MinimizeRequested += () => hostForm.WindowState = FormWindowState.Minimized;
             titleBar.CloseRequested += hostForm.Close;
         }
@@ -27,16 +40,6 @@ namespace helengine.editor.windows {
         static void StartWindowDrag(IntPtr handle) {
             User32Interop.ReleaseCapture();
             User32Interop.SendMessage(handle, WmNcLButtonDown, HtCaption, 0);
-        }
-
-        /// <summary>
-        /// Toggles between maximized and normal window states.
-        /// </summary>
-        /// <param name="hostForm">Host window to modify.</param>
-        static void ToggleWindowState(Form hostForm) {
-            hostForm.WindowState = hostForm.WindowState == FormWindowState.Maximized
-                ? FormWindowState.Normal
-                : FormWindowState.Maximized;
         }
     }
 }

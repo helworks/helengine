@@ -42,6 +42,14 @@ namespace helengine.editor.app {
         /// Tracks whether a loop exception has been recorded to avoid log spam.
         /// </summary>
         bool loopExceptionRecorded;
+        /// <summary>
+        /// Tracks whether the window is currently in a custom maximized state.
+        /// </summary>
+        bool isMaximized;
+        /// <summary>
+        /// Stores the window bounds before maximization so it can be restored.
+        /// </summary>
+        Rectangle restoreBounds;
 
         /// <summary>
         /// Editor session that owns core editor state and panels.
@@ -148,7 +156,7 @@ namespace helengine.editor.app {
                 toolbarIcons,
                 importers);
 
-            TitleBarWindowAdapter.Attach(editorSession.TitleBar, this);
+            TitleBarWindowAdapter.Attach(editorSession.TitleBar, this, () => ToggleMaximizeState());
             SetWindowTitle(titleText);
 
             UpdateMinimumWindowSize();
@@ -318,6 +326,21 @@ namespace helengine.editor.app {
             int renderWidth = Math.Max(1, ClientSize.Width);
             int renderHeight = Math.Max(1, ClientSize.Height);
             editorSession.UpdateLayout(renderWidth, renderHeight);
+        }
+
+        /// <summary>
+        /// Toggles between maximized and normal window states using working area bounds.
+        /// </summary>
+        void ToggleMaximizeState() {
+            if (isMaximized) {
+                Bounds = restoreBounds;
+                isMaximized = false;
+            } else {
+                restoreBounds = Bounds;
+                Rectangle working = Screen.FromControl(this).WorkingArea;
+                Bounds = new Rectangle(working.Left, working.Top, working.Width, working.Height);
+                isMaximized = true;
+            }
         }
 
         /// <summary>
