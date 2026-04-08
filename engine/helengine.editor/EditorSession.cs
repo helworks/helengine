@@ -222,7 +222,7 @@ namespace helengine.editor {
                 Logger.WriteWarning("Scene picking is currently available only on the DirectX11 renderer.");
             }
 
-            titleBar = new EditorTitleBar(uiFont, Math.Max(1, renderWidth), titleText ?? string.Empty);
+            titleBar = new EditorTitleBar(uiFont, Math.Max(1, renderWidth), Math.Max(1, renderHeight), titleText ?? string.Empty);
 
             dockingManager = new DockingManager();
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
@@ -396,7 +396,7 @@ namespace helengine.editor {
             int width = Math.Max(1, renderWidth);
             int height = Math.Max(1, renderHeight);
 
-            titleBar.UpdateLayout(width);
+            titleBar.UpdateLayout(width, height);
             uiCameraComponent.Viewport = new float4(0, 0, width, height);
 
             int availableHeight = Math.Max(0, height - titleBar.Height);
