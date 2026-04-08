@@ -759,7 +759,18 @@ namespace helengine.editor {
         /// Represents a split between two child layout nodes.
         /// </summary>
         sealed class SplitNode : LayoutNode {
+            /// <summary>
+            /// Separator line color matching the docked panel outline.
+            /// </summary>
+            static readonly byte4 SeparatorColor = new byte4(255, 255, 255, 72);
+            /// <summary>
+            /// Layer mask used for editor UI elements.
+            /// </summary>
+            const ushort SeparatorLayerMask = 0b1000000000000000;
+
             readonly bool isVertical;
+            readonly EditorEntity separatorEntity;
+            readonly SpriteComponent separatorSprite;
             /// <summary>
             /// Cached left edge of the node during layout.
             /// </summary>
@@ -786,6 +797,21 @@ namespace helengine.editor {
                 SplitFraction = Math.Clamp(splitFraction, 0.05f, 0.95f);
                 First = first;
                 Second = second;
+
+                byte textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
+
+                separatorEntity = new EditorEntity {
+                    InternalEntity = true,
+                    LayerMask = SeparatorLayerMask,
+                    Enabled = true
+                };
+
+                separatorSprite = new SpriteComponent {
+                    Texture = TextureUtils.PixelTexture,
+                    Color = SeparatorColor,
+                    RenderOrder2D = textOrder
+                };
+                separatorEntity.AddComponent(separatorSprite);
             }
 
             public float SplitFraction { get; private set; }
@@ -845,9 +871,14 @@ namespace helengine.editor {
                     }
                     float firstRight = left + splitWidth - gap * 0.5f;
                     float secondLeft = left + splitWidth + gap * 0.5f;
+                    float separatorX = left + splitWidth;
+                    float separatorHeight = Math.Max(1, bottom - top);
 
                     First.Layout(left, top, firstRight, bottom, z, gap);
                     Second.Layout(secondLeft, top, right, bottom, z, gap);
+
+                    separatorEntity.Position = new float3(separatorX, top, z + 0.1f);
+                    separatorSprite.Size = new int2(1, (int)separatorHeight);
                 } else {
                     float availableHeight = bottom - top;
                     float splitHeight = MathF.Max(1f, availableHeight * SplitFraction);
@@ -868,9 +899,14 @@ namespace helengine.editor {
                     }
                     float firstBottom = top + splitHeight - gap * 0.5f;
                     float secondTop = top + splitHeight + gap * 0.5f;
+                    float separatorY = top + splitHeight;
+                    float separatorWidth = Math.Max(1, right - left);
 
                     First.Layout(left, top, right, firstBottom, z, gap);
                     Second.Layout(left, secondTop, right, bottom, z, gap);
+
+                    separatorEntity.Position = new float3(left, separatorY, z + 0.1f);
+                    separatorSprite.Size = new int2((int)separatorWidth, 1);
                 }
             }
 

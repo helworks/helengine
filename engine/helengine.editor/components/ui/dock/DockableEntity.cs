@@ -172,6 +172,7 @@ namespace helengine.editor {
                 }
 
                 isDocked = value;
+                panelOutline.BorderThickness = isDocked ? 0f : PanelOutlineThickness;
                 ApplyRenderOrderBias();
             }
         }
