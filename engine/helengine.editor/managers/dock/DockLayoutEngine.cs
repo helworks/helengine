@@ -798,6 +798,7 @@ namespace helengine.editor {
                 First = first;
                 Second = second;
 
+                byte surfaceOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
                 byte textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
 
                 separatorEntity = new EditorEntity {
@@ -872,12 +873,13 @@ namespace helengine.editor {
                     float firstRight = left + splitWidth - gap * 0.5f;
                     float secondLeft = left + splitWidth + gap * 0.5f;
                     float separatorX = left + splitWidth;
-                    float separatorHeight = Math.Max(1, bottom - top);
+                    float separatorTop = top + DockableEntity.TitleBarHeight;
+                    float separatorHeight = Math.Max(1, bottom - separatorTop);
 
                     First.Layout(left, top, firstRight, bottom, z, gap);
                     Second.Layout(secondLeft, top, right, bottom, z, gap);
 
-                    separatorEntity.Position = new float3(separatorX, top, z + 0.1f);
+                    separatorEntity.Position = new float3(separatorX, separatorTop, z + 0.1f);
                     separatorSprite.Size = new int2(1, (int)separatorHeight);
                 } else {
                     float availableHeight = bottom - top;
@@ -905,7 +907,7 @@ namespace helengine.editor {
                     First.Layout(left, top, right, firstBottom, z, gap);
                     Second.Layout(left, secondTop, right, bottom, z, gap);
 
-                    separatorEntity.Position = new float3(left, separatorY, z + 0.1f);
+                    separatorEntity.Position = new float3(left, separatorY, z + 0.3f);
                     separatorSprite.Size = new int2((int)separatorWidth, 1);
                 }
             }
