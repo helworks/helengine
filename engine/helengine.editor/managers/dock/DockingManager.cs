@@ -160,12 +160,6 @@ namespace helengine.editor {
 
             bool layoutDirty = false;
             DockableEntity dragging = draggingDockable;
-            if (pointerBlocked) {
-                previewOverlay.Hide();
-                dockHintValid = false;
-                lastDragging = dragging;
-                return false;
-            }
 
             if (dragging == null) {
                 if (lastDragging != null && dockHintValid) {
@@ -176,6 +170,13 @@ namespace helengine.editor {
                 lastDragging = null;
                 dockHintValid = false;
                 return layoutDirty;
+            }
+
+            if (pointerBlocked) {
+                previewOverlay.Hide();
+                dockHintValid = false;
+                lastDragging = dragging;
+                return false;
             }
 
             if (dragging.ConsumeUndockRequest()) {
