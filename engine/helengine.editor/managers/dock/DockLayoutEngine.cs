@@ -958,20 +958,35 @@ namespace helengine.editor {
                 LayoutNode? newSecond = Second.Remove(entity);
 
                 if (newFirst == null && newSecond == null) {
+                    DisposeSeparator();
                     return null;
                 }
 
                 if (newFirst == null) {
+                    DisposeSeparator();
                     return newSecond;
                 }
 
                 if (newSecond == null) {
+                    DisposeSeparator();
                     return newFirst;
                 }
 
                 First = newFirst;
                 Second = newSecond;
                 return this;
+            }
+
+            /// <summary>
+            /// Removes and disposes the separator entity when the split is eliminated.
+            /// </summary>
+            void DisposeSeparator() {
+                if (separatorEntity.Parent != null && separatorEntity.Parent.Children != null) {
+                    separatorEntity.Parent.Children.Remove(separatorEntity);
+                }
+
+                separatorEntity.Enabled = false;
+                Core.Instance.ObjectManager.RemoveEntity(separatorEntity);
             }
 
             public override PanelNode? Find(DockableEntity entity) {
