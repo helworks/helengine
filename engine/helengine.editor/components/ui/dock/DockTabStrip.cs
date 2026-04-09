@@ -152,7 +152,7 @@ namespace helengine.editor {
                 entry.Label.Size = new int2((int)MathF.Ceiling(metrics.Width), (int)MathF.Ceiling(metrics.Height));
 
                 float labelX = MathF.Round((tabWidth - metrics.Width) * 0.5f);
-                float labelY = GetTextTopOffset(TabHeight, metrics);
+                float labelY = GetTextTopOffset(TabHeight);
                 entry.LabelHost.Position = new float3(labelX, labelY, 0.2f);
 
                 UpdateTabVisual(entry, i == activeIndex);
@@ -311,13 +311,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Computes the vertical offset needed to center text using tight metrics.
+        /// Computes the vertical offset needed to center tab labels consistently.
         /// </summary>
         /// <param name="containerHeight">Height of the container in pixels.</param>
-        /// <param name="metrics">Tight font metrics for the text.</param>
-        /// <returns>Top offset to position the line.</returns>
-        float GetTextTopOffset(float containerHeight, FontTightMetrics metrics) {
-            return MathF.Round((containerHeight - metrics.Height) * 0.5f - metrics.MinTop);
+        /// <returns>Top offset to position the label.</returns>
+        float GetTextTopOffset(float containerHeight) {
+            float lineHeight = Math.Max(font.LineHeight, 1f);
+            return MathF.Round((containerHeight - lineHeight) * 0.5f);
         }
     }
 }
