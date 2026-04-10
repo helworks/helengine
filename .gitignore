@@ -4,3 +4,4 @@ bin/
 render-validation-output/
 **/render-validation-output/
 .codex-build
+.worktrees/
