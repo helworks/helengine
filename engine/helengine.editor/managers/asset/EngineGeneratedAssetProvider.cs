@@ -4,6 +4,11 @@ namespace helengine.editor {
     /// </summary>
     public class EngineGeneratedAssetProvider : IGeneratedAssetProvider {
         /// <summary>
+        /// Stable provider identifier used by engine-generated entries.
+        /// </summary>
+        public const string ProviderIdValue = "engine";
+
+        /// <summary>
         /// Virtual root directory for engine-generated assets.
         /// </summary>
         public const string EngineRootPath = "Engine";
@@ -14,9 +19,19 @@ namespace helengine.editor {
         public const string EngineModelsPath = "Engine/Models";
 
         /// <summary>
+        /// Virtual entry path for the generated cube primitive.
+        /// </summary>
+        public const string CubeRelativePath = "Engine/Models/Cube";
+
+        /// <summary>
+        /// Virtual entry path for the generated plane primitive.
+        /// </summary>
+        public const string PlaneRelativePath = "Engine/Models/Plane";
+
+        /// <summary>
         /// Gets the stable provider identifier used by engine-generated entries.
         /// </summary>
-        public string ProviderId => "engine";
+        public string ProviderId => ProviderIdValue;
 
         /// <summary>
         /// Appends generated entries that live directly under one supported virtual path.
@@ -39,8 +54,8 @@ namespace helengine.editor {
             }
 
             if (string.Equals(relativePath, EngineModelsPath, StringComparison.Ordinal)) {
-                entries.Add(AssetBrowserEntry.CreateGeneratedAsset("Cube", "Engine/Models/Cube", AssetEntryKind.Model, ProviderId, EngineGeneratedModelCache.CubeAssetId));
-                entries.Add(AssetBrowserEntry.CreateGeneratedAsset("Plane", "Engine/Models/Plane", AssetEntryKind.Model, ProviderId, EngineGeneratedModelCache.PlaneAssetId));
+                entries.Add(AssetBrowserEntry.CreateGeneratedAsset("Cube", CubeRelativePath, AssetEntryKind.Model, ProviderId, EngineGeneratedModelCache.CubeAssetId));
+                entries.Add(AssetBrowserEntry.CreateGeneratedAsset("Plane", PlaneRelativePath, AssetEntryKind.Model, ProviderId, EngineGeneratedModelCache.PlaneAssetId));
             }
         }
 
