@@ -12,7 +12,7 @@ namespace helengine {
             get { return renderOrder2D; }
             set {
                 if (renderOrder2D != value) {
-                    if (Parent != null && Parent.Enabled) {
+                    if (Parent != null && Parent.IsHierarchyEnabled) {
                         Core.Instance.ObjectManager.RemoveFromRender2D(this);
                         renderOrder2D = value;
                         Core.Instance.ObjectManager.RegisterForRender2D(this);
@@ -68,7 +68,7 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            if (entity.Enabled) {
+            if (entity.IsHierarchyEnabled) {
                 Core.Instance.ObjectManager.RegisterForRender2D(this);
             }
         }

@@ -15,7 +15,7 @@ namespace helengine {
             get { return updateOrder; }
             set {
                 if (updateOrder != value) {
-                    if (Parent != null && Parent.Enabled) {
+                    if (Parent != null && Parent.IsHierarchyEnabled) {
                         Core.Instance.ObjectManager.RemoveFromUpdate(this, updateOrder);
                         updateOrder = value;
                         Core.Instance.ObjectManager.RegisterForUpdate(this);
@@ -33,7 +33,7 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            if (entity.Enabled) {
+            if (entity.IsHierarchyEnabled) {
                 Core.Instance.ObjectManager.RegisterForUpdate(this);
             }
         }

@@ -120,10 +120,31 @@ namespace helengine {
         public bool Enabled {
             get { return isEnabled; }
             set {
+                bool wasHierarchyEnabled = IsHierarchyEnabled;
                 if (isEnabled != value) {
-                    ParentEnabledChange(value);
+                    isEnabled = value;
+                    bool isHierarchyEnabled = IsHierarchyEnabled;
+                    if (wasHierarchyEnabled != isHierarchyEnabled) {
+                        ParentEnabledChange(isHierarchyEnabled);
+                    }
                 }
-                isEnabled = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether this entity is effectively enabled after combining its local state with all parents.
+        /// </summary>
+        public bool IsHierarchyEnabled {
+            get {
+                if (!isEnabled) {
+                    return false;
+                }
+
+                if (Parent == null) {
+                    return true;
+                }
+
+                return Parent.IsHierarchyEnabled;
             }
         }
 
@@ -156,8 +177,13 @@ namespace helengine {
                 throw new Exception("Parent is not empty");
             }
 
+            bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
             entity.Parent = this;
             Children.Add(entity);
+            bool isHierarchyEnabled = entity.IsHierarchyEnabled;
+            if (wasHierarchyEnabled != isHierarchyEnabled) {
+                entity.ParentEnabledChange(isHierarchyEnabled);
+            }
         }
 
         /// <summary>

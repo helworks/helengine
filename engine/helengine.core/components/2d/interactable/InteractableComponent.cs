@@ -20,7 +20,7 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            if (entity.Enabled) {
+            if (entity.IsHierarchyEnabled) {
                 Core.Instance.ObjectManager.RegisterInteractable(this);
             }
         }

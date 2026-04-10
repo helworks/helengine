@@ -36,7 +36,7 @@ namespace helengine {
             get { return cameraDrawOrder; }
             set {
                 if (cameraDrawOrder != value) {
-                    if (Parent != null && Parent.Enabled) {
+                    if (Parent != null && Parent.IsHierarchyEnabled) {
                         Core.Instance.ObjectManager.RemoveCamera(this);
                         cameraDrawOrder = value;
                         Core.Instance.ObjectManager.RegisterCamera(this);
@@ -99,7 +99,7 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            if (entity.Enabled) {
+            if (entity.IsHierarchyEnabled) {
                 Core.Instance.ObjectManager.RegisterCamera(this);
             }
         }

@@ -22,7 +22,7 @@ namespace helengine {
             get { return renderOrder3D; }
             set {
                 if (renderOrder3D != value) {
-                    if (Parent != null && Parent.Enabled) {
+                    if (Parent != null && Parent.IsHierarchyEnabled) {
                         Core.Instance.ObjectManager.RemoveFromRender3D(this);
                         renderOrder3D = value;
                         Core.Instance.ObjectManager.RegisterForRender3D(this);
@@ -46,7 +46,7 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            if (entity.Enabled) {
+            if (entity.IsHierarchyEnabled) {
                 Core.Instance.ObjectManager.RegisterForRender3D(this);
             }
         }
