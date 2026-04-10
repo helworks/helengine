@@ -1113,6 +1113,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(entry));
             }
 
+            if (entry.IsGenerated) {
+                return GeneratedAssetProviderRegistry.ResolveRuntimeModel(entry);
+            }
+
             ModelAsset modelAsset = LoadModelAsset(entry.FullPath);
             return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
         }

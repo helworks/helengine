@@ -364,6 +364,31 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Shows a read-only summary for one generated asset entry.
+        /// </summary>
+        /// <param name="entry">Generated asset entry selected in the browser.</param>
+        public void ShowGeneratedAssetSummary(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            currentEntry = null;
+            importSettingsView.Hide();
+            MaterialView.Hide();
+            SetTransformVisible(false);
+            ComponentView.Hide();
+            ApplyLines(new[] {
+                "Properties",
+                $"Asset: {BuildAssetLabel(entry)}",
+                $"Provider: {entry.ProviderId}",
+                $"Asset Id: {entry.AssetId}",
+                $"Kind: {entry.EntryKind}",
+                "Source: Generated"
+            });
+            LayoutLines();
+        }
+
+        /// <summary>
         /// Shows transform and component details for a selected entity.
         /// </summary>
         /// <param name="entity">Selected entity to display.</param>

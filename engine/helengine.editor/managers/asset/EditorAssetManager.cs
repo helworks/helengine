@@ -121,7 +121,7 @@ namespace helengine.editor {
                     }
 
                     string relativePath = CombineRelativePath(currentRelativePath, name);
-                    entries.Add(new AssetBrowserEntry(name, relativePath, dirPath, true, string.Empty));
+                    entries.Add(AssetBrowserEntry.CreateFileSystemDirectory(name, relativePath, dirPath));
                 }
 
                 var files = Directory.GetFiles(currentPath);
@@ -137,7 +137,8 @@ namespace helengine.editor {
                     if (string.Equals(extension, ImportSettingsExtension, StringComparison.OrdinalIgnoreCase)) {
                         continue;
                     }
-                    entries.Add(new AssetBrowserEntry(name, relativePath, filePath, false, extension));
+                    AssetEntryKind entryKind = ClassifyEntryKind(extension);
+                    entries.Add(AssetBrowserEntry.CreateFileSystemFile(name, relativePath, filePath, extension, entryKind));
                 }
             } catch (Exception ex) {
                 System.Diagnostics.Debug.WriteLine($"Asset browser refresh failed: {ex.Message}");
@@ -190,32 +191,7 @@ namespace helengine.editor {
                 return AssetEntryKind.Directory;
             }
 
-            string extension = entry.Extension;
-            if (string.IsNullOrEmpty(extension)) {
-                return AssetEntryKind.Unknown;
-            }
-
-            if (imageExtensions.Contains(extension)) {
-                return AssetEntryKind.Image;
-            }
-
-            if (modelExtensions.Contains(extension)) {
-                return AssetEntryKind.Model;
-            }
-
-            if (audioExtensions.Contains(extension)) {
-                return AssetEntryKind.Audio;
-            }
-
-            if (scriptExtensions.Contains(extension)) {
-                return AssetEntryKind.Script;
-            }
-
-            if (configExtensions.Contains(extension)) {
-                return AssetEntryKind.Config;
-            }
-
-            return AssetEntryKind.File;
+            return ClassifyEntryKind(entry.Extension);
         }
 
         /// <summary>
@@ -302,6 +278,39 @@ namespace helengine.editor {
             }
 
             return NormalizeRelativePath($"{left}/{right}");
+        }
+
+        /// <summary>
+        /// Classifies one file extension into the browser icon category used by the UI.
+        /// </summary>
+        /// <param name="extension">File extension including the dot.</param>
+        /// <returns>Visual category used by the browser row.</returns>
+        AssetEntryKind ClassifyEntryKind(string extension) {
+            if (string.IsNullOrEmpty(extension)) {
+                return AssetEntryKind.Unknown;
+            }
+
+            if (imageExtensions.Contains(extension)) {
+                return AssetEntryKind.Image;
+            }
+
+            if (modelExtensions.Contains(extension)) {
+                return AssetEntryKind.Model;
+            }
+
+            if (audioExtensions.Contains(extension)) {
+                return AssetEntryKind.Audio;
+            }
+
+            if (scriptExtensions.Contains(extension)) {
+                return AssetEntryKind.Script;
+            }
+
+            if (configExtensions.Contains(extension)) {
+                return AssetEntryKind.Config;
+            }
+
+            return AssetEntryKind.File;
         }
 
         /// <summary>

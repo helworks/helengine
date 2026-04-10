@@ -165,6 +165,7 @@ namespace helengine.editor {
             EditorProjectPaths.Initialize(this.projectPath);
 
             assetImportManager = InitializeAssetImports(importers);
+            GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
 
             uiCameraEntity = new EditorEntity();
             uiCameraEntity.InternalEntity = true;
@@ -603,6 +604,12 @@ namespace helengine.editor {
             }
 
             if (entry.IsDirectory) {
+                return;
+            }
+
+            if (entry.IsGenerated) {
+                propertiesPanel.ShowGeneratedAssetSummary(entry);
+                previewPanel.ClearPreview();
                 return;
             }
 

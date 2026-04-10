@@ -141,6 +141,11 @@ namespace helengine.editor {
             if (!AssetContextMenu.IsVisible && FileTemplateMenu.IsVisible) {
                 FileTemplateMenu.Hide();
             }
+            if (!BrowserView.CanCreateFileSystemEntries) {
+                AssetContextMenu.Hide();
+                FileTemplateMenu.Hide();
+                return;
+            }
             if (!input.WasMouseRightButtonPressed()) {
                 return;
             }

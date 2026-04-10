@@ -42,9 +42,9 @@ namespace helengine.editor {
         /// </summary>
         readonly FontAsset Font;
         /// <summary>
-        /// Asset manager used to supply browsing data and classifications.
+        /// Asset-browser data source that merges filesystem and generated entries.
         /// </summary>
-        readonly EditorAssetManager AssetManager;
+        readonly AssetBrowserDataSource DataSource;
         /// <summary>
         /// Root entity hosting toolbar and list content.
         /// </summary>
@@ -157,7 +157,7 @@ namespace helengine.editor {
             }
 
             Font = font;
-            AssetManager = new EditorAssetManager(projectPath);
+            DataSource = new AssetBrowserDataSource(projectPath);
             ToolbarOrder = toolbarOrder;
             RowBackgroundOrder = rowBackgroundOrder;
             IconBackgroundOrder = iconBackgroundOrder;
@@ -240,7 +240,12 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the absolute path of the current folder displayed by the view.
         /// </summary>
-        public string CurrentDirectoryPath => AssetManager.CurrentFullPath;
+        public string CurrentDirectoryPath => DataSource.CurrentDirectoryPath;
+
+        /// <summary>
+        /// Gets a value indicating whether the current directory accepts filesystem creation commands.
+        /// </summary>
+        public bool CanCreateFileSystemEntries => DataSource.CanCreateFileSystemEntries;
 
         /// <summary>
         /// Overrides the toolbar button render orders for modal or overlay contexts.
@@ -287,7 +292,7 @@ namespace helengine.editor {
         /// Refreshes the asset list from disk and updates layout.
         /// </summary>
         public void RefreshEntries() {
-            AssetManager.LoadEntries(Entries);
+            DataSource.LoadEntries(Entries);
             ApplyExtensionFilter();
             UpdatePathText();
             LayoutToolbar();
@@ -298,7 +303,7 @@ namespace helengine.editor {
         /// Updates the visible path label based on the current folder.
         /// </summary>
         void UpdatePathText() {
-            PathText.Text = AssetManager.GetDisplayPath();
+            PathText.Text = DataSource.GetDisplayPath();
         }
 
         /// <summary>
@@ -306,7 +311,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="relativePath">Relative path to navigate into.</param>
         void NavigateTo(string relativePath) {
-            if (AssetManager.TryNavigateTo(relativePath)) {
+            if (DataSource.TryNavigateTo(relativePath)) {
                 RefreshEntries();
             }
         }
@@ -315,7 +320,7 @@ namespace helengine.editor {
         /// Navigates to the parent folder if available.
         /// </summary>
         void NavigateUp() {
-            if (AssetManager.TryNavigateUp()) {
+            if (DataSource.TryNavigateUp()) {
                 RefreshEntries();
             }
         }
@@ -593,7 +598,7 @@ namespace helengine.editor {
         /// <param name="label">Output icon label.</param>
         /// <param name="textColor">Output icon text color.</param>
         void GetIconForEntry(AssetBrowserEntry entry, out byte4 color, out string label, out byte4 textColor) {
-            switch (AssetManager.GetEntryKind(entry)) {
+            switch (entry.EntryKind) {
                 case AssetEntryKind.Directory:
                     color = ThemeManager.Colors.AccentSecondary;
                     label = "DIR";
