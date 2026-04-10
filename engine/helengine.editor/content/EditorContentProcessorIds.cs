@@ -24,6 +24,10 @@ namespace helengine.editor {
         /// </summary>
         public const string ShaderAsset = "editor.shader-asset";
         /// <summary>
+        /// Processor id used for serialized scene assets.
+        /// </summary>
+        public const string SceneAsset = "editor.scene-asset";
+        /// <summary>
         /// Processor id used for serialized asset import settings sidecars.
         /// </summary>
         public const string AssetImportSettings = "editor.asset-import-settings";

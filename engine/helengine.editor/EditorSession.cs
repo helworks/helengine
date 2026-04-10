@@ -8,10 +8,6 @@ namespace helengine.editor {
         /// </summary>
         const int ShaderBuildDelayMilliseconds = 250;
         /// <summary>
-        /// Built-in runtime shader file used for starter-scene materials.
-        /// </summary>
-        const string DefaultMeshShaderFileName = "EditorDefaultMesh.hlsl";
-        /// <summary>
         /// Built-in runtime shader file used for transform-gizmo materials.
         /// </summary>
         const string TransformGizmoShaderFileName = "EditorTransformGizmo.hlsl";
@@ -123,6 +119,22 @@ namespace helengine.editor {
         /// Asset import manager responsible for creating import settings and outputs.
         /// </summary>
         readonly AssetImportManager assetImportManager;
+        /// <summary>
+        /// Resolves and validates scene save destinations for the current project.
+        /// </summary>
+        readonly SceneSavePathResolver SceneSavePathResolver;
+        /// <summary>
+        /// Serializes the current editor scene to `.helen` files.
+        /// </summary>
+        readonly SceneSaveService SceneSaveService;
+        /// <summary>
+        /// Modal dialog used to choose scene save destinations.
+        /// </summary>
+        readonly SaveFileDialog saveFileDialog;
+        /// <summary>
+        /// Absolute path to the current scene file, when one has been saved.
+        /// </summary>
+        string CurrentScenePath;
 
         /// <summary>
         /// Initializes a new editor session and sets up cameras, docking, and starter content.
@@ -233,11 +245,19 @@ namespace helengine.editor {
             loggerPanel = new LoggerPanel(uiFont);
             previewPanel = new PreviewPanel(uiFont);
             assetPickerModal = new AssetPickerModal(uiFont, this.projectPath);
+            ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
+            persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
+            SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
+            SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
+            saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
             assetBrowserPanel.AssetSelected += HandleAssetSelected;
             assetBrowserPanel.SelectionCleared += HandleAssetSelectionCleared;
             propertiesPanel.ImportSettingsApplyRequested += HandleImportSettingsApplyRequested;
             EditorSelectionService.SelectionChanged += HandleSelectionChanged;
             EditorAssetPickerService.PickRequested += HandleAssetPickRequested;
+            titleBar.SaveMapRequested += HandleSaveMapRequested;
+            titleBar.SaveMapAsRequested += HandleSaveMapAsRequested;
+            saveFileDialog.SaveRequested += HandleSceneSaveRequested;
 
             sceneHierarchyPanel.Size = new int2(280, 600);
             assetBrowserPanel.Size = new int2(500, 240);
@@ -264,13 +284,12 @@ namespace helengine.editor {
             shaderModuleManager.ShaderBuilt += HandleShaderBuilt;
             shaderModuleManager.Start();
 
-            RuntimeMaterial defaultMeshMaterial = BuildDefaultMeshMaterial();
             RuntimeMaterial transformGizmoMaterial = BuildTransformGizmoNormalMaterial();
             RuntimeMaterial transformGizmoHighlightMaterial = BuildTransformGizmoHighlightMaterial();
             TransformTranslationGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial, transformGizmoHighlightMaterial);
             TransformRotationGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial, transformGizmoHighlightMaterial);
             TransformScaleGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial, transformGizmoHighlightMaterial);
-            BuildStartScene(defaultMeshMaterial);
+            BuildStartScene();
             sceneHierarchyPanel.RefreshHierarchy();
 
             UpdateLayout(renderWidth, renderHeight);
@@ -404,6 +423,7 @@ namespace helengine.editor {
             dockingManager.Layout.Layout(new int2(width, availableHeight), new float3(0, titleBar.Height, 0));
             gizmoCameraComponent.Viewport = sceneCameraComponent.Viewport;
             assetPickerModal.UpdateLayout(width, height);
+            saveFileDialog.UpdateLayout(width, height);
             mainViewport.RefreshInputBlockers();
             UpdateDockInputBlockers();
         }
@@ -481,9 +501,13 @@ namespace helengine.editor {
             propertiesPanel.ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested;
             EditorSelectionService.SelectionChanged -= HandleSelectionChanged;
             EditorAssetPickerService.PickRequested -= HandleAssetPickRequested;
+            titleBar.SaveMapRequested -= HandleSaveMapRequested;
+            titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested;
+            saveFileDialog.SaveRequested -= HandleSceneSaveRequested;
             mainViewport.ClearInputBlockers();
             EditorViewportToolService.ClearToolMode(sceneCameraComponent);
             assetPickerModal.Hide();
+            saveFileDialog.Hide();
             shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
             shaderModuleManager.Dispose();
             loggerPanel.Detach();
@@ -508,43 +532,58 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates a starter scene with a cube and a ground plane.
+        /// Handles the main `Save Map` command from the editor title bar.
         /// </summary>
-        /// <param name="defaultMaterial">Material used by starter-scene meshes.</param>
-        void BuildStartScene(RuntimeMaterial defaultMaterial) {
-            if (defaultMaterial == null) {
-                throw new ArgumentNullException(nameof(defaultMaterial));
+        void HandleSaveMapRequested() {
+            if (string.IsNullOrWhiteSpace(CurrentScenePath)) {
+                ShowSceneSaveDialog();
+                return;
             }
 
-            Core coreInstance = helengine.Core.Instance;
-            EditorEntity cube = new EditorEntity();
-            cube.Name = "Cube";
-            cube.LayerMask = EditorLayerMasks.SceneObjects;
-            MeshComponent mesh = new MeshComponent();
-            cube.AddComponent(mesh);
-            ModelAsset modelData = ModelUtils.GenerateCubeMesh(float3.Zero, float3.One);
-            RuntimeModel renderData = coreInstance.RenderManager3D.BuildModelFromRaw(modelData);
-            mesh.Model = renderData;
-            mesh.Material = defaultMaterial;
-
-            EditorEntity plane = new EditorEntity();
-            plane.Name = "Ground";
-            plane.LayerMask = EditorLayerMasks.SceneObjects;
-            plane.Scale = new float3(10, 1, 10);
-            MeshComponent planeMesh = new MeshComponent();
-            plane.AddComponent(planeMesh);
-            ModelAsset planeModelData = ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One);
-            RuntimeModel planeRenderData = coreInstance.RenderManager3D.BuildModelFromRaw(planeModelData);
-            planeMesh.Model = planeRenderData;
-            planeMesh.Material = defaultMaterial;
+            HandleSceneSaveRequested(CurrentScenePath);
         }
 
         /// <summary>
-        /// Builds the default material used for starter 3D meshes.
+        /// Handles the main `Save Map As...` command from the editor title bar.
         /// </summary>
-        /// <returns>Runtime material instance.</returns>
-        RuntimeMaterial BuildDefaultMeshMaterial() {
-            return BuildBuiltInRuntimeMaterial(DefaultMeshShaderFileName);
+        void HandleSaveMapAsRequested() {
+            ShowSceneSaveDialog();
+        }
+
+        /// <summary>
+        /// Shows the save-file dialog using the current scene path to seed the folder and file name.
+        /// </summary>
+        void ShowSceneSaveDialog() {
+            string initialRelativeDirectory = SceneSavePathResolver.GetInitialRelativeDirectory(CurrentScenePath);
+            string suggestedFileName = SceneSavePathResolver.GetSuggestedFileName(CurrentScenePath);
+            saveFileDialog.Show(initialRelativeDirectory, suggestedFileName);
+        }
+
+        /// <summary>
+        /// Saves the current editor scene to the provided path and updates tracked scene state.
+        /// </summary>
+        /// <param name="fullPath">Absolute `.helen` path selected by the user.</param>
+        void HandleSceneSaveRequested(string fullPath) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Scene path must be provided.", nameof(fullPath));
+            }
+
+            try {
+                SceneSaveService.Save(fullPath);
+                CurrentScenePath = Path.GetFullPath(fullPath);
+                assetBrowserPanel.RefreshEntries();
+                saveFileDialog.Hide();
+            } catch (Exception ex) {
+                Logger.WriteError($"Scene save failed: {ex.Message}");
+                saveFileDialog.ShowError(ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Initializes startup scene content for a new editor session.
+        /// New sessions begin empty and wait for the user to add scene entities explicitly.
+        /// </summary>
+        void BuildStartScene() {
         }
 
         /// <summary>
@@ -609,6 +648,12 @@ namespace helengine.editor {
 
             if (entry.IsGenerated) {
                 propertiesPanel.ShowGeneratedAssetSummary(entry);
+                previewPanel.ClearPreview();
+                return;
+            }
+
+            if (entry.EntryKind == AssetEntryKind.Scene) {
+                propertiesPanel.ShowSceneAssetSummary(entry);
                 previewPanel.ClearPreview();
                 return;
             }

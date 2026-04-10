@@ -60,6 +60,10 @@ namespace helengine.editor {
         /// </summary>
         readonly ContentManager AssetContentManager;
         /// <summary>
+        /// Converts picked browser entries into stable scene asset references.
+        /// </summary>
+        readonly SceneAssetReferenceFactory AssetReferenceFactory;
+        /// <summary>
         /// Root entity that hosts the component property rows.
         /// </summary>
         readonly EditorEntity RootEntity;
@@ -107,6 +111,7 @@ namespace helengine.editor {
 
             Font = font;
             AssetContentManager = contentManager;
+            AssetReferenceFactory = new SceneAssetReferenceFactory();
             RootEntity = new EditorEntity();
             RootEntity.LayerMask = 0b1000000000000000;
             RootEntity.Position = float3.Zero;
@@ -152,9 +157,16 @@ namespace helengine.editor {
                 if (component == null) {
                     continue;
                 }
+                if (component is IEditorHiddenComponent) {
+                    continue;
+                }
 
                 AddHeaderRow(component.GetType().Name);
                 AddPropertyRows(component);
+            }
+
+            if (ActiveRows.Count == 0) {
+                RootEntity.Enabled = false;
             }
         }
 
@@ -699,6 +711,7 @@ namespace helengine.editor {
             try {
                 RuntimeMaterial material = LoadMaterial(entry);
                 row.Property.SetValue(row.TargetComponent, material);
+                StorePickedAssetReference(row, entry);
                 UpdateMaterialRow(row);
             } catch (Exception ex) {
                 Logger.WriteError($"Material pick failed: {ex.Message}");
@@ -1097,10 +1110,62 @@ namespace helengine.editor {
                 if (entry != null) {
                     ModelLabels[model] = entry.Name ?? string.Empty;
                 }
+                StorePickedAssetReference(row, entry);
                 UpdateModelRow(row);
             } catch (Exception ex) {
                 Logger.WriteError($"Model pick failed: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Stores a stable scene asset reference for one picked asset-backed property row.
+        /// </summary>
+        /// <param name="row">Row whose property received the picked asset.</param>
+        /// <param name="entry">Picked asset entry used to build the stable reference.</param>
+        void StorePickedAssetReference(ComponentPropertyRow row, AssetBrowserEntry entry) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+            if (row.TargetComponent == null || row.Property == null) {
+                return;
+            }
+
+            if (!TryGetEntitySaveComponent(row.TargetComponent, out EntitySaveComponent saveComponent)) {
+                return;
+            }
+
+            SceneAssetReference assetReference = AssetReferenceFactory.CreateFromEntry(entry);
+            saveComponent.SetAssetReference(row.TargetComponent, row.Property.Name, assetReference);
+        }
+
+        /// <summary>
+        /// Attempts to read the hidden save component attached to the row's owning entity.
+        /// </summary>
+        /// <param name="component">Component whose owning entity should be inspected.</param>
+        /// <param name="saveComponent">Hidden save component when one is attached.</param>
+        /// <returns>True when the owning entity exposes one save component.</returns>
+        bool TryGetEntitySaveComponent(Component component, out EntitySaveComponent saveComponent) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            saveComponent = null;
+            Entity entity = component.Parent;
+            if (entity == null || entity.Components == null) {
+                return false;
+            }
+
+            for (int i = 0; i < entity.Components.Count; i++) {
+                if (entity.Components[i] is EntitySaveComponent entitySaveComponent) {
+                    saveComponent = entitySaveComponent;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

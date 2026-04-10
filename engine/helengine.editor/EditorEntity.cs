@@ -11,6 +11,7 @@ namespace helengine {
 
             InitComponents();
             InitChildren();
+            AddComponent(new EntitySaveComponent());
         }
 
         /// <summary>

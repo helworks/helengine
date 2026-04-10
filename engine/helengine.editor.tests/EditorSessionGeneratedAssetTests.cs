@@ -55,6 +55,37 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures scene assets show a read-only scene summary instead of import settings.
+        /// </summary>
+        [Fact]
+        public void HandleAssetSelected_WhenEntryIsScene_ShowsSceneSummaryInsteadOfImportSettings() {
+            EditorSession session = CreateSessionForGeneratedSelection();
+            string scenePath = Path.Combine(TempRootPath, "Sample.helen");
+            using (FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, new SceneAsset {
+                    Id = "Scenes/Sample.helen",
+                    RootEntities = Array.Empty<SceneEntityAsset>()
+                });
+            }
+
+            AssetBrowserEntry sceneEntry = AssetBrowserEntry.CreateFileSystemFile(
+                "Sample.helen",
+                "Scenes/Sample.helen",
+                scenePath,
+                SceneAsset.FileExtension,
+                AssetEntryKind.Scene);
+
+            InvokePrivate(session, "HandleAssetSelected", sceneEntry);
+
+            PropertiesPanel panel = GetPrivateField<PropertiesPanel>(session, "propertiesPanel");
+            TextComponent header = GetPrivateField<TextComponent>(panel, "headerText");
+            TextComponent status = GetPrivateField<TextComponent>(panel, "statusText");
+
+            Assert.Equal("Properties", header.Text);
+            Assert.Equal("Kind: Scene", status.Text);
+        }
+
+        /// <summary>
         /// Creates a partially initialized editor session containing only the collaborators used by HandleAssetSelected.
         /// </summary>
         /// <returns>Editor session instance configured for generated-asset selection tests.</returns>

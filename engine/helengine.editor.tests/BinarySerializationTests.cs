@@ -86,6 +86,55 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures scene assets round-trip through the HELE asset serializer and emit the expected file header.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_SceneAsset_WritesHeleHeaderAndRoundTrips() {
+            SceneAsset asset = new SceneAsset {
+                Id = "Scenes/TestScene.helen",
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Name = "Root",
+                        LocalPosition = new float3(1f, 2f, 3f),
+                        LocalScale = new float3(2f, 2f, 2f),
+                        LocalOrientation = new float4(0f, 0.70710677f, 0f, 0.70710677f),
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.core.MeshComponent",
+                                ComponentIndex = 0,
+                                Payload = new byte[] { 1, 2, 3, 4 }
+                            }
+                        },
+                        Children = new[] {
+                            new SceneEntityAsset {
+                                Name = "Child",
+                                LocalPosition = new float3(5f, 6f, 7f),
+                                LocalScale = float3.One,
+                                LocalOrientation = float4.Identity,
+                                Components = Array.Empty<SceneComponentAssetRecord>(),
+                                Children = Array.Empty<SceneEntityAsset>()
+                            }
+                        }
+                    }
+                }
+            };
+
+            byte[] data = AssetSerializer.SerializeToBytes(asset);
+            EngineBinaryHeader header = ReadHeader(data);
+            SceneAsset deserialized = (SceneAsset)AssetSerializer.DeserializeFromBytes(data);
+
+            Assert.Equal(EditorAssetBinarySerializer.FormatId, header.FormatId);
+            Assert.Equal((ushort)EditorAssetBinarySerializer.RecordKind, header.RecordKind);
+            Assert.Equal((ushort)EditorAssetBinaryValueKind.SceneAsset, header.ValueKind);
+            Assert.Equal("Scenes/TestScene.helen", deserialized.Id);
+            Assert.Single(deserialized.RootEntities);
+            Assert.Equal(new float3(1f, 2f, 3f), deserialized.RootEntities[0].LocalPosition);
+            Assert.Equal(new float3(2f, 2f, 2f), deserialized.RootEntities[0].LocalScale);
+            Assert.Equal(new byte[] { 1, 2, 3, 4 }, deserialized.RootEntities[0].Components[0].Payload);
+            Assert.Equal("Child", deserialized.RootEntities[0].Children[0].Name);
+        }
+
+        /// <summary>
         /// Ensures texture assets round-trip through the HELE asset serializer.
         /// </summary>
         [Fact]
@@ -240,6 +289,28 @@ namespace helengine.editor.tests {
             using MemoryStream stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("legacy-settings"));
 
             Assert.Throws<InvalidOperationException>(() => AssetImportSettingsBinarySerializer.Deserialize(stream));
+        }
+
+        /// <summary>
+        /// Ensures the editor content manager can load serialized scene assets through the registered processor.
+        /// </summary>
+        [Fact]
+        public void ContentManager_SceneAsset_RoundTripsSerializedFile() {
+            SceneAsset asset = new SceneAsset {
+                Id = "Scenes/BrowserTest.helen",
+                RootEntities = Array.Empty<SceneEntityAsset>()
+            };
+            string scenePath = Path.Combine(TempRootPath, "BrowserTest.helen");
+            ContentManager contentManager = new ContentManager(TempRootPath);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+
+            using (FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, asset);
+            }
+
+            SceneAsset loaded = contentManager.Load<SceneAsset>(scenePath);
+
+            Assert.Equal("Scenes/BrowserTest.helen", loaded.Id);
         }
 
         /// <summary>

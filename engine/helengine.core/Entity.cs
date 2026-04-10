@@ -37,7 +37,15 @@ namespace helengine {
             }
             set { position = value; }
         }
-        
+
+        /// <summary>
+        /// Gets or sets the uncomposed local position stored on the entity.
+        /// </summary>
+        public float3 LocalPosition {
+            get { return position; }
+            set { position = value; }
+        }
+
         /// <summary>
         /// Gets or sets the scale of the entity. Inherits from parent when present.
         /// </summary>
@@ -55,6 +63,14 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets or sets the uncomposed local scale stored on the entity.
+        /// </summary>
+        public float3 LocalScale {
+            get { return scale; }
+            set { scale = value; }
+        }
+
+        /// <summary>
         /// Gets or sets the orientation quaternion. Multiplies with parent orientation when present.
         /// </summary>
         public float4 Orientation {
@@ -67,6 +83,14 @@ namespace helengine {
 
                 return ori;
             }
+            set { orientation = value; }
+        }
+
+        /// <summary>
+        /// Gets or sets the uncomposed local orientation stored on the entity.
+        /// </summary>
+        public float4 LocalOrientation {
+            get { return orientation; }
             set { orientation = value; }
         }
 

@@ -69,5 +69,25 @@ namespace helengine.editor.tests.managers.asset {
             Assert.True(dataSource.TryNavigateTo("Engine"));
             Assert.False(dataSource.CanCreateFileSystemEntries);
         }
+
+        /// <summary>
+        /// Ensures filesystem-only browser mode suppresses generated roots.
+        /// </summary>
+        [Fact]
+        public void LoadEntries_WhenGeneratedRootsAreDisabled_DoesNotAppendGeneratedRoots() {
+            GeneratedAssetProviderRegistry.Register(new TestGeneratedAssetProvider(
+                "engine",
+                new[] {
+                    AssetBrowserEntry.CreateGeneratedDirectory("Engine", "Engine", "engine")
+                },
+                new TestRuntimeModel()));
+
+            AssetBrowserDataSource dataSource = new AssetBrowserDataSource(ProjectRootPath, false);
+            List<AssetBrowserEntry> entries = new List<AssetBrowserEntry>();
+
+            dataSource.LoadEntries(entries);
+
+            Assert.DoesNotContain(entries, entry => entry.IsGenerated);
+        }
     }
 }

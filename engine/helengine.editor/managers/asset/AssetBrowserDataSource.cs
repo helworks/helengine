@@ -12,6 +12,10 @@ namespace helengine.editor {
         /// Tracks the source kind for visited directory paths so parent navigation can restore writability correctly.
         /// </summary>
         readonly Dictionary<string, AssetBrowserEntrySourceKind> DirectorySources;
+        /// <summary>
+        /// Tracks whether generated virtual entries should be included in the browser.
+        /// </summary>
+        readonly bool IncludeGeneratedEntries;
 
         /// <summary>
         /// Current browser path relative to the assets root or virtual provider root.
@@ -27,11 +31,12 @@ namespace helengine.editor {
         /// Initializes a new asset-browser data source for one project path.
         /// </summary>
         /// <param name="projectPath">Path to the project root.</param>
-        public AssetBrowserDataSource(string projectPath) {
+        public AssetBrowserDataSource(string projectPath, bool includeGeneratedEntries = true) {
             FileSystemAssets = new EditorAssetManager(projectPath);
             DirectorySources = new Dictionary<string, AssetBrowserEntrySourceKind>(StringComparer.Ordinal);
             CurrentRelativePathValue = string.Empty;
             CurrentDirectoryIsGenerated = false;
+            IncludeGeneratedEntries = includeGeneratedEntries;
         }
 
         /// <summary>
@@ -68,11 +73,13 @@ namespace helengine.editor {
 
             entries.Clear();
             if (CurrentDirectoryIsGenerated) {
-                GeneratedAssetProviderRegistry.LoadEntries(CurrentRelativePathValue, entries);
+                if (IncludeGeneratedEntries) {
+                    GeneratedAssetProviderRegistry.LoadEntries(CurrentRelativePathValue, entries);
+                }
             } else {
                 FileSystemAssets.TryNavigateTo(CurrentRelativePathValue);
                 FileSystemAssets.LoadEntries(entries);
-                if (string.IsNullOrWhiteSpace(CurrentRelativePathValue)) {
+                if (IncludeGeneratedEntries && string.IsNullOrWhiteSpace(CurrentRelativePathValue)) {
                     GeneratedAssetProviderRegistry.LoadEntries(string.Empty, entries);
                 }
             }

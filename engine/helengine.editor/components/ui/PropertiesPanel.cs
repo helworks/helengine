@@ -389,6 +389,31 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Shows a read-only summary for one serialized scene asset entry.
+        /// </summary>
+        /// <param name="entry">Scene asset entry selected in the browser.</param>
+        public void ShowSceneAssetSummary(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            currentEntry = null;
+            importSettingsView.Hide();
+            MaterialView.Hide();
+            SetTransformVisible(false);
+            ComponentView.Hide();
+            ApplyLines(new[] {
+                "Properties",
+                $"Asset: {BuildAssetLabel(entry)}",
+                $"Path: {entry.RelativePath}",
+                string.Empty,
+                string.Empty,
+                "Kind: Scene"
+            });
+            LayoutLines();
+        }
+
+        /// <summary>
         /// Shows transform and component details for a selected entity.
         /// </summary>
         /// <param name="entity">Selected entity to display.</param>

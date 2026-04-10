@@ -26,6 +26,11 @@ namespace helengine {
         /// <summary>
         /// The payload stores a <see cref="MaterialAsset"/>.
         /// </summary>
-        MaterialAsset = 5
+        MaterialAsset = 5,
+
+        /// <summary>
+        /// The payload stores a <see cref="SceneAsset"/>.
+        /// </summary>
+        SceneAsset = 6
     }
 }

@@ -141,6 +141,7 @@ namespace helengine.editor {
         /// <param name="rowBackgroundOrder">Render order for row backgrounds.</param>
         /// <param name="iconBackgroundOrder">Render order for icon backgrounds.</param>
         /// <param name="textOrder">Render order for text labels.</param>
+        /// <param name="includeGeneratedEntries">True to include generated-provider roots and entries.</param>
         public AssetBrowserView(
             FontAsset font,
             string projectPath,
@@ -148,7 +149,8 @@ namespace helengine.editor {
             byte toolbarOrder,
             byte rowBackgroundOrder,
             byte iconBackgroundOrder,
-            byte textOrder) {
+            byte textOrder,
+            bool includeGeneratedEntries = true) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -157,7 +159,7 @@ namespace helengine.editor {
             }
 
             Font = font;
-            DataSource = new AssetBrowserDataSource(projectPath);
+            DataSource = new AssetBrowserDataSource(projectPath, includeGeneratedEntries);
             ToolbarOrder = toolbarOrder;
             RowBackgroundOrder = rowBackgroundOrder;
             IconBackgroundOrder = iconBackgroundOrder;
@@ -297,6 +299,20 @@ namespace helengine.editor {
             UpdatePathText();
             LayoutToolbar();
             LayoutRows();
+        }
+
+        /// <summary>
+        /// Navigates to a specific relative path and refreshes the visible entries when successful.
+        /// </summary>
+        /// <param name="relativePath">Relative path to navigate into.</param>
+        /// <returns>True when the target directory exists.</returns>
+        public bool TryNavigateTo(string relativePath) {
+            if (!DataSource.TryNavigateTo(relativePath)) {
+                return false;
+            }
+
+            RefreshEntries();
+            return true;
         }
 
         /// <summary>
@@ -612,6 +628,11 @@ namespace helengine.editor {
                 case AssetEntryKind.Model:
                     color = ThemeManager.Colors.StateWarning;
                     label = "3D";
+                    textColor = ThemeManager.Colors.TextOnAccent;
+                    return;
+                case AssetEntryKind.Scene:
+                    color = ThemeManager.Colors.AccentPrimary;
+                    label = "SCN";
                     textColor = ThemeManager.Colors.TextOnAccent;
                     return;
                 case AssetEntryKind.Audio:

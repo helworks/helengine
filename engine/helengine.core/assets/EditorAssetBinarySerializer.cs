@@ -110,6 +110,8 @@ namespace helengine {
                 return EditorAssetBinaryValueKind.TextAsset;
             } else if (asset is MaterialAsset) {
                 return EditorAssetBinaryValueKind.MaterialAsset;
+            } else if (asset is SceneAsset) {
+                return EditorAssetBinaryValueKind.SceneAsset;
             }
 
             throw new InvalidOperationException($"Asset type '{asset.GetType().Name}' is not supported by the editor binary serializer.");
@@ -136,6 +138,9 @@ namespace helengine {
             } else if (asset is MaterialAsset materialAsset) {
                 WriteMaterialAsset(writer, materialAsset);
                 return;
+            } else if (asset is SceneAsset sceneAsset) {
+                WriteSceneAsset(writer, sceneAsset);
+                return;
             }
 
             throw new InvalidOperationException($"Asset type '{asset.GetType().Name}' is not supported by the editor binary serializer.");
@@ -159,6 +164,8 @@ namespace helengine {
                     return ReadTextAsset(reader);
                 case EditorAssetBinaryValueKind.MaterialAsset:
                     return ReadMaterialAsset(reader);
+                case EditorAssetBinaryValueKind.SceneAsset:
+                    return ReadSceneAsset(reader);
                 default:
                     throw new InvalidOperationException($"Unsupported asset value kind '{(ushort)valueKind}'.");
             }
@@ -272,6 +279,82 @@ namespace helengine {
             };
 
             return materialAsset;
+        }
+
+        /// <summary>
+        /// Writes a scene asset payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">Scene asset to serialize.</param>
+        static void WriteSceneAsset(EngineBinaryWriter writer, SceneAsset asset) {
+            writer.WriteString(asset.Id);
+            writer.WriteArray(asset.RootEntities, WriteSceneEntityAsset);
+        }
+
+        /// <summary>
+        /// Reads a scene asset payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized scene asset.</returns>
+        static SceneAsset ReadSceneAsset(EngineBinaryReader reader) {
+            return new SceneAsset {
+                Id = reader.ReadString(),
+                RootEntities = reader.ReadArray(ReadSceneEntityAsset) ?? Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Writes one serialized scene entity payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">Scene entity asset to serialize.</param>
+        static void WriteSceneEntityAsset(EngineBinaryWriter writer, SceneEntityAsset asset) {
+            writer.WriteString(asset.Name);
+            WriteFloat3(writer, asset.LocalPosition);
+            WriteFloat3(writer, asset.LocalScale);
+            WriteFloat4(writer, asset.LocalOrientation);
+            writer.WriteArray(asset.Components, WriteSceneComponentAssetRecord);
+            writer.WriteArray(asset.Children, WriteSceneEntityAsset);
+        }
+
+        /// <summary>
+        /// Reads one serialized scene entity payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized scene entity asset.</returns>
+        static SceneEntityAsset ReadSceneEntityAsset(EngineBinaryReader reader) {
+            return new SceneEntityAsset {
+                Name = reader.ReadString(),
+                LocalPosition = ReadFloat3(reader),
+                LocalScale = ReadFloat3(reader),
+                LocalOrientation = ReadFloat4(reader),
+                Components = reader.ReadArray(ReadSceneComponentAssetRecord) ?? Array.Empty<SceneComponentAssetRecord>(),
+                Children = reader.ReadArray(ReadSceneEntityAsset) ?? Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Writes one serialized scene component record.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="record">Scene component record to serialize.</param>
+        static void WriteSceneComponentAssetRecord(EngineBinaryWriter writer, SceneComponentAssetRecord record) {
+            writer.WriteString(record.ComponentTypeId);
+            writer.WriteInt32(record.ComponentIndex);
+            writer.WriteByteArray(record.Payload);
+        }
+
+        /// <summary>
+        /// Reads one serialized scene component record.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized scene component record.</returns>
+        static SceneComponentAssetRecord ReadSceneComponentAssetRecord(EngineBinaryReader reader) {
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = reader.ReadString(),
+                ComponentIndex = reader.ReadInt32(),
+                Payload = reader.ReadByteArray() ?? Array.Empty<byte>()
+            };
         }
 
         /// <summary>
@@ -599,6 +682,31 @@ namespace helengine {
         /// <returns>Deserialized vector value.</returns>
         static float3 ReadFloat3(EngineBinaryReader reader) {
             return new float3(
+                reader.ReadSingle(),
+                reader.ReadSingle(),
+                reader.ReadSingle());
+        }
+
+        /// <summary>
+        /// Writes a float4 value.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="value">Vector value to serialize.</param>
+        static void WriteFloat4(EngineBinaryWriter writer, float4 value) {
+            writer.WriteSingle(value.X);
+            writer.WriteSingle(value.Y);
+            writer.WriteSingle(value.Z);
+            writer.WriteSingle(value.W);
+        }
+
+        /// <summary>
+        /// Reads a float4 value.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized vector value.</returns>
+        static float4 ReadFloat4(EngineBinaryReader reader) {
+            return new float4(
+                reader.ReadSingle(),
                 reader.ReadSingle(),
                 reader.ReadSingle(),
                 reader.ReadSingle());

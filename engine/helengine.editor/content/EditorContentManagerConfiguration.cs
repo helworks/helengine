@@ -34,6 +34,11 @@ namespace helengine.editor {
                 EditorContentProcessorIds.ShaderAsset,
                 new AssetContentProcessor<ShaderAsset>(),
                 new[] { ShaderPackagePaths.PackageExtension });
+            RegisterProcessorIfMissing(
+                contentManager,
+                EditorContentProcessorIds.SceneAsset,
+                new AssetContentProcessor<SceneAsset>(),
+                new[] { SceneAsset.FileExtension });
         }
 
         /// <summary>
