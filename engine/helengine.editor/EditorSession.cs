@@ -128,6 +128,10 @@ namespace helengine.editor {
         /// </summary>
         readonly SceneSaveService SceneSaveService;
         /// <summary>
+        /// Creates new scene entities for title-bar add commands.
+        /// </summary>
+        readonly EditorSceneCreationService SceneCreationService;
+        /// <summary>
         /// Modal dialog used to choose scene save destinations.
         /// </summary>
         readonly SaveFileDialog saveFileDialog;
@@ -249,6 +253,7 @@ namespace helengine.editor {
             persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
+            SceneCreationService = new EditorSceneCreationService();
             saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
             assetBrowserPanel.AssetSelected += HandleAssetSelected;
             assetBrowserPanel.SelectionCleared += HandleAssetSelectionCleared;
@@ -257,6 +262,9 @@ namespace helengine.editor {
             EditorAssetPickerService.PickRequested += HandleAssetPickRequested;
             titleBar.SaveMapRequested += HandleSaveMapRequested;
             titleBar.SaveMapAsRequested += HandleSaveMapAsRequested;
+            titleBar.AddEmptyRequested += HandleAddEmptyRequested;
+            titleBar.AddCubeRequested += HandleAddCubeRequested;
+            titleBar.AddPlaneRequested += HandleAddPlaneRequested;
             saveFileDialog.SaveRequested += HandleSceneSaveRequested;
 
             sceneHierarchyPanel.Size = new int2(280, 600);
@@ -503,6 +511,9 @@ namespace helengine.editor {
             EditorAssetPickerService.PickRequested -= HandleAssetPickRequested;
             titleBar.SaveMapRequested -= HandleSaveMapRequested;
             titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested;
+            titleBar.AddEmptyRequested -= HandleAddEmptyRequested;
+            titleBar.AddCubeRequested -= HandleAddCubeRequested;
+            titleBar.AddPlaneRequested -= HandleAddPlaneRequested;
             saveFileDialog.SaveRequested -= HandleSceneSaveRequested;
             mainViewport.ClearInputBlockers();
             EditorViewportToolService.ClearToolMode(sceneCameraComponent);
@@ -529,6 +540,52 @@ namespace helengine.editor {
             }
 
             assetPickerModal.Show(request.OnPicked, request.ExtensionFilter);
+        }
+
+        /// <summary>
+        /// Handles the Add Empty command from the editor title bar.
+        /// </summary>
+        void HandleAddEmptyRequested() {
+            CreateAndSelectSceneEntity(SceneCreationService.CreateEmpty);
+        }
+
+        /// <summary>
+        /// Handles the Add Cube command from the editor title bar.
+        /// </summary>
+        void HandleAddCubeRequested() {
+            CreateAndSelectSceneEntity(SceneCreationService.CreateCube);
+        }
+
+        /// <summary>
+        /// Handles the Add Plane command from the editor title bar.
+        /// </summary>
+        void HandleAddPlaneRequested() {
+            CreateAndSelectSceneEntity(SceneCreationService.CreatePlane);
+        }
+
+        /// <summary>
+        /// Creates one scene entity, refreshes the hierarchy, and selects the result.
+        /// </summary>
+        /// <param name="createEntity">Factory that builds the new scene entity.</param>
+        void CreateAndSelectSceneEntity(Func<EditorEntity> createEntity) {
+            if (createEntity == null) {
+                throw new ArgumentNullException(nameof(createEntity));
+            }
+
+            Entity previousSelection = EditorSelectionService.SelectedEntity;
+
+            try {
+                EditorEntity entity = createEntity();
+                sceneHierarchyPanel.RefreshHierarchy();
+                EditorSelectionService.SetSelectedEntity(entity);
+            } catch (Exception ex) {
+                Logger.WriteError($"Scene entity creation failed: {ex.Message}");
+                if (previousSelection == null) {
+                    EditorSelectionService.ClearSelection();
+                } else {
+                    EditorSelectionService.SetSelectedEntity(previousSelection);
+                }
+            }
         }
 
         /// <summary>
