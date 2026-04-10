@@ -85,6 +85,14 @@ namespace helengine.editor {
         /// </summary>
         readonly int FileMenuButtonWidth;
         /// <summary>
+        /// Entity that hosts the Add menu trigger button.
+        /// </summary>
+        readonly EditorEntity AddMenuButtonEntity;
+        /// <summary>
+        /// Width reserved for the Add menu trigger button.
+        /// </summary>
+        readonly int AddMenuButtonWidth;
+        /// <summary>
         /// Context menu shown when the File button is activated.
         /// </summary>
         readonly ContextMenu FileMenu;
@@ -92,6 +100,14 @@ namespace helengine.editor {
         /// Items displayed by the File context menu.
         /// </summary>
         readonly IReadOnlyList<ContextMenuItem> FileMenuItems;
+        /// <summary>
+        /// Context menu shown when the Add button is activated.
+        /// </summary>
+        readonly ContextMenu AddMenu;
+        /// <summary>
+        /// Items displayed by the Add context menu.
+        /// </summary>
+        readonly IReadOnlyList<ContextMenuItem> AddMenuItems;
         /// <summary>
         /// Entity that hosts the minimize control.
         /// </summary>
@@ -188,6 +204,8 @@ namespace helengine.editor {
 
             FileMenuButtonEntity = CreateTitleBarButton("File", ToggleFileMenu, out int fileMenuButtonWidth);
             FileMenuButtonWidth = fileMenuButtonWidth;
+            AddMenuButtonEntity = CreateTitleBarButton("Add", ToggleAddMenu, out int addMenuButtonWidth);
+            AddMenuButtonWidth = addMenuButtonWidth;
 
             TitleEntity = new EditorEntity {
                 LayerMask = TitleBarLayerMask,
@@ -208,6 +226,9 @@ namespace helengine.editor {
             FileMenu = new ContextMenu(Font, TitleBarLayerMask, BackgroundOrder, TextOrder);
             RootEntity.AddChild(FileMenu.Entity);
             FileMenuItems = BuildFileMenuItems();
+            AddMenu = new ContextMenu(Font, TitleBarLayerMask, BackgroundOrder, TextOrder);
+            RootEntity.AddChild(AddMenu.Entity);
+            AddMenuItems = BuildAddMenuItems();
 
             MinimizeButtonEntity = CreateTitleBarButton("-", HandleMinimizeRequested, out int minimizeButtonWidth);
             MinimizeButtonWidth = minimizeButtonWidth;
@@ -274,6 +295,18 @@ namespace helengine.editor {
         /// Raised when the user selects the Save Map As file-menu command.
         /// </summary>
         public event Action SaveMapAsRequested;
+        /// <summary>
+        /// Raised when the user selects the Add Empty command.
+        /// </summary>
+        public event Action AddEmptyRequested;
+        /// <summary>
+        /// Raised when the user selects the Add Cube command.
+        /// </summary>
+        public event Action AddCubeRequested;
+        /// <summary>
+        /// Raised when the user selects the Add Plane command.
+        /// </summary>
+        public event Action AddPlaneRequested;
 
         /// <summary>
         /// Updates button placement, menu clamping, and title sizing to fit the provided host size.
@@ -289,9 +322,11 @@ namespace helengine.editor {
 
             float fileButtonX = EdgePadding;
             FileMenuButtonEntity.Position = new float3(fileButtonX, ButtonTop, 0f);
+            float addButtonX = fileButtonX + FileMenuButtonWidth + ButtonSpacing;
+            AddMenuButtonEntity.Position = new float3(addButtonX, ButtonTop, 0f);
 
             int totalControlsWidth = MinimizeButtonWidth + MaximizeButtonWidth + CloseButtonWidth + (ButtonSpacing * 2);
-            float titleX = fileButtonX + FileMenuButtonWidth + ButtonSpacing + TitleSpacing;
+            float titleX = addButtonX + AddMenuButtonWidth + ButtonSpacing + TitleSpacing;
             float controlStartX = Math.Max(titleX + MinimumTitleWidth, width - totalControlsWidth - EdgePadding);
 
             TitleEntity.Position = new float3(titleX, GetTitleVerticalOffset(), 0f);
@@ -301,6 +336,7 @@ namespace helengine.editor {
             LayoutWindowControls(controlStartX);
             UpdateDragRegion(controlStartX);
             FileMenu.UpdateLayout(HostSize);
+            AddMenu.UpdateLayout(HostSize);
         }
 
         /// <summary>
@@ -312,6 +348,18 @@ namespace helengine.editor {
                 new ContextMenuItem("New Map", RaiseNewMapRequested),
                 new ContextMenuItem("Save Map", RaiseSaveMapRequested),
                 new ContextMenuItem("Save Map As...", RaiseSaveMapAsRequested)
+            };
+        }
+
+        /// <summary>
+        /// Creates the Add menu items shown beside the File button.
+        /// </summary>
+        /// <returns>Immutable collection of Add menu items.</returns>
+        IReadOnlyList<ContextMenuItem> BuildAddMenuItems() {
+            return new ContextMenuItem[] {
+                new ContextMenuItem("Empty", RaiseAddEmptyRequested),
+                new ContextMenuItem("Cube", RaiseAddCubeRequested),
+                new ContextMenuItem("Plane", RaiseAddPlaneRequested)
             };
         }
 
@@ -364,11 +412,19 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="controlStartX">Left edge of the window control cluster.</param>
         void UpdateDragRegion(float controlStartX) {
-            float dragRegionX = EdgePadding + FileMenuButtonWidth + ButtonSpacing;
+            float dragRegionX = EdgePadding + FileMenuButtonWidth + ButtonSpacing + AddMenuButtonWidth + ButtonSpacing;
             int dragRegionWidth = Math.Max(0, (int)Math.Floor(controlStartX - dragRegionX - ButtonSpacing));
 
             DragRegionEntity.Position = new float3(dragRegionX, 0f, 0f);
             DragRegion.Size = new int2(dragRegionWidth, HeightPixels);
+        }
+
+        /// <summary>
+        /// Hides every title-bar context menu.
+        /// </summary>
+        void HideMenus() {
+            FileMenu.Hide();
+            AddMenu.Hide();
         }
 
         /// <summary>
@@ -380,7 +436,21 @@ namespace helengine.editor {
                 return;
             }
 
+            AddMenu.Hide();
             FileMenu.Show(FileMenuItems, GetFileMenuPosition(), HostSize);
+        }
+
+        /// <summary>
+        /// Shows or hides the Add menu anchored beneath the Add button.
+        /// </summary>
+        void ToggleAddMenu() {
+            if (AddMenu.IsVisible) {
+                AddMenu.Hide();
+                return;
+            }
+
+            FileMenu.Hide();
+            AddMenu.Show(AddMenuItems, GetAddMenuPosition(), HostSize);
         }
 
         /// <summary>
@@ -389,6 +459,15 @@ namespace helengine.editor {
         /// <returns>Menu position relative to the title bar root.</returns>
         int2 GetFileMenuPosition() {
             int x = (int)Math.Round(FileMenuButtonEntity.Position.X);
+            return new int2(x, HeightPixels);
+        }
+
+        /// <summary>
+        /// Computes the top-left position used to open the Add menu.
+        /// </summary>
+        /// <returns>Menu position relative to the title bar root.</returns>
+        int2 GetAddMenuPosition() {
+            int x = (int)Math.Round(AddMenuButtonEntity.Position.X);
             return new int2(x, HeightPixels);
         }
 
@@ -403,8 +482,8 @@ namespace helengine.editor {
                 return;
             }
 
-            if (FileMenu.IsVisible) {
-                FileMenu.Hide();
+            if (FileMenu.IsVisible || AddMenu.IsVisible) {
+                HideMenus();
                 return;
             }
 
@@ -438,7 +517,7 @@ namespace helengine.editor {
         /// Raises the maximize-toggle event after hiding the File menu.
         /// </summary>
         void HandleToggleMaximizeRequested() {
-            FileMenu.Hide();
+            HideMenus();
             RaiseToggleMaximizeRequested();
         }
 
@@ -455,7 +534,7 @@ namespace helengine.editor {
         /// Raises the minimize event after hiding the File menu.
         /// </summary>
         void HandleMinimizeRequested() {
-            FileMenu.Hide();
+            HideMenus();
             if (MinimizeRequested != null) {
                 MinimizeRequested();
             }
@@ -465,7 +544,7 @@ namespace helengine.editor {
         /// Raises the close event after hiding the File menu.
         /// </summary>
         void HandleCloseRequested() {
-            FileMenu.Hide();
+            HideMenus();
             if (CloseRequested != null) {
                 CloseRequested();
             }
@@ -495,6 +574,33 @@ namespace helengine.editor {
         void RaiseSaveMapAsRequested() {
             if (SaveMapAsRequested != null) {
                 SaveMapAsRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Add Empty command event.
+        /// </summary>
+        void RaiseAddEmptyRequested() {
+            if (AddEmptyRequested != null) {
+                AddEmptyRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Add Cube command event.
+        /// </summary>
+        void RaiseAddCubeRequested() {
+            if (AddCubeRequested != null) {
+                AddCubeRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Add Plane command event.
+        /// </summary>
+        void RaiseAddPlaneRequested() {
+            if (AddPlaneRequested != null) {
+                AddPlaneRequested();
             }
         }
 
