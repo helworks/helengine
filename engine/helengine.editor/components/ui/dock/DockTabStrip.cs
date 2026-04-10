@@ -7,9 +7,9 @@ namespace helengine.editor {
     /// </summary>
     public sealed class DockTabStrip : EditorEntity {
         /// <summary>
-        /// Height of the tab strip, matching the dockable title bar.
+        /// Height of the tab strip, 2px shorter than title bar to leave room for separators.
         /// </summary>
-        public const int TabHeight = DockableEntity.TitleBarHeight;
+        public const int TabHeight = DockableEntity.TitleBarHeight - 2;
 
         /// <summary>
         /// Horizontal padding inside each tab.

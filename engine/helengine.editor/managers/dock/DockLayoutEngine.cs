@@ -751,7 +751,7 @@ namespace helengine.editor {
                 }
 
                 DockableEntity active = Entity;
-                tabStrip.UpdateTabs(tabs, activeTabIndex, new float3(left, top, z), width, active.LayerMask);
+                tabStrip.UpdateTabs(tabs, activeTabIndex, new float3(left, top + 1, z), width, active.LayerMask);
             }
         }
 
@@ -873,13 +873,12 @@ namespace helengine.editor {
                     float firstRight = left + splitWidth - gap * 0.5f;
                     float secondLeft = left + splitWidth + gap * 0.5f;
                     float separatorX = left + splitWidth;
-                    float separatorTop = top + DockableEntity.TitleBarHeight;
-                    float separatorHeight = Math.Max(1, bottom - separatorTop);
+                    float separatorHeight = Math.Max(1, bottom - top);
 
                     First.Layout(left, top, firstRight, bottom, z, gap);
                     Second.Layout(secondLeft, top, right, bottom, z, gap);
 
-                    separatorEntity.Position = new float3(separatorX, separatorTop, z + 0.1f);
+                    separatorEntity.Position = new float3(separatorX, top, z + 0.3f);
                     separatorSprite.Size = new int2(1, (int)separatorHeight);
                 } else {
                     float availableHeight = bottom - top;
