@@ -28,6 +28,25 @@ namespace helengine.editor {
         /// </summary>
         const byte GizmoCameraDrawOrder = 1;
         /// <summary>
+        /// Identifies the pending scene transition that should continue after the unsaved-changes guard resolves.
+        /// </summary>
+        enum SceneTransitionKind {
+            /// <summary>
+            /// No transition is pending.
+            /// </summary>
+            None,
+
+            /// <summary>
+            /// The session should reset to a new empty scene.
+            /// </summary>
+            NewMap,
+
+            /// <summary>
+            /// The session should open one scene file chosen by the user.
+            /// </summary>
+            OpenMap
+        }
+        /// <summary>
         /// Editor core driving updates and rendering.
         /// </summary>
         readonly EditorCore core;
@@ -136,9 +155,33 @@ namespace helengine.editor {
         /// </summary>
         readonly SaveFileDialog saveFileDialog;
         /// <summary>
+        /// Modal dialog used to choose scene files to open.
+        /// </summary>
+        readonly OpenFileDialog openFileDialog;
+        /// <summary>
+        /// Modal dialog used to confirm whether pending scene transitions should save dirty changes.
+        /// </summary>
+        readonly UnsavedChangesDialog unsavedChangesDialog;
+        /// <summary>
+        /// Deserializes `.helen` scene files into editor entities.
+        /// </summary>
+        readonly SceneFileLoadService SceneFileLoadService;
+        /// <summary>
         /// Absolute path to the current scene file, when one has been saved.
         /// </summary>
         string CurrentScenePath;
+        /// <summary>
+        /// True when the current scene contains unsaved editor changes.
+        /// </summary>
+        bool IsSceneDirty;
+        /// <summary>
+        /// Pending scene transition waiting on the unsaved-changes guard or save flow.
+        /// </summary>
+        SceneTransitionKind PendingSceneTransition;
+        /// <summary>
+        /// Absolute path that should be opened when the pending transition resumes.
+        /// </summary>
+        string PendingOpenScenePath;
 
         /// <summary>
         /// Initializes a new editor session and sets up cameras, docking, and starter content.
@@ -255,17 +298,34 @@ namespace helengine.editor {
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
             SceneCreationService = new EditorSceneCreationService();
             saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
+            openFileDialog = new OpenFileDialog(uiFont, this.projectPath);
+            unsavedChangesDialog = new UnsavedChangesDialog(uiFont);
+            SceneFileLoadService = new SceneFileLoadService(
+                this.projectPath,
+                persistenceRegistry,
+                new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath));
+            CurrentScenePath = string.Empty;
+            PendingOpenScenePath = string.Empty;
+            PendingSceneTransition = SceneTransitionKind.None;
+            IsSceneDirty = false;
             assetBrowserPanel.AssetSelected += HandleAssetSelected;
             assetBrowserPanel.SelectionCleared += HandleAssetSelectionCleared;
             propertiesPanel.ImportSettingsApplyRequested += HandleImportSettingsApplyRequested;
             EditorSelectionService.SelectionChanged += HandleSelectionChanged;
             EditorAssetPickerService.PickRequested += HandleAssetPickRequested;
+            EditorSceneMutationService.SceneMutated += HandleSceneMutated;
+            titleBar.NewMapRequested += HandleNewMapRequested;
+            titleBar.OpenMapRequested += HandleOpenMapRequested;
             titleBar.SaveMapRequested += HandleSaveMapRequested;
             titleBar.SaveMapAsRequested += HandleSaveMapAsRequested;
             titleBar.AddEmptyRequested += HandleAddEmptyRequested;
             titleBar.AddCubeRequested += HandleAddCubeRequested;
             titleBar.AddPlaneRequested += HandleAddPlaneRequested;
             saveFileDialog.SaveRequested += HandleSceneSaveRequested;
+            openFileDialog.OpenRequested += HandleSceneOpenRequested;
+            unsavedChangesDialog.SaveRequested += HandleUnsavedChangesSaveRequested;
+            unsavedChangesDialog.DontSaveRequested += HandleUnsavedChangesDontSaveRequested;
+            unsavedChangesDialog.CancelRequested += HandleUnsavedChangesCancelRequested;
 
             sceneHierarchyPanel.Size = new int2(280, 600);
             assetBrowserPanel.Size = new int2(500, 240);
@@ -432,6 +492,8 @@ namespace helengine.editor {
             gizmoCameraComponent.Viewport = sceneCameraComponent.Viewport;
             assetPickerModal.UpdateLayout(width, height);
             saveFileDialog.UpdateLayout(width, height);
+            openFileDialog.UpdateLayout(width, height);
+            unsavedChangesDialog.UpdateLayout(width, height);
             mainViewport.RefreshInputBlockers();
             UpdateDockInputBlockers();
         }
@@ -509,16 +571,25 @@ namespace helengine.editor {
             propertiesPanel.ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested;
             EditorSelectionService.SelectionChanged -= HandleSelectionChanged;
             EditorAssetPickerService.PickRequested -= HandleAssetPickRequested;
+            EditorSceneMutationService.SceneMutated -= HandleSceneMutated;
+            titleBar.NewMapRequested -= HandleNewMapRequested;
+            titleBar.OpenMapRequested -= HandleOpenMapRequested;
             titleBar.SaveMapRequested -= HandleSaveMapRequested;
             titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested;
             titleBar.AddEmptyRequested -= HandleAddEmptyRequested;
             titleBar.AddCubeRequested -= HandleAddCubeRequested;
             titleBar.AddPlaneRequested -= HandleAddPlaneRequested;
             saveFileDialog.SaveRequested -= HandleSceneSaveRequested;
+            openFileDialog.OpenRequested -= HandleSceneOpenRequested;
+            unsavedChangesDialog.SaveRequested -= HandleUnsavedChangesSaveRequested;
+            unsavedChangesDialog.DontSaveRequested -= HandleUnsavedChangesDontSaveRequested;
+            unsavedChangesDialog.CancelRequested -= HandleUnsavedChangesCancelRequested;
             mainViewport.ClearInputBlockers();
             EditorViewportToolService.ClearToolMode(sceneCameraComponent);
             assetPickerModal.Hide();
             saveFileDialog.Hide();
+            openFileDialog.Hide();
+            unsavedChangesDialog.Hide();
             shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
             shaderModuleManager.Dispose();
             loggerPanel.Detach();
@@ -540,6 +611,61 @@ namespace helengine.editor {
             }
 
             assetPickerModal.Show(request.OnPicked, request.ExtensionFilter);
+        }
+
+        /// <summary>
+        /// Handles the main `New Map` command from the editor title bar.
+        /// </summary>
+        void HandleNewMapRequested() {
+            RequestSceneTransition(SceneTransitionKind.NewMap, string.Empty);
+        }
+
+        /// <summary>
+        /// Handles the main `Open Map...` command from the editor title bar.
+        /// </summary>
+        void HandleOpenMapRequested() {
+            RequestSceneTransition(SceneTransitionKind.OpenMap, string.Empty);
+        }
+
+        /// <summary>
+        /// Records one pending scene transition and either continues immediately or shows the unsaved-changes guard.
+        /// </summary>
+        /// <param name="transitionKind">Transition that should continue once the guard is resolved.</param>
+        /// <param name="openPath">Absolute scene path that should be opened when resuming an open-map transition.</param>
+        void RequestSceneTransition(SceneTransitionKind transitionKind, string openPath) {
+            PendingSceneTransition = transitionKind;
+            PendingOpenScenePath = openPath ?? string.Empty;
+
+            if (!IsSceneDirty) {
+                ContinuePendingSceneTransition();
+                return;
+            }
+
+            unsavedChangesDialog.Show();
+        }
+
+        /// <summary>
+        /// Continues the transition currently stored in pending scene state.
+        /// </summary>
+        void ContinuePendingSceneTransition() {
+            SceneTransitionKind pendingTransition = PendingSceneTransition;
+            string pendingOpenPath = PendingOpenScenePath;
+
+            PendingSceneTransition = SceneTransitionKind.None;
+            PendingOpenScenePath = string.Empty;
+            unsavedChangesDialog.Hide();
+
+            if (pendingTransition == SceneTransitionKind.NewMap) {
+                ResetToNewScene();
+                return;
+            } else if (pendingTransition == SceneTransitionKind.OpenMap) {
+                if (string.IsNullOrWhiteSpace(pendingOpenPath)) {
+                    openFileDialog.Show(SceneSavePathResolver.DefaultSceneDirectory);
+                    return;
+                }
+
+                LoadSceneIntoSession(pendingOpenPath);
+            }
         }
 
         /// <summary>
@@ -618,6 +744,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Handles one confirmed scene path from the open-file dialog.
+        /// </summary>
+        /// <param name="fullPath">Absolute path to the selected scene file.</param>
+        void HandleSceneOpenRequested(string fullPath) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Scene path must be provided.", nameof(fullPath));
+            }
+
+            RequestSceneTransition(SceneTransitionKind.OpenMap, Path.GetFullPath(fullPath));
+        }
+
+        /// <summary>
         /// Saves the current editor scene to the provided path and updates tracked scene state.
         /// </summary>
         /// <param name="fullPath">Absolute `.helen` path selected by the user.</param>
@@ -629,8 +767,12 @@ namespace helengine.editor {
             try {
                 SceneSaveService.Save(fullPath);
                 CurrentScenePath = Path.GetFullPath(fullPath);
+                MarkSceneClean();
                 assetBrowserPanel.RefreshEntries();
                 saveFileDialog.Hide();
+                if (PendingSceneTransition != SceneTransitionKind.None) {
+                    ContinuePendingSceneTransition();
+                }
             } catch (Exception ex) {
                 Logger.WriteError($"Scene save failed: {ex.Message}");
                 saveFileDialog.ShowError(ex.Message);
@@ -638,10 +780,180 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Loads one `.helen` scene into the active editor session and swaps it into the live scene on success.
+        /// </summary>
+        /// <param name="fullPath">Absolute path to the scene file that should be opened.</param>
+        void LoadSceneIntoSession(string fullPath) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Scene path must be provided.", nameof(fullPath));
+            }
+
+            List<EditorEntity> existingSceneEntities = CaptureUserSceneEntities();
+            try {
+                IReadOnlyList<EditorEntity> loadedRoots = SceneFileLoadService.Load(fullPath);
+                ClearUserSceneEntities(existingSceneEntities);
+                AttachLoadedRoots(loadedRoots);
+                CurrentScenePath = Path.GetFullPath(fullPath);
+                MarkSceneClean();
+                EditorSelectionService.ClearSelection();
+                sceneHierarchyPanel.RefreshHierarchy();
+                assetBrowserPanel.RefreshEntries();
+                openFileDialog.Hide();
+            } catch (Exception ex) {
+                Logger.WriteError($"Scene open failed: {ex.Message}");
+                openFileDialog.ShowError(ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Resets the session to one new empty scene.
+        /// </summary>
+        void ResetToNewScene() {
+            ClearUserSceneEntities();
+            CurrentScenePath = string.Empty;
+            MarkSceneClean();
+            EditorSelectionService.ClearSelection();
+            sceneHierarchyPanel.RefreshHierarchy();
+            openFileDialog.Hide();
+        }
+
+        /// <summary>
+        /// Handles the Save action from the unsaved-changes dialog.
+        /// </summary>
+        void HandleUnsavedChangesSaveRequested() {
+            if (string.IsNullOrWhiteSpace(CurrentScenePath)) {
+                unsavedChangesDialog.Hide();
+                ShowSceneSaveDialog();
+                return;
+            }
+
+            HandleSceneSaveRequested(CurrentScenePath);
+        }
+
+        /// <summary>
+        /// Handles the Don't Save action from the unsaved-changes dialog.
+        /// </summary>
+        void HandleUnsavedChangesDontSaveRequested() {
+            ContinuePendingSceneTransition();
+        }
+
+        /// <summary>
+        /// Handles the Cancel action from the unsaved-changes dialog.
+        /// </summary>
+        void HandleUnsavedChangesCancelRequested() {
+            PendingSceneTransition = SceneTransitionKind.None;
+            PendingOpenScenePath = string.Empty;
+            unsavedChangesDialog.Hide();
+        }
+
+        /// <summary>
+        /// Marks the current scene as dirty after one user-authored mutation.
+        /// </summary>
+        void HandleSceneMutated() {
+            IsSceneDirty = true;
+        }
+
+        /// <summary>
+        /// Marks the current scene as clean after one successful save, load, or reset.
+        /// </summary>
+        void MarkSceneClean() {
+            IsSceneDirty = false;
+        }
+
+        /// <summary>
         /// Initializes startup scene content for a new editor session.
         /// New sessions begin empty and wait for the user to add scene entities explicitly.
         /// </summary>
         void BuildStartScene() {
+        }
+
+        /// <summary>
+        /// Removes every user-authored scene entity from the live session while preserving editor infrastructure.
+        /// </summary>
+        void ClearUserSceneEntities() {
+            ClearUserSceneEntities(CaptureUserSceneEntities());
+        }
+
+        /// <summary>
+        /// Captures the current user-authored scene entities so they can be removed later without touching newly loaded entities.
+        /// </summary>
+        /// <returns>Snapshot of the current user-authored scene entities.</returns>
+        List<EditorEntity> CaptureUserSceneEntities() {
+            List<Entity> liveEntities = new List<Entity>(helengine.Core.Instance.ObjectManager.Entities);
+            List<EditorEntity> capturedEntities = new List<EditorEntity>(liveEntities.Count);
+            for (int i = 0; i < liveEntities.Count; i++) {
+                if (liveEntities[i] is not EditorEntity editorEntity) {
+                    continue;
+                }
+                if (!IsUserSceneEntity(editorEntity)) {
+                    continue;
+                }
+
+                capturedEntities.Add(editorEntity);
+            }
+
+            return capturedEntities;
+        }
+
+        /// <summary>
+        /// Removes the provided user-authored scene entities from the live session.
+        /// </summary>
+        /// <param name="entities">Previously captured user-authored scene entities to remove.</param>
+        void ClearUserSceneEntities(IReadOnlyList<EditorEntity> entities) {
+            if (entities == null) {
+                throw new ArgumentNullException(nameof(entities));
+            }
+
+            for (int i = 0; i < entities.Count; i++) {
+                EditorEntity editorEntity = entities[i];
+                if (editorEntity == null) {
+                    continue;
+                }
+                if (!IsUserSceneEntity(editorEntity)) {
+                    continue;
+                }
+
+                editorEntity.Enabled = false;
+                helengine.Core.Instance.ObjectManager.RemoveEntity(editorEntity);
+            }
+        }
+
+        /// <summary>
+        /// Determines whether one editor entity belongs to the user-authored scene rather than editor infrastructure.
+        /// </summary>
+        /// <param name="editorEntity">Editor entity to evaluate.</param>
+        /// <returns>True when the entity belongs to the user-authored scene.</returns>
+        bool IsUserSceneEntity(EditorEntity editorEntity) {
+            if (editorEntity == null) {
+                return false;
+            }
+            if (editorEntity.InternalEntity) {
+                return false;
+            }
+            if (editorEntity.LayerMask != EditorLayerMasks.SceneObjects) {
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Attaches loaded root entities to the live scene by enabling them after the old scene has been cleared.
+        /// </summary>
+        /// <param name="roots">Loaded root entities that should become active in the session.</param>
+        void AttachLoadedRoots(IReadOnlyList<EditorEntity> roots) {
+            if (roots == null) {
+                throw new ArgumentNullException(nameof(roots));
+            }
+
+            for (int i = 0; i < roots.Count; i++) {
+                EditorEntity root = roots[i];
+                if (root == null) {
+                    throw new InvalidOperationException("Loaded scene contained a null root entity.");
+                }
+
+                root.Enabled = true;
+            }
         }
 
         /// <summary>
