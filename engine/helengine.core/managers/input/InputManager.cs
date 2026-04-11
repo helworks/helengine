@@ -277,6 +277,7 @@ public abstract class InputManager {
         try {
             var objectManager = core.ObjectManager;
             List<IInteractable2D> interactables = objectManager.Interactables;
+            List<IDrawable2D> drawables2D = objectManager.Drawables2D;
 
             PointerInteraction interaction = PointerInteraction.None;
             if (mouseState.LeftButton == ButtonState.Released &&
@@ -331,6 +332,9 @@ public abstract class InputManager {
 
             // No captured interactable; hit test within the topmost camera
             IInteractable2D hit = null;
+            byte hitRenderOrder = 0;
+            int hitDrawableIndex = -1;
+            int hitInteractableIndex = -1;
             if (topCamera != null) {
                 ushort camMask = topCamera.LayerMask;
                 for (int i = 0; i < interactables.Count; i++) {
@@ -344,8 +348,14 @@ public abstract class InputManager {
                     float4 rect = new float4(pos.X, pos.Y, size.X, size.Y);
 
                     if (rect.Contains(localMouse.X, localMouse.Y)) {
-                        hit = interactable;
-                        // We do not break to allow later interactables to override earlier ones if overlapping
+                        byte candidateRenderOrder = GetTopDrawableRenderOrder(drawables2D, interactable, camMask, out int candidateDrawableIndex);
+                        if (hit == null ||
+                            CandidateIsInFront(candidateRenderOrder, candidateDrawableIndex, i, hitRenderOrder, hitDrawableIndex, hitInteractableIndex)) {
+                            hit = interactable;
+                            hitRenderOrder = candidateRenderOrder;
+                            hitDrawableIndex = candidateDrawableIndex;
+                            hitInteractableIndex = i;
+                        }
                     }
                 }
             }
@@ -478,5 +488,103 @@ public abstract class InputManager {
     /// <returns>True when the button transitioned to released.</returns>
     bool WasMouseButtonReleased(ButtonState current, ButtonState previous) {
         return current == ButtonState.Released && previous == ButtonState.Pressed;
+    }
+
+    /// <summary>
+    /// Resolves the highest render order used by drawables owned by the interactable hierarchy.
+    /// </summary>
+    /// <param name="drawables">Registered 2D drawables.</param>
+    /// <param name="interactable">Interactable being evaluated.</param>
+    /// <param name="cameraLayerMask">Layer mask used by the active camera.</param>
+    /// <param name="highestDrawableIndex">Receives the most recent matching drawable index.</param>
+    /// <returns>Highest render order found for the interactable hierarchy.</returns>
+    byte GetTopDrawableRenderOrder(
+        List<IDrawable2D> drawables,
+        IInteractable2D interactable,
+        ushort cameraLayerMask,
+        out int highestDrawableIndex) {
+        if (drawables == null) {
+            throw new ArgumentNullException(nameof(drawables));
+        }
+        if (interactable == null) {
+            throw new ArgumentNullException(nameof(interactable));
+        }
+
+        byte highestRenderOrder = 0;
+        highestDrawableIndex = -1;
+        Entity interactableRoot = interactable.Parent;
+        for (int i = 0; i < drawables.Count; i++) {
+            IDrawable2D drawable = drawables[i];
+            if (drawable == null || drawable.Parent == null) {
+                continue;
+            }
+            if ((drawable.Parent.LayerMask & cameraLayerMask) == 0) {
+                continue;
+            }
+            if (!IsSameEntityOrDescendant(drawable.Parent, interactableRoot)) {
+                continue;
+            }
+
+            if (highestDrawableIndex < 0 ||
+                drawable.RenderOrder2D > highestRenderOrder ||
+                (drawable.RenderOrder2D == highestRenderOrder && i > highestDrawableIndex)) {
+                highestRenderOrder = drawable.RenderOrder2D;
+                highestDrawableIndex = i;
+            }
+        }
+
+        return highestRenderOrder;
+    }
+
+    /// <summary>
+    /// Returns true when the candidate interactable should be treated as visually in front of the current hit.
+    /// </summary>
+    /// <param name="candidateRenderOrder">Highest render order for the candidate.</param>
+    /// <param name="candidateDrawableIndex">Latest drawable index for the candidate.</param>
+    /// <param name="candidateInteractableIndex">Registration index for the candidate interactable.</param>
+    /// <param name="currentRenderOrder">Highest render order for the current hit.</param>
+    /// <param name="currentDrawableIndex">Latest drawable index for the current hit.</param>
+    /// <param name="currentInteractableIndex">Registration index for the current hit.</param>
+    /// <returns>True when the candidate should replace the current hit.</returns>
+    bool CandidateIsInFront(
+        byte candidateRenderOrder,
+        int candidateDrawableIndex,
+        int candidateInteractableIndex,
+        byte currentRenderOrder,
+        int currentDrawableIndex,
+        int currentInteractableIndex) {
+        if (candidateRenderOrder != currentRenderOrder) {
+            return candidateRenderOrder > currentRenderOrder;
+        }
+        if (candidateDrawableIndex != currentDrawableIndex) {
+            return candidateDrawableIndex > currentDrawableIndex;
+        }
+
+        return candidateInteractableIndex > currentInteractableIndex;
+    }
+
+    /// <summary>
+    /// Returns true when the candidate entity is the same as the root entity or is parented under it.
+    /// </summary>
+    /// <param name="candidate">Entity to inspect.</param>
+    /// <param name="root">Root entity that owns the interactable.</param>
+    /// <returns>True when the candidate belongs to the interactable hierarchy.</returns>
+    bool IsSameEntityOrDescendant(Entity candidate, Entity root) {
+        if (candidate == null) {
+            throw new ArgumentNullException(nameof(candidate));
+        }
+        if (root == null) {
+            throw new ArgumentNullException(nameof(root));
+        }
+
+        Entity current = candidate;
+        while (current != null) {
+            if (ReferenceEquals(current, root)) {
+                return true;
+            }
+            current = current.Parent;
+        }
+
+        return false;
     }
 }

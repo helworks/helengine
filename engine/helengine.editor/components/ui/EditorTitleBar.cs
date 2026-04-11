@@ -61,6 +61,18 @@ namespace helengine.editor {
         /// </summary>
         readonly SpriteComponent Background;
         /// <summary>
+        /// Entity that blocks hover and clicks from leaking through uncovered title-bar gaps.
+        /// </summary>
+        readonly EditorEntity HoverShieldEntity;
+        /// <summary>
+        /// Transparent surface used to put the hover shield at the top input layer.
+        /// </summary>
+        readonly SpriteComponent HoverShieldSurface;
+        /// <summary>
+        /// Interactable used to absorb pointer events over uncovered title-bar regions.
+        /// </summary>
+        readonly InteractableComponent HoverShieldInteractable;
+        /// <summary>
         /// Entity that hosts the draggable title bar hit region.
         /// </summary>
         readonly EditorEntity DragRegionEntity;
@@ -68,6 +80,10 @@ namespace helengine.editor {
         /// Interactable used for title bar drag and maximize gestures.
         /// </summary>
         readonly InteractableComponent DragRegion;
+        /// <summary>
+        /// Transparent surface that keeps the drag region above the hover shield in hit testing.
+        /// </summary>
+        readonly SpriteComponent DragRegionInputSurface;
         /// <summary>
         /// Entity that hosts the window title text.
         /// </summary>
@@ -140,6 +156,10 @@ namespace helengine.editor {
         /// Render order used for title bar foreground text and buttons.
         /// </summary>
         readonly byte TextOrder;
+        /// <summary>
+        /// Render order used for invisible input surfaces that must stay above the rest of the UI.
+        /// </summary>
+        readonly byte InputSurfaceOrder;
 
         /// <summary>
         /// Cached host size used to clamp the File menu inside the editor window.
@@ -172,8 +192,9 @@ namespace helengine.editor {
 
             Font = font;
             TitleValue = titleText ?? string.Empty;
-            BackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
-            TextOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
+            BackgroundOrder = RenderOrder2D.PanelSurface;
+            TextOrder = RenderOrder2D.PanelForeground;
+            InputSurfaceOrder = RenderOrder2D.OverlayInput;
             HostSize = new int2(Math.Max(1, windowWidth), Math.Max(HeightPixels, windowHeight));
 
             RootEntity = new EditorEntity {
@@ -190,6 +211,20 @@ namespace helengine.editor {
             };
             RootEntity.AddComponent(Background);
 
+            HoverShieldEntity = new EditorEntity {
+                LayerMask = TitleBarLayerMask,
+                Position = float3.Zero
+            };
+            RootEntity.AddChild(HoverShieldEntity);
+
+            HoverShieldSurface = CreateInputSurface(new int2(HostSize.X, HeightPixels));
+            HoverShieldEntity.AddComponent(HoverShieldSurface);
+
+            HoverShieldInteractable = new InteractableComponent {
+                Size = new int2(HostSize.X, HeightPixels)
+            };
+            HoverShieldEntity.AddComponent(HoverShieldInteractable);
+
             DragRegionEntity = new EditorEntity {
                 LayerMask = TitleBarLayerMask,
                 Position = float3.Zero
@@ -201,6 +236,8 @@ namespace helengine.editor {
             };
             DragRegion.CursorEvent += HandleTitleBarCursorEvent;
             DragRegionEntity.AddComponent(DragRegion);
+            DragRegionInputSurface = CreateInputSurface(new int2(0, HeightPixels));
+            DragRegionEntity.AddComponent(DragRegionInputSurface);
 
             FileMenuButtonEntity = CreateTitleBarButton("File", ToggleFileMenu, out int fileMenuButtonWidth);
             FileMenuButtonWidth = fileMenuButtonWidth;
@@ -217,16 +254,18 @@ namespace helengine.editor {
             TitleTextComponent = new TextComponent {
                 Font = Font,
                 Text = TitleValue,
-                Color = ThemeManager.Colors.TextPrimary,
+                Color = ThemeManager.Colors.AccentQuaternary,
                 Size = new int2(Math.Max(1, HostSize.X), titleHeight),
                 RenderOrder2D = TextOrder
             };
             TitleEntity.AddComponent(TitleTextComponent);
 
-            FileMenu = new ContextMenu(Font, TitleBarLayerMask, BackgroundOrder, TextOrder);
+            byte menuBackgroundOrder = RenderOrder2D.OverlayBackground;
+            byte menuTextOrder = RenderOrder2D.OverlayForeground;
+            FileMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
             RootEntity.AddChild(FileMenu.Entity);
             FileMenuItems = BuildFileMenuItems();
-            AddMenu = new ContextMenu(Font, TitleBarLayerMask, BackgroundOrder, TextOrder);
+            AddMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
             RootEntity.AddChild(AddMenu.Entity);
             AddMenuItems = BuildAddMenuItems();
 
@@ -324,6 +363,8 @@ namespace helengine.editor {
             HostSize = new int2(width, height);
 
             Background.Size = new int2(width + 1, HeightPixels);
+            HoverShieldSurface.Size = new int2(width, HeightPixels);
+            HoverShieldInteractable.Size = new int2(width, HeightPixels);
 
             float fileButtonX = EdgePadding;
             FileMenuButtonEntity.Position = new float3(fileButtonX, ButtonTop, 0f);
@@ -393,6 +434,7 @@ namespace helengine.editor {
             ButtonComponent button = new ButtonComponent(label, new int2(width, ButtonHeight), Font, onClick, 0f);
             button.SetRenderOrders(BackgroundOrder, TextOrder);
             buttonEntity.AddComponent(button);
+            buttonEntity.AddComponent(CreateInputSurface(new int2(width, ButtonHeight)));
             RootEntity.AddChild(buttonEntity);
             return buttonEntity;
         }
@@ -423,6 +465,21 @@ namespace helengine.editor {
 
             DragRegionEntity.Position = new float3(dragRegionX, 0f, 0f);
             DragRegion.Size = new int2(dragRegionWidth, HeightPixels);
+            DragRegionInputSurface.Size = new int2(dragRegionWidth, HeightPixels);
+        }
+
+        /// <summary>
+        /// Creates a transparent sprite that participates in draw ordering so input can respect title-bar occlusion.
+        /// </summary>
+        /// <param name="size">Surface size in pixels.</param>
+        /// <returns>Transparent sprite component registered at the dedicated input-surface order.</returns>
+        SpriteComponent CreateInputSurface(int2 size) {
+            return new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = new byte4(255, 255, 255, 0),
+                Size = size,
+                RenderOrder2D = InputSurfaceOrder
+            };
         }
 
         /// <summary>

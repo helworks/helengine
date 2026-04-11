@@ -49,6 +49,18 @@ namespace helengine.editor {
         /// </summary>
         readonly RoundedRectComponent Background;
         /// <summary>
+        /// Entity that blocks pointer events from leaking through menu padding and row spacing.
+        /// </summary>
+        readonly EditorEntity BackgroundBlockerEntity;
+        /// <summary>
+        /// Transparent surface that gives the background blocker its own input depth.
+        /// </summary>
+        readonly SpriteComponent BackgroundBlockerSurface;
+        /// <summary>
+        /// Interactable that blocks pointer events from leaking through menu padding and row spacing.
+        /// </summary>
+        readonly InteractableComponent BackgroundBlockerInteractable;
+        /// <summary>
         /// Render order used for menu text.
         /// </summary>
         readonly byte TextOrder;
@@ -117,6 +129,26 @@ namespace helengine.editor {
                 Size = new int2(0, 0)
             };
             Root.AddComponent(Background);
+
+            BackgroundBlockerEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = layerMask,
+                Position = new float3(0f, 0f, 0.05f)
+            };
+            Root.AddChild(BackgroundBlockerEntity);
+
+            BackgroundBlockerSurface = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = new byte4(255, 255, 255, 0),
+                Size = new int2(0, 0),
+                RenderOrder2D = RenderOrder2D.OverlayInput
+            };
+            BackgroundBlockerEntity.AddComponent(BackgroundBlockerSurface);
+
+            BackgroundBlockerInteractable = new InteractableComponent {
+                Size = new int2(0, 0)
+            };
+            BackgroundBlockerEntity.AddComponent(BackgroundBlockerInteractable);
 
             Root.AddComponent(new ContextMenuUpdater(this));
             IsInitialized = true;
@@ -332,6 +364,8 @@ namespace helengine.editor {
             Root.Position = new float3(MenuPosition.X, MenuPosition.Y, 0.2f);
 
             Background.Size = MenuSize;
+            BackgroundBlockerSurface.Size = MenuSize;
+            BackgroundBlockerInteractable.Size = MenuSize;
             LayoutRows();
         }
 
