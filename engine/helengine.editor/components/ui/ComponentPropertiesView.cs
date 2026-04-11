@@ -127,7 +127,7 @@ namespace helengine.editor {
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ModelLabels = new Dictionary<RuntimeModel, string>();
             MaterialLabels = new Dictionary<RuntimeMaterial, string>();
-            TextOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
+            TextOrder = RenderOrder2D.PanelForeground;
         }
 
         /// <summary>

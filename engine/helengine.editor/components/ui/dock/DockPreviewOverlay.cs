@@ -16,7 +16,7 @@ namespace helengine.editor {
             highlight.BorderColor = new byte4(64, 200, 255, 220);
             highlight.BorderThickness = 2f;
             highlight.Radius = 4f;
-            highlight.RenderOrder2D = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(3);
+            highlight.RenderOrder2D = RenderOrder2D.OverlayForeground;
             AddComponent(highlight);
 
             Enabled = false;

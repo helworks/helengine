@@ -219,7 +219,7 @@ namespace helengine.editor {
             Title = "Property Manager";
             MinSize = new int2(220, 160);
 
-            textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
+            textOrder = RenderOrder2D.PanelForeground;
 
             contentRoot = new EditorEntity();
             contentRoot.LayerMask = LayerMask;

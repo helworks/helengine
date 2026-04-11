@@ -94,8 +94,8 @@ namespace helengine.editor {
             isPointerDown = false;
             isDragging = false;
             dragDelta = new int2(0, 0);
-            tabBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
-            tabTextOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(3);
+            tabBackgroundOrder = RenderOrder2D.PanelInteractive;
+            tabTextOrder = (byte)(RenderOrder2D.PanelInteractive + 1);
             InternalEntity = true;
             Enabled = false;
         }

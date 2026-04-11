@@ -75,8 +75,8 @@ namespace helengine.editor {
             Title = "Logger";
             MinSize = new int2(260, 160);
 
-            rowBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
-            textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
+            rowBackgroundOrder = RenderOrder2D.PanelSurface;
+            textOrder = RenderOrder2D.PanelForeground;
 
             contentRoot = new EditorEntity();
             contentRoot.LayerMask = LayerMask;

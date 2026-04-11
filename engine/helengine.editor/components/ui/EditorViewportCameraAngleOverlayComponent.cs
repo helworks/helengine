@@ -164,8 +164,8 @@ namespace helengine.editor {
             }
 
             ViewportTopOffset = viewportTopOffset;
-            OverlayBackgroundRenderOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
-            OverlayTextRenderOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(3);
+            OverlayBackgroundRenderOrder = RenderOrder2D.OverlayBackground;
+            OverlayTextRenderOrder = RenderOrder2D.OverlayForeground;
         }
 
         /// <summary>

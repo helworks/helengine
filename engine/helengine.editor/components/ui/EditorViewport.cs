@@ -209,8 +209,8 @@ namespace helengine.editor {
             Title = "Viewport";
             SetContentBackgroundColor(new byte4(0, 0, 0, 0));
 
-            ToolbarSurfaceOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
-            ToolbarForegroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
+            ToolbarSurfaceOrder = RenderOrder2D.PanelSurface;
+            ToolbarForegroundOrder = RenderOrder2D.PanelForeground;
             ToolbarInputBlockerOwner = new object();
             ToolModes = new[] {
                 EditorViewportToolMode.Translate,

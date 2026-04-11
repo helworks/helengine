@@ -107,7 +107,7 @@ namespace helengine.editor {
 
             this.font = font;
             importerIds = new List<string>(8);
-            textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
+            textOrder = RenderOrder2D.PanelForeground;
 
             root = new EditorEntity();
             root.LayerMask = layerMask;

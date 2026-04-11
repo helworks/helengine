@@ -798,9 +798,6 @@ namespace helengine.editor {
                 First = first;
                 Second = second;
 
-                byte surfaceOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
-                byte textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
-
                 separatorEntity = new EditorEntity {
                     InternalEntity = true,
                     LayerMask = SeparatorLayerMask,
@@ -810,7 +807,7 @@ namespace helengine.editor {
                 separatorSprite = new SpriteComponent {
                     Texture = TextureUtils.PixelTexture,
                     Color = SeparatorColor,
-                    RenderOrder2D = textOrder
+                    RenderOrder2D = RenderOrder2D.PanelForeground
                 };
                 separatorEntity.AddComponent(separatorSprite);
             }

@@ -49,7 +49,7 @@ namespace helengine.editor {
             Title = "Preview";
             MinSize = new int2(220, 160);
 
-            spriteOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
+            spriteOrder = RenderOrder2D.PanelForeground;
 
             contentRoot = new EditorEntity();
             contentRoot.LayerMask = LayerMask;

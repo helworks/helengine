@@ -68,10 +68,10 @@ namespace helengine.editor {
             Title = "Assets";
             MinSize = new int2(260, 180);
 
-            byte toolbarOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
-            byte rowBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
-            byte iconBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
-            byte textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
+            byte toolbarOrder = RenderOrder2D.PanelSurface;
+            byte rowBackgroundOrder = RenderOrder2D.PanelSurface;
+            byte iconBackgroundOrder = RenderOrder2D.PanelSurface;
+            byte textOrder = RenderOrder2D.PanelForeground;
 
             ContentRoot = new EditorEntity {
                 LayerMask = LayerMask,
@@ -92,8 +92,8 @@ namespace helengine.editor {
             BrowserView.AssetActivated += HandleAssetActivated;
             BrowserView.SelectionCleared += HandleSelectionCleared;
 
-            byte menuBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
-            byte menuTextOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(3);
+            byte menuBackgroundOrder = RenderOrder2D.OverlayBackground;
+            byte menuTextOrder = RenderOrder2D.OverlayForeground;
             AssetContextMenu = new ContextMenu(Font, LayerMask, menuBackgroundOrder, menuTextOrder);
             AddChild(AssetContextMenu.Entity);
             FileTemplateMenu = new ContextMenu(Font, LayerMask, menuBackgroundOrder, menuTextOrder);
