@@ -304,6 +304,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(render3D));
             }
 
+            if (render3D is IShaderCompileTargetProvider targetProvider) {
+                return targetProvider.ShaderCompileTarget;
+            }
+
             if (render3D is helengine.directx11.DirectX11Renderer3D) {
                 return ShaderCompileTarget.DirectX11;
             } else if (render3D is helengine.vulkan.VulkanRenderer3D) {

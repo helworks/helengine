@@ -69,5 +69,29 @@ namespace helengine.editor {
 
             return runtimeModel;
         }
+
+        /// <summary>
+        /// Resolves one generated material entry through its owning provider.
+        /// </summary>
+        /// <param name="entry">Generated entry selected by the editor.</param>
+        /// <returns>Runtime material resolved by the provider.</returns>
+        public static RuntimeMaterial ResolveRuntimeMaterial(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+            if (string.IsNullOrWhiteSpace(entry.ProviderId)) {
+                throw new InvalidOperationException("Generated asset entries must include a provider id.");
+            }
+
+            if (!Providers.TryGetValue(entry.ProviderId, out IGeneratedAssetProvider provider)) {
+                throw new InvalidOperationException($"Generated asset provider '{entry.ProviderId}' is not registered.");
+            }
+
+            if (!provider.TryResolveRuntimeMaterial(entry, out RuntimeMaterial runtimeMaterial) || runtimeMaterial == null) {
+                throw new InvalidOperationException($"Generated runtime material '{entry.AssetId}' could not be resolved.");
+            }
+
+            return runtimeMaterial;
+        }
     }
 }

@@ -630,6 +630,11 @@ namespace helengine.editor {
                     label = "3D";
                     textColor = ThemeManager.Colors.TextOnAccent;
                     return;
+                case AssetEntryKind.Material:
+                    color = ThemeManager.Colors.AccentQuaternary;
+                    label = "MAT";
+                    textColor = ThemeManager.Colors.TextOnAccent;
+                    return;
                 case AssetEntryKind.Scene:
                     color = ThemeManager.Colors.AccentPrimary;
                     label = "SCN";

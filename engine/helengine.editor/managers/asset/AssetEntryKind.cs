@@ -16,6 +16,10 @@ namespace helengine.editor {
         /// </summary>
         Model,
         /// <summary>
+        /// Represents a material asset.
+        /// </summary>
+        Material,
+        /// <summary>
         /// Represents a serialized editor scene file.
         /// </summary>
         Scene,

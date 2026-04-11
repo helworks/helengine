@@ -14,6 +14,10 @@ namespace helengine.editor.tests.testing {
         /// Runtime model returned when the test entry is resolved.
         /// </summary>
         readonly RuntimeModel RuntimeModel;
+        /// <summary>
+        /// Runtime material returned when the test entry is resolved as a material.
+        /// </summary>
+        readonly RuntimeMaterial RuntimeMaterial;
 
         /// <summary>
         /// Initializes a deterministic generated provider for tests.
@@ -21,7 +25,18 @@ namespace helengine.editor.tests.testing {
         /// <param name="providerId">Stable provider identifier used by the test entries.</param>
         /// <param name="entries">Generated entries exposed by the provider.</param>
         /// <param name="runtimeModel">Runtime model returned by model-resolution requests.</param>
-        public TestGeneratedAssetProvider(string providerId, IReadOnlyList<AssetBrowserEntry> entries, RuntimeModel runtimeModel) {
+        public TestGeneratedAssetProvider(string providerId, IReadOnlyList<AssetBrowserEntry> entries, RuntimeModel runtimeModel)
+            : this(providerId, entries, runtimeModel, new TestRuntimeMaterial()) {
+        }
+
+        /// <summary>
+        /// Initializes a deterministic generated provider for tests with model and material resolution payloads.
+        /// </summary>
+        /// <param name="providerId">Stable provider identifier used by the test entries.</param>
+        /// <param name="entries">Generated entries exposed by the provider.</param>
+        /// <param name="runtimeModel">Runtime model returned by model-resolution requests.</param>
+        /// <param name="runtimeMaterial">Runtime material returned by material-resolution requests.</param>
+        public TestGeneratedAssetProvider(string providerId, IReadOnlyList<AssetBrowserEntry> entries, RuntimeModel runtimeModel, RuntimeMaterial runtimeMaterial) {
             if (string.IsNullOrWhiteSpace(providerId)) {
                 throw new ArgumentException("Provider id must be provided.", nameof(providerId));
             }
@@ -31,10 +46,14 @@ namespace helengine.editor.tests.testing {
             if (runtimeModel == null) {
                 throw new ArgumentNullException(nameof(runtimeModel));
             }
+            if (runtimeMaterial == null) {
+                throw new ArgumentNullException(nameof(runtimeMaterial));
+            }
 
             ProviderId = providerId;
             Entries = entries;
             RuntimeModel = runtimeModel;
+            RuntimeMaterial = runtimeMaterial;
         }
 
         /// <summary>
@@ -79,6 +98,29 @@ namespace helengine.editor.tests.testing {
             }
 
             runtimeModel = RuntimeModel;
+            return true;
+        }
+
+        /// <summary>
+        /// Resolves one generated material entry when it belongs to this test provider.
+        /// </summary>
+        /// <param name="entry">Generated entry requested by the test.</param>
+        /// <param name="runtimeMaterial">Runtime material owned by the test provider.</param>
+        /// <returns>True when the provider owns the entry; otherwise false.</returns>
+        public bool TryResolveRuntimeMaterial(AssetBrowserEntry entry, out RuntimeMaterial runtimeMaterial) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            runtimeMaterial = null;
+            if (!string.Equals(entry.ProviderId, ProviderId, StringComparison.Ordinal)) {
+                return false;
+            }
+            if (entry.EntryKind != AssetEntryKind.Material) {
+                return false;
+            }
+
+            runtimeMaterial = RuntimeMaterial;
             return true;
         }
 

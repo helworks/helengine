@@ -26,6 +26,12 @@ namespace helengine.editor {
             ".obj", ".fbx", ".dae", ".3ds", ".blend", ".gltf", ".glb"
         };
         /// <summary>
+        /// Extensions treated as material assets.
+        /// </summary>
+        readonly HashSet<string> materialExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+            EditorFileTemplateRegistry.MaterialExtension
+        };
+        /// <summary>
         /// Extensions treated as serialized scene assets.
         /// </summary>
         readonly HashSet<string> sceneExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
@@ -302,6 +308,10 @@ namespace helengine.editor {
 
             if (modelExtensions.Contains(extension)) {
                 return AssetEntryKind.Model;
+            }
+
+            if (materialExtensions.Contains(extension)) {
+                return AssetEntryKind.Material;
             }
 
             if (sceneExtensions.Contains(extension)) {

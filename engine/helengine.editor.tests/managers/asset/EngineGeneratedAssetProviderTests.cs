@@ -25,6 +25,7 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         public void Dispose() {
             EngineGeneratedModelCache.ResetForTests();
+            EngineGeneratedMaterialCache.ResetForTests();
         }
 
         /// <summary>
@@ -44,12 +45,32 @@ namespace helengine.editor.tests.managers.asset {
             AssetBrowserEntry rootEntry = Assert.Single(rootEntries);
             Assert.Equal("Engine", rootEntry.Name);
 
-            AssetBrowserEntry modelsEntry = Assert.Single(engineEntries);
-            Assert.Equal("Models", modelsEntry.Name);
+            Assert.Equal(2, engineEntries.Count);
+            Assert.Contains(engineEntries, entry => entry.Name == "Models");
+            Assert.Contains(engineEntries, entry => entry.Name == "Materials");
 
             Assert.Equal(2, modelEntries.Count);
             Assert.Contains(modelEntries, entry => entry.Name == "Cube" && entry.AssetId == "engine:model:cube");
             Assert.Contains(modelEntries, entry => entry.Name == "Plane" && entry.AssetId == "engine:model:plane");
+        }
+
+        /// <summary>
+        /// Ensures the provider publishes the generated materials directory and standard material entry.
+        /// </summary>
+        [Fact]
+        public void LoadEntries_WhenBrowsingEngineMaterialPaths_ReturnsStandardMaterialEntry() {
+            EngineGeneratedAssetProvider provider = new EngineGeneratedAssetProvider();
+            List<AssetBrowserEntry> engineEntries = new List<AssetBrowserEntry>();
+            List<AssetBrowserEntry> materialEntries = new List<AssetBrowserEntry>();
+
+            provider.LoadEntries(EngineGeneratedAssetProvider.EngineRootPath, engineEntries);
+            provider.LoadEntries(EngineGeneratedAssetProvider.EngineMaterialsPath, materialEntries);
+
+            Assert.Contains(engineEntries, entry => entry.Name == "Materials" && entry.EntryKind == AssetEntryKind.Directory);
+            AssetBrowserEntry standardEntry = Assert.Single(materialEntries);
+            Assert.Equal("Standard", standardEntry.Name);
+            Assert.Equal(AssetEntryKind.Material, standardEntry.EntryKind);
+            Assert.Equal(EngineGeneratedMaterialCache.StandardAssetId, standardEntry.AssetId);
         }
 
         /// <summary>
@@ -65,6 +86,25 @@ namespace helengine.editor.tests.managers.asset {
 
             Assert.Same(firstModel, secondModel);
             Assert.Single(RenderManager3D.BuiltModelAssets);
+        }
+
+        /// <summary>
+        /// Ensures resolving the same generated material twice reuses the cached runtime material instance.
+        /// </summary>
+        [Fact]
+        public void TryResolveRuntimeMaterial_WhenCalledTwice_ReusesTheCachedRuntimeMaterial() {
+            EngineGeneratedAssetProvider provider = new EngineGeneratedAssetProvider();
+            AssetBrowserEntry standardEntry = AssetBrowserEntry.CreateGeneratedAsset(
+                "Standard",
+                EngineGeneratedAssetProvider.StandardMaterialRelativePath,
+                AssetEntryKind.Material,
+                EngineGeneratedAssetProvider.ProviderIdValue,
+                EngineGeneratedMaterialCache.StandardAssetId);
+
+            Assert.True(provider.TryResolveRuntimeMaterial(standardEntry, out RuntimeMaterial firstMaterial));
+            Assert.True(provider.TryResolveRuntimeMaterial(standardEntry, out RuntimeMaterial secondMaterial));
+
+            Assert.Same(firstMaterial, secondMaterial);
         }
     }
 }

@@ -22,5 +22,13 @@ namespace helengine.editor {
         /// <param name="runtimeModel">Resolved runtime model when the provider owns the entry.</param>
         /// <returns>True when the provider resolved the entry; otherwise false.</returns>
         bool TryResolveRuntimeModel(AssetBrowserEntry entry, out RuntimeModel runtimeModel);
+
+        /// <summary>
+        /// Attempts to resolve one generated material entry to a runtime material.
+        /// </summary>
+        /// <param name="entry">Generated entry requested by the editor.</param>
+        /// <param name="runtimeMaterial">Resolved runtime material when the provider owns the entry.</param>
+        /// <returns>True when the provider resolved the entry; otherwise false.</returns>
+        bool TryResolveRuntimeMaterial(AssetBrowserEntry entry, out RuntimeMaterial runtimeMaterial);
     }
 }

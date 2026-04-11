@@ -52,5 +52,27 @@ namespace helengine.editor.tests.managers.asset {
 
             Assert.Same(runtimeModel, resolvedModel);
         }
+
+        /// <summary>
+        /// Ensures generated material picks resolve through the provider that owns the entry.
+        /// </summary>
+        [Fact]
+        public void ResolveRuntimeMaterial_WhenGeneratedMaterialEntryIsPicked_UsesTheOwningProvider() {
+            GeneratedAssetProviderRegistry.ResetForTests();
+            TestRuntimeMaterial runtimeMaterial = new TestRuntimeMaterial();
+            TestGeneratedAssetProvider provider = new TestGeneratedAssetProvider(
+                "engine",
+                new[] {
+                    AssetBrowserEntry.CreateGeneratedAsset("Standard", "Engine/Materials/Standard", AssetEntryKind.Material, "engine", "engine:material:standard")
+                },
+                new TestRuntimeModel(),
+                runtimeMaterial);
+            GeneratedAssetProviderRegistry.Register(provider);
+
+            RuntimeMaterial resolvedMaterial = GeneratedAssetProviderRegistry.ResolveRuntimeMaterial(
+                AssetBrowserEntry.CreateGeneratedAsset("Standard", "Engine/Materials/Standard", AssetEntryKind.Material, "engine", "engine:material:standard"));
+
+            Assert.Same(runtimeMaterial, resolvedMaterial);
+        }
     }
 }
