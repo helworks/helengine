@@ -77,6 +77,10 @@ namespace helengine.editor {
         /// World-space point captured on the drag plane when plane dragging started.
         /// </summary>
         float3 DragStartPlanePoint;
+        /// <summary>
+        /// Tracks whether the active drag produced an actual scale change.
+        /// </summary>
+        bool DragChanged;
 
         /// <summary>
         /// Initializes a new scale gizmo drag controller.
@@ -220,7 +224,11 @@ namespace helengine.editor {
                 }
 
                 double deltaParameter = currentAxisParameter - DragStartAxisParameter;
-                DraggedEntity.Scale = ResolveAxisDragScale(deltaParameter, input);
+                float3 newScale = ResolveAxisDragScale(deltaParameter, input);
+                if (DraggedEntity.Scale != newScale) {
+                    DraggedEntity.Scale = newScale;
+                }
+                DragChanged = DragChanged || newScale != DragStartEntityScale;
             } else if (DragConstraintType == TransformGizmoHandleConstraintType.Plane) {
                 if (!TryComputePlanePoint(pointer, DragStartEntityPosition, DragPlaneNormal, out float3 currentPlanePoint)) {
                     EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
@@ -228,7 +236,11 @@ namespace helengine.editor {
                 }
 
                 float3 planeDelta = ProjectVectorOntoPlane(currentPlanePoint - DragStartPlanePoint, DragPlaneNormal);
-                DraggedEntity.Scale = ResolvePlaneDragScale(planeDelta, input);
+                float3 newScale = ResolvePlaneDragScale(planeDelta, input);
+                if (DraggedEntity.Scale != newScale) {
+                    DraggedEntity.Scale = newScale;
+                }
+                DragChanged = DragChanged || newScale != DragStartEntityScale;
             } else {
                 throw new InvalidOperationException("Transform gizmo handle constraint type is not supported.");
             }
@@ -240,8 +252,13 @@ namespace helengine.editor {
         /// Ends the active drag and clears cached drag state.
         /// </summary>
         void EndDrag() {
+            if (DragChanged) {
+                EditorSceneMutationService.MarkSceneMutated();
+            }
+
             EditorGizmoDragService.EndDrag(SceneCamera);
             IsDragging = false;
+            DragChanged = false;
             DraggedEntity = null;
             DragHandleEntity = null;
             DragConstraintType = TransformGizmoHandleConstraintType.Axis;

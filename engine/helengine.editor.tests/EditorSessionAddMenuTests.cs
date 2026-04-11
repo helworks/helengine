@@ -27,6 +27,7 @@ namespace helengine.editor.tests {
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
             EditorSelectionService.ClearSelection();
+            EditorSceneMutationService.Reset();
             EngineGeneratedModelCache.ResetForTests();
         }
 
@@ -35,6 +36,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             EditorSelectionService.ClearSelection();
+            EditorSceneMutationService.Reset();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -70,6 +72,27 @@ namespace helengine.editor.tests {
             Assert.Equal("Cube", selectedEntity.Name);
             Assert.NotNull(meshComponent.Model);
             Assert.Equal(1, GetHierarchyNodeCount(session));
+        }
+
+        /// <summary>
+        /// Ensures Add commands mark the current scene as mutated.
+        /// </summary>
+        [Fact]
+        public void HandleAddEmptyRequested_RaisesSceneMutated() {
+            bool raised = false;
+            Action handleSceneMutated = () => raised = true;
+            EditorSession session = CreateSessionForAddCommands();
+
+            try {
+                EditorSceneMutationService.SceneMutated += handleSceneMutated;
+
+                InvokePrivate(session, "HandleAddEmptyRequested");
+
+                Assert.True(raised);
+            } finally {
+                EditorSceneMutationService.SceneMutated -= handleSceneMutated;
+                EditorSceneMutationService.Reset();
+            }
         }
 
         /// <summary>

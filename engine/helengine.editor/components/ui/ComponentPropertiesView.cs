@@ -588,8 +588,14 @@ namespace helengine.editor {
             }
 
             var value = new float3((float)x, (float)y, (float)z);
+            if (GetPropertyValue(row) is float3 currentValue && currentValue == value) {
+                SetVectorFields(row, x, y, z);
+                return;
+            }
+
             row.Property.SetValue(row.TargetComponent, value);
             SetVectorFields(row, x, y, z);
+            EditorSceneMutationService.MarkSceneMutated();
         }
 
         /// <summary>
@@ -614,8 +620,15 @@ namespace helengine.editor {
                 return;
             }
 
+            object currentValue = GetPropertyValue(row);
+            if (Equals(currentValue, parsed)) {
+                UpdateScalarField(row, FormatScalarValue(parsed));
+                return;
+            }
+
             row.Property.SetValue(row.TargetComponent, parsed);
             UpdateScalarField(row, FormatScalarValue(parsed));
+            EditorSceneMutationService.MarkSceneMutated();
         }
 
         /// <summary>
@@ -713,6 +726,7 @@ namespace helengine.editor {
                 row.Property.SetValue(row.TargetComponent, material);
                 StorePickedAssetReference(row, entry);
                 UpdateMaterialRow(row);
+                EditorSceneMutationService.MarkSceneMutated();
             } catch (Exception ex) {
                 Logger.WriteError($"Material pick failed: {ex.Message}");
             }
@@ -1112,6 +1126,7 @@ namespace helengine.editor {
                 }
                 StorePickedAssetReference(row, entry);
                 UpdateModelRow(row);
+                EditorSceneMutationService.MarkSceneMutated();
             } catch (Exception ex) {
                 Logger.WriteError($"Model pick failed: {ex.Message}");
             }

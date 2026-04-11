@@ -796,6 +796,7 @@ namespace helengine.editor {
             }
 
             ApplyTransformRequested = false;
+            bool sceneMutated = false;
 
             bool nameChanged = CacheFieldText(NameField, ref NameTextCache);
             bool positionChanged = CacheFieldText(PositionFields, PositionTextCache);
@@ -809,7 +810,10 @@ namespace helengine.editor {
                         throw new InvalidOperationException("Name field text was not initialized.");
                     }
 
-                    editorEntity.Name = text;
+                    if (!string.Equals(editorEntity.Name, text, StringComparison.Ordinal)) {
+                        editorEntity.Name = text;
+                        sceneMutated = true;
+                    }
                     NameTextCache = text;
                 } else {
                     SyncNameField(SelectedEntity);
@@ -821,7 +825,11 @@ namespace helengine.editor {
                 double y;
                 double z;
                 if (TryReadVector(PositionFields, out x, out y, out z)) {
-                    SelectedEntity.Position = new float3((float)x, (float)y, (float)z);
+                    float3 newPosition = new float3((float)x, (float)y, (float)z);
+                    if (SelectedEntity.Position != newPosition) {
+                        SelectedEntity.Position = newPosition;
+                        sceneMutated = true;
+                    }
                     SetVectorFields(PositionFields, PositionTextCache, x, y, z);
                 }
             }
@@ -836,7 +844,10 @@ namespace helengine.editor {
                     double pitchRad = pitch * (Math.PI / 180.0);
                     double rollRad = roll * (Math.PI / 180.0);
                     float4.CreateFromYawPitchRoll((float)yawRad, (float)pitchRad, (float)rollRad, out rotation);
-                    SelectedEntity.Orientation = rotation;
+                    if (!SelectedEntity.Orientation.Equals(rotation)) {
+                        SelectedEntity.Orientation = rotation;
+                        sceneMutated = true;
+                    }
                     SetVectorFields(RotationFields, RotationTextCache, pitch, yaw, roll);
                 }
             }
@@ -846,9 +857,17 @@ namespace helengine.editor {
                 double y;
                 double z;
                 if (TryReadVector(ScaleFields, out x, out y, out z)) {
-                    SelectedEntity.Scale = new float3((float)x, (float)y, (float)z);
+                    float3 newScale = new float3((float)x, (float)y, (float)z);
+                    if (SelectedEntity.Scale != newScale) {
+                        SelectedEntity.Scale = newScale;
+                        sceneMutated = true;
+                    }
                     SetVectorFields(ScaleFields, ScaleTextCache, x, y, z);
                 }
+            }
+
+            if (sceneMutated) {
+                EditorSceneMutationService.MarkSceneMutated();
             }
         }
 

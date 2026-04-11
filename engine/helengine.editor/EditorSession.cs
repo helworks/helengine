@@ -578,6 +578,7 @@ namespace helengine.editor {
                 EditorEntity entity = createEntity();
                 sceneHierarchyPanel.RefreshHierarchy();
                 EditorSelectionService.SetSelectedEntity(entity);
+                EditorSceneMutationService.MarkSceneMutated();
             } catch (Exception ex) {
                 Logger.WriteError($"Scene entity creation failed: {ex.Message}");
                 if (previousSelection == null) {

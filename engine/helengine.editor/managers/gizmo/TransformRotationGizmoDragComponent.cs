@@ -57,6 +57,10 @@ namespace helengine.editor {
         /// Last solved world-space vector from the rotation center to the pointer plane hit.
         /// </summary>
         float3 DragPreviousVector;
+        /// <summary>
+        /// Tracks whether the active drag produced an actual rotation change.
+        /// </summary>
+        bool DragChanged;
 
         /// <summary>
         /// Initializes a new rotation gizmo drag controller.
@@ -199,7 +203,11 @@ namespace helengine.editor {
             float3 rotationAxis = DragRotationAxis;
             float4 deltaRotation;
             float4.CreateFromAxisAngle(ref rotationAxis, (float)resolvedAngle, out deltaRotation);
-            DraggedEntity.Orientation = deltaRotation * DragStartEntityOrientation;
+            float4 newOrientation = deltaRotation * DragStartEntityOrientation;
+            if (!DraggedEntity.Orientation.Equals(newOrientation)) {
+                DraggedEntity.Orientation = newOrientation;
+            }
+            DragChanged = DragChanged || !newOrientation.Equals(DragStartEntityOrientation);
             EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
         }
 
@@ -207,8 +215,13 @@ namespace helengine.editor {
         /// Ends the active drag and clears cached drag state.
         /// </summary>
         void EndDrag() {
+            if (DragChanged) {
+                EditorSceneMutationService.MarkSceneMutated();
+            }
+
             EditorGizmoDragService.EndDrag(SceneCamera);
             IsDragging = false;
+            DragChanged = false;
             DraggedEntity = null;
             DragHandleEntity = null;
             DragRotationAxis = float3.Zero;

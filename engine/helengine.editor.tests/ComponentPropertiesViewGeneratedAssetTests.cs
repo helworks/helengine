@@ -24,12 +24,14 @@ namespace helengine.editor.tests {
                 ContentRootPath = TempRootPath
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            EditorSceneMutationService.Reset();
         }
 
         /// <summary>
         /// Clears generated provider registrations and temporary test content.
         /// </summary>
         public void Dispose() {
+            EditorSceneMutationService.Reset();
             GeneratedAssetProviderRegistry.ResetForTests();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
@@ -69,6 +71,44 @@ namespace helengine.editor.tests {
             Assert.Equal(SceneAssetReferenceSourceKind.Generated, reference.SourceKind);
             Assert.Equal("engine", reference.ProviderId);
             Assert.Equal(EngineGeneratedModelCache.CubeAssetId, reference.AssetId);
+        }
+
+        /// <summary>
+        /// Ensures generated model picks mark the current scene as mutated.
+        /// </summary>
+        [Fact]
+        public void HandleModelPicked_WhenEntryIsGenerated_RaisesSceneMutated() {
+            bool raised = false;
+            Action handleSceneMutated = () => raised = true;
+            TestRuntimeModel runtimeModel = new TestRuntimeModel();
+            GeneratedAssetProviderRegistry.Register(new TestGeneratedAssetProvider(
+                "engine",
+                new[] {
+                    AssetBrowserEntry.CreateGeneratedAsset("Cube", "Engine/Models/Cube", AssetEntryKind.Model, "engine", EngineGeneratedModelCache.CubeAssetId)
+                },
+                runtimeModel));
+
+            MeshComponent meshComponent = new MeshComponent();
+            EditorEntity entity = CreateEntityWithComponent(meshComponent);
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            view.ShowComponents(entity);
+
+            ComponentPropertyRow modelRow = FindModelRow(view);
+            MethodInfo handleModelPicked = typeof(ComponentPropertiesView).GetMethod("HandleModelPicked", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            try {
+                EditorSceneMutationService.SceneMutated += handleSceneMutated;
+
+                handleModelPicked.Invoke(view, new object[] {
+                    modelRow,
+                    AssetBrowserEntry.CreateGeneratedAsset("Cube", "Engine/Models/Cube", AssetEntryKind.Model, "engine", EngineGeneratedModelCache.CubeAssetId)
+                });
+
+                Assert.True(raised);
+            } finally {
+                EditorSceneMutationService.SceneMutated -= handleSceneMutated;
+                EditorSceneMutationService.Reset();
+            }
         }
 
         /// <summary>

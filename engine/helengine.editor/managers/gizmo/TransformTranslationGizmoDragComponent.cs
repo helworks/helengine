@@ -69,6 +69,10 @@ namespace helengine.editor {
         /// World-space point captured on the drag plane when plane dragging started.
         /// </summary>
         float3 DragStartPlanePoint;
+        /// <summary>
+        /// Tracks whether the active drag produced an actual translation change.
+        /// </summary>
+        bool DragChanged;
 
         /// <summary>
         /// Initializes a new gizmo drag controller.
@@ -212,7 +216,11 @@ namespace helengine.editor {
 
                 double deltaParameter = currentAxisParameter - DragStartAxisParameter;
                 float3 axisOffset = ResolveAxisTranslationOffset(deltaParameter, input);
-                DraggedEntity.Position = DragStartEntityPosition + axisOffset;
+                float3 newPosition = DragStartEntityPosition + axisOffset;
+                if (DraggedEntity.Position != newPosition) {
+                    DraggedEntity.Position = newPosition;
+                }
+                DragChanged = DragChanged || newPosition != DragStartEntityPosition;
             } else if (DragConstraintType == TransformGizmoHandleConstraintType.Plane) {
                 if (!TryComputePlanePoint(pointer, DragStartEntityPosition, DragPlaneNormal, out float3 currentPlanePoint)) {
                     EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
@@ -221,7 +229,11 @@ namespace helengine.editor {
 
                 float3 delta = currentPlanePoint - DragStartPlanePoint;
                 float3 planeOffset = ResolvePlaneTranslationOffset(delta, input);
-                DraggedEntity.Position = DragStartEntityPosition + planeOffset;
+                float3 newPosition = DragStartEntityPosition + planeOffset;
+                if (DraggedEntity.Position != newPosition) {
+                    DraggedEntity.Position = newPosition;
+                }
+                DragChanged = DragChanged || newPosition != DragStartEntityPosition;
             } else {
                 throw new InvalidOperationException("Transform gizmo handle constraint type is not supported.");
             }
@@ -233,8 +245,13 @@ namespace helengine.editor {
         /// Ends the active drag and clears cached drag state.
         /// </summary>
         void EndDrag() {
+            if (DragChanged) {
+                EditorSceneMutationService.MarkSceneMutated();
+            }
+
             EditorGizmoDragService.EndDrag(SceneCamera);
             IsDragging = false;
+            DragChanged = false;
             DraggedEntity = null;
             DragHandleEntity = null;
             DragConstraintType = TransformGizmoHandleConstraintType.Axis;
