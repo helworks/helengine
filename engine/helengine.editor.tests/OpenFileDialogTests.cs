@@ -75,6 +75,18 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the open-scene dialog uses modal render orders above non-modal overlays.
+        /// </summary>
+        [Fact]
+        public void Constructor_UsesModalRenderOrdersAboveOverlayBand() {
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+
+            Assert.Equal(RenderOrder2D.ModalBackground, panelBackground.RenderOrder2D);
+        }
+
+        /// <summary>
         /// Assigns the selected browser entry directly on the dialog.
         /// </summary>
         /// <param name="dialog">Dialog whose selection should be updated.</param>

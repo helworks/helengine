@@ -128,10 +128,8 @@ namespace helengine.editor {
             InternalEntity = true;
             Name = "UnsavedChangesDialog";
 
-            int topLayerIndex = Core.Instance.ObjectManager.RenderOrderLayers2D - 1;
-            int panelLayerIndex = Math.Max(0, topLayerIndex - 1);
-            PanelOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(panelLayerIndex);
-            TextOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(topLayerIndex);
+            PanelOrder = RenderOrder2D.ModalBackground;
+            TextOrder = RenderOrder2D.ModalForeground;
 
             PanelRoot = new EditorEntity {
                 LayerMask = LayerMask,

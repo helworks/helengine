@@ -263,10 +263,10 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
-            textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
-            listBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
-            listTextOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(3);
+            backgroundOrder = RenderOrder2D.PanelSurface;
+            textOrder = RenderOrder2D.PanelForeground;
+            listBackgroundOrder = RenderOrder2D.OverlayBackground;
+            listTextOrder = RenderOrder2D.OverlayForeground;
 
             background = new RoundedRectComponent();
             background.Size = size;

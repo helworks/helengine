@@ -69,6 +69,18 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the save-scene dialog uses the modal foreground band for its labels.
+        /// </summary>
+        [Fact]
+        public void Constructor_UsesModalForegroundForDialogLabels() {
+            SaveFileDialog dialog = new SaveFileDialog(CreateFont(), ProjectRootPath);
+
+            TextComponent headerText = GetPrivateField<TextComponent>(dialog, "HeaderText");
+
+            Assert.Equal(RenderOrder2D.ModalForeground, headerText.RenderOrder2D);
+        }
+
+        /// <summary>
         /// Assigns the save-file name field through the private dialog field.
         /// </summary>
         /// <param name="dialog">Dialog whose file name should be updated.</param>

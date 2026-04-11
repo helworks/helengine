@@ -1,8 +1,8 @@
 namespace helengine {
-    /// <summary>
-    /// Describes core initialization settings for ordering layers and list capacities.
-    /// </summary>
-    public class CoreInitializationOptions {
+/// <summary>
+/// Describes core initialization settings for ordering helpers and object-list capacities.
+/// </summary>
+public class CoreInitializationOptions {
         /// <summary>
         /// Gets or sets the root directory used by the core-owned content manager.
         /// </summary>
@@ -12,11 +12,6 @@ namespace helengine {
         /// Gets or sets the number of update order layers available for convenience helpers.
         /// </summary>
         public byte UpdateOrderLayers { get; set; } = 4;
-
-        /// <summary>
-        /// Gets or sets the number of 2D render order layers available for convenience helpers.
-        /// </summary>
-        public byte RenderOrderLayers2D { get; set; } = 4;
 
         /// <summary>
         /// Gets or sets the number of 3D render order layers available for convenience helpers.
@@ -48,10 +43,6 @@ namespace helengine {
 
             if (UpdateOrderLayers < 1) {
                 throw new InvalidOperationException("UpdateOrderLayers must be at least 1.");
-            }
-
-            if (RenderOrderLayers2D < 1) {
-                throw new InvalidOperationException("RenderOrderLayers2D must be at least 1.");
             }
 
             if (RenderOrderLayers3D < 1) {

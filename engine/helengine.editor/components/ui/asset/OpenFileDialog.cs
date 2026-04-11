@@ -182,13 +182,11 @@ namespace helengine.editor {
             InternalEntity = true;
             Name = "OpenFileDialog";
 
-            int topLayerIndex = Core.Instance.ObjectManager.RenderOrderLayers2D - 1;
-            int panelLayerIndex = Math.Max(0, topLayerIndex - 1);
-            PanelOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(panelLayerIndex);
-            byte toolbarOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(panelLayerIndex);
-            byte rowBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(panelLayerIndex);
-            byte iconBackgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(panelLayerIndex);
-            TextOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(topLayerIndex);
+            PanelOrder = RenderOrder2D.ModalBackground;
+            byte toolbarOrder = RenderOrder2D.ModalBackground;
+            byte rowBackgroundOrder = RenderOrder2D.ModalBackground;
+            byte iconBackgroundOrder = RenderOrder2D.ModalBackground;
+            TextOrder = RenderOrder2D.ModalForeground;
 
             PanelRoot = new EditorEntity {
                 LayerMask = LayerMask,

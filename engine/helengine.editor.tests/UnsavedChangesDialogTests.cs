@@ -68,6 +68,18 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the unsaved-changes dialog occupies the modal band above overlay menus.
+        /// </summary>
+        [Fact]
+        public void Constructor_UsesModalBand() {
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            FieldInfo panelBackgroundField = typeof(UnsavedChangesDialog).GetField("PanelBackground", BindingFlags.Instance | BindingFlags.NonPublic);
+            RoundedRectComponent panelBackground = Assert.IsType<RoundedRectComponent>(panelBackgroundField.GetValue(dialog));
+
+            Assert.Equal(RenderOrder2D.ModalBackground, panelBackground.RenderOrder2D);
+        }
+
+        /// <summary>
         /// Invokes one non-public instance method.
         /// </summary>
         /// <param name="target">Target object that owns the method.</param>

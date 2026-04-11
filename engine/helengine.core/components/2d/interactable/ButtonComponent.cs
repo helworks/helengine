@@ -81,8 +81,8 @@ namespace helengine {
 
             if (!entity.Enabled) return;
 
-            byte backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
-            byte textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
+            byte backgroundOrder = RenderOrder2D.PanelSurface;
+            byte textOrder = RenderOrder2D.PanelForeground;
             if (HasRenderOrderOverrides) {
                 backgroundOrder = BackgroundRenderOrder;
                 textOrder = TextRenderOrder;

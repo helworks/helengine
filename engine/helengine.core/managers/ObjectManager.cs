@@ -26,7 +26,6 @@ public class ObjectManager {
         settings.Normalize();
 
         UpdateOrderLayers = settings.UpdateOrderLayers;
-        RenderOrderLayers2D = settings.RenderOrderLayers2D;
         RenderOrderLayers3D = settings.RenderOrderLayers3D;
 
         Entities = new List<Entity>();
@@ -61,11 +60,6 @@ public class ObjectManager {
     public List<IDrawable2D> Drawables2D { get; private set; }
 
     /// <summary>
-    /// Gets the number of 2D render order layers available for helper methods.
-    /// </summary>
-    public byte RenderOrderLayers2D { get; private set; } = 4;
-
-    /// <summary>
     /// Gets registered 3D drawables for diagnostics.
     /// </summary>
     public List<IDrawable3D> Drawables3D { get; private set; }
@@ -84,15 +78,6 @@ public class ObjectManager {
     /// Gets registered 2D interactables.
     /// </summary>
     public List<IInteractable2D> Interactables { get; private set; }
-
-    /// <summary>
-    /// Computes a render order value that maps to a desired 2D layer.
-    /// </summary>
-    /// <param name="layerIndex">Desired layer index.</param>
-    /// <returns>Render order value aligned to the requested layer.</returns>
-    public byte GetRenderOrderForLayer2D(int layerIndex) {
-        return GetOrderForLayer(layerIndex, RenderOrderLayers2D);
-    }
 
     /// <summary>
     /// Computes a render order value that maps to a desired 3D layer.

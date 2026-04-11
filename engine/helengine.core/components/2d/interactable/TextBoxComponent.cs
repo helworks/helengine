@@ -123,8 +123,8 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            byte backgroundOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(1);
-            byte textOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
+            byte backgroundOrder = RenderOrder2D.PanelSurface;
+            byte textOrder = RenderOrder2D.PanelForeground;
 
             // Create rounded background
             backgroundSprite = new RoundedRectComponent();
