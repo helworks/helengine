@@ -7,6 +7,10 @@ namespace helengine.editor {
         /// Stable save-state slot name used by MeshComponent persistence for model references.
         /// </summary>
         const string MeshModelReferenceName = "Model";
+        /// <summary>
+        /// Stable save-state slot name used by MeshComponent persistence for material references.
+        /// </summary>
+        const string MeshMaterialReferenceName = "Material";
 
         /// <summary>
         /// Creates a root empty entity for the scene.
@@ -21,7 +25,12 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Configured cube scene entity.</returns>
         public EditorEntity CreateCube() {
-            return CreatePrimitive("Cube", EngineGeneratedModelCache.CubeAssetId, EngineGeneratedAssetProvider.CubeRelativePath);
+            return CreatePrimitive(
+                "Cube",
+                EngineGeneratedModelCache.CubeAssetId,
+                EngineGeneratedAssetProvider.CubeRelativePath,
+                EngineGeneratedMaterialCache.StandardAssetId,
+                EngineGeneratedAssetProvider.StandardMaterialRelativePath);
         }
 
         /// <summary>
@@ -29,37 +38,58 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Configured plane scene entity.</returns>
         public EditorEntity CreatePlane() {
-            return CreatePrimitive("Plane", EngineGeneratedModelCache.PlaneAssetId, EngineGeneratedAssetProvider.PlaneRelativePath);
+            return CreatePrimitive(
+                "Plane",
+                EngineGeneratedModelCache.PlaneAssetId,
+                EngineGeneratedAssetProvider.PlaneRelativePath,
+                EngineGeneratedMaterialCache.StandardAssetId,
+                EngineGeneratedAssetProvider.StandardMaterialRelativePath);
         }
 
         /// <summary>
         /// Creates one primitive entity backed by a generated runtime model.
         /// </summary>
         /// <param name="name">Display name assigned to the entity.</param>
-        /// <param name="assetId">Stable generated model identifier.</param>
-        /// <param name="relativePath">Virtual generated-asset path used for persistence.</param>
+        /// <param name="modelAssetId">Stable generated model identifier.</param>
+        /// <param name="modelRelativePath">Virtual generated model path used for persistence.</param>
+        /// <param name="materialAssetId">Stable generated material identifier.</param>
+        /// <param name="materialRelativePath">Virtual generated material path used for persistence.</param>
         /// <returns>Configured primitive scene entity.</returns>
-        EditorEntity CreatePrimitive(string name, string assetId, string relativePath) {
+        EditorEntity CreatePrimitive(
+            string name,
+            string modelAssetId,
+            string modelRelativePath,
+            string materialAssetId,
+            string materialRelativePath) {
             if (string.IsNullOrWhiteSpace(name)) {
                 throw new ArgumentException("Primitive name must be provided.", nameof(name));
             }
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                throw new ArgumentException("Generated asset id must be provided.", nameof(assetId));
+            if (string.IsNullOrWhiteSpace(modelAssetId)) {
+                throw new ArgumentException("Generated model asset id must be provided.", nameof(modelAssetId));
             }
-            if (string.IsNullOrWhiteSpace(relativePath)) {
-                throw new ArgumentException("Generated asset path must be provided.", nameof(relativePath));
+            if (string.IsNullOrWhiteSpace(modelRelativePath)) {
+                throw new ArgumentException("Generated model asset path must be provided.", nameof(modelRelativePath));
+            }
+            if (string.IsNullOrWhiteSpace(materialAssetId)) {
+                throw new ArgumentException("Generated material asset id must be provided.", nameof(materialAssetId));
+            }
+            if (string.IsNullOrWhiteSpace(materialRelativePath)) {
+                throw new ArgumentException("Generated material asset path must be provided.", nameof(materialRelativePath));
             }
 
-            RuntimeModel runtimeModel = EngineGeneratedModelCache.GetRuntimeModel(assetId);
+            RuntimeModel runtimeModel = EngineGeneratedModelCache.GetRuntimeModel(modelAssetId);
+            RuntimeMaterial runtimeMaterial = EngineGeneratedMaterialCache.GetRuntimeMaterial(materialAssetId);
             EditorEntity entity = CreateBaseEntity(name);
 
             try {
                 EntitySaveComponent saveComponent = FindSaveComponent(entity);
                 MeshComponent meshComponent = new MeshComponent {
-                    Model = runtimeModel
+                    Model = runtimeModel,
+                    Material = runtimeMaterial
                 };
                 entity.AddComponent(meshComponent);
-                saveComponent.SetAssetReference(meshComponent, MeshModelReferenceName, BuildGeneratedModelReference(relativePath, assetId));
+                saveComponent.SetAssetReference(meshComponent, MeshModelReferenceName, BuildGeneratedReference(modelRelativePath, modelAssetId));
+                saveComponent.SetAssetReference(meshComponent, MeshMaterialReferenceName, BuildGeneratedReference(materialRelativePath, materialAssetId));
                 return entity;
             } catch {
                 entity.Enabled = false;
@@ -88,12 +118,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the stable generated-model reference stored for created primitives.
+        /// Builds the stable generated-asset reference stored for created primitives.
         /// </summary>
         /// <param name="relativePath">Virtual generated-asset path used for persistence.</param>
-        /// <param name="assetId">Stable generated model identifier.</param>
-        /// <returns>Stable scene asset reference for the generated model.</returns>
-        SceneAssetReference BuildGeneratedModelReference(string relativePath, string assetId) {
+        /// <param name="assetId">Stable generated asset identifier.</param>
+        /// <returns>Stable scene asset reference for the generated asset.</returns>
+        SceneAssetReference BuildGeneratedReference(string relativePath, string assetId) {
             return new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.Generated,
                 RelativePath = relativePath,

@@ -29,6 +29,7 @@ namespace helengine.editor.tests {
             EditorSelectionService.ClearSelection();
             EditorSceneMutationService.Reset();
             EngineGeneratedModelCache.ResetForTests();
+            EngineGeneratedMaterialCache.ResetForTests();
         }
 
         /// <summary>
@@ -37,6 +38,8 @@ namespace helengine.editor.tests {
         public void Dispose() {
             EditorSelectionService.ClearSelection();
             EditorSceneMutationService.Reset();
+            EngineGeneratedModelCache.ResetForTests();
+            EngineGeneratedMaterialCache.ResetForTests();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -71,6 +74,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal("Cube", selectedEntity.Name);
             Assert.NotNull(meshComponent.Model);
+            Assert.NotNull(meshComponent.Material);
             Assert.Equal(1, GetHierarchyNodeCount(session));
         }
 
