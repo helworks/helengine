@@ -287,6 +287,11 @@ namespace helengine.editor {
         public event Action NewMapRequested;
 
         /// <summary>
+        /// Raised when the user selects the Open Map file-menu command.
+        /// </summary>
+        public event Action OpenMapRequested;
+
+        /// <summary>
         /// Raised when the user selects the Save Map file-menu command.
         /// </summary>
         public event Action SaveMapRequested;
@@ -346,6 +351,7 @@ namespace helengine.editor {
         IReadOnlyList<ContextMenuItem> BuildFileMenuItems() {
             return new ContextMenuItem[] {
                 new ContextMenuItem("New Map", RaiseNewMapRequested),
+                new ContextMenuItem("Open Map...", RaiseOpenMapRequested),
                 new ContextMenuItem("Save Map", RaiseSaveMapRequested),
                 new ContextMenuItem("Save Map As...", RaiseSaveMapAsRequested)
             };
@@ -556,6 +562,15 @@ namespace helengine.editor {
         void RaiseNewMapRequested() {
             if (NewMapRequested != null) {
                 NewMapRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Open Map command event.
+        /// </summary>
+        void RaiseOpenMapRequested() {
+            if (OpenMapRequested != null) {
+                OpenMapRequested();
             }
         }
 

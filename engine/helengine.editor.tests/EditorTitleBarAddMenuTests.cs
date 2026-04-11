@@ -73,6 +73,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the File menu exposes `Open Map...` between `New Map` and `Save Map`.
+        /// </summary>
+        [Fact]
+        public void ToggleFileMenu_ShowsOpenMapBetweenNewAndSave() {
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+
+            InvokePrivate(titleBar, "ToggleFileMenu");
+
+            ContextMenu fileMenu = GetPrivateField<ContextMenu>(titleBar, "FileMenu");
+            List<ContextMenuItem> activeItems = GetPrivateField<List<ContextMenuItem>>(fileMenu, "ActiveItems");
+
+            Assert.Collection(
+                activeItems,
+                item => Assert.Equal("New Map", item.Label),
+                item => Assert.Equal("Open Map...", item.Label),
+                item => Assert.Equal("Save Map", item.Label),
+                item => Assert.Equal("Save Map As...", item.Label));
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>
@@ -105,7 +125,12 @@ namespace helengine.editor.tests {
                 ['E'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['F'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['H'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['M'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f),
+                ['O'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
                 ['P'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['S'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                [' '] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
+                ['.'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
                 ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['b'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['d'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
