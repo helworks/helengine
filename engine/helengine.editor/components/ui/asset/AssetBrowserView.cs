@@ -687,9 +687,51 @@ namespace helengine.editor {
                     continue;
                 }
 
-                if (!string.Equals(entry.Extension, ExtensionFilter, StringComparison.OrdinalIgnoreCase)) {
+                if (!DoesEntryMatchExtensionFilter(entry)) {
                     Entries.RemoveAt(i);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Determines whether one entry matches the active extension filter, including virtual generated entries.
+        /// </summary>
+        /// <param name="entry">Entry to validate against the current filter.</param>
+        /// <returns>True when the entry should remain visible.</returns>
+        bool DoesEntryMatchExtensionFilter(AssetBrowserEntry entry) {
+            if (entry == null) {
+                return false;
+            }
+
+            if (string.Equals(entry.Extension, ExtensionFilter, StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+
+            if (!entry.IsGenerated) {
+                return false;
+            }
+
+            string generatedExtension = GetGeneratedEntryExtension(entry.EntryKind);
+            if (string.IsNullOrWhiteSpace(generatedExtension)) {
+                return false;
+            }
+
+            return string.Equals(generatedExtension, ExtensionFilter, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Resolves the logical extension used to filter one generated entry kind.
+        /// </summary>
+        /// <param name="entryKind">Generated entry kind to classify.</param>
+        /// <returns>Logical extension used by pickers, or an empty string when none applies.</returns>
+        string GetGeneratedEntryExtension(AssetEntryKind entryKind) {
+            switch (entryKind) {
+                case AssetEntryKind.Material:
+                    return EditorFileTemplateRegistry.MaterialExtension;
+                case AssetEntryKind.Scene:
+                    return SceneAsset.FileExtension;
+                default:
+                    return string.Empty;
             }
         }
 

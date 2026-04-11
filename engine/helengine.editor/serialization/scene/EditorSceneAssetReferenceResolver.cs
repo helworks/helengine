@@ -91,16 +91,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rejects generated material references until the editor exposes a generated-material provider contract.
+        /// Resolves one generated material reference through the generated-asset registry.
         /// </summary>
-        /// <param name="reference">Generated material reference requested by scene loading.</param>
-        /// <returns>This method never returns successfully.</returns>
+        /// <param name="reference">Generated material reference to resolve.</param>
+        /// <returns>Runtime material published by the owning generated-asset provider.</returns>
         RuntimeMaterial ResolveGeneratedMaterial(SceneAssetReference reference) {
-            if (reference == null) {
-                throw new ArgumentNullException(nameof(reference));
-            }
-
-            throw new InvalidOperationException("Generated material references are not supported yet.");
+            AssetBrowserEntry entry = BuildGeneratedEntry(reference, AssetEntryKind.Material);
+            return GeneratedAssetProviderRegistry.ResolveRuntimeMaterial(entry);
         }
 
         /// <summary>

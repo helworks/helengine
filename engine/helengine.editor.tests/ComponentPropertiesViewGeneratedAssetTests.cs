@@ -112,6 +112,42 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures generated material picks assign the provider runtime material and persist the generated reference.
+        /// </summary>
+        [Fact]
+        public void HandleMaterialPicked_WhenEntryIsGenerated_AssignsTheProviderRuntimeMaterialDisplayLabelAndGeneratedReference() {
+            TestRuntimeMaterial runtimeMaterial = new TestRuntimeMaterial();
+            GeneratedAssetProviderRegistry.Register(new TestGeneratedAssetProvider(
+                "engine",
+                new[] {
+                    AssetBrowserEntry.CreateGeneratedAsset("Standard", "Engine/Materials/Standard", AssetEntryKind.Material, "engine", EngineGeneratedMaterialCache.StandardAssetId)
+                },
+                new TestRuntimeModel(),
+                runtimeMaterial));
+
+            MeshComponent meshComponent = new MeshComponent();
+            EditorEntity entity = CreateEntityWithComponent(meshComponent);
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            view.ShowComponents(entity);
+
+            ComponentPropertyRow materialRow = FindMaterialRow(view);
+            MethodInfo handleMaterialPicked = typeof(ComponentPropertiesView).GetMethod("HandleMaterialPicked", BindingFlags.Instance | BindingFlags.NonPublic);
+            handleMaterialPicked.Invoke(view, new object[] {
+                materialRow,
+                AssetBrowserEntry.CreateGeneratedAsset("Standard", "Engine/Materials/Standard", AssetEntryKind.Material, "engine", EngineGeneratedMaterialCache.StandardAssetId)
+            });
+
+            Assert.Same(runtimeMaterial, meshComponent.Material);
+            Assert.Equal("Standard", materialRow.ValueText.Text);
+            EntitySaveComponent saveComponent = GetSaveComponent(entity);
+            Assert.True(saveComponent.TryGetComponentState(meshComponent, out EntityComponentSaveState saveState));
+            Assert.True(saveState.TryGetAssetReference("Material", out SceneAssetReference reference));
+            Assert.Equal(SceneAssetReferenceSourceKind.Generated, reference.SourceKind);
+            Assert.Equal("engine", reference.ProviderId);
+            Assert.Equal(EngineGeneratedMaterialCache.StandardAssetId, reference.AssetId);
+        }
+
+        /// <summary>
         /// Creates one entity and attaches the supplied component so the properties view can inspect it.
         /// </summary>
         /// <param name="component">Component to add to the entity.</param>
@@ -140,6 +176,17 @@ namespace helengine.editor.tests {
             FieldInfo activeRowsField = typeof(ComponentPropertiesView).GetField("ActiveRows", BindingFlags.Instance | BindingFlags.NonPublic);
             List<ComponentPropertyRow> rows = Assert.IsType<List<ComponentPropertyRow>>(activeRowsField.GetValue(view));
             return Assert.Single(rows, row => row.Kind == ComponentPropertyRowKind.Model);
+        }
+
+        /// <summary>
+        /// Finds the active material row produced for the mesh component.
+        /// </summary>
+        /// <param name="view">Properties view whose active rows should be inspected.</param>
+        /// <returns>The single material row displayed by the view.</returns>
+        ComponentPropertyRow FindMaterialRow(ComponentPropertiesView view) {
+            FieldInfo activeRowsField = typeof(ComponentPropertiesView).GetField("ActiveRows", BindingFlags.Instance | BindingFlags.NonPublic);
+            List<ComponentPropertyRow> rows = Assert.IsType<List<ComponentPropertyRow>>(activeRowsField.GetValue(view));
+            return Assert.Single(rows, row => row.Kind == ComponentPropertyRowKind.Material);
         }
 
         /// <summary>

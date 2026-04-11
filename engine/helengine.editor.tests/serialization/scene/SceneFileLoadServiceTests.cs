@@ -40,7 +40,7 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void Load_WhenSceneFileExists_ReturnsRootEntities() {
             SceneAssetReference modelReference = CreateGeneratedModelReference();
-            SceneAssetReference materialReference = CreateMaterialReference();
+            SceneAssetReference materialReference = CreateGeneratedMaterialReference();
             string scenePath = SaveSceneAsset("Loaded.helen", "Loaded Cube", modelReference, materialReference);
             SceneFileLoadService loadService = CreateLoadService(modelReference, materialReference);
 
@@ -58,7 +58,7 @@ namespace helengine.editor.tests.serialization.scene {
         public void Load_WhenSceneFileIsInvalid_ThrowsInvalidOperationException() {
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Broken.helen");
             File.WriteAllText(scenePath, "not-a-helen");
-            SceneFileLoadService loadService = CreateLoadService(CreateGeneratedModelReference(), CreateMaterialReference());
+            SceneFileLoadService loadService = CreateLoadService(CreateGeneratedModelReference(), CreateGeneratedMaterialReference());
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => loadService.Load(scenePath));
 
@@ -71,7 +71,7 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void Load_WhenMaterializationFails_CleansNewEntitiesAndPreservesExistingScene() {
             SceneAssetReference modelReference = CreateGeneratedModelReference();
-            SceneAssetReference materialReference = CreateMaterialReference();
+            SceneAssetReference materialReference = CreateGeneratedMaterialReference();
             string scenePath = SaveSceneAsset("BrokenMaterialization.helen", "Transient Root", modelReference, materialReference);
             ComponentPersistenceRegistry registry = CreatePersistenceRegistry();
             SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, registry, new TestSceneAssetReferenceResolver());
@@ -162,13 +162,15 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Creates one filesystem material reference used by the saved mesh component.
+        /// Creates one generated material reference used by the saved mesh component.
         /// </summary>
-        /// <returns>Stable filesystem material reference.</returns>
-        SceneAssetReference CreateMaterialReference() {
+        /// <returns>Stable generated material reference.</returns>
+        SceneAssetReference CreateGeneratedMaterialReference() {
             return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Materials/Default.helmat"
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = EngineGeneratedAssetProvider.StandardMaterialRelativePath,
+                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
+                AssetId = EngineGeneratedMaterialCache.StandardAssetId
             };
         }
     }

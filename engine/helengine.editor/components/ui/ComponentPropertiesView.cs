@@ -88,6 +88,10 @@ namespace helengine.editor {
         /// </summary>
         readonly Dictionary<RuntimeModel, string> ModelLabels;
         /// <summary>
+        /// Tracks display labels for runtime materials assigned via the picker.
+        /// </summary>
+        readonly Dictionary<RuntimeMaterial, string> MaterialLabels;
+        /// <summary>
         /// Render order used for label text.
         /// </summary>
         readonly byte TextOrder;
@@ -122,6 +126,7 @@ namespace helengine.editor {
             VectorFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ModelLabels = new Dictionary<RuntimeModel, string>();
+            MaterialLabels = new Dictionary<RuntimeMaterial, string>();
             TextOrder = Core.Instance.ObjectManager.GetRenderOrderForLayer2D(2);
         }
 
@@ -334,6 +339,11 @@ namespace helengine.editor {
         void UpdateMaterialRow(ComponentPropertyRow row) {
             object rawValue = GetPropertyValue(row);
             if (rawValue is RuntimeMaterial material) {
+                if (MaterialLabels.TryGetValue(material, out string label) && !string.IsNullOrWhiteSpace(label)) {
+                    row.ValueText.Text = label;
+                    return;
+                }
+
                 row.ValueText.Text = string.IsNullOrWhiteSpace(material.Id) ? EmptyAssetLabel : material.Id;
             } else {
                 row.ValueText.Text = EmptyAssetLabel;
@@ -724,6 +734,9 @@ namespace helengine.editor {
             try {
                 RuntimeMaterial material = LoadMaterial(entry);
                 row.Property.SetValue(row.TargetComponent, material);
+                if (entry != null && material != null) {
+                    MaterialLabels[material] = entry.Name ?? string.Empty;
+                }
                 StorePickedAssetReference(row, entry);
                 UpdateMaterialRow(row);
                 EditorSceneMutationService.MarkSceneMutated();
@@ -740,6 +753,10 @@ namespace helengine.editor {
         RuntimeMaterial LoadMaterial(AssetBrowserEntry entry) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
+            }
+
+            if (entry.IsGenerated) {
+                return GeneratedAssetProviderRegistry.ResolveRuntimeMaterial(entry);
             }
 
             string extension = entry.Extension;
