@@ -89,6 +89,18 @@ namespace helengine.editor {
         /// </summary>
         readonly SpriteComponent ToolbarBackground;
         /// <summary>
+        /// Nested focus group that represents the viewport content region.
+        /// </summary>
+        readonly EditorFocusGroup ContentFocusGroup;
+        /// <summary>
+        /// Nested focus group that represents the viewport toolbar region.
+        /// </summary>
+        readonly EditorFocusGroup ToolbarFocusGroup;
+        /// <summary>
+        /// Focus target that owns viewport-local gizmo shortcut activation.
+        /// </summary>
+        readonly EditorFocusTarget ViewportContentFocusTarget;
+        /// <summary>
         /// Supported tool modes displayed by this viewport toolbar.
         /// </summary>
         readonly EditorViewportToolMode[] ToolModes;
@@ -116,6 +128,14 @@ namespace helengine.editor {
         /// Tracks pressed state per tool button.
         /// </summary>
         readonly bool[] ToolButtonPressedStates;
+        /// <summary>
+        /// Focus targets bound to the toolbar tool buttons.
+        /// </summary>
+        readonly EditorFocusTarget[] ToolButtonFocusTargets;
+        /// <summary>
+        /// Tracks keyboard-focus state per tool button.
+        /// </summary>
+        readonly bool[] ToolButtonKeyboardFocusStates;
         /// <summary>
         /// Snap slots shown by the toolbar.
         /// </summary>
@@ -169,6 +189,14 @@ namespace helengine.editor {
         /// </summary>
         readonly bool[] SnapIncreaseButtonPressedStates;
         /// <summary>
+        /// Focus targets bound to the snap-increase buttons.
+        /// </summary>
+        readonly EditorFocusTarget[] SnapIncreaseFocusTargets;
+        /// <summary>
+        /// Tracks keyboard-focus state per snap-increase button.
+        /// </summary>
+        readonly bool[] SnapIncreaseKeyboardFocusStates;
+        /// <summary>
         /// Root entities for snap-decrease buttons.
         /// </summary>
         readonly EditorEntity[] SnapDecreaseButtonRoots;
@@ -192,6 +220,18 @@ namespace helengine.editor {
         /// Pressed state tracked per snap-decrease button.
         /// </summary>
         readonly bool[] SnapDecreaseButtonPressedStates;
+        /// <summary>
+        /// Focus targets bound to the snap-decrease buttons.
+        /// </summary>
+        readonly EditorFocusTarget[] SnapDecreaseFocusTargets;
+        /// <summary>
+        /// Tracks keyboard-focus state per snap-decrease button.
+        /// </summary>
+        readonly bool[] SnapDecreaseKeyboardFocusStates;
+        /// <summary>
+        /// Tracks whether the viewport content target is currently keyboard-focused.
+        /// </summary>
+        bool IsViewportContentFocused;
 
         /// <summary>
         /// Initializes a new dockable viewport and binds it to the provided camera.
@@ -212,6 +252,20 @@ namespace helengine.editor {
             ToolbarSurfaceOrder = RenderOrder2D.PanelSurface;
             ToolbarForegroundOrder = RenderOrder2D.PanelForeground;
             ToolbarInputBlockerOwner = new object();
+            ContentFocusGroup = new EditorFocusGroup(this, 0, () => Enabled, ContainsViewportContentPoint, HandleSubviewGroupActiveChanged);
+            ToolbarFocusGroup = new EditorFocusGroup(this, 1, () => Enabled, ContainsToolbarPoint, HandleSubviewGroupActiveChanged);
+            EditorKeyboardFocusService.RegisterGroup(ContentFocusGroup);
+            EditorKeyboardFocusService.RegisterGroup(ToolbarFocusGroup);
+            ViewportContentFocusTarget = new EditorFocusTarget(
+                ContentFocusGroup,
+                0,
+                true,
+                () => Enabled,
+                ContainsViewportContentPoint,
+                HandleViewportContentFocusedChanged,
+                CanActivateViewportContentKey,
+                ActivateViewportContentKey);
+            EditorKeyboardFocusService.RegisterTarget(ViewportContentFocusTarget);
             ToolModes = new[] {
                 EditorViewportToolMode.Translate,
                 EditorViewportToolMode.Rotate,
@@ -223,6 +277,8 @@ namespace helengine.editor {
             ToolButtonInteractables = new InteractableComponent[ToolModes.Length];
             ToolButtonHoverStates = new bool[ToolModes.Length];
             ToolButtonPressedStates = new bool[ToolModes.Length];
+            ToolButtonFocusTargets = new EditorFocusTarget[ToolModes.Length];
+            ToolButtonKeyboardFocusStates = new bool[ToolModes.Length];
             SnapSlots = new[] {
                 TransformGizmoSnapSlot.Snap1,
                 TransformGizmoSnapSlot.Snap2
@@ -239,12 +295,16 @@ namespace helengine.editor {
             SnapIncreaseButtonInteractables = new InteractableComponent[SnapSlots.Length];
             SnapIncreaseButtonHoverStates = new bool[SnapSlots.Length];
             SnapIncreaseButtonPressedStates = new bool[SnapSlots.Length];
+            SnapIncreaseFocusTargets = new EditorFocusTarget[SnapSlots.Length];
+            SnapIncreaseKeyboardFocusStates = new bool[SnapSlots.Length];
             SnapDecreaseButtonRoots = new EditorEntity[SnapSlots.Length];
             SnapDecreaseButtonBackgrounds = new SpriteComponent[SnapSlots.Length];
             SnapDecreaseButtonIcons = new SpriteComponent[SnapSlots.Length];
             SnapDecreaseButtonInteractables = new InteractableComponent[SnapSlots.Length];
             SnapDecreaseButtonHoverStates = new bool[SnapSlots.Length];
             SnapDecreaseButtonPressedStates = new bool[SnapSlots.Length];
+            SnapDecreaseFocusTargets = new EditorFocusTarget[SnapSlots.Length];
+            SnapDecreaseKeyboardFocusStates = new bool[SnapSlots.Length];
 
             ToolbarRoot = new EditorEntity {
                 LayerMask = LayerMask,
@@ -387,6 +447,19 @@ namespace helengine.editor {
             int capturedButtonIndex = buttonIndex;
             buttonInteractable.CursorEvent += (pos, delta, state) => HandleToolButtonCursor(capturedButtonIndex, state);
             buttonRoot.AddComponent(buttonInteractable);
+            EditorFocusTarget buttonFocusTarget = new EditorFocusTarget(
+                ToolbarFocusGroup,
+                buttonIndex,
+                false,
+                () => Enabled && buttonRoot.Enabled,
+                point => ContainsToolbarButtonPoint(capturedButtonIndex, point),
+                isFocused => {
+                    ToolButtonKeyboardFocusStates[capturedButtonIndex] = isFocused;
+                    UpdateToolButtonVisuals();
+                },
+                key => key == Keys.Enter || key == Keys.Space,
+                key => ToolMode = toolMode);
+            EditorKeyboardFocusService.RegisterTarget(buttonFocusTarget);
 
             ToolModes[buttonIndex] = toolMode;
             ToolButtonRoots[buttonIndex] = buttonRoot;
@@ -395,6 +468,8 @@ namespace helengine.editor {
             ToolButtonInteractables[buttonIndex] = buttonInteractable;
             ToolButtonHoverStates[buttonIndex] = false;
             ToolButtonPressedStates[buttonIndex] = false;
+            ToolButtonFocusTargets[buttonIndex] = buttonFocusTarget;
+            ToolButtonKeyboardFocusStates[buttonIndex] = false;
         }
 
         /// <summary>
@@ -530,6 +605,20 @@ namespace helengine.editor {
             bool capturedIsIncreaseButton = isIncreaseButton;
             buttonInteractable.CursorEvent += (pos, delta, state) => HandleSnapButtonCursor(capturedSlotIndex, capturedIsIncreaseButton, state);
             buttonRoot.AddComponent(buttonInteractable);
+            int tabIndex = ToolModes.Length + (slotIndex * 2) + (isIncreaseButton ? 0 : 1);
+            EditorFocusTarget buttonFocusTarget = new EditorFocusTarget(
+                ToolbarFocusGroup,
+                tabIndex,
+                false,
+                () => Enabled && buttonRoot.Enabled,
+                point => ContainsSnapButtonPoint(capturedSlotIndex, capturedIsIncreaseButton, point),
+                isFocused => {
+                    SetSnapButtonKeyboardFocusState(capturedSlotIndex, capturedIsIncreaseButton, isFocused);
+                    UpdateSnapButtonVisuals();
+                },
+                key => key == Keys.Enter || key == Keys.Space,
+                key => AdjustSnapValue(capturedSlotIndex, capturedIsIncreaseButton));
+            EditorKeyboardFocusService.RegisterTarget(buttonFocusTarget);
 
             if (isIncreaseButton) {
                 SnapIncreaseButtonRoots[slotIndex] = buttonRoot;
@@ -538,6 +627,8 @@ namespace helengine.editor {
                 SnapIncreaseButtonInteractables[slotIndex] = buttonInteractable;
                 SnapIncreaseButtonHoverStates[slotIndex] = false;
                 SnapIncreaseButtonPressedStates[slotIndex] = false;
+                SnapIncreaseFocusTargets[slotIndex] = buttonFocusTarget;
+                SnapIncreaseKeyboardFocusStates[slotIndex] = false;
                 return;
             }
 
@@ -547,6 +638,8 @@ namespace helengine.editor {
             SnapDecreaseButtonInteractables[slotIndex] = buttonInteractable;
             SnapDecreaseButtonHoverStates[slotIndex] = false;
             SnapDecreaseButtonPressedStates[slotIndex] = false;
+            SnapDecreaseFocusTargets[slotIndex] = buttonFocusTarget;
+            SnapDecreaseKeyboardFocusStates[slotIndex] = false;
         }
 
         /// <summary>
@@ -640,17 +733,18 @@ namespace helengine.editor {
                 bool isActive = ToolModes[buttonIndex] == activeToolMode;
                 bool isHovered = ToolButtonHoverStates[buttonIndex];
                 bool isPressed = ToolButtonPressedStates[buttonIndex];
+                bool isKeyboardFocused = ToolButtonKeyboardFocusStates[buttonIndex];
                 if (isPressed) {
                     background.Color = ThemeManager.Colors.AccentTertiary;
                 } else if (isActive) {
                     background.Color = ThemeManager.Colors.AccentPrimary;
-                } else if (isHovered) {
+                } else if (isKeyboardFocused || isHovered) {
                     background.Color = ThemeManager.Colors.AccentSecondary;
                 } else {
                     background.Color = ThemeManager.Colors.SurfaceInput;
                 }
 
-                if (isActive || isHovered || isPressed) {
+                if (isActive || isHovered || isPressed || isKeyboardFocused) {
                     icon.Color = new byte4(255, 255, 255, 255);
                 } else {
                     icon.Color = new byte4(255, 255, 255, 224);
@@ -690,14 +784,15 @@ namespace helengine.editor {
 
             bool isHovered = GetSnapButtonHoverState(slotIndex, isIncreaseButton);
             bool isPressed = GetSnapButtonPressedState(slotIndex, isIncreaseButton);
+            bool isKeyboardFocused = GetSnapButtonKeyboardFocusState(slotIndex, isIncreaseButton);
             if (isPressed) {
                 background.Color = ThemeManager.Colors.AccentTertiary;
-            } else if (isHovered) {
+            } else if (isKeyboardFocused || isHovered) {
                 background.Color = ThemeManager.Colors.AccentSecondary;
             } else {
                 background.Color = ThemeManager.Colors.SurfaceInput;
             }
-            if (isHovered || isPressed) {
+            if (isHovered || isPressed || isKeyboardFocused) {
                 icon.Color = new byte4(255, 255, 255, 255);
             } else {
                 icon.Color = new byte4(255, 255, 255, 224);
@@ -729,6 +824,33 @@ namespace helengine.editor {
             return isIncreaseButton
                 ? SnapIncreaseButtonHoverStates[slotIndex]
                 : SnapDecreaseButtonHoverStates[slotIndex];
+        }
+
+        /// <summary>
+        /// Sets the keyboard-focus state for one snap adjustment button.
+        /// </summary>
+        /// <param name="slotIndex">Snap slot index owning the button.</param>
+        /// <param name="isIncreaseButton">True when updating the increase button.</param>
+        /// <param name="value">New keyboard-focus state.</param>
+        void SetSnapButtonKeyboardFocusState(int slotIndex, bool isIncreaseButton, bool value) {
+            if (isIncreaseButton) {
+                SnapIncreaseKeyboardFocusStates[slotIndex] = value;
+                return;
+            }
+
+            SnapDecreaseKeyboardFocusStates[slotIndex] = value;
+        }
+
+        /// <summary>
+        /// Reads the keyboard-focus state for one snap adjustment button.
+        /// </summary>
+        /// <param name="slotIndex">Snap slot index owning the button.</param>
+        /// <param name="isIncreaseButton">True when reading the increase button.</param>
+        /// <returns>Current keyboard-focus state.</returns>
+        bool GetSnapButtonKeyboardFocusState(int slotIndex, bool isIncreaseButton) {
+            return isIncreaseButton
+                ? SnapIncreaseKeyboardFocusStates[slotIndex]
+                : SnapDecreaseKeyboardFocusStates[slotIndex];
         }
 
         /// <summary>
@@ -807,6 +929,147 @@ namespace helengine.editor {
 
             UpdateToolButtonVisuals();
             UpdateSnapControlTexts();
+        }
+
+        /// <summary>
+        /// Refreshes toolbar button visuals when a nested viewport subgroup changes active state.
+        /// </summary>
+        /// <param name="isActive">True when the nested group is active.</param>
+        void HandleSubviewGroupActiveChanged(bool isActive) {
+            UpdateToolButtonVisuals();
+            UpdateSnapButtonVisuals();
+        }
+
+        /// <summary>
+        /// Tracks whether the viewport content target currently owns keyboard focus.
+        /// </summary>
+        /// <param name="isFocused">True when the content target is focused.</param>
+        void HandleViewportContentFocusedChanged(bool isFocused) {
+            IsViewportContentFocused = isFocused;
+        }
+
+        /// <summary>
+        /// Returns true when the viewport content target should react to one activation key.
+        /// </summary>
+        /// <param name="key">Activation key to evaluate.</param>
+        /// <returns>True when the content target should activate for the key.</returns>
+        bool CanActivateViewportContentKey(Keys key) {
+            InputManager inputManager = Core.Instance.InputManager;
+            if (inputManager != null && inputManager.GetMouseRightButtonState() == ButtonState.Pressed) {
+                return false;
+            }
+
+            return key == Keys.W || key == Keys.R || key == Keys.S;
+        }
+
+        /// <summary>
+        /// Applies one gizmo tool shortcut routed through the focused viewport content target.
+        /// </summary>
+        /// <param name="key">Activation key routed through keyboard focus.</param>
+        void ActivateViewportContentKey(Keys key) {
+            if (key == Keys.W) {
+                ToolMode = EditorViewportToolMode.Translate;
+            } else if (key == Keys.R) {
+                ToolMode = EditorViewportToolMode.Rotate;
+            } else if (key == Keys.S) {
+                ToolMode = EditorViewportToolMode.Scale;
+            }
+        }
+
+        /// <summary>
+        /// Returns true when the provided screen point lies inside the viewport content region below the toolbar.
+        /// </summary>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point lies inside the viewport content region.</returns>
+        bool ContainsViewportContentPoint(int2 point) {
+            if (Camera == null) {
+                return false;
+            }
+
+            float4 viewport = Camera.Viewport;
+            int left = (int)Math.Round(viewport.X);
+            int top = (int)Math.Round(viewport.Y);
+            int width = Math.Max(1, (int)Math.Round(viewport.Z));
+            int height = Math.Max(1, (int)Math.Round(viewport.W));
+            return point.X >= left &&
+                   point.X < left + width &&
+                   point.Y >= top &&
+                   point.Y < top + height;
+        }
+
+        /// <summary>
+        /// Returns true when the provided screen point lies inside the viewport toolbar region.
+        /// </summary>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point lies inside the toolbar bounds.</returns>
+        bool ContainsToolbarPoint(int2 point) {
+            int left = (int)Math.Round(Position.X + ToolbarRoot.Position.X);
+            int top = (int)Math.Round(Position.Y + ToolbarRoot.Position.Y);
+            int width = ToolbarBackground.Size.X;
+            int height = ToolbarBackground.Size.Y;
+            return point.X >= left &&
+                   point.X < left + width &&
+                   point.Y >= top &&
+                   point.Y < top + height;
+        }
+
+        /// <summary>
+        /// Returns true when the provided screen point lies inside one toolbar tool button.
+        /// </summary>
+        /// <param name="buttonIndex">Toolbar tool-button index to evaluate.</param>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point lies inside the tool button bounds.</returns>
+        bool ContainsToolbarButtonPoint(int buttonIndex, int2 point) {
+            if (buttonIndex < 0 || buttonIndex >= ToolButtonRoots.Length) {
+                throw new ArgumentOutOfRangeException(nameof(buttonIndex), "Tool button index must be inside toolbar bounds.");
+            }
+
+            EditorEntity buttonRoot = ToolButtonRoots[buttonIndex];
+            InteractableComponent buttonInteractable = ToolButtonInteractables[buttonIndex];
+            if (buttonRoot == null || buttonInteractable == null) {
+                return false;
+            }
+
+            int left = (int)Math.Round(Position.X + ToolbarRoot.Position.X + buttonRoot.Position.X);
+            int top = (int)Math.Round(Position.Y + ToolbarRoot.Position.Y + buttonRoot.Position.Y);
+            int width = buttonInteractable.Size.X;
+            int height = buttonInteractable.Size.Y;
+            return point.X >= left &&
+                   point.X < left + width &&
+                   point.Y >= top &&
+                   point.Y < top + height;
+        }
+
+        /// <summary>
+        /// Returns true when the provided screen point lies inside one snap adjustment button.
+        /// </summary>
+        /// <param name="slotIndex">Snap slot index owning the button.</param>
+        /// <param name="isIncreaseButton">True when evaluating the increase button.</param>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point lies inside the snap button bounds.</returns>
+        bool ContainsSnapButtonPoint(int slotIndex, bool isIncreaseButton, int2 point) {
+            if (slotIndex < 0 || slotIndex >= SnapSlots.Length) {
+                throw new ArgumentOutOfRangeException(nameof(slotIndex), "Snap slot index must be inside toolbar bounds.");
+            }
+
+            EditorEntity buttonRoot = isIncreaseButton
+                ? SnapIncreaseButtonRoots[slotIndex]
+                : SnapDecreaseButtonRoots[slotIndex];
+            InteractableComponent buttonInteractable = isIncreaseButton
+                ? SnapIncreaseButtonInteractables[slotIndex]
+                : SnapDecreaseButtonInteractables[slotIndex];
+            if (buttonRoot == null || buttonInteractable == null) {
+                return false;
+            }
+
+            int left = (int)Math.Round(Position.X + ToolbarRoot.Position.X + buttonRoot.Position.X);
+            int top = (int)Math.Round(Position.Y + ToolbarRoot.Position.Y + buttonRoot.Position.Y);
+            int width = buttonInteractable.Size.X;
+            int height = buttonInteractable.Size.Y;
+            return point.X >= left &&
+                   point.X < left + width &&
+                   point.Y >= top &&
+                   point.Y < top + height;
         }
 
         /// <summary>
