@@ -119,6 +119,10 @@ namespace helengine.editor {
         /// </summary>
         readonly CameraComponent gizmoCameraComponent;
         /// <summary>
+        /// Internal entity that routes editor-wide keyboard-focus input every frame.
+        /// </summary>
+        readonly EditorEntity keyboardFocusEntity;
+        /// <summary>
         /// Hidden editor camera entity used for offscreen rendering.
         /// </summary>
         readonly EditorEntity hiddenCameraEntity;
@@ -218,6 +222,7 @@ namespace helengine.editor {
             snapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
             toolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
 
+            EditorKeyboardFocusService.Reset();
             core.Initialize(render3D, render2D, input);
             core.InputManager.SetKeyboardActive(true);
 
@@ -253,6 +258,15 @@ namespace helengine.editor {
             sceneCameraEntity.AddComponent(new TransformTranslationGizmoDragComponent(sceneCameraComponent));
             sceneCameraEntity.AddComponent(new TransformRotationGizmoDragComponent(sceneCameraComponent));
             sceneCameraEntity.AddComponent(new TransformScaleGizmoDragComponent(sceneCameraComponent));
+            keyboardFocusEntity = new EditorEntity {
+                InternalEntity = true,
+                Enabled = true,
+                LayerMask = EditorLayerMasks.EditorUi
+            };
+            var keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent {
+                UpdateOrder = core.ObjectManager.GetUpdateOrderForLayer(1)
+            };
+            keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
 
             float3 toOrigin = float3.Normalize(new float3(-sceneCameraEntity.Position.X, -sceneCameraEntity.Position.Y, -sceneCameraEntity.Position.Z));
             double yaw = Math.Atan2(toOrigin.X, -toOrigin.Z);
@@ -291,6 +305,12 @@ namespace helengine.editor {
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager);
             loggerPanel = new LoggerPanel(uiFont);
             previewPanel = new PreviewPanel(uiFont);
+            EditorKeyboardFocusService.RegisterGroup(sceneHierarchyPanel);
+            EditorKeyboardFocusService.RegisterGroup(assetBrowserPanel);
+            EditorKeyboardFocusService.RegisterGroup(mainViewport);
+            EditorKeyboardFocusService.RegisterGroup(propertiesPanel);
+            EditorKeyboardFocusService.RegisterGroup(loggerPanel);
+            EditorKeyboardFocusService.RegisterGroup(previewPanel);
             assetPickerModal = new AssetPickerModal(uiFont, this.projectPath);
             ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
             persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
@@ -489,6 +509,7 @@ namespace helengine.editor {
 
             int availableHeight = Math.Max(0, height - titleBar.Height);
             dockingManager.Layout.Layout(new int2(width, availableHeight), new float3(0, titleBar.Height, 0));
+            EditorKeyboardFocusService.SetDockOrder(dockingManager.Layout.GetVisibleDockablesInTraversalOrder());
             gizmoCameraComponent.Viewport = sceneCameraComponent.Viewport;
             assetPickerModal.UpdateLayout(width, height);
             saveFileDialog.UpdateLayout(width, height);
@@ -593,6 +614,7 @@ namespace helengine.editor {
             shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
             shaderModuleManager.Dispose();
             loggerPanel.Detach();
+            EditorKeyboardFocusService.Reset();
             core.Dispose();
         }
 
