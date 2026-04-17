@@ -12,7 +12,7 @@ namespace helengine.editor {
 
         readonly FontAsset font;
         readonly EditorEntity contentRoot;
-        readonly List<RowElements> rows;
+        readonly List<SceneHierarchyRow> rows;
         readonly List<NodeInfo> nodes;
         /// <summary>
         /// Render order used for row backgrounds.
@@ -40,7 +40,7 @@ namespace helengine.editor {
             contentRoot.Position = new float3(0, TitleBarHeight, 0.05f);
             AddChild(contentRoot);
 
-            rows = new List<RowElements>(32);
+            rows = new List<SceneHierarchyRow>(32);
             nodes = new List<NodeInfo>(64);
 
             RefreshHierarchy();
@@ -117,17 +117,21 @@ namespace helengine.editor {
             float lineHeight = MathF.Max(font.LineHeight, 1f);
 
             for (int i = 0; i < rows.Count; i++) {
-                RowElements row = rows[i];
+                SceneHierarchyRow row = rows[i];
+                row.FocusTarget.TabIndex = i;
                 if (i >= nodes.Count) {
                     row.Entity.Enabled = false;
+                    row.NodeEntity = null;
                     row.IsHovering = false;
                     row.IsPressed = false;
+                    row.FocusTarget.SetTargetFocused(false);
                     UpdateRowBackground(row, ThemeManager.Colors.SurfacePrimary);
                     continue;
                 }
 
                 NodeInfo node = nodes[i];
                 row.Entity.Enabled = true;
+                row.NodeEntity = node.Entity;
                 row.Entity.Position = new float3(0, i * RowHeight, 0.1f);
 
                 bool alternate = i % 2 == 1;
@@ -169,7 +173,7 @@ namespace helengine.editor {
         /// Creates a single row entity with background, label, and hover handling.
         /// </summary>
         /// <returns>Newly created row elements.</returns>
-        RowElements CreateRow() {
+        SceneHierarchyRow CreateRow() {
             var rowEntity = new EditorEntity();
             rowEntity.LayerMask = LayerMask;
             rowEntity.Position = float3.Zero;
@@ -197,7 +201,28 @@ namespace helengine.editor {
             text.RenderOrder2D = rowTextOrder;
             labelHost.AddComponent(text);
 
-            var row = new RowElements(rowEntity, background, labelHost, text, interactable);
+            SceneHierarchyRow row = null;
+            EditorFocusTarget focusTarget = new EditorFocusTarget(
+                this,
+                0,
+                false,
+                () => row.Entity.Enabled && row.NodeEntity != null,
+                point => ContainsHierarchyRowPoint(row, point),
+                isFocused => {
+                    row.IsKeyboardFocused = isFocused;
+                    UpdateRowBackground(row, row.BaseColor);
+                },
+                key => key == Keys.Enter,
+                key => ActivateRow(row));
+            row = new SceneHierarchyRow(
+                rowEntity,
+                background,
+                labelHost,
+                text,
+                interactable,
+                focusTarget);
+
+            EditorKeyboardFocusService.RegisterTarget(row.FocusTarget);
             interactable.CursorEvent += (pos, delta, state) => HandleRowCursor(row, state);
             contentRoot.AddChild(rowEntity);
             return row;
@@ -225,7 +250,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row receiving the event.</param>
         /// <param name="state">Interaction state.</param>
-        void HandleRowCursor(RowElements row, PointerInteraction state) {
+        void HandleRowCursor(SceneHierarchyRow row, PointerInteraction state) {
             switch (state) {
                 case PointerInteraction.Hover:
                     row.IsHovering = true;
@@ -234,7 +259,11 @@ namespace helengine.editor {
                     row.IsPressed = true;
                     break;
                 case PointerInteraction.Release:
+                    bool shouldActivate = row.IsPressed && row.IsHovering;
                     row.IsPressed = false;
+                    if (shouldActivate) {
+                        ActivateRow(row);
+                    }
                     break;
                 case PointerInteraction.Leave:
                     row.IsHovering = false;
@@ -252,7 +281,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row to update.</param>
         /// <param name="baseColor">Base color for the row.</param>
-        void UpdateRowBackground(RowElements row, byte4 baseColor) {
+        void UpdateRowBackground(SceneHierarchyRow row, byte4 baseColor) {
             if (row.IsPressed) {
                 row.Background.Color = ThemeManager.Colors.AccentPrimary;
                 return;
@@ -263,7 +292,39 @@ namespace helengine.editor {
                 return;
             }
 
+            if (row.IsKeyboardFocused) {
+                row.Background.Color = ThemeManager.Colors.AccentTertiary;
+                return;
+            }
+
             row.Background.Color = baseColor;
+        }
+
+        /// <summary>
+        /// Activates one hierarchy row by selecting its represented entity.
+        /// </summary>
+        /// <param name="row">Row to activate.</param>
+        void ActivateRow(SceneHierarchyRow row) {
+            if (row == null || row.NodeEntity == null) {
+                return;
+            }
+
+            EditorSelectionService.SetSelectedEntity(row.NodeEntity);
+        }
+
+        /// <summary>
+        /// Returns true when the provided screen point lies inside one hierarchy row.
+        /// </summary>
+        /// <param name="row">Row to evaluate.</param>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point lies inside the row bounds.</returns>
+        bool ContainsHierarchyRowPoint(SceneHierarchyRow row, int2 point) {
+            float3 position = row.Entity.Position;
+            int rowWidth = Math.Max(Size.X, MinSize.X);
+            return point.X >= position.X &&
+                   point.X < position.X + rowWidth &&
+                   point.Y >= position.Y &&
+                   point.Y < position.Y + RowHeight;
         }
 
         /// <summary>
@@ -289,74 +350,6 @@ namespace helengine.editor {
             /// Gets the depth within the hierarchy.
             /// </summary>
             public int Depth { get; }
-        }
-
-        /// <summary>
-        /// Bundles row entities and interaction state for layout and input handling.
-        /// </summary>
-        sealed class RowElements {
-            /// <summary>
-            /// Initializes a new row bundle.
-            /// </summary>
-            /// <param name="entity">Root entity for the row.</param>
-            /// <param name="background">Background sprite.</param>
-            /// <param name="labelHost">Entity hosting the label text.</param>
-            /// <param name="label">Text component for the label.</param>
-            /// <param name="interactable">Interactable hit region.</param>
-            public RowElements(
-                EditorEntity entity,
-                SpriteComponent background,
-                EditorEntity labelHost,
-                TextComponent label,
-                InteractableComponent interactable) {
-
-                Entity = entity;
-                Background = background;
-                LabelHost = labelHost;
-                Label = label;
-                Interactable = interactable;
-                BaseColor = ThemeManager.Colors.SurfacePrimary;
-            }
-
-            /// <summary>
-            /// Gets the row root entity.
-            /// </summary>
-            public EditorEntity Entity { get; }
-
-            /// <summary>
-            /// Gets the background sprite component.
-            /// </summary>
-            public SpriteComponent Background { get; }
-
-            /// <summary>
-            /// Gets the entity hosting the label component.
-            /// </summary>
-            public EditorEntity LabelHost { get; }
-
-            /// <summary>
-            /// Gets the text component for the row label.
-            /// </summary>
-            public TextComponent Label { get; }
-
-            /// <summary>
-            /// Gets the interactable region for input handling.
-            /// </summary>
-            public InteractableComponent Interactable { get; }
-
-            /// <summary>
-            /// Gets or sets the base color when not hovered or pressed.
-            /// </summary>
-            public byte4 BaseColor { get; set; }
-
-            /// <summary>
-            /// Gets or sets a value indicating whether the row is hovered.
-            /// </summary>
-            public bool IsHovering { get; set; }
-
-            /// <summary>
-            /// Gets or sets a value indicating whether the row is pressed.
-            /// </summary>
-            public bool IsPressed { get; set; }
         }
     }
 }

@@ -110,6 +110,10 @@ namespace helengine.editor {
         /// </summary>
         readonly byte TextOrder;
         /// <summary>
+        /// Focus group that owns the asset-browser controls when keyboard traversal is enabled.
+        /// </summary>
+        readonly IFocusGroup FocusGroup;
+        /// <summary>
         /// Cached size of the view.
         /// </summary>
         int2 Size;
@@ -142,6 +146,7 @@ namespace helengine.editor {
         /// <param name="iconBackgroundOrder">Render order for icon backgrounds.</param>
         /// <param name="textOrder">Render order for text labels.</param>
         /// <param name="includeGeneratedEntries">True to include generated-provider roots and entries.</param>
+        /// <param name="focusGroup">Dock focus group that owns the browser controls, or null for non-traversable modal uses.</param>
         public AssetBrowserView(
             FontAsset font,
             string projectPath,
@@ -150,7 +155,8 @@ namespace helengine.editor {
             byte rowBackgroundOrder,
             byte iconBackgroundOrder,
             byte textOrder,
-            bool includeGeneratedEntries = true) {
+            bool includeGeneratedEntries = true,
+            IFocusGroup focusGroup = null) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -164,6 +170,7 @@ namespace helengine.editor {
             RowBackgroundOrder = rowBackgroundOrder;
             IconBackgroundOrder = iconBackgroundOrder;
             TextOrder = textOrder;
+            FocusGroup = focusGroup;
 
             Root = new EditorEntity {
                 LayerMask = layerMask,
@@ -191,6 +198,11 @@ namespace helengine.editor {
 
             UpButton = new ButtonComponent("Up", UpButtonSize, font, NavigateUp, 0f);
             UpButtonHost.AddComponent(UpButton);
+            UpButton.FocusGroup = focusGroup;
+            UpButton.TabIndex = 0;
+            if (focusGroup != null) {
+                EditorKeyboardFocusService.RegisterTarget(UpButton);
+            }
 
             PathTextHost = new EditorEntity {
                 LayerMask = layerMask,
@@ -416,7 +428,23 @@ namespace helengine.editor {
             };
             rowEntity.AddComponent(interactable);
 
-            var row = new AssetBrowserRow(rowEntity, background, iconBackground, iconText, label, interactable);
+            AssetBrowserRow row = null;
+            EditorFocusTarget focusTarget = new EditorFocusTarget(
+                FocusGroup,
+                0,
+                false,
+                () => row.Entity.Enabled && row.Entry != null,
+                point => ContainsRowPoint(row, point),
+                isFocused => {
+                    row.IsKeyboardFocused = isFocused;
+                    UpdateRowBackground(row, row.BaseColor);
+                },
+                key => key == Keys.Enter,
+                key => ActivateRow(row));
+            row = new AssetBrowserRow(rowEntity, background, iconBackground, iconText, label, interactable, focusTarget);
+            if (FocusGroup != null) {
+                EditorKeyboardFocusService.RegisterTarget(row.FocusTarget);
+            }
             interactable.CursorEvent += (pos, delta, state) => HandleRowCursor(row, state);
             ListRoot.AddChild(rowEntity);
             return row;
@@ -451,11 +479,14 @@ namespace helengine.editor {
 
             for (int i = 0; i < Rows.Count; i++) {
                 var row = Rows[i];
+                row.FocusTarget.FocusGroup = FocusGroup;
+                row.FocusTarget.TabIndex = i + 1;
                 if (i >= Entries.Count) {
                     row.Entity.Enabled = false;
                     row.Entry = null;
                     row.IsHovering = false;
                     row.IsPressed = false;
+                    row.FocusTarget.SetTargetFocused(false);
                     UpdateRowBackground(row, ThemeManager.Colors.SurfacePrimary);
                     continue;
                 }
@@ -535,12 +566,8 @@ namespace helengine.editor {
                 case PointerInteraction.Release:
                     bool shouldActivate = row.IsPressed && row.IsHovering;
                     row.IsPressed = false;
-                    if (shouldActivate && row.Entry != null) {
-                        if (row.Entry.IsDirectory) {
-                            NavigateTo(row.Entry.RelativePath);
-                        } else {
-                            NotifyAssetActivated(row.Entry);
-                        }
+                    if (shouldActivate) {
+                        ActivateRow(row);
                     }
                     break;
                 case PointerInteraction.Leave:
@@ -603,7 +630,42 @@ namespace helengine.editor {
                 return;
             }
 
+            if (row.IsKeyboardFocused) {
+                row.Background.Color = ThemeManager.Colors.AccentTertiary;
+                return;
+            }
+
             row.Background.Color = baseColor;
+        }
+
+        /// <summary>
+        /// Activates one asset-browser row by reusing the same navigation or asset-open path as pointer release.
+        /// </summary>
+        /// <param name="row">Row to activate.</param>
+        void ActivateRow(AssetBrowserRow row) {
+            if (row == null || row.Entry == null) {
+                return;
+            }
+
+            if (row.Entry.IsDirectory) {
+                NavigateTo(row.Entry.RelativePath);
+            } else {
+                NotifyAssetActivated(row.Entry);
+            }
+        }
+
+        /// <summary>
+        /// Returns true when the provided screen point lies inside one asset-browser row.
+        /// </summary>
+        /// <param name="row">Row to evaluate.</param>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point lies inside the row bounds.</returns>
+        bool ContainsRowPoint(AssetBrowserRow row, int2 point) {
+            float3 position = row.Entity.Position;
+            return point.X >= position.X &&
+                   point.X < position.X + Math.Max(1, Size.X) &&
+                   point.Y >= position.Y &&
+                   point.Y < position.Y + RowHeight;
         }
 
         /// <summary>

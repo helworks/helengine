@@ -1,31 +1,28 @@
 namespace helengine.editor {
     /// <summary>
-    /// Bundles row entities and state for the asset browser list.
+    /// Bundles one hierarchy row's visuals, interaction state, and keyboard-focus target.
     /// </summary>
-    public sealed class AssetBrowserRow {
+    public sealed class SceneHierarchyRow {
         /// <summary>
-        /// Initializes a new row container with its visual components.
+        /// Initializes a new pooled hierarchy row.
         /// </summary>
         /// <param name="entity">Root entity for the row.</param>
-        /// <param name="background">Background sprite.</param>
-        /// <param name="iconBackground">Sprite used for the entry icon background.</param>
-        /// <param name="iconText">Text component used for the icon label.</param>
-        /// <param name="label">Text component used for the entry label.</param>
-        /// <param name="interactable">Interactable hit region.</param>
+        /// <param name="background">Background sprite for the row.</param>
+        /// <param name="labelHost">Entity hosting the row label.</param>
+        /// <param name="label">Text component used for the row label.</param>
+        /// <param name="interactable">Interactable region for the row.</param>
         /// <param name="focusTarget">Persistent keyboard-focus target for the row.</param>
-        public AssetBrowserRow(
+        public SceneHierarchyRow(
             EditorEntity entity,
             SpriteComponent background,
-            SpriteComponent iconBackground,
-            TextComponent iconText,
+            EditorEntity labelHost,
             TextComponent label,
             InteractableComponent interactable,
             EditorFocusTarget focusTarget) {
 
             Entity = entity;
             Background = background;
-            IconBackground = iconBackground;
-            IconText = iconText;
+            LabelHost = labelHost;
             Label = label;
             Interactable = interactable;
             FocusTarget = focusTarget;
@@ -33,32 +30,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Gets the root entity for this row.
+        /// Gets the row root entity.
         /// </summary>
         public EditorEntity Entity { get; }
 
         /// <summary>
-        /// Gets the background sprite for the row.
+        /// Gets the background sprite component.
         /// </summary>
         public SpriteComponent Background { get; }
 
         /// <summary>
-        /// Gets the sprite used to render the icon background.
+        /// Gets the entity hosting the row label.
         /// </summary>
-        public SpriteComponent IconBackground { get; }
+        public EditorEntity LabelHost { get; }
 
         /// <summary>
-        /// Gets the text component used for the icon label.
-        /// </summary>
-        public TextComponent IconText { get; }
-
-        /// <summary>
-        /// Gets the text component used for the entry label.
+        /// Gets the text component for the row label.
         /// </summary>
         public TextComponent Label { get; }
 
         /// <summary>
-        /// Gets the interactable region for input handling.
+        /// Gets the interactable region used for pointer input.
         /// </summary>
         public InteractableComponent Interactable { get; }
 
@@ -68,12 +60,12 @@ namespace helengine.editor {
         public EditorFocusTarget FocusTarget { get; }
 
         /// <summary>
-        /// Gets or sets the entry represented by this row.
+        /// Gets or sets the scene entity currently represented by this row.
         /// </summary>
-        public AssetBrowserEntry Entry { get; set; }
+        public Entity NodeEntity { get; set; }
 
         /// <summary>
-        /// Gets or sets the base color when the row is idle.
+        /// Gets or sets the base color used when the row is idle.
         /// </summary>
         public byte4 BaseColor { get; set; }
 

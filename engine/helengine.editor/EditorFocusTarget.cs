@@ -31,7 +31,7 @@ namespace helengine.editor {
         /// <summary>
         /// Initializes one delegate-backed focus target.
         /// </summary>
-        /// <param name="focusGroup">Focus group that owns this target.</param>
+        /// <param name="focusGroup">Focus group that owns this target, or null until an editor surface binds it.</param>
         /// <param name="tabIndex">Traversal order within the owning group.</param>
         /// <param name="isDefaultTarget">True when the target is preferred for dock entry.</param>
         /// <param name="canReceiveFocusResolver">Resolver for current focus eligibility.</param>
@@ -48,7 +48,7 @@ namespace helengine.editor {
             Action<bool> setTargetFocusedResolver,
             Func<Keys, bool> canActivateWithKeyResolver,
             Action<Keys> activateFromKeyResolver) {
-            FocusGroup = focusGroup ?? throw new ArgumentNullException(nameof(focusGroup));
+            FocusGroup = focusGroup;
             TabIndex = tabIndex;
             IsDefaultTarget = isDefaultTarget;
             CanReceiveFocusResolver = canReceiveFocusResolver ?? throw new ArgumentNullException(nameof(canReceiveFocusResolver));

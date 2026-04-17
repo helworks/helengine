@@ -86,7 +86,9 @@ namespace helengine.editor {
                 toolbarOrder,
                 rowBackgroundOrder,
                 iconBackgroundOrder,
-                textOrder);
+                textOrder,
+                true,
+                this);
             ContentRoot.AddChild(BrowserView.Entity);
 
             BrowserView.AssetActivated += HandleAssetActivated;
