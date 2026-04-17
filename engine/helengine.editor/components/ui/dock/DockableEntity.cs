@@ -40,6 +40,10 @@ namespace helengine.editor {
         /// Outline rendered around the full dockable panel area.
         /// </summary>
         readonly RoundedRectComponent panelOutline;
+        /// <summary>
+        /// Tracks whether keyboard focus currently marks this dock as the active root group.
+        /// </summary>
+        bool KeyboardFocusActive;
 
         bool isDragging;
         bool isPointerDown;
@@ -172,7 +176,7 @@ namespace helengine.editor {
                 }
 
                 isDocked = value;
-                panelOutline.BorderThickness = isDocked ? 0f : PanelOutlineThickness;
+                UpdatePanelOutline();
                 ApplyRenderOrderBias();
             }
         }
@@ -341,6 +345,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="isActive">True when the dock should appear active.</param>
         public void SetGroupActive(bool isActive) {
+            KeyboardFocusActive = isActive;
+            UpdatePanelOutline();
         }
 
         /// <summary>
@@ -393,6 +399,22 @@ namespace helengine.editor {
                 }
                 entry.Key.RenderOrder2D = (byte)adjusted;
             }
+        }
+
+        /// <summary>
+        /// Updates the panel outline to reflect docking state and keyboard-focus activation.
+        /// </summary>
+        void UpdatePanelOutline() {
+            if (panelOutline == null) {
+                return;
+            }
+
+            panelOutline.BorderThickness = KeyboardFocusActive || !isDocked
+                ? PanelOutlineThickness
+                : 0f;
+            panelOutline.BorderColor = KeyboardFocusActive
+                ? ThemeManager.Colors.AccentPrimary
+                : PanelOutlineColor;
         }
     }
 }

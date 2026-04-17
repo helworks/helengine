@@ -181,6 +181,16 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Returns the currently visible dockables in keyboard traversal order.
+        /// </summary>
+        /// <returns>Visible active dockables ordered by leaf traversal.</returns>
+        public IReadOnlyList<DockableEntity> GetVisibleDockablesInTraversalOrder() {
+            List<DockableEntity> visibleDockables = new List<DockableEntity>();
+            CollectVisibleDockables(root, visibleDockables);
+            return visibleDockables;
+        }
+
+        /// <summary>
         /// Attempts to find a resize handle under the pointer and returns its axis.
         /// </summary>
         /// <param name="pointer">Pointer position in screen or host coordinates.</param>
@@ -388,6 +398,27 @@ namespace helengine.editor {
 
             minWidth = 1;
             minHeight = 1;
+        }
+
+        /// <summary>
+        /// Appends visible active dockables from the layout tree in leaf traversal order.
+        /// </summary>
+        /// <param name="node">Layout node to inspect.</param>
+        /// <param name="visibleDockables">Destination list for visible dockables.</param>
+        void CollectVisibleDockables(LayoutNode node, List<DockableEntity> visibleDockables) {
+            if (node == null) {
+                return;
+            }
+
+            if (node is PanelNode panel) {
+                visibleDockables.Add(panel.Entity);
+                return;
+            }
+
+            if (node is SplitNode split) {
+                CollectVisibleDockables(split.First, visibleDockables);
+                CollectVisibleDockables(split.Second, visibleDockables);
+            }
         }
 
         /// <summary>
@@ -683,7 +714,7 @@ namespace helengine.editor {
                 entity.SetTitleBarInteractableEnabled(true);
 
                 if (tabs.Count == 0) {
-                    tabStrip?.Hide();
+                    DisposeTabStrip();
                     return null;
                 }
 
@@ -693,7 +724,7 @@ namespace helengine.editor {
 
                 ApplyTabVisibility();
                 if (tabs.Count <= 1) {
-                    tabStrip?.Hide();
+                    DisposeTabStrip();
                 }
 
                 return this;
@@ -752,6 +783,19 @@ namespace helengine.editor {
 
                 DockableEntity active = Entity;
                 tabStrip.UpdateTabs(tabs, activeTabIndex, new float3(left, top + 1, z), width, active.LayerMask);
+            }
+
+            /// <summary>
+            /// Hides the current tab strip and disposes its persistent focus targets.
+            /// </summary>
+            void DisposeTabStrip() {
+                if (tabStrip == null) {
+                    return;
+                }
+
+                tabStrip.Hide();
+                tabStrip.DisposeFocusTargets();
+                tabStrip = null;
             }
         }
 

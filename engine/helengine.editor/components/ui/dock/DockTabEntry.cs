@@ -92,6 +92,11 @@ namespace helengine.editor {
         public int Width { get; set; }
 
         /// <summary>
+        /// Gets or sets the persistent keyboard-focus target that represents this visible tab.
+        /// </summary>
+        public EditorFocusTarget FocusTarget { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether the tab is hovered.
         /// </summary>
         public bool IsHovering { get; set; }
@@ -100,5 +105,10 @@ namespace helengine.editor {
         /// Gets or sets a value indicating whether the tab is pressed.
         /// </summary>
         public bool IsPressed { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the tab is currently keyboard-focused.
+        /// </summary>
+        public bool IsKeyboardFocused { get; set; }
     }
 }

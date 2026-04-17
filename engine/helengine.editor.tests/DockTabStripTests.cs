@@ -6,7 +6,7 @@ namespace helengine.editor.tests {
     /// <summary>
     /// Verifies tab-strip visuals use the explicit panel render-order stack.
     /// </summary>
-    public class DockTabStripTests {
+    public class DockTabStripTests : IDisposable {
         /// <summary>
         /// Ensures tab backgrounds and labels use the explicit interactive panel band.
         /// </summary>
@@ -37,11 +37,19 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Clears shared keyboard-focus state after each test.
+        /// </summary>
+        public void Dispose() {
+            EditorKeyboardFocusService.Reset();
+        }
+
+        /// <summary>
         /// Initializes the core services required for dock-tab tests.
         /// </summary>
         void InitializeCore() {
             Core core = new Core();
             core.Initialize(null, new TestRenderManager2D(), null);
+            EditorKeyboardFocusService.Reset();
         }
 
         /// <summary>

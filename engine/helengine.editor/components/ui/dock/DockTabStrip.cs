@@ -125,10 +125,10 @@ namespace helengine.editor {
 
             LayerMask = layerMask;
             Position = new float3(position.X, position.Y, position.Z + 0.2f);
-
-            EnsureTabCount(dockables, layerMask);
-
             activeIndex = Math.Clamp(currentActiveIndex, 0, dockables.Count - 1);
+
+            DockableEntity activeDock = dockables[activeIndex];
+            EnsureTabCount(dockables, layerMask, activeDock);
 
             float x = TabStripPadding;
             for (int i = 0; i < dockables.Count; i++) {
@@ -139,6 +139,9 @@ namespace helengine.editor {
                 entry.Root.Enabled = true;
                 entry.Root.LayerMask = layerMask;
                 entry.LabelHost.LayerMask = layerMask;
+                entry.FocusTarget.FocusGroup = activeDock;
+                entry.FocusTarget.TabIndex = i;
+                entry.FocusTarget.IsDefaultTarget = false;
 
                 string label = dockable.Title;
                 var metrics = font.MeasureTight(label);
@@ -163,7 +166,10 @@ namespace helengine.editor {
             }
 
             for (int i = dockables.Count; i < tabs.Count; i++) {
-                tabs[i].Root.Enabled = false;
+                DockTabEntry entry = tabs[i];
+                entry.Root.Enabled = false;
+                entry.IsKeyboardFocused = false;
+                entry.FocusTarget.SetTargetFocused(false);
             }
         }
 
@@ -174,19 +180,41 @@ namespace helengine.editor {
             if (Enabled) {
                 Enabled = false;
             }
+
+            for (int i = 0; i < tabs.Count; i++) {
+                DockTabEntry entry = tabs[i];
+                entry.Root.Enabled = false;
+                entry.IsHovering = false;
+                entry.IsPressed = false;
+                entry.IsKeyboardFocused = false;
+            }
         }
 
         /// <summary>
         /// Ensures the tab list contains enough entries for the dockables.
         /// </summary>
-        /// <param name="count">Required tab count.</param>
+        /// <param name="dockables">Dockables represented by the strip.</param>
         /// <param name="layerMask">Layer mask applied to new tabs.</param>
-        void EnsureTabCount(IReadOnlyList<DockableEntity> dockables, ushort layerMask) {
+        /// <param name="activeDock">Active dock group that owns the tab targets.</param>
+        void EnsureTabCount(IReadOnlyList<DockableEntity> dockables, ushort layerMask, DockableEntity activeDock) {
             for (int i = tabs.Count; i < dockables.Count; i++) {
                 var entry = new DockTabEntry(dockables[i], font, layerMask, tabBackgroundOrder, tabTextOrder);
                 entry.Root.LayerMask = layerMask;
                 entry.LabelHost.LayerMask = layerMask;
                 entry.Interactable.CursorEvent += (pos, delta, state) => HandleTabCursor(entry, pos, delta, state);
+                entry.FocusTarget = new EditorFocusTarget(
+                    activeDock,
+                    i,
+                    false,
+                    () => Enabled && entry.Root.Enabled,
+                    point => ContainsTabPoint(entry, point),
+                    isFocused => {
+                        entry.IsKeyboardFocused = isFocused;
+                        UpdateTabVisual(entry, entry.Index == activeIndex);
+                    },
+                    key => key == Keys.Enter || key == Keys.Space,
+                    key => ActivateTab(entry.Index));
+                EditorKeyboardFocusService.RegisterTarget(entry.FocusTarget);
                 AddChild(entry.Root);
                 entry.Root.Enabled = Enabled;
                 tabs.Add(entry);
@@ -246,10 +274,8 @@ namespace helengine.editor {
                     isPointerDown = false;
                     pressedEntry = null;
                     dragDelta = new int2(0, 0);
-                    if (shouldActivate && entry.Index != activeIndex) {
-                        activeIndex = entry.Index;
-                        onTabSelected(entry.Index);
-                        UpdateAllTabVisuals();
+                    if (shouldActivate) {
+                        ActivateTab(entry.Index);
                         return;
                     }
                     break;
@@ -299,6 +325,8 @@ namespace helengine.editor {
         void UpdateTabVisual(DockTabEntry entry, bool isActive) {
             if (entry.IsPressed) {
                 entry.Background.Color = ThemeManager.Colors.AccentTertiary;
+            } else if (entry.IsKeyboardFocused) {
+                entry.Background.Color = ThemeManager.Colors.AccentSecondary;
             } else if (isActive) {
                 entry.Background.Color = ThemeManager.Colors.SurfacePrimary;
             } else if (entry.IsHovering) {
@@ -318,6 +346,54 @@ namespace helengine.editor {
         float GetTextTopOffset(float containerHeight) {
             float lineHeight = Math.Max(font.LineHeight, 1f);
             return MathF.Round((containerHeight - lineHeight) * 0.5f);
+        }
+
+        /// <summary>
+        /// Activates one tab index using the same selection path as pointer release.
+        /// </summary>
+        /// <param name="index">Tab index to activate.</param>
+        void ActivateTab(int index) {
+            if (index < 0 || index >= tabs.Count) {
+                return;
+            }
+
+            if (index != activeIndex) {
+                activeIndex = index;
+                onTabSelected(index);
+            }
+
+            UpdateAllTabVisuals();
+        }
+
+        /// <summary>
+        /// Returns true when the provided screen point lies inside one tab entry.
+        /// </summary>
+        /// <param name="entry">Tab entry to evaluate.</param>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point lies inside the tab bounds.</returns>
+        bool ContainsTabPoint(DockTabEntry entry, int2 point) {
+            float3 position = entry.Root.Position;
+            return point.X >= position.X &&
+                   point.X < position.X + entry.Width &&
+                   point.Y >= position.Y &&
+                   point.Y < position.Y + TabHeight;
+        }
+
+        /// <summary>
+        /// Unregisters every focus target created by this tab strip and clears their focused visuals.
+        /// </summary>
+        public void DisposeFocusTargets() {
+            for (int i = 0; i < tabs.Count; i++) {
+                DockTabEntry entry = tabs[i];
+                if (entry.FocusTarget == null) {
+                    continue;
+                }
+
+                entry.FocusTarget.SetTargetFocused(false);
+                EditorKeyboardFocusService.UnregisterTarget(entry.FocusTarget);
+                entry.FocusTarget = null;
+                entry.IsKeyboardFocused = false;
+            }
         }
     }
 }
