@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders a selectable combo box with a drop-down list of items.
     /// </summary>
-    public class ComboBoxComponent : Component {
+    public class ComboBoxComponent : Component, IFocusTarget {
         /// <summary>
         /// Horizontal padding applied to label text.
         /// </summary>
@@ -224,6 +224,31 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets or sets the focus group that owns this combo box during keyboard traversal.
+        /// </summary>
+        public IFocusGroup FocusGroup { get; set; }
+
+        /// <summary>
+        /// Gets or sets the traversal order of this combo box within its focus group.
+        /// </summary>
+        public int TabIndex { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this combo box is the preferred entry target for its root group.
+        /// </summary>
+        public bool IsDefaultTarget { get; set; }
+
+        /// <summary>
+        /// Gets whether this combo box can currently receive keyboard focus.
+        /// </summary>
+        public bool CanReceiveFocus => Parent != null && Parent.IsHierarchyEnabled && interactable != null;
+
+        /// <summary>
+        /// Gets a value indicating whether the main combo-box control is currently keyboard-focused.
+        /// </summary>
+        public bool IsKeyboardFocused { get; private set; }
+
+        /// <summary>
         /// Sets the available items and selection for the combo box.
         /// </summary>
         /// <param name="items">New item list.</param>
@@ -334,6 +359,34 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Clears focus and transient interaction state when the combo box parent is disabled.
+        /// </summary>
+        /// <param name="newEnabled">New enabled state.</param>
+        public override void ParentEnabledChange(bool newEnabled) {
+            base.ParentEnabledChange(newEnabled);
+
+            if (!newEnabled) {
+                isHovering = false;
+                isPressed = false;
+                ResetItemStates();
+                SetTargetFocused(false);
+            }
+        }
+
+        /// <summary>
+        /// Clears focus and transient interaction state when the combo box is removed.
+        /// </summary>
+        /// <param name="entity">Owning entity.</param>
+        public override void ComponentRemoved(Entity entity) {
+            base.ComponentRemoved(entity);
+
+            isHovering = false;
+            isPressed = false;
+            ResetItemStates();
+            SetTargetFocused(false);
+        }
+
+        /// <summary>
         /// Validates that item entries are non-null.
         /// </summary>
         /// <param name="items">Item list to validate.</param>
@@ -430,6 +483,57 @@ namespace helengine {
             }
 
             IsOpen = false;
+        }
+
+        /// <summary>
+        /// Returns true when the provided screen point lies inside the main combo-box control.
+        /// </summary>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point is inside the main control.</returns>
+        public bool ContainsScreenPoint(int2 point) {
+            if (Parent == null) {
+                return false;
+            }
+
+            float3 origin = Parent.Position;
+            return point.X >= origin.X &&
+                   point.X < origin.X + size.X &&
+                   point.Y >= origin.Y &&
+                   point.Y < origin.Y + size.Y;
+        }
+
+        /// <summary>
+        /// Applies or clears the keyboard-focused visual state for the combo-box main control.
+        /// </summary>
+        /// <param name="isFocused">True when the combo box should render as focused.</param>
+        public void SetTargetFocused(bool isFocused) {
+            IsKeyboardFocused = isFocused;
+            if (!isFocused && isOpen) {
+                IsOpen = false;
+            }
+
+            UpdateMainVisual();
+        }
+
+        /// <summary>
+        /// Returns true when the combo box should activate for the provided key.
+        /// </summary>
+        /// <param name="key">Activation key to evaluate.</param>
+        /// <returns>True when Enter or Space should toggle the drop-down.</returns>
+        public bool CanActivateWithKey(Keys key) {
+            return key == Keys.Enter || key == Keys.Space;
+        }
+
+        /// <summary>
+        /// Toggles the main drop-down list for supported keyboard activation keys.
+        /// </summary>
+        /// <param name="key">Activation key routed to the combo box.</param>
+        public void ActivateFromKey(Keys key) {
+            if (!CanActivateWithKey(key) || items.Count == 0) {
+                return;
+            }
+
+            IsOpen = !isOpen;
         }
 
         /// <summary>
@@ -653,6 +757,13 @@ namespace helengine {
         void UpdateMainVisual() {
             if (background == null) {
                 return;
+            }
+
+            background.BorderColor = IsKeyboardFocused
+                ? ThemeManager.Colors.AccentPrimary
+                : ThemeManager.Colors.AccentTertiary;
+            if (listBackground != null) {
+                listBackground.BorderColor = background.BorderColor;
             }
 
             if (isPressed || isOpen) {

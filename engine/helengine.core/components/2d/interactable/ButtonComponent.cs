@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Simple interactable button that renders rounded rect styling and invokes a click action.
     /// </summary>
-    public class ButtonComponent : Component {
+    public class ButtonComponent : Component, IFocusTarget {
         string text;
         FontAsset font;
         int2 size;
@@ -30,6 +30,31 @@ namespace helengine {
         // Current state
         bool isHovering;
         bool isPressed;
+
+        /// <summary>
+        /// Gets or sets the focus group that owns this button during keyboard traversal.
+        /// </summary>
+        public IFocusGroup FocusGroup { get; set; }
+
+        /// <summary>
+        /// Gets or sets the traversal order of this button within its focus group.
+        /// </summary>
+        public int TabIndex { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this button is the preferred entry target for its root group.
+        /// </summary>
+        public bool IsDefaultTarget { get; set; }
+
+        /// <summary>
+        /// Gets whether this button can currently receive keyboard focus.
+        /// </summary>
+        public bool CanReceiveFocus => Parent != null && Parent.IsHierarchyEnabled && interactableComponent != null;
+
+        /// <summary>
+        /// Gets a value indicating whether this button is currently keyboard-focused.
+        /// </summary>
+        public bool IsKeyboardFocused { get; private set; }
 
         /// <summary>
         /// Creates a new button with text, size, font, and optional click action.
@@ -142,9 +167,79 @@ namespace helengine {
         public override void ParentEnabledChange(bool newEnabled) {
             base.ParentEnabledChange(newEnabled);
 
+            if (!newEnabled) {
+                isHovering = false;
+                isPressed = false;
+                SetTargetFocused(false);
+            }
+
             if (textEntity != null) {
                 textEntity.Enabled = newEnabled;
             }
+        }
+
+        /// <summary>
+        /// Clears transient interaction and keyboard-focus state when the button is removed.
+        /// </summary>
+        /// <param name="entity">Owning entity.</param>
+        public override void ComponentRemoved(Entity entity) {
+            base.ComponentRemoved(entity);
+
+            isHovering = false;
+            isPressed = false;
+            SetTargetFocused(false);
+        }
+
+        /// <summary>
+        /// Returns true when the provided screen point lies inside the button bounds.
+        /// </summary>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point is inside the button.</returns>
+        public bool ContainsScreenPoint(int2 point) {
+            if (Parent == null) {
+                return false;
+            }
+
+            float3 position = Parent.Position;
+            return point.X >= position.X &&
+                   point.X < position.X + size.X &&
+                   point.Y >= position.Y &&
+                   point.Y < position.Y + size.Y;
+        }
+
+        /// <summary>
+        /// Applies or clears the keyboard-focused visual state for the button.
+        /// </summary>
+        /// <param name="isFocused">True when the button should render as focused.</param>
+        public void SetTargetFocused(bool isFocused) {
+            if (IsKeyboardFocused == isFocused) {
+                UpdateButtonColor();
+                return;
+            }
+
+            IsKeyboardFocused = isFocused;
+            UpdateButtonColor();
+        }
+
+        /// <summary>
+        /// Returns true when the button should activate for the provided key.
+        /// </summary>
+        /// <param name="key">Activation key to evaluate.</param>
+        /// <returns>True when Enter or Space should activate the button.</returns>
+        public bool CanActivateWithKey(Keys key) {
+            return key == Keys.Enter || key == Keys.Space;
+        }
+
+        /// <summary>
+        /// Invokes the button action for supported keyboard activation keys.
+        /// </summary>
+        /// <param name="key">Activation key routed to the button.</param>
+        public void ActivateFromKey(Keys key) {
+            if (!CanActivateWithKey(key)) {
+                return;
+            }
+
+            onClickAction?.Invoke();
         }
 
         /// <summary>
@@ -196,6 +291,10 @@ namespace helengine {
         /// </summary>
         void UpdateButtonColor() {
             if (roundedRect == null) return;
+
+            roundedRect.BorderColor = IsKeyboardFocused
+                ? ThemeManager.Colors.AccentPrimary
+                : ThemeManager.Colors.AccentTertiary;
 
             if (isPressed) {
                 roundedRect.FillColor = ThemeManager.Colors.AccentTertiary;

@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Simple text box with placeholder, blinking cursor, and basic keyboard input handling.
     /// </summary>
-    public class TextBoxComponent : Component {
+    public class TextBoxComponent : Component, IFocusTarget {
         static TextBoxComponent focusedTextBox;
         string text = "";
         string placeholder = "";
@@ -27,6 +27,26 @@ namespace helengine {
         /// Raised when the focus state changes.
         /// </summary>
         public event Action<TextBoxComponent, bool> FocusChanged;
+
+        /// <summary>
+        /// Gets or sets the focus group that owns this text box during keyboard traversal.
+        /// </summary>
+        public IFocusGroup FocusGroup { get; set; }
+
+        /// <summary>
+        /// Gets or sets the traversal order of this text box within its focus group.
+        /// </summary>
+        public int TabIndex { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this text box is the preferred entry target for its root group.
+        /// </summary>
+        public bool IsDefaultTarget { get; set; }
+
+        /// <summary>
+        /// Gets whether this text box can currently receive keyboard focus.
+        /// </summary>
+        public bool CanReceiveFocus => Parent != null && Parent.IsHierarchyEnabled && interactableComponent != null;
         
         /// <summary>
         /// Gets or sets the text content.
@@ -83,25 +103,7 @@ namespace helengine {
         /// </summary>
         public bool IsFocused {
             get { return isFocused; }
-            set {
-                if (isFocused == value) {
-                    return;
-                }
-
-                isFocused = value;
-                if (isFocused) {
-                    cursorPosition = text.Length; // Move cursor to end when focused
-                    focusedTextBox = this;
-                } else if (focusedTextBox == this) {
-                    focusedTextBox = null;
-                }
-                cursorVisible = true;
-                UpdateTextDisplay();
-                FocusChanged?.Invoke(this, isFocused);
-                if (!isFocused) {
-                    Submitted?.Invoke(this);
-                }
-            }
+            set { SetFocusedState(value, true); }
         }
 
         /// <summary>
@@ -155,6 +157,7 @@ namespace helengine {
             entity.AddComponent(updateComponent);
 
             UpdateTextDisplay();
+            UpdateFocusVisual();
         }
 
         /// <summary>
@@ -238,7 +241,6 @@ namespace helengine {
                     UpdateTextDisplay();
                     break;
                 case Keys.Enter:
-                    Submitted?.Invoke(this);
                     IsFocused = false;
                     break;
                     
@@ -325,7 +327,7 @@ namespace helengine {
         public override void ParentEnabledChange(bool newEnabled) {
             base.ParentEnabledChange(newEnabled);
 
-            if (!newEnabled && focusedTextBox == this) {
+            if (!newEnabled && isFocused) {
                 IsFocused = false;
             }
         }
@@ -336,26 +338,94 @@ namespace helengine {
         /// <param name="entity">Owning entity.</param>
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
-            if (focusedTextBox == this) {
-                focusedTextBox = null;
-            }
+            SetFocusedState(false, false);
         }
 
         /// <summary>
-        /// Determines whether a pointer is inside the text box bounds.
+        /// Returns true when the provided screen point lies inside the text box bounds.
         /// </summary>
-        /// <param name="pointer">Pointer position in window coordinates.</param>
-        /// <returns>True when the pointer is inside the text box.</returns>
-        public bool ContainsPointer(int2 pointer) {
+        /// <param name="point">Pointer position in window coordinates.</param>
+        /// <returns>True when the point is inside the text box.</returns>
+        public bool ContainsScreenPoint(int2 point) {
             if (Parent == null) {
                 return false;
             }
 
             float3 worldPosition = Parent.Position;
-            return pointer.X >= worldPosition.X &&
-                   pointer.X < worldPosition.X + size.X &&
-                   pointer.Y >= worldPosition.Y &&
-                   pointer.Y < worldPosition.Y + size.Y;
+            return point.X >= worldPosition.X &&
+                   point.X < worldPosition.X + size.X &&
+                   point.Y >= worldPosition.Y &&
+                   point.Y < worldPosition.Y + size.Y;
+        }
+
+        /// <summary>
+        /// Applies or clears keyboard focus using the text box's existing focus semantics.
+        /// </summary>
+        /// <param name="isFocused">True when the text box should become focused.</param>
+        public void SetTargetFocused(bool isFocused) {
+            IsFocused = isFocused;
+        }
+
+        /// <summary>
+        /// Returns true when the text box should activate for the provided key.
+        /// </summary>
+        /// <param name="key">Activation key to evaluate.</param>
+        /// <returns>True when Enter should commit the text box.</returns>
+        public bool CanActivateWithKey(Keys key) {
+            return key == Keys.Enter;
+        }
+
+        /// <summary>
+        /// Commits the text box by using the normal blur path for supported activation keys.
+        /// </summary>
+        /// <param name="key">Activation key routed to the text box.</param>
+        public void ActivateFromKey(Keys key) {
+            if (!CanActivateWithKey(key) || !isFocused) {
+                return;
+            }
+
+            IsFocused = false;
+        }
+
+        /// <summary>
+        /// Applies one focus-state transition and optionally submits the current value on blur.
+        /// </summary>
+        /// <param name="value">Focused state to apply.</param>
+        /// <param name="submitOnBlur">True when losing focus should submit the text value.</param>
+        void SetFocusedState(bool value, bool submitOnBlur) {
+            if (isFocused == value) {
+                UpdateFocusVisual();
+                return;
+            }
+
+            isFocused = value;
+            if (isFocused) {
+                cursorPosition = text.Length;
+                focusedTextBox = this;
+            } else if (focusedTextBox == this) {
+                focusedTextBox = null;
+            }
+
+            cursorVisible = true;
+            UpdateTextDisplay();
+            UpdateFocusVisual();
+            FocusChanged?.Invoke(this, isFocused);
+            if (!isFocused && submitOnBlur) {
+                Submitted?.Invoke(this);
+            }
+        }
+
+        /// <summary>
+        /// Updates the text-box outline to reflect whether it currently has keyboard focus.
+        /// </summary>
+        void UpdateFocusVisual() {
+            if (backgroundSprite == null) {
+                return;
+            }
+
+            backgroundSprite.BorderColor = isFocused
+                ? ThemeManager.Colors.AccentPrimary
+                : ThemeManager.Colors.AccentTertiary;
         }
     }
 
@@ -389,7 +459,7 @@ namespace helengine {
             }
 
             int2 pointer = input.GetMousePosition();
-            if (!textBox.ContainsPointer(pointer)) {
+            if (!textBox.ContainsScreenPoint(pointer)) {
                 textBox.IsFocused = false;
             }
         }
