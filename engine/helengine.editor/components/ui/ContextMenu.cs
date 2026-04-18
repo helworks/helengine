@@ -53,7 +53,7 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity BackgroundBlockerEntity;
         /// <summary>
-        /// Transparent surface that gives the background blocker its own input depth.
+        /// Transparent surface that keeps the background blocker in the menu overlay band without outranking the row content.
         /// </summary>
         readonly SpriteComponent BackgroundBlockerSurface;
         /// <summary>
@@ -141,7 +141,7 @@ namespace helengine.editor {
                 Texture = TextureUtils.PixelTexture,
                 Color = new byte4(255, 255, 255, 0),
                 Size = new int2(0, 0),
-                RenderOrder2D = RenderOrder2D.OverlayInput
+                RenderOrder2D = backgroundOrder
             };
             BackgroundBlockerEntity.AddComponent(BackgroundBlockerSurface);
 

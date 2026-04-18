@@ -887,6 +887,11 @@ namespace helengine.editor {
         /// New sessions begin empty and wait for the user to add scene entities explicitly.
         /// </summary>
         void BuildStartScene() {
+            if (helengine.Core.Instance == null || helengine.Core.Instance.RenderManager3D == null) {
+                throw new InvalidOperationException("Viewport grid initialization requires an active 3D render manager.");
+            }
+
+            EditorViewportGridFactory.Create(helengine.Core.Instance.RenderManager3D);
         }
 
         /// <summary>

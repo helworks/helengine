@@ -53,6 +53,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the editor startup scene builder creates the internal viewport grid used by empty scenes.
+        /// </summary>
+        [Fact]
+        public void BuildStartScene_WhenCalled_CreatesInternalViewportGrid() {
+            EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
+
+            MethodInfo method = typeof(EditorSession).GetMethod("BuildStartScene", BindingFlags.Instance | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
+
+            Assert.NotNull(method);
+
+            method.Invoke(session, Array.Empty<object>());
+
+            EditorEntity gridEntity = Assert.Single(GetInternalSceneEntities(Core.Instance.ObjectManager), entity => string.Equals(entity.Name, "Viewport Grid", StringComparison.Ordinal));
+            Assert.Equal(EditorLayerMasks.SceneObjects, gridEntity.LayerMask);
+        }
+
+        /// <summary>
         /// Collects registered user-authored scene entities currently tracked by the object manager.
         /// </summary>
         /// <param name="objectManager">Object manager whose entities should be filtered.</param>
@@ -66,6 +83,28 @@ namespace helengine.editor.tests {
             for (int i = 0; i < objectManager.Entities.Count; i++) {
                 if (objectManager.Entities[i] is EditorEntity editorEntity &&
                     !editorEntity.InternalEntity &&
+                    editorEntity.LayerMask == EditorLayerMasks.SceneObjects) {
+                    entities.Add(editorEntity);
+                }
+            }
+
+            return entities;
+        }
+
+        /// <summary>
+        /// Collects registered internal scene entities currently tracked by the object manager.
+        /// </summary>
+        /// <param name="objectManager">Object manager whose entities should be filtered.</param>
+        /// <returns>List of internal scene entities.</returns>
+        IReadOnlyList<EditorEntity> GetInternalSceneEntities(ObjectManager objectManager) {
+            if (objectManager == null) {
+                throw new ArgumentNullException(nameof(objectManager));
+            }
+
+            List<EditorEntity> entities = new List<EditorEntity>();
+            for (int i = 0; i < objectManager.Entities.Count; i++) {
+                if (objectManager.Entities[i] is EditorEntity editorEntity &&
+                    editorEntity.InternalEntity &&
                     editorEntity.LayerMask == EditorLayerMasks.SceneObjects) {
                     entities.Add(editorEntity);
                 }

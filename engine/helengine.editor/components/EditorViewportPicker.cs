@@ -204,8 +204,8 @@ namespace helengine.editor {
             PendingViewport = sourceCamera.Viewport;
 
             EnsurePickerRenderTargetSize(PendingViewport);
-            RebuildPickerRenderQueue(layerMask);
-            BuildPickColors();
+            RebuildPickerRenderQueue(layerMask, pickMode);
+            BuildPickColors(pickMode);
             PickerRenderer.RequestShaderPass(PickerCamera, PickerCamera.RenderQueue3D, PickerShaderPath, GetPickColor);
             PendingPickMode = pickMode;
             PickReadbackPending = true;
@@ -266,6 +266,10 @@ namespace helengine.editor {
             string label = GetEntityLabel(entity);
             Console.WriteLine($"[Picker] Picked entity: {label}");
             Logger.WriteLine($"Picked entity: {label}");
+            if (!EditorViewportSceneSelectionFilter.ShouldSelectEntity(entity)) {
+                return;
+            }
+
             EditorSelectionService.SetSelectedEntity(entity);
         }
 
@@ -331,7 +335,7 @@ namespace helengine.editor {
         /// Rebuilds the picker camera render queue for the requested layer mask.
         /// </summary>
         /// <param name="layerMask">Layer mask to include in the queue.</param>
-        void RebuildPickerRenderQueue(ushort layerMask) {
+        void RebuildPickerRenderQueue(ushort layerMask, int pickMode) {
             IRenderQueue3D queue = PickerCamera.RenderQueue3D;
             if (queue == null) {
                 throw new InvalidOperationException("Picker camera must provide a render queue.");
@@ -349,6 +353,9 @@ namespace helengine.editor {
                 if ((drawable.Parent.LayerMask & layerMask) == 0) {
                     continue;
                 }
+                if (pickMode == PickModeSelection && !EditorViewportSceneSelectionFilter.ShouldIncludeDrawableForSelection(drawable)) {
+                    continue;
+                }
 
                 queue.Add(drawable);
             }
@@ -357,7 +364,7 @@ namespace helengine.editor {
         /// <summary>
         /// Builds the pick color table for drawables visible to the picker camera.
         /// </summary>
-        void BuildPickColors() {
+        void BuildPickColors(int pickMode) {
             PickColors.Clear();
             PickEntitiesById.Clear();
 
@@ -369,6 +376,9 @@ namespace helengine.editor {
                     continue;
                 }
                 if ((drawable.Parent.LayerMask & PickerCamera.LayerMask) == 0) {
+                    continue;
+                }
+                if (pickMode == PickModeSelection && !EditorViewportSceneSelectionFilter.ShouldIncludeDrawableForSelection(drawable)) {
                     continue;
                 }
 

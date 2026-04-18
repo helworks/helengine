@@ -160,11 +160,12 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Scene camera must belong to an entity.");
             }
 
-            EnsureHandleBaseTransformsCached();
-            float4 yawFacingOrientation = TransformGizmoYawSnapper.ComputeSnappedYawFacingOrientation(selectedPosition, cameraEntity.Position);
-            ApplyFacingToHandles(yawFacingOrientation);
+            bool isDragging = EditorGizmoDragService.IsDragging(SceneCamera);
+            if (!isDragging) {
+                EnsureHandleBaseTransformsCached();
+                float4 yawFacingOrientation = TransformGizmoYawSnapper.ComputeSnappedYawFacingOrientation(selectedPosition, cameraEntity.Position);
+                ApplyFacingToHandles(yawFacingOrientation);
 
-            if (!EditorGizmoDragService.IsDragging(SceneCamera)) {
                 float4 viewport = SceneCamera.Viewport;
                 double viewportHeight = viewport.W;
                 if (viewportHeight <= 0.0) {

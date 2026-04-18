@@ -89,6 +89,46 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures drag-time updates preserve the current handle facing even when the translated entity crosses into a different snapped yaw sector.
+        /// </summary>
+        [Fact]
+        public void Update_WhileTranslationDragIsActive_PreservesHandleOrientationUntilDragEnds() {
+            InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+
+            RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
+            RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
+            EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, previewEntity);
+            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
+
+            EditorEntity selectedEntity = new EditorEntity();
+            selectedEntity.Position = new float3(0f, 0f, 0f);
+            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            UpdateFollowComponent(gizmoRoot);
+
+            EditorEntity xHandle = (EditorEntity)gizmoRoot.Children[0];
+            float4 initialOrientation = xHandle.Orientation;
+            float3 initialLocalOffset = xHandle.Position - gizmoRoot.Position;
+
+            EditorGizmoDragService.BeginDrag(sceneCamera, selectedEntity);
+            selectedEntity.Position = new float3(-8f, 0f, 0f);
+            UpdateFollowComponent(gizmoRoot);
+
+            float4 dragOrientation = xHandle.Orientation;
+            float3 dragLocalOffset = xHandle.Position - gizmoRoot.Position;
+
+            EditorGizmoDragService.EndDrag(sceneCamera);
+            UpdateFollowComponent(gizmoRoot);
+
+            AssertVectorEquals(selectedEntity.Position, gizmoRoot.Position);
+            AssertQuaternionEquals(initialOrientation, dragOrientation);
+            AssertVectorEquals(initialLocalOffset, dragLocalOffset);
+            Assert.False(AreQuaternionsEqual(initialOrientation, xHandle.Orientation));
+        }
+
+        /// <summary>
         /// Initializes a fresh core with a configurable input manager for entity-based tests.
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
@@ -221,6 +261,42 @@ namespace helengine.editor.tests.managers.gizmo {
             }
 
             throw new InvalidOperationException("Expected a translation-gizmo follow component on the gizmo root.");
+        }
+
+        /// <summary>
+        /// Asserts that two vectors match within the standard floating-point tolerance for gizmo tests.
+        /// </summary>
+        /// <param name="expected">Expected vector value.</param>
+        /// <param name="actual">Actual vector value.</param>
+        void AssertVectorEquals(float3 expected, float3 actual) {
+            Assert.InRange(Math.Abs(expected.X - actual.X), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs(expected.Y - actual.Y), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs(expected.Z - actual.Z), 0f, FloatTolerance);
+        }
+
+        /// <summary>
+        /// Asserts that two quaternions match within the standard floating-point tolerance for gizmo tests.
+        /// </summary>
+        /// <param name="expected">Expected quaternion value.</param>
+        /// <param name="actual">Actual quaternion value.</param>
+        void AssertQuaternionEquals(float4 expected, float4 actual) {
+            Assert.InRange(Math.Abs(expected.X - actual.X), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs(expected.Y - actual.Y), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs(expected.Z - actual.Z), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs(expected.W - actual.W), 0f, FloatTolerance);
+        }
+
+        /// <summary>
+        /// Determines whether two quaternions match within the standard floating-point tolerance for gizmo tests.
+        /// </summary>
+        /// <param name="left">First quaternion.</param>
+        /// <param name="right">Second quaternion.</param>
+        /// <returns>True when all components are within tolerance; otherwise false.</returns>
+        bool AreQuaternionsEqual(float4 left, float4 right) {
+            return Math.Abs(left.X - right.X) <= FloatTolerance &&
+                   Math.Abs(left.Y - right.Y) <= FloatTolerance &&
+                   Math.Abs(left.Z - right.Z) <= FloatTolerance &&
+                   Math.Abs(left.W - right.W) <= FloatTolerance;
         }
 
         /// <summary>
