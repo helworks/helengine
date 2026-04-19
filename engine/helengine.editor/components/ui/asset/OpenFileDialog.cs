@@ -69,9 +69,17 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity PanelRoot;
         /// <summary>
+        /// Root entity hosting the clickable dialog background.
+        /// </summary>
+        readonly EditorEntity BackgroundRoot;
+        /// <summary>
         /// Panel background shape.
         /// </summary>
         readonly RoundedRectComponent PanelBackground;
+        /// <summary>
+        /// Interactable that absorbs input over blank dialog background space without taking action.
+        /// </summary>
+        readonly InteractableComponent BackgroundInteractable;
         /// <summary>
         /// Root entity for the draggable header area.
         /// </summary>
@@ -194,6 +202,12 @@ namespace helengine.editor {
             };
             AddChild(PanelRoot);
 
+            BackgroundRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero
+            };
+            PanelRoot.AddChild(BackgroundRoot);
+
             PanelBackground = new RoundedRectComponent {
                 FillColor = ThemeManager.Colors.SurfacePrimary,
                 BorderColor = ThemeManager.Colors.AccentTertiary,
@@ -202,7 +216,12 @@ namespace helengine.editor {
                 RenderOrder2D = PanelOrder,
                 Size = new int2(0, 0)
             };
-            PanelRoot.AddComponent(PanelBackground);
+            BackgroundRoot.AddComponent(PanelBackground);
+
+            BackgroundInteractable = new InteractableComponent {
+                Size = new int2(0, 0)
+            };
+            BackgroundRoot.AddComponent(BackgroundInteractable);
 
             HeaderRoot = new EditorEntity {
                 LayerMask = LayerMask,
@@ -363,6 +382,7 @@ namespace helengine.editor {
 
             PanelSize = new int2(panelWidth, panelHeight);
             PanelBackground.Size = PanelSize;
+            BackgroundInteractable.Size = PanelSize;
             if (!IsUserPositioned) {
                 PanelPosition = new int2(Math.Max(0, (width - panelWidth) / 2), Math.Max(0, (height - panelHeight) / 2));
             }

@@ -12,6 +12,10 @@ namespace helengine.editor.tests {
         /// Temporary project root used by the open dialog.
         /// </summary>
         readonly string ProjectRootPath;
+        /// <summary>
+        /// Configurable input manager used to drive pointer-routing assertions.
+        /// </summary>
+        readonly TestInputManager Input;
 
         /// <summary>
         /// Initializes an isolated project root and the core services required by the dialog.
@@ -23,7 +27,8 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = ProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            Input = new TestInputManager();
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input);
         }
 
         /// <summary>
@@ -87,6 +92,41 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures blank dialog background space absorbs hover instead of leaking through to lower editor controls.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPointerMovesAcrossDialogBackground_DoesNotHoverInteractablesBehindDialog() {
+            CreateUiCamera(1280, 720);
+
+            InteractableComponent behindInteractable = CreateInteractableEntity(
+                new float3(0f, 0f, 0f),
+                new int2(1280, 720),
+                RenderOrder2D.PanelSurface);
+            int behindHoverCount = 0;
+            behindInteractable.CursorEvent += (pos, delta, state) => {
+                if (state == PointerInteraction.Hover) {
+                    behindHoverCount++;
+                }
+            };
+
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            dialog.Show("Scenes");
+            dialog.UpdateLayout(1280, 720);
+
+            int2 panelPosition = GetPrivateField<int2>(dialog, "PanelPosition");
+            int2 panelSize = GetPrivateField<int2>(dialog, "PanelSize");
+            int pointerX = panelPosition.X + OpenFileDialog.PanelPadding;
+            int pointerY = panelPosition.Y + panelSize.Y - OpenFileDialog.PanelPadding - (OpenFileDialog.FooterHeight / 2);
+            Input.SetMouseState(new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Input.EarlyUpdate();
+            Input.Update();
+
+            Assert.NotSame(behindInteractable, Input.Hovering);
+            Assert.Equal(0, behindHoverCount);
+        }
+
+        /// <summary>
         /// Assigns the selected browser entry directly on the dialog.
         /// </summary>
         /// <param name="dialog">Dialog whose selection should be updated.</param>
@@ -131,6 +171,53 @@ namespace helengine.editor.tests {
         T GetPrivateField<T>(object target, string fieldName) {
             FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
             return Assert.IsType<T>(field.GetValue(target));
+        }
+
+        /// <summary>
+        /// Creates the UI camera used to evaluate modal hit testing in window space.
+        /// </summary>
+        /// <param name="width">Viewport width in pixels.</param>
+        /// <param name="height">Viewport height in pixels.</param>
+        void CreateUiCamera(int width, int height) {
+            EditorEntity cameraEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.EditorUi
+            };
+
+            CameraComponent camera = new CameraComponent {
+                LayerMask = EditorLayerMasks.EditorUi,
+                CameraDrawOrder = 255,
+                Viewport = new float4(0f, 0f, width, height)
+            };
+            cameraEntity.AddComponent(camera);
+        }
+
+        /// <summary>
+        /// Creates one visible interactable entity for pointer-routing tests.
+        /// </summary>
+        /// <param name="position">Top-left position in window coordinates.</param>
+        /// <param name="size">Interactable size in pixels.</param>
+        /// <param name="renderOrder">Render order assigned to the visible surface.</param>
+        /// <returns>Interactable component attached to the new entity.</returns>
+        InteractableComponent CreateInteractableEntity(float3 position, int2 size, byte renderOrder) {
+            EditorEntity entity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.EditorUi,
+                Position = position
+            };
+
+            SpriteComponent sprite = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Size = size,
+                RenderOrder2D = renderOrder
+            };
+            entity.AddComponent(sprite);
+
+            InteractableComponent interactable = new InteractableComponent {
+                Size = size
+            };
+            entity.AddComponent(interactable);
+            return interactable;
         }
 
         /// <summary>
