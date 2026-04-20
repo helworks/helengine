@@ -2,7 +2,7 @@
   "profiles": {
     "helengine.editor.app": {
       "commandName": "Project",
-      "commandLineArgs": "\"C:\\dev\\helengine\\city\\project.heproj\""
+      "commandLineArgs": "\"C:\\dev\\helprojs\\city\\project.heproj\""
     }
   }
 }

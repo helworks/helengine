@@ -40,10 +40,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.editor.app", "hel
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "nucleusdotnet", "nucleusdotnet", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NucleusDotNet", "..\submodules\nucleusdotnet\nucleus-dotnet\nucleus-dotnet\NucleusDotNet.csproj", "{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NucleusDotNet.Windows.NETCore", "..\submodules\nucleusdotnet\nucleus-dotnet\nucleus-dotnet-windows\NucleusDotNet.Windows.NETCore.csproj", "{74378338-FC71-7225-5E0A-67848ABA1916}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.editor.windows", "..\engine\helengine.editor.windows\helengine.editor.windows.csproj", "{4B4C57C7-85D6-416B-A136-9338424700F2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.patching", "..\engine\helengine.patching\helengine.patching.csproj", "{7AE9F6D2-ED92-6212-32C3-8314AE3B55FF}"
@@ -110,14 +106,6 @@ Global
 		{3C74754D-F82C-4A00-D665-AF82B29B7064}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3C74754D-F82C-4A00-D665-AF82B29B7064}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3C74754D-F82C-4A00-D665-AF82B29B7064}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{74378338-FC71-7225-5E0A-67848ABA1916}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{74378338-FC71-7225-5E0A-67848ABA1916}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{74378338-FC71-7225-5E0A-67848ABA1916}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{74378338-FC71-7225-5E0A-67848ABA1916}.Release|Any CPU.Build.0 = Release|Any CPU
 		{4B4C57C7-85D6-416B-A136-9338424700F2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4B4C57C7-85D6-416B-A136-9338424700F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4B4C57C7-85D6-416B-A136-9338424700F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -142,8 +130,6 @@ Global
 		{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6} = {A31E52AC-B0FF-4D5D-9356-B386062F090E}
 		{0420008A-A97B-49E6-A2E7-BB8D888F3457} = {3EC1BACD-4312-47C6-BE0B-A09057273256}
 		{F029F93C-6B06-4105-90E7-A520D5815834} = {A31E52AC-B0FF-4D5D-9356-B386062F090E}
-		{B98EBE09-4368-BEE9-FFC8-73EE3A06F94E} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
-		{74378338-FC71-7225-5E0A-67848ABA1916} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{4B4C57C7-85D6-416B-A136-9338424700F2} = {0B0188C9-57AB-47CA-818B-ACFCA79A44F5}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
