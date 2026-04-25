@@ -36,13 +36,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\..\engine\helengine.core.windows\helengine.core.windows.csproj" />
-		<ProjectReference Include="..\..\engine\helengine.core\helengine.core.csproj" />
-		<ProjectReference Include="..\..\engine\helengine.editor.fbximporter\helengine.editor.assimp.csproj" />
-		<ProjectReference Include="..\..\engine\helengine.editor.windows\helengine.editor.windows.csproj" />
-		<ProjectReference Include="..\..\engine\helengine.editor\helengine.editor.csproj" />
-		<ProjectReference Include="..\..\engine\helengine.directx11\helengine.directx11.csproj" />
-		<ProjectReference Include="..\..\engine\helengine.vulkan\helengine.vulkan.csproj" />
+		<ProjectReference Include="..\..\engine\helengine.core.windows\helengine.core.windows.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.core\helengine.core.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.editor.fbximporter\helengine.editor.assimp.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.editor.windows\helengine.editor.windows.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.editor\helengine.editor.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.directx11\helengine.directx11.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.vulkan\helengine.vulkan.csproj" SkipGetTargetFrameworkProperties="true" />
 	</ItemGroup>
 
 </Project>

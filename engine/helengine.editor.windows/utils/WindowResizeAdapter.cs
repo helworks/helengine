@@ -61,7 +61,7 @@ namespace helengine.editor.windows {
                 return false;
             }
 
-            if (hostForm.WindowState == FormWindowState.Maximized) {
+            if (!IsResizeBorderEnabled(hostForm)) {
                 return false;
             }
 
@@ -89,13 +89,30 @@ namespace helengine.editor.windows {
         /// <returns>True when a resize cursor should be shown.</returns>
         public static bool TryGetResizeCursor(Form hostForm, Point clientPoint, int resizeBorderThickness, out Cursor cursor) {
             cursor = Cursors.Default;
-            if (hostForm.WindowState == FormWindowState.Maximized) {
+            if (!IsResizeBorderEnabled(hostForm)) {
                 return false;
             }
 
             int hitTest = GetResizeHitTest(hostForm, clientPoint, resizeBorderThickness);
             cursor = GetResizeCursor(hitTest);
             return hitTest != HtClient;
+        }
+
+        /// <summary>
+        /// Determines whether the current host should expose border-resize behavior.
+        /// </summary>
+        /// <param name="hostForm">Host form to inspect.</param>
+        /// <returns>True when resize cursors and hit testing should remain enabled.</returns>
+        static bool IsResizeBorderEnabled(Form hostForm) {
+            if (hostForm == null) {
+                throw new ArgumentNullException(nameof(hostForm));
+            }
+
+            if (hostForm is IResizeBorderState resizeBorderState) {
+                return resizeBorderState.IsResizeBorderEnabled;
+            }
+
+            return hostForm.WindowState != FormWindowState.Maximized;
         }
 
         /// <summary>

@@ -7,7 +7,13 @@ namespace helengine.editor.windows {
     /// Bridges editor title bar events to WinForms window actions for dragging and window state changes.
     /// </summary>
     public static class TitleBarWindowAdapter {
+        /// <summary>
+        /// Windows message used to begin a non-client left-button drag on the caption.
+        /// </summary>
         const uint WmNcLButtonDown = 0xA1;
+        /// <summary>
+        /// Hit-test value that tells Windows to treat the drag as a title-bar drag.
+        /// </summary>
         const uint HtCaption = 0x2;
 
         /// <summary>
@@ -27,7 +33,7 @@ namespace helengine.editor.windows {
                 throw new ArgumentNullException(nameof(toggleMaximize));
             }
 
-            titleBar.DragRequested += () => StartWindowDrag(hostForm.Handle);
+            titleBar.DragRequested += () => StartWindowDrag(hostForm);
             titleBar.ToggleMaximizeRequested += toggleMaximize;
             titleBar.MinimizeRequested += () => hostForm.WindowState = FormWindowState.Minimized;
             titleBar.CloseRequested += hostForm.Close;
@@ -36,10 +42,18 @@ namespace helengine.editor.windows {
         /// <summary>
         /// Starts a Win32 window drag using the host handle.
         /// </summary>
-        /// <param name="handle">Handle for the host window.</param>
-        static void StartWindowDrag(IntPtr handle) {
+        /// <param name="hostForm">Host window that should begin moving.</param>
+        static void StartWindowDrag(Form hostForm) {
+            if (hostForm == null) {
+                throw new ArgumentNullException(nameof(hostForm));
+            }
+
+            if (hostForm is ITitleBarDragRestoreState dragRestoreState) {
+                dragRestoreState.PrepareForTitleBarDrag(Cursor.Position);
+            }
+
             User32Interop.ReleaseCapture();
-            User32Interop.SendMessage(handle, WmNcLButtonDown, HtCaption, 0);
+            User32Interop.SendMessage(hostForm.Handle, WmNcLButtonDown, HtCaption, 0);
         }
     }
 }

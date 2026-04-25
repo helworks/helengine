@@ -9,11 +9,15 @@ namespace helengine.editor.app {
     /// <summary>
     /// Main editor host form for Helengine, wiring up rendering and dockable UI.
     /// </summary>
-    public partial class MainForm : Form {
+    public partial class MainForm : Form, IResizeBorderState, ITitleBarDragRestoreState {
         /// <summary>
         /// Environment variable that selects the rendering backend (vulkan or directx11).
         /// </summary>
         const string RendererBackendEnvironmentVariable = "HELENGINE_RENDER_BACKEND";
+        /// <summary>
+        /// Windows message sent after a move or resize loop completes.
+        /// </summary>
+        const int WmExitSizeMove = 0x0232;
         /// <summary>
         /// Environment variable that supplies the helshader tool path.
         /// </summary>
@@ -43,13 +47,9 @@ namespace helengine.editor.app {
         /// </summary>
         bool loopExceptionRecorded;
         /// <summary>
-        /// Tracks whether the window is currently in a custom maximized state.
+        /// Tracks the current custom maximize state for the borderless editor host.
         /// </summary>
-        bool isMaximized;
-        /// <summary>
-        /// Stores the window bounds before maximization so it can be restored.
-        /// </summary>
-        Rectangle restoreBounds;
+        readonly BorderlessWindowStateController WindowStateController = new BorderlessWindowStateController(new WindowsWindowArrangementFeatureState());
 
         /// <summary>
         /// Editor session that owns core editor state and panels.
@@ -59,6 +59,13 @@ namespace helengine.editor.app {
         /// Renderer driving the editor render loop.
         /// </summary>
         RenderManager3D renderer3D;
+
+        /// <summary>
+        /// Gets a value indicating whether border-resize behavior remains enabled for the current window state.
+        /// </summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool IsResizeBorderEnabled => WindowStateController.IsResizeBorderEnabled;
 
         /// <summary>
         /// Initializes the main editor form for a specific project path.
@@ -168,6 +175,14 @@ namespace helengine.editor.app {
             thread.Start();
 
             initialized = true;
+        }
+
+        /// <summary>
+        /// Restores the custom maximized state so a native title-bar drag can continue from the current cursor position.
+        /// </summary>
+        /// <param name="cursorScreenPosition">Current cursor position in screen coordinates.</param>
+        public void PrepareForTitleBarDrag(Point cursorScreenPosition) {
+            WindowStateController.PrepareForTitleBarDrag(this, cursorScreenPosition);
         }
 
         /// <summary>
@@ -332,15 +347,7 @@ namespace helengine.editor.app {
         /// Toggles between maximized and normal window states using working area bounds.
         /// </summary>
         void ToggleMaximizeState() {
-            if (isMaximized) {
-                Bounds = restoreBounds;
-                isMaximized = false;
-            } else {
-                restoreBounds = Bounds;
-                Rectangle working = Screen.FromControl(this).WorkingArea;
-                Bounds = new Rectangle(working.Left, working.Top, working.Width, working.Height);
-                isMaximized = true;
-            }
+            WindowStateController.ToggleMaximize(this);
         }
 
         /// <summary>
@@ -392,6 +399,10 @@ namespace helengine.editor.app {
         /// <param name="m">Windows message payload.</param>
         protected override void WndProc(ref Message m) {
             base.WndProc(ref m);
+
+            if (m.Msg == WmExitSizeMove) {
+                WindowStateController.CompleteTitleBarDrag(this, Cursor.Position);
+            }
 
             WindowResizeAdapter.ApplyResizeHitTest(this, ref m, WindowResizeAdapter.DefaultResizeBorderThickness);
         }

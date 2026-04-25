@@ -7,9 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
-    <ProjectReference Include="..\helengine.directx11\helengine.directx11.csproj" />
-    <ProjectReference Include="..\helengine.vulkan\helengine.vulkan.csproj" />
+    <ProjectReference Include="..\helengine.core\helengine.core.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.directx11\helengine.directx11.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.vulkan\helengine.vulkan.csproj" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
   <ItemGroup>
