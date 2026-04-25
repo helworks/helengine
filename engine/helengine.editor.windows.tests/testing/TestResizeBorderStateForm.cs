@@ -2,7 +2,7 @@ namespace helengine.editor.windows.tests.testing {
     /// <summary>
     /// Provides a lightweight borderless host form with controllable resize-border state for adapter tests.
     /// </summary>
-    public sealed class TestResizeBorderStateForm : Form, IResizeBorderState {
+    public sealed class TestResizeBorderStateForm : Form, IResizeBorderState, IWindowForegroundState {
         /// <summary>
         /// Initializes a form with deterministic bounds for resize-adapter tests.
         /// </summary>
@@ -18,5 +18,12 @@ namespace helengine.editor.windows.tests.testing {
         [System.ComponentModel.Browsable(false)]
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool IsResizeBorderEnabled { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether this form should be treated as the foreground window.
+        /// </summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool IsWindowForegroundActive { get; set; } = true;
     }
 }

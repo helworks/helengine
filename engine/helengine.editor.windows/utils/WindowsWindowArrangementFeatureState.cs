@@ -17,21 +17,42 @@ namespace helengine.editor.windows {
         /// System parameter that reports whether dragging a window to a screen edge docks or maximizes it.
         /// </summary>
         const uint SpiGetDockMoving = 0x0090;
+        /// <summary>
+        /// Cached value indicating whether Windows window arrangement is enabled globally.
+        /// </summary>
+        readonly bool IsWindowArrangingEnabledValue;
+        /// <summary>
+        /// Cached value indicating whether dragging a window to a screen edge should dock or maximize it.
+        /// </summary>
+        readonly bool IsDockMovingEnabledValue;
+        /// <summary>
+        /// Cached value indicating whether dragging a maximized title bar should restore the window.
+        /// </summary>
+        readonly bool IsDragFromMaximizeEnabledValue;
+
+        /// <summary>
+        /// Reads and caches the Windows arrangement feature flags for the lifetime of this state provider.
+        /// </summary>
+        public WindowsWindowArrangementFeatureState() {
+            IsWindowArrangingEnabledValue = GetWindowArrangementFeatureValue(SpiGetWinArranging, nameof(IsWindowArrangingEnabled));
+            IsDockMovingEnabledValue = GetWindowArrangementFeatureValue(SpiGetDockMoving, nameof(IsDockMovingEnabled));
+            IsDragFromMaximizeEnabledValue = GetWindowArrangementFeatureValue(SpiGetDragFromMaximize, nameof(IsDragFromMaximizeEnabled));
+        }
 
         /// <summary>
         /// Gets a value indicating whether Windows window arrangement is enabled globally.
         /// </summary>
-        public bool IsWindowArrangingEnabled => GetWindowArrangementFeatureValue(SpiGetWinArranging, nameof(IsWindowArrangingEnabled));
+        public bool IsWindowArrangingEnabled => IsWindowArrangingEnabledValue;
 
         /// <summary>
         /// Gets a value indicating whether dragging a window to a screen edge should dock or maximize it.
         /// </summary>
-        public bool IsDockMovingEnabled => GetWindowArrangementFeatureValue(SpiGetDockMoving, nameof(IsDockMovingEnabled));
+        public bool IsDockMovingEnabled => IsDockMovingEnabledValue;
 
         /// <summary>
         /// Gets a value indicating whether dragging a maximized title bar should restore the window.
         /// </summary>
-        public bool IsDragFromMaximizeEnabled => GetWindowArrangementFeatureValue(SpiGetDragFromMaximize, nameof(IsDragFromMaximizeEnabled));
+        public bool IsDragFromMaximizeEnabled => IsDragFromMaximizeEnabledValue;
 
         /// <summary>
         /// Retrieves a Windows arrangement feature flag from User32.
@@ -61,7 +82,7 @@ namespace helengine.editor.windows {
         /// <param name="pvParam">Output value populated by User32.</param>
         /// <param name="fWinIni">Additional flags that control persistence or notifications.</param>
         /// <returns>True when the query succeeds.</returns>
-        [DllImport("user32.dll", ExactSpelling = true, SetLastError = true)]
+        [DllImport("user32.dll", EntryPoint = "SystemParametersInfoW", ExactSpelling = true, SetLastError = true)]
         static extern bool SystemParametersInfo(uint uiAction, uint uiParam, ref bool pvParam, uint fWinIni);
     }
 }

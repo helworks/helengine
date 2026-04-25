@@ -9,7 +9,7 @@ namespace helengine.editor.app {
     /// <summary>
     /// Main editor host form for Helengine, wiring up rendering and dockable UI.
     /// </summary>
-    public partial class MainForm : Form, IResizeBorderState, ITitleBarDragRestoreState {
+    public partial class MainForm : Form, IResizeBorderState, ITitleBarDragRestoreState, IWindowForegroundState {
         /// <summary>
         /// Environment variable that selects the rendering backend (vulkan or directx11).
         /// </summary>
@@ -66,6 +66,13 @@ namespace helengine.editor.app {
         [System.ComponentModel.Browsable(false)]
         [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public bool IsResizeBorderEnabled => WindowStateController.IsResizeBorderEnabled;
+
+        /// <summary>
+        /// Gets whether foreground-only window affordances should be active for this host.
+        /// </summary>
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool IsWindowForegroundActive { get; private set; } = true;
 
         /// <summary>
         /// Initializes the main editor form for a specific project path.
@@ -311,6 +318,7 @@ namespace helengine.editor.app {
         protected override void OnActivated(EventArgs e) {
             base.OnActivated(e);
 
+            IsWindowForegroundActive = true;
             editorSession.SetKeyboardActive(true);
         }
 
@@ -321,6 +329,8 @@ namespace helengine.editor.app {
         protected override void OnDeactivate(EventArgs e) {
             base.OnDeactivate(e);
 
+            IsWindowForegroundActive = false;
+            Cursor = Cursors.Default;
             editorSession.SetKeyboardActive(false);
         }
 
@@ -374,6 +384,11 @@ namespace helengine.editor.app {
         /// Updates the cursor based on docking state and resize hit testing.
         /// </summary>
         void UpdateDockingCursor() {
+            if (!IsWindowForegroundActive) {
+                Cursor = Cursors.Default;
+                return;
+            }
+
             int2 pointer = editorSession.PointerPosition;
 
             switch (editorSession.DockingCursorState) {

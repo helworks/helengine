@@ -65,6 +65,10 @@ namespace helengine.editor.windows {
                 return false;
             }
 
+            if (!IsWindowForegroundActive(hostForm)) {
+                return false;
+            }
+
             if ((int)m.Result != HtClient) {
                 return false;
             }
@@ -93,6 +97,10 @@ namespace helengine.editor.windows {
                 return false;
             }
 
+            if (!IsWindowForegroundActive(hostForm)) {
+                return false;
+            }
+
             int hitTest = GetResizeHitTest(hostForm, clientPoint, resizeBorderThickness);
             cursor = GetResizeCursor(hitTest);
             return hitTest != HtClient;
@@ -113,6 +121,23 @@ namespace helengine.editor.windows {
             }
 
             return hostForm.WindowState != FormWindowState.Maximized;
+        }
+
+        /// <summary>
+        /// Determines whether foreground-only resize behavior is allowed for the host form.
+        /// </summary>
+        /// <param name="hostForm">Host form to inspect.</param>
+        /// <returns>True when the host can expose resize cursors and hit-test results.</returns>
+        static bool IsWindowForegroundActive(Form hostForm) {
+            if (hostForm == null) {
+                throw new ArgumentNullException(nameof(hostForm));
+            }
+
+            if (hostForm is IWindowForegroundState foregroundState) {
+                return foregroundState.IsWindowForegroundActive;
+            }
+
+            return true;
         }
 
         /// <summary>

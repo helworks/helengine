@@ -20,6 +20,22 @@ namespace helengine {
         /// Render order override for the button label text.
         /// </summary>
         byte TextRenderOrder;
+        /// <summary>
+        /// Transparent fill used by buttons that should only show their background during interaction.
+        /// </summary>
+        static readonly byte4 TransparentBackgroundColor = new byte4(255, 255, 255, 0);
+        /// <summary>
+        /// Tracks whether the idle button background should be transparent until hovered or pressed.
+        /// </summary>
+        bool UsesHoverOnlyBackground;
+        /// <summary>
+        /// Color used when creating or updating the button label text component.
+        /// </summary>
+        byte4 ButtonTextColor;
+        /// <summary>
+        /// Corner radius applied to the rounded rectangle background.
+        /// </summary>
+        float CornerRadius;
 
         // Child entities and components
         Entity textEntity;
@@ -57,6 +73,11 @@ namespace helengine {
         public bool IsKeyboardFocused { get; private set; }
 
         /// <summary>
+        /// Raised when the pointer first enters the button during a hover interaction.
+        /// </summary>
+        public event Action Hovered;
+
+        /// <summary>
         /// Creates a new button with text, size, font, and optional click action.
         /// </summary>
         /// <param name="text">Label text displayed on the button.</param>
@@ -76,6 +97,8 @@ namespace helengine {
             this.font = font;
             this.onClickAction = onClickAction;
             this.borderThickness = borderThickness;
+            ButtonTextColor = ThemeManager.Colors.TextOnAccent;
+            CornerRadius = MathF.Min(size.X, size.Y) * 0.15f;
         }
 
         /// <summary>
@@ -98,6 +121,37 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Configures the button to render no idle background while preserving hover, pressed, and focus styling.
+        /// </summary>
+        public void UseHoverOnlyBackground() {
+            UsesHoverOnlyBackground = true;
+            UpdateButtonColor();
+        }
+
+        /// <summary>
+        /// Sets the color used by the button label text.
+        /// </summary>
+        /// <param name="color">Label color to render.</param>
+        public void SetTextColor(byte4 color) {
+            ButtonTextColor = color;
+
+            if (textComponent != null) {
+                textComponent.Color = color;
+            }
+        }
+
+        /// <summary>
+        /// Configures the button background to render with square corners.
+        /// </summary>
+        public void UseSquareCorners() {
+            CornerRadius = 0f;
+
+            if (roundedRect != null) {
+                roundedRect.Radius = CornerRadius;
+            }
+        }
+
+        /// <summary>
         /// Creates child components and sets up interactivity when added to an enabled entity.
         /// </summary>
         /// <param name="entity">Owning entity.</param>
@@ -116,12 +170,13 @@ namespace helengine {
             // Create rounded rectangle background
             roundedRect = new RoundedRectComponent();
             roundedRect.Size = size;
-            roundedRect.Radius = MathF.Min(size.X, size.Y) * 0.15f;
+            roundedRect.Radius = CornerRadius;
             roundedRect.BorderThickness = borderThickness;
             roundedRect.FillColor = ThemeManager.Colors.AccentSecondary;
             roundedRect.BorderColor = ThemeManager.Colors.AccentTertiary;
             roundedRect.RenderOrder2D = backgroundOrder;
             entity.AddComponent(roundedRect);
+            UpdateButtonColor();
 
             // Create interactable component for mouse events
             interactableComponent = new InteractableComponent();
@@ -154,7 +209,7 @@ namespace helengine {
             textComponent = new TextComponent();
             textComponent.Text = text;
             textComponent.Font = font;
-            textComponent.Color = ThemeManager.Colors.TextOnAccent;
+            textComponent.Color = ButtonTextColor;
             textComponent.Size = new int2((int)Math.Ceiling(tight.Width), (int)Math.Ceiling(lineHeight));
             textComponent.RenderOrder2D = textOrder;
             textEntity.AddComponent(textComponent);
@@ -254,6 +309,7 @@ namespace helengine {
                     if (!isHovering) {
                         isHovering = true;
                         UpdateButtonColor();
+                        RaiseHovered();
                     }
                     break;
 
@@ -294,14 +350,47 @@ namespace helengine {
 
             roundedRect.BorderColor = IsKeyboardFocused
                 ? ThemeManager.Colors.AccentPrimary
-                : ThemeManager.Colors.AccentTertiary;
+                : GetIdleBorderColor();
 
             if (isPressed) {
                 roundedRect.FillColor = ThemeManager.Colors.AccentTertiary;
             } else if (isHovering) {
                 roundedRect.FillColor = ThemeManager.Colors.AccentPrimary;
             } else {
-                roundedRect.FillColor = ThemeManager.Colors.AccentSecondary;
+                roundedRect.FillColor = GetIdleFillColor();
+            }
+        }
+
+        /// <summary>
+        /// Gets the fill color used when the button is neither hovered nor pressed.
+        /// </summary>
+        /// <returns>Transparent fill for hover-only buttons; normal accent fill otherwise.</returns>
+        byte4 GetIdleFillColor() {
+            if (UsesHoverOnlyBackground) {
+                return TransparentBackgroundColor;
+            }
+
+            return ThemeManager.Colors.AccentSecondary;
+        }
+
+        /// <summary>
+        /// Gets the border color used when the button is not keyboard-focused.
+        /// </summary>
+        /// <returns>Transparent border for hover-only buttons; normal accent border otherwise.</returns>
+        byte4 GetIdleBorderColor() {
+            if (UsesHoverOnlyBackground) {
+                return TransparentBackgroundColor;
+            }
+
+            return ThemeManager.Colors.AccentTertiary;
+        }
+
+        /// <summary>
+        /// Raises the hover event when a listener is interested in pointer entry.
+        /// </summary>
+        void RaiseHovered() {
+            if (Hovered != null) {
+                Hovered();
             }
         }
     }

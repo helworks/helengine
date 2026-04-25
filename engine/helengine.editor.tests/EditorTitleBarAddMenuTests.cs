@@ -46,7 +46,7 @@ namespace helengine.editor.tests {
             EditorEntity addButton = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
             int fileButtonWidth = GetPrivateField<int>(titleBar, "FileMenuButtonWidth");
 
-            Assert.Equal(fileButton.Position.X + fileButtonWidth + 6f, addButton.Position.X);
+            Assert.Equal(fileButton.Position.X + fileButtonWidth, addButton.Position.X);
         }
 
         /// <summary>
@@ -90,6 +90,99 @@ namespace helengine.editor.tests {
                 item => Assert.Equal("Open Map...", item.Label),
                 item => Assert.Equal("Save Map", item.Label),
                 item => Assert.Equal("Save Map As...", item.Label));
+        }
+
+        /// <summary>
+        /// Ensures hovering Add while File is open switches the visible top-level menu.
+        /// </summary>
+        [Fact]
+        public void MenuStrip_WhenAddButtonHoveredWhileFileMenuOpen_SwitchesToAddMenu() {
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+
+            InvokePrivate(titleBar, "ToggleFileMenu");
+            EditorEntity addButton = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
+            InteractableComponent addInteractable = FindComponent<InteractableComponent>(addButton);
+
+            addInteractable.OnCursor(new int2(1, 1), new int2(0, 0), PointerInteraction.Hover);
+
+            ContextMenu fileMenu = GetPrivateField<ContextMenu>(titleBar, "FileMenu");
+            ContextMenu addMenu = GetPrivateField<ContextMenu>(titleBar, "AddMenu");
+
+            Assert.False(fileMenu.IsVisible);
+            Assert.True(addMenu.IsVisible);
+        }
+
+        /// <summary>
+        /// Ensures hovering File while Add is open switches the visible top-level menu.
+        /// </summary>
+        [Fact]
+        public void MenuStrip_WhenFileButtonHoveredWhileAddMenuOpen_SwitchesToFileMenu() {
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+
+            InvokePrivate(titleBar, "ToggleAddMenu");
+            EditorEntity fileButton = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
+            InteractableComponent fileInteractable = FindComponent<InteractableComponent>(fileButton);
+
+            fileInteractable.OnCursor(new int2(1, 1), new int2(0, 0), PointerInteraction.Hover);
+
+            ContextMenu fileMenu = GetPrivateField<ContextMenu>(titleBar, "FileMenu");
+            ContextMenu addMenu = GetPrivateField<ContextMenu>(titleBar, "AddMenu");
+
+            Assert.True(fileMenu.IsVisible);
+            Assert.False(addMenu.IsVisible);
+        }
+
+        /// <summary>
+        /// Ensures menu-strip hover switching does not open a menu until the menu strip is active.
+        /// </summary>
+        [Fact]
+        public void MenuStrip_WhenNoMenuIsOpen_DoesNotOpenMenuOnHover() {
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorEntity addButton = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
+            InteractableComponent addInteractable = FindComponent<InteractableComponent>(addButton);
+
+            addInteractable.OnCursor(new int2(1, 1), new int2(0, 0), PointerInteraction.Hover);
+
+            ContextMenu fileMenu = GetPrivateField<ContextMenu>(titleBar, "FileMenu");
+            ContextMenu addMenu = GetPrivateField<ContextMenu>(titleBar, "AddMenu");
+
+            Assert.False(fileMenu.IsVisible);
+            Assert.False(addMenu.IsVisible);
+        }
+
+        /// <summary>
+        /// Finds the first component of the requested type in an entity hierarchy.
+        /// </summary>
+        /// <typeparam name="T">Component type to locate.</typeparam>
+        /// <param name="entity">Root entity to inspect.</param>
+        /// <returns>Matching component instance.</returns>
+        T FindComponent<T>(Entity entity) where T : Component {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            List<Entity> pendingEntities = new List<Entity> {
+                entity
+            };
+
+            for (int entityIndex = 0; entityIndex < pendingEntities.Count; entityIndex++) {
+                Entity currentEntity = pendingEntities[entityIndex];
+                if (currentEntity.Components != null) {
+                    for (int componentIndex = 0; componentIndex < currentEntity.Components.Count; componentIndex++) {
+                        if (currentEntity.Components[componentIndex] is T component) {
+                            return component;
+                        }
+                    }
+                }
+
+                if (currentEntity.Children != null) {
+                    for (int childIndex = 0; childIndex < currentEntity.Children.Count; childIndex++) {
+                        pendingEntities.Add(currentEntity.Children[childIndex]);
+                    }
+                }
+            }
+
+            throw new InvalidOperationException("Expected to find the requested component type in the entity hierarchy.");
         }
 
         /// <summary>

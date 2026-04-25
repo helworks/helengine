@@ -12,21 +12,25 @@ namespace helengine.editor {
         public const int HeightPixels = 36;
 
         /// <summary>
-        /// Padding applied at the left and right edges of the title bar.
+        /// Width reserved at the left edge for the editor icon.
         /// </summary>
-        const int EdgePadding = 8;
+        const int LeftIconSlotWidth = HeightPixels;
         /// <summary>
         /// Top offset used for title bar buttons.
         /// </summary>
-        const int ButtonTop = 6;
+        const int ButtonTop = 0;
         /// <summary>
         /// Height used for title bar buttons.
         /// </summary>
-        const int ButtonHeight = 24;
+        const int ButtonHeight = HeightPixels;
         /// <summary>
         /// Horizontal spacing between title bar controls.
         /// </summary>
-        const int ButtonSpacing = 6;
+        const int ButtonSpacing = 0;
+        /// <summary>
+        /// Width of the vertical separator drawn on title bar buttons.
+        /// </summary>
+        const int ButtonBorderWidth = 1;
         /// <summary>
         /// Extra spacing applied between the File button and the title text.
         /// </summary>
@@ -239,9 +243,9 @@ namespace helengine.editor {
             DragRegionInputSurface = CreateInputSurface(new int2(0, HeightPixels));
             DragRegionEntity.AddComponent(DragRegionInputSurface);
 
-            FileMenuButtonEntity = CreateTitleBarButton("File", ToggleFileMenu, out int fileMenuButtonWidth);
+            FileMenuButtonEntity = CreateTitleBarButton("File", ToggleFileMenu, HandleFileMenuButtonHovered, true, false, out int fileMenuButtonWidth);
             FileMenuButtonWidth = fileMenuButtonWidth;
-            AddMenuButtonEntity = CreateTitleBarButton("Add", ToggleAddMenu, out int addMenuButtonWidth);
+            AddMenuButtonEntity = CreateTitleBarButton("Add", ToggleAddMenu, HandleAddMenuButtonHovered, true, true, out int addMenuButtonWidth);
             AddMenuButtonWidth = addMenuButtonWidth;
 
             TitleEntity = new EditorEntity {
@@ -269,11 +273,11 @@ namespace helengine.editor {
             RootEntity.AddChild(AddMenu.Entity);
             AddMenuItems = BuildAddMenuItems();
 
-            MinimizeButtonEntity = CreateTitleBarButton("-", HandleMinimizeRequested, out int minimizeButtonWidth);
+            MinimizeButtonEntity = CreateTitleBarButton("-", HandleMinimizeRequested, null, true, false, out int minimizeButtonWidth);
             MinimizeButtonWidth = minimizeButtonWidth;
-            MaximizeButtonEntity = CreateTitleBarButton("Max", HandleToggleMaximizeRequested, out int maximizeButtonWidth);
+            MaximizeButtonEntity = CreateTitleBarButton("Max", HandleToggleMaximizeRequested, null, true, false, out int maximizeButtonWidth);
             MaximizeButtonWidth = maximizeButtonWidth;
-            CloseButtonEntity = CreateTitleBarButton("X", HandleCloseRequested, out int closeButtonWidth);
+            CloseButtonEntity = CreateTitleBarButton("X", HandleCloseRequested, null, true, false, out int closeButtonWidth);
             CloseButtonWidth = closeButtonWidth;
 
             UpdateLayout(HostSize.X, HostSize.Y);
@@ -366,14 +370,14 @@ namespace helengine.editor {
             HoverShieldSurface.Size = new int2(width, HeightPixels);
             HoverShieldInteractable.Size = new int2(width, HeightPixels);
 
-            float fileButtonX = EdgePadding;
+            float fileButtonX = LeftIconSlotWidth;
             FileMenuButtonEntity.Position = new float3(fileButtonX, ButtonTop, 0f);
             float addButtonX = fileButtonX + FileMenuButtonWidth + ButtonSpacing;
             AddMenuButtonEntity.Position = new float3(addButtonX, ButtonTop, 0f);
 
             int totalControlsWidth = MinimizeButtonWidth + MaximizeButtonWidth + CloseButtonWidth + (ButtonSpacing * 2);
             float titleX = addButtonX + AddMenuButtonWidth + ButtonSpacing + TitleSpacing;
-            float controlStartX = Math.Max(titleX + MinimumTitleWidth, width - totalControlsWidth - EdgePadding);
+            float controlStartX = Math.Max(0, width - totalControlsWidth);
 
             TitleEntity.Position = new float3(titleX, GetTitleVerticalOffset(), 0f);
             int titleWidth = Math.Max(1, (int)Math.Floor(controlStartX - titleX - TitleSpacing));
@@ -415,9 +419,12 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="label">Button label.</param>
         /// <param name="onClick">Callback invoked when the button is activated.</param>
+        /// <param name="onHover">Optional callback invoked when the button is hovered.</param>
+        /// <param name="includeLeftBorder">True when the button should draw its own left separator.</param>
+        /// <param name="includeRightBorder">True when the button should draw its own right separator.</param>
         /// <param name="width">Computed button width.</param>
         /// <returns>Entity hosting the created button.</returns>
-        EditorEntity CreateTitleBarButton(string label, Action onClick, out int width) {
+        EditorEntity CreateTitleBarButton(string label, Action onClick, Action onHover, bool includeLeftBorder, bool includeRightBorder, out int width) {
             if (string.IsNullOrWhiteSpace(label)) {
                 throw new ArgumentException("Button label must be provided.", nameof(label));
             }
@@ -432,11 +439,60 @@ namespace helengine.editor {
             };
 
             ButtonComponent button = new ButtonComponent(label, new int2(width, ButtonHeight), Font, onClick, 0f);
+            if (onHover != null) {
+                button.Hovered += onHover;
+            }
             button.SetRenderOrders(BackgroundOrder, TextOrder);
+            button.UseHoverOnlyBackground();
+            button.SetTextColor(ThemeManager.Colors.AccentQuaternary);
+            button.UseSquareCorners();
             buttonEntity.AddComponent(button);
             buttonEntity.AddComponent(CreateInputSurface(new int2(width, ButtonHeight)));
+            AddTitleBarButtonVerticalBorders(buttonEntity, width, includeLeftBorder, includeRightBorder);
             RootEntity.AddChild(buttonEntity);
             return buttonEntity;
+        }
+
+        /// <summary>
+        /// Adds one-pixel vertical separators to a title-bar button.
+        /// </summary>
+        /// <param name="buttonEntity">Button entity that owns the separators.</param>
+        /// <param name="width">Current button width in pixels.</param>
+        /// <param name="includeLeftBorder">True when the left separator should be drawn.</param>
+        /// <param name="includeRightBorder">True when the right separator should be drawn.</param>
+        void AddTitleBarButtonVerticalBorders(EditorEntity buttonEntity, int width, bool includeLeftBorder, bool includeRightBorder) {
+            if (buttonEntity == null) {
+                throw new ArgumentNullException(nameof(buttonEntity));
+            }
+
+            if (includeLeftBorder) {
+                AddTitleBarButtonVerticalBorderLine(buttonEntity, 0f);
+            }
+
+            if (includeRightBorder) {
+                AddTitleBarButtonVerticalBorderLine(buttonEntity, width - ButtonBorderWidth);
+            }
+        }
+
+        /// <summary>
+        /// Adds a one-pixel vertical separator at the requested x offset inside a title-bar button.
+        /// </summary>
+        /// <param name="buttonEntity">Button entity that owns the separator.</param>
+        /// <param name="x">Local x offset for the separator.</param>
+        void AddTitleBarButtonVerticalBorderLine(EditorEntity buttonEntity, float x) {
+            EditorEntity borderEntity = new EditorEntity {
+                LayerMask = TitleBarLayerMask,
+                Position = new float3(x, 0f, 0f)
+            };
+
+            SpriteComponent border = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = ThemeManager.Colors.AccentQuaternary,
+                Size = new int2(ButtonBorderWidth, ButtonHeight),
+                RenderOrder2D = TextOrder
+            };
+            borderEntity.AddComponent(border);
+            buttonEntity.AddChild(borderEntity);
         }
 
         /// <summary>
@@ -460,7 +516,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="controlStartX">Left edge of the window control cluster.</param>
         void UpdateDragRegion(float controlStartX) {
-            float dragRegionX = EdgePadding + FileMenuButtonWidth + ButtonSpacing + AddMenuButtonWidth + ButtonSpacing;
+            float dragRegionX = LeftIconSlotWidth + FileMenuButtonWidth + ButtonSpacing + AddMenuButtonWidth + ButtonSpacing;
             int dragRegionWidth = Math.Max(0, (int)Math.Floor(controlStartX - dragRegionX - ButtonSpacing));
 
             DragRegionEntity.Position = new float3(dragRegionX, 0f, 0f);
@@ -499,8 +555,7 @@ namespace helengine.editor {
                 return;
             }
 
-            AddMenu.Hide();
-            FileMenu.Show(FileMenuItems, GetFileMenuPosition(), HostSize);
+            ShowFileMenu();
         }
 
         /// <summary>
@@ -512,6 +567,43 @@ namespace helengine.editor {
                 return;
             }
 
+            ShowAddMenu();
+        }
+
+        /// <summary>
+        /// Switches to the File menu when hovering across an already active menu strip.
+        /// </summary>
+        void HandleFileMenuButtonHovered() {
+            if (!AddMenu.IsVisible) {
+                return;
+            }
+
+            ShowFileMenu();
+        }
+
+        /// <summary>
+        /// Switches to the Add menu when hovering across an already active menu strip.
+        /// </summary>
+        void HandleAddMenuButtonHovered() {
+            if (!FileMenu.IsVisible) {
+                return;
+            }
+
+            ShowAddMenu();
+        }
+
+        /// <summary>
+        /// Shows the File menu and closes any other title-bar menu.
+        /// </summary>
+        void ShowFileMenu() {
+            AddMenu.Hide();
+            FileMenu.Show(FileMenuItems, GetFileMenuPosition(), HostSize);
+        }
+
+        /// <summary>
+        /// Shows the Add menu and closes any other title-bar menu.
+        /// </summary>
+        void ShowAddMenu() {
             FileMenu.Hide();
             AddMenu.Show(AddMenuItems, GetAddMenuPosition(), HostSize);
         }

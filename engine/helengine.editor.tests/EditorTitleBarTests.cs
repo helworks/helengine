@@ -90,6 +90,182 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the left-side title-bar buttons start at the top edge and span the full title-bar height.
+        /// </summary>
+        [Fact]
+        public void Layout_UsesFullHeightForLeftSideTitleBarButtons() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+
+            EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
+            EditorEntity addButtonEntity = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
+
+            AssertTitleBarButtonUsesFullHeight(fileButtonEntity);
+            AssertTitleBarButtonUsesFullHeight(addButtonEntity);
+        }
+
+        /// <summary>
+        /// Ensures the right-side window control buttons start at the top edge and span the full title-bar height.
+        /// </summary>
+        [Fact]
+        public void Layout_UsesFullHeightForRightSideWindowControlButtons() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+
+            EditorEntity minimizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MinimizeButtonEntity");
+            EditorEntity maximizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MaximizeButtonEntity");
+            EditorEntity closeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "CloseButtonEntity");
+
+            AssertTitleBarButtonUsesFullHeight(minimizeButtonEntity);
+            AssertTitleBarButtonUsesFullHeight(maximizeButtonEntity);
+            AssertTitleBarButtonUsesFullHeight(closeButtonEntity);
+        }
+
+        /// <summary>
+        /// Ensures adjacent title-bar buttons touch horizontally without leaving gutters between them.
+        /// </summary>
+        [Fact]
+        public void Layout_UsesNoHorizontalGapBetweenTitleBarButtons() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+
+            EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
+            EditorEntity addButtonEntity = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
+            EditorEntity minimizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MinimizeButtonEntity");
+            EditorEntity maximizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MaximizeButtonEntity");
+            EditorEntity closeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "CloseButtonEntity");
+
+            AssertAdjacentButtonsTouch(fileButtonEntity, addButtonEntity);
+            AssertAdjacentButtonsTouch(minimizeButtonEntity, maximizeButtonEntity);
+            AssertAdjacentButtonsTouch(maximizeButtonEntity, closeButtonEntity);
+        }
+
+        /// <summary>
+        /// Ensures title-bar buttons render transparent at rest while preserving their hover background.
+        /// </summary>
+        [Fact]
+        public void Layout_UsesHoverOnlyBackgroundForTitleBarButtons() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+
+            EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
+            EditorEntity addButtonEntity = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
+            EditorEntity minimizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MinimizeButtonEntity");
+            EditorEntity maximizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MaximizeButtonEntity");
+            EditorEntity closeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "CloseButtonEntity");
+
+            AssertTitleBarButtonUsesHoverOnlyBackground(fileButtonEntity);
+            AssertTitleBarButtonUsesHoverOnlyBackground(addButtonEntity);
+            AssertTitleBarButtonUsesHoverOnlyBackground(minimizeButtonEntity);
+            AssertTitleBarButtonUsesHoverOnlyBackground(maximizeButtonEntity);
+            AssertTitleBarButtonUsesHoverOnlyBackground(closeButtonEntity);
+        }
+
+        /// <summary>
+        /// Ensures title-bar buttons use square corners so their full-height edges align with the title bar.
+        /// </summary>
+        [Fact]
+        public void Layout_UsesSquareCornersForTitleBarButtons() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+
+            EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
+            EditorEntity addButtonEntity = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
+            EditorEntity minimizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MinimizeButtonEntity");
+            EditorEntity maximizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MaximizeButtonEntity");
+            EditorEntity closeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "CloseButtonEntity");
+
+            AssertTitleBarButtonUsesSquareCorners(fileButtonEntity);
+            AssertTitleBarButtonUsesSquareCorners(addButtonEntity);
+            AssertTitleBarButtonUsesSquareCorners(minimizeButtonEntity);
+            AssertTitleBarButtonUsesSquareCorners(maximizeButtonEntity);
+            AssertTitleBarButtonUsesSquareCorners(closeButtonEntity);
+        }
+
+        /// <summary>
+        /// Ensures transparent title-bar buttons use a light label color against the title-bar surface.
+        /// </summary>
+        [Fact]
+        public void Layout_UsesLightTextForTitleBarButtons() {
+            InitializeCore();
+            ThemeManager.SetTheme(ThemeManager.CreateNeon90s());
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+
+            EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
+            EditorEntity addButtonEntity = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
+            EditorEntity minimizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MinimizeButtonEntity");
+            EditorEntity maximizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MaximizeButtonEntity");
+            EditorEntity closeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "CloseButtonEntity");
+
+            AssertTitleBarButtonUsesLightText(fileButtonEntity, "File");
+            AssertTitleBarButtonUsesLightText(addButtonEntity, "Add");
+            AssertTitleBarButtonUsesLightText(minimizeButtonEntity, "-");
+            AssertTitleBarButtonUsesLightText(maximizeButtonEntity, "Max");
+            AssertTitleBarButtonUsesLightText(closeButtonEntity, "X");
+        }
+
+        /// <summary>
+        /// Ensures title-bar buttons use one-pixel shared borders so adjacent edges do not render as two-pixel seams.
+        /// </summary>
+        [Fact]
+        public void Layout_UsesSinglePixelSharedVerticalBordersForTitleBarButtons() {
+            InitializeCore();
+            ThemeManager.SetTheme(ThemeManager.CreateNeon90s());
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+
+            EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
+            EditorEntity addButtonEntity = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
+            EditorEntity minimizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MinimizeButtonEntity");
+            EditorEntity maximizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MaximizeButtonEntity");
+            EditorEntity closeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "CloseButtonEntity");
+
+            RoundedRectComponent fileBackground = FindComponent<RoundedRectComponent>(fileButtonEntity);
+            RoundedRectComponent addBackground = FindComponent<RoundedRectComponent>(addButtonEntity);
+            RoundedRectComponent minimizeBackground = FindComponent<RoundedRectComponent>(minimizeButtonEntity);
+            RoundedRectComponent maximizeBackground = FindComponent<RoundedRectComponent>(maximizeButtonEntity);
+            RoundedRectComponent closeBackground = FindComponent<RoundedRectComponent>(closeButtonEntity);
+
+            AssertBorderPositions(fileButtonEntity, fileButtonEntity.Position.X);
+            AssertBorderPositions(addButtonEntity, addButtonEntity.Position.X, addButtonEntity.Position.X + addBackground.Size.X - 1f);
+            AssertBorderPositions(minimizeButtonEntity, minimizeButtonEntity.Position.X);
+            AssertBorderPositions(maximizeButtonEntity, maximizeButtonEntity.Position.X);
+            AssertBorderPositions(closeButtonEntity, closeButtonEntity.Position.X);
+
+            Assert.DoesNotContain(fileButtonEntity.Position.X + fileBackground.Size.X - 1f, GetButtonBorderAbsoluteXPositions(fileButtonEntity));
+            Assert.DoesNotContain(minimizeButtonEntity.Position.X + minimizeBackground.Size.X - 1f, GetButtonBorderAbsoluteXPositions(minimizeButtonEntity));
+            Assert.DoesNotContain(maximizeButtonEntity.Position.X + maximizeBackground.Size.X - 1f, GetButtonBorderAbsoluteXPositions(maximizeButtonEntity));
+            Assert.DoesNotContain(closeButtonEntity.Position.X + closeBackground.Size.X - 1f, GetButtonBorderAbsoluteXPositions(closeButtonEntity));
+        }
+
+        /// <summary>
+        /// Ensures the close button reaches the right edge of the host window.
+        /// </summary>
+        [Fact]
+        public void Layout_AlignsCloseButtonToRightWindowWall() {
+            InitializeCore();
+            const int windowWidth = 1280;
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), windowWidth, 720, "Main Editor Title");
+
+            EditorEntity closeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "CloseButtonEntity");
+            RoundedRectComponent closeBackground = FindComponent<RoundedRectComponent>(closeButtonEntity);
+
+            Assert.Equal(windowWidth, closeButtonEntity.Position.X + closeBackground.Size.X);
+        }
+
+        /// <summary>
+        /// Ensures the File button leaves room for the editor icon at the left edge of the title bar.
+        /// </summary>
+        [Fact]
+        public void Layout_ReservesLeftIconSlotBeforeFileButton() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+
+            EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
+
+            Assert.Equal(EditorTitleBar.HeightPixels, fileButtonEntity.Position.X);
+        }
+
+        /// <summary>
         /// Initializes a core instance with the minimum services required by title-bar UI controls.
         /// </summary>
         void InitializeCore() {
@@ -136,6 +312,148 @@ namespace helengine.editor.tests {
         /// Handles a test context-menu activation without side effects.
         /// </summary>
         void HandleMenuItemActivated() {
+        }
+
+        /// <summary>
+        /// Verifies that a title-bar button is flush with the title-bar bounds and uses the full available height.
+        /// </summary>
+        /// <param name="buttonEntity">Title-bar button entity to inspect.</param>
+        void AssertTitleBarButtonUsesFullHeight(EditorEntity buttonEntity) {
+            if (buttonEntity == null) {
+                throw new ArgumentNullException(nameof(buttonEntity));
+            }
+
+            RoundedRectComponent background = FindComponent<RoundedRectComponent>(buttonEntity);
+            InteractableComponent interactable = FindComponent<InteractableComponent>(buttonEntity);
+
+            Assert.Equal(0f, buttonEntity.Position.Y);
+            Assert.Equal(EditorTitleBar.HeightPixels, background.Size.Y);
+            Assert.Equal(EditorTitleBar.HeightPixels, interactable.Size.Y);
+        }
+
+        /// <summary>
+        /// Verifies that two buttons are laid out edge-to-edge.
+        /// </summary>
+        /// <param name="leftButtonEntity">Button expected to appear on the left.</param>
+        /// <param name="rightButtonEntity">Button expected to appear immediately to the right.</param>
+        void AssertAdjacentButtonsTouch(EditorEntity leftButtonEntity, EditorEntity rightButtonEntity) {
+            if (leftButtonEntity == null) {
+                throw new ArgumentNullException(nameof(leftButtonEntity));
+            }
+            if (rightButtonEntity == null) {
+                throw new ArgumentNullException(nameof(rightButtonEntity));
+            }
+
+            RoundedRectComponent leftBackground = FindComponent<RoundedRectComponent>(leftButtonEntity);
+            float expectedRightButtonX = leftButtonEntity.Position.X + leftBackground.Size.X;
+
+            Assert.Equal(expectedRightButtonX, rightButtonEntity.Position.X);
+        }
+
+        /// <summary>
+        /// Verifies that a title-bar button only paints its background while hovered.
+        /// </summary>
+        /// <param name="buttonEntity">Title-bar button entity to inspect.</param>
+        void AssertTitleBarButtonUsesHoverOnlyBackground(EditorEntity buttonEntity) {
+            if (buttonEntity == null) {
+                throw new ArgumentNullException(nameof(buttonEntity));
+            }
+
+            RoundedRectComponent background = FindComponent<RoundedRectComponent>(buttonEntity);
+            InteractableComponent interactable = FindComponent<InteractableComponent>(buttonEntity);
+            byte4 transparent = new byte4(255, 255, 255, 0);
+
+            Assert.Equal(transparent, background.FillColor);
+
+            interactable.OnCursor(new int2(1, 1), new int2(0, 0), PointerInteraction.Hover);
+
+            Assert.Equal(ThemeManager.Colors.AccentPrimary, background.FillColor);
+
+            interactable.OnCursor(new int2(1, 1), new int2(0, 0), PointerInteraction.Leave);
+
+            Assert.Equal(transparent, background.FillColor);
+        }
+
+        /// <summary>
+        /// Verifies that a title-bar button background has no corner radius.
+        /// </summary>
+        /// <param name="buttonEntity">Title-bar button entity to inspect.</param>
+        void AssertTitleBarButtonUsesSquareCorners(EditorEntity buttonEntity) {
+            if (buttonEntity == null) {
+                throw new ArgumentNullException(nameof(buttonEntity));
+            }
+
+            RoundedRectComponent background = FindComponent<RoundedRectComponent>(buttonEntity);
+
+            Assert.Equal(0f, background.Radius);
+        }
+
+        /// <summary>
+        /// Verifies that a title-bar button label uses the title-bar foreground color.
+        /// </summary>
+        /// <param name="buttonEntity">Title-bar button entity to inspect.</param>
+        /// <param name="label">Expected button label text.</param>
+        void AssertTitleBarButtonUsesLightText(EditorEntity buttonEntity, string label) {
+            if (buttonEntity == null) {
+                throw new ArgumentNullException(nameof(buttonEntity));
+            }
+            if (string.IsNullOrWhiteSpace(label)) {
+                throw new ArgumentException("Button label must be provided.", nameof(label));
+            }
+
+            TextComponent textComponent = FindTextComponent(buttonEntity, label);
+
+            Assert.Equal(ThemeManager.Colors.AccentQuaternary, textComponent.Color);
+        }
+
+        /// <summary>
+        /// Verifies that a title-bar button contains border sprites at the expected absolute x coordinates.
+        /// </summary>
+        /// <param name="buttonEntity">Title-bar button entity to inspect.</param>
+        /// <param name="expectedPositions">Expected absolute x positions for the button borders.</param>
+        void AssertBorderPositions(EditorEntity buttonEntity, params float[] expectedPositions) {
+            if (buttonEntity == null) {
+                throw new ArgumentNullException(nameof(buttonEntity));
+            }
+
+            List<float> actualPositions = GetButtonBorderAbsoluteXPositions(buttonEntity);
+
+            Assert.Equal(expectedPositions.Length, actualPositions.Count);
+            for (int positionIndex = 0; positionIndex < expectedPositions.Length; positionIndex++) {
+                Assert.Contains(expectedPositions[positionIndex], actualPositions);
+            }
+        }
+
+        /// <summary>
+        /// Gets the absolute x positions of one-pixel vertical border sprites owned by a title-bar button.
+        /// </summary>
+        /// <param name="buttonEntity">Title-bar button entity to inspect.</param>
+        /// <returns>Absolute x positions of visible vertical border sprites.</returns>
+        List<float> GetButtonBorderAbsoluteXPositions(EditorEntity buttonEntity) {
+            if (buttonEntity == null) {
+                throw new ArgumentNullException(nameof(buttonEntity));
+            }
+
+            List<float> borderPositions = new List<float>();
+            if (buttonEntity.Children == null) {
+                return borderPositions;
+            }
+
+            for (int childIndex = 0; childIndex < buttonEntity.Children.Count; childIndex++) {
+                Entity currentEntity = buttonEntity.Children[childIndex];
+                if (currentEntity.Components != null) {
+                    for (int componentIndex = 0; componentIndex < currentEntity.Components.Count; componentIndex++) {
+                        if (currentEntity.Components[componentIndex] is SpriteComponent spriteComponent &&
+                            spriteComponent.Size.X == 1 &&
+                            spriteComponent.Size.Y == EditorTitleBar.HeightPixels &&
+                            spriteComponent.Color.Equals(ThemeManager.Colors.AccentQuaternary)) {
+                            borderPositions.Add(currentEntity.Position.X);
+                        }
+                    }
+                }
+            }
+
+            return borderPositions;
         }
 
         /// <summary>
