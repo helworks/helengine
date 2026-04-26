@@ -44,6 +44,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Clears every registered blocker so isolated editor sessions can start without stale UI capture regions.
+        /// </summary>
+        public static void Reset() {
+            Blockers.Clear();
+        }
+
+        /// <summary>
         /// Determines whether the provided pointer position is inside any registered blocker.
         /// </summary>
         /// <param name="position">Pointer position in window coordinates.</param>

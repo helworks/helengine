@@ -15,6 +15,10 @@ namespace helengine.editor {
         /// Pan speed in world units per pixel.
         /// </summary>
         public const double DefaultPanSpeed = 0.01;
+        /// <summary>
+        /// Default wheel zoom speed in world units per scroll-wheel notch.
+        /// </summary>
+        public const double DefaultWheelZoomSpeed = 1.0;
 
         /// <summary>
         /// Minimum length squared used to avoid normalizing a zero vector.
@@ -24,6 +28,10 @@ namespace helengine.editor {
         /// Maximum pitch angle in radians to avoid gimbal lock.
         /// </summary>
         const double MaxPitch = (Math.PI * 0.5) - 0.001;
+        /// <summary>
+        /// Standard scroll-wheel delta emitted for one wheel notch on Windows-compatible mice.
+        /// </summary>
+        const double WheelDeltaPerNotch = 120.0;
 
         /// <summary>
         /// World up axis used for vertical movement.
@@ -86,6 +94,7 @@ namespace helengine.editor {
             MoveSpeed = DefaultMoveSpeed;
             LookSensitivity = DefaultLookSensitivity;
             PanSpeed = DefaultPanSpeed;
+            WheelZoomSpeed = DefaultWheelZoomSpeed;
         }
 
         /// <summary>
@@ -105,6 +114,10 @@ namespace helengine.editor {
         /// Gets or sets the pan speed in world units per pixel.
         /// </summary>
         public double PanSpeed { get; set; }
+        /// <summary>
+        /// Gets or sets the zoom speed in world units per scroll-wheel notch.
+        /// </summary>
+        public double WheelZoomSpeed { get; set; }
 
         /// <summary>
         /// Updates camera position based on right-click state and keyboard input.
@@ -154,17 +167,19 @@ namespace helengine.editor {
                 ignoreNextPanDelta = false;
             }
 
-            if (!isActive) {
-                if (!isPanning) {
-                    return;
-                }
-            } else {
+            if (isActive) {
                 ApplyMouseLook(input);
             }
 
             float3 forward = GetForward(Parent.Orientation);
             float3 right = NormalizeSafe(float3.Cross(forward, WorldUp), new float3(1f, 0f, 0f));
             float3 up = NormalizeSafe(float3.Cross(right, forward), WorldUp);
+
+            ApplyWheelZoom(input, isPointerBlocked, forward);
+
+            if (!isActive && !isPanning) {
+                return;
+            }
 
             if (isPanning) {
                 if (ignoreNextPanDelta) {
@@ -192,6 +207,29 @@ namespace helengine.editor {
 
             move = NormalizeSafe(move, forward);
             Parent.Position += move * MoveSpeed;
+        }
+
+        /// <summary>
+        /// Applies scroll-wheel movement as a forward or backward camera zoom.
+        /// </summary>
+        /// <param name="input">Input manager providing scroll-wheel delta and pointer position.</param>
+        /// <param name="isPointerBlocked">True when UI is currently blocking viewport input.</param>
+        /// <param name="forward">Current camera forward axis.</param>
+        void ApplyWheelZoom(InputManager input, bool isPointerBlocked, float3 forward) {
+            int wheelDelta = input.GetMouseScrollWheelDelta();
+            if (wheelDelta == 0) {
+                return;
+            }
+            if (isPointerBlocked) {
+                return;
+            }
+            if (!IsPointerInsideViewport(input)) {
+                return;
+            }
+
+            double notchDelta = wheelDelta / WheelDeltaPerNotch;
+            double zoomDistance = notchDelta * WheelZoomSpeed;
+            Parent.Position += forward * (float)zoomDistance;
         }
 
         /// <summary>
