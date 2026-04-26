@@ -1,4 +1,5 @@
 using helengine.editor;
+using helengine.editor.assimp;
 using helengine.editor.windows;
 using helengine.directx11;
 using helengine.vulkan;
@@ -254,9 +255,11 @@ namespace helengine.editor.app {
         IReadOnlyList<IAssetImporterRegistration> BuildImporters() {
             string[] textureExtensions = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif" };
             string[] textExtensions = new[] { ".txt" };
+            string[] modelExtensions = new[] { ".fbx", ".obj", ".gltf", ".glb", ".dae", ".3ds" };
             var registrations = new IAssetImporterRegistration[] {
                 new TextureImporterRegistration("gdi", new GDITextureImporter(), textureExtensions),
-                new TextImporterRegistration("text", new TextImporter(), textExtensions)
+                new TextImporterRegistration("text", new TextImporter(), textExtensions),
+                new ModelImporterRegistration("assimp", new HelengineAssimpImporter(), modelExtensions)
             };
             return registrations;
         }

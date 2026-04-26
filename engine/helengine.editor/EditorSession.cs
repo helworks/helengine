@@ -1371,11 +1371,11 @@ namespace helengine.editor {
 
             manager.GenerateMissingImportSettings();
             manager.ImportTexturesMissingCache();
+            manager.ImportModelsMissingCache();
             return manager;
         }
     }
 }
-
 
 
 
