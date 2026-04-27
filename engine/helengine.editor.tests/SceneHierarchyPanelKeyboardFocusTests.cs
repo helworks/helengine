@@ -67,6 +67,33 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures changing the editor selection updates the matching hierarchy row state and highlight color.
+        /// </summary>
+        [Fact]
+        public void SceneHierarchyPanel_WhenSelectionChanges_MarksTheMatchingRowAsSelected() {
+            InitializeCore();
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            EditorEntity first = new EditorEntity {
+                Name = "First"
+            };
+            EditorEntity second = new EditorEntity {
+                Name = "Second"
+            };
+
+            panel.RefreshHierarchy();
+
+            EditorSelectionService.SetSelectedEntity(second);
+
+            List<SceneHierarchyRow> rows = GetPrivateField<List<SceneHierarchyRow>>(panel, "rows");
+
+            Assert.Same(first, rows[0].NodeEntity);
+            Assert.Same(second, rows[1].NodeEntity);
+            Assert.False(rows[0].IsSelected);
+            Assert.True(rows[1].IsSelected);
+            Assert.Equal(ThemeManager.Colors.AccentSecondary, rows[1].Background.Color);
+        }
+
+        /// <summary>
         /// Initializes the core services required by hierarchy keyboard-focus tests.
         /// </summary>
         void InitializeCore() {

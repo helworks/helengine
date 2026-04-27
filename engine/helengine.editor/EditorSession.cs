@@ -55,6 +55,10 @@ namespace helengine.editor {
         /// </summary>
         readonly string projectPath;
         /// <summary>
+        /// Project file name shown in the host window title.
+        /// </summary>
+        readonly string ProjectDisplayName;
+        /// <summary>
         /// Font used for UI elements and title bars.
         /// </summary>
         readonly FontAsset uiFont;
@@ -194,7 +198,6 @@ namespace helengine.editor {
         /// <param name="projectPath">Path to the project root or project file being edited.</param>
         /// <param name="uiFont">Font used for editor UI text.</param>
         /// <param name="snapModifierFont">Font used for the viewport snap modifier labels.</param>
-        /// <param name="titleText">Initial window title text.</param>
         /// <param name="render3D">3D renderer instance.</param>
         /// <param name="render2D">2D renderer instance.</param>
         /// <param name="input">Input manager instance.</param>
@@ -207,7 +210,6 @@ namespace helengine.editor {
             string projectPath,
             FontAsset uiFont,
             FontAsset snapModifierFont,
-            string titleText,
             RenderManager3D render3D,
             RenderManager2D render2D,
             InputManager input,
@@ -217,6 +219,7 @@ namespace helengine.editor {
             IReadOnlyList<IAssetImporterRegistration> importers) {
             this.core = core ?? throw new ArgumentNullException(nameof(core));
             this.projectPath = ResolveProjectRootPath(projectPath);
+            ProjectDisplayName = ResolveProjectDisplayName(projectPath);
             EditorContentManager = this.core.GetContentManager();
             this.uiFont = uiFont ?? throw new ArgumentNullException(nameof(uiFont));
             snapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
@@ -296,7 +299,7 @@ namespace helengine.editor {
                 Logger.WriteWarning("Scene picking is currently available only on the DirectX11 renderer.");
             }
 
-            titleBar = new EditorTitleBar(uiFont, Math.Max(1, renderWidth), Math.Max(1, renderHeight), titleText ?? string.Empty);
+            titleBar = new EditorTitleBar(uiFont, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle());
 
             dockingManager = new DockingManager();
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
@@ -328,6 +331,7 @@ namespace helengine.editor {
             PendingOpenScenePath = string.Empty;
             PendingSceneTransition = SceneTransitionKind.None;
             IsSceneDirty = false;
+            RefreshWindowTitle();
             assetBrowserPanel.AssetSelected += HandleAssetSelected;
             assetBrowserPanel.SelectionCleared += HandleAssetSelectionCleared;
             propertiesPanel.ImportSettingsApplyRequested += HandleImportSettingsApplyRequested;
@@ -451,12 +455,14 @@ namespace helengine.editor {
         public int2 PointerPosition => core.InputManager.GetMousePosition();
 
         /// <summary>
-        /// Updates the title bar text.
+        /// Raised when the editor session recomputes the host window title.
         /// </summary>
-        /// <param name="titleText">New window title text.</param>
-        public void SetTitle(string titleText) {
-            titleBar.Title = titleText ?? string.Empty;
-        }
+        public event Action<string> TitleChanged;
+
+        /// <summary>
+        /// Gets the current host window title composed from the active scene and project.
+        /// </summary>
+        public string WindowTitle => titleBar.Title;
 
         /// <summary>
         /// Executes the editor update loop for input and entities.
@@ -790,6 +796,7 @@ namespace helengine.editor {
                 SceneSaveService.Save(fullPath);
                 CurrentScenePath = Path.GetFullPath(fullPath);
                 MarkSceneClean();
+                RefreshWindowTitle();
                 assetBrowserPanel.RefreshEntries();
                 saveFileDialog.Hide();
                 if (PendingSceneTransition != SceneTransitionKind.None) {
@@ -817,6 +824,7 @@ namespace helengine.editor {
                 AttachLoadedRoots(loadedRoots);
                 CurrentScenePath = Path.GetFullPath(fullPath);
                 MarkSceneClean();
+                RefreshWindowTitle();
                 EditorSelectionService.ClearSelection();
                 sceneHierarchyPanel.RefreshHierarchy();
                 assetBrowserPanel.RefreshEntries();
@@ -834,6 +842,7 @@ namespace helengine.editor {
             ClearUserSceneEntities();
             CurrentScenePath = string.Empty;
             MarkSceneClean();
+            RefreshWindowTitle();
             EditorSelectionService.ClearSelection();
             sceneHierarchyPanel.RefreshHierarchy();
             openFileDialog.Hide();
@@ -1320,6 +1329,65 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Recomputes the host title, updates the editor title bar, and notifies the window host.
+        /// </summary>
+        void RefreshWindowTitle() {
+            string title = BuildWindowTitle();
+            titleBar.Title = title;
+            TitleChanged?.Invoke(title);
+        }
+
+        /// <summary>
+        /// Builds the host window title from the current scene file and open project.
+        /// </summary>
+        /// <returns>Window title text shown by the editor host.</returns>
+        string BuildWindowTitle() {
+            string title = $"helengine - {ProjectDisplayName}";
+            if (string.IsNullOrWhiteSpace(CurrentScenePath)) {
+                return title;
+            }
+
+            return $"{ResolveSceneDisplayName(CurrentScenePath)} - {title}";
+        }
+
+        /// <summary>
+        /// Resolves the display name for one saved scene path.
+        /// </summary>
+        /// <param name="scenePath">Absolute scene path.</param>
+        /// <returns>Scene file name without its extension.</returns>
+        string ResolveSceneDisplayName(string scenePath) {
+            if (string.IsNullOrWhiteSpace(scenePath)) {
+                throw new InvalidOperationException("Scene path must be provided.");
+            }
+
+            return Path.GetFileNameWithoutExtension(scenePath);
+        }
+
+        /// <summary>
+        /// Resolves the project display name from a project file path or root directory path.
+        /// </summary>
+        /// <param name="projectPath">Project root directory or project file path.</param>
+        /// <returns>Display name that should appear in the host window title.</returns>
+        string ResolveProjectDisplayName(string projectPath) {
+            if (string.IsNullOrWhiteSpace(projectPath)) {
+                throw new InvalidOperationException("Project path must be provided.");
+            }
+
+            string fileName = Path.GetFileName(projectPath);
+            if (!string.IsNullOrWhiteSpace(fileName)) {
+                return fileName;
+            }
+
+            string normalizedPath = Path.GetFullPath(projectPath);
+            fileName = Path.GetFileName(normalizedPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new InvalidOperationException("Project path must resolve to a display name.");
+            }
+
+            return fileName;
+        }
+
+        /// <summary>
         /// Resolves the project root directory from a project root or project file path.
         /// </summary>
         /// <param name="projectPath">Project root directory or project file path.</param>
@@ -1376,6 +1444,3 @@ namespace helengine.editor {
         }
     }
 }
-
-
-

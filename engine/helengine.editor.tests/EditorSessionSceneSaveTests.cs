@@ -66,6 +66,21 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures successful scene saves recompute the editor title from the saved scene name and project file name.
+        /// </summary>
+        [Fact]
+        public void HandleSceneSaveRequested_WhenSaveSucceeds_UpdatesTitleToSceneNameAndProjectFileName() {
+            EditorSession session = CreateSessionForSceneSave();
+            string expectedPath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Saved.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(expectedPath));
+
+            InvokePrivate(session, "HandleSceneSaveRequested", expectedPath);
+
+            EditorTitleBar titleBar = GetPrivateField<EditorTitleBar>(session, "titleBar");
+            Assert.Equal("Saved - helengine - project.heproj", titleBar.Title);
+        }
+
+        /// <summary>
         /// Creates a partially initialized editor session containing only the collaborators used by scene save handlers.
         /// </summary>
         /// <returns>Editor session instance configured for scene save tests.</returns>
@@ -78,12 +93,15 @@ namespace helengine.editor.tests {
             SaveFileDialog saveFileDialog = new SaveFileDialog(CreateFont(), TempProjectRootPath);
             SceneSavePathResolver pathResolver = new SceneSavePathResolver(TempProjectRootPath);
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "helengine - project.heproj");
 
             SetPrivateField(session, "assetBrowserPanel", assetBrowserPanel);
             SetPrivateField(session, "saveFileDialog", saveFileDialog);
             SetPrivateField(session, "SceneSavePathResolver", pathResolver);
             SetPrivateField(session, "SceneSaveService", saveService);
             SetPrivateField(session, "CurrentScenePath", string.Empty);
+            SetPrivateField(session, "titleBar", titleBar);
+            SetPrivateField(session, "ProjectDisplayName", "project.heproj");
 
             return session;
         }

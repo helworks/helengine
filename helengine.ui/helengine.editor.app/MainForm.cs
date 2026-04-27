@@ -83,13 +83,7 @@ namespace helengine.editor.app {
             InitializeWindowFrame();
 
             this.projectPath = projectPath;
-
-            string title = Text;
-            if (!string.IsNullOrWhiteSpace(this.projectPath)) {
-                title = $"helengine - {Path.GetFileName(this.projectPath)}";
-            }
-
-            InitializeEditor(title);
+            InitializeEditor();
         }
 
         /// <summary>
@@ -102,19 +96,17 @@ namespace helengine.editor.app {
         }
 
         /// <summary>
-        /// Updates the form title text and keeps the title bar in sync.
+        /// Updates the form title text so the native window mirrors the editor session title.
         /// </summary>
         /// <param name="title">Title text to display.</param>
         private void SetWindowTitle(string title) {
             Text = title;
-            editorSession.SetTitle(title);
         }
 
         /// <summary>
         /// Sets up rendering, input, cameras, UI chrome, and the initial layout.
         /// </summary>
-        /// <param name="titleText">Initial window title text.</param>
-        private void InitializeEditor(string titleText) {
+        private void InitializeEditor() {
             EditorCore core = new EditorCore(null);
             string projectRootPath = ResolveProjectRootPath(projectPath);
             string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
@@ -162,7 +154,6 @@ namespace helengine.editor.app {
                 projectPath,
                 uiFont,
                 snapModifierFont,
-                titleText,
                 renderer3D,
                 renderer2D,
                 inputManager,
@@ -171,8 +162,9 @@ namespace helengine.editor.app {
                 toolbarIcons,
                 importers);
 
+            editorSession.TitleChanged += SetWindowTitle;
             TitleBarWindowAdapter.Attach(editorSession.TitleBar, this, () => ToggleMaximizeState());
-            SetWindowTitle(titleText);
+            SetWindowTitle(editorSession.WindowTitle);
 
             UpdateMinimumWindowSize();
             renderWidth = Math.Max(1, ClientSize.Width);

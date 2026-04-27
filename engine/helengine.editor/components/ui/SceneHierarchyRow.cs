@@ -70,6 +70,11 @@ namespace helengine.editor {
         public byte4 BaseColor { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether this row represents the current editor selection.
+        /// </summary>
+        public bool IsSelected { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether the row is hovered.
         /// </summary>
         public bool IsHovering { get; set; }
