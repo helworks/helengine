@@ -309,6 +309,7 @@ namespace helengine.editor {
             DataSource.LoadEntries(Entries);
             ApplyExtensionFilter();
             UpdatePathText();
+            UpdateUpButtonVisibility();
             LayoutToolbar();
             LayoutRows();
         }
@@ -332,6 +333,13 @@ namespace helengine.editor {
         /// </summary>
         void UpdatePathText() {
             PathText.Text = DataSource.GetDisplayPath();
+        }
+
+        /// <summary>
+        /// Shows the up button only when the browser is not at the root assets directory.
+        /// </summary>
+        void UpdateUpButtonVisibility() {
+            UpButtonHost.Enabled = !DataSource.IsAtRoot;
         }
 
         /// <summary>

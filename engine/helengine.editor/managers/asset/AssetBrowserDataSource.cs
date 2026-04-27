@@ -50,6 +50,11 @@ namespace helengine.editor {
         public string CurrentDirectoryPath => CanCreateFileSystemEntries ? FileSystemAssets.CurrentFullPath : string.Empty;
 
         /// <summary>
+        /// Gets a value indicating whether the browser is at the root assets directory.
+        /// </summary>
+        public bool IsAtRoot => string.IsNullOrWhiteSpace(CurrentRelativePathValue);
+
+        /// <summary>
         /// Gets a value indicating whether the current directory supports filesystem creation commands.
         /// </summary>
         public bool CanCreateFileSystemEntries => !CurrentDirectoryIsGenerated;
