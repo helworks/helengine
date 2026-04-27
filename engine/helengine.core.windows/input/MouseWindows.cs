@@ -63,6 +63,10 @@ namespace helengine {
         /// </summary>
         private Control _window;
         /// <summary>
+        /// Accumulated scroll wheel delta from MouseWheel events.
+        /// </summary>
+        private int scrollWheelAccumulator;
+        /// <summary>
         /// Cached mouse state updated on each query.
         /// </summary>
         private MouseState mouseState;
@@ -73,6 +77,7 @@ namespace helengine {
         /// <param name="windowHandle">Handle to the window receiving input.</param>
         public MouseWindows(IntPtr windowHandle) {
             _window = Control.FromHandle(windowHandle);
+            _window.MouseWheel += OnMouseWheel;
         }
 
         /// <summary>
@@ -83,6 +88,8 @@ namespace helengine {
             if (!IsWindowReady()) {
                 return mouseState;
             }
+
+            mouseState.ScrollWheelValue = scrollWheelAccumulator;
 
             if (!IsWindowForegroundActive()) {
                 ReleaseAllButtons();
@@ -159,6 +166,15 @@ namespace helengine {
             mouseState.RightButton = ButtonState.Released;
             mouseState.XButton1 = ButtonState.Released;
             mouseState.XButton2 = ButtonState.Released;
+        }
+
+        /// <summary>
+        /// Handles MouseWheel events by accumulating the scroll delta.
+        /// </summary>
+        /// <param name="sender">The control raising the event.</param>
+        /// <param name="e">Mouse event arguments containing the wheel delta.</param>
+        void OnMouseWheel(object sender, MouseEventArgs e) {
+            scrollWheelAccumulator += e.Delta;
         }
     }
 }
