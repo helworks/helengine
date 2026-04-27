@@ -325,6 +325,7 @@ namespace helengine.editor {
             IsUserPositioned = false;
             IsDragging = false;
             SelectedEntry = null;
+            BrowserView.ClearSelection();
             Enabled = true;
             StatusText.Text = string.Empty;
             if (!BrowserView.TryNavigateTo(initialRelativeDirectory)) {
@@ -342,6 +343,7 @@ namespace helengine.editor {
             IsUserPositioned = false;
             IsDragging = false;
             SelectedEntry = null;
+            BrowserView.ClearSelection();
             StatusText.Text = string.Empty;
             EditorInputCaptureService.ClearBlocker(this);
             Enabled = false;
@@ -436,6 +438,7 @@ namespace helengine.editor {
         /// </summary>
         void HandleSelectionCleared() {
             SelectedEntry = null;
+            StatusText.Text = string.Empty;
         }
 
         /// <summary>

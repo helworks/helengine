@@ -88,6 +88,11 @@ namespace helengine.editor {
         public bool IsPressed { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether the row represents the active persistent selection.
+        /// </summary>
+        public bool IsSelected { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether the row is currently keyboard-focused.
         /// </summary>
         public bool IsKeyboardFocused { get; set; }

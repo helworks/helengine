@@ -80,6 +80,28 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures clicking one scene row leaves that row visibly selected until the modal selection changes.
+        /// </summary>
+        [Fact]
+        public void ActivateRow_WhenSceneFileIsClicked_KeepsTheMatchingRowHighlighted() {
+            string scenesDirectoryPath = Path.Combine(ProjectRootPath, "assets", "Scenes");
+            File.WriteAllText(Path.Combine(scenesDirectoryPath, "Level01.helen"), "scene");
+            File.WriteAllText(Path.Combine(scenesDirectoryPath, "Level02.helen"), "scene");
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            dialog.Show("Scenes");
+            dialog.UpdateLayout(1280, 720);
+
+            AssetBrowserView browserView = GetPrivateField<AssetBrowserView>(dialog, "BrowserView");
+            AssetBrowserRow selectedRow = FindRow(browserView, "Scenes/Level01.helen");
+            AssetBrowserRow unselectedRow = FindRow(browserView, "Scenes/Level02.helen");
+
+            InvokePrivate(browserView, "ActivateRow", selectedRow);
+
+            Assert.Equal(ThemeManager.Colors.AccentSecondary, selectedRow.Background.Color);
+            Assert.Equal(unselectedRow.BaseColor, unselectedRow.Background.Color);
+        }
+
+        /// <summary>
         /// Ensures the open-scene dialog uses modal render orders above non-modal overlays.
         /// </summary>
         [Fact]
@@ -159,6 +181,33 @@ namespace helengine.editor.tests {
         void InvokePrivate(object target, string methodName) {
             MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
             method.Invoke(target, Array.Empty<object>());
+        }
+
+        /// <summary>
+        /// Invokes one non-public instance method with a single argument.
+        /// </summary>
+        /// <param name="target">Target object that owns the method.</param>
+        /// <param name="methodName">Name of the method to invoke.</param>
+        /// <param name="argument">Argument forwarded to the invoked method.</param>
+        void InvokePrivate(object target, string methodName, object argument) {
+            MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            method.Invoke(target, new[] { argument });
+        }
+
+        /// <summary>
+        /// Finds one visible asset-browser row by its project-relative path.
+        /// </summary>
+        /// <param name="browserView">Browser view that owns the rows.</param>
+        /// <param name="relativePath">Relative path assigned to the desired row.</param>
+        /// <returns>Matching row currently displayed in the browser.</returns>
+        AssetBrowserRow FindRow(AssetBrowserView browserView, string relativePath) {
+            List<AssetBrowserRow> rows = GetPrivateField<List<AssetBrowserRow>>(browserView, "Rows");
+
+            AssetBrowserRow row = rows.FirstOrDefault(candidate =>
+                candidate.Entry != null &&
+                string.Equals(candidate.Entry.RelativePath, relativePath, StringComparison.OrdinalIgnoreCase));
+
+            return Assert.IsType<AssetBrowserRow>(row);
         }
 
         /// <summary>

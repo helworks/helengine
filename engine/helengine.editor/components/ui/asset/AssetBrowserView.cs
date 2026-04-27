@@ -125,6 +125,10 @@ namespace helengine.editor {
         /// Optional extension filter for assets.
         /// </summary>
         string ExtensionFilter;
+        /// <summary>
+        /// Relative path for the entry that should remain visually selected.
+        /// </summary>
+        string SelectedRelativePath;
 
         /// <summary>
         /// Raised when a file entry is activated by the user.
@@ -286,6 +290,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Clears the persistent row selection and refreshes row highlights.
+        /// </summary>
+        public void ClearSelection() {
+            SelectedRelativePath = null;
+            RefreshRowSelectionVisuals();
+        }
+
+        /// <summary>
         /// Updates layout to fit the provided size.
         /// </summary>
         /// <param name="width">View width in pixels.</param>
@@ -324,6 +336,7 @@ namespace helengine.editor {
                 return false;
             }
 
+            SelectedRelativePath = null;
             RefreshEntries();
             return true;
         }
@@ -348,6 +361,7 @@ namespace helengine.editor {
         /// <param name="relativePath">Relative path to navigate into.</param>
         void NavigateTo(string relativePath) {
             if (DataSource.TryNavigateTo(relativePath)) {
+                SelectedRelativePath = null;
                 RefreshEntries();
             }
         }
@@ -357,6 +371,7 @@ namespace helengine.editor {
         /// </summary>
         void NavigateUp() {
             if (DataSource.TryNavigateUp()) {
+                SelectedRelativePath = null;
                 RefreshEntries();
             }
         }
@@ -494,6 +509,7 @@ namespace helengine.editor {
                     row.Entry = null;
                     row.IsHovering = false;
                     row.IsPressed = false;
+                    row.IsSelected = false;
                     row.FocusTarget.SetTargetFocused(false);
                     UpdateRowBackground(row, ThemeManager.Colors.SurfacePrimary);
                     continue;
@@ -507,6 +523,7 @@ namespace helengine.editor {
                 bool alternate = i % 2 == 1;
                 byte4 baseColor = alternate ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
                 row.BaseColor = baseColor;
+                row.IsSelected = string.Equals(entry.RelativePath, SelectedRelativePath, StringComparison.OrdinalIgnoreCase);
                 UpdateRowBackground(row, baseColor);
 
                 row.Background.Size = new int2(rowWidth, RowHeight);
@@ -597,6 +614,7 @@ namespace helengine.editor {
         /// <param name="state">Pointer interaction state.</param>
         void HandleListHitCursor(int2 relPos, int2 delta, PointerInteraction state) {
             if (state == PointerInteraction.Release) {
+                ClearSelection();
                 NotifySelectionCleared();
             }
         }
@@ -638,6 +656,11 @@ namespace helengine.editor {
                 return;
             }
 
+            if (row.IsSelected) {
+                row.Background.Color = ThemeManager.Colors.AccentSecondary;
+                return;
+            }
+
             if (row.IsKeyboardFocused) {
                 row.Background.Color = ThemeManager.Colors.AccentTertiary;
                 return;
@@ -658,7 +681,26 @@ namespace helengine.editor {
             if (row.Entry.IsDirectory) {
                 NavigateTo(row.Entry.RelativePath);
             } else {
+                SelectedRelativePath = row.Entry.RelativePath;
+                RefreshRowSelectionVisuals();
                 NotifyAssetActivated(row.Entry);
+            }
+        }
+
+        /// <summary>
+        /// Recomputes selected-state flags and background colors for every pooled row.
+        /// </summary>
+        void RefreshRowSelectionVisuals() {
+            for (int i = 0; i < Rows.Count; i++) {
+                AssetBrowserRow row = Rows[i];
+                if (!row.Entity.Enabled || row.Entry == null) {
+                    row.IsSelected = false;
+                    UpdateRowBackground(row, ThemeManager.Colors.SurfacePrimary);
+                    continue;
+                }
+
+                row.IsSelected = string.Equals(row.Entry.RelativePath, SelectedRelativePath, StringComparison.OrdinalIgnoreCase);
+                UpdateRowBackground(row, row.BaseColor);
             }
         }
 
