@@ -43,6 +43,7 @@ namespace helengine.editor {
             rows = new List<SceneHierarchyRow>(32);
             nodes = new List<NodeInfo>(64);
 
+            EditorSelectionService.SelectionChanged += args => RefreshHierarchy();
             RefreshHierarchy();
         }
 
@@ -124,6 +125,7 @@ namespace helengine.editor {
                     row.NodeEntity = null;
                     row.IsHovering = false;
                     row.IsPressed = false;
+                    row.IsSelected = false;
                     row.FocusTarget.SetTargetFocused(false);
                     UpdateRowBackground(row, ThemeManager.Colors.SurfacePrimary);
                     continue;
@@ -133,6 +135,7 @@ namespace helengine.editor {
                 row.Entity.Enabled = true;
                 row.NodeEntity = node.Entity;
                 row.Entity.Position = new float3(0, i * RowHeight, 0.1f);
+                row.IsSelected = node.Entity == EditorSelectionService.SelectedEntity;
 
                 bool alternate = i % 2 == 1;
                 byte4 baseColor = alternate ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
@@ -282,6 +285,11 @@ namespace helengine.editor {
         /// <param name="row">Row to update.</param>
         /// <param name="baseColor">Base color for the row.</param>
         void UpdateRowBackground(SceneHierarchyRow row, byte4 baseColor) {
+            if (row.IsSelected) {
+                row.Background.Color = ThemeManager.Colors.AccentSecondary;
+                return;
+            }
+
             if (row.IsPressed) {
                 row.Background.Color = ThemeManager.Colors.AccentPrimary;
                 return;
