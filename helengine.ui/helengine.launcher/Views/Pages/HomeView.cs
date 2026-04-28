@@ -15,6 +15,11 @@ public sealed class HomeView : UserControl, ILauncherPage {
     public event EventHandler? BrowseProjectRequested;
     public event EventHandler? ManageEnginesRequested;
 
+    /// <summary>
+    /// Raised when the user clicks one recent-project card and wants to open that project in the editor.
+    /// </summary>
+    public event Action<RecentProject> OpenProjectRequested = delegate { };
+
     readonly StackPanel ProjectListPanel;
 
     public HomeView() {
@@ -129,7 +134,21 @@ public sealed class HomeView : UserControl, ILauncherPage {
         stack.Children.Add(meta);
 
         border.Child = stack;
-        return border;
+
+        var button = new Button {
+            Tag = project.Path,
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(0),
+            Cursor = LauncherCursors.Hand,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Content = border
+        };
+        button.PointerEntered += (_, _) => border.Background = LauncherTheme.ProjectCardHoverBackground;
+        button.PointerExited += (_, _) => border.Background = LauncherTheme.PanelBackground;
+        button.Click += (_, _) => OpenProjectRequested(project);
+        return button;
     }
 
     /// <summary>

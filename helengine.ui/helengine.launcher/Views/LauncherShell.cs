@@ -23,6 +23,7 @@ public sealed class LauncherShell : UserControl {
     readonly RecentProjectsService RecentProjectsService;
     readonly ILauncherStoragePicker LauncherStoragePicker;
     readonly ProjectFileLoader ProjectFileLoader;
+    readonly EditorProjectLauncher EditorProjectLauncher;
     readonly HomeView HomeView;
     readonly NewProjectView NewProjectView;
     readonly EnginesView EnginesView;
@@ -42,6 +43,7 @@ public sealed class LauncherShell : UserControl {
         RecentProjectsService = new RecentProjectsService();
         LauncherStoragePicker = new LauncherStoragePicker();
         ProjectFileLoader = new ProjectFileLoader();
+        EditorProjectLauncher = new EditorProjectLauncher();
         HomeView = new HomeView();
         NewProjectView = new NewProjectView();
         EnginesView = new EnginesView();
@@ -65,6 +67,7 @@ public sealed class LauncherShell : UserControl {
         RecentProjectsService = recentProjectsService ?? throw new ArgumentNullException(nameof(recentProjectsService));
         LauncherStoragePicker = launcherStoragePicker ?? throw new ArgumentNullException(nameof(launcherStoragePicker));
         ProjectFileLoader = projectFileLoader ?? throw new ArgumentNullException(nameof(projectFileLoader));
+        EditorProjectLauncher = new EditorProjectLauncher();
         HomeView = new HomeView();
         NewProjectView = new NewProjectView();
         EnginesView = new EnginesView();
@@ -101,6 +104,7 @@ public sealed class LauncherShell : UserControl {
         RecentProjectsService = recentProjectsService ?? throw new ArgumentNullException(nameof(recentProjectsService));
         LauncherStoragePicker = launcherStoragePicker ?? throw new ArgumentNullException(nameof(launcherStoragePicker));
         ProjectFileLoader = projectFileLoader ?? throw new ArgumentNullException(nameof(projectFileLoader));
+        EditorProjectLauncher = new EditorProjectLauncher();
         HomeView = homeView ?? throw new ArgumentNullException(nameof(homeView));
         NewProjectView = newProjectView ?? throw new ArgumentNullException(nameof(newProjectView));
         EnginesView = enginesView ?? throw new ArgumentNullException(nameof(enginesView));
@@ -255,6 +259,7 @@ public sealed class LauncherShell : UserControl {
         HomeView.CreateProjectRequested += (_, _) => ShowNewProject();
         HomeView.BrowseProjectRequested += async (_, _) => await BrowseExistingProjectAsync();
         HomeView.ManageEnginesRequested += (_, _) => ShowEngines();
+        HomeView.OpenProjectRequested += OnOpenProjectRequested;
 
         NewProjectView.BackRequested += (_, _) => ShowHome();
         NewProjectView.BrowseLocationRequested += async (_, _) => await BrowseProjectLocationAsync();
@@ -262,6 +267,14 @@ public sealed class LauncherShell : UserControl {
 
         EnginesView.BackRequested += (_, _) => ShowHome();
         EnginesView.InstallFromLocalRequested += async (_, _) => await InstallEngineFromLocalAsync();
+    }
+
+    /// <summary>
+    /// Starts the open-project workflow for one clicked recent-project card.
+    /// </summary>
+    /// <param name="project">Recent project selected on the home page.</param>
+    void OnOpenProjectRequested(RecentProject project) {
+        _ = OpenRecentProjectAsync(project);
     }
 
     void ShowPage(Control control) {
@@ -418,6 +431,52 @@ public sealed class LauncherShell : UserControl {
     }
 
     /// <summary>
+    /// Opens one recent project in the matching installed editor and updates launcher recents when the launch succeeds.
+    /// </summary>
+    /// <param name="project">Recent project selected on the home page.</param>
+    async Task OpenRecentProjectAsync(RecentProject project) {
+        try {
+            EditorProjectLauncher.Launch(project, EngineManager.InstalledEngines);
+            await AddRecentProjectAsync(CreateOpenedProject(project));
+            SetStatus($"Opening {ResolveProjectDisplayName(project)}");
+        } catch (InvalidOperationException exception) {
+            SetStatus(exception.Message, true);
+        }
+    }
+
+    /// <summary>
+    /// Creates the recent-project snapshot that should be persisted after one successful editor launch.
+    /// </summary>
+    /// <param name="project">Recent project selected on the home page.</param>
+    /// <returns>Updated recent-project snapshot with a fresh last-opened time.</returns>
+    static RecentProject CreateOpenedProject(RecentProject project) {
+        return new RecentProject {
+            Name = project.Name,
+            Path = project.Path,
+            LastOpened = DateTime.UtcNow,
+            Created = project.Created,
+            TimesOpened = Math.Max(project.TimesOpened, 1),
+            Description = project.Description,
+            Version = project.Version,
+            RequiredEngineVersion = project.RequiredEngineVersion,
+            SupportedPlatforms = project.SupportedPlatforms.ToArray()
+        };
+    }
+
+    /// <summary>
+    /// Resolves the human-visible project name used in launcher status messages.
+    /// </summary>
+    /// <param name="project">Recent project selected on the home page.</param>
+    /// <returns>Display name chosen for status output.</returns>
+    static string ResolveProjectDisplayName(RecentProject project) {
+        if (!string.IsNullOrWhiteSpace(project.Name)) {
+            return project.Name;
+        }
+
+        return Path.GetFileName(project.Path);
+    }
+
+    /// <summary>
     /// Resolves the default parent folder suggested for new launcher projects.
     /// </summary>
     /// <returns>Default projects root folder.</returns>
@@ -483,6 +542,7 @@ public sealed class LauncherShell : UserControl {
             Height = 38,
             MinWidth = 110,
             Padding = new Thickness(16, 0),
+            Cursor = LauncherCursors.Hand,
             IsEnabled = action.IsEnabled,
             Background = isPrimary ? LauncherTheme.AccentLilac : LauncherTheme.PanelBackground,
             BorderBrush = LauncherTheme.Frame,

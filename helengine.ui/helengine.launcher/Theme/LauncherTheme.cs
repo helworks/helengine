@@ -8,6 +8,7 @@ static class LauncherTheme {
     public static IBrush AppBackground { get; } = Brush("#0f0d16");
     public static IBrush PanelBackground { get; } = Brush("#161320");
     public static IBrush CardBackground { get; } = Brush("#1c1728");
+    public static IBrush ProjectCardHoverBackground { get; } = Brush("#221c30");
     public static IBrush Frame { get; } = Brush("#2a2633");
     public static IBrush AccentLilac { get; } = Brush("#d9c3ff");
     public static IBrush AccentLilacDeep { get; } = Brush("#b7a1f2");

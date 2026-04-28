@@ -184,6 +184,101 @@ public sealed class LauncherShellProjectSelectionTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures clicking one rendered recent-project card launches the matching installed editor host with the canonical project-file path.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task RecentProjectCard_WhenClicked_LaunchesInstalledEditorForTheProject() {
+        string projectFilePath = Path.Combine(TempDirectoryPath, "sample-project.heproj");
+        string launchedProjectFilePath = Path.Combine(TempDirectoryPath, "launched-project.txt");
+        await File.WriteAllTextAsync(projectFilePath, "{}");
+        string engineInstallPath = CreateFakeEditorInstall(launchedProjectFilePath);
+
+        RecentProjectsService recentProjectsService = new RecentProjectsService(ProjectsFilePath);
+        await recentProjectsService.AddOrUpdateAsync(
+            new RecentProject {
+                Name = "Sample Project",
+                Path = projectFilePath,
+                RequiredEngineVersion = "1.2.3",
+                SupportedPlatforms = new[] { "windows" },
+                Created = DateTime.UtcNow.AddDays(-2),
+                LastOpened = DateTime.UtcNow.AddDays(-1),
+                Version = "1.0.0",
+                Description = "Launcher project"
+            });
+
+        EngineInstallManager engineManager = new EngineInstallManager();
+        engineManager.ReplaceInstalls(
+            new[] {
+                new EngineInstall {
+                    Name = "Installed Test Engine",
+                    Version = "1.2.3",
+                    InstallPath = engineInstallPath
+                }
+            });
+
+        LauncherShell shell = new LauncherShell(
+            engineManager,
+            new ProjectScaffolder(),
+            recentProjectsService,
+            new FakeLauncherStoragePicker(string.Empty),
+            new ProjectFileLoader(),
+            new HomeView(),
+            new NewProjectView(),
+            new EnginesView());
+
+        await WaitForConditionAsync(() => FindProjectCardButton(shell, projectFilePath) != null);
+        Button button = FindProjectCardButton(shell, projectFilePath) ?? throw new InvalidOperationException("Could not find the recent-project button.");
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        await WaitForConditionAsync(() => File.Exists(launchedProjectFilePath));
+
+        Assert.Equal(projectFilePath, (await File.ReadAllTextAsync(launchedProjectFilePath)).Trim());
+    }
+
+    /// <summary>
+    /// Ensures clicking a recent-project card shows a clear error when the required engine version is not installed.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task RecentProjectCard_WhenRequiredEngineIsMissing_ShowsStatusError() {
+        string projectFilePath = Path.Combine(TempDirectoryPath, "missing-engine-project.heproj");
+        await File.WriteAllTextAsync(projectFilePath, "{}");
+
+        RecentProjectsService recentProjectsService = new RecentProjectsService(ProjectsFilePath);
+        await recentProjectsService.AddOrUpdateAsync(
+            new RecentProject {
+                Name = "Missing Engine Project",
+                Path = projectFilePath,
+                RequiredEngineVersion = "7.7.7",
+                SupportedPlatforms = new[] { "linux" },
+                Created = DateTime.UtcNow.AddDays(-2),
+                LastOpened = DateTime.UtcNow.AddDays(-1),
+                Version = "1.0.0",
+                Description = "Launcher project"
+            });
+
+        EngineInstallManager engineManager = new EngineInstallManager();
+        engineManager.ReplaceInstalls(Array.Empty<EngineInstall>());
+
+        LauncherShell shell = new LauncherShell(
+            engineManager,
+            new ProjectScaffolder(),
+            recentProjectsService,
+            new FakeLauncherStoragePicker(string.Empty),
+            new ProjectFileLoader(),
+            new HomeView(),
+            new NewProjectView(),
+            new EnginesView());
+
+        await WaitForConditionAsync(() => FindProjectCardButton(shell, projectFilePath) != null);
+        Button button = FindProjectCardButton(shell, projectFilePath) ?? throw new InvalidOperationException("Could not find the recent-project button.");
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+        await WaitForConditionAsync(() => FindTextBlocks(shell).Any(text => text.Text == "Required engine version 7.7.7 is not installed."));
+
+        Assert.Contains(FindTextBlocks(shell), text => text.Text == "Required engine version 7.7.7 is not installed.");
+    }
+
+    /// <summary>
     /// Raises one click event on the first button that matches the supplied label.
     /// </summary>
     /// <param name="root">Control tree that contains the button.</param>
@@ -212,6 +307,18 @@ public sealed class LauncherShellProjectSelectionTests : IDisposable {
     static T FindNamedControl<T>(Control root, string name) where T : Control {
         T control = root.GetLogicalDescendants().OfType<T>().FirstOrDefault(currentControl => currentControl.Name == name);
         return control ?? throw new InvalidOperationException($"Could not find control named {name}.");
+    }
+
+    /// <summary>
+    /// Finds one rendered recent-project card button by its canonical project-file path tag.
+    /// </summary>
+    /// <param name="root">Control tree root to inspect.</param>
+    /// <param name="projectFilePath">Canonical project-file path expected on the button tag.</param>
+    /// <returns>Matching recent-project card button when present; otherwise <c>null</c>.</returns>
+    static Button FindProjectCardButton(Control root, string projectFilePath) {
+        return root.GetLogicalDescendants()
+            .OfType<Button>()
+            .FirstOrDefault(button => string.Equals(button.Tag as string, projectFilePath, StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -248,6 +355,39 @@ public sealed class LauncherShellProjectSelectionTests : IDisposable {
         }
 
         return "unknown";
+    }
+
+    /// <summary>
+    /// Creates one fake installed editor host that writes the launched project path into a marker file.
+    /// </summary>
+    /// <param name="launchedProjectFilePath">Marker file that captures the launched project path.</param>
+    /// <returns>Engine install folder containing the fake editor entry point.</returns>
+    string CreateFakeEditorInstall(string launchedProjectFilePath) {
+        string engineInstallPath = Path.Combine(TempDirectoryPath, "engine-install");
+        Directory.CreateDirectory(engineInstallPath);
+
+        if (OperatingSystem.IsWindows()) {
+            string scriptPath = Path.Combine(engineInstallPath, "helengine.editor.app.cmd");
+            File.WriteAllText(
+                scriptPath,
+                $"@echo off{Environment.NewLine}echo %~1>{launchedProjectFilePath}{Environment.NewLine}");
+            return engineInstallPath;
+        }
+
+        string executablePath = Path.Combine(engineInstallPath, "helengine.editor.app");
+        File.WriteAllText(
+            executablePath,
+            $"#!/bin/sh{Environment.NewLine}printf '%s\\n' \"$1\" > \"{launchedProjectFilePath}\"{Environment.NewLine}");
+        File.SetUnixFileMode(
+            executablePath,
+            UnixFileMode.UserRead |
+            UnixFileMode.UserWrite |
+            UnixFileMode.UserExecute |
+            UnixFileMode.GroupRead |
+            UnixFileMode.GroupExecute |
+            UnixFileMode.OtherRead |
+            UnixFileMode.OtherExecute);
+        return engineInstallPath;
     }
 
     /// <summary>
