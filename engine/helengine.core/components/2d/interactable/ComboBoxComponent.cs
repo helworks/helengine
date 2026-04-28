@@ -28,6 +28,10 @@ namespace helengine {
         /// Cached visuals for each item row.
         /// </summary>
         readonly List<ComboBoxItemVisual> itemVisuals;
+        /// <summary>
+        /// Tracks whether custom render orders were supplied for the combo-box visuals.
+        /// </summary>
+        bool hasRenderOrderOverrides;
 
         /// <summary>
         /// Font used to render text in the control.
@@ -211,6 +215,22 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Overrides the render order used for the combo-box control and drop-down visuals.
+        /// </summary>
+        /// <param name="backgroundOrder">Render order for the main control background.</param>
+        /// <param name="textOrder">Render order for the main control text.</param>
+        /// <param name="listBackgroundOrder">Render order for the drop-down background and item backgrounds.</param>
+        /// <param name="listTextOrder">Render order for the drop-down item labels.</param>
+        public void SetRenderOrders(byte backgroundOrder, byte textOrder, byte listBackgroundOrder, byte listTextOrder) {
+            hasRenderOrderOverrides = true;
+            this.backgroundOrder = backgroundOrder;
+            this.textOrder = textOrder;
+            this.listBackgroundOrder = listBackgroundOrder;
+            this.listTextOrder = listTextOrder;
+            ApplyRenderOrders();
+        }
+
+        /// <summary>
         /// Gets the selected item text.
         /// </summary>
         public string SelectedItem {
@@ -288,10 +308,12 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            backgroundOrder = RenderOrder2D.PanelSurface;
-            textOrder = RenderOrder2D.PanelForeground;
-            listBackgroundOrder = RenderOrder2D.OverlayBackground;
-            listTextOrder = RenderOrder2D.OverlayForeground;
+            if (!hasRenderOrderOverrides) {
+                backgroundOrder = RenderOrder2D.PanelSurface;
+                textOrder = RenderOrder2D.PanelForeground;
+                listBackgroundOrder = RenderOrder2D.OverlayBackground;
+                listTextOrder = RenderOrder2D.OverlayForeground;
+            }
 
             background = new RoundedRectComponent();
             background.Size = size;
@@ -356,6 +378,33 @@ namespace helengine {
             UpdateLabelText();
             UpdateLayout();
             UpdateDropdownVisibility();
+        }
+
+        /// <summary>
+        /// Applies the currently configured render orders to all constructed visuals.
+        /// </summary>
+        void ApplyRenderOrders() {
+            if (background != null) {
+                background.RenderOrder2D = backgroundOrder;
+            }
+
+            if (labelText != null) {
+                labelText.RenderOrder2D = textOrder;
+            }
+
+            if (arrowText != null) {
+                arrowText.RenderOrder2D = textOrder;
+            }
+
+            if (listBackground != null) {
+                listBackground.RenderOrder2D = listBackgroundOrder;
+            }
+
+            for (int i = 0; i < itemVisuals.Count; i++) {
+                ComboBoxItemVisual entry = itemVisuals[i];
+                entry.Background.RenderOrder2D = listBackgroundOrder;
+                entry.Label.RenderOrder2D = listTextOrder;
+            }
         }
 
         /// <summary>

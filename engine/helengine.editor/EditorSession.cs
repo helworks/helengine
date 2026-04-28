@@ -159,6 +159,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorSceneCreationService SceneCreationService;
         /// <summary>
+        /// Applies validated scene-hierarchy reparent operations.
+        /// </summary>
+        readonly EditorEntityReparentService ReparentService;
+        /// <summary>
         /// Modal dialog used to choose scene save destinations.
         /// </summary>
         readonly SaveFileDialog saveFileDialog;
@@ -166,6 +170,10 @@ namespace helengine.editor {
         /// Modal dialog used to choose scene files to open.
         /// </summary>
         readonly OpenFileDialog openFileDialog;
+        /// <summary>
+        /// Modal dialog used to choose a new parent for one scene entity.
+        /// </summary>
+        readonly ReparentEntityDialog reparentEntityDialog;
         /// <summary>
         /// Modal dialog used to confirm whether pending scene transitions should save dirty changes.
         /// </summary>
@@ -320,8 +328,10 @@ namespace helengine.editor {
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
             SceneCreationService = new EditorSceneCreationService();
+            ReparentService = new EditorEntityReparentService();
             saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
             openFileDialog = new OpenFileDialog(uiFont, this.projectPath);
+            reparentEntityDialog = new ReparentEntityDialog(uiFont);
             unsavedChangesDialog = new UnsavedChangesDialog(uiFont);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
@@ -338,6 +348,7 @@ namespace helengine.editor {
             EditorSelectionService.SelectionChanged += HandleSelectionChanged;
             EditorAssetPickerService.PickRequested += HandleAssetPickRequested;
             EditorSceneMutationService.SceneMutated += HandleSceneMutated;
+            sceneHierarchyPanel.ReparentRequested += HandleSceneHierarchyReparentRequested;
             titleBar.NewMapRequested += HandleNewMapRequested;
             titleBar.OpenMapRequested += HandleOpenMapRequested;
             titleBar.SaveMapRequested += HandleSaveMapRequested;
@@ -347,6 +358,8 @@ namespace helengine.editor {
             titleBar.AddPlaneRequested += HandleAddPlaneRequested;
             saveFileDialog.SaveRequested += HandleSceneSaveRequested;
             openFileDialog.OpenRequested += HandleSceneOpenRequested;
+            reparentEntityDialog.ConfirmRequested += HandleReparentEntityDialogConfirmed;
+            reparentEntityDialog.CancelRequested += HandleReparentEntityDialogCancelRequested;
             unsavedChangesDialog.SaveRequested += HandleUnsavedChangesSaveRequested;
             unsavedChangesDialog.DontSaveRequested += HandleUnsavedChangesDontSaveRequested;
             unsavedChangesDialog.CancelRequested += HandleUnsavedChangesCancelRequested;
@@ -520,6 +533,7 @@ namespace helengine.editor {
             assetPickerModal.UpdateLayout(width, height);
             saveFileDialog.UpdateLayout(width, height);
             openFileDialog.UpdateLayout(width, height);
+            reparentEntityDialog.UpdateLayout(width, height);
             unsavedChangesDialog.UpdateLayout(width, height);
             mainViewport.RefreshInputBlockers();
             UpdateDockInputBlockers();
@@ -599,6 +613,7 @@ namespace helengine.editor {
             EditorSelectionService.SelectionChanged -= HandleSelectionChanged;
             EditorAssetPickerService.PickRequested -= HandleAssetPickRequested;
             EditorSceneMutationService.SceneMutated -= HandleSceneMutated;
+            sceneHierarchyPanel.ReparentRequested -= HandleSceneHierarchyReparentRequested;
             titleBar.NewMapRequested -= HandleNewMapRequested;
             titleBar.OpenMapRequested -= HandleOpenMapRequested;
             titleBar.SaveMapRequested -= HandleSaveMapRequested;
@@ -608,6 +623,8 @@ namespace helengine.editor {
             titleBar.AddPlaneRequested -= HandleAddPlaneRequested;
             saveFileDialog.SaveRequested -= HandleSceneSaveRequested;
             openFileDialog.OpenRequested -= HandleSceneOpenRequested;
+            reparentEntityDialog.ConfirmRequested -= HandleReparentEntityDialogConfirmed;
+            reparentEntityDialog.CancelRequested -= HandleReparentEntityDialogCancelRequested;
             unsavedChangesDialog.SaveRequested -= HandleUnsavedChangesSaveRequested;
             unsavedChangesDialog.DontSaveRequested -= HandleUnsavedChangesDontSaveRequested;
             unsavedChangesDialog.CancelRequested -= HandleUnsavedChangesCancelRequested;
@@ -616,6 +633,7 @@ namespace helengine.editor {
             assetPickerModal.Hide();
             saveFileDialog.Hide();
             openFileDialog.Hide();
+            reparentEntityDialog.Hide();
             unsavedChangesDialog.Hide();
             shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
             shaderModuleManager.Dispose();
@@ -663,6 +681,7 @@ namespace helengine.editor {
         void RequestSceneTransition(SceneTransitionKind transitionKind, string openPath) {
             PendingSceneTransition = transitionKind;
             PendingOpenScenePath = openPath ?? string.Empty;
+            reparentEntityDialog.Hide();
 
             if (!IsSceneDirty) {
                 ContinuePendingSceneTransition();
@@ -829,6 +848,7 @@ namespace helengine.editor {
                 sceneHierarchyPanel.RefreshHierarchy();
                 assetBrowserPanel.RefreshEntries();
                 openFileDialog.Hide();
+                reparentEntityDialog.Hide();
             } catch (Exception ex) {
                 Logger.WriteError($"Scene open failed: {ex.Message}");
                 openFileDialog.ShowError(ex.Message);
@@ -846,6 +866,51 @@ namespace helengine.editor {
             EditorSelectionService.ClearSelection();
             sceneHierarchyPanel.RefreshHierarchy();
             openFileDialog.Hide();
+            reparentEntityDialog.Hide();
+        }
+
+        /// <summary>
+        /// Starts the scene-hierarchy reparent workflow for the requested entity.
+        /// </summary>
+        /// <param name="entity">Entity that should be reparented.</param>
+        void HandleSceneHierarchyReparentRequested(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            List<Entity> candidateParents = BuildReparentCandidateEntities(entity);
+            reparentEntityDialog.Show(entity, candidateParents);
+        }
+
+        /// <summary>
+        /// Applies a confirmed entity reparent operation from the modal dialog.
+        /// </summary>
+        /// <param name="selection">Confirmed target entity and destination parent.</param>
+        void HandleReparentEntityDialogConfirmed(ReparentEntityDialogSelection selection) {
+            if (selection == null) {
+                throw new ArgumentNullException(nameof(selection));
+            }
+
+            try {
+                bool changed = ReparentService.Reparent(selection.TargetEntity, selection.ParentEntity);
+                sceneHierarchyPanel.RefreshHierarchy();
+                EditorSelectionService.SetSelectedEntity(selection.TargetEntity);
+                if (changed) {
+                    EditorSceneMutationService.MarkSceneMutated();
+                }
+
+                reparentEntityDialog.Hide();
+            } catch (Exception ex) {
+                Logger.WriteError($"Scene reparent failed: {ex.Message}");
+                reparentEntityDialog.ShowError(ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Cancels the active scene-hierarchy reparent workflow.
+        /// </summary>
+        void HandleReparentEntityDialogCancelRequested() {
+            reparentEntityDialog.Hide();
         }
 
         /// <summary>
@@ -971,6 +1036,80 @@ namespace helengine.editor {
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Builds the list of valid alternative parent entities for one scene-hierarchy reparent request.
+        /// </summary>
+        /// <param name="targetEntity">Entity that should be reparented.</param>
+        /// <returns>Valid alternative parent entities, including the scene root when applicable.</returns>
+        List<Entity> BuildReparentCandidateEntities(Entity targetEntity) {
+            if (targetEntity == null) {
+                throw new ArgumentNullException(nameof(targetEntity));
+            }
+
+            List<Entity> candidateParents = new List<Entity>();
+            if (targetEntity.Parent != null) {
+                candidateParents.Add(null);
+            }
+
+            List<Entity> entities = helengine.Core.Instance.ObjectManager.Entities;
+            for (int i = 0; i < entities.Count; i++) {
+                Entity candidate = entities[i];
+                if (!IsVisibleSceneEntity(candidate)) {
+                    continue;
+                }
+                if (ReferenceEquals(candidate, targetEntity)) {
+                    continue;
+                }
+                if (ReferenceEquals(candidate, targetEntity.Parent)) {
+                    continue;
+                }
+                if (IsSameEntityOrDescendant(candidate, targetEntity)) {
+                    continue;
+                }
+
+                candidateParents.Add(candidate);
+            }
+
+            return candidateParents;
+        }
+
+        /// <summary>
+        /// Returns true when the provided entity should appear as one selectable scene item in hierarchy workflows.
+        /// </summary>
+        /// <param name="entity">Entity to evaluate.</param>
+        /// <returns>True when the entity belongs to the visible user-authored scene.</returns>
+        bool IsVisibleSceneEntity(Entity entity) {
+            Entity current = entity;
+            while (current != null) {
+                if (current is EditorEntity editorEntity && editorEntity.InternalEntity) {
+                    return false;
+                }
+
+                current = current.Parent;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Returns true when the candidate matches the root entity or lies inside its descendant chain.
+        /// </summary>
+        /// <param name="candidate">Entity being evaluated as a potential parent.</param>
+        /// <param name="root">Root entity that must be excluded along with its descendants.</param>
+        /// <returns>True when the candidate is the root entity or one of its descendants.</returns>
+        bool IsSameEntityOrDescendant(Entity candidate, Entity root) {
+            Entity current = candidate;
+            while (current != null) {
+                if (ReferenceEquals(current, root)) {
+                    return true;
+                }
+
+                current = current.Parent;
+            }
+
+            return false;
         }
 
         /// <summary>

@@ -70,6 +70,38 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures clicking a context-menu row still invokes the assigned action when the menu is parented under an offset entity and updated through the core loop.
+        /// </summary>
+        [Fact]
+        public void ClickingParentedContextMenuRow_InvokesMenuItemAction() {
+            EditorEntity host = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = 0b0000000000000010,
+                Position = new float3(32f, 40f, 0f)
+            };
+
+            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            host.AddChild(menu.Entity);
+            menu.Show(
+                new[] {
+                    new ContextMenuItem("Open", HandleMenuItemActivated)
+                },
+                new int2(24, 31),
+                new int2(320, 240));
+
+            int2 rowPointer = new int2(
+                (int)Math.Round(host.Position.X) + 24 + 16,
+                (int)Math.Round(host.Position.Y) + 31 + ContextMenu.PaddingY + (ContextMenu.RowHeight / 2));
+
+            AdvanceCoreInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.Equal(1, ActivationCount);
+        }
+
+        /// <summary>
         /// Advances the input manager by one frame using the supplied mouse state.
         /// </summary>
         /// <param name="mouseState">Mouse state to expose for the next frame.</param>
@@ -77,6 +109,15 @@ namespace helengine.editor.tests {
             Input.SetMouseState(mouseState);
             Input.EarlyUpdate();
             Input.Update();
+        }
+
+        /// <summary>
+        /// Advances one full core frame using the supplied mouse state.
+        /// </summary>
+        /// <param name="mouseState">Mouse state to expose for the next frame.</param>
+        void AdvanceCoreInput(MouseState mouseState) {
+            Input.SetMouseState(mouseState);
+            Core.Instance.Update();
         }
 
         /// <summary>

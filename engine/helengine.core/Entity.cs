@@ -187,6 +187,31 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Removes one direct child entity and updates its effective hierarchy-enabled state.
+        /// </summary>
+        /// <param name="entity">Child entity to remove.</param>
+        public void RemoveChild(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            } else if (Children == null) {
+                throw new InvalidOperationException("Children collection has not been initialized.");
+            } else if (entity.Parent != this) {
+                throw new InvalidOperationException("Entity is not parented to this parent.");
+            }
+
+            bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
+            if (!Children.Remove(entity)) {
+                throw new InvalidOperationException("Entity could not be removed from the child collection.");
+            }
+
+            entity.Parent = null;
+            bool isHierarchyEnabled = entity.IsHierarchyEnabled;
+            if (wasHierarchyEnabled != isHierarchyEnabled) {
+                entity.ParentEnabledChange(isHierarchyEnabled);
+            }
+        }
+
+        /// <summary>
         /// Initializes the component collection for this entity.
         /// </summary>
         public void InitComponents() {

@@ -15,6 +15,14 @@ namespace helengine.editor {
         readonly List<SceneHierarchyRow> rows;
         readonly List<NodeInfo> nodes;
         /// <summary>
+        /// Context menu shown for one hierarchy row.
+        /// </summary>
+        readonly ContextMenu hierarchyContextMenu;
+        /// <summary>
+        /// Menu items available for the currently right-clicked row.
+        /// </summary>
+        readonly List<ContextMenuItem> rowContextMenuItems;
+        /// <summary>
         /// Render order used for row backgrounds.
         /// </summary>
         readonly byte rowBackgroundOrder;
@@ -22,6 +30,19 @@ namespace helengine.editor {
         /// Render order used for row text.
         /// </summary>
         readonly byte rowTextOrder;
+        /// <summary>
+        /// Row that owns the currently visible context menu.
+        /// </summary>
+        SceneHierarchyRow contextMenuRow;
+        /// <summary>
+        /// Tracks whether the panel has completed initialization.
+        /// </summary>
+        bool isInitialized;
+
+        /// <summary>
+        /// Raised when one hierarchy row requests the reparent workflow.
+        /// </summary>
+        public event Action<Entity> ReparentRequested;
 
         /// <summary>
         /// Initializes a new scene hierarchy panel with the provided font.
@@ -42,8 +63,15 @@ namespace helengine.editor {
 
             rows = new List<SceneHierarchyRow>(32);
             nodes = new List<NodeInfo>(64);
+            hierarchyContextMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            AddChild(hierarchyContextMenu.Entity);
+            rowContextMenuItems = new List<ContextMenuItem> {
+                new ContextMenuItem("Reparent", HandleReparentRequested)
+            };
 
             EditorSelectionService.SelectionChanged += args => RefreshHierarchy();
+            AddComponent(new SceneHierarchyPanelUpdater(this));
+            isInitialized = true;
             RefreshHierarchy();
         }
 
@@ -82,11 +110,44 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnSizeChanged() {
             base.OnSizeChanged();
-            if (font == null || nodes == null || rows == null) {
+            if (!isInitialized || font == null || nodes == null || rows == null) {
                 return;
             }
 
             LayoutRows();
+            hierarchyContextMenu.UpdateLayout(GetContextMenuHostSize());
+        }
+
+        /// <summary>
+        /// Updates hierarchy context-menu input each frame.
+        /// </summary>
+        internal void UpdateContextMenuInput() {
+            InputManager input = Core.Instance.InputManager;
+            if (!input.WasMouseRightButtonPressed()) {
+                return;
+            }
+
+            int2 pointer = input.GetMousePosition();
+            if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
+                return;
+            }
+            if (!IsPointerInsideContent(pointer)) {
+                hierarchyContextMenu.Hide();
+                return;
+            }
+
+            if (!TryGetRowAtScreenPoint(pointer, out SceneHierarchyRow row)) {
+                hierarchyContextMenu.Hide();
+                return;
+            }
+
+            contextMenuRow = row;
+            ActivateRow(row);
+
+            int2 localPosition = new int2(
+                pointer.X - (int)Math.Round(Position.X),
+                pointer.Y - (int)Math.Round(Position.Y));
+            hierarchyContextMenu.Show(rowContextMenuItems, localPosition, GetContextMenuHostSize());
         }
 
         /// <summary>
@@ -309,6 +370,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Hides the context menu when the panel is disabled.
+        /// </summary>
+        /// <param name="newEnabled">New enabled state.</param>
+        protected override void ParentEnabledChange(bool newEnabled) {
+            base.ParentEnabledChange(newEnabled);
+
+            if (!newEnabled) {
+                hierarchyContextMenu.Hide();
+                contextMenuRow = null;
+            }
+        }
+
+        /// <summary>
         /// Activates one hierarchy row by selecting its represented entity.
         /// </summary>
         /// <param name="row">Row to activate.</param>
@@ -318,6 +392,74 @@ namespace helengine.editor {
             }
 
             EditorSelectionService.SetSelectedEntity(row.NodeEntity);
+        }
+
+        /// <summary>
+        /// Resolves the host region used to clamp hierarchy context menus.
+        /// </summary>
+        /// <returns>Host size for context-menu layout.</returns>
+        int2 GetContextMenuHostSize() {
+            return new int2(
+                Math.Max(Size.X, MinSize.X),
+                Math.Max(Size.Y + TitleBarHeight, MinSize.Y + TitleBarHeight));
+        }
+
+        /// <summary>
+        /// Returns true when the provided pointer lies inside the scrollable hierarchy content area.
+        /// </summary>
+        /// <param name="pointer">Pointer position in screen coordinates.</param>
+        /// <returns>True when the pointer lies inside the hierarchy content region.</returns>
+        bool IsPointerInsideContent(int2 pointer) {
+            int panelX = (int)Math.Round(Position.X);
+            int panelY = (int)Math.Round(Position.Y);
+            int panelWidth = Math.Max(Size.X, MinSize.X);
+            int panelHeight = Math.Max(Size.Y, MinSize.Y);
+
+            return pointer.X >= panelX &&
+                   pointer.X < panelX + panelWidth &&
+                   pointer.Y >= panelY + TitleBarHeight &&
+                   pointer.Y < panelY + TitleBarHeight + panelHeight;
+        }
+
+        /// <summary>
+        /// Tries to resolve one visible row for the provided screen-space pointer.
+        /// </summary>
+        /// <param name="pointer">Pointer position in screen coordinates.</param>
+        /// <param name="row">Resolved row when one is found.</param>
+        /// <returns>True when a visible hierarchy row was found.</returns>
+        bool TryGetRowAtScreenPoint(int2 pointer, out SceneHierarchyRow row) {
+            for (int i = 0; i < rows.Count; i++) {
+                SceneHierarchyRow candidate = rows[i];
+                if (!candidate.Entity.Enabled || candidate.NodeEntity == null) {
+                    continue;
+                }
+
+                float3 rowPosition = candidate.Entity.Position;
+                int rowWidth = Math.Max(Size.X, MinSize.X);
+                if (pointer.X >= rowPosition.X &&
+                    pointer.X < rowPosition.X + rowWidth &&
+                    pointer.Y >= rowPosition.Y &&
+                    pointer.Y < rowPosition.Y + RowHeight) {
+                    row = candidate;
+                    return true;
+                }
+            }
+
+            row = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Raises one reparent request for the row that opened the context menu.
+        /// </summary>
+        void HandleReparentRequested() {
+            if (contextMenuRow == null || contextMenuRow.NodeEntity == null) {
+                return;
+            }
+
+            if (ReparentRequested != null) {
+                ReparentRequested(contextMenuRow.NodeEntity);
+            }
         }
 
         /// <summary>

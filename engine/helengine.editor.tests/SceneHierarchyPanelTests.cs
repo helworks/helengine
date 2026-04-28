@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using helengine;
 using helengine.editor.tests.testing;
 using Xunit;
@@ -9,10 +10,41 @@ namespace helengine.editor.tests {
     /// </summary>
     public class SceneHierarchyPanelTests : IDisposable {
         /// <summary>
+        /// Temporary content root used to isolate test core services.
+        /// </summary>
+        readonly string TempRootPath;
+        /// <summary>
+        /// Input manager used to simulate pointer interaction for context-menu tests.
+        /// </summary>
+        readonly TestInputManager Input;
+
+        /// <summary>
+        /// Initializes the core services required by scene-hierarchy tests.
+        /// </summary>
+        public SceneHierarchyPanelTests() {
+            TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-scenehierarchy-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(TempRootPath);
+
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = TempRootPath
+            });
+            Input = new TestInputManager();
+            core.Initialize(null, new TestRenderManager2D(), Input);
+
+            CreateUiCamera(640, 480, 0b1000000000000000);
+        }
+
+        /// <summary>
         /// Clears shared editor selection state after each test.
         /// </summary>
         public void Dispose() {
             EditorSelectionService.ClearSelection();
+            EditorInputCaptureService.Reset();
+            EditorKeyboardFocusService.Reset();
+
+            if (Directory.Exists(TempRootPath)) {
+                Directory.Delete(TempRootPath, true);
+            }
         }
 
         /// <summary>
@@ -20,7 +52,6 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ClickingHierarchyRow_SelectsTheRowEntity() {
-            InitializeCore();
             EditorEntity selectedEntity = new EditorEntity {
                 Name = "Selected From Hierarchy"
             };
@@ -36,11 +67,47 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Initializes a core instance with the minimum services required by dockable UI controls.
+        /// Ensures activating the Reparent context-menu entry raises a reparent request for the clicked row entity.
         /// </summary>
-        void InitializeCore() {
-            Core core = new Core();
-            core.Initialize(null, new TestRenderManager2D(), null);
+        [Fact]
+        public void RightClickingHierarchyRow_ReparentMenuItem_RaisesReparentRequested() {
+            EditorEntity selectedEntity = new EditorEntity {
+                Name = "Selected From Hierarchy"
+            };
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+                Position = new float3(32, 40, 0),
+                Size = new int2(320, 240)
+            };
+
+            Entity requestedEntity = null;
+            int requestedCount = 0;
+            panel.ReparentRequested += entity => {
+                requestedEntity = entity;
+                requestedCount++;
+            };
+
+            int2 rowPointer = new int2(
+                (int)Math.Round(panel.Position.X) + 24,
+                (int)Math.Round(panel.Position.Y) + DockableEntity.TitleBarHeight + (SceneHierarchyPanel.RowHeight / 2));
+            int2 menuPointer = new int2(
+                rowPointer.X + 16,
+                rowPointer.Y + ContextMenu.PaddingY + (ContextMenu.RowHeight / 2));
+            ContextMenu hierarchyContextMenu = GetPrivateField<ContextMenu>(panel, "hierarchyContextMenu");
+
+            AdvanceInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Pressed, ButtonState.Released, ButtonState.Released));
+            Assert.Same(selectedEntity, EditorSelectionService.SelectedEntity);
+            Assert.True(hierarchyContextMenu.IsVisible);
+            AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            Assert.True(hierarchyContextMenu.IsVisible);
+            AdvanceInput(new MouseState(menuPointer.X, menuPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(menuPointer.X, menuPointer.Y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            Assert.True(hierarchyContextMenu.IsVisible);
+            AdvanceInput(new MouseState(menuPointer.X, menuPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.Equal(1, requestedCount);
+            Assert.Same(selectedEntity, requestedEntity);
         }
 
         /// <summary>
@@ -91,6 +158,47 @@ namespace helengine.editor.tests {
             }
 
             throw new InvalidOperationException("Expected the hierarchy panel to register a row interactable.");
+        }
+
+        /// <summary>
+        /// Advances the test input state by one core frame.
+        /// </summary>
+        /// <param name="mouseState">Mouse state to expose during the frame.</param>
+        void AdvanceInput(MouseState mouseState) {
+            Input.SetMouseState(mouseState);
+            Core.Instance.Update();
+        }
+
+        /// <summary>
+        /// Reads one private field from the provided object.
+        /// </summary>
+        /// <typeparam name="T">Field value type.</typeparam>
+        /// <param name="instance">Object that owns the field.</param>
+        /// <param name="fieldName">Private field name.</param>
+        /// <returns>Resolved field value.</returns>
+        T GetPrivateField<T>(object instance, string fieldName) {
+            FieldInfo field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            return (T)field.GetValue(instance);
+        }
+
+        /// <summary>
+        /// Creates the UI camera used to route hierarchy and context-menu hit testing.
+        /// </summary>
+        /// <param name="width">Viewport width.</param>
+        /// <param name="height">Viewport height.</param>
+        /// <param name="layerMask">Layer mask rendered by the camera.</param>
+        void CreateUiCamera(int width, int height, ushort layerMask) {
+            EditorEntity cameraEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = layerMask
+            };
+
+            CameraComponent camera = new CameraComponent {
+                LayerMask = layerMask,
+                CameraDrawOrder = 255,
+                Viewport = new float4(0f, 0f, width, height)
+            };
+            cameraEntity.AddComponent(camera);
         }
     }
 }
