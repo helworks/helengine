@@ -28,5 +28,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\engine\helengine.patching\helengine.patching.csproj" />
+    <ProjectReference Include="..\..\engine\helengine.projectfile\helengine.projectfile.csproj" />
   </ItemGroup>
 </Project>

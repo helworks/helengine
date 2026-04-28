@@ -11,18 +11,18 @@ using helengine.editor.launcher.Theme;
 
 namespace helengine.editor.launcher.Views.Pages;
 
-public sealed class EnginesView : UserControl {
-    readonly ItemsControl engineList;
-    readonly TextBlock statusText;
-    readonly TextBlock emptyState;
+public sealed class EnginesView : UserControl, ILauncherPage {
+    readonly ItemsControl EngineList;
+    readonly TextBlock StatusText;
+    readonly TextBlock EmptyState;
 
     public event EventHandler? BackRequested;
     public event EventHandler? InstallFromLocalRequested;
 
     public EnginesView() {
-        engineList = new ItemsControl();
-        statusText = new TextBlock { FontSize = 12, Foreground = LauncherTheme.Warning };
-        emptyState = new TextBlock {
+        EngineList = new ItemsControl();
+        StatusText = new TextBlock { FontSize = 12, Foreground = LauncherTheme.Warning };
+        EmptyState = new TextBlock {
             Text = "no engine versions installed yet",
             Foreground = LauncherTheme.TextMuted,
             FontStyle = FontStyle.Italic,
@@ -30,6 +30,16 @@ public sealed class EnginesView : UserControl {
         };
 
         Content = BuildContent();
+    }
+
+    public LauncherHeaderState BuildHeaderState() {
+        return new LauncherHeaderState(
+            "Engine builds",
+            "Manage the local helengine builds available to new projects.",
+            new List<LauncherHeaderAction> {
+                new LauncherHeaderAction("back", LauncherHeaderActionKind.Secondary, true, () => BackRequested?.Invoke(this, EventArgs.Empty)),
+                new LauncherHeaderAction("install from folder", LauncherHeaderActionKind.Primary, true, () => InstallFromLocalRequested?.Invoke(this, EventArgs.Empty))
+            });
     }
 
     Control BuildContent() {
@@ -42,64 +52,11 @@ public sealed class EnginesView : UserControl {
         };
         var stack = new StackPanel { Spacing = 14 };
 
-        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
-        var backButton = new Button {
-            Content = "back",
-            MinWidth = 90,
-            Background = LauncherTheme.PanelBackground,
-            BorderBrush = LauncherTheme.Frame,
-            BorderThickness = new Thickness(1),
-            Foreground = LauncherTheme.TextPrimary
-        };
-        backButton.Click += (_, _) => BackRequested?.Invoke(this, EventArgs.Empty);
-        header.Children.Add(backButton);
+        stack.Children.Add(StatusText);
 
-        var title = new TextBlock {
-            Text = "Engine builds",
-            FontSize = 22,
-            FontWeight = FontWeight.SemiBold,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-            Foreground = LauncherTheme.TextPrimary
-        };
-        Grid.SetColumn(title, 1);
-        header.Children.Add(title);
-
-        var actions = new StackPanel {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(10, 0, 0, 0)
-        };
-        var installLocal = new Button {
-            Content = "install from folder",
-            MinWidth = 150,
-            Background = LauncherTheme.AccentLilac,
-            BorderBrush = LauncherTheme.Frame,
-            BorderThickness = new Thickness(1),
-            Foreground = LauncherTheme.AccentTextOnLight,
-            FontWeight = FontWeight.SemiBold
-        };
-        installLocal.Click += (_, _) => InstallFromLocalRequested?.Invoke(this, EventArgs.Empty);
-        actions.Children.Add(installLocal);
-        actions.Children.Add(new Button {
-            Content = "from web",
-            IsEnabled = false,
-            MinWidth = 120,
-            Background = LauncherTheme.PanelBackground,
-            BorderBrush = LauncherTheme.Frame,
-            BorderThickness = new Thickness(1),
-            Foreground = LauncherTheme.TextSecondary
-        });
-        Grid.SetColumn(actions, 2);
-        header.Children.Add(actions);
-        stack.Children.Add(header);
-
-        stack.Children.Add(statusText);
-
-        engineList.ItemTemplate = new FuncDataTemplate<EngineInstall>((install, _) => BuildEngineCard(install));
-        stack.Children.Add(engineList);
-        stack.Children.Add(emptyState);
+        EngineList.ItemTemplate = new FuncDataTemplate<EngineInstall>((install, _) => BuildEngineCard(install));
+        stack.Children.Add(EngineList);
+        stack.Children.Add(EmptyState);
 
         root.Child = stack;
         return root;
@@ -129,16 +86,16 @@ public sealed class EnginesView : UserControl {
 
     public void SetEngines(IEnumerable<EngineInstall> installs) {
         var list = installs.ToList();
-        engineList.ItemsSource = list;
-        emptyState.IsVisible = list.Count == 0;
+        EngineList.ItemsSource = list;
+        EmptyState.IsVisible = list.Count == 0;
     }
 
     public void SetStatus(string message, bool isError = false) {
-        statusText.Text = message;
-        statusText.Foreground = isError ? LauncherTheme.Danger : LauncherTheme.Warning;
+        StatusText.Text = message;
+        StatusText.Foreground = isError ? LauncherTheme.Danger : LauncherTheme.Warning;
     }
 
     public void ClearStatus() {
-        statusText.Text = string.Empty;
+        StatusText.Text = string.Empty;
     }
 }

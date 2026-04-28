@@ -10,38 +10,39 @@ using helengine.editor.launcher.Theme;
 
 namespace helengine.editor.launcher.Views.Pages;
 
-public sealed class HomeView : UserControl {
+public sealed class HomeView : UserControl, ILauncherPage {
     public event EventHandler? CreateProjectRequested;
     public event EventHandler? BrowseProjectRequested;
     public event EventHandler? ManageEnginesRequested;
 
-    readonly StackPanel projectListPanel;
+    readonly StackPanel ProjectListPanel;
 
     public HomeView() {
         VerticalAlignment = VerticalAlignment.Top;
-        projectListPanel = new StackPanel { Spacing = 10 };
+        ProjectListPanel = new StackPanel { Spacing = 10 };
         Content = BuildContent();
         SetProjects(Array.Empty<RecentProject>());
     }
 
+    public LauncherHeaderState BuildHeaderState() {
+        return new LauncherHeaderState(
+            string.Empty,
+            string.Empty,
+            new List<LauncherHeaderAction> {
+                new LauncherHeaderAction("create project", LauncherHeaderActionKind.Primary, true, () => CreateProjectRequested?.Invoke(this, EventArgs.Empty)),
+                new LauncherHeaderAction("browse project", LauncherHeaderActionKind.Secondary, true, () => BrowseProjectRequested?.Invoke(this, EventArgs.Empty)),
+                new LauncherHeaderAction("engine versions", LauncherHeaderActionKind.Secondary, true, () => ManageEnginesRequested?.Invoke(this, EventArgs.Empty))
+            });
+    }
+
     Control BuildContent() {
         var stack = new StackPanel {
-            Spacing = 12,
+            Spacing = 16,
             VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(10, 12, 10, 0)
+            Margin = new Thickness(0, 4, 0, 0)
         };
 
-        var grid = new Grid {
-            ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto")
-        };
-
-        grid.Children.Add(MakeButton("create project", () => CreateProjectRequested?.Invoke(this, EventArgs.Empty), 0));
-        grid.Children.Add(MakeButton("browse project", () => BrowseProjectRequested?.Invoke(this, EventArgs.Empty), 1));
-        grid.Children.Add(MakeButton("engine versions", () => ManageEnginesRequested?.Invoke(this, EventArgs.Empty), 2));
-
-        stack.Children.Add(grid);
-
-        var projectsSection = new StackPanel { Spacing = 8, Margin = new Thickness(0, 18, 0, 0) };
+        var projectsSection = new StackPanel { Spacing = 8 };
         projectsSection.Children.Add(new TextBlock {
             Text = "recent projects",
             FontSize = 14,
@@ -55,7 +56,7 @@ public sealed class HomeView : UserControl {
             BorderBrush = LauncherTheme.Frame,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Child = projectListPanel
+            Child = ProjectListPanel
         };
 
         projectsSection.Children.Add(projectsBorder);
@@ -63,31 +64,12 @@ public sealed class HomeView : UserControl {
         return stack;
     }
 
-    Control MakeButton(string text, Action onClick, int column) {
-        var btn = new Button {
-            Content = text,
-            Height = 52,
-            Width = 170,
-            FontSize = 15,
-            Margin = column < 2 ? new Thickness(0, 0, 12, 0) : new Thickness(0),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Background = LauncherTheme.AccentLilac,
-            BorderBrush = LauncherTheme.Frame,
-            BorderThickness = new Thickness(1),
-            Foreground = LauncherTheme.AccentTextOnLight,
-            FontWeight = FontWeight.SemiBold
-        };
-        btn.Click += (_, _) => onClick();
-        Grid.SetColumn(btn, column);
-        return btn;
-    }
-
     public void SetProjects(IEnumerable<RecentProject> projects) {
         var list = projects?.ToList() ?? new List<RecentProject>();
-        projectListPanel.Children.Clear();
+        ProjectListPanel.Children.Clear();
 
         if (list.Count == 0) {
-            projectListPanel.Children.Add(new TextBlock {
+            ProjectListPanel.Children.Add(new TextBlock {
                 Text = "No projects yet. Create or browse to add one.",
                 Foreground = LauncherTheme.TextSecondary
             });
@@ -95,7 +77,7 @@ public sealed class HomeView : UserControl {
         }
 
         foreach (var project in list) {
-            projectListPanel.Children.Add(BuildProjectCard(project));
+            ProjectListPanel.Children.Add(BuildProjectCard(project));
         }
     }
 
@@ -128,10 +110,44 @@ public sealed class HomeView : UserControl {
             Foreground = LauncherTheme.TextSecondary,
             FontSize = 12
         });
+        if (!string.IsNullOrWhiteSpace(project.RequiredEngineVersion)) {
+            stack.Children.Add(new TextBlock {
+                Text = BuildRequiredEngineVersionText(project),
+                Foreground = LauncherTheme.TextSecondary,
+                FontSize = 12
+            });
+        }
+
+        if (project.SupportedPlatforms.Count > 0) {
+            stack.Children.Add(new TextBlock {
+                Text = BuildSupportedPlatformsText(project),
+                Foreground = LauncherTheme.TextSecondary,
+                FontSize = 12
+            });
+        }
+
         stack.Children.Add(meta);
 
         border.Child = stack;
         return border;
+    }
+
+    /// <summary>
+    /// Builds the recent-project text that describes the exact engine version required by the canonical project file.
+    /// </summary>
+    /// <param name="project">Recent-project entry currently being rendered.</param>
+    /// <returns>Formatted engine-version text.</returns>
+    static string BuildRequiredEngineVersionText(RecentProject project) {
+        return $"requires engine {project.RequiredEngineVersion}";
+    }
+
+    /// <summary>
+    /// Builds the recent-project text that lists supported platform identifiers from the canonical project file.
+    /// </summary>
+    /// <param name="project">Recent-project entry currently being rendered.</param>
+    /// <returns>Formatted supported-platform text.</returns>
+    static string BuildSupportedPlatformsText(RecentProject project) {
+        return $"platforms {string.Join(", ", project.SupportedPlatforms)}";
     }
 
     static string BuildMeta(RecentProject project) {

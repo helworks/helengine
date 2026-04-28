@@ -4,19 +4,50 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using helengine.editor.launcher.Models;
+using helengine.projectfile;
 
 namespace helengine.editor.launcher.Services;
 
-public sealed record ProjectCreateResult(bool Success, string Message, string ProjectPath);
-
+/// <summary>
+/// Creates new launcher projects by writing the canonical shared `.heproj` file and local project settings.
+/// </summary>
 public sealed class ProjectScaffolder {
-    readonly string _launcherSettingsFilePath;
+    /// <summary>
+    /// Gets the JSON formatting used for launcher-owned local settings documents.
+    /// </summary>
+    static JsonSerializerOptions JsonSerializerOptions { get; } = new() {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
+    /// <summary>
+    /// Gets the shared writer used to persist canonical `.heproj` documents.
+    /// </summary>
+    ProjectFileWriter ProjectFileWriter { get; }
+
+    /// <summary>
+    /// Gets the launcher settings file path used to remember the last created project file.
+    /// </summary>
+    string LauncherSettingsFilePath { get; }
+
+    /// <summary>
+    /// Creates the scaffolder with the default shared project writer and launcher settings location.
+    /// </summary>
     public ProjectScaffolder() {
-        _launcherSettingsFilePath = ResolveLauncherSettingsPath();
+        ProjectFileWriter = new ProjectFileWriter();
+        LauncherSettingsFilePath = ResolveLauncherSettingsPath();
     }
 
+    /// <summary>
+    /// Creates one new project under the supplied base location using the selected engine version.
+    /// </summary>
+    /// <param name="baseLocation">Parent directory that will receive the new project folder.</param>
+    /// <param name="projectName">Requested display and folder name for the new project.</param>
+    /// <param name="engine">Selected engine installation that defines the required engine version.</param>
+    /// <returns>Result describing whether project creation succeeded and where the project root was created.</returns>
     public async Task<ProjectCreateResult> CreateAsync(string baseLocation, string projectName, EngineInstall engine) {
+        ArgumentNullException.ThrowIfNull(engine);
+
         if (string.IsNullOrWhiteSpace(baseLocation)) {
             return Failure("Choose a project location first.");
         }
@@ -44,83 +75,98 @@ public sealed class ProjectScaffolder {
             string assetsFolder = Path.Combine(projectPath, "assets");
             string cacheFolder = Path.Combine(projectPath, "cache");
             string settingsFolder = Path.Combine(projectPath, "settings");
+            string projectFilePath = Path.Combine(projectPath, "project.heproj");
+            string settingsFilePath = Path.Combine(settingsFolder, "project.json");
 
             Directory.CreateDirectory(assetsFolder);
             Directory.CreateDirectory(cacheFolder);
             Directory.CreateDirectory(settingsFolder);
 
-            var utcNow = DateTime.UtcNow;
+            DateTime utcNow = DateTime.UtcNow;
+            string activePlatform = ResolveCurrentPlatformId();
 
-            var projectFile = new ProjectTemplate {
-                Name = projectName,
-                Created = utcNow,
-                LastOpened = utcNow,
-                Description = "created via helengine launcher",
-                Version = "1.0.0"
-            };
-
-            var settingsFile = new ProjectSettingsTemplate {
+            ProjectFileDocument projectFileDocument = new ProjectFileDocument {
                 Name = projectName,
                 Version = "1.0.0",
+                RequiredEngineVersion = engine.Version,
+                SupportedPlatforms = [activePlatform],
                 Created = utcNow,
-                EngineVersion = engine.Version
+                LastOpened = utcNow,
+                Description = "created via helengine launcher"
             };
 
-            string projectFilePath = Path.Combine(projectPath, "project.heproj");
-            string settingsFilePath = Path.Combine(settingsFolder, "project.json");
+            ProjectLocalSettingsDocument projectLocalSettingsDocument = new ProjectLocalSettingsDocument {
+                ActivePlatform = activePlatform
+            };
 
-            await File.WriteAllTextAsync(projectFilePath, SerializeProject(projectFile));
-            await File.WriteAllTextAsync(settingsFilePath, SerializeSettings(settingsFile));
-            LogProjectPath(projectPath);
+            await ProjectFileWriter.WriteAsync(projectFilePath, projectFileDocument);
+            await File.WriteAllTextAsync(settingsFilePath, SerializeProjectLocalSettings(projectLocalSettingsDocument));
+            LogProjectFilePath(projectFilePath);
 
             return new ProjectCreateResult(true, $"Created project at {projectPath}", projectPath);
-        } catch (Exception ex) {
-            return Failure($"Failed to create project: {ex.Message}");
+        } catch (Exception exception) {
+            return Failure($"Failed to create project: {exception.Message}");
         }
     }
 
-    static readonly JsonSerializerOptions ProjectFileOptions = new() {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    /// <summary>
+    /// Serializes one local project-settings document using the launcher JSON formatting rules.
+    /// </summary>
+    /// <param name="value">Local settings document to serialize.</param>
+    /// <returns>Formatted JSON payload.</returns>
+    static string SerializeProjectLocalSettings(ProjectLocalSettingsDocument value) {
+        return JsonFormatting.SerializeWithIndent(value, JsonSerializerOptions);
+    }
 
-    static readonly JsonSerializerOptions SettingsFileOptions = new() {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    /// <summary>
+    /// Serializes one launcher-settings document using the launcher JSON formatting rules.
+    /// </summary>
+    /// <param name="value">Launcher settings document to serialize.</param>
+    /// <returns>Formatted JSON payload.</returns>
+    static string SerializeLauncherSettings(LauncherSettingsDocument value) {
+        return JsonFormatting.SerializeWithIndent(value, JsonSerializerOptions);
+    }
 
-    static string SerializeProject(ProjectTemplate value) => JsonFormatting.SerializeWithIndent(value, ProjectFileOptions);
-
-    static string SerializeSettings(ProjectSettingsTemplate value) => JsonFormatting.SerializeWithIndent(value, SettingsFileOptions);
-
-    void LogProjectPath(string projectPath) {
+    /// <summary>
+    /// Stores the last created project file path inside launcher-local settings.
+    /// </summary>
+    /// <param name="projectFilePath">Canonical project file path to remember.</param>
+    void LogProjectFilePath(string projectFilePath) {
         try {
-            var settings = LoadLauncherSettings();
-            settings.LastProjectPath = projectPath;
-            var json = JsonFormatting.SerializeWithIndent(settings, ProjectFileOptions);
-            File.WriteAllText(_launcherSettingsFilePath, json);
+            LauncherSettingsDocument launcherSettings = LoadLauncherSettings();
+            launcherSettings.LastProjectPath = projectFilePath;
+            string json = SerializeLauncherSettings(launcherSettings);
+            File.WriteAllText(LauncherSettingsFilePath, json);
         } catch {
         }
     }
 
-    LauncherSettingsTemplate LoadLauncherSettings() {
+    /// <summary>
+    /// Loads launcher-local settings from disk when available.
+    /// </summary>
+    /// <returns>Launcher settings document or a new empty document when no saved state exists.</returns>
+    LauncherSettingsDocument LoadLauncherSettings() {
         try {
-            if (File.Exists(_launcherSettingsFilePath)) {
-                var json = File.ReadAllText(_launcherSettingsFilePath);
-                var existing = JsonSerializer.Deserialize<LauncherSettingsTemplate>(json, ProjectFileOptions);
-                if (existing != null) {
-                    return existing;
+            if (File.Exists(LauncherSettingsFilePath)) {
+                string json = File.ReadAllText(LauncherSettingsFilePath);
+                LauncherSettingsDocument? existingSettings = JsonSerializer.Deserialize<LauncherSettingsDocument>(json, JsonSerializerOptions);
+                if (existingSettings != null) {
+                    return existingSettings;
                 }
             }
         } catch {
         }
 
-        return new LauncherSettingsTemplate();
+        return new LauncherSettingsDocument();
     }
 
+    /// <summary>
+    /// Resolves the launcher-local settings file path under the user application-data folder.
+    /// </summary>
+    /// <returns>Absolute launcher settings file path.</returns>
     static string ResolveLauncherSettingsPath() {
         try {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             string root = string.IsNullOrWhiteSpace(appData) ? Environment.CurrentDirectory : Path.Combine(appData, "helengine");
             string settingsFolder = Path.Combine(root, "settings");
             Directory.CreateDirectory(settingsFolder);
@@ -130,30 +176,43 @@ public sealed class ProjectScaffolder {
         }
     }
 
+    /// <summary>
+    /// Replaces invalid file-name characters so the requested project name can be used as a folder name.
+    /// </summary>
+    /// <param name="name">Requested project name.</param>
+    /// <returns>Sanitized project folder name.</returns>
     static string SanitizeName(string name) {
-        var invalid = Path.GetInvalidFileNameChars();
-        var safeChars = name.Select(ch => invalid.Contains(ch) ? '-' : ch).ToArray();
-        return new string(safeChars).Trim();
+        char[] invalidCharacters = Path.GetInvalidFileNameChars();
+        char[] safeCharacters = name.Select(character => invalidCharacters.Contains(character) ? '-' : character).ToArray();
+        return new string(safeCharacters).Trim();
     }
 
-    static ProjectCreateResult Failure(string message) => new(false, message, string.Empty);
+    /// <summary>
+    /// Resolves the canonical launcher platform identifier for the current operating system.
+    /// </summary>
+    /// <returns>Canonical supported-platform identifier.</returns>
+    static string ResolveCurrentPlatformId() {
+        if (OperatingSystem.IsWindows()) {
+            return "windows";
+        }
 
-    sealed class ProjectTemplate {
-        public string Name { get; set; } = string.Empty;
-        public DateTime LastOpened { get; set; }
-        public DateTime Created { get; set; }
-        public string Description { get; set; } = string.Empty;
-        public string Version { get; set; } = "1.0.0";
+        if (OperatingSystem.IsLinux()) {
+            return "linux";
+        }
+
+        if (OperatingSystem.IsMacOS()) {
+            return "macos";
+        }
+
+        return "unknown";
     }
 
-    sealed class ProjectSettingsTemplate {
-        public string Name { get; set; } = string.Empty;
-        public string Version { get; set; } = "1.0.0";
-        public DateTime Created { get; set; }
-        public string EngineVersion { get; set; } = string.Empty;
-    }
-
-    sealed class LauncherSettingsTemplate {
-        public string? LastProjectPath { get; set; }
+    /// <summary>
+    /// Creates a failure result with no project path.
+    /// </summary>
+    /// <param name="message">Failure message to expose to the launcher UI.</param>
+    /// <returns>Failure result.</returns>
+    static ProjectCreateResult Failure(string message) {
+        return new ProjectCreateResult(false, message, string.Empty);
     }
 }

@@ -2,6 +2,7 @@ using helengine.editor;
 using helengine.editor.assimp;
 using helengine.editor.windows;
 using helengine.directx11;
+using helengine.projectfile;
 using helengine.vulkan;
 using System;
 using System.IO;
@@ -266,20 +267,14 @@ namespace helengine.editor.app {
                 throw new InvalidOperationException("Project path must be provided.");
             }
 
-            if (Directory.Exists(inputProjectPath)) {
-                return Path.GetFullPath(inputProjectPath);
+            ProjectFilePathResolver resolver = new ProjectFilePathResolver();
+            string canonicalProjectFilePath = resolver.Resolve(inputProjectPath);
+            string directory = Path.GetDirectoryName(canonicalProjectFilePath);
+            if (string.IsNullOrWhiteSpace(directory)) {
+                throw new InvalidOperationException("Project file path does not include a directory.");
             }
 
-            if (File.Exists(inputProjectPath)) {
-                string directory = Path.GetDirectoryName(inputProjectPath);
-                if (string.IsNullOrWhiteSpace(directory)) {
-                    throw new InvalidOperationException("Project file path does not include a directory.");
-                }
-
-                return Path.GetFullPath(directory);
-            }
-
-            throw new DirectoryNotFoundException($"Project path '{inputProjectPath}' does not exist.");
+            return Path.GetFullPath(directory);
         }
 
         /// <summary>

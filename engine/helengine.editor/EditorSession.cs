@@ -1,3 +1,5 @@
+using helengine.projectfile;
+
 namespace helengine.editor {
     /// <summary>
     /// Coordinates editor core initialization, docked UI setup, and scene bootstrapping for a host window.
@@ -226,8 +228,9 @@ namespace helengine.editor {
             EditorViewportToolbarIconSet toolbarIcons,
             IReadOnlyList<IAssetImporterRegistration> importers) {
             this.core = core ?? throw new ArgumentNullException(nameof(core));
-            this.projectPath = ResolveProjectRootPath(projectPath);
-            ProjectDisplayName = ResolveProjectDisplayName(projectPath);
+            string canonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
+            this.projectPath = ResolveProjectRootPathFromCanonicalProjectFile(canonicalProjectFilePath);
+            ProjectDisplayName = ResolveProjectDisplayNameFromCanonicalProjectFile(canonicalProjectFilePath);
             EditorContentManager = this.core.GetContentManager();
             this.uiFont = uiFont ?? throw new ArgumentNullException(nameof(uiFont));
             snapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
@@ -1472,22 +1475,36 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves one project directory or project file path to the canonical `.heproj` file path.
+        /// </summary>
+        /// <param name="projectPath">Project root directory or project file path.</param>
+        /// <returns>Validated absolute canonical `.heproj` file path.</returns>
+        string ResolveCanonicalProjectFilePath(string projectPath) {
+            if (string.IsNullOrWhiteSpace(projectPath)) {
+                throw new InvalidOperationException("Project path must be provided.");
+            }
+
+            ProjectFilePathResolver resolver = new ProjectFilePathResolver();
+            return resolver.Resolve(projectPath);
+        }
+
+        /// <summary>
         /// Resolves the project display name from a project file path or root directory path.
         /// </summary>
         /// <param name="projectPath">Project root directory or project file path.</param>
         /// <returns>Display name that should appear in the host window title.</returns>
         string ResolveProjectDisplayName(string projectPath) {
-            if (string.IsNullOrWhiteSpace(projectPath)) {
-                throw new InvalidOperationException("Project path must be provided.");
-            }
+            string canonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
+            return ResolveProjectDisplayNameFromCanonicalProjectFile(canonicalProjectFilePath);
+        }
 
-            string fileName = Path.GetFileName(projectPath);
-            if (!string.IsNullOrWhiteSpace(fileName)) {
-                return fileName;
-            }
-
-            string normalizedPath = Path.GetFullPath(projectPath);
-            fileName = Path.GetFileName(normalizedPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        /// <summary>
+        /// Resolves the project display name from one validated canonical project file path.
+        /// </summary>
+        /// <param name="canonicalProjectFilePath">Validated absolute canonical `.heproj` file path.</param>
+        /// <returns>Display name that should appear in the host window title.</returns>
+        string ResolveProjectDisplayNameFromCanonicalProjectFile(string canonicalProjectFilePath) {
+            string fileName = Path.GetFileName(canonicalProjectFilePath);
             if (string.IsNullOrWhiteSpace(fileName)) {
                 throw new InvalidOperationException("Project path must resolve to a display name.");
             }
@@ -1501,24 +1518,22 @@ namespace helengine.editor {
         /// <param name="projectPath">Project root directory or project file path.</param>
         /// <returns>Absolute path to the project root directory.</returns>
         string ResolveProjectRootPath(string projectPath) {
-            if (string.IsNullOrWhiteSpace(projectPath)) {
-                throw new InvalidOperationException("Project path must be provided.");
+            string canonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
+            return ResolveProjectRootPathFromCanonicalProjectFile(canonicalProjectFilePath);
+        }
+
+        /// <summary>
+        /// Resolves the project root directory from one validated canonical project file path.
+        /// </summary>
+        /// <param name="canonicalProjectFilePath">Validated absolute canonical `.heproj` file path.</param>
+        /// <returns>Absolute path to the project root directory.</returns>
+        string ResolveProjectRootPathFromCanonicalProjectFile(string canonicalProjectFilePath) {
+            string directory = Path.GetDirectoryName(canonicalProjectFilePath);
+            if (string.IsNullOrWhiteSpace(directory)) {
+                throw new InvalidOperationException("Project file path does not include a directory.");
             }
 
-            if (Directory.Exists(projectPath)) {
-                return Path.GetFullPath(projectPath);
-            }
-
-            if (File.Exists(projectPath)) {
-                string directory = Path.GetDirectoryName(projectPath);
-                if (string.IsNullOrWhiteSpace(directory)) {
-                    throw new InvalidOperationException("Project file path does not include a directory.");
-                }
-
-                return Path.GetFullPath(directory);
-            }
-
-            return Path.GetFullPath(projectPath);
+            return Path.GetFullPath(directory);
         }
 
         /// <summary>
