@@ -129,4 +129,48 @@ public sealed class ProjectFileReaderTests : IDisposable {
         Assert.False(result.Succeeded);
         Assert.Contains(result.Errors, error => error.Code == ProjectFileReadErrorCode.UnsupportedFormatVersion);
     }
+
+    /// <summary>
+    /// Ensures the shared reader can be synchronously awaited from one thread with a non-pumping synchronization context without deadlocking.
+    /// </summary>
+    [Fact]
+    public async Task ReadAsync_WhenSynchronouslyWaitedOnThreadWithSynchronizationContext_CompletesWithoutCapturingSynchronizationContext() {
+        string projectFilePath = Path.Combine(TempDirectoryPath, "sync-read.heproj");
+        await File.WriteAllTextAsync(
+            projectFilePath,
+            """
+            {
+              "projectFormatVersion": 1,
+              "name": "Sample Project",
+              "version": "2.0.0",
+              "requiredEngineVersion": "0.4.0",
+              "supportedPlatforms": [ "windows" ],
+              "created": "2026-04-01T00:00:00Z",
+              "lastOpened": "2026-04-20T00:00:00Z"
+            }
+            """);
+
+        ProjectFileReader reader = new ProjectFileReader();
+        ProjectFileReadResult readResult = null;
+        Exception capturedException = null;
+        Thread thread = new Thread(() => {
+            SynchronizationContext.SetSynchronizationContext(new BlockingSynchronizationContext());
+
+            try {
+                readResult = reader.ReadAsync(projectFilePath).GetAwaiter().GetResult();
+            } catch (Exception exception) {
+                capturedException = exception;
+            }
+        }) {
+            IsBackground = true
+        };
+        thread.Start();
+
+        bool completed = thread.Join(TimeSpan.FromSeconds(5));
+
+        Assert.True(completed, "ProjectFileReader.ReadAsync deadlocked when synchronously waited on a thread with a synchronization context.");
+        Assert.Null(capturedException);
+        Assert.NotNull(readResult);
+        Assert.True(readResult.Succeeded);
+    }
 }

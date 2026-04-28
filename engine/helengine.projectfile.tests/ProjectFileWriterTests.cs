@@ -64,6 +64,35 @@ public sealed class ProjectFileWriterTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures the shared writer can be synchronously awaited from one thread with a non-pumping synchronization context without deadlocking.
+    /// </summary>
+    [Fact]
+    public void WriteAsync_WhenSynchronouslyWaitedOnThreadWithSynchronizationContext_CompletesWithoutCapturingSynchronizationContext() {
+        string projectFilePath = Path.Combine(TempDirectoryPath, "sync-write.heproj");
+        ProjectFileWriter writer = new ProjectFileWriter();
+        ProjectFileDocument document = CreateDocument();
+        Exception capturedException = null;
+        Thread thread = new Thread(() => {
+            SynchronizationContext.SetSynchronizationContext(new BlockingSynchronizationContext());
+
+            try {
+                writer.WriteAsync(projectFilePath, document).GetAwaiter().GetResult();
+            } catch (Exception exception) {
+                capturedException = exception;
+            }
+        }) {
+            IsBackground = true
+        };
+        thread.Start();
+
+        bool completed = thread.Join(TimeSpan.FromSeconds(5));
+
+        Assert.True(completed, "ProjectFileWriter.WriteAsync deadlocked when synchronously waited on a thread with a synchronization context.");
+        Assert.Null(capturedException);
+        Assert.True(File.Exists(projectFilePath));
+    }
+
+    /// <summary>
     /// Creates one canonical test document shared by the writer tests.
     /// </summary>
     /// <returns>Canonical project document populated with representative launcher and editor metadata.</returns>

@@ -105,7 +105,9 @@ public sealed class RecentProjectsServiceTests : IDisposable {
                 LastOpened = lastOpenedAt,
                 TimesOpened = 1,
                 Description = "old description",
-                Version = "1.0.0"
+                Version = "1.0.0",
+                RequiredEngineVersion = "engine-old",
+                SupportedPlatforms = ["windows"]
             });
 
         RecentProjectsService service = new RecentProjectsService(projectsFilePath);
@@ -117,7 +119,9 @@ public sealed class RecentProjectsServiceTests : IDisposable {
                 LastOpened = DateTime.UtcNow,
                 TimesOpened = 1,
                 Description = "new description",
-                Version = "2.0.0"
+                Version = "2.0.0",
+                RequiredEngineVersion = "engine-custom+abc123",
+                SupportedPlatforms = ["windows", "linux-custom"]
             });
 
         RecentProject project = Assert.Single(projects);
@@ -125,6 +129,8 @@ public sealed class RecentProjectsServiceTests : IDisposable {
         Assert.Equal(projectFilePath, project.Path);
         Assert.Equal("new description", project.Description);
         Assert.Equal("2.0.0", project.Version);
+        Assert.Equal("engine-custom+abc123", project.RequiredEngineVersion);
+        Assert.Equal(["windows", "linux-custom"], project.SupportedPlatforms);
         Assert.Equal(createdAt, project.Created);
         Assert.True(project.LastOpened > lastOpenedAt);
         Assert.Equal(2, project.TimesOpened);

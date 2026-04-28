@@ -85,6 +85,11 @@ public sealed class RecentProjectsService {
             existing.Name = string.IsNullOrWhiteSpace(project.Name) ? existing.Name : project.Name;
             existing.Description = string.IsNullOrWhiteSpace(project.Description) ? existing.Description : project.Description;
             existing.Version = string.IsNullOrWhiteSpace(project.Version) ? existing.Version : project.Version;
+            existing.RequiredEngineVersion = string.IsNullOrWhiteSpace(project.RequiredEngineVersion) ? existing.RequiredEngineVersion : project.RequiredEngineVersion;
+            if (project.SupportedPlatforms.Count > 0) {
+                existing.SupportedPlatforms = project.SupportedPlatforms.ToArray();
+            }
+
             existing.LastOpened = project.LastOpened == default ? existing.LastOpened : project.LastOpened;
             existing.Created = project.Created == default ? existing.Created : project.Created;
             existing.TimesOpened = Math.Max(existing.TimesOpened + 1, project.TimesOpened);

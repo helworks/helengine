@@ -1,4 +1,4 @@
-using helengine.projectfile;
+using helengine.editor;
 
 namespace helengine.editor.app {
     /// <summary>
@@ -27,19 +27,27 @@ namespace helengine.editor.app {
         /// <returns><c>true</c> when one valid project path argument exists; otherwise <c>false</c>.</returns>
         static bool TryGetProjectPath(string[] args, out string projectPath) {
             projectPath = string.Empty;
-            string candidate = args.FirstOrDefault(a => !string.IsNullOrWhiteSpace(a) && !a.StartsWith("-", StringComparison.Ordinal));
-            if (string.IsNullOrWhiteSpace(candidate)) {
-                return false;
-            }
-
             try {
-                ProjectFilePathResolver resolver = new ProjectFilePathResolver();
-                projectPath = resolver.Resolve(candidate);
+                EditorStartupProjectPathResolver resolver = new EditorStartupProjectPathResolver();
+                projectPath = resolver.Resolve(args);
                 return true;
-            } catch {
+            } catch (InvalidOperationException exception) {
+                ShowStartupError(exception.Message);
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Shows one blocking startup error dialog when the editor cannot resolve a valid project path.
+        /// </summary>
+        /// <param name="message">Human-readable startup error message.</param>
+        static void ShowStartupError(string message) {
+            MessageBox.Show(
+                message,
+                "helengine",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
         }
     }
 }

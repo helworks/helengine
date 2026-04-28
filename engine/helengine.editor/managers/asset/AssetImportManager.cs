@@ -663,8 +663,12 @@ namespace helengine.editor {
                     continue;
                 }
 
-                ImportModel(sourcePath);
-                importedAssets.Add(outputPath);
+                try {
+                    ImportModel(sourcePath);
+                    importedAssets.Add(outputPath);
+                } catch (Exception ex) {
+                    Logger.WriteError($"Model import failed for '{sourcePath}': {ex.Message}");
+                }
             }
 
             return importedAssets;

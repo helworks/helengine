@@ -212,6 +212,38 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures startup cache scans log one failing model import and continue importing later models.
+        /// </summary>
+        [Fact]
+        public void ImportModelsMissingCache_WhenOneModelImportFails_LogsErrorAndContinues() {
+            string brokenSourcePath = WriteSourceModel("broken.obj", "broken marker");
+            string validSourcePath = WriteSourceModel("valid.obj", "valid model");
+            ConditionalThrowingModelImporter modelImporter = new ConditionalThrowingModelImporter("broken marker", "broken import");
+            AssetImportManager manager = CreateManager(modelImporter);
+            AssetImportSettings brokenSettings = manager.LoadOrCreateImportSettings(brokenSourcePath);
+            AssetImportSettings validSettings = manager.LoadOrCreateImportSettings(validSourcePath);
+            List<LogEntry> loggedErrors = new List<LogEntry>();
+            Action<LogEntry> handleErrorLogged = loggedErrors.Add;
+
+            Logger.ErrorLogged += handleErrorLogged;
+            try {
+                List<string> importedAssets = manager.ImportModelsMissingCache();
+
+                string brokenOutputPath = Path.Combine(CacheRootPath, brokenSettings.AssetId);
+                string validOutputPath = Path.Combine(CacheRootPath, validSettings.AssetId);
+                Assert.Equal(new[] { validOutputPath }, importedAssets);
+                Assert.False(File.Exists(brokenOutputPath));
+                Assert.True(File.Exists(validOutputPath));
+                Assert.Equal(2, modelImporter.ImportCount);
+                Assert.Single(loggedErrors);
+                Assert.Contains("broken.obj", loggedErrors[0].Message);
+                Assert.Contains("broken import", loggedErrors[0].Message);
+            } finally {
+                Logger.ErrorLogged -= handleErrorLogged;
+            }
+        }
+
+        /// <summary>
         /// Creates a configured asset import manager with a deterministic model importer.
         /// </summary>
         /// <param name="modelImporter">Model importer instance to register.</param>
@@ -228,17 +260,47 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates a configured asset import manager with one conditional model importer.
+        /// </summary>
+        /// <param name="modelImporter">Model importer instance to register.</param>
+        /// <returns>Configured asset import manager.</returns>
+        AssetImportManager CreateManager(ConditionalThrowingModelImporter modelImporter) {
+            if (modelImporter == null) {
+                throw new ArgumentNullException(nameof(modelImporter));
+            }
+
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterModelImporter(new ModelImporterRegistration("test-model", modelImporter, new[] { ".obj" }));
+            return manager;
+        }
+
+        /// <summary>
         /// Writes a minimal source model file for importer manager tests.
         /// </summary>
         /// <param name="fileName">Source file name to create inside the assets folder.</param>
         /// <returns>Absolute path to the source file.</returns>
         string WriteSourceModel(string fileName) {
+            return WriteSourceModel(fileName, "test model source");
+        }
+
+        /// <summary>
+        /// Writes a model source file with explicit contents for importer manager tests.
+        /// </summary>
+        /// <param name="fileName">Source file name to create inside the assets folder.</param>
+        /// <param name="contents">Text content to write into the source file.</param>
+        /// <returns>Absolute path to the source file.</returns>
+        string WriteSourceModel(string fileName, string contents) {
             if (string.IsNullOrWhiteSpace(fileName)) {
                 throw new ArgumentException("File name must be provided.", nameof(fileName));
             }
 
+            if (string.IsNullOrWhiteSpace(contents)) {
+                throw new ArgumentException("Contents must be provided.", nameof(contents));
+            }
+
             string sourcePath = Path.Combine(AssetsRootPath, fileName);
-            File.WriteAllText(sourcePath, "test model source");
+            File.WriteAllText(sourcePath, contents);
             return sourcePath;
         }
     }

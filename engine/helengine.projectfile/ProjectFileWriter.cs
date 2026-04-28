@@ -40,6 +40,6 @@ public sealed class ProjectFileWriter {
         };
 
         string json = JsonSerializer.Serialize(jsonModel, SerializerOptions);
-        await File.WriteAllTextAsync(projectFilePath, json);
+        await File.WriteAllTextAsync(projectFilePath, json).ConfigureAwait(false);
     }
 }

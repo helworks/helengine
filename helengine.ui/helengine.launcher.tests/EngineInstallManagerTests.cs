@@ -92,6 +92,32 @@ public sealed class EngineInstallManagerTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures stale local engine versions are refreshed from the actual install folder when the launcher reloads managed installs.
+    /// </summary>
+    [Fact]
+    public void Load_WhenLocalInstallVersionDrifts_RefreshesStoredVersionFromDisk() {
+        string engineRootPath = Path.Combine(TempRootPath, "engines");
+        string toolchainRootPath = Path.Combine(TempRootPath, "toolchains");
+        string installPath = Path.Combine(engineRootPath, "helengine-current");
+        Directory.CreateDirectory(installPath);
+
+        string assemblySourcePath = typeof(EngineInstallManagerTests).Assembly.Location;
+        File.Copy(assemblySourcePath, Path.Combine(installPath, "helengine.editor.dll"));
+
+        Assert.True(EngineVersionDetector.TryDetect(installPath, out EngineVersionInfo versionInfo, out string error), error);
+        WriteEngineManifest(engineRootPath, "stale-version", installPath, "local");
+
+        EngineInstallManager manager = CreateManager(engineRootPath, toolchainRootPath);
+
+        EngineInstall install = Assert.Single(manager.InstalledEngines);
+        Assert.Equal(versionInfo.DisplayVersion, install.Version);
+
+        EngineInstallManager secondManager = CreateManager(engineRootPath, toolchainRootPath);
+        EngineInstall persistedInstall = Assert.Single(secondManager.InstalledEngines);
+        Assert.Equal(versionInfo.DisplayVersion, persistedInstall.Version);
+    }
+
+    /// <summary>
     /// Creates one engine install manager configured for the supplied managed roots.
     /// </summary>
     /// <param name="engineRootPath">Managed engine install root used by the test.</param>
@@ -111,13 +137,17 @@ public sealed class EngineInstallManagerTests : IDisposable {
     /// </summary>
     /// <param name="engineRootPath">Managed engine install root that should receive the manifest.</param>
     /// <param name="version">Engine version stored in the manifest.</param>
-    static void WriteEngineManifest(string engineRootPath, string version) {
+    static void WriteEngineManifest(string engineRootPath, string version, string installPath = "", string source = "local") {
         Directory.CreateDirectory(engineRootPath);
+        string resolvedInstallPath = string.IsNullOrWhiteSpace(installPath)
+            ? Path.Combine(engineRootPath, $"helengine-{version}")
+            : installPath;
         EngineInstallManifest manifest = new EngineInstallManifest {
             Engines = new List<EngineInstall> {
                 new EngineInstall {
                     Version = version,
-                    InstallPath = Path.Combine(engineRootPath, $"helengine-{version}")
+                    InstallPath = resolvedInstallPath,
+                    Source = source
                 }
             }
         };

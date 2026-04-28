@@ -111,6 +111,7 @@ public sealed class EngineInstallManager {
     public void Load() {
         Installs.Clear();
         Installs.AddRange(LoadInstalledEngines());
+        RefreshLocalInstalls();
 
         Artifacts.Clear();
         Artifacts.AddRange(ArtifactStore.Load());
@@ -211,6 +212,78 @@ public sealed class EngineInstallManager {
         EngineInstallManifest manifest = JsonSerializer.Deserialize<EngineInstallManifest>(json, JsonSerializerOptions)
             ?? throw new InvalidOperationException($"Could not deserialize engine install manifest at {EngineManifestFilePath}.");
         return manifest.Engines;
+    }
+
+    /// <summary>
+    /// Refreshes locally discovered engine installs from the actual assemblies on disk so custom build versions do not go stale in the launcher manifest.
+    /// </summary>
+    void RefreshLocalInstalls() {
+        bool changed = false;
+
+        for (int index = 0; index < Installs.Count; index++) {
+            EngineInstall install = Installs[index];
+            if (!ShouldRefreshLocalInstall(install)) {
+                continue;
+            }
+
+            if (!EngineVersionDetector.TryDetect(install.InstallPath, out var versionInfoCandidate, out string _)
+                || versionInfoCandidate == null) {
+                continue;
+            }
+
+            EngineVersionInfo versionInfo = versionInfoCandidate;
+            if (!ApplyDetectedVersion(install, versionInfo)) {
+                continue;
+            }
+
+            changed = true;
+        }
+
+        if (changed) {
+            Save();
+        }
+    }
+
+    /// <summary>
+    /// Determines whether the supplied installed engine entry should be refreshed from its local install path.
+    /// </summary>
+    /// <param name="install">Installed engine entry to evaluate.</param>
+    /// <returns><c>true</c> when the entry represents one locally detected install; otherwise <c>false</c>.</returns>
+    static bool ShouldRefreshLocalInstall(EngineInstall install) {
+        return string.Equals(install.Source, "local", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(install.InstallPath)
+            && Directory.Exists(install.InstallPath);
+    }
+
+    /// <summary>
+    /// Applies detected engine version metadata to one installed-engine entry when any persisted values have drifted.
+    /// </summary>
+    /// <param name="install">Installed engine entry that may need refreshed metadata.</param>
+    /// <param name="versionInfo">Detected version metadata read from the install folder.</param>
+    /// <returns><c>true</c> when the entry changed; otherwise <c>false</c>.</returns>
+    static bool ApplyDetectedVersion(EngineInstall install, EngineVersionInfo versionInfo) {
+        bool changed = false;
+        if (!string.Equals(install.Version, versionInfo.DisplayVersion, StringComparison.Ordinal)) {
+            install.Version = versionInfo.DisplayVersion;
+            changed = true;
+        }
+
+        if (!string.Equals(install.DetectedFrom, versionInfo.AssemblyName, StringComparison.Ordinal)) {
+            install.DetectedFrom = versionInfo.AssemblyName;
+            changed = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(versionInfo.FriendlyName)
+            && !string.Equals(install.Name, versionInfo.FriendlyName, StringComparison.Ordinal)) {
+            install.Name = versionInfo.FriendlyName;
+            changed = true;
+        }
+
+        if (changed) {
+            install.InstalledAt = DateTime.Now;
+        }
+
+        return changed;
     }
 
     /// <summary>

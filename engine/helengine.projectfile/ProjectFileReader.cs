@@ -15,15 +15,17 @@ public sealed class ProjectFileReader {
     public async Task<ProjectFileReadResult> ReadAsync(string projectFilePath) {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectFilePath);
 
-        await using FileStream stream = File.OpenRead(projectFilePath);
+        FileStream stream = File.OpenRead(projectFilePath);
 
         try {
-            using JsonDocument document = await JsonDocument.ParseAsync(stream);
+            using JsonDocument document = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
             return ReadDocument(document.RootElement);
         } catch (JsonException exception) {
             return new ProjectFileReadResult([
                 new ProjectFileReadError(ProjectFileReadErrorCode.InvalidJson, exception.Message, string.Empty)
             ]);
+        } finally {
+            await stream.DisposeAsync().ConfigureAwait(false);
         }
     }
 
