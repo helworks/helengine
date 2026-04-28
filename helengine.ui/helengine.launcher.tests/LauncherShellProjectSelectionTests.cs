@@ -273,9 +273,27 @@ public sealed class LauncherShellProjectSelectionTests : IDisposable {
         Button button = FindProjectCardButton(shell, projectFilePath) ?? throw new InvalidOperationException("Could not find the recent-project button.");
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
-        await WaitForConditionAsync(() => FindTextBlocks(shell).Any(text => text.Text == "Required engine version 7.7.7 is not installed."));
+        await WaitForConditionAsync(() => FindTextBlocks(shell).Any(text => text.Text == "Engine version 7.7.7 is not installed."));
 
-        Assert.Contains(FindTextBlocks(shell), text => text.Text == "Required engine version 7.7.7 is not installed.");
+        Assert.Contains(FindTextBlocks(shell), text => text.Text == "Engine version 7.7.7 is not installed.");
+    }
+
+    /// <summary>
+    /// Finds one recent-project button by the canonical project-file path rendered inside its card.
+    /// </summary>
+    /// <param name="root">Control tree root to inspect.</param>
+    /// <param name="projectFilePath">Canonical project-file path expected inside the card.</param>
+    /// <returns>Matching project-card button when present; otherwise <c>null</c>.</returns>
+    static Button FindProjectCardButton(Control root, string projectFilePath) {
+        foreach (Button button in root.GetLogicalDescendants().OfType<Button>()) {
+            if (button.Content is Border border
+                && border.Child is StackPanel stack
+                && stack.Children.OfType<TextBlock>().Any(text => string.Equals(text.Text, projectFilePath, StringComparison.Ordinal))) {
+                return button;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -289,6 +307,17 @@ public sealed class LauncherShellProjectSelectionTests : IDisposable {
     }
 
     /// <summary>
+    /// Finds one named control inside the supplied logical tree.
+    /// </summary>
+    /// <typeparam name="T">Expected control type.</typeparam>
+    /// <param name="root">Control tree root to inspect.</param>
+    /// <param name="name">Control name to match.</param>
+    /// <returns>Matching control when present; otherwise <c>null</c>.</returns>
+    static T FindNamedControl<T>(Control root, string name) where T : Control {
+        return root.GetLogicalDescendants().OfType<T>().FirstOrDefault(currentControl => currentControl.Name == name);
+    }
+
+    /// <summary>
     /// Collects the text blocks currently rendered under the supplied control.
     /// </summary>
     /// <param name="root">Control tree root to inspect.</param>
@@ -298,49 +327,26 @@ public sealed class LauncherShellProjectSelectionTests : IDisposable {
     }
 
     /// <summary>
-    /// Finds one named control inside the supplied logical tree.
-    /// </summary>
-    /// <typeparam name="T">Expected control type.</typeparam>
-    /// <param name="root">Control tree root to inspect.</param>
-    /// <param name="name">Control name to match.</param>
-    /// <returns>Matching control.</returns>
-    static T FindNamedControl<T>(Control root, string name) where T : Control {
-        T control = root.GetLogicalDescendants().OfType<T>().FirstOrDefault(currentControl => currentControl.Name == name);
-        return control ?? throw new InvalidOperationException($"Could not find control named {name}.");
-    }
-
-    /// <summary>
-    /// Finds one rendered recent-project card button by its canonical project-file path tag.
-    /// </summary>
-    /// <param name="root">Control tree root to inspect.</param>
-    /// <param name="projectFilePath">Canonical project-file path expected on the button tag.</param>
-    /// <returns>Matching recent-project card button when present; otherwise <c>null</c>.</returns>
-    static Button FindProjectCardButton(Control root, string projectFilePath) {
-        return root.GetLogicalDescendants()
-            .OfType<Button>()
-            .FirstOrDefault(button => string.Equals(button.Tag as string, projectFilePath, StringComparison.Ordinal));
-    }
-
-    /// <summary>
-    /// Waits until the supplied condition becomes true or fails the test after a short timeout.
+    /// Waits until the supplied condition succeeds or times out.
     /// </summary>
     /// <param name="condition">Condition that must become true.</param>
     static async Task WaitForConditionAsync(Func<bool> condition) {
-        for (int attempt = 0; attempt < 20; attempt++) {
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < deadline) {
             if (condition()) {
                 return;
             }
 
-            await Task.Delay(10);
+            await Task.Delay(25);
         }
 
-        Assert.True(condition(), "Timed out waiting for the launcher UI state to update.");
+        Assert.True(condition(), "Timed out waiting for the expected launcher condition.");
     }
 
     /// <summary>
-    /// Resolves the canonical platform identifier used for the current launcher runtime.
+    /// Resolves the current launcher platform identifier for project-create expectations.
     /// </summary>
-    /// <returns>Canonical platform identifier for the current operating system.</returns>
+    /// <returns>Canonical launcher platform identifier.</returns>
     static string ResolveCurrentPlatformId() {
         if (OperatingSystem.IsWindows()) {
             return "windows";
@@ -388,40 +394,5 @@ public sealed class LauncherShellProjectSelectionTests : IDisposable {
             UnixFileMode.OtherRead |
             UnixFileMode.OtherExecute);
         return engineInstallPath;
-    }
-
-    /// <summary>
-    /// Supplies deterministic picker results to launcher shell tests.
-    /// </summary>
-    sealed class FakeLauncherStoragePicker : ILauncherStoragePicker {
-        readonly string ProjectFilePath;
-
-        /// <summary>
-        /// Creates the fake picker with a predefined project-file result.
-        /// </summary>
-        /// <param name="projectFilePath">Project-file path to return for browse-project actions.</param>
-        public FakeLauncherStoragePicker(string projectFilePath) {
-            ProjectFilePath = projectFilePath;
-        }
-
-        /// <summary>
-        /// Returns the predefined project-file path for launcher project selection.
-        /// </summary>
-        /// <param name="owner">Owning control that requested the picker.</param>
-        /// <param name="title">Picker title.</param>
-        /// <returns>Predefined project-file path or an empty string when simulating cancellation.</returns>
-        public Task<string> PickProjectFileAsync(Control owner, string title) {
-            return Task.FromResult(ProjectFilePath);
-        }
-
-        /// <summary>
-        /// Returns an empty folder result because these tests only exercise project-file browsing.
-        /// </summary>
-        /// <param name="owner">Owning control that requested the picker.</param>
-        /// <param name="title">Picker title.</param>
-        /// <returns>Empty folder path.</returns>
-        public Task<string> PickFolderAsync(Control owner, string title) {
-            return Task.FromResult(string.Empty);
-        }
     }
 }

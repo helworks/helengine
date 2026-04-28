@@ -51,7 +51,7 @@ public sealed class EditorProjectLauncher {
     static EngineInstall ResolveMatchingInstall(string requiredEngineVersion, IReadOnlyList<EngineInstall> installedEngines) {
         EngineInstall install = installedEngines.FirstOrDefault(
             currentInstall => string.Equals(currentInstall.Version, requiredEngineVersion, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"Required engine version {requiredEngineVersion} is not installed.");
+            ?? throw new InvalidOperationException($"Engine version {requiredEngineVersion} is not installed.");
 
         if (string.IsNullOrWhiteSpace(install.InstallPath) || !Directory.Exists(install.InstallPath)) {
             throw new InvalidOperationException($"Installed engine version {requiredEngineVersion} is missing its install path.");

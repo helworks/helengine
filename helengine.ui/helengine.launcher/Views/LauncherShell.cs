@@ -19,6 +19,7 @@ namespace helengine.editor.launcher.Views;
 /// </summary>
 public sealed class LauncherShell : UserControl {
     readonly EngineInstallManager EngineManager;
+    readonly IEnginePlatformCatalog EnginePlatformCatalog;
     readonly ProjectScaffolder ProjectScaffolder;
     readonly RecentProjectsService RecentProjectsService;
     readonly ILauncherStoragePicker LauncherStoragePicker;
@@ -39,6 +40,7 @@ public sealed class LauncherShell : UserControl {
     /// </summary>
     public LauncherShell() {
         EngineManager = new EngineInstallManager();
+        EnginePlatformCatalog = new MockEnginePlatformCatalog();
         ProjectScaffolder = new ProjectScaffolder();
         RecentProjectsService = new RecentProjectsService();
         LauncherStoragePicker = new LauncherStoragePicker();
@@ -63,6 +65,7 @@ public sealed class LauncherShell : UserControl {
     /// <param name="projectFileLoader">Loader that interprets selected `.heproj` files.</param>
     public LauncherShell(RecentProjectsService recentProjectsService, ILauncherStoragePicker launcherStoragePicker, ProjectFileLoader projectFileLoader) {
         EngineManager = new EngineInstallManager();
+        EnginePlatformCatalog = new MockEnginePlatformCatalog();
         ProjectScaffolder = new ProjectScaffolder();
         RecentProjectsService = recentProjectsService ?? throw new ArgumentNullException(nameof(recentProjectsService));
         LauncherStoragePicker = launcherStoragePicker ?? throw new ArgumentNullException(nameof(launcherStoragePicker));
@@ -99,7 +102,48 @@ public sealed class LauncherShell : UserControl {
         HomeView homeView,
         NewProjectView newProjectView,
         EnginesView enginesView) {
+        EnginePlatformCatalog = new MockEnginePlatformCatalog();
         EngineManager = engineManager ?? throw new ArgumentNullException(nameof(engineManager));
+        ProjectScaffolder = projectScaffolder ?? throw new ArgumentNullException(nameof(projectScaffolder));
+        RecentProjectsService = recentProjectsService ?? throw new ArgumentNullException(nameof(recentProjectsService));
+        LauncherStoragePicker = launcherStoragePicker ?? throw new ArgumentNullException(nameof(launcherStoragePicker));
+        ProjectFileLoader = projectFileLoader ?? throw new ArgumentNullException(nameof(projectFileLoader));
+        EditorProjectLauncher = new EditorProjectLauncher();
+        HomeView = homeView ?? throw new ArgumentNullException(nameof(homeView));
+        NewProjectView = newProjectView ?? throw new ArgumentNullException(nameof(newProjectView));
+        EnginesView = enginesView ?? throw new ArgumentNullException(nameof(enginesView));
+        StatusText = CreateStatusText();
+        HeaderTitleText = CreateHeaderTitleText();
+        HeaderSubtitleText = CreateHeaderSubtitleText();
+        HeaderActionsHost = CreateHeaderActionsHost();
+        PageHost = new ContentControl();
+        InitializeShell();
+    }
+
+    /// <summary>
+    /// Creates the launcher shell with injectable services, views, and a mocked or remote platform catalog for focused engine-install workflow tests.
+    /// </summary>
+    /// <param name="engineManager">Engine-install service that supplies available engines.</param>
+    /// <param name="projectScaffolder">Project scaffolder used by the create flow.</param>
+    /// <param name="recentProjectsService">Recent-project persistence service.</param>
+    /// <param name="launcherStoragePicker">Storage picker abstraction used for browse flows.</param>
+    /// <param name="projectFileLoader">Loader that interprets selected `.heproj` files.</param>
+    /// <param name="homeView">Home page view instance.</param>
+    /// <param name="newProjectView">New-project page view instance.</param>
+    /// <param name="enginesView">Engines page view instance.</param>
+    /// <param name="enginePlatformCatalog">Catalog that defines installable engine versions and platform dependencies.</param>
+    public LauncherShell(
+        EngineInstallManager engineManager,
+        ProjectScaffolder projectScaffolder,
+        RecentProjectsService recentProjectsService,
+        ILauncherStoragePicker launcherStoragePicker,
+        ProjectFileLoader projectFileLoader,
+        HomeView homeView,
+        NewProjectView newProjectView,
+        EnginesView enginesView,
+        IEnginePlatformCatalog enginePlatformCatalog) {
+        EngineManager = engineManager ?? throw new ArgumentNullException(nameof(engineManager));
+        EnginePlatformCatalog = enginePlatformCatalog ?? throw new ArgumentNullException(nameof(enginePlatformCatalog));
         ProjectScaffolder = projectScaffolder ?? throw new ArgumentNullException(nameof(projectScaffolder));
         RecentProjectsService = recentProjectsService ?? throw new ArgumentNullException(nameof(recentProjectsService));
         LauncherStoragePicker = launcherStoragePicker ?? throw new ArgumentNullException(nameof(launcherStoragePicker));
@@ -267,6 +311,11 @@ public sealed class LauncherShell : UserControl {
 
         EnginesView.BackRequested += (_, _) => ShowHome();
         EnginesView.InstallFromLocalRequested += async (_, _) => await InstallEngineFromLocalAsync();
+        EnginesView.PlanRequested += OnPlanRequested;
+        EnginesView.InstallRequested += OnInstallRequested;
+        EnginesView.UninstallRequested += OnUninstallRequested;
+        EnginesView.RemoveUnusedArtifactsRequested += OnRemoveUnusedArtifactsRequested;
+        EnginesView.KeepSharedArtifactsRequested += OnKeepSharedArtifactsRequested;
     }
 
     /// <summary>
@@ -310,6 +359,7 @@ public sealed class LauncherShell : UserControl {
     /// </summary>
     void ShowEngines() {
         RefreshEngineBindings();
+        EnginesView.ClearUnusedArtifactPrompt();
         ShowPage(EnginesView);
     }
 
@@ -319,7 +369,106 @@ public sealed class LauncherShell : UserControl {
     void RefreshEngineBindings() {
         var installs = EngineManager.InstalledEngines;
         NewProjectView.SetEngines(installs);
-        EnginesView.SetEngines(installs);
+        EnginesView.SetCatalogEngines(EnginePlatformCatalog.GetAvailableEngines(), installs);
+    }
+
+    /// <summary>
+    /// Rebuilds the selected engine-platform plan whenever the engines page selection changes.
+    /// </summary>
+    /// <param name="selection">Current engine version and selected platform ids.</param>
+    void OnPlanRequested(PlatformInstallSelection selection) {
+        EnginesView.ClearStatus();
+        if (selection.PlatformIds.Count == 0) {
+            EnginesView.ClearPlan(selection.EngineVersion);
+            return;
+        }
+
+        PlatformInstallPlanner planner = new(EnginePlatformCatalog, EngineManager.InstalledArtifacts);
+        PlatformInstallPlan plan = planner.Build(selection);
+        EnginesView.SetPlan(selection.EngineVersion, plan);
+    }
+
+    /// <summary>
+    /// Installs the selected engine-platform combination using the mocked platform-install executor and refreshes the launcher state afterwards.
+    /// </summary>
+    /// <param name="selection">Engine version and selected platforms to install.</param>
+    void OnInstallRequested(PlatformInstallSelection selection) {
+        EnginesView.ClearStatus();
+        EnginesView.ClearUnusedArtifactPrompt();
+        if (selection.PlatformIds.Count == 0) {
+            EnginesView.SetStatus("Select at least one platform before installing.", true);
+            SetStatus("Select at least one platform before installing.", true);
+            return;
+        }
+
+        try {
+            PlatformInstallExecutor executor = new(EnginePlatformCatalog, EngineManager);
+            executor.Install(selection);
+            RefreshEngineBindings();
+            EnginesView.ClearPlan(selection.EngineVersion);
+            EnginesView.SetStatus($"Installed engine helengine {selection.EngineVersion}");
+            SetStatus($"Installed engine helengine {selection.EngineVersion}");
+        } catch (InvalidOperationException exception) {
+            EnginesView.SetStatus(exception.Message, true);
+            SetStatus(exception.Message, true);
+        }
+    }
+
+    /// <summary>
+    /// Computes the uninstall cleanup prompt for one installed engine and either removes it immediately or asks whether unused shared artifacts should be cleaned up too.
+    /// </summary>
+    /// <param name="engineVersion">Exact engine version selected for uninstall.</param>
+    void OnUninstallRequested(string engineVersion) {
+        EnginesView.ClearStatus();
+        try {
+            EngineUninstallPlanner planner = new(EngineManager.InstalledArtifacts, EngineManager.InstalledBindings);
+            UnusedArtifactRemovalDecision decision = planner.GetUnusedArtifactsAfterRemoving(engineVersion);
+            if (decision.UnusedArtifacts.Count == 0) {
+                ExecuteUninstall(engineVersion, false);
+                return;
+            }
+
+            EnginesView.ShowUnusedArtifactPrompt(decision);
+        } catch (InvalidOperationException exception) {
+            EnginesView.SetStatus(exception.Message, true);
+            SetStatus(exception.Message, true);
+        }
+    }
+
+    /// <summary>
+    /// Removes the selected engine and any newly unused shared artifacts confirmed by the user.
+    /// </summary>
+    /// <param name="engineVersion">Exact engine version selected for uninstall.</param>
+    void OnRemoveUnusedArtifactsRequested(string engineVersion) {
+        ExecuteUninstall(engineVersion, true);
+    }
+
+    /// <summary>
+    /// Removes the selected engine while keeping the newly unused shared artifacts on disk.
+    /// </summary>
+    /// <param name="engineVersion">Exact engine version selected for uninstall.</param>
+    void OnKeepSharedArtifactsRequested(string engineVersion) {
+        ExecuteUninstall(engineVersion, false);
+    }
+
+    /// <summary>
+    /// Executes one uninstall operation and refreshes launcher state afterwards.
+    /// </summary>
+    /// <param name="engineVersion">Exact engine version selected for uninstall.</param>
+    /// <param name="removeUnusedArtifacts">Whether newly unused shared artifacts should also be removed.</param>
+    void ExecuteUninstall(string engineVersion, bool removeUnusedArtifacts) {
+        try {
+            EngineUninstallPlanner planner = new(EngineManager.InstalledArtifacts, EngineManager.InstalledBindings);
+            EngineUninstallExecutor executor = new(EngineManager, planner);
+            executor.Uninstall(engineVersion, removeUnusedArtifacts);
+            EnginesView.ClearUnusedArtifactPrompt();
+            RefreshEngineBindings();
+            EnginesView.SetStatus($"Removed engine helengine {engineVersion}");
+            SetStatus($"Removed engine helengine {engineVersion}");
+        } catch (InvalidOperationException exception) {
+            EnginesView.SetStatus(exception.Message, true);
+            SetStatus(exception.Message, true);
+        }
     }
 
     /// <summary>
