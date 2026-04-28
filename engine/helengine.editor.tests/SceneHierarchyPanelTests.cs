@@ -67,6 +67,66 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures clicking the parent-row arrow collapses and re-expands that branch without removing the parent row.
+        /// </summary>
+        [Fact]
+        public void ClickingHierarchyArrow_CollapsesAndExpandsTheParentBranch() {
+            EditorEntity parent = new EditorEntity {
+                Name = "Parent"
+            };
+            EditorEntity child = new EditorEntity {
+                Name = "Child"
+            };
+            parent.AddChild(child);
+
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            panel.RefreshHierarchy();
+
+            SceneHierarchyRow parentRow = FindVisibleRow(panel, parent);
+
+            Assert.Equal(new[] { parent, child }, GetVisibleRowEntities(panel));
+
+            parentRow.Interactable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Hover);
+            parentRow.Interactable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Press);
+            parentRow.Interactable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Release);
+
+            Assert.Equal(new[] { parent }, GetVisibleRowEntities(panel));
+
+            parentRow = FindVisibleRow(panel, parent);
+            parentRow.Interactable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Hover);
+            parentRow.Interactable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Press);
+            parentRow.Interactable.OnCursor(new int2(10, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Release);
+
+            Assert.Equal(new[] { parent, child }, GetVisibleRowEntities(panel));
+        }
+
+        /// <summary>
+        /// Ensures clicking the row body selects the parent entity without collapsing its visible child branch.
+        /// </summary>
+        [Fact]
+        public void ClickingHierarchyRowBody_SelectsWithoutCollapsingTheBranch() {
+            EditorEntity parent = new EditorEntity {
+                Name = "Parent"
+            };
+            EditorEntity child = new EditorEntity {
+                Name = "Child"
+            };
+            parent.AddChild(child);
+
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            panel.RefreshHierarchy();
+
+            SceneHierarchyRow parentRow = FindVisibleRow(panel, parent);
+
+            parentRow.Interactable.OnCursor(new int2(48, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Hover);
+            parentRow.Interactable.OnCursor(new int2(48, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Press);
+            parentRow.Interactable.OnCursor(new int2(48, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Release);
+
+            Assert.Same(parent, EditorSelectionService.SelectedEntity);
+            Assert.Equal(new[] { parent, child }, GetVisibleRowEntities(panel));
+        }
+
+        /// <summary>
         /// Ensures activating the Reparent context-menu entry raises a reparent request for the clicked row entity.
         /// </summary>
         [Fact]
@@ -158,6 +218,45 @@ namespace helengine.editor.tests {
             }
 
             throw new InvalidOperationException("Expected the hierarchy panel to register a row interactable.");
+        }
+
+        /// <summary>
+        /// Returns the currently visible row assigned to the provided entity.
+        /// </summary>
+        /// <param name="panel">Panel to inspect.</param>
+        /// <param name="entity">Entity expected in one visible row.</param>
+        /// <returns>Visible row representing the entity.</returns>
+        SceneHierarchyRow FindVisibleRow(SceneHierarchyPanel panel, Entity entity) {
+            List<SceneHierarchyRow> rows = GetPrivateField<List<SceneHierarchyRow>>(panel, "rows");
+            for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++) {
+                SceneHierarchyRow row = rows[rowIndex];
+                if (row.Entity.Enabled && ReferenceEquals(row.NodeEntity, entity)) {
+                    return row;
+                }
+            }
+
+            throw new InvalidOperationException("Expected the entity to have one visible hierarchy row.");
+        }
+
+        /// <summary>
+        /// Returns the entities currently represented by enabled hierarchy rows.
+        /// </summary>
+        /// <param name="panel">Panel to inspect.</param>
+        /// <returns>Visible hierarchy row entities in display order.</returns>
+        Entity[] GetVisibleRowEntities(SceneHierarchyPanel panel) {
+            List<SceneHierarchyRow> rows = GetPrivateField<List<SceneHierarchyRow>>(panel, "rows");
+            List<Entity> entities = new List<Entity>();
+
+            for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++) {
+                SceneHierarchyRow row = rows[rowIndex];
+                if (!row.Entity.Enabled || row.NodeEntity == null) {
+                    continue;
+                }
+
+                entities.Add(row.NodeEntity);
+            }
+
+            return entities.ToArray();
         }
 
         /// <summary>

@@ -36,6 +36,14 @@ namespace helengine.editor {
                 EditorKeyboardFocusService.HandleActivationKey(Keys.R);
             } else if (input.WasKeyPressed(Keys.S)) {
                 EditorKeyboardFocusService.HandleActivationKey(Keys.S);
+            } else if (input.WasKeyPressed(Keys.Up)) {
+                EditorKeyboardFocusService.HandleActivationKey(Keys.Up);
+            } else if (input.WasKeyPressed(Keys.Down)) {
+                EditorKeyboardFocusService.HandleActivationKey(Keys.Down);
+            } else if (input.WasKeyPressed(Keys.Left)) {
+                EditorKeyboardFocusService.HandleActivationKey(Keys.Left);
+            } else if (input.WasKeyPressed(Keys.Right)) {
+                EditorKeyboardFocusService.HandleActivationKey(Keys.Right);
             }
 
             EditorKeyboardFocusService.Update();

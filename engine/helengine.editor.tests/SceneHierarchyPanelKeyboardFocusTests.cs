@@ -94,13 +94,154 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures pressing the right arrow on a collapsed focused parent expands its visible branch.
+        /// </summary>
+        [Fact]
+        public void SceneHierarchyPanel_WhenRightKeyIsPressedOnCollapsedParent_ExpandsTheFocusedBranch() {
+            TestInputManager input = InitializeCore();
+            SceneHierarchyPanel panel = CreateRegisteredPanel();
+            EditorEntity parent = new EditorEntity {
+                Name = "Parent"
+            };
+            EditorEntity child = new EditorEntity {
+                Name = "Child"
+            };
+            parent.AddChild(child);
+
+            panel.RefreshHierarchy();
+
+            SceneHierarchyRow parentRow = FindVisibleRow(panel, parent);
+            ClickArrow(parentRow);
+
+            parentRow = FindVisibleRow(panel, parent);
+            EditorKeyboardFocusService.SetFocusedTarget(parentRow.FocusTarget);
+
+            PressKey(input, Keys.Right);
+
+            Entity[] visibleEntities = GetVisibleRowEntities(panel);
+
+            Assert.Equal(2, visibleEntities.Length);
+            Assert.Same(parent, visibleEntities[0]);
+            Assert.Same(child, visibleEntities[1]);
+            Assert.True(FindVisibleRow(panel, parent).IsKeyboardFocused);
+        }
+
+        /// <summary>
+        /// Ensures pressing the left arrow on an expanded focused parent hides its visible descendants.
+        /// </summary>
+        [Fact]
+        public void SceneHierarchyPanel_WhenLeftKeyIsPressedOnExpandedParent_CollapsesTheFocusedBranch() {
+            TestInputManager input = InitializeCore();
+            SceneHierarchyPanel panel = CreateRegisteredPanel();
+            EditorEntity parent = new EditorEntity {
+                Name = "Parent"
+            };
+            EditorEntity child = new EditorEntity {
+                Name = "Child"
+            };
+            parent.AddChild(child);
+
+            panel.RefreshHierarchy();
+
+            SceneHierarchyRow parentRow = FindVisibleRow(panel, parent);
+            EditorKeyboardFocusService.SetFocusedTarget(parentRow.FocusTarget);
+
+            PressKey(input, Keys.Left);
+
+            Entity[] visibleEntities = GetVisibleRowEntities(panel);
+
+            Assert.Single(visibleEntities);
+            Assert.Same(parent, visibleEntities[0]);
+            Assert.True(FindVisibleRow(panel, parent).IsKeyboardFocused);
+        }
+
+        /// <summary>
+        /// Ensures pressing the down arrow on a focused row moves keyboard focus to the next visible row.
+        /// </summary>
+        [Fact]
+        public void SceneHierarchyPanel_WhenDownKeyIsPressed_MovesFocusToTheNextVisibleRow() {
+            TestInputManager input = InitializeCore();
+            SceneHierarchyPanel panel = CreateRegisteredPanel();
+            EditorEntity parent = new EditorEntity {
+                Name = "Parent"
+            };
+            EditorEntity child = new EditorEntity {
+                Name = "Child"
+            };
+            EditorEntity sibling = new EditorEntity {
+                Name = "Sibling"
+            };
+            parent.AddChild(child);
+
+            panel.RefreshHierarchy();
+
+            SceneHierarchyRow parentRow = FindVisibleRow(panel, parent);
+            SceneHierarchyRow childRow = FindVisibleRow(panel, child);
+            SceneHierarchyRow siblingRow = FindVisibleRow(panel, sibling);
+
+            EditorKeyboardFocusService.SetFocusedTarget(parentRow.FocusTarget);
+
+            PressKey(input, Keys.Down);
+
+            Assert.True(childRow.IsKeyboardFocused);
+            Assert.False(parentRow.IsKeyboardFocused);
+            Assert.False(siblingRow.IsKeyboardFocused);
+        }
+
+        /// <summary>
+        /// Ensures pressing the up arrow on a focused row moves keyboard focus to the previous visible row.
+        /// </summary>
+        [Fact]
+        public void SceneHierarchyPanel_WhenUpKeyIsPressed_MovesFocusToThePreviousVisibleRow() {
+            TestInputManager input = InitializeCore();
+            SceneHierarchyPanel panel = CreateRegisteredPanel();
+            EditorEntity parent = new EditorEntity {
+                Name = "Parent"
+            };
+            EditorEntity child = new EditorEntity {
+                Name = "Child"
+            };
+            EditorEntity sibling = new EditorEntity {
+                Name = "Sibling"
+            };
+            parent.AddChild(child);
+
+            panel.RefreshHierarchy();
+
+            SceneHierarchyRow childRow = FindVisibleRow(panel, child);
+            SceneHierarchyRow siblingRow = FindVisibleRow(panel, sibling);
+
+            EditorKeyboardFocusService.SetFocusedTarget(siblingRow.FocusTarget);
+
+            PressKey(input, Keys.Up);
+
+            Assert.True(childRow.IsKeyboardFocused);
+            Assert.False(siblingRow.IsKeyboardFocused);
+        }
+
+        /// <summary>
         /// Initializes the core services required by hierarchy keyboard-focus tests.
         /// </summary>
-        void InitializeCore() {
+        /// <returns>Input manager bound to the created core.</returns>
+        TestInputManager InitializeCore() {
             Core core = new Core();
-            core.Initialize(null, new TestRenderManager2D(), null);
+            TestInputManager input = new TestInputManager();
+            core.Initialize(null, new TestRenderManager2D(), input);
+            core.InputManager.SetKeyboardActive(true);
             EditorKeyboardFocusService.Reset();
             EditorSelectionService.ClearSelection();
+
+            EditorEntity keyboardFocusEntity = new EditorEntity {
+                InternalEntity = true,
+                Enabled = true,
+                LayerMask = EditorLayerMasks.EditorUi
+            };
+            EditorKeyboardFocusUpdateComponent keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent {
+                UpdateOrder = core.ObjectManager.GetUpdateOrderForLayer(1)
+            };
+            keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
+
+            return input;
         }
 
         /// <summary>
@@ -126,15 +267,20 @@ namespace helengine.editor.tests {
         /// <returns>Font asset with basic glyph metrics.</returns>
         FontAsset CreateFont() {
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
+                ['P'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['C'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['F'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['S'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['b'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['c'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
                 ['d'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['e'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['g'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['i'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
+                ['l'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
                 ['n'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['h'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['o'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['r'] = new FontChar(new float4(0f, 0f, 6f, 12f), 0f, 6f, 0f, 0f),
                 ['s'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
@@ -152,6 +298,70 @@ namespace helengine.editor.tests {
                 16f,
                 64,
                 64);
+        }
+
+        /// <summary>
+        /// Creates one hierarchy panel and registers it with the shared keyboard-focus service.
+        /// </summary>
+        /// <returns>Registered hierarchy panel.</returns>
+        SceneHierarchyPanel CreateRegisteredPanel() {
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            EditorKeyboardFocusService.RegisterGroup(panel);
+            return panel;
+        }
+
+        /// <summary>
+        /// Finds one visible hierarchy row for the provided entity.
+        /// </summary>
+        /// <param name="panel">Panel that owns the rows.</param>
+        /// <param name="entity">Entity represented by the expected row.</param>
+        /// <returns>Matching visible row.</returns>
+        SceneHierarchyRow FindVisibleRow(SceneHierarchyPanel panel, Entity entity) {
+            List<SceneHierarchyRow> rows = GetPrivateField<List<SceneHierarchyRow>>(panel, "rows");
+            SceneHierarchyRow row = rows.FirstOrDefault(candidate =>
+                candidate.Entity.Enabled &&
+                ReferenceEquals(candidate.NodeEntity, entity));
+            if (row == null) {
+                throw new InvalidOperationException("Expected visible hierarchy row was not found.");
+            }
+
+            return row;
+        }
+
+        /// <summary>
+        /// Returns the entities represented by the currently visible hierarchy rows.
+        /// </summary>
+        /// <param name="panel">Panel that owns the rows.</param>
+        /// <returns>Visible row entities in on-screen order.</returns>
+        Entity[] GetVisibleRowEntities(SceneHierarchyPanel panel) {
+            List<SceneHierarchyRow> rows = GetPrivateField<List<SceneHierarchyRow>>(panel, "rows");
+            return rows
+                .Where(row => row.Entity.Enabled && row.NodeEntity != null)
+                .Select(row => row.NodeEntity)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Simulates one complete left-click on a row arrow hit target.
+        /// </summary>
+        /// <param name="row">Row whose arrow should be clicked.</param>
+        void ClickArrow(SceneHierarchyRow row) {
+            int2 point = new int2(10, SceneHierarchyPanel.RowHeight / 2);
+            row.Interactable.OnCursor(point, new int2(0, 0), PointerInteraction.Hover);
+            row.Interactable.OnCursor(point, new int2(0, 0), PointerInteraction.Press);
+            row.Interactable.OnCursor(point, new int2(0, 0), PointerInteraction.Release);
+        }
+
+        /// <summary>
+        /// Simulates one key press and release across successive core updates.
+        /// </summary>
+        /// <param name="input">Input manager used by the active core.</param>
+        /// <param name="key">Key to press.</param>
+        void PressKey(TestInputManager input, Keys key) {
+            input.SetKeyboardState(new KeyboardState(key));
+            Core.Instance.Update();
+            input.SetKeyboardState(new KeyboardState());
+            Core.Instance.Update();
         }
     }
 }

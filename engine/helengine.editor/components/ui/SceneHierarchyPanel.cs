@@ -9,11 +9,22 @@ namespace helengine.editor {
         public const int RowHeight = 22;
 
         const int RowIndent = 14;
+        const int RowPaddingLeft = 8;
+        const int ArrowSlotWidth = 12;
+        const int ArrowLabelSpacing = 4;
 
         readonly FontAsset font;
         readonly EditorEntity contentRoot;
         readonly List<SceneHierarchyRow> rows;
         readonly List<NodeInfo> nodes;
+        /// <summary>
+        /// Expanded-state map for parent scene entities represented in the hierarchy.
+        /// </summary>
+        readonly Dictionary<Entity, bool> expandedEntities;
+        /// <summary>
+        /// Scratch set containing scene entities that currently have visible scene children.
+        /// </summary>
+        readonly HashSet<Entity> parentEntities;
         /// <summary>
         /// Context menu shown for one hierarchy row.
         /// </summary>
@@ -63,6 +74,8 @@ namespace helengine.editor {
 
             rows = new List<SceneHierarchyRow>(32);
             nodes = new List<NodeInfo>(64);
+            expandedEntities = new Dictionary<Entity, bool>();
+            parentEntities = new HashSet<Entity>();
             hierarchyContextMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             AddChild(hierarchyContextMenu.Entity);
             rowContextMenuItems = new List<ContextMenuItem> {
@@ -91,6 +104,7 @@ namespace helengine.editor {
             nodes.Clear();
 
             List<Entity> all = manager.Entities;
+            UpdateExpandedEntities(all);
             for (int i = 0; i < all.Count; i++) {
                 Entity entity = all[i];
                 if (!IsSceneEntity(entity)) {
@@ -151,14 +165,47 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Synchronizes tracked expanded entities with the current scene graph.
+        /// </summary>
+        /// <param name="all">All entities registered in the object manager.</param>
+        void UpdateExpandedEntities(List<Entity> all) {
+            parentEntities.Clear();
+
+            for (int entityIndex = 0; entityIndex < all.Count; entityIndex++) {
+                Entity entity = all[entityIndex];
+                if (!IsSceneEntity(entity) || !HasSceneChildren(entity)) {
+                    continue;
+                }
+
+                parentEntities.Add(entity);
+                if (!expandedEntities.ContainsKey(entity)) {
+                    expandedEntities.Add(entity, true);
+                }
+            }
+
+            List<Entity> staleEntities = new List<Entity>();
+            foreach (KeyValuePair<Entity, bool> entry in expandedEntities) {
+                if (!parentEntities.Contains(entry.Key)) {
+                    staleEntities.Add(entry.Key);
+                }
+            }
+
+            for (int staleIndex = 0; staleIndex < staleEntities.Count; staleIndex++) {
+                expandedEntities.Remove(staleEntities[staleIndex]);
+            }
+        }
+
+        /// <summary>
         /// Recursively flattens the scene hierarchy into the node list.
         /// </summary>
         /// <param name="entity">Current entity being visited.</param>
         /// <param name="depth">Depth in the hierarchy.</param>
         void AppendHierarchy(Entity entity, int depth) {
-            nodes.Add(new NodeInfo(entity, depth));
+            bool hasChildren = parentEntities.Contains(entity);
+            bool isExpanded = !hasChildren || IsEntityExpanded(entity);
+            nodes.Add(new NodeInfo(entity, depth, hasChildren, isExpanded));
 
-            if (entity.Children == null) {
+            if (entity.Children == null || !hasChildren || !isExpanded) {
                 return;
             }
 
@@ -184,9 +231,15 @@ namespace helengine.editor {
                 if (i >= nodes.Count) {
                     row.Entity.Enabled = false;
                     row.NodeEntity = null;
+                    row.HasChildren = false;
+                    row.IsExpanded = false;
                     row.IsHovering = false;
                     row.IsPressed = false;
+                    row.IsArrowPressed = false;
                     row.IsSelected = false;
+                    row.Arrow.Text = string.Empty;
+                    row.ArrowHitLeft = 0;
+                    row.ArrowHitWidth = 0;
                     row.FocusTarget.SetTargetFocused(false);
                     UpdateRowBackground(row, ThemeManager.Colors.SurfacePrimary);
                     continue;
@@ -195,6 +248,8 @@ namespace helengine.editor {
                 NodeInfo node = nodes[i];
                 row.Entity.Enabled = true;
                 row.NodeEntity = node.Entity;
+                row.HasChildren = node.HasChildren;
+                row.IsExpanded = node.IsExpanded;
                 row.Entity.Position = new float3(0, i * RowHeight, 0.1f);
                 row.IsSelected = node.Entity == EditorSelectionService.SelectedEntity;
 
@@ -208,7 +263,17 @@ namespace helengine.editor {
                 row.Background.Size = new int2(rowWidth, RowHeight);
                 row.Interactable.Size = new int2(rowWidth, RowHeight);
 
-                float indent = 8 + node.Depth * RowIndent;
+                int arrowLeft = RowPaddingLeft + node.Depth * RowIndent;
+                row.ArrowHitLeft = arrowLeft;
+                row.ArrowHitWidth = ArrowSlotWidth;
+                row.ArrowHost.Position = new float3(arrowLeft, MathF.Round((RowHeight - lineHeight) * 0.5f), 0.2f);
+                row.Arrow.Text = node.HasChildren
+                    ? (node.IsExpanded ? "v" : ">")
+                    : string.Empty;
+                row.Arrow.Size = new int2(ArrowSlotWidth, (int)MathF.Ceiling(lineHeight));
+                row.Arrow.Color = ThemeManager.Colors.InputForegroundPrimary;
+
+                float indent = arrowLeft + ArrowSlotWidth + ArrowLabelSpacing;
                 row.LabelHost.Position = new float3(indent, MathF.Round((RowHeight - lineHeight) * 0.5f), 0.2f);
 
                 string label = node.Entity is EditorEntity editorEntity ? editorEntity.Name : node.Entity.GetType().Name;
@@ -252,6 +317,19 @@ namespace helengine.editor {
             interactable.Size = new int2(Size.X, RowHeight);
             rowEntity.AddComponent(interactable);
 
+            var arrowHost = new EditorEntity();
+            arrowHost.LayerMask = LayerMask;
+            arrowHost.Position = new float3(RowPaddingLeft, 2, 0.2f);
+            rowEntity.AddChild(arrowHost);
+
+            var arrow = new TextComponent();
+            arrow.Font = font;
+            arrow.Text = string.Empty;
+            arrow.Color = ThemeManager.Colors.InputForegroundPrimary;
+            arrow.Size = new int2(ArrowSlotWidth, RowHeight);
+            arrow.RenderOrder2D = rowTextOrder;
+            arrowHost.AddComponent(arrow);
+
             var labelHost = new EditorEntity();
             labelHost.LayerMask = LayerMask;
             labelHost.Position = new float3(8, 2, 0.2f);
@@ -276,18 +354,24 @@ namespace helengine.editor {
                     row.IsKeyboardFocused = isFocused;
                     UpdateRowBackground(row, row.BaseColor);
                 },
-                key => key == Keys.Enter,
-                key => ActivateRow(row));
+                key => key == Keys.Enter ||
+                       key == Keys.Up ||
+                       key == Keys.Down ||
+                       key == Keys.Left ||
+                       key == Keys.Right,
+                key => HandleRowActivationKey(row, key));
             row = new SceneHierarchyRow(
                 rowEntity,
                 background,
+                arrowHost,
+                arrow,
                 labelHost,
                 text,
                 interactable,
                 focusTarget);
 
             EditorKeyboardFocusService.RegisterTarget(row.FocusTarget);
-            interactable.CursorEvent += (pos, delta, state) => HandleRowCursor(row, state);
+            interactable.CursorEvent += (pos, delta, state) => HandleRowCursor(row, pos, state);
             contentRoot.AddChild(rowEntity);
             return row;
         }
@@ -310,34 +394,176 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Returns true when the provided entity has at least one visible scene child.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <returns>True when one child should appear in the hierarchy.</returns>
+        bool HasSceneChildren(Entity entity) {
+            if (entity.Children == null) {
+                return false;
+            }
+
+            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                Entity child = entity.Children[childIndex];
+                if (IsSceneEntity(child)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Returns whether the provided parent entity is currently expanded in the hierarchy.
+        /// </summary>
+        /// <param name="entity">Parent entity to evaluate.</param>
+        /// <returns>True when the parent should display its descendants.</returns>
+        bool IsEntityExpanded(Entity entity) {
+            if (expandedEntities.TryGetValue(entity, out bool isExpanded)) {
+                return isExpanded;
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// Handles pointer interactions for a row to update its visual state.
         /// </summary>
         /// <param name="row">Row receiving the event.</param>
+        /// <param name="point">Pointer position in row-local coordinates.</param>
         /// <param name="state">Interaction state.</param>
-        void HandleRowCursor(SceneHierarchyRow row, PointerInteraction state) {
+        void HandleRowCursor(SceneHierarchyRow row, int2 point, PointerInteraction state) {
             switch (state) {
                 case PointerInteraction.Hover:
                     row.IsHovering = true;
                     break;
                 case PointerInteraction.Press:
                     row.IsPressed = true;
+                    row.IsArrowPressed = row.ContainsArrowPoint(point);
                     break;
                 case PointerInteraction.Release:
                     bool shouldActivate = row.IsPressed && row.IsHovering;
+                    bool shouldToggleExpanded = shouldActivate &&
+                                                row.IsArrowPressed &&
+                                                row.ContainsArrowPoint(point);
                     row.IsPressed = false;
-                    if (shouldActivate) {
+                    row.IsArrowPressed = false;
+                    if (shouldToggleExpanded) {
+                        ToggleExpanded(row);
+                    } else if (shouldActivate) {
                         ActivateRow(row);
                     }
                     break;
                 case PointerInteraction.Leave:
                     row.IsHovering = false;
                     row.IsPressed = false;
+                    row.IsArrowPressed = false;
                     break;
                 default:
                     break;
             }
 
             UpdateRowBackground(row, row.BaseColor);
+        }
+
+        /// <summary>
+        /// Toggles the expanded state for the provided hierarchy row and refreshes the visible branch list.
+        /// </summary>
+        /// <param name="row">Row whose represented branch should toggle.</param>
+        void ToggleExpanded(SceneHierarchyRow row) {
+            if (row == null || row.NodeEntity == null || !row.HasChildren) {
+                return;
+            }
+
+            expandedEntities[row.NodeEntity] = !IsEntityExpanded(row.NodeEntity);
+            RefreshHierarchy();
+        }
+
+        /// <summary>
+        /// Routes keyboard activation for one hierarchy row.
+        /// </summary>
+        /// <param name="row">Focused row receiving the key.</param>
+        /// <param name="key">Activation key that was pressed.</param>
+        void HandleRowActivationKey(SceneHierarchyRow row, Keys key) {
+            if (row == null || row.NodeEntity == null) {
+                return;
+            }
+
+            if (key == Keys.Enter) {
+                ActivateRow(row);
+            } else if (key == Keys.Up) {
+                FocusAdjacentRow(row, -1);
+            } else if (key == Keys.Down) {
+                FocusAdjacentRow(row, 1);
+            } else if (key == Keys.Left) {
+                CollapseRow(row);
+            } else if (key == Keys.Right) {
+                ExpandRow(row);
+            }
+        }
+
+        /// <summary>
+        /// Moves keyboard focus to the previous or next visible hierarchy row.
+        /// </summary>
+        /// <param name="row">Currently focused row.</param>
+        /// <param name="offset">Visible-row offset to apply.</param>
+        void FocusAdjacentRow(SceneHierarchyRow row, int offset) {
+            int rowIndex = rows.IndexOf(row);
+            if (rowIndex < 0) {
+                return;
+            }
+
+            int adjacentIndex = rowIndex + offset;
+            if (adjacentIndex < 0 || adjacentIndex >= nodes.Count) {
+                return;
+            }
+
+            SceneHierarchyRow adjacentRow = rows[adjacentIndex];
+            if (!adjacentRow.Entity.Enabled || adjacentRow.NodeEntity == null) {
+                return;
+            }
+
+            EditorKeyboardFocusService.SetFocusedTarget(adjacentRow.FocusTarget);
+        }
+
+        /// <summary>
+        /// Expands one focused parent row when it currently has collapsed visible children.
+        /// </summary>
+        /// <param name="row">Focused row whose branch should expand.</param>
+        void ExpandRow(SceneHierarchyRow row) {
+            if (row == null || row.NodeEntity == null || !row.HasChildren || row.IsExpanded) {
+                return;
+            }
+
+            SetExpandedState(row, true);
+        }
+
+        /// <summary>
+        /// Collapses one focused parent row when it currently displays visible descendants.
+        /// </summary>
+        /// <param name="row">Focused row whose branch should collapse.</param>
+        void CollapseRow(SceneHierarchyRow row) {
+            if (row == null || row.NodeEntity == null || !row.HasChildren || !row.IsExpanded) {
+                return;
+            }
+
+            SetExpandedState(row, false);
+        }
+
+        /// <summary>
+        /// Applies one explicit expanded state and preserves keyboard focus on the same entity after refresh.
+        /// </summary>
+        /// <param name="row">Row whose represented entity should change expanded state.</param>
+        /// <param name="isExpanded">Expanded state to apply.</param>
+        void SetExpandedState(SceneHierarchyRow row, bool isExpanded) {
+            Entity entity = row.NodeEntity;
+            expandedEntities[entity] = isExpanded;
+            RefreshHierarchy();
+
+            SceneHierarchyRow refreshedRow = FindVisibleRow(entity);
+            if (refreshedRow != null) {
+                EditorKeyboardFocusService.SetFocusedTarget(refreshedRow.FocusTarget);
+            }
         }
 
         /// <summary>
@@ -392,6 +618,26 @@ namespace helengine.editor {
             }
 
             EditorSelectionService.SetSelectedEntity(row.NodeEntity);
+        }
+
+        /// <summary>
+        /// Finds one currently visible row for the provided entity.
+        /// </summary>
+        /// <param name="entity">Entity represented by the desired row.</param>
+        /// <returns>Visible row when present; otherwise null.</returns>
+        SceneHierarchyRow FindVisibleRow(Entity entity) {
+            for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++) {
+                SceneHierarchyRow row = rows[rowIndex];
+                if (!row.Entity.Enabled || row.NodeEntity == null) {
+                    continue;
+                }
+
+                if (ReferenceEquals(row.NodeEntity, entity)) {
+                    return row;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -486,9 +732,13 @@ namespace helengine.editor {
             /// </summary>
             /// <param name="entity">Referenced entity.</param>
             /// <param name="depth">Depth within the hierarchy.</param>
-            public NodeInfo(Entity entity, int depth) {
+            /// <param name="hasChildren">True when the entity has visible scene children.</param>
+            /// <param name="isExpanded">True when the entity branch is currently expanded.</param>
+            public NodeInfo(Entity entity, int depth, bool hasChildren, bool isExpanded) {
                 Entity = entity;
                 Depth = depth;
+                HasChildren = hasChildren;
+                IsExpanded = isExpanded;
             }
 
             /// <summary>
@@ -500,6 +750,16 @@ namespace helengine.editor {
             /// Gets the depth within the hierarchy.
             /// </summary>
             public int Depth { get; }
+
+            /// <summary>
+            /// Gets whether the entity currently has visible scene children.
+            /// </summary>
+            public bool HasChildren { get; }
+
+            /// <summary>
+            /// Gets whether the entity branch is currently expanded.
+            /// </summary>
+            public bool IsExpanded { get; }
         }
     }
 }
