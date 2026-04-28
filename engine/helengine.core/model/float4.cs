@@ -116,6 +116,25 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Computes the inverse quaternion that undoes the provided rotation.
+        /// </summary>
+        /// <param name="value">Quaternion to invert.</param>
+        /// <returns>Inverse quaternion.</returns>
+        public static float4 Inverse(float4 value) {
+            double lengthSquared = (value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z) + (value.W * value.W);
+            if (lengthSquared <= 0.0) {
+                throw new InvalidOperationException("Cannot invert a zero-length quaternion.");
+            }
+
+            double inverseLengthSquared = 1.0 / lengthSquared;
+            return new float4(
+                (float)(-value.X * inverseLengthSquared),
+                (float)(-value.Y * inverseLengthSquared),
+                (float)(-value.Z * inverseLengthSquared),
+                (float)(value.W * inverseLengthSquared));
+        }
+
+        /// <summary>
         /// Creates a quaternion from yaw, pitch, and roll angles.
         /// </summary>
         /// <param name="yaw">Yaw around the Y axis in radians.</param>

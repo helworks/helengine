@@ -91,6 +91,16 @@ namespace helengine.editor {
         public bool IsSelected { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether this row may currently be selected or activated.
+        /// </summary>
+        public bool IsSelectable { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this row represents the synthetic scene root entry.
+        /// </summary>
+        public bool IsSceneRoot { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether this row represents an entity with visible scene children.
         /// </summary>
         public bool HasChildren { get; set; }

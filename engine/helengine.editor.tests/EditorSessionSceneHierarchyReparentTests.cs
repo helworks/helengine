@@ -10,6 +10,11 @@ namespace helengine.editor.tests {
     /// </summary>
     public class EditorSessionSceneHierarchyReparentTests : IDisposable {
         /// <summary>
+        /// Tolerance used when comparing world-space transform values after reparenting.
+        /// </summary>
+        const float TransformTolerance = 0.0001f;
+
+        /// <summary>
         /// Temporary project root used by session reparent tests.
         /// </summary>
         readonly string TempProjectRootPath;
@@ -42,10 +47,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures a hierarchy reparent request shows the modal with the requested entity and excludes invalid descendants.
+        /// Ensures a hierarchy reparent request shows the modal with the requested entity and includes invalid descendants for disabled display.
         /// </summary>
         [Fact]
-        public void HandleSceneHierarchyReparentRequested_ShowsDialogWithValidParentChoices() {
+        public void HandleSceneHierarchyReparentRequested_ShowsDialogWithVisibleHierarchyIncludingInvalidDescendants() {
             EditorSession session = CreateSessionForReparent();
             EditorEntity rootA = CreateSceneEntity("Root A");
             EditorEntity rootB = CreateSceneEntity("Root B");
@@ -60,12 +65,43 @@ namespace helengine.editor.tests {
 
             Assert.True(dialog.IsVisible);
             Assert.Same(child, dialog.TargetEntity);
-            Assert.Equal(2, dialog.AvailableParentEntities.Count);
-            Assert.Null(dialog.AvailableParentEntities[0]);
+            Assert.Equal(4, dialog.AvailableParentEntities.Count);
             Assert.Same(rootA, dialog.SelectedParentEntity);
+            Assert.Contains(dialog.AvailableParentEntities, candidate => ReferenceEquals(candidate, rootA));
             Assert.Contains(dialog.AvailableParentEntities, candidate => ReferenceEquals(candidate, rootB));
-            Assert.DoesNotContain(dialog.AvailableParentEntities, candidate => ReferenceEquals(candidate, child));
-            Assert.DoesNotContain(dialog.AvailableParentEntities, candidate => ReferenceEquals(candidate, grandchild));
+            Assert.Contains(dialog.AvailableParentEntities, candidate => ReferenceEquals(candidate, child));
+            Assert.Contains(dialog.AvailableParentEntities, candidate => ReferenceEquals(candidate, grandchild));
+        }
+
+        /// <summary>
+        /// Ensures the reparent dialog greys out invalid targets and ignores their row clicks while still allowing valid parent selection.
+        /// </summary>
+        [Fact]
+        public void ReparentEntityDialog_WhenRowsAreClicked_IgnoresInvalidTargetsAndSelectsValidParents() {
+            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
+            EditorEntity rootA = CreateSceneEntity("Root A");
+            EditorEntity rootB = CreateSceneEntity("Root B");
+            EditorEntity child = CreateSceneEntity("Child");
+            EditorEntity grandchild = CreateSceneEntity("Grandchild");
+            rootA.AddChild(child);
+            child.AddChild(grandchild);
+
+            dialog.Show(child, new Entity[] { rootA, rootB, child, grandchild });
+            dialog.UpdateLayout(640, 480);
+
+            SceneHierarchyRow invalidRow = FindDialogRow(dialog, grandchild);
+            SceneHierarchyRow validRow = FindDialogRow(dialog, rootB);
+
+            Assert.Equal(ThemeManager.Colors.AccentQuaternary, invalidRow.Label.Color);
+            Assert.Same(rootA, dialog.SelectedParentEntity);
+
+            ClickRowBody(invalidRow);
+
+            Assert.Same(rootA, dialog.SelectedParentEntity);
+
+            ClickRowBody(validRow);
+
+            Assert.Same(rootB, dialog.SelectedParentEntity);
         }
 
         /// <summary>
@@ -99,6 +135,40 @@ namespace helengine.editor.tests {
             } finally {
                 EditorSceneMutationService.SceneMutated -= handleSceneMutated;
             }
+        }
+
+        /// <summary>
+        /// Ensures confirming a reparent request preserves the entity's current world position and visible size.
+        /// </summary>
+        [Fact]
+        public void HandleReparentEntityDialogConfirmed_PreservesWorldPositionAndScale() {
+            EditorSession session = CreateSessionForReparent();
+            EditorEntity rootA = CreateSceneEntity("Root A");
+            EditorEntity rootB = CreateSceneEntity("Root B");
+            EditorEntity child = CreateSceneEntity("Child");
+
+            rootA.LocalPosition = new float3(10f, 0f, 0f);
+            rootA.LocalScale = new float3(1f, 2f, 3f);
+
+            rootB.LocalPosition = new float3(30f, 0f, 0f);
+            rootB.LocalScale = new float3(5f, 6f, 7f);
+            rootB.LocalOrientation = CreateYawOrientation((float)(Math.PI / 2.0));
+
+            child.LocalPosition = new float3(4f, 0f, 0f);
+            child.LocalScale = new float3(2f, 3f, 4f);
+
+            rootA.AddChild(child);
+
+            float3 originalWorldPosition = child.Position;
+            float3 originalWorldScale = child.Scale;
+
+            ReparentEntityDialog dialog = GetPrivateField<ReparentEntityDialog>(session, "reparentEntityDialog");
+            dialog.Show(child, new Entity[] { null, rootB });
+
+            InvokePrivate(session, "HandleReparentEntityDialogConfirmed", new ReparentEntityDialogSelection(child, rootB));
+
+            AssertFloat3Equal(originalWorldPosition, child.Position);
+            AssertFloat3Equal(originalWorldScale, child.Scale);
         }
 
         /// <summary>
@@ -165,6 +235,51 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Reads one non-public instance field value without casting it to a specific runtime type.
+        /// </summary>
+        /// <param name="target">Object that owns the field.</param>
+        /// <param name="fieldName">Name of the field to read.</param>
+        /// <returns>Raw field value.</returns>
+        object GetPrivateFieldValue(object target, string fieldName) {
+            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            return field.GetValue(target);
+        }
+
+        /// <summary>
+        /// Finds the visible dialog row representing the requested entity.
+        /// </summary>
+        /// <param name="dialog">Dialog containing the picker rows.</param>
+        /// <param name="entity">Entity represented by the desired row.</param>
+        /// <returns>Matching visible row.</returns>
+        SceneHierarchyRow FindDialogRow(ReparentEntityDialog dialog, Entity entity) {
+            object hierarchyView = GetPrivateFieldValue(dialog, "parentHierarchyView");
+            List<SceneHierarchyRow> rows = GetPrivateField<List<SceneHierarchyRow>>(hierarchyView, "rows");
+            for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++) {
+                SceneHierarchyRow row = rows[rowIndex];
+                if (!row.Entity.Enabled) {
+                    continue;
+                }
+                if (ReferenceEquals(row.NodeEntity, entity)) {
+                    return row;
+                }
+            }
+
+            string entityLabel = entity is EditorEntity editorEntity ? editorEntity.Name : entity.GetType().Name;
+            throw new InvalidOperationException($"Expected to find a visible reparent-dialog row for '{entityLabel}'.");
+        }
+
+        /// <summary>
+        /// Clicks the non-arrow body region of one dialog row.
+        /// </summary>
+        /// <param name="row">Row to activate.</param>
+        void ClickRowBody(SceneHierarchyRow row) {
+            int2 point = new int2(Math.Max(row.ArrowHitLeft + row.ArrowHitWidth + 8, 32), SceneHierarchyPanel.RowHeight / 2);
+            row.Interactable.OnCursor(point, new int2(0, 0), PointerInteraction.Hover);
+            row.Interactable.OnCursor(point, new int2(0, 0), PointerInteraction.Press);
+            row.Interactable.OnCursor(point, new int2(0, 0), PointerInteraction.Release);
+        }
+
+        /// <summary>
         /// Creates a small font asset that can satisfy hierarchy and modal layout.
         /// </summary>
         /// <returns>Font asset with basic glyph metrics for the current test.</returns>
@@ -205,6 +320,27 @@ namespace helengine.editor.tests {
                 16f,
                 64,
                 64);
+        }
+
+        /// <summary>
+        /// Verifies two <see cref="float3"/> values are equal within the configured transform tolerance.
+        /// </summary>
+        /// <param name="expected">Expected vector.</param>
+        /// <param name="actual">Actual vector.</param>
+        void AssertFloat3Equal(float3 expected, float3 actual) {
+            Assert.InRange(Math.Abs(expected.X - actual.X), 0f, TransformTolerance);
+            Assert.InRange(Math.Abs(expected.Y - actual.Y), 0f, TransformTolerance);
+            Assert.InRange(Math.Abs(expected.Z - actual.Z), 0f, TransformTolerance);
+        }
+
+        /// <summary>
+        /// Creates one yaw-only orientation for transform-focused tests.
+        /// </summary>
+        /// <param name="yawRadians">Yaw angle in radians.</param>
+        /// <returns>Quaternion representing the requested yaw rotation.</returns>
+        float4 CreateYawOrientation(float yawRadians) {
+            float4.CreateFromYawPitchRoll(yawRadians, 0f, 0f, out float4 orientation);
+            return orientation;
         }
     }
 }

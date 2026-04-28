@@ -10,15 +10,15 @@ namespace helengine.editor {
         /// <summary>
         /// Fixed panel height used by the dialog.
         /// </summary>
-        public const int PanelHeight = 188;
+        public const int PanelHeight = 332;
         /// <summary>
         /// Padding applied inside the dialog panel.
         /// </summary>
         public const int PanelPadding = 16;
         /// <summary>
-        /// Height used by the parent selection field.
+        /// Height reserved for the embedded hierarchy picker.
         /// </summary>
-        public const int ParentFieldHeight = 24;
+        public const int HierarchyHeight = 176;
         /// <summary>
         /// Height reserved for the footer buttons.
         /// </summary>
@@ -73,13 +73,9 @@ namespace helengine.editor {
         /// </summary>
         readonly TextComponent targetText;
         /// <summary>
-        /// Host entity for the parent selector.
+        /// Embedded hierarchy picker used to choose the destination parent.
         /// </summary>
-        readonly EditorEntity parentSelectorHost;
-        /// <summary>
-        /// Combo box used to choose the destination parent.
-        /// </summary>
-        readonly ComboBoxComponent parentSelector;
+        readonly SceneHierarchyPickerView parentHierarchyView;
         /// <summary>
         /// Host entity for validation or status text.
         /// </summary>
@@ -108,14 +104,6 @@ namespace helengine.editor {
         /// Alternative parent choices exposed to the session and tests.
         /// </summary>
         readonly List<Entity> availableParentEntities;
-        /// <summary>
-        /// Parent entities shown in the combo box, including the current parent as the default choice.
-        /// </summary>
-        readonly List<Entity> selectableParentEntities;
-        /// <summary>
-        /// Labels shown for the selectable parent entities.
-        /// </summary>
-        readonly List<string> selectableParentLabels;
         /// <summary>
         /// Render order used for panel surfaces.
         /// </summary>
@@ -153,8 +141,6 @@ namespace helengine.editor {
 
             this.font = font;
             availableParentEntities = new List<Entity>(8);
-            selectableParentEntities = new List<Entity>(8);
-            selectableParentLabels = new List<string>(8);
 
             LayerMask = 0b1000000000000000;
             InternalEntity = true;
@@ -209,16 +195,9 @@ namespace helengine.editor {
             };
             targetHost.AddComponent(targetText);
 
-            parentSelectorHost = new EditorEntity {
-                LayerMask = LayerMask,
-                Position = float3.Zero
-            };
-            panelRoot.AddChild(parentSelectorHost);
-
-            parentSelector = new ComboBoxComponent(new int2(PanelWidth - (PanelPadding * 2), ParentFieldHeight), font, Array.Empty<string>(), -1);
-            parentSelector.SetRenderOrders(textOrder, textOrder, textOrder, textOrder);
-            parentSelector.SelectionChanged += HandleParentSelectionChanged;
-            parentSelectorHost.AddComponent(parentSelector);
+            parentHierarchyView = new SceneHierarchyPickerView(font, LayerMask, panelOrder, textOrder);
+            parentHierarchyView.ParentEntitySelected += HandleParentEntitySelected;
+            panelRoot.AddChild(parentHierarchyView.Entity);
 
             statusHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -270,7 +249,7 @@ namespace helengine.editor {
         public Entity TargetEntity { get; private set; }
 
         /// <summary>
-        /// Gets the alternative parent choices available for the current target entity.
+        /// Gets the visible scene entities available to the hierarchy picker.
         /// </summary>
         public IReadOnlyList<Entity> AvailableParentEntities => availableParentEntities;
 
@@ -280,10 +259,10 @@ namespace helengine.editor {
         public Entity SelectedParentEntity { get; private set; }
 
         /// <summary>
-        /// Shows the dialog for the provided entity and candidate parent list.
+        /// Shows the dialog for the provided entity and visible scene hierarchy.
         /// </summary>
         /// <param name="targetEntity">Entity that should be reparented.</param>
-        /// <param name="parentEntities">Alternative parent choices for the entity.</param>
+        /// <param name="parentEntities">Visible scene entities that should appear in the picker.</param>
         public void Show(Entity targetEntity, IReadOnlyList<Entity> parentEntities) {
             if (targetEntity == null) {
                 throw new ArgumentNullException(nameof(targetEntity));
@@ -297,7 +276,7 @@ namespace helengine.editor {
             statusText.Text = string.Empty;
             targetText.Text = GetEntityDisplayName(targetEntity);
             CopyAvailableParentEntities(parentEntities);
-            BuildSelectableParentOptions();
+            parentHierarchyView.Show(targetEntity, parentEntities, SelectedParentEntity);
             Enabled = true;
         }
 
@@ -305,18 +284,13 @@ namespace helengine.editor {
         /// Hides the dialog and clears its input blocker and transient state.
         /// </summary>
         public void Hide() {
-            if (parentSelector != null) {
-                parentSelector.IsOpen = false;
-            }
-
+            parentHierarchyView.Hide();
             EditorInputCaptureService.ClearBlocker(this);
             statusText.Text = string.Empty;
             Enabled = false;
             TargetEntity = null;
             SelectedParentEntity = null;
             availableParentEntities.Clear();
-            selectableParentEntities.Clear();
-            selectableParentLabels.Clear();
         }
 
         /// <summary>
@@ -352,56 +326,28 @@ namespace helengine.editor {
 
             LayoutTitle();
             LayoutTarget();
-            LayoutParentSelector();
+            LayoutParentHierarchy();
             LayoutStatus();
             LayoutFooter();
         }
 
         /// <summary>
-        /// Copies the available alternative parent entities into dialog state.
+        /// Copies the visible scene entities into dialog-owned state for inspection and tests.
         /// </summary>
-        /// <param name="parentEntities">Alternative parent choices provided by the editor session.</param>
+        /// <param name="parentEntities">Visible scene entities provided by the editor session.</param>
         void CopyAvailableParentEntities(IReadOnlyList<Entity> parentEntities) {
             availableParentEntities.Clear();
-            for (int i = 0; i < parentEntities.Count; i++) {
-                availableParentEntities.Add(parentEntities[i]);
+            for (int entityIndex = 0; entityIndex < parentEntities.Count; entityIndex++) {
+                availableParentEntities.Add(parentEntities[entityIndex]);
             }
         }
 
         /// <summary>
-        /// Rebuilds the combo-box options from the current parent and alternative parent list.
+        /// Updates the selected parent entity after one valid hierarchy-row selection.
         /// </summary>
-        void BuildSelectableParentOptions() {
-            selectableParentEntities.Clear();
-            selectableParentLabels.Clear();
-
-            selectableParentEntities.Add(SelectedParentEntity);
-            selectableParentLabels.Add(GetEntityDisplayName(SelectedParentEntity));
-
-            for (int i = 0; i < availableParentEntities.Count; i++) {
-                Entity candidate = availableParentEntities[i];
-                if (ReferenceEquals(candidate, SelectedParentEntity)) {
-                    continue;
-                }
-
-                selectableParentEntities.Add(candidate);
-                selectableParentLabels.Add(GetEntityDisplayName(candidate));
-            }
-
-            parentSelector.SetItems(selectableParentLabels, 0);
-        }
-
-        /// <summary>
-        /// Updates the selected parent entity when the combo-box selection changes.
-        /// </summary>
-        /// <param name="selectedIndex">Selected combo-box index.</param>
-        /// <param name="selectedLabel">Selected combo-box label.</param>
-        void HandleParentSelectionChanged(int selectedIndex, string selectedLabel) {
-            if (selectedIndex < 0 || selectedIndex >= selectableParentEntities.Count) {
-                throw new ArgumentOutOfRangeException(nameof(selectedIndex));
-            }
-
-            SelectedParentEntity = selectableParentEntities[selectedIndex];
+        /// <param name="entity">Selected parent entity, or null for the scene root.</param>
+        void HandleParentEntitySelected(Entity entity) {
+            SelectedParentEntity = entity;
             statusText.Text = string.Empty;
         }
 
@@ -452,11 +398,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Lays out the destination parent selector.
+        /// Lays out the embedded hierarchy picker.
         /// </summary>
-        void LayoutParentSelector() {
+        void LayoutParentHierarchy() {
             int y = PanelPadding + GetLineHeight() + SectionSpacing + GetLineHeight() + SectionSpacing;
-            parentSelectorHost.Position = new float3(PanelPadding, y, 0.2f);
+            parentHierarchyView.Entity.Position = new float3(PanelPadding, y, 0.2f);
+            parentHierarchyView.UpdateLayout(PanelWidth - (PanelPadding * 2), HierarchyHeight);
         }
 
         /// <summary>

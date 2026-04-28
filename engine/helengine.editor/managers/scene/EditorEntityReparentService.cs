@@ -26,6 +26,10 @@ namespace helengine.editor {
                 return false;
             }
 
+            float3 worldPosition = entity.Position;
+            float3 worldScale = entity.Scale;
+            float4 worldOrientation = entity.Orientation;
+
             if (entity.Parent != null) {
                 entity.Parent.RemoveChild(entity);
             }
@@ -34,7 +38,55 @@ namespace helengine.editor {
                 newParent.AddChild(entity);
             }
 
+            entity.LocalPosition = ResolveLocalPosition(worldPosition, newParent);
+            entity.LocalScale = ResolveLocalScale(worldScale, newParent);
+            entity.LocalOrientation = ResolveLocalOrientation(worldOrientation, newParent);
+
             return true;
+        }
+
+        /// <summary>
+        /// Converts one preserved world position into the local space of the destination parent.
+        /// </summary>
+        /// <param name="worldPosition">World-space position to preserve.</param>
+        /// <param name="newParent">Destination parent entity, or null for the scene root.</param>
+        /// <returns>Local position that keeps the same world-space result after reparenting.</returns>
+        float3 ResolveLocalPosition(float3 worldPosition, Entity newParent) {
+            if (newParent == null) {
+                return worldPosition;
+            }
+
+            float3 worldOffset = worldPosition - newParent.Position;
+            float4 inverseParentOrientation = float4.Inverse(newParent.Orientation);
+            return float4.RotateVector(worldOffset, inverseParentOrientation);
+        }
+
+        /// <summary>
+        /// Converts one preserved world scale into the local scale required by the destination parent.
+        /// </summary>
+        /// <param name="worldScale">World-space scale to preserve.</param>
+        /// <param name="newParent">Destination parent entity, or null for the scene root.</param>
+        /// <returns>Local scale that keeps the same visible size after reparenting.</returns>
+        float3 ResolveLocalScale(float3 worldScale, Entity newParent) {
+            if (newParent == null) {
+                return worldScale;
+            }
+
+            return worldScale - newParent.Scale;
+        }
+
+        /// <summary>
+        /// Converts one preserved world orientation into the local orientation required by the destination parent.
+        /// </summary>
+        /// <param name="worldOrientation">World-space orientation to preserve.</param>
+        /// <param name="newParent">Destination parent entity, or null for the scene root.</param>
+        /// <returns>Local orientation that keeps the same world rotation after reparenting.</returns>
+        float4 ResolveLocalOrientation(float4 worldOrientation, Entity newParent) {
+            if (newParent == null) {
+                return worldOrientation;
+            }
+
+            return worldOrientation * float4.Inverse(newParent.Orientation);
         }
 
         /// <summary>

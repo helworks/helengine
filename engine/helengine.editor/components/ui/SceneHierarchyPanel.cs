@@ -237,6 +237,8 @@ namespace helengine.editor {
                     row.IsPressed = false;
                     row.IsArrowPressed = false;
                     row.IsSelected = false;
+                    row.IsSelectable = false;
+                    row.IsSceneRoot = false;
                     row.Arrow.Text = string.Empty;
                     row.ArrowHitLeft = 0;
                     row.ArrowHitWidth = 0;
@@ -250,6 +252,8 @@ namespace helengine.editor {
                 row.NodeEntity = node.Entity;
                 row.HasChildren = node.HasChildren;
                 row.IsExpanded = node.IsExpanded;
+                row.IsSelectable = true;
+                row.IsSceneRoot = false;
                 row.Entity.Position = new float3(0, i * RowHeight, 0.1f);
                 row.IsSelected = node.Entity == EditorSelectionService.SelectedEntity;
 

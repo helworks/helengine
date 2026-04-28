@@ -1039,33 +1039,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the list of valid alternative parent entities for one scene-hierarchy reparent request.
+        /// Builds the visible scene-entity hierarchy for one scene-hierarchy reparent request.
+        /// Invalid targets remain visible so the dialog can disable them instead of hiding them.
         /// </summary>
         /// <param name="targetEntity">Entity that should be reparented.</param>
-        /// <returns>Valid alternative parent entities, including the scene root when applicable.</returns>
+        /// <returns>Visible scene entities that should appear in the reparent hierarchy picker.</returns>
         List<Entity> BuildReparentCandidateEntities(Entity targetEntity) {
             if (targetEntity == null) {
                 throw new ArgumentNullException(nameof(targetEntity));
             }
 
             List<Entity> candidateParents = new List<Entity>();
-            if (targetEntity.Parent != null) {
-                candidateParents.Add(null);
-            }
-
             List<Entity> entities = helengine.Core.Instance.ObjectManager.Entities;
             for (int i = 0; i < entities.Count; i++) {
                 Entity candidate = entities[i];
                 if (!IsVisibleSceneEntity(candidate)) {
-                    continue;
-                }
-                if (ReferenceEquals(candidate, targetEntity)) {
-                    continue;
-                }
-                if (ReferenceEquals(candidate, targetEntity.Parent)) {
-                    continue;
-                }
-                if (IsSameEntityOrDescendant(candidate, targetEntity)) {
                     continue;
                 }
 
@@ -1091,25 +1079,6 @@ namespace helengine.editor {
             }
 
             return true;
-        }
-
-        /// <summary>
-        /// Returns true when the candidate matches the root entity or lies inside its descendant chain.
-        /// </summary>
-        /// <param name="candidate">Entity being evaluated as a potential parent.</param>
-        /// <param name="root">Root entity that must be excluded along with its descendants.</param>
-        /// <returns>True when the candidate is the root entity or one of its descendants.</returns>
-        bool IsSameEntityOrDescendant(Entity candidate, Entity root) {
-            Entity current = candidate;
-            while (current != null) {
-                if (ReferenceEquals(current, root)) {
-                    return true;
-                }
-
-                current = current.Parent;
-            }
-
-            return false;
         }
 
         /// <summary>
