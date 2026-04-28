@@ -18,6 +18,10 @@ namespace helengine.editor.tests {
         /// Temporary project root used by session reparent tests.
         /// </summary>
         readonly string TempProjectRootPath;
+        /// <summary>
+        /// Configurable input manager used to drive pointer-routing assertions.
+        /// </summary>
+        readonly TestInputManager Input;
 
         /// <summary>
         /// Initializes an isolated project root and core services for session reparent tests.
@@ -29,7 +33,8 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            Input = new TestInputManager();
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input);
             EditorSelectionService.ClearSelection();
             EditorSceneMutationService.Reset();
         }
@@ -100,6 +105,63 @@ namespace helengine.editor.tests {
             Assert.Same(rootA, dialog.SelectedParentEntity);
 
             ClickRowBody(validRow);
+
+            Assert.Same(rootB, dialog.SelectedParentEntity);
+        }
+
+        /// <summary>
+        /// Ensures pointer input routed through the runtime input manager can activate one valid reparent row.
+        /// </summary>
+        [Fact]
+        public void ReparentEntityDialog_WhenVisible_RoutesPointerClicksToSelectableRows() {
+            CreateUiCamera(640, 480);
+
+            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
+            EditorEntity rootA = CreateSceneEntity("Root A");
+            EditorEntity rootB = CreateSceneEntity("Root B");
+            EditorEntity child = CreateSceneEntity("Child");
+            rootA.AddChild(child);
+
+            dialog.Show(child, new Entity[] { rootA, rootB, child });
+            dialog.UpdateLayout(640, 480);
+
+            SceneHierarchyRow validRow = FindDialogRow(dialog, rootB);
+
+            ClickRowBodyThroughInput(validRow);
+
+            Assert.Same(rootB, dialog.SelectedParentEntity);
+        }
+
+        /// <summary>
+        /// Ensures the reparent hierarchy picker can select one row even when the dialog appears under a stationary cursor.
+        /// </summary>
+        [Fact]
+        public void ReparentEntityDialog_WhenShownUnderStationaryPointer_ClicksSelectableRows() {
+            CreateUiCamera(640, 480);
+
+            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
+            EditorEntity rootA = CreateSceneEntity("Root A");
+            EditorEntity rootB = CreateSceneEntity("Root B");
+            EditorEntity child = CreateSceneEntity("Child");
+            rootA.AddChild(child);
+
+            dialog.Show(child, new Entity[] { rootA, rootB, child });
+            dialog.UpdateLayout(640, 480);
+
+            SceneHierarchyRow validRow = FindDialogRow(dialog, rootB);
+            int2 pointer = GetRowBodyPointer(validRow);
+            MouseState releasedState = new MouseState(pointer.X, pointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+            MouseState pressedState = new MouseState(pointer.X, pointer.Y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+
+            dialog.Hide();
+
+            AdvanceInput(releasedState);
+
+            dialog.Show(child, new Entity[] { rootA, rootB, child });
+            dialog.UpdateLayout(640, 480);
+
+            AdvanceInput(pressedState);
+            AdvanceInput(releasedState);
 
             Assert.Same(rootB, dialog.SelectedParentEntity);
         }
@@ -277,6 +339,62 @@ namespace helengine.editor.tests {
             row.Interactable.OnCursor(point, new int2(0, 0), PointerInteraction.Hover);
             row.Interactable.OnCursor(point, new int2(0, 0), PointerInteraction.Press);
             row.Interactable.OnCursor(point, new int2(0, 0), PointerInteraction.Release);
+        }
+
+        /// <summary>
+        /// Clicks the non-arrow body region of one dialog row through the runtime input-routing path.
+        /// </summary>
+        /// <param name="row">Row to activate.</param>
+        void ClickRowBodyThroughInput(SceneHierarchyRow row) {
+            int2 pointer = GetRowBodyPointer(row);
+            int pointerX = pointer.X;
+            int pointerY = pointer.Y;
+            MouseState releasedState = new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+            MouseState pressedState = new MouseState(pointerX, pointerY, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+
+            AdvanceInput(releasedState);
+            AdvanceInput(pressedState);
+            AdvanceInput(releasedState);
+        }
+
+        /// <summary>
+        /// Returns one screen-space pointer position centered in the clickable body region of the provided row.
+        /// </summary>
+        /// <param name="row">Row whose body position should be resolved.</param>
+        /// <returns>Screen-space pointer position inside the row body.</returns>
+        int2 GetRowBodyPointer(SceneHierarchyRow row) {
+            int bodyOffsetX = Math.Max(row.ArrowHitLeft + row.ArrowHitWidth + 8, 32);
+            int pointerX = (int)Math.Round(row.Entity.Position.X) + bodyOffsetX;
+            int pointerY = (int)Math.Round(row.Entity.Position.Y) + (SceneHierarchyPanel.RowHeight / 2);
+            return new int2(pointerX, pointerY);
+        }
+
+        /// <summary>
+        /// Advances the test input state by one core frame.
+        /// </summary>
+        /// <param name="mouseState">Mouse state to expose during the frame.</param>
+        void AdvanceInput(MouseState mouseState) {
+            Input.SetMouseState(mouseState);
+            Core.Instance.Update();
+        }
+
+        /// <summary>
+        /// Creates the UI camera used to route modal hit testing.
+        /// </summary>
+        /// <param name="width">Viewport width.</param>
+        /// <param name="height">Viewport height.</param>
+        void CreateUiCamera(int width, int height) {
+            EditorEntity cameraEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.EditorUi
+            };
+
+            CameraComponent camera = new CameraComponent {
+                LayerMask = EditorLayerMasks.EditorUi,
+                CameraDrawOrder = 255,
+                Viewport = new float4(0f, 0f, width, height)
+            };
+            cameraEntity.AddComponent(camera);
         }
 
         /// <summary>

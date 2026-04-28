@@ -41,6 +41,67 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a newly visible interactable under a stationary pointer still receives one hover event.
+        /// This matches modal workflows where the mouse does not move after new UI appears.
+        /// </summary>
+        [Fact]
+        public void Update_WhenInteractableAppearsUnderStationaryPointer_RaisesHoverOnTheNewInteractable() {
+            TestInputManager input = InitializeCore();
+            CreateUiCamera(320, 240);
+
+            MouseState pointerState = new MouseState(40, 40, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+            input.SetMouseState(pointerState);
+            input.EarlyUpdate();
+            input.Update();
+
+            InteractableComponent interactable = CreateInteractableEntity(new float3(24f, 24f, 0f), new int2(80, 40), 220);
+            int hoverCount = 0;
+            interactable.CursorEvent += (pos, delta, state) => {
+                if (state == PointerInteraction.Hover) {
+                    hoverCount++;
+                }
+            };
+
+            input.SetMouseState(pointerState);
+            input.EarlyUpdate();
+            input.Update();
+
+            Assert.Same(interactable, input.Hovering);
+            Assert.Equal(1, hoverCount);
+        }
+
+        /// <summary>
+        /// Ensures the first click on a newly visible interactable under a stationary pointer raises hover before press.
+        /// This preserves click activation for controls that require both hover and press state during release.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPressTargetsNewlyVisibleInteractable_RaisesHoverBeforePress() {
+            TestInputManager input = InitializeCore();
+            CreateUiCamera(320, 240);
+
+            MouseState releasedState = new MouseState(40, 40, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+            MouseState pressedState = new MouseState(40, 40, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+            List<PointerInteraction> interactions = new List<PointerInteraction>();
+
+            input.SetMouseState(releasedState);
+            input.EarlyUpdate();
+            input.Update();
+
+            InteractableComponent interactable = CreateInteractableEntity(new float3(24f, 24f, 0f), new int2(80, 40), 220);
+            interactable.CursorEvent += (pos, delta, state) => interactions.Add(state);
+
+            input.SetMouseState(pressedState);
+            input.EarlyUpdate();
+            input.Update();
+
+            input.SetMouseState(releasedState);
+            input.EarlyUpdate();
+            input.Update();
+
+            Assert.Equal(new[] { PointerInteraction.Hover, PointerInteraction.Press, PointerInteraction.Release }, interactions);
+        }
+
+        /// <summary>
         /// Initializes a core instance with the minimum services required for input-routing tests.
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>

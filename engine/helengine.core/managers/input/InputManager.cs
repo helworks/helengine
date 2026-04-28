@@ -361,7 +361,8 @@ public abstract class InputManager {
             }
 
             // Handle hover/leave transitions and press
-            if (hit != Hovering) {
+            bool hoveringChanged = hit != Hovering;
+            if (hoveringChanged) {
                 if (Hovering != null) {
                     // Compute relative coords for the previous hovered for a clean leave event
                     float2 prevLocal = new float2(mouseState.X, mouseState.Y);
@@ -392,12 +393,16 @@ public abstract class InputManager {
 
                 // Click started on this interactable
                 if (interaction == PointerInteraction.Press) {
+                    if (hoveringChanged) {
+                        Hovering.OnCursor(rel, new int2(deltaX, deltaY), PointerInteraction.Hover);
+                    }
+
                     Highlighted = Hovering;
                     capturedCamera = topCamera;
                     Hovering.OnCursor(rel, new int2(deltaX, deltaY), PointerInteraction.Press);
                 } else {
-                    // Hover movement
-                    if (deltaX != 0 || deltaY != 0) {
+                    // Entering a newly visible interactable must also raise hover even without pointer movement.
+                    if (hoveringChanged || deltaX != 0 || deltaY != 0) {
                         Hovering.OnCursor(rel, new int2(deltaX, deltaY), PointerInteraction.Hover);
                     }
                 }
