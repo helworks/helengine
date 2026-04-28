@@ -28,6 +28,10 @@ namespace helengine.editor.iconbuilder {
         /// </summary>
         static readonly Color SnapArrowColor = Color.FromArgb(255, 245, 247, 251);
         /// <summary>
+        /// Neutral foreground color used by the generated grid icon.
+        /// </summary>
+        static readonly Color GridLineColor = Color.FromArgb(255, 235, 239, 246);
+        /// <summary>
         /// Body color used by the generated magnet icon.
         /// </summary>
         static readonly Color MagnetBodyColor = Color.FromArgb(255, 241, 91, 91);
@@ -67,6 +71,7 @@ namespace helengine.editor.iconbuilder {
             BuildTransformIcon(Path.Combine(outputDirectory, "transform.png"), iconSize);
             BuildRotateIcon(Path.Combine(outputDirectory, "rotate.png"), iconSize);
             BuildScaleIcon(Path.Combine(outputDirectory, "scale.png"), iconSize);
+            BuildGridIcon(Path.Combine(outputDirectory, "grid.png"), iconSize);
             BuildMagnetIcon(Path.Combine(outputDirectory, "magnet.png"), iconSize);
             BuildCtrlKeyIcon(Path.Combine(outputDirectory, "key-ctrl.png"), iconSize);
             BuildShiftKeyIcon(Path.Combine(outputDirectory, "key-shift.png"), iconSize);
@@ -164,6 +169,49 @@ namespace helengine.editor.iconbuilder {
             FillSquare(graphics, yEnd, boxSize, YAxisColor);
             FillSquare(graphics, zEnd, boxSize, ZAxisColor);
             FillCircle(graphics, center, jointRadius, NeutralColor);
+
+            SaveBitmap(bitmap, filePath);
+        }
+
+        /// <summary>
+        /// Builds the viewport grid icon using a receding ground-plane grid.
+        /// </summary>
+        /// <param name="filePath">Destination file path.</param>
+        /// <param name="iconSize">Square icon size in pixels.</param>
+        void BuildGridIcon(string filePath, int iconSize) {
+            using Bitmap bitmap = CreateBitmap(iconSize);
+            using Graphics graphics = CreateGraphics(bitmap);
+            float strokeWidth = Math.Max(2f, (float)(iconSize * 0.06));
+            float halfStroke = strokeWidth * 0.5f;
+            float left = (float)(iconSize * 0.16);
+            float right = (float)(iconSize * 0.84);
+            float top = (float)(iconSize * 0.24);
+            float bottom = (float)(iconSize * 0.84);
+            float centerX = iconSize * 0.5f;
+            float horizonY = (float)(iconSize * 0.38);
+
+            using Pen gridPen = new Pen(GridLineColor, strokeWidth) {
+                StartCap = LineCap.Round,
+                EndCap = LineCap.Round,
+                LineJoin = LineJoin.Round
+            };
+
+            graphics.DrawLine(gridPen, left, bottom - halfStroke, right, bottom - halfStroke);
+            graphics.DrawLine(gridPen, centerX, top, centerX, bottom);
+            graphics.DrawLine(gridPen, left, bottom, centerX, horizonY);
+            graphics.DrawLine(gridPen, right, bottom, centerX, horizonY);
+            graphics.DrawLine(
+                gridPen,
+                (float)(iconSize * 0.28),
+                (float)(iconSize * 0.62),
+                (float)(iconSize * 0.72),
+                (float)(iconSize * 0.62));
+            graphics.DrawLine(
+                gridPen,
+                (float)(iconSize * 0.36),
+                (float)(iconSize * 0.50),
+                (float)(iconSize * 0.64),
+                (float)(iconSize * 0.50));
 
             SaveBitmap(bitmap, filePath);
         }

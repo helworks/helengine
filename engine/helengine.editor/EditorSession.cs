@@ -255,7 +255,7 @@ namespace helengine.editor {
             sceneCameraEntity.InternalEntity = true;
             sceneCameraEntity.Position = new float3(0, 3, -8);
             sceneCameraComponent = new CameraComponent();
-            sceneCameraComponent.LayerMask = EditorLayerMasks.SceneObjects;
+            sceneCameraComponent.LayerMask = EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneGrid;
             sceneCameraComponent.CameraDrawOrder = SceneCameraDrawOrder;
             sceneCameraComponent.ClearSettings = new CameraClearSettings(true, new float4(0.39215687f, 0.58431375f, 0.92941177f, 1f), true, 1.0f, false, 0);
             sceneCameraEntity.AddComponent(sceneCameraComponent);

@@ -95,6 +95,20 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the viewport declares dedicated state used by the grid toolbar toggle.
+        /// </summary>
+        [Fact]
+        public void EditorViewport_DefinesDedicatedGridToolbarMembers() {
+            FieldInfo focusTargetField = typeof(EditorViewport).GetField("GridButtonFocusTarget", BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo backgroundField = typeof(EditorViewport).GetField("GridButtonBackground", BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo interactableField = typeof(EditorViewport).GetField("GridButtonInteractable", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(focusTargetField);
+            Assert.NotNull(backgroundField);
+            Assert.NotNull(interactableField);
+        }
+
+        /// <summary>
         /// Ensures clicking the viewport content activates the viewport dock and focuses the content shortcut target.
         /// </summary>
         [Fact]
@@ -234,6 +248,7 @@ namespace helengine.editor.tests {
         /// <returns>Toolbar icon set backed by deterministic test textures.</returns>
         EditorViewportToolbarIconSet CreateToolbarIcons() {
             return new EditorViewportToolbarIconSet(
+                CreateIconTexture(),
                 CreateIconTexture(),
                 CreateIconTexture(),
                 CreateIconTexture(),

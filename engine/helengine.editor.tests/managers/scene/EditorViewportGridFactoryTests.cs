@@ -1,3 +1,4 @@
+using System.Reflection;
 using helengine.editor.tests.testing;
 using Xunit;
 
@@ -6,6 +7,18 @@ namespace helengine.editor.tests.managers.scene {
     /// Verifies the internal viewport grid created for empty editor scenes.
     /// </summary>
     public class EditorViewportGridFactoryTests {
+        /// <summary>
+        /// Ensures the editor layer-mask definitions reserve one dedicated layer for the viewport grid.
+        /// </summary>
+        [Fact]
+        public void EditorLayerMasks_DefinesSceneGridLayer() {
+            FieldInfo field = typeof(EditorLayerMasks).GetField("SceneGrid", BindingFlags.Public | BindingFlags.Static);
+
+            Assert.NotNull(field);
+            Assert.Equal(typeof(ushort), field.FieldType);
+            Assert.Equal((ushort)0b0001000000000000, Assert.IsType<ushort>(field.GetValue(null)));
+        }
+
         /// <summary>
         /// Ensures the viewport grid is created as an internal scene entity with one mesh component.
         /// </summary>
@@ -19,7 +32,7 @@ namespace helengine.editor.tests.managers.scene {
             MeshComponent meshComponent = Assert.IsType<MeshComponent>(Assert.Single(gridEntity.Components, component => component is MeshComponent));
             Assert.Equal("Viewport Grid", gridEntity.Name);
             Assert.True(gridEntity.InternalEntity);
-            Assert.Equal(EditorLayerMasks.SceneObjects, gridEntity.LayerMask);
+            Assert.Equal(EditorLayerMasks.SceneGrid, gridEntity.LayerMask);
             Assert.Equal(new float3(0f, -0.001f, 0f), gridEntity.LocalPosition);
             Assert.Single(renderManager3D.BuiltModelAssets);
             Assert.Single(renderManager3D.BuiltMaterialAssets);

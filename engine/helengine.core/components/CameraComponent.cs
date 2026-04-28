@@ -9,6 +9,11 @@ namespace helengine {
         byte cameraDrawOrder;
 
         /// <summary>
+        /// Cached layer mask used to decide which drawables are registered to this camera.
+        /// </summary>
+        ushort layerMask;
+
+        /// <summary>
         /// 2D render list for this camera.
         /// </summary>
         RenderList2D renderList2D;
@@ -75,7 +80,20 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the layer mask this camera renders.
         /// </summary>
-        public ushort LayerMask { get; set; }
+        public ushort LayerMask {
+            get { return layerMask; }
+            set {
+                if (layerMask != value) {
+                    if (Parent != null && Parent.IsHierarchyEnabled) {
+                        Core.Instance.ObjectManager.RemoveCamera(this);
+                        layerMask = value;
+                        Core.Instance.ObjectManager.RegisterCamera(this);
+                    } else {
+                        layerMask = value;
+                    }
+                }
+            }
+        }
 
         /// <summary>
         /// Allocates render lists using the core initialization options.

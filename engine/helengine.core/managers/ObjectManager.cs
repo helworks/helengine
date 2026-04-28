@@ -317,7 +317,13 @@ public class ObjectManager {
     /// </summary>
     /// <param name="camera">Camera to remove.</param>
     public virtual void RemoveCamera(ICamera camera) {
+        if (camera == null) {
+            return;
+        }
+
         Cameras.Remove(camera);
+        camera.RenderQueue3D.Clear();
+        camera.RenderQueue2D.Clear();
     }
 
     /// <summary>

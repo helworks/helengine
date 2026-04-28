@@ -479,6 +479,7 @@ namespace helengine.editor.tests {
                 CreateIconTexture(),
                 CreateIconTexture(),
                 CreateIconTexture(),
+                CreateIconTexture(),
                 CreateIconTexture());
         }
 

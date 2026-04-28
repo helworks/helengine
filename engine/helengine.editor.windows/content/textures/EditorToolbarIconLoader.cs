@@ -21,6 +21,10 @@ namespace helengine.editor {
         /// </summary>
         static readonly string ScaleIconPath = Path.Combine("content", "icons", "toolbar", "scale.png");
         /// <summary>
+        /// Root-relative path for the viewport grid toolbar icon.
+        /// </summary>
+        static readonly string GridIconPath = Path.Combine("content", "icons", "toolbar", "grid.png");
+        /// <summary>
         /// Root-relative path for the snap increase toolbar icon.
         /// </summary>
         static readonly string SnapIncreaseIconPath = Path.Combine("content", "icons", "toolbar", "snap-increase.png");
@@ -58,6 +62,7 @@ namespace helengine.editor {
             RuntimeTexture translateIcon = LoadTexture(content, applicationRootPath, TranslateIconPath);
             RuntimeTexture rotateIcon = LoadTexture(content, applicationRootPath, RotateIconPath);
             RuntimeTexture scaleIcon = LoadTexture(content, applicationRootPath, ScaleIconPath);
+            RuntimeTexture gridIcon = LoadTexture(content, applicationRootPath, GridIconPath);
             RuntimeTexture snapIncreaseIcon = LoadTexture(content, applicationRootPath, SnapIncreaseIconPath);
             RuntimeTexture snapDecreaseIcon = LoadTexture(content, applicationRootPath, SnapDecreaseIconPath);
             RuntimeTexture magnetIcon = LoadTexture(content, applicationRootPath, MagnetIconPath);
@@ -67,6 +72,7 @@ namespace helengine.editor {
                 translateIcon,
                 rotateIcon,
                 scaleIcon,
+                gridIcon,
                 snapIncreaseIcon,
                 snapDecreaseIcon,
                 magnetIcon,

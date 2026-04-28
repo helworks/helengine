@@ -102,6 +102,36 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures pointer movement over an inactive window still refreshes hover state even though clicks remain suppressed.
+        /// This matches editor controls such as close buttons and menu items that should react visually before activation.
+        /// </summary>
+        [Fact]
+        public void Update_WhenWindowIsInactiveAndPointerMovesOverInteractable_RaisesHover() {
+            TestInputManager input = InitializeCore();
+            CreateUiCamera(320, 240);
+            input.TestMouse.IsForegroundActive = false;
+
+            InteractableComponent interactable = CreateInteractableEntity(new float3(24f, 24f, 0f), new int2(80, 40), 220);
+            int hoverCount = 0;
+            interactable.CursorEvent += (pos, delta, state) => {
+                if (state == PointerInteraction.Hover) {
+                    hoverCount++;
+                }
+            };
+
+            input.SetMouseState(new MouseState(4, 4, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            input.EarlyUpdate();
+            input.Update();
+
+            input.SetMouseState(new MouseState(40, 40, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            input.EarlyUpdate();
+            input.Update();
+
+            Assert.Same(interactable, input.Hovering);
+            Assert.Equal(1, hoverCount);
+        }
+
+        /// <summary>
         /// Initializes a core instance with the minimum services required for input-routing tests.
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>

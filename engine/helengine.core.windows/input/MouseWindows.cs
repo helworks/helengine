@@ -91,11 +91,6 @@ namespace helengine {
 
             mouseState.ScrollWheelValue = scrollWheelAccumulator;
 
-            if (!IsWindowForegroundActive()) {
-                ReleaseAllButtons();
-                return mouseState;
-            }
-
             Point pos;
             GetCursorPos(out pos);
 
@@ -103,6 +98,11 @@ namespace helengine {
 
             mouseState.X = pos.X;
             mouseState.Y = pos.Y;
+
+            if (!IsWindowForegroundActive()) {
+                ReleaseAllButtons();
+                return mouseState;
+            }
 
             var buttons = Control.MouseButtons;
             mouseState.LeftButton = (buttons & MouseButtons.Left) == MouseButtons.Left ? ButtonState.Pressed : ButtonState.Released;

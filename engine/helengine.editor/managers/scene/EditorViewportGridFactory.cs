@@ -36,7 +36,7 @@ namespace helengine.editor {
             var gridEntity = new EditorEntity {
                 Name = GridEntityName,
                 InternalEntity = true,
-                LayerMask = EditorLayerMasks.SceneObjects,
+                LayerMask = EditorLayerMasks.SceneGrid,
                 LocalPosition = new float3(0f, GridVerticalOffset, 0f),
                 LocalScale = float3.One,
                 LocalOrientation = gridOrientation

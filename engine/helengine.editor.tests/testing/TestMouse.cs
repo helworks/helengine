@@ -11,11 +11,27 @@ namespace helengine.editor.tests.testing {
         public MouseState State { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether the owning window is currently foreground-active.
+        /// </summary>
+        public bool IsForegroundActive { get; set; } = true;
+
+        /// <summary>
         /// Returns the configured mouse state for the current test frame.
         /// </summary>
         /// <returns>Mouse state supplied by the test.</returns>
         public override MouseState GetState() {
-            return State;
+            MouseState currentState = State;
+            if (!IsForegroundActive) {
+                MouseState inactiveState = currentState;
+                inactiveState.LeftButton = ButtonState.Released;
+                inactiveState.MiddleButton = ButtonState.Released;
+                inactiveState.RightButton = ButtonState.Released;
+                inactiveState.XButton1 = ButtonState.Released;
+                inactiveState.XButton2 = ButtonState.Released;
+                return inactiveState;
+            }
+
+            return currentState;
         }
 
         /// <summary>

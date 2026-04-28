@@ -66,7 +66,7 @@ namespace helengine.editor.tests {
             method.Invoke(session, Array.Empty<object>());
 
             EditorEntity gridEntity = Assert.Single(GetInternalSceneEntities(Core.Instance.ObjectManager), entity => string.Equals(entity.Name, "Viewport Grid", StringComparison.Ordinal));
-            Assert.Equal(EditorLayerMasks.SceneObjects, gridEntity.LayerMask);
+            Assert.Equal(EditorLayerMasks.SceneGrid, gridEntity.LayerMask);
         }
 
         /// <summary>
@@ -105,7 +105,7 @@ namespace helengine.editor.tests {
             for (int i = 0; i < objectManager.Entities.Count; i++) {
                 if (objectManager.Entities[i] is EditorEntity editorEntity &&
                     editorEntity.InternalEntity &&
-                    editorEntity.LayerMask == EditorLayerMasks.SceneObjects) {
+                    (editorEntity.LayerMask == EditorLayerMasks.SceneObjects || editorEntity.LayerMask == EditorLayerMasks.SceneGrid)) {
                     entities.Add(editorEntity);
                 }
             }

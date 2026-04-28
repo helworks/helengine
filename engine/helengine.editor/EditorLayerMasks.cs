@@ -14,6 +14,11 @@ namespace helengine.editor {
         public const ushort SceneObjects = 0b0100000000000000;
 
         /// <summary>
+        /// Layer mask used by the editor-only viewport grid.
+        /// </summary>
+        public const ushort SceneGrid = 0b0001000000000000;
+
+        /// <summary>
         /// Layer mask used by in-scene editor gizmos.
         /// </summary>
         public const ushort SceneGizmo = 0b0010000000000000;
