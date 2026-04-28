@@ -1,4 +1,5 @@
 using helengine.editor.assimp;
+using Assimp;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -50,6 +51,24 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures large converted scenes switch to 32-bit indices instead of failing at the 16-bit limit.
+        /// </summary>
+        [Fact]
+        public void Convert_WhenSceneExceeds16BitVertexLimit_Uses32BitIndices() {
+            Scene scene = CreateLargeTriangleScene(65538);
+            AssimpSceneModelAssetConverter converter = new AssimpSceneModelAssetConverter();
+            ModelAsset asset = converter.Convert(scene);
+
+            Assert.NotNull(asset);
+            Assert.Equal(65538, asset.Positions.Length);
+            Assert.Null(asset.Indices16);
+            Assert.NotNull(asset.Indices32);
+            Assert.Equal(65538, asset.Indices32.Length);
+            Assert.Equal(0u, asset.Indices32[0]);
+            Assert.Equal(65537u, asset.Indices32[65537]);
+        }
+
+        /// <summary>
         /// Writes a minimal OBJ fixture with positions, texture coordinates, normals, and one face.
         /// </summary>
         /// <param name="fileName">Fixture file name.</param>
@@ -73,6 +92,37 @@ namespace helengine.editor.tests {
                     "vn 0 0 1",
                     "f 1/1/1 2/2/1 3/3/1"));
             return sourcePath;
+        }
+
+        /// <summary>
+        /// Creates a large managed Assimp scene whose flattened vertex count exceeds the 16-bit index range.
+        /// </summary>
+        /// <param name="vertexCount">Vertex count to emit.</param>
+        /// <returns>Managed scene containing one large triangle mesh.</returns>
+        Scene CreateLargeTriangleScene(int vertexCount) {
+            if (vertexCount <= ushort.MaxValue + 1) {
+                throw new ArgumentOutOfRangeException(nameof(vertexCount), "Vertex count must exceed the 16-bit index limit.");
+            } else if (vertexCount % 3 != 0) {
+                throw new ArgumentOutOfRangeException(nameof(vertexCount), "Vertex count must be divisible by three.");
+            }
+
+            Mesh mesh = new Mesh("large-mesh", PrimitiveType.Triangle);
+            mesh.TextureCoordinateChannels[0] = new List<System.Numerics.Vector3>(vertexCount);
+            mesh.UVComponentCount[0] = 2;
+
+            for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++) {
+                mesh.Vertices.Add(new System.Numerics.Vector3(vertexIndex, 0f, 0f));
+                mesh.Normals.Add(new System.Numerics.Vector3(0f, 0f, 1f));
+                mesh.TextureCoordinateChannels[0].Add(new System.Numerics.Vector3(0f, 0f, 0f));
+            }
+
+            for (int vertexIndex = 1; vertexIndex <= vertexCount; vertexIndex += 3) {
+                mesh.Faces.Add(new Face(new[] { vertexIndex - 1, vertexIndex, vertexIndex + 1 }));
+            }
+
+            Scene scene = new Scene();
+            scene.Meshes.Add(mesh);
+            return scene;
         }
     }
 }

@@ -197,7 +197,7 @@ namespace helengine.editor.tests {
         public void AssetSerializer_MaterialAssetWithUnsupportedVersion_Throws() {
             MaterialAsset asset = CreateMaterialAsset();
             byte[] data = AssetSerializer.SerializeToBytes(asset);
-            data[5] = 2;
+            data[5] = (byte)(EditorAssetBinarySerializer.CurrentVersion + 1);
 
             Assert.Throws<InvalidOperationException>(() => AssetSerializer.DeserializeFromBytes(data));
         }
@@ -225,6 +225,26 @@ namespace helengine.editor.tests {
             Assert.Equal(asset.Normals, deserialized.Normals);
             Assert.Equal(asset.TexCoords, deserialized.TexCoords);
             Assert.Equal(asset.Indices16, deserialized.Indices16);
+        }
+
+        /// <summary>
+        /// Ensures 32-bit indexed model assets round-trip through the HELE asset serializer.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_ModelAssetWith32BitIndices_RoundTrips() {
+            ModelAsset asset = CreateModelAssetWith32BitIndices();
+
+            byte[] data = AssetSerializer.SerializeToBytes(asset);
+            ModelAsset deserialized = (ModelAsset)AssetSerializer.DeserializeFromBytes(data);
+            EngineBinaryHeader header = ReadHeader(data);
+
+            Assert.Equal(EditorAssetBinarySerializer.CurrentVersion, header.Version);
+            Assert.Equal(asset.Id, deserialized.Id);
+            Assert.Equal(asset.Positions, deserialized.Positions);
+            Assert.Equal(asset.Normals, deserialized.Normals);
+            Assert.Equal(asset.TexCoords, deserialized.TexCoords);
+            Assert.Null(deserialized.Indices16);
+            Assert.Equal(asset.Indices32, deserialized.Indices32);
         }
 
         /// <summary>
@@ -476,6 +496,32 @@ namespace helengine.editor.tests {
                     new float2(1f, 1f)
                 },
                 Indices16 = new ushort[] { 0, 1, 0 }
+            };
+        }
+
+        /// <summary>
+        /// Creates a representative 32-bit indexed model asset for serializer testing.
+        /// </summary>
+        /// <returns>Model asset with sample 32-bit mesh data.</returns>
+        static ModelAsset CreateModelAssetWith32BitIndices() {
+            return new ModelAsset {
+                Id = "model/test32",
+                Positions = new[] {
+                    new float3(1f, 2f, 3f),
+                    new float3(4f, 5f, 6f),
+                    new float3(7f, 8f, 9f)
+                },
+                Normals = new[] {
+                    new float3(0f, 1f, 0f),
+                    new float3(0f, 0f, 1f),
+                    new float3(1f, 0f, 0f)
+                },
+                TexCoords = new[] {
+                    new float2(0f, 0f),
+                    new float2(1f, 1f),
+                    new float2(2f, 2f)
+                },
+                Indices32 = new uint[] { 0u, 1u, 2u }
             };
         }
 

@@ -40,6 +40,16 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Writes a 32-bit unsigned integer in big-endian order.
+        /// </summary>
+        /// <param name="value">Value to write.</param>
+        public override void WriteUInt32(uint value) {
+            Span<byte> buffer = stackalloc byte[sizeof(uint)];
+            BinaryPrimitives.WriteUInt32BigEndian(buffer, value);
+            Stream.Write(buffer);
+        }
+
+        /// <summary>
         /// Writes a 64-bit signed integer in big-endian order.
         /// </summary>
         /// <param name="value">Value to write.</param>

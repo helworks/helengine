@@ -373,6 +373,7 @@ namespace helengine.directx11 {
         public override RuntimeModel BuildModelFromRaw(ModelAsset data) {
             var model = new DirectX11ModelResource();
             var vertices = new VertexPositionNormalUV[data.Positions.Length];
+            ModelAssetIndexData indexData = ModelAssetIndexData.Resolve(data);
 
             for (int i = 0; i < data.Positions.Length; i++) {
                 float3 pos = data.Positions[i];
@@ -384,9 +385,14 @@ namespace helengine.directx11 {
             model.VertexBuffer = Buffer.Create(Device, BindFlags.VertexBuffer, vertices);
             model.VertexCount = vertices.Length;
 
-            if (data.Indices16 != null && data.Indices16.Length > 0) {
-                model.IndexCount = data.Indices16.Length;
-                model.IndexBuffer = Buffer.Create(Device, BindFlags.IndexBuffer, data.Indices16);
+            if (indexData.IndexCount > 0) {
+                model.IndexCount = indexData.IndexCount;
+                model.Uses32BitIndices = indexData.Uses32BitIndices;
+                if (indexData.Uses32BitIndices) {
+                    model.IndexBuffer = Buffer.Create(Device, BindFlags.IndexBuffer, indexData.Indices32);
+                } else {
+                    model.IndexBuffer = Buffer.Create(Device, BindFlags.IndexBuffer, indexData.Indices16);
+                }
             }
 
             return model;
@@ -720,7 +726,8 @@ namespace helengine.directx11 {
 
             context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, Utilities.SizeOf<VertexPositionNormalUV>(), 0));
             if (data.IndexBuffer != null && data.IndexCount > 0) {
-                context.InputAssembler.SetIndexBuffer(data.IndexBuffer, Format.R16_UInt, 0);
+                Format indexFormat = data.Uses32BitIndices ? Format.R32_UInt : Format.R16_UInt;
+                context.InputAssembler.SetIndexBuffer(data.IndexBuffer, indexFormat, 0);
             }
 
             float4 orientation = parent.Orientation;

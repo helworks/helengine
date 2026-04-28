@@ -22,5 +22,10 @@ namespace helengine {
         /// Index buffer using 16-bit indices.
         /// </summary>
         public ushort[] Indices16;
+
+        /// <summary>
+        /// Index buffer using 32-bit indices.
+        /// </summary>
+        public uint[] Indices32;
     }
 }

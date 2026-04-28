@@ -84,6 +84,12 @@ namespace helengine {
         public abstract int ReadInt32();
 
         /// <summary>
+        /// Reads a 32-bit unsigned integer using the reader's endianness.
+        /// </summary>
+        /// <returns>Decoded unsigned integer.</returns>
+        public abstract uint ReadUInt32();
+
+        /// <summary>
         /// Reads a 64-bit signed integer using the reader's endianness.
         /// </summary>
         /// <returns>Decoded signed integer.</returns>

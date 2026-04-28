@@ -22,5 +22,10 @@ namespace helengine.vulkan {
         /// Gets or sets the index count for the model.
         /// </summary>
         public int IndexCount { get; internal set; }
+
+        /// <summary>
+        /// Gets or sets whether the index buffer uses 32-bit indices.
+        /// </summary>
+        public bool Uses32BitIndices { get; internal set; }
     }
 }

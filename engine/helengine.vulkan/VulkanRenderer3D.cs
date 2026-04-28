@@ -175,6 +175,7 @@ namespace helengine.vulkan {
                 throw new ArgumentException("Model data must include matching texture coordinates.", nameof(data));
             }
 
+            ModelAssetIndexData indexData = ModelAssetIndexData.Resolve(data);
             var vertices = new VulkanVertex3D[data.Positions.Length];
             for (int i = 0; i < data.Positions.Length; i++) {
                 float3 position = data.Positions[i];
@@ -193,22 +194,31 @@ namespace helengine.vulkan {
 
             VulkanGpuBuffer indexBuffer = null;
             int indexCount = 0;
-            if (data.Indices16 != null && data.Indices16.Length > 0) {
-                indexCount = data.Indices16.Length;
-                ulong indexBufferSize = (ulong)(data.Indices16.Length * sizeof(ushort));
+            bool uses32BitIndices = false;
+            if (indexData.IndexCount > 0) {
+                indexCount = indexData.IndexCount;
+                uses32BitIndices = indexData.Uses32BitIndices;
+                ulong indexBufferSize = uses32BitIndices
+                    ? (ulong)(indexData.IndexCount * sizeof(uint))
+                    : (ulong)(indexData.IndexCount * sizeof(ushort));
                 indexBuffer = new VulkanGpuBuffer(
                     context,
                     indexBufferSize,
                     BufferUsageFlags.BufferUsageIndexBufferBit,
                     MemoryPropertyFlags.MemoryPropertyHostVisibleBit | MemoryPropertyFlags.MemoryPropertyHostCoherentBit);
-                indexBuffer.Update(data.Indices16);
+                if (uses32BitIndices) {
+                    indexBuffer.Update(indexData.Indices32);
+                } else {
+                    indexBuffer.Update(indexData.Indices16);
+                }
             }
 
             var model = new VulkanModelResource {
                 VertexBuffer = vertexBuffer,
                 IndexBuffer = indexBuffer,
                 VertexCount = vertices.Length,
-                IndexCount = indexCount
+                IndexCount = indexCount,
+                Uses32BitIndices = uses32BitIndices
             };
 
             return model;
@@ -418,7 +428,8 @@ namespace helengine.vulkan {
             context.Api.CmdBindVertexBuffers(activeCommandBuffer, 0, 1, vertexBuffers, vertexOffsets);
 
             if (model.IndexBuffer != null && model.IndexCount > 0) {
-                context.Api.CmdBindIndexBuffer(activeCommandBuffer, model.IndexBuffer.Handle, 0, IndexType.Uint16);
+                IndexType indexType = model.Uses32BitIndices ? IndexType.Uint32 : IndexType.Uint16;
+                context.Api.CmdBindIndexBuffer(activeCommandBuffer, model.IndexBuffer.Handle, 0, indexType);
             }
 
             uint dynamicOffset = ReserveTransformSlot();

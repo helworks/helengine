@@ -16,7 +16,7 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 1;
+        public const byte CurrentVersion = 2;
 
         /// <summary>
         /// Payload endianness used by the current editor asset format.
@@ -208,6 +208,7 @@ namespace helengine {
             writer.WriteArray(asset.Normals, WriteFloat3);
             writer.WriteArray(asset.TexCoords, WriteFloat2);
             writer.WriteArray(asset.Indices16, WriteUInt16Value);
+            writer.WriteArray(asset.Indices32, WriteUInt32Value);
         }
 
         /// <summary>
@@ -221,7 +222,8 @@ namespace helengine {
                 Positions = reader.ReadArray(ReadFloat3),
                 Normals = reader.ReadArray(ReadFloat3),
                 TexCoords = reader.ReadArray(ReadFloat2),
-                Indices16 = reader.ReadArray(ReadUInt16Value)
+                Indices16 = reader.ReadArray(ReadUInt16Value),
+                Indices32 = reader.ReadArray(ReadUInt32Value)
             };
         }
 
@@ -635,12 +637,30 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Writes a 32-bit unsigned integer array element.
+        /// </summary>
+        /// <param name="writer">Destination writer.</param>
+        /// <param name="value">Value to serialize.</param>
+        static void WriteUInt32Value(EngineBinaryWriter writer, uint value) {
+            writer.WriteUInt32(value);
+        }
+
+        /// <summary>
         /// Reads one unsigned integer value from an array payload.
         /// </summary>
         /// <param name="reader">Source reader positioned at the value.</param>
         /// <returns>Deserialized unsigned integer.</returns>
         static ushort ReadUInt16Value(EngineBinaryReader reader) {
             return reader.ReadUInt16();
+        }
+
+        /// <summary>
+        /// Reads a 32-bit unsigned integer array element.
+        /// </summary>
+        /// <param name="reader">Source reader.</param>
+        /// <returns>Deserialized unsigned integer.</returns>
+        static uint ReadUInt32Value(EngineBinaryReader reader) {
+            return reader.ReadUInt32();
         }
 
         /// <summary>

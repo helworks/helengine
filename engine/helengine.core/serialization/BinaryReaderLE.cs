@@ -40,6 +40,16 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Reads a 32-bit unsigned integer in little-endian order.
+        /// </summary>
+        /// <returns>Decoded unsigned integer.</returns>
+        public override uint ReadUInt32() {
+            Span<byte> buffer = stackalloc byte[sizeof(uint)];
+            ReadRequiredBytes(buffer);
+            return BinaryPrimitives.ReadUInt32LittleEndian(buffer);
+        }
+
+        /// <summary>
         /// Reads a 64-bit signed integer in little-endian order.
         /// </summary>
         /// <returns>Decoded signed integer.</returns>

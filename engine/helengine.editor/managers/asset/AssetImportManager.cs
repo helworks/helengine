@@ -852,6 +852,11 @@ namespace helengine.editor {
             }
 
             asset = null;
+            if (IsStaleEditorAssetCache(outputPath)) {
+                DeleteCacheFile(outputPath);
+                return false;
+            }
+
             Asset cachedAsset;
             if (!TryLoadCachedAsset(outputPath, "ModelAsset", out cachedAsset)) {
                 return false;
@@ -863,6 +868,27 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Model cache file '{outputPath}' did not contain a ModelAsset payload.");
+        }
+
+        /// <summary>
+        /// Determines whether a cached asset file uses an older editor asset payload version.
+        /// </summary>
+        /// <param name="outputPath">Absolute path to the cached asset file.</param>
+        /// <returns>True when the cache file should be regenerated using the current serializer version.</returns>
+        bool IsStaleEditorAssetCache(string outputPath) {
+            using (FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+                return header.FormatId == EditorAssetBinarySerializer.FormatId &&
+                    header.Version != EditorAssetBinarySerializer.CurrentVersion;
+            }
+        }
+
+        /// <summary>
+        /// Deletes a cached asset file so it can be regenerated from source content.
+        /// </summary>
+        /// <param name="outputPath">Absolute path to the cached asset file.</param>
+        void DeleteCacheFile(string outputPath) {
+            File.Delete(outputPath);
         }
 
         /// <summary>

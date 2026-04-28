@@ -79,6 +79,12 @@ namespace helengine {
         public abstract void WriteInt32(int value);
 
         /// <summary>
+        /// Writes a 32-bit unsigned integer using the writer's endianness.
+        /// </summary>
+        /// <param name="value">Value to write.</param>
+        public abstract void WriteUInt32(uint value);
+
+        /// <summary>
         /// Writes a 64-bit signed integer using the writer's endianness.
         /// </summary>
         /// <param name="value">Value to write.</param>

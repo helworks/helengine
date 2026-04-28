@@ -138,6 +138,39 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures stale cached model assets with an older payload version are deleted and regenerated.
+        /// </summary>
+        [Fact]
+        public void TryLoadModelAsset_WhenCacheUsesUnsupportedVersion_ReimportsModel() {
+            string sourcePath = WriteSourceModel("stale-cache.obj");
+            TestModelImporter modelImporter = new TestModelImporter();
+            AssetImportManager manager = CreateManager(modelImporter);
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            string outputPath = Path.Combine(CacheRootPath, settings.AssetId);
+
+            using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, new ModelAsset {
+                    Id = settings.AssetId,
+                    Positions = new[] { float3.Zero },
+                    Normals = new[] { new float3(0f, 1f, 0f) },
+                    TexCoords = new[] { new float2(0f, 0f) },
+                    Indices16 = new ushort[] { 0 }
+                });
+            }
+
+            byte[] staleCache = File.ReadAllBytes(outputPath);
+            staleCache[5] = 0;
+            File.WriteAllBytes(outputPath, staleCache);
+
+            bool loaded = manager.TryLoadModelAsset(sourcePath, out ModelAsset asset);
+
+            Assert.True(loaded);
+            Assert.NotNull(asset);
+            Assert.Equal(1, modelImporter.ImportCount);
+            Assert.Equal(new ushort[] { 0, 1, 2 }, asset.Indices16);
+        }
+
+        /// <summary>
         /// Ensures invalid cached payloads are reported instead of being silently replaced.
         /// </summary>
         [Fact]
