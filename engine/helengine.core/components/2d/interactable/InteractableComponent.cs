@@ -2,7 +2,12 @@ namespace helengine {
     /// <summary>
     /// Provides a hit-testable region that raises pointer events.
     /// </summary>
-    public class InteractableComponent : Component, IInteractable2D {
+public class InteractableComponent : Component, IInteractable2D {
+        /// <summary>
+        /// Gets or sets the cursor the host should display while this interactable is hovered.
+        /// </summary>
+        public PointerCursorKind HoverCursor { get; set; }
+
         /// <summary>
         /// Gets or sets the size of the interactable region.
         /// </summary>

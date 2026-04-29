@@ -3,6 +3,11 @@ namespace helengine {
     /// Simple text box with placeholder, blinking cursor, and basic keyboard input handling.
     /// </summary>
     public class TextBoxComponent : Component, IFocusTarget {
+        /// <summary>
+        /// Horizontal padding between the textbox border and its text content.
+        /// </summary>
+        const int TextPaddingX = 8;
+
         static TextBoxComponent focusedTextBox;
         string text = "";
         string placeholder = "";
@@ -15,6 +20,7 @@ namespace helengine {
         
         // Child components
         RoundedRectComponent backgroundSprite;
+        Entity textEntity;
         TextComponent textComponent;
         InteractableComponent interactableComponent;
 
@@ -81,6 +87,8 @@ namespace helengine {
                 if (textComponent != null) {
                     textComponent.Font = font;
                 }
+
+                UpdateTextLayout();
             }
         }
 
@@ -95,6 +103,8 @@ namespace helengine {
                 if (interactableComponent != null) {
                     interactableComponent.Size = size;
                 }
+
+                UpdateTextLayout();
             }
         }
 
@@ -139,14 +149,25 @@ namespace helengine {
             entity.AddComponent(backgroundSprite);
 
             // Create text component
+            textEntity = new Entity();
+            textEntity.LayerMask = entity.LayerMask;
+            textEntity.Enabled = true;
+            textEntity.InitComponents();
+            if (entity.Children == null) {
+                entity.InitChildren();
+            }
+
+            entity.AddChild(textEntity);
+
             textComponent = new TextComponent();
             textComponent.Font = font;
             textComponent.Color = new byte4(255, 255, 255, 255);
             textComponent.RenderOrder2D = textOrder;
-            entity.AddComponent(textComponent);
+            textEntity.AddComponent(textComponent);
 
             // Create interactable component for mouse clicks
             interactableComponent = new InteractableComponent();
+            interactableComponent.HoverCursor = PointerCursorKind.Text;
             interactableComponent.Size = size;
             interactableComponent.CursorEvent += OnCursorEvent;
             entity.AddComponent(interactableComponent);
@@ -318,6 +339,25 @@ namespace helengine {
             } else {
                 textComponent.Color = new byte4(255, 255, 255, 255); // White for text
             }
+
+            UpdateTextLayout();
+        }
+
+        /// <summary>
+        /// Positions the textbox text host with shared left padding and vertically centers it using the font line height.
+        /// </summary>
+        void UpdateTextLayout() {
+            if (textEntity == null || textComponent == null || font == null) {
+                return;
+            }
+
+            double lineHeight = Math.Max((double)font.LineHeight, 1.0);
+            double textY = Math.Round((size.Y - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
+            FontTightMetrics textMetrics = font.MeasureTight(textComponent.Text);
+            textEntity.Position = new float3(TextPaddingX, (float)textY, 0.1f);
+            textComponent.Size = new int2(
+                (int)Math.Ceiling(textMetrics.Width),
+                (int)Math.Ceiling(lineHeight));
         }
 
         /// <summary>
@@ -329,6 +369,10 @@ namespace helengine {
 
             if (!newEnabled && isFocused) {
                 IsFocused = false;
+            }
+
+            if (textEntity != null) {
+                textEntity.Enabled = newEnabled;
             }
         }
 

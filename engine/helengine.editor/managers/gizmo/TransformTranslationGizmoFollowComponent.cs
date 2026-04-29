@@ -49,6 +49,14 @@ namespace helengine.editor {
         /// </summary>
         readonly RuntimeMaterial HighlightAxisMaterial;
         /// <summary>
+        /// Material used when a plane handle is not hovered.
+        /// </summary>
+        readonly RuntimeMaterial NormalPlaneMaterial;
+        /// <summary>
+        /// Material used when a plane handle is hovered.
+        /// </summary>
+        readonly RuntimeMaterial HighlightPlaneMaterial;
+        /// <summary>
         /// Reusable preview entity that visualizes active translation snapping.
         /// </summary>
         readonly EditorEntity SnapPreviewEntity;
@@ -79,10 +87,62 @@ namespace helengine.editor {
             RuntimeMaterial normalAxisMaterial,
             RuntimeMaterial highlightAxisMaterial,
             EditorEntity snapPreviewEntity) {
+            if (sceneCamera == null) {
+                throw new ArgumentNullException(nameof(sceneCamera));
+            }
+
+            if (gizmoRoot == null) {
+                throw new ArgumentNullException(nameof(gizmoRoot));
+            }
+
+            if (normalAxisMaterial == null) {
+                throw new ArgumentNullException(nameof(normalAxisMaterial));
+            }
+
+            if (highlightAxisMaterial == null) {
+                throw new ArgumentNullException(nameof(highlightAxisMaterial));
+            }
+
+            if (snapPreviewEntity == null) {
+                throw new ArgumentNullException(nameof(snapPreviewEntity));
+            }
+
+            SceneCamera = sceneCamera;
+            GizmoRoot = gizmoRoot;
+            NormalAxisMaterial = normalAxisMaterial;
+            HighlightAxisMaterial = highlightAxisMaterial;
+            NormalPlaneMaterial = normalAxisMaterial;
+            HighlightPlaneMaterial = highlightAxisMaterial;
+            SnapPreviewEntity = snapPreviewEntity;
+            BaseHandlePositions = new Dictionary<Entity, float3>();
+            BaseHandleOrientations = new Dictionary<Entity, float4>();
+            HandleBaseTransformsCached = false;
+        }
+
+        /// <summary>
+        /// Initializes a new gizmo follow component with dedicated materials for plane handles.
+        /// </summary>
+        /// <param name="sceneCamera">Scene camera that views the gizmo.</param>
+        /// <param name="gizmoRoot">Root entity for the translation gizmo.</param>
+        /// <param name="normalAxisMaterial">Material used for non-hovered axis visuals.</param>
+        /// <param name="highlightAxisMaterial">Material used for hovered axis visuals.</param>
+        /// <param name="normalPlaneMaterial">Material used for non-hovered plane visuals.</param>
+        /// <param name="highlightPlaneMaterial">Material used for hovered plane visuals.</param>
+        /// <param name="snapPreviewEntity">Reusable grid-preview entity shown while snap modifiers are held.</param>
+        public TransformTranslationGizmoFollowComponent(
+            CameraComponent sceneCamera,
+            EditorEntity gizmoRoot,
+            RuntimeMaterial normalAxisMaterial,
+            RuntimeMaterial highlightAxisMaterial,
+            RuntimeMaterial normalPlaneMaterial,
+            RuntimeMaterial highlightPlaneMaterial,
+            EditorEntity snapPreviewEntity) {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
             GizmoRoot = gizmoRoot ?? throw new ArgumentNullException(nameof(gizmoRoot));
             NormalAxisMaterial = normalAxisMaterial ?? throw new ArgumentNullException(nameof(normalAxisMaterial));
             HighlightAxisMaterial = highlightAxisMaterial ?? throw new ArgumentNullException(nameof(highlightAxisMaterial));
+            NormalPlaneMaterial = normalPlaneMaterial ?? throw new ArgumentNullException(nameof(normalPlaneMaterial));
+            HighlightPlaneMaterial = highlightPlaneMaterial ?? throw new ArgumentNullException(nameof(highlightPlaneMaterial));
             SnapPreviewEntity = snapPreviewEntity ?? throw new ArgumentNullException(nameof(snapPreviewEntity));
             BaseHandlePositions = new Dictionary<Entity, float3>();
             BaseHandleOrientations = new Dictionary<Entity, float4>();
@@ -232,9 +292,31 @@ namespace helengine.editor {
                 }
 
                 bool isHoveredAxis = hoveredAxis != null && ReferenceEquals(axisEntity, hoveredAxis);
-                RuntimeMaterial material = isHoveredAxis ? HighlightAxisMaterial : NormalAxisMaterial;
+                RuntimeMaterial material = ResolveHandleMaterial(axisEntity, isHoveredAxis);
                 ApplyAxisMaterial(axisEntity, material);
             }
+        }
+
+        /// <summary>
+        /// Resolves the correct material for one handle entity based on its constraint type and hover state.
+        /// </summary>
+        /// <param name="handleEntity">Handle entity to inspect.</param>
+        /// <param name="isHovered">True when the handle is currently hovered.</param>
+        /// <returns>Material that should be applied to the handle visuals.</returns>
+        RuntimeMaterial ResolveHandleMaterial(EditorEntity handleEntity, bool isHovered) {
+            if (handleEntity == null) {
+                throw new ArgumentNullException(nameof(handleEntity));
+            }
+
+            if (!TryFindTransformHandleComponent(handleEntity, out TransformGizmoHandleComponent handleComponent)) {
+                throw new InvalidOperationException("Translation gizmo handle entity must expose a transform handle component.");
+            }
+
+            if (handleComponent.ConstraintType == TransformGizmoHandleConstraintType.Plane) {
+                return isHovered ? HighlightPlaneMaterial : NormalPlaneMaterial;
+            }
+
+            return isHovered ? HighlightAxisMaterial : NormalAxisMaterial;
         }
 
         /// <summary>

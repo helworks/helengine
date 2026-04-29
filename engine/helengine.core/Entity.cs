@@ -240,7 +240,7 @@ namespace helengine {
 
             if (Children != null) {
                 for (int i = 0; i < Children.Count; i++) {
-                    Children[i].ParentEnabledChange(newEnabled);
+                    Children[i].ParentEnabledChange(Children[i].IsHierarchyEnabled);
                 }
             }
         }

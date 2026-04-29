@@ -68,6 +68,7 @@ namespace helengine.editor.tests {
 
             Assert.True(view.IsModelProcessorVisible);
             Assert.True(view.CurrentFlipWindingValue);
+            Assert.IsType<CheckBoxComponent>(GetPrivateField<CheckBoxComponent>(view, "FlipWindingCheckBox"));
         }
 
         /// <summary>
@@ -87,7 +88,7 @@ namespace helengine.editor.tests {
                 AssetEntryKind.Model);
 
             InvokePrivate(view, "HandleComboSelectionChanged", 1, "custom");
-            InvokePrivate(view, "HandleFlipWindingToggleClicked");
+            InvokePrivate(view, "HandleFlipWindingCheckedChanged", true);
             InvokePrivate(view, "HandleApplyClicked");
 
             Assert.NotNull(raisedRequest);
@@ -156,7 +157,7 @@ namespace helengine.editor.tests {
                 "windows");
 
             AssetImportSettingsView view = GetPrivateField<AssetImportSettingsView>(panel, "importSettingsView");
-            InvokePrivate(view, "HandleFlipWindingToggleClicked");
+            InvokePrivate(view, "HandleFlipWindingCheckedChanged", true);
             InvokePrivate(view, "HandleApplyClicked");
 
             Assert.Same(entry, raisedEntry);
@@ -235,6 +236,7 @@ namespace helengine.editor.tests {
                 ['I'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
                 ['P'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['W'] = new FontChar(new float4(0f, 0f, 11f, 12f), 0f, 11f, 0f, 0f),
+                ['X'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['c'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
                 ['d'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),

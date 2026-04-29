@@ -8,6 +8,10 @@ namespace helengine.editor {
         /// </summary>
         const int ContentPadding = 8;
         /// <summary>
+        /// Margin inserted before the first visible content element.
+        /// </summary>
+        const int ContentTopMargin = 6;
+        /// <summary>
         /// Spacing between stacked text lines.
         /// </summary>
         const int LineSpacing = 6;
@@ -1093,7 +1097,7 @@ namespace helengine.editor {
             int maxWidth = Math.Max(0, rowWidth - ContentPadding * 2);
             float lineHeight = (float)Math.Max((double)font.LineHeight, 1.0);
 
-            float offsetY = 0f;
+            float offsetY = ContentTopMargin;
             for (int i = 0; i < lineTexts.Count; i++) {
                 TextComponent text = lineTexts[i];
                 EditorEntity host = lineHosts[i];

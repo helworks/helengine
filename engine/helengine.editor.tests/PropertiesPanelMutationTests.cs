@@ -67,6 +67,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the first visible properties section leaves a small gap below the panel header.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenEntityIsSelected_PositionsTheFirstSectionBelowTheTopEdge() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Original"
+            };
+
+            panel.ShowEntityProperties(entity);
+
+            EditorEntity transformRoot = GetPrivateField<EditorEntity>(panel, "TransformRoot");
+
+            Assert.True(transformRoot.LocalPosition.Y > 0f);
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>

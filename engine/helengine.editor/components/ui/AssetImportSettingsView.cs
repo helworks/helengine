@@ -24,9 +24,9 @@ namespace helengine.editor {
         /// </summary>
         const int PlatformTabSpacing = 6;
         /// <summary>
-        /// Width of the flip-winding toggle button.
+        /// Square size of the flip-winding checkbox control.
         /// </summary>
-        const int FlipWindingButtonWidth = 96;
+        const int FlipWindingCheckBoxSize = 24;
         /// <summary>
         /// Label text shown above the importer selection.
         /// </summary>
@@ -40,17 +40,9 @@ namespace helengine.editor {
         /// </summary>
         const string FlipWindingLabel = "Flip Winding";
         /// <summary>
-        /// Button text used for the model winding toggle.
-        /// </summary>
-        const string FlipWindingButtonText = "Toggle";
-        /// <summary>
         /// Status prefix used for feedback messages.
         /// </summary>
         const string StatusPrefix = "Status:";
-        /// <summary>
-        /// Label prefix used when showing the current flip-winding state.
-        /// </summary>
-        const string FlipWindingStatePrefix = "Current:";
 
         /// <summary>
         /// Font used for text elements.
@@ -113,21 +105,13 @@ namespace helengine.editor {
         /// </summary>
         readonly TextComponent FlipWindingLabelText;
         /// <summary>
-        /// Host entity for the flip-winding state text.
+        /// Host entity for the flip-winding checkbox control.
         /// </summary>
-        readonly EditorEntity FlipWindingStateHost;
+        readonly EditorEntity FlipWindingCheckBoxHost;
         /// <summary>
-        /// Text component showing the current flip-winding value for the selected platform.
+        /// Checkbox used to edit the flip-winding processor setting on the selected platform.
         /// </summary>
-        readonly TextComponent FlipWindingStateText;
-        /// <summary>
-        /// Host entity for the flip-winding toggle button.
-        /// </summary>
-        readonly EditorEntity FlipWindingButtonHost;
-        /// <summary>
-        /// Button used to toggle the flip-winding processor setting.
-        /// </summary>
-        readonly ButtonComponent FlipWindingButton;
+        readonly CheckBoxComponent FlipWindingCheckBox;
         /// <summary>
         /// Host entity for the apply button.
         /// </summary>
@@ -253,23 +237,13 @@ namespace helengine.editor {
             FlipWindingLabelText.RenderOrder2D = TextOrder;
             FlipWindingLabelHost.AddComponent(FlipWindingLabelText);
 
-            FlipWindingStateHost = new EditorEntity();
-            FlipWindingStateHost.LayerMask = layerMask;
-            RootEntity.AddChild(FlipWindingStateHost);
+            FlipWindingCheckBoxHost = new EditorEntity();
+            FlipWindingCheckBoxHost.LayerMask = layerMask;
+            RootEntity.AddChild(FlipWindingCheckBoxHost);
 
-            FlipWindingStateText = new TextComponent();
-            FlipWindingStateText.Font = font;
-            FlipWindingStateText.Text = string.Empty;
-            FlipWindingStateText.Color = ThemeManager.Colors.InputForegroundSecondary;
-            FlipWindingStateText.RenderOrder2D = TextOrder;
-            FlipWindingStateHost.AddComponent(FlipWindingStateText);
-
-            FlipWindingButtonHost = new EditorEntity();
-            FlipWindingButtonHost.LayerMask = layerMask;
-            RootEntity.AddChild(FlipWindingButtonHost);
-
-            FlipWindingButton = new ButtonComponent(FlipWindingButtonText, new int2(FlipWindingButtonWidth, ControlHeight), font, HandleFlipWindingToggleClicked);
-            FlipWindingButtonHost.AddComponent(FlipWindingButton);
+            FlipWindingCheckBox = new CheckBoxComponent(new int2(FlipWindingCheckBoxSize, FlipWindingCheckBoxSize), font);
+            FlipWindingCheckBox.CheckedChanged += (component, isChecked) => HandleFlipWindingCheckedChanged(isChecked);
+            FlipWindingCheckBoxHost.AddComponent(FlipWindingCheckBox);
 
             ApplyHost = new EditorEntity();
             ApplyHost.LayerMask = layerMask;
@@ -429,14 +403,11 @@ namespace helengine.editor {
 
             currentTop += ControlHeight + RowSpacing;
             if (IsModelProcessorVisible) {
-                FlipWindingLabelHost.Position = new float3(0f, currentTop, 0.1f);
+                int labelOffsetY = (int)Math.Round((ControlHeight - labelHeight) / 2d);
+                FlipWindingLabelHost.Position = new float3(0f, currentTop + labelOffsetY, 0.1f);
                 FlipWindingLabelText.Size = new int2(width, labelHeight);
 
-                currentTop += labelHeight + RowSpacing;
-                FlipWindingStateHost.Position = new float3(0f, currentTop, 0.1f);
-                FlipWindingStateText.Size = new int2(Math.Max(0, width - FlipWindingButtonWidth - RowSpacing), labelHeight);
-
-                FlipWindingButtonHost.Position = new float3(Math.Max(0, width - FlipWindingButtonWidth), currentTop, 0.1f);
+                FlipWindingCheckBoxHost.Position = new float3(Math.Max(0, width - FlipWindingCheckBoxSize), currentTop, 0.1f);
                 currentTop += ControlHeight + RowSpacing;
             }
 
@@ -480,11 +451,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Toggles the flip-winding processor setting for the currently selected platform.
+        /// Applies one flip-winding checkbox value to the currently selected platform.
         /// </summary>
-        void HandleFlipWindingToggleClicked() {
+        /// <param name="isChecked">Checkbox value to apply.</param>
+        void HandleFlipWindingCheckedChanged(bool isChecked) {
             AssetPlatformProcessorSettings platformSettings = GetPendingPlatformSettings(CurrentPlatformId);
-            platformSettings.Model.FlipWinding = !platformSettings.Model.FlipWinding;
+            platformSettings.Model.FlipWinding = isChecked;
             UpdateControlState();
             UpdateStatusText();
         }
@@ -515,16 +487,10 @@ namespace helengine.editor {
 
             bool showModelProcessor = IsModelProcessorVisible;
             FlipWindingLabelHost.Enabled = showModelProcessor;
-            FlipWindingStateHost.Enabled = showModelProcessor;
-            FlipWindingButtonHost.Enabled = showModelProcessor;
+            FlipWindingCheckBoxHost.Enabled = showModelProcessor;
 
             if (showModelProcessor) {
-                bool isEnabled = GetPendingPlatformSettings(CurrentPlatformId).Model.FlipWinding;
-                FlipWindingStateText.Text = $"{FlipWindingStatePrefix} {(isEnabled ? "On" : "Off")}";
-                FlipWindingButton.SetTargetFocused(isEnabled);
-            } else {
-                FlipWindingStateText.Text = string.Empty;
-                FlipWindingButton.SetTargetFocused(false);
+                FlipWindingCheckBox.IsChecked = GetPendingPlatformSettings(CurrentPlatformId).Model.FlipWinding;
             }
 
             UpdatePlatformTabVisualState();

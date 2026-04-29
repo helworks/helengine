@@ -35,7 +35,7 @@ namespace helengine.editor.tests.testing {
         /// <summary>
         /// Gets the shader compile target exposed by the test renderer.
         /// </summary>
-        public ShaderCompileTarget ShaderCompileTarget => ShaderCompileTarget.DirectX11;
+        public ShaderCompileTarget ShaderCompileTarget => ShaderCompileTarget.Vulkan;
 
         /// <summary>
         /// Records the supplied model asset and returns a placeholder runtime model.

@@ -383,16 +383,32 @@ namespace helengine.editor.app {
 
             switch (editorSession.DockingCursorState) {
                 case DockingCursorState.VerticalSplit:
-                    Cursor = Cursors.VSplit;
+                    Cursor = EditorHostCursorResolver.Resolve(
+                        editorSession.DockingCursorState,
+                        editorSession.HoverCursor,
+                        false,
+                        Cursors.Default);
                     break;
                 case DockingCursorState.HorizontalSplit:
-                    Cursor = Cursors.HSplit;
+                    Cursor = EditorHostCursorResolver.Resolve(
+                        editorSession.DockingCursorState,
+                        editorSession.HoverCursor,
+                        false,
+                        Cursors.Default);
                     break;
                 default:
                     if (WindowResizeAdapter.TryGetResizeCursor(this, new Point(pointer.X, pointer.Y), WindowResizeAdapter.DefaultResizeBorderThickness, out var resizeCursor)) {
-                        Cursor = resizeCursor;
+                        Cursor = EditorHostCursorResolver.Resolve(
+                            editorSession.DockingCursorState,
+                            editorSession.HoverCursor,
+                            true,
+                            resizeCursor);
                     } else {
-                        Cursor = Cursors.Default;
+                        Cursor = EditorHostCursorResolver.Resolve(
+                            editorSession.DockingCursorState,
+                            editorSession.HoverCursor,
+                            false,
+                            Cursors.Default);
                     }
                     break;
             }

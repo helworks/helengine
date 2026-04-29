@@ -415,7 +415,15 @@ namespace helengine.editor {
 
             RuntimeMaterial transformGizmoMaterial = BuildTransformGizmoNormalMaterial();
             RuntimeMaterial transformGizmoHighlightMaterial = BuildTransformGizmoHighlightMaterial();
-            TransformTranslationGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial, transformGizmoHighlightMaterial);
+            RuntimeMaterial transformGizmoPlaneMaterial = TransformGizmoPlaneMaterialFactory.CreateNormal(render3D);
+            RuntimeMaterial transformGizmoPlaneHighlightMaterial = TransformGizmoPlaneMaterialFactory.CreateHighlight(render3D);
+            TransformTranslationGizmoFactory.Create(
+                render3D,
+                sceneCameraComponent,
+                transformGizmoMaterial,
+                transformGizmoHighlightMaterial,
+                transformGizmoPlaneMaterial,
+                transformGizmoPlaneHighlightMaterial);
             TransformRotationGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial, transformGizmoHighlightMaterial);
             TransformScaleGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial, transformGizmoHighlightMaterial);
             BuildStartScene();
@@ -490,6 +498,11 @@ namespace helengine.editor {
         /// Gets the latest pointer position in window coordinates.
         /// </summary>
         public int2 PointerPosition => core.InputManager.GetMousePosition();
+
+        /// <summary>
+        /// Gets the cursor requested by the interactable currently hovered inside the editor.
+        /// </summary>
+        public PointerCursorKind HoverCursor => core.InputManager.HoverCursor;
 
         /// <summary>
         /// Gets the supported platform identifiers declared by the current project's `.heproj` file.

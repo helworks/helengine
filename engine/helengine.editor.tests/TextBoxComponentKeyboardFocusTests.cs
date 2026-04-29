@@ -55,6 +55,37 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the textbox creates a centered child text host instead of leaving its label flush to the top edge.
+        /// </summary>
+        [Fact]
+        public void TextBoxComponent_ComponentAdded_CentersItsTextHostVertically() {
+            InitializeCore();
+            EditorEntity entity = new EditorEntity();
+            TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
+            entity.AddComponent(textBox);
+
+            Entity textHost = Assert.Single(entity.Children);
+
+            Assert.Equal(6f, textHost.LocalPosition.Y);
+            Assert.Equal(0.1f, textHost.LocalPosition.Z);
+        }
+
+        /// <summary>
+        /// Ensures the textbox requests the text-edit cursor when hovered so the host window can present an I-beam.
+        /// </summary>
+        [Fact]
+        public void TextBoxComponent_ComponentAdded_RequestsTextHoverCursor() {
+            InitializeCore();
+            EditorEntity entity = new EditorEntity();
+            TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
+            entity.AddComponent(textBox);
+
+            InteractableComponent interactable = Assert.Single(entity.Components.OfType<InteractableComponent>());
+
+            Assert.Equal(PointerCursorKind.Text, interactable.HoverCursor);
+        }
+
+        /// <summary>
         /// Initializes the core services required by keyboard-focus tests.
         /// </summary>
         void InitializeCore() {

@@ -62,6 +62,19 @@ public abstract class InputManager {
     public IInteractable2D Hovering { get; private set; }
 
     /// <summary>
+    /// Gets the cursor requested by the currently hovered interactable.
+    /// </summary>
+    public PointerCursorKind HoverCursor {
+        get {
+            if (Hovering == null) {
+                return PointerCursorKind.Default;
+            }
+
+            return Hovering.HoverCursor;
+        }
+    }
+
+    /// <summary>
     /// Enables or disables keyboard input capture for the active backend.
     /// </summary>
     /// <param name="isActive">True to capture key state; false to ignore input.</param>

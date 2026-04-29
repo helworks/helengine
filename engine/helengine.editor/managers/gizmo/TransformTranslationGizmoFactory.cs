@@ -75,7 +75,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(gizmoMaterial));
             }
 
-            return Create(render3D, sceneCamera, gizmoMaterial, gizmoMaterial);
+            return Create(render3D, sceneCamera, gizmoMaterial, gizmoMaterial, gizmoMaterial, gizmoMaterial);
         }
 
         /// <summary>
@@ -91,6 +91,26 @@ namespace helengine.editor {
             CameraComponent sceneCamera,
             RuntimeMaterial gizmoMaterial,
             RuntimeMaterial gizmoHighlightMaterial) {
+            return Create(render3D, sceneCamera, gizmoMaterial, gizmoHighlightMaterial, gizmoMaterial, gizmoHighlightMaterial);
+        }
+
+        /// <summary>
+        /// Creates a translation gizmo root entity and registers it in the scene using dedicated plane materials.
+        /// </summary>
+        /// <param name="render3D">Renderer used to build runtime mesh resources.</param>
+        /// <param name="sceneCamera">Scene camera used for gizmo distance scaling.</param>
+        /// <param name="gizmoMaterial">Base material used by axis meshes.</param>
+        /// <param name="gizmoHighlightMaterial">Highlight material used when an axis is hovered.</param>
+        /// <param name="planeMaterial">Base material used by plane-handle meshes.</param>
+        /// <param name="planeHighlightMaterial">Highlight material used when a plane handle is hovered.</param>
+        /// <returns>Created gizmo root entity.</returns>
+        public static EditorEntity Create(
+            RenderManager3D render3D,
+            CameraComponent sceneCamera,
+            RuntimeMaterial gizmoMaterial,
+            RuntimeMaterial gizmoHighlightMaterial,
+            RuntimeMaterial planeMaterial,
+            RuntimeMaterial planeHighlightMaterial) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
@@ -105,6 +125,14 @@ namespace helengine.editor {
 
             if (gizmoHighlightMaterial == null) {
                 throw new ArgumentNullException(nameof(gizmoHighlightMaterial));
+            }
+
+            if (planeMaterial == null) {
+                throw new ArgumentNullException(nameof(planeMaterial));
+            }
+
+            if (planeHighlightMaterial == null) {
+                throw new ArgumentNullException(nameof(planeHighlightMaterial));
             }
 
             ModelAsset xShaftAsset = TransformGizmoMeshFactory.CreateCylinder(ShaftRadius, ShaftLength, AxisSegments);
@@ -145,7 +173,14 @@ namespace helengine.editor {
             gizmoRoot.Name = "Transform Translation Gizmo";
             gizmoRoot.InternalEntity = true;
             gizmoRoot.LayerMask = EditorLayerMasks.SceneGizmo;
-            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, gizmoMaterial, gizmoHighlightMaterial, snapPreviewEntity));
+            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(
+                sceneCamera,
+                gizmoRoot,
+                gizmoMaterial,
+                gizmoHighlightMaterial,
+                planeMaterial,
+                planeHighlightMaterial,
+                snapPreviewEntity));
 
             float4 xAxisOrientation = CreateXAxisOrientation();
             float4 yAxisOrientation = float4.Identity;
@@ -160,21 +195,21 @@ namespace helengine.editor {
                 float4.Identity,
                 new float3(PlaneInset, PlaneInset, 0f),
                 xyPlaneModel,
-                gizmoMaterial);
+                planeMaterial);
             CreatePlaneEntity(
                 gizmoRoot,
                 "Transform Gizmo XZ Plane",
                 CreateXzPlaneOrientation(),
                 new float3(PlaneInset, 0f, PlaneInset),
                 xzPlaneModel,
-                gizmoMaterial);
+                planeMaterial);
             CreatePlaneEntity(
                 gizmoRoot,
                 "Transform Gizmo YZ Plane",
                 CreateYzPlaneOrientation(),
                 new float3(0f, PlaneInset, PlaneInset),
                 yzPlaneModel,
-                gizmoMaterial);
+                planeMaterial);
             gizmoRoot.AddChild(snapPreviewEntity);
 
             return gizmoRoot;
@@ -390,4 +425,3 @@ namespace helengine.editor {
         }
     }
 }
-

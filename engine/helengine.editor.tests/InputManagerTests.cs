@@ -132,6 +132,25 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the input manager exposes the hovered interactable cursor so native hosts can map it to platform cursors.
+        /// </summary>
+        [Fact]
+        public void Update_WhenHoveringInteractableWithTextCursor_ExposesTextHoverCursor() {
+            TestInputManager input = InitializeCore();
+            CreateUiCamera(320, 240);
+
+            InteractableComponent interactable = CreateInteractableEntity(new float3(24f, 24f, 0f), new int2(80, 40), 220);
+            interactable.HoverCursor = PointerCursorKind.Text;
+
+            input.SetMouseState(new MouseState(40, 40, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            input.EarlyUpdate();
+            input.Update();
+
+            Assert.Same(interactable, input.Hovering);
+            Assert.Equal(PointerCursorKind.Text, input.HoverCursor);
+        }
+
+        /// <summary>
         /// Initializes a core instance with the minimum services required for input-routing tests.
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
