@@ -296,9 +296,13 @@ namespace helengine.editor.tests {
             Assert.Equal((ushort)AssetImportSettingsBinarySerializer.RecordKind, header.RecordKind);
             Assert.Equal((ushort)AssetImportSettingsBinarySerializer.ValueKind, header.ValueKind);
             Assert.Equal(AssetImportSettingsBinarySerializer.CurrentVersion, header.Version);
-            Assert.Equal(settings.ImporterId, deserialized.ImporterId);
-            Assert.Equal(settings.SourceChecksum, deserialized.SourceChecksum);
-            Assert.Equal(settings.AssetId, deserialized.AssetId);
+            Assert.Equal(settings.Importer.ImporterId, deserialized.Importer.ImporterId);
+            Assert.Equal(settings.Importer.SourceChecksum, deserialized.Importer.SourceChecksum);
+            Assert.Equal(settings.Importer.AssetId, deserialized.Importer.AssetId);
+            Assert.True(deserialized.Processor.Platforms.ContainsKey("windows"));
+            Assert.True(deserialized.Processor.Platforms["windows"].Model.FlipWinding);
+            Assert.True(deserialized.Processor.Platforms.ContainsKey("android"));
+            Assert.False(deserialized.Processor.Platforms["android"].Model.FlipWinding);
         }
 
         /// <summary>
@@ -349,9 +353,31 @@ namespace helengine.editor.tests {
 
             AssetImportSettings loadedSettings = contentManager.Load<AssetImportSettings>(settingsPath);
 
-            Assert.Equal(settings.ImporterId, loadedSettings.ImporterId);
-            Assert.Equal(settings.SourceChecksum, loadedSettings.SourceChecksum);
-            Assert.Equal(settings.AssetId, loadedSettings.AssetId);
+            Assert.Equal(settings.Importer.ImporterId, loadedSettings.Importer.ImporterId);
+            Assert.Equal(settings.Importer.SourceChecksum, loadedSettings.Importer.SourceChecksum);
+            Assert.Equal(settings.Importer.AssetId, loadedSettings.Importer.AssetId);
+            Assert.True(loadedSettings.Processor.Platforms["windows"].Model.FlipWinding);
+        }
+
+        /// <summary>
+        /// Ensures unsupported older asset-import-settings versions are rejected by the serializer.
+        /// </summary>
+        [Fact]
+        public void AssetImportSettingsBinarySerializer_Deserialize_WithOlderVersion_Throws() {
+            AssetImportSettings settings = CreateAssetImportSettings();
+            byte[] data;
+
+            using (MemoryStream stream = new MemoryStream()) {
+                AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+                data = stream.ToArray();
+            }
+
+            data[5] = 1;
+
+            using MemoryStream deserializeStream = new MemoryStream(data);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AssetImportSettingsBinarySerializer.Deserialize(deserializeStream));
+
+            Assert.Contains("Unsupported asset import settings binary version", exception.Message);
         }
 
         /// <summary>
@@ -596,9 +622,25 @@ namespace helengine.editor.tests {
         /// <returns>Asset import settings with sample values.</returns>
         static AssetImportSettings CreateAssetImportSettings() {
             return new AssetImportSettings {
-                ImporterId = "texture/png",
-                SourceChecksum = "abc123",
-                AssetId = "asset-001"
+                Importer = new AssetImporterSettings {
+                    ImporterId = "model/obj",
+                    SourceChecksum = "abc123",
+                    AssetId = "asset-001"
+                },
+                Processor = new AssetProcessorSettings {
+                    Platforms = new Dictionary<string, AssetPlatformProcessorSettings> {
+                        ["windows"] = new AssetPlatformProcessorSettings {
+                            Model = new ModelAssetProcessorSettings {
+                                FlipWinding = true
+                            }
+                        },
+                        ["android"] = new AssetPlatformProcessorSettings {
+                            Model = new ModelAssetProcessorSettings {
+                                FlipWinding = false
+                            }
+                        }
+                    }
+                }
             };
         }
 

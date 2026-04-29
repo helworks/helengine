@@ -103,6 +103,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures platform-specific model processor settings flip triangle winding during model import.
+        /// </summary>
+        [Fact]
+        public void ImportModel_WhenWindowsProcessorSettingsFlipWinding_ReversesTriangleIndices() {
+            string sourcePath = WriteSourceModel("flip-winding.obj");
+            TestModelImporter modelImporter = new TestModelImporter();
+            AssetImportManager manager = CreateManager(modelImporter);
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings {
+                Model = new ModelAssetProcessorSettings {
+                    FlipWinding = true
+                }
+            };
+            manager.SaveImportSettings(sourcePath, settings);
+
+            ModelAsset importedAsset = manager.ImportModel(sourcePath);
+
+            Assert.Equal(new ushort[] { 0, 2, 1 }, importedAsset.Indices16);
+        }
+
+        /// <summary>
         /// Ensures model assets are imported lazily when no cache file exists.
         /// </summary>
         [Fact]
@@ -138,6 +159,36 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures changing model processor settings invalidates the cached processed model output.
+        /// </summary>
+        [Fact]
+        public void TryLoadModelAsset_WhenWindowsFlipWindingChanges_ReimportsModel() {
+            string sourcePath = WriteSourceModel("processor-change.obj");
+            TestModelImporter modelImporter = new TestModelImporter();
+            AssetImportManager manager = CreateManager(modelImporter);
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings {
+                Model = new ModelAssetProcessorSettings {
+                    FlipWinding = false
+                }
+            };
+            manager.SaveImportSettings(sourcePath, settings);
+
+            ModelAsset firstAsset = manager.ImportModel(sourcePath);
+            settings = manager.LoadOrCreateImportSettings(sourcePath);
+            settings.Processor.Platforms["windows"].Model.FlipWinding = true;
+            manager.SaveImportSettings(sourcePath, settings);
+
+            bool loaded = manager.TryLoadModelAsset(sourcePath, out ModelAsset secondAsset);
+
+            Assert.True(loaded);
+            Assert.NotNull(secondAsset);
+            Assert.Equal(new ushort[] { 0, 1, 2 }, firstAsset.Indices16);
+            Assert.Equal(new ushort[] { 0, 2, 1 }, secondAsset.Indices16);
+            Assert.Equal(2, modelImporter.ImportCount);
+        }
+
+        /// <summary>
         /// Ensures stale cached model assets with an older payload version are deleted and regenerated.
         /// </summary>
         [Fact]
@@ -146,11 +197,11 @@ namespace helengine.editor.tests {
             TestModelImporter modelImporter = new TestModelImporter();
             AssetImportManager manager = CreateManager(modelImporter);
             AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
-            string outputPath = Path.Combine(CacheRootPath, settings.AssetId);
+            string outputPath = Path.Combine(CacheRootPath, settings.Importer.AssetId);
 
             using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, new ModelAsset {
-                    Id = settings.AssetId,
+                    Id = settings.Importer.AssetId,
                     Positions = new[] { float3.Zero },
                     Normals = new[] { new float3(0f, 1f, 0f) },
                     TexCoords = new[] { new float2(0f, 0f) },
@@ -178,10 +229,10 @@ namespace helengine.editor.tests {
             string sourcePath = WriteSourceModel("invalid-cache.obj");
             AssetImportManager manager = CreateManager(new TestModelImporter());
             AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
-            string outputPath = Path.Combine(CacheRootPath, settings.AssetId);
+            string outputPath = Path.Combine(CacheRootPath, settings.Importer.AssetId);
             using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, new TextureAsset {
-                    Id = settings.AssetId,
+                    Id = settings.Importer.AssetId,
                     Width = 1,
                     Height = 1,
                     Colors = new byte[] { 255, 255, 255, 255 }
@@ -205,7 +256,7 @@ namespace helengine.editor.tests {
 
             List<string> importedAssets = manager.ImportModelsMissingCache();
 
-            string outputPath = Path.Combine(CacheRootPath, settings.AssetId);
+            string outputPath = Path.Combine(CacheRootPath, settings.Importer.AssetId);
             Assert.Equal(new[] { outputPath }, importedAssets);
             Assert.Equal(1, modelImporter.ImportCount);
             Assert.True(File.Exists(outputPath));
@@ -229,8 +280,8 @@ namespace helengine.editor.tests {
             try {
                 List<string> importedAssets = manager.ImportModelsMissingCache();
 
-                string brokenOutputPath = Path.Combine(CacheRootPath, brokenSettings.AssetId);
-                string validOutputPath = Path.Combine(CacheRootPath, validSettings.AssetId);
+                string brokenOutputPath = Path.Combine(CacheRootPath, brokenSettings.Importer.AssetId);
+                string validOutputPath = Path.Combine(CacheRootPath, validSettings.Importer.AssetId);
                 Assert.Equal(new[] { validOutputPath }, importedAssets);
                 Assert.False(File.Exists(brokenOutputPath));
                 Assert.True(File.Exists(validOutputPath));

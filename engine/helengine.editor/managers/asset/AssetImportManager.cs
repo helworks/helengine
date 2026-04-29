@@ -67,10 +67,16 @@ namespace helengine.editor {
         /// File hasher used to generate content checksums.
         /// </summary>
         readonly AssetFileHasher fileHasher;
+
         /// <summary>
         /// Content manager used to load source files, cached assets, and import settings.
         /// </summary>
         readonly ContentManager AssetContentManager;
+
+        /// <summary>
+        /// Applies processor settings to imported model assets before they are cached.
+        /// </summary>
+        readonly ModelAssetProcessor ModelAssetProcessor;
 
         /// <summary>
         /// Initializes a new asset import manager for a project.
@@ -97,6 +103,7 @@ namespace helengine.editor {
             DefaultModelImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             fileHasher = new AssetFileHasher();
             AssetContentManager = contentManager;
+            ModelAssetProcessor = new ModelAssetProcessor();
             EditorContentManagerConfiguration.ConfigureProjectContentManager(AssetContentManager);
 
             Directory.CreateDirectory(this.projectRootPath);
@@ -113,6 +120,11 @@ namespace helengine.editor {
         /// Gets the root path where imported assets are stored.
         /// </summary>
         public string ImportRootPath => importRootPath;
+
+        /// <summary>
+        /// Gets or sets the active project platform whose processor settings should drive model cache generation.
+        /// </summary>
+        public string CurrentPlatformId { get; set; }
 
         /// <summary>
         /// Registers a texture importer and records its supported extensions.
@@ -451,16 +463,16 @@ namespace helengine.editor {
             AssetImportSettings settings = LoadOrCreateImportSettings(sourcePath);
             EnsureImportSettingsValid(settings);
 
-            EnsureTextureImporterExists(settings.ImporterId);
-            TextureAsset asset = AssetContentManager.Load<TextureAsset>(sourcePath, settings.ImporterId);
+            EnsureTextureImporterExists(settings.Importer.ImporterId);
+            TextureAsset asset = AssetContentManager.Load<TextureAsset>(sourcePath, settings.Importer.ImporterId);
 
             if (asset == null) {
-                throw new InvalidOperationException($"Texture importer '{settings.ImporterId}' did not return an asset.");
+                throw new InvalidOperationException($"Texture importer '{settings.Importer.ImporterId}' did not return an asset.");
             }
 
-            asset.Id = settings.AssetId;
+            asset.Id = settings.Importer.AssetId;
 
-            string outputPath = GetTextureAssetPath(settings.AssetId);
+            string outputPath = GetTextureAssetPath(settings.Importer.AssetId);
             EnsureDirectoryForFile(outputPath);
             using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, asset);
@@ -487,16 +499,16 @@ namespace helengine.editor {
             AssetImportSettings settings = LoadOrCreateImportSettings(sourcePath);
             EnsureImportSettingsValid(settings);
 
-            EnsureTextImporterExists(settings.ImporterId);
-            TextAsset asset = AssetContentManager.Load<TextAsset>(sourcePath, settings.ImporterId);
+            EnsureTextImporterExists(settings.Importer.ImporterId);
+            TextAsset asset = AssetContentManager.Load<TextAsset>(sourcePath, settings.Importer.ImporterId);
 
             if (asset == null) {
-                throw new InvalidOperationException($"Text importer '{settings.ImporterId}' did not return an asset.");
+                throw new InvalidOperationException($"Text importer '{settings.Importer.ImporterId}' did not return an asset.");
             }
 
-            asset.Id = settings.AssetId;
+            asset.Id = settings.Importer.AssetId;
 
-            string outputPath = GetTextAssetPath(settings.AssetId);
+            string outputPath = GetTextAssetPath(settings.Importer.AssetId);
             EnsureDirectoryForFile(outputPath);
             using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, asset);
@@ -523,16 +535,18 @@ namespace helengine.editor {
             AssetImportSettings settings = LoadOrCreateImportSettings(sourcePath);
             EnsureImportSettingsValid(settings);
 
-            EnsureModelImporterExists(settings.ImporterId);
-            ModelAsset asset = AssetContentManager.Load<ModelAsset>(sourcePath, settings.ImporterId);
+            EnsureModelImporterExists(settings.Importer.ImporterId);
+            ModelAsset asset = AssetContentManager.Load<ModelAsset>(sourcePath, settings.Importer.ImporterId);
 
             if (asset == null) {
-                throw new InvalidOperationException($"Model importer '{settings.ImporterId}' did not return an asset.");
+                throw new InvalidOperationException($"Model importer '{settings.Importer.ImporterId}' did not return an asset.");
             }
 
-            asset.Id = settings.AssetId;
+            ModelAssetProcessorSettings processorSettings = GetCurrentPlatformModelProcessorSettings(settings);
+            ModelAssetProcessor.Apply(asset, processorSettings);
+            asset.Id = settings.Importer.AssetId;
 
-            string outputPath = GetModelAssetPath(settings.AssetId);
+            string outputPath = GetModelAssetPath(settings.Importer.AssetId);
             EnsureDirectoryForFile(outputPath);
             using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, asset);
@@ -626,11 +640,11 @@ namespace helengine.editor {
                     continue;
                 }
 
-                if (!IsTextureImporterRegistered(settings.ImporterId)) {
+                if (!IsTextureImporterRegistered(settings.Importer.ImporterId)) {
                     continue;
                 }
 
-                string outputPath = GetTextureAssetPath(settings.AssetId);
+                string outputPath = GetTextureAssetPath(settings.Importer.AssetId);
                 if (File.Exists(outputPath) && TryLoadCachedTextureAsset(outputPath, out _)) {
                     continue;
                 }
@@ -654,11 +668,11 @@ namespace helengine.editor {
                     continue;
                 }
 
-                if (!IsModelImporterRegistered(settings.ImporterId)) {
+                if (!IsModelImporterRegistered(settings.Importer.ImporterId)) {
                     continue;
                 }
 
-                string outputPath = GetModelAssetPath(settings.AssetId);
+                string outputPath = GetModelAssetPath(settings.Importer.AssetId);
                 if (File.Exists(outputPath) && TryLoadCachedModelAsset(outputPath, out _)) {
                     continue;
                 }
@@ -695,12 +709,12 @@ namespace helengine.editor {
                 return false;
             }
 
-            if (!IsTextureImporterRegistered(settings.ImporterId)) {
+            if (!IsTextureImporterRegistered(settings.Importer.ImporterId)) {
                 asset = null;
                 return false;
             }
 
-            string outputPath = GetTextureAssetPath(settings.AssetId);
+            string outputPath = GetTextureAssetPath(settings.Importer.AssetId);
             if (!File.Exists(outputPath)) {
                 asset = ImportTexture(sourcePath);
                 return true;
@@ -735,12 +749,12 @@ namespace helengine.editor {
                 return false;
             }
 
-            if (!IsTextImporterRegistered(settings.ImporterId)) {
+            if (!IsTextImporterRegistered(settings.Importer.ImporterId)) {
                 asset = null;
                 return false;
             }
 
-            string outputPath = GetTextAssetPath(settings.AssetId);
+            string outputPath = GetTextAssetPath(settings.Importer.AssetId);
             if (!File.Exists(outputPath)) {
                 asset = ImportText(sourcePath);
                 return true;
@@ -775,12 +789,12 @@ namespace helengine.editor {
                 return false;
             }
 
-            if (!IsModelImporterRegistered(settings.ImporterId)) {
+            if (!IsModelImporterRegistered(settings.Importer.ImporterId)) {
                 asset = null;
                 return false;
             }
 
-            string outputPath = GetModelAssetPath(settings.AssetId);
+            string outputPath = GetModelAssetPath(settings.Importer.AssetId);
             if (!File.Exists(outputPath)) {
                 asset = ImportModel(sourcePath);
                 return true;
@@ -932,8 +946,13 @@ namespace helengine.editor {
                 return false;
             }
 
-            using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
+            try {
+                using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                    settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
+                }
+            } catch {
+                settings = null;
+                return false;
             }
 
             return true;
@@ -948,7 +967,9 @@ namespace helengine.editor {
             string extension = Path.GetExtension(sourcePath);
             string importerId = ResolveDefaultImporter(extension);
             return new AssetImportSettings {
-                ImporterId = importerId
+                Importer = new AssetImporterSettings {
+                    ImporterId = importerId
+                }
             };
         }
 
@@ -1001,7 +1022,9 @@ namespace helengine.editor {
             }
 
             settings = new AssetImportSettings {
-                ImporterId = importerId
+                Importer = new AssetImporterSettings {
+                    ImporterId = importerId
+                }
             };
             return true;
         }
@@ -1015,11 +1038,23 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            if (string.IsNullOrWhiteSpace(settings.ImporterId)) {
+            if (settings.Importer == null) {
+                throw new InvalidOperationException("Import settings must include importer settings.");
+            }
+
+            if (settings.Processor == null) {
+                throw new InvalidOperationException("Import settings must include processor settings.");
+            }
+
+            if (settings.Processor.Platforms == null) {
+                throw new InvalidOperationException("Import settings must include processor platform settings.");
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.Importer.ImporterId)) {
                 throw new InvalidOperationException("Import settings must specify an importer id.");
             }
 
-            if (string.IsNullOrWhiteSpace(settings.AssetId)) {
+            if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
                 throw new InvalidOperationException("Import settings must specify an asset id.");
             }
         }
@@ -1226,8 +1261,116 @@ namespace helengine.editor {
             }
 
             string checksum = fileHasher.ComputeHash(sourcePath);
-            settings.SourceChecksum = checksum;
-            settings.AssetId = checksum;
+            settings.Importer.SourceChecksum = checksum;
+            settings.Importer.AssetId = BuildAssetId(sourcePath, settings, checksum);
+        }
+
+        /// <summary>
+        /// Builds the processed asset identifier that should be used for the current source file and settings.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Resolved import settings for the source file.</param>
+        /// <param name="sourceChecksum">Checksum of the source file contents.</param>
+        /// <returns>Processed asset identifier for the current configuration.</returns>
+        string BuildAssetId(string sourcePath, AssetImportSettings settings, string sourceChecksum) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+            if (string.IsNullOrWhiteSpace(sourceChecksum)) {
+                throw new ArgumentException("Source checksum must be provided.", nameof(sourceChecksum));
+            }
+
+            if (!IsModelSourceForAssetId(sourcePath, settings)) {
+                return sourceChecksum;
+            }
+
+            string platformId = ResolveModelProcessorPlatformId(settings);
+            ModelAssetProcessorSettings processorSettings = GetCurrentPlatformModelProcessorSettings(settings);
+            string flipWindingFlag = processorSettings.FlipWinding ? "1" : "0";
+            string identity = string.Concat(
+                "model", "\n",
+                sourceChecksum, "\n",
+                settings.Importer.ImporterId ?? string.Empty, "\n",
+                platformId, "\n",
+                flipWindingFlag);
+            byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
+            byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
+            return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Determines whether one source file should use the model-specific processed asset identity rules.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Resolved import settings for the source file.</param>
+        /// <returns>True when the source resolves through the model import pipeline.</returns>
+        bool IsModelSourceForAssetId(string sourcePath, AssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            if (IsModelImporterRegistered(settings.Importer.ImporterId)) {
+                return true;
+            }
+
+            string extension = Path.GetExtension(sourcePath);
+            return IsModelExtension(extension);
+        }
+
+        /// <summary>
+        /// Resolves the processor-settings platform key that should drive model processing for the current manager state.
+        /// </summary>
+        /// <param name="settings">Resolved import settings for the source file.</param>
+        /// <returns>Platform identifier used for model processor settings, or an empty string when no platform context exists.</returns>
+        string ResolveModelProcessorPlatformId(AssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            if (!string.IsNullOrWhiteSpace(CurrentPlatformId)) {
+                return CurrentPlatformId;
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null || settings.Processor.Platforms.Count == 0) {
+                return string.Empty;
+            }
+
+            List<string> platformIds = new List<string>(settings.Processor.Platforms.Keys);
+            platformIds.Sort(StringComparer.OrdinalIgnoreCase);
+            return platformIds[0];
+        }
+
+        /// <summary>
+        /// Resolves the model processor settings for the active processing platform, returning defaults when none were saved yet.
+        /// </summary>
+        /// <param name="settings">Resolved import settings for the source file.</param>
+        /// <returns>Model processor settings for the current platform context.</returns>
+        ModelAssetProcessorSettings GetCurrentPlatformModelProcessorSettings(AssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string platformId = ResolveModelProcessorPlatformId(settings);
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                return new ModelAssetProcessorSettings();
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return new ModelAssetProcessorSettings();
+            }
+
+            AssetPlatformProcessorSettings platformSettings;
+            if (!settings.Processor.Platforms.TryGetValue(platformId, out platformSettings) || platformSettings == null || platformSettings.Model == null) {
+                return new ModelAssetProcessorSettings();
+            }
+
+            return platformSettings.Model;
         }
 
         /// <summary>

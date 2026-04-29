@@ -1,21 +1,24 @@
 namespace helengine.editor {
     /// <summary>
-    /// Stores import configuration for a single source asset file.
+    /// Stores importer and processor configuration for a single source asset file.
     /// </summary>
     public class AssetImportSettings {
         /// <summary>
-        /// Gets or sets the importer identifier used for this asset.
+        /// Initializes nested importer and processor settings containers for a source asset.
         /// </summary>
-        public string ImporterId { get; set; }
+        public AssetImportSettings() {
+            Importer = new AssetImporterSettings();
+            Processor = new AssetProcessorSettings();
+        }
 
         /// <summary>
-        /// Gets or sets the checksum used to track the source asset content.
+        /// Gets or sets the importer-facing settings shared across every target platform.
         /// </summary>
-        public string SourceChecksum { get; set; }
+        public AssetImporterSettings Importer { get; set; }
 
         /// <summary>
-        /// Gets or sets the asset identifier associated with the imported output.
+        /// Gets or sets the processor-facing settings keyed by target platform.
         /// </summary>
-        public string AssetId { get; set; }
+        public AssetProcessorSettings Processor { get; set; }
     }
 }

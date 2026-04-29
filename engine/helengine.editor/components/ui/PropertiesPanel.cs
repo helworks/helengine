@@ -200,7 +200,7 @@ namespace helengine.editor {
         /// <summary>
         /// Raised when the user applies a pending import setting change.
         /// </summary>
-        public event Action<AssetBrowserEntry, string> ImportSettingsApplyRequested;
+        public event Action<AssetBrowserEntry, AssetImportSettingsApplyRequest> ImportSettingsApplyRequested;
 
         /// <summary>
         /// Initializes a new properties panel with the provided font.
@@ -290,7 +290,12 @@ namespace helengine.editor {
         /// <param name="entry">Selected asset entry.</param>
         /// <param name="settings">Import settings to display.</param>
         /// <param name="importerIds">Registered importer identifiers.</param>
-        public void ShowImportSettings(AssetBrowserEntry entry, AssetImportSettings settings, IReadOnlyList<string> importerIds) {
+        public void ShowImportSettings(
+            AssetBrowserEntry entry,
+            AssetImportSettings settings,
+            IReadOnlyList<string> importerIds,
+            IReadOnlyList<string> supportedPlatforms,
+            string activePlatformId) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
             }
@@ -302,9 +307,15 @@ namespace helengine.editor {
             if (importerIds == null) {
                 throw new ArgumentNullException(nameof(importerIds));
             }
+            if (supportedPlatforms == null) {
+                throw new ArgumentNullException(nameof(supportedPlatforms));
+            }
+            if (string.IsNullOrWhiteSpace(activePlatformId)) {
+                throw new ArgumentException("Active platform id must be provided.", nameof(activePlatformId));
+            }
 
             currentEntry = entry;
-            importSettingsView.Show(importerIds, settings.ImporterId);
+            importSettingsView.Show(importerIds, settings, supportedPlatforms, activePlatformId, entry.EntryKind);
             MaterialView.Hide();
             SetTransformVisible(false);
             ComponentView.Hide();
@@ -1130,10 +1141,10 @@ namespace helengine.editor {
         /// <summary>
         /// Forwards apply requests from the import settings view.
         /// </summary>
-        /// <param name="importerId">Pending importer identifier to apply.</param>
-        void HandleImportSettingsApplyRequested(string importerId) {
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
+        /// <param name="request">Pending importer and processor settings to apply.</param>
+        void HandleImportSettingsApplyRequested(AssetImportSettingsApplyRequest request) {
+            if (request == null) {
+                throw new ArgumentNullException(nameof(request));
             }
 
             if (currentEntry == null) {
@@ -1141,7 +1152,7 @@ namespace helengine.editor {
             }
 
             if (ImportSettingsApplyRequested != null) {
-                ImportSettingsApplyRequested(currentEntry, importerId);
+                ImportSettingsApplyRequested(currentEntry, request);
             }
         }
 

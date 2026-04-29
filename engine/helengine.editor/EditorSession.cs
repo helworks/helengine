@@ -61,6 +61,14 @@ namespace helengine.editor {
         /// </summary>
         readonly string ProjectDisplayName;
         /// <summary>
+        /// Supported platform identifiers declared by the current project's `.heproj` file.
+        /// </summary>
+        readonly IReadOnlyList<string> ProjectSupportedPlatforms;
+        /// <summary>
+        /// Service used to persist editor-local active-platform state for the current project.
+        /// </summary>
+        readonly EditorProjectLocalSettingsService ProjectLocalSettingsService;
+        /// <summary>
         /// Font used for UI elements and title bars.
         /// </summary>
         readonly FontAsset uiFont;
@@ -200,6 +208,10 @@ namespace helengine.editor {
         /// Absolute path that should be opened when the pending transition resumes.
         /// </summary>
         string PendingOpenScenePath;
+        /// <summary>
+        /// Active platform identifier currently selected for editor-local asset processing workflows.
+        /// </summary>
+        string ActiveProjectPlatform;
 
         /// <summary>
         /// Initializes a new editor session and sets up cameras, docking, and starter content.
@@ -231,6 +243,9 @@ namespace helengine.editor {
             string canonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
             this.projectPath = ResolveProjectRootPathFromCanonicalProjectFile(canonicalProjectFilePath);
             ProjectDisplayName = ResolveProjectDisplayNameFromCanonicalProjectFile(canonicalProjectFilePath);
+            ProjectSupportedPlatforms = LoadProjectSupportedPlatforms(canonicalProjectFilePath);
+            ProjectLocalSettingsService = new EditorProjectLocalSettingsService(this.projectPath, ProjectSupportedPlatforms);
+            ActiveProjectPlatform = ProjectLocalSettingsService.LoadActivePlatform();
             EditorContentManager = this.core.GetContentManager();
             this.uiFont = uiFont ?? throw new ArgumentNullException(nameof(uiFont));
             snapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
@@ -472,6 +487,16 @@ namespace helengine.editor {
         public int2 PointerPosition => core.InputManager.GetMousePosition();
 
         /// <summary>
+        /// Gets the supported platform identifiers declared by the current project's `.heproj` file.
+        /// </summary>
+        public IReadOnlyList<string> SupportedPlatforms => ProjectSupportedPlatforms;
+
+        /// <summary>
+        /// Gets the editor-local active platform currently selected for the open project.
+        /// </summary>
+        public string CurrentProjectPlatform => ActiveProjectPlatform;
+
+        /// <summary>
         /// Raised when the editor session recomputes the host window title.
         /// </summary>
         public event Action<string> TitleChanged;
@@ -516,6 +541,16 @@ namespace helengine.editor {
         /// </summary>
         public void RefreshHierarchy() {
             sceneHierarchyPanel.RefreshHierarchy();
+        }
+
+        /// <summary>
+        /// Persists one new active platform selection for the open project.
+        /// </summary>
+        /// <param name="platformId">Supported platform identifier to persist.</param>
+        public void SetActiveProjectPlatform(string platformId) {
+            ProjectLocalSettingsService.SaveActivePlatform(platformId);
+            ActiveProjectPlatform = platformId;
+            assetImportManager.CurrentPlatformId = platformId;
         }
 
         /// <summary>
@@ -1202,7 +1237,7 @@ namespace helengine.editor {
                     return;
                 }
 
-                propertiesPanel.ShowImportSettings(entry, settings, importerIds);
+                propertiesPanel.ShowImportSettings(entry, settings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
                 UpdatePreview(entry);
             } catch (Exception ex) {
                 propertiesPanel.ShowImportError(entry, ex.Message);
@@ -1233,14 +1268,13 @@ namespace helengine.editor {
         /// Applies a pending importer selection to the selected asset settings.
         /// </summary>
         /// <param name="entry">Selected asset entry.</param>
-        /// <param name="importerId">Importer identifier to apply.</param>
-        void HandleImportSettingsApplyRequested(AssetBrowserEntry entry, string importerId) {
+        /// <param name="request">Importer and processor settings to apply.</param>
+        void HandleImportSettingsApplyRequested(AssetBrowserEntry entry, AssetImportSettingsApplyRequest request) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
             }
-
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
+            if (request == null) {
+                throw new ArgumentNullException(nameof(request));
             }
 
             if (entry.IsDirectory) {
@@ -1249,11 +1283,13 @@ namespace helengine.editor {
 
             try {
                 AssetImportSettings settings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
-                settings.ImporterId = importerId;
+                settings.Importer.ImporterId = request.ImporterId;
+                settings.Processor = request.ProcessorSettings;
                 assetImportManager.SaveImportSettings(entry.FullPath, settings);
+                SetActiveProjectPlatform(request.SelectedPlatformId);
 
                 IReadOnlyList<string> importerIds = assetImportManager.GetImporterIdsForExtension(entry.Extension);
-                propertiesPanel.ShowImportSettings(entry, settings, importerIds);
+                propertiesPanel.ShowImportSettings(entry, settings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
             } catch (Exception ex) {
                 propertiesPanel.ShowImportError(entry, ex.Message);
             }
@@ -1490,6 +1526,24 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Loads the supported platform identifiers declared by one canonical `.heproj` file.
+        /// </summary>
+        /// <param name="canonicalProjectFilePath">Validated absolute canonical `.heproj` file path.</param>
+        /// <returns>Supported platform identifiers preserved from the project file.</returns>
+        IReadOnlyList<string> LoadProjectSupportedPlatforms(string canonicalProjectFilePath) {
+            ProjectFileReader reader = new ProjectFileReader();
+            ProjectFileReadResult readResult = reader.ReadAsync(canonicalProjectFilePath).GetAwaiter().GetResult();
+            if (!readResult.Succeeded) {
+                throw new InvalidOperationException(readResult.Errors[0].Message);
+            }
+            if (readResult.Document.SupportedPlatforms == null || readResult.Document.SupportedPlatforms.Count == 0) {
+                throw new InvalidOperationException("Project file must declare at least one supported platform.");
+            }
+
+            return readResult.Document.SupportedPlatforms.AsReadOnly();
+        }
+
+        /// <summary>
         /// Resolves the project display name from a project file path or root directory path.
         /// </summary>
         /// <param name="projectPath">Project root directory or project file path.</param>
@@ -1552,6 +1606,7 @@ namespace helengine.editor {
             string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
             ContentManager projectContentManager = core.GetContentManager(projectAssetsRootPath);
             var manager = new AssetImportManager(projectRootPath, projectContentManager);
+            manager.CurrentPlatformId = ActiveProjectPlatform;
             for (int i = 0; i < importers.Count; i++) {
                 IAssetImporterRegistration registration = importers[i];
                 if (registration == null) {

@@ -57,10 +57,10 @@ namespace helengine.editor.tests {
             Assert.Single(importedAssets);
             using (FileStream settingsStream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
                 AssetImportSettings loadedSettings = AssetImportSettingsBinarySerializer.Deserialize(settingsStream);
-                Assert.Equal("test-texture", loadedSettings.ImporterId);
-                Assert.False(string.IsNullOrWhiteSpace(loadedSettings.SourceChecksum));
-                Assert.False(string.IsNullOrWhiteSpace(loadedSettings.AssetId));
-                Assert.Equal(Path.Combine(CacheRootPath, loadedSettings.AssetId), importedAssets[0]);
+                Assert.Equal("test-texture", loadedSettings.Importer.ImporterId);
+                Assert.False(string.IsNullOrWhiteSpace(loadedSettings.Importer.SourceChecksum));
+                Assert.False(string.IsNullOrWhiteSpace(loadedSettings.Importer.AssetId));
+                Assert.Equal(Path.Combine(CacheRootPath, loadedSettings.Importer.AssetId), importedAssets[0]);
             }
 
             using (FileStream assetStream = new FileStream(importedAssets[0], FileMode.Open, FileAccess.Read, FileShare.Read)) {
@@ -89,6 +89,35 @@ namespace helengine.editor.tests {
                 Assert.Equal((ushort)1, asset.Width);
                 Assert.Equal((ushort)1, asset.Height);
                 Assert.Equal(new byte[] { 255, 128, 64, 255 }, asset.Colors);
+            }
+        }
+
+        /// <summary>
+        /// Ensures unsupported legacy `*.hasset` payloads are silently regenerated with the current schema.
+        /// </summary>
+        [Fact]
+        public void LoadOrCreateImportSettings_WhenSettingsUseUnsupportedVersion_RewritesDefaults() {
+            string sourcePath = WriteSourceTexture("legacy-settings.png");
+            string settingsPath = sourcePath + ".hasset";
+            AssetImportManager manager = CreateManager();
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+
+            using (FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            }
+
+            byte[] legacySettings = File.ReadAllBytes(settingsPath);
+            legacySettings[5] = 1;
+            File.WriteAllBytes(settingsPath, legacySettings);
+
+            AssetImportSettings loadedSettings = manager.LoadOrCreateImportSettings(sourcePath);
+
+            Assert.Equal("test-texture", loadedSettings.Importer.ImporterId);
+            Assert.False(string.IsNullOrWhiteSpace(loadedSettings.Importer.SourceChecksum));
+            Assert.False(string.IsNullOrWhiteSpace(loadedSettings.Importer.AssetId));
+            using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+                Assert.Equal(AssetImportSettingsBinarySerializer.CurrentVersion, header.Version);
             }
         }
 
