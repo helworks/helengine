@@ -16,6 +16,7 @@
   <ItemGroup>
     <ProjectReference Include="..\helengine.editor.fbximporter\helengine.editor.assimp.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.editor\helengine.editor.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.platforms\helengine.platforms.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.projectfile\helengine.projectfile.csproj" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 </Project>

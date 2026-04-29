@@ -113,6 +113,14 @@ namespace helengine.editor {
         /// </summary>
         readonly int AddMenuButtonWidth;
         /// <summary>
+        /// Entity that hosts the Build menu trigger button.
+        /// </summary>
+        readonly EditorEntity BuildMenuButtonEntity;
+        /// <summary>
+        /// Width reserved for the Build menu trigger button.
+        /// </summary>
+        readonly int BuildMenuButtonWidth;
+        /// <summary>
         /// Context menu shown when the File button is activated.
         /// </summary>
         readonly ContextMenu FileMenu;
@@ -128,6 +136,14 @@ namespace helengine.editor {
         /// Items displayed by the Add context menu.
         /// </summary>
         readonly IReadOnlyList<ContextMenuItem> AddMenuItems;
+        /// <summary>
+        /// Context menu shown when the Build button is activated.
+        /// </summary>
+        readonly ContextMenu BuildMenu;
+        /// <summary>
+        /// Items displayed by the Build context menu.
+        /// </summary>
+        readonly IReadOnlyList<ContextMenuItem> BuildMenuItems;
         /// <summary>
         /// Entity that hosts the minimize control.
         /// </summary>
@@ -247,6 +263,8 @@ namespace helengine.editor {
             FileMenuButtonWidth = fileMenuButtonWidth;
             AddMenuButtonEntity = CreateTitleBarButton("Add", ToggleAddMenu, HandleAddMenuButtonHovered, true, true, out int addMenuButtonWidth);
             AddMenuButtonWidth = addMenuButtonWidth;
+            BuildMenuButtonEntity = CreateTitleBarButton("Build", ToggleBuildMenu, HandleBuildMenuButtonHovered, true, true, out int buildMenuButtonWidth);
+            BuildMenuButtonWidth = buildMenuButtonWidth;
 
             TitleEntity = new EditorEntity {
                 LayerMask = TitleBarLayerMask,
@@ -272,6 +290,9 @@ namespace helengine.editor {
             AddMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
             RootEntity.AddChild(AddMenu.Entity);
             AddMenuItems = BuildAddMenuItems();
+            BuildMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            RootEntity.AddChild(BuildMenu.Entity);
+            BuildMenuItems = BuildBuildMenuItems();
 
             MinimizeButtonEntity = CreateTitleBarButton("-", HandleMinimizeRequested, null, true, false, out int minimizeButtonWidth);
             MinimizeButtonWidth = minimizeButtonWidth;
@@ -355,6 +376,10 @@ namespace helengine.editor {
         /// Raised when the user selects the Add Plane command.
         /// </summary>
         public event Action AddPlaneRequested;
+        /// <summary>
+        /// Raised when the user selects the Build Settings command.
+        /// </summary>
+        public event Action BuildSettingsRequested;
 
         /// <summary>
         /// Updates button placement, menu clamping, and title sizing to fit the provided host size.
@@ -374,9 +399,11 @@ namespace helengine.editor {
             FileMenuButtonEntity.Position = new float3(fileButtonX, ButtonTop, 0f);
             float addButtonX = fileButtonX + FileMenuButtonWidth + ButtonSpacing;
             AddMenuButtonEntity.Position = new float3(addButtonX, ButtonTop, 0f);
+            float buildButtonX = addButtonX + AddMenuButtonWidth + ButtonSpacing;
+            BuildMenuButtonEntity.Position = new float3(buildButtonX, ButtonTop, 0f);
 
             int totalControlsWidth = MinimizeButtonWidth + MaximizeButtonWidth + CloseButtonWidth + (ButtonSpacing * 2);
-            float titleX = addButtonX + AddMenuButtonWidth + ButtonSpacing + TitleSpacing;
+            float titleX = buildButtonX + BuildMenuButtonWidth + ButtonSpacing + TitleSpacing;
             float controlStartX = Math.Max(0, width - totalControlsWidth);
 
             TitleEntity.Position = new float3(titleX, GetTitleVerticalOffset(), 0f);
@@ -387,6 +414,7 @@ namespace helengine.editor {
             UpdateDragRegion(controlStartX);
             FileMenu.UpdateLayout(HostSize);
             AddMenu.UpdateLayout(HostSize);
+            BuildMenu.UpdateLayout(HostSize);
         }
 
         /// <summary>
@@ -411,6 +439,16 @@ namespace helengine.editor {
                 new ContextMenuItem("Empty", RaiseAddEmptyRequested),
                 new ContextMenuItem("Cube", RaiseAddCubeRequested),
                 new ContextMenuItem("Plane", RaiseAddPlaneRequested)
+            };
+        }
+
+        /// <summary>
+        /// Creates the Build menu items shown beside the Add button.
+        /// </summary>
+        /// <returns>Immutable collection of Build menu items.</returns>
+        IReadOnlyList<ContextMenuItem> BuildBuildMenuItems() {
+            return new ContextMenuItem[] {
+                new ContextMenuItem("Build Settings...", RaiseBuildSettingsRequested)
             };
         }
 
@@ -516,7 +554,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="controlStartX">Left edge of the window control cluster.</param>
         void UpdateDragRegion(float controlStartX) {
-            float dragRegionX = LeftIconSlotWidth + FileMenuButtonWidth + ButtonSpacing + AddMenuButtonWidth + ButtonSpacing;
+            float dragRegionX = LeftIconSlotWidth + FileMenuButtonWidth + ButtonSpacing + AddMenuButtonWidth + ButtonSpacing + BuildMenuButtonWidth + ButtonSpacing;
             int dragRegionWidth = Math.Max(0, (int)Math.Floor(controlStartX - dragRegionX - ButtonSpacing));
 
             DragRegionEntity.Position = new float3(dragRegionX, 0f, 0f);
@@ -544,6 +582,7 @@ namespace helengine.editor {
         void HideMenus() {
             FileMenu.Hide();
             AddMenu.Hide();
+            BuildMenu.Hide();
         }
 
         /// <summary>
@@ -571,10 +610,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Shows or hides the Build menu anchored beneath the Build button.
+        /// </summary>
+        void ToggleBuildMenu() {
+            if (BuildMenu.IsVisible) {
+                BuildMenu.Hide();
+                return;
+            }
+
+            ShowBuildMenu();
+        }
+
+        /// <summary>
         /// Switches to the File menu when hovering across an already active menu strip.
         /// </summary>
         void HandleFileMenuButtonHovered() {
-            if (!AddMenu.IsVisible) {
+            if (!AddMenu.IsVisible && !BuildMenu.IsVisible) {
                 return;
             }
 
@@ -585,7 +636,7 @@ namespace helengine.editor {
         /// Switches to the Add menu when hovering across an already active menu strip.
         /// </summary>
         void HandleAddMenuButtonHovered() {
-            if (!FileMenu.IsVisible) {
+            if (!FileMenu.IsVisible && !BuildMenu.IsVisible) {
                 return;
             }
 
@@ -593,10 +644,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Switches to the Build menu when hovering across an already active menu strip.
+        /// </summary>
+        void HandleBuildMenuButtonHovered() {
+            if (!FileMenu.IsVisible && !AddMenu.IsVisible) {
+                return;
+            }
+
+            ShowBuildMenu();
+        }
+
+        /// <summary>
         /// Shows the File menu and closes any other title-bar menu.
         /// </summary>
         void ShowFileMenu() {
             AddMenu.Hide();
+            BuildMenu.Hide();
             FileMenu.Show(FileMenuItems, GetFileMenuPosition(), HostSize);
         }
 
@@ -605,7 +668,17 @@ namespace helengine.editor {
         /// </summary>
         void ShowAddMenu() {
             FileMenu.Hide();
+            BuildMenu.Hide();
             AddMenu.Show(AddMenuItems, GetAddMenuPosition(), HostSize);
+        }
+
+        /// <summary>
+        /// Shows the Build menu and closes any other title-bar menu.
+        /// </summary>
+        void ShowBuildMenu() {
+            FileMenu.Hide();
+            AddMenu.Hide();
+            BuildMenu.Show(BuildMenuItems, GetBuildMenuPosition(), HostSize);
         }
 
         /// <summary>
@@ -627,6 +700,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Computes the top-left position used to open the Build menu.
+        /// </summary>
+        /// <returns>Menu position relative to the title bar root.</returns>
+        int2 GetBuildMenuPosition() {
+            int x = (int)Math.Round(BuildMenuButtonEntity.Position.X);
+            return new int2(x, HeightPixels);
+        }
+
+        /// <summary>
         /// Handles cursor interaction on the draggable title region.
         /// </summary>
         /// <param name="pos">Pointer position relative to the drag region.</param>
@@ -637,7 +719,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (FileMenu.IsVisible || AddMenu.IsVisible) {
+            if (FileMenu.IsVisible || AddMenu.IsVisible || BuildMenu.IsVisible) {
                 HideMenus();
                 return;
             }
@@ -765,6 +847,16 @@ namespace helengine.editor {
         void RaiseAddPlaneRequested() {
             if (AddPlaneRequested != null) {
                 AddPlaneRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Build Settings command event.
+        /// </summary>
+        void RaiseBuildSettingsRequested() {
+            HideMenus();
+            if (BuildSettingsRequested != null) {
+                BuildSettingsRequested();
             }
         }
 

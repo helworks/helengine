@@ -1,3 +1,4 @@
+using helengine.platforms;
 using helengine.projectfile;
 
 namespace helengine.editor {
@@ -57,17 +58,25 @@ namespace helengine.editor {
         /// </summary>
         readonly string projectPath;
         /// <summary>
+        /// Canonical absolute `.heproj` path for the open project.
+        /// </summary>
+        readonly string CanonicalProjectFilePath;
+        /// <summary>
         /// Project file name shown in the host window title.
         /// </summary>
         readonly string ProjectDisplayName;
         /// <summary>
+        /// Exact engine version required by the current project file.
+        /// </summary>
+        readonly string RequiredEngineVersion;
+        /// <summary>
         /// Supported platform identifiers declared by the current project's `.heproj` file.
         /// </summary>
-        readonly IReadOnlyList<string> ProjectSupportedPlatforms;
+        IReadOnlyList<string> ProjectSupportedPlatforms;
         /// <summary>
         /// Service used to persist editor-local active-platform state for the current project.
         /// </summary>
-        readonly EditorProjectLocalSettingsService ProjectLocalSettingsService;
+        EditorProjectLocalSettingsService ProjectLocalSettingsService;
         /// <summary>
         /// Font used for UI elements and title bars.
         /// </summary>
@@ -189,9 +198,17 @@ namespace helengine.editor {
         /// </summary>
         readonly ReparentEntityDialog reparentEntityDialog;
         /// <summary>
+        /// Modal dialog used to change the project's supported build platforms.
+        /// </summary>
+        readonly BuildSettingsDialog buildSettingsDialog;
+        /// <summary>
         /// Modal dialog used to confirm whether pending scene transitions should save dirty changes.
         /// </summary>
         readonly UnsavedChangesDialog unsavedChangesDialog;
+        /// <summary>
+        /// Resolves the available platform list that can be selected in Build Settings.
+        /// </summary>
+        readonly AvailablePlatformProviderResolver availablePlatformProviderResolver;
         /// <summary>
         /// Deserializes `.helen` scene files into editor entities.
         /// </summary>
@@ -244,12 +261,15 @@ namespace helengine.editor {
             EditorViewportToolbarIconSet toolbarIcons,
             IReadOnlyList<IAssetImporterRegistration> importers) {
             this.core = core ?? throw new ArgumentNullException(nameof(core));
-            string canonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
-            this.projectPath = ResolveProjectRootPathFromCanonicalProjectFile(canonicalProjectFilePath);
-            ProjectDisplayName = ResolveProjectDisplayNameFromCanonicalProjectFile(canonicalProjectFilePath);
-            ProjectSupportedPlatforms = LoadProjectSupportedPlatforms(canonicalProjectFilePath);
+            CanonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
+            this.projectPath = ResolveProjectRootPathFromCanonicalProjectFile(CanonicalProjectFilePath);
+            ProjectDisplayName = ResolveProjectDisplayNameFromCanonicalProjectFile(CanonicalProjectFilePath);
+            ProjectFileDocument projectDocument = LoadProjectDocument(CanonicalProjectFilePath);
+            RequiredEngineVersion = ResolveRequiredEngineVersion(projectDocument);
+            ProjectSupportedPlatforms = LoadProjectSupportedPlatforms(projectDocument);
             ProjectLocalSettingsService = new EditorProjectLocalSettingsService(this.projectPath, ProjectSupportedPlatforms);
             ActiveProjectPlatform = ProjectLocalSettingsService.LoadActivePlatform();
+            availablePlatformProviderResolver = CreateAvailablePlatformProviderResolver();
             EditorContentManager = this.core.GetContentManager();
             this.uiFont = uiFont ?? throw new ArgumentNullException(nameof(uiFont));
             snapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
@@ -356,6 +376,7 @@ namespace helengine.editor {
             saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
             openFileDialog = new OpenFileDialog(uiFont, this.projectPath);
             reparentEntityDialog = new ReparentEntityDialog(uiFont);
+            buildSettingsDialog = new BuildSettingsDialog(uiFont);
             unsavedChangesDialog = new UnsavedChangesDialog(uiFont);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
@@ -377,6 +398,7 @@ namespace helengine.editor {
             titleBar.OpenMapRequested += HandleOpenMapRequested;
             titleBar.SaveMapRequested += HandleSaveMapRequested;
             titleBar.SaveMapAsRequested += HandleSaveMapAsRequested;
+            titleBar.BuildSettingsRequested += HandleBuildSettingsRequested;
             titleBar.AddEmptyRequested += HandleAddEmptyRequested;
             titleBar.AddCubeRequested += HandleAddCubeRequested;
             titleBar.AddPlaneRequested += HandleAddPlaneRequested;
@@ -384,6 +406,8 @@ namespace helengine.editor {
             openFileDialog.OpenRequested += HandleSceneOpenRequested;
             reparentEntityDialog.ConfirmRequested += HandleReparentEntityDialogConfirmed;
             reparentEntityDialog.CancelRequested += HandleReparentEntityDialogCancelRequested;
+            buildSettingsDialog.ConfirmRequested += HandleBuildSettingsDialogConfirmed;
+            buildSettingsDialog.CancelRequested += HandleBuildSettingsDialogCancelRequested;
             unsavedChangesDialog.SaveRequested += HandleUnsavedChangesSaveRequested;
             unsavedChangesDialog.DontSaveRequested += HandleUnsavedChangesDontSaveRequested;
             unsavedChangesDialog.CancelRequested += HandleUnsavedChangesCancelRequested;
@@ -591,6 +615,7 @@ namespace helengine.editor {
             saveFileDialog.UpdateLayout(width, height);
             openFileDialog.UpdateLayout(width, height);
             reparentEntityDialog.UpdateLayout(width, height);
+            buildSettingsDialog.UpdateLayout(width, height);
             unsavedChangesDialog.UpdateLayout(width, height);
             mainViewport.RefreshInputBlockers();
             UpdateDockInputBlockers();
@@ -675,6 +700,7 @@ namespace helengine.editor {
             titleBar.OpenMapRequested -= HandleOpenMapRequested;
             titleBar.SaveMapRequested -= HandleSaveMapRequested;
             titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested;
+            titleBar.BuildSettingsRequested -= HandleBuildSettingsRequested;
             titleBar.AddEmptyRequested -= HandleAddEmptyRequested;
             titleBar.AddCubeRequested -= HandleAddCubeRequested;
             titleBar.AddPlaneRequested -= HandleAddPlaneRequested;
@@ -682,6 +708,8 @@ namespace helengine.editor {
             openFileDialog.OpenRequested -= HandleSceneOpenRequested;
             reparentEntityDialog.ConfirmRequested -= HandleReparentEntityDialogConfirmed;
             reparentEntityDialog.CancelRequested -= HandleReparentEntityDialogCancelRequested;
+            buildSettingsDialog.ConfirmRequested -= HandleBuildSettingsDialogConfirmed;
+            buildSettingsDialog.CancelRequested -= HandleBuildSettingsDialogCancelRequested;
             unsavedChangesDialog.SaveRequested -= HandleUnsavedChangesSaveRequested;
             unsavedChangesDialog.DontSaveRequested -= HandleUnsavedChangesDontSaveRequested;
             unsavedChangesDialog.CancelRequested -= HandleUnsavedChangesCancelRequested;
@@ -691,6 +719,7 @@ namespace helengine.editor {
             saveFileDialog.Hide();
             openFileDialog.Hide();
             reparentEntityDialog.Hide();
+            buildSettingsDialog.Hide();
             unsavedChangesDialog.Hide();
             shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
             shaderModuleManager.Dispose();
@@ -836,6 +865,35 @@ namespace helengine.editor {
         /// </summary>
         void HandleSaveMapAsRequested() {
             ShowSceneSaveDialog();
+        }
+
+        /// <summary>
+        /// Opens Build Settings using the currently available platforms for the active engine version.
+        /// </summary>
+        void HandleBuildSettingsRequested() {
+            IReadOnlyList<AvailablePlatformDescriptor> availablePlatforms = availablePlatformProviderResolver.LoadPlatforms(RequiredEngineVersion);
+            buildSettingsDialog.Show(availablePlatforms, SupportedPlatforms);
+        }
+
+        /// <summary>
+        /// Applies one confirmed Build Settings selection to the canonical project file and local active-platform state.
+        /// </summary>
+        /// <param name="selection">Supported-platform selection confirmed by the dialog.</param>
+        void HandleBuildSettingsDialogConfirmed(BuildSettingsSelection selection) {
+            if (selection == null) {
+                throw new ArgumentNullException(nameof(selection));
+            }
+
+            SaveProjectSupportedPlatforms(selection.SelectedPlatformIds);
+            ApplySupportedPlatforms(selection.SelectedPlatformIds);
+            buildSettingsDialog.Hide();
+        }
+
+        /// <summary>
+        /// Cancels the Build Settings workflow and hides the dialog.
+        /// </summary>
+        void HandleBuildSettingsDialogCancelRequested() {
+            buildSettingsDialog.Hide();
         }
 
         /// <summary>
@@ -1545,21 +1603,129 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Loads the supported platform identifiers declared by one canonical `.heproj` file.
+        /// Loads one canonical project document from the validated `.heproj` file path.
         /// </summary>
         /// <param name="canonicalProjectFilePath">Validated absolute canonical `.heproj` file path.</param>
-        /// <returns>Supported platform identifiers preserved from the project file.</returns>
-        IReadOnlyList<string> LoadProjectSupportedPlatforms(string canonicalProjectFilePath) {
+        /// <returns>Canonical project document loaded from disk.</returns>
+        ProjectFileDocument LoadProjectDocument(string canonicalProjectFilePath) {
             ProjectFileReader reader = new ProjectFileReader();
             ProjectFileReadResult readResult = reader.ReadAsync(canonicalProjectFilePath).GetAwaiter().GetResult();
             if (!readResult.Succeeded) {
                 throw new InvalidOperationException(readResult.Errors[0].Message);
             }
-            if (readResult.Document.SupportedPlatforms == null || readResult.Document.SupportedPlatforms.Count == 0) {
+
+            return readResult.Document;
+        }
+
+        /// <summary>
+        /// Resolves the exact required engine version declared by one loaded project document.
+        /// </summary>
+        /// <param name="projectDocument">Loaded canonical project document.</param>
+        /// <returns>Exact required engine version declared by the project.</returns>
+        string ResolveRequiredEngineVersion(ProjectFileDocument projectDocument) {
+            if (projectDocument == null) {
+                throw new ArgumentNullException(nameof(projectDocument));
+            }
+            if (string.IsNullOrWhiteSpace(projectDocument.RequiredEngineVersion)) {
+                throw new InvalidOperationException("Project file must declare a required engine version.");
+            }
+
+            return projectDocument.RequiredEngineVersion;
+        }
+
+        /// <summary>
+        /// Loads the supported platform identifiers declared by one canonical `.heproj` file.
+        /// </summary>
+        /// <param name="canonicalProjectFilePath">Validated absolute canonical `.heproj` file path.</param>
+        /// <returns>Supported platform identifiers preserved from the project file.</returns>
+        IReadOnlyList<string> LoadProjectSupportedPlatforms(string canonicalProjectFilePath) {
+            ProjectFileDocument projectDocument = LoadProjectDocument(canonicalProjectFilePath);
+            return LoadProjectSupportedPlatforms(projectDocument);
+        }
+
+        /// <summary>
+        /// Loads the supported platform identifiers declared by one loaded project document.
+        /// </summary>
+        /// <param name="projectDocument">Loaded canonical project document.</param>
+        /// <returns>Supported platform identifiers preserved from the project file.</returns>
+        IReadOnlyList<string> LoadProjectSupportedPlatforms(ProjectFileDocument projectDocument) {
+            if (projectDocument == null) {
+                throw new ArgumentNullException(nameof(projectDocument));
+            }
+            if (projectDocument.SupportedPlatforms == null || projectDocument.SupportedPlatforms.Count == 0) {
                 throw new InvalidOperationException("Project file must declare at least one supported platform.");
             }
 
-            return readResult.Document.SupportedPlatforms.AsReadOnly();
+            return projectDocument.SupportedPlatforms.AsReadOnly();
+        }
+
+        /// <summary>
+        /// Creates the available-platform resolver used by Build Settings.
+        /// </summary>
+        /// <returns>Resolver that loads platforms from development overrides, launcher state, or built-in fallback sources.</returns>
+        AvailablePlatformProviderResolver CreateAvailablePlatformProviderResolver() {
+            PlatformDiscoveryOptions options = new PlatformDiscoveryOptions();
+            WindowsLauncherInstallRootLocator launcherInstallRootLocator = new WindowsLauncherInstallRootLocator();
+            return new AvailablePlatformProviderResolver(options, launcherInstallRootLocator);
+        }
+
+        /// <summary>
+        /// Persists one new supported-platform list to the canonical project file.
+        /// </summary>
+        /// <param name="supportedPlatforms">Supported platforms selected in Build Settings.</param>
+        void SaveProjectSupportedPlatforms(IReadOnlyList<string> supportedPlatforms) {
+            if (supportedPlatforms == null) {
+                throw new ArgumentNullException(nameof(supportedPlatforms));
+            }
+            if (supportedPlatforms.Count == 0) {
+                throw new InvalidOperationException("At least one supported platform must be selected.");
+            }
+
+            ProjectFileDocument projectDocument = LoadProjectDocument(CanonicalProjectFilePath);
+            projectDocument.SupportedPlatforms = new List<string>(supportedPlatforms);
+            ProjectFileWriter writer = new ProjectFileWriter();
+            writer.WriteAsync(CanonicalProjectFilePath, projectDocument).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// Applies one new supported-platform list to the live editor session and local project settings.
+        /// </summary>
+        /// <param name="supportedPlatforms">Supported platforms selected in Build Settings.</param>
+        void ApplySupportedPlatforms(IReadOnlyList<string> supportedPlatforms) {
+            if (supportedPlatforms == null) {
+                throw new ArgumentNullException(nameof(supportedPlatforms));
+            }
+            if (supportedPlatforms.Count == 0) {
+                throw new InvalidOperationException("At least one supported platform must be selected.");
+            }
+
+            ProjectSupportedPlatforms = new List<string>(supportedPlatforms).AsReadOnly();
+            ProjectLocalSettingsService = new EditorProjectLocalSettingsService(projectPath, ProjectSupportedPlatforms);
+            ActiveProjectPlatform = ResolveNextActiveProjectPlatform(ProjectSupportedPlatforms);
+            ProjectLocalSettingsService.SaveActivePlatform(ActiveProjectPlatform);
+            assetImportManager.CurrentPlatformId = ActiveProjectPlatform;
+        }
+
+        /// <summary>
+        /// Resolves the active platform that should remain selected after supported platforms change.
+        /// </summary>
+        /// <param name="supportedPlatforms">Updated supported platform identifiers.</param>
+        /// <returns>Current platform when still supported; otherwise the first supported platform.</returns>
+        string ResolveNextActiveProjectPlatform(IReadOnlyList<string> supportedPlatforms) {
+            if (supportedPlatforms == null) {
+                throw new ArgumentNullException(nameof(supportedPlatforms));
+            }
+            if (supportedPlatforms.Count == 0) {
+                throw new InvalidOperationException("At least one supported platform must be provided.");
+            }
+
+            for (int i = 0; i < supportedPlatforms.Count; i++) {
+                if (string.Equals(supportedPlatforms[i], ActiveProjectPlatform, StringComparison.OrdinalIgnoreCase)) {
+                    return supportedPlatforms[i];
+                }
+            }
+
+            return supportedPlatforms[0];
         }
 
         /// <summary>
