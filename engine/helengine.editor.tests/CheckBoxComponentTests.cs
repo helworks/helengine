@@ -36,6 +36,25 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures render-order overrides update both checkbox visuals.
+        /// </summary>
+        [Fact]
+        public void SetRenderOrders_WhenCalledAfterComponentAdded_UpdatesBackgroundAndCheckMarkRenderOrder() {
+            InitializeCore();
+            EditorEntity entity = new EditorEntity();
+            CheckBoxComponent checkBox = new CheckBoxComponent(new int2(20, 20), CreateFont(), true);
+            entity.AddComponent(checkBox);
+
+            checkBox.SetRenderOrders(RenderOrder2D.ModalForeground, RenderOrder2D.ModalForeground);
+
+            RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(checkBox, "Background");
+            TextComponent checkMark = GetPrivateField<TextComponent>(checkBox, "CheckMark");
+
+            Assert.Equal(RenderOrder2D.ModalForeground, background.RenderOrder2D);
+            Assert.Equal(RenderOrder2D.ModalForeground, checkMark.RenderOrder2D);
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>

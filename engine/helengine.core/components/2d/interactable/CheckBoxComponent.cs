@@ -29,6 +29,18 @@ namespace helengine {
         /// </summary>
         bool IsPressed;
         /// <summary>
+        /// Tracks whether custom render orders were supplied for the checkbox visuals.
+        /// </summary>
+        bool HasRenderOrderOverrides;
+        /// <summary>
+        /// Render order override for the checkbox background.
+        /// </summary>
+        byte BackgroundRenderOrder;
+        /// <summary>
+        /// Render order override for the checkbox check-mark text.
+        /// </summary>
+        byte CheckMarkRenderOrder;
+        /// <summary>
         /// Background rectangle that renders the checkbox border and fill.
         /// </summary>
         RoundedRectComponent Background;
@@ -101,6 +113,25 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Overrides the render orders used for the checkbox background and check mark.
+        /// </summary>
+        /// <param name="backgroundOrder">Render order for the checkbox background.</param>
+        /// <param name="checkMarkOrder">Render order for the checkbox check mark.</param>
+        public void SetRenderOrders(byte backgroundOrder, byte checkMarkOrder) {
+            HasRenderOrderOverrides = true;
+            BackgroundRenderOrder = backgroundOrder;
+            CheckMarkRenderOrder = checkMarkOrder;
+
+            if (Background != null) {
+                Background.RenderOrder2D = backgroundOrder;
+            }
+
+            if (CheckMark != null) {
+                CheckMark.RenderOrder2D = checkMarkOrder;
+            }
+        }
+
+        /// <summary>
         /// Creates the checkbox visuals and input region when the component is added to an entity.
         /// </summary>
         /// <param name="entity">Owning entity.</param>
@@ -109,6 +140,10 @@ namespace helengine {
 
             byte backgroundOrder = RenderOrder2D.PanelSurface;
             byte textOrder = RenderOrder2D.PanelForeground;
+            if (HasRenderOrderOverrides) {
+                backgroundOrder = BackgroundRenderOrder;
+                textOrder = CheckMarkRenderOrder;
+            }
 
             Background = new RoundedRectComponent();
             Background.Size = SizeValue;

@@ -83,6 +83,79 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures dialog-owned row hosts stay internal so they never leak into the scene hierarchy.
+        /// </summary>
+        [Fact]
+        public void Show_WhenPlatformRowsAreCreated_MarksDialogOwnedEntitiesAsInternal() {
+            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+
+            dialog.Show(
+                CreateAvailablePlatforms("windows", "linux"),
+                new List<string> {
+                    "windows"
+                });
+
+            EditorEntity panelRoot = GetPrivateField<EditorEntity>(dialog, "PanelRoot");
+            EditorEntity titleHost = GetPrivateField<EditorEntity>(dialog, "TitleHost");
+            EditorEntity closeButtonHost = GetPrivateField<EditorEntity>(dialog, "CloseButtonHost");
+            EditorEntity statusHost = GetPrivateField<EditorEntity>(dialog, "StatusHost");
+            EditorEntity cancelButtonHost = GetPrivateField<EditorEntity>(dialog, "CancelButtonHost");
+            EditorEntity saveButtonHost = GetPrivateField<EditorEntity>(dialog, "SaveButtonHost");
+            List<EditorEntity> platformLabelHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformLabelHosts");
+            List<EditorEntity> platformCheckBoxHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformCheckBoxHosts");
+
+            Assert.True(panelRoot.InternalEntity);
+            Assert.True(titleHost.InternalEntity);
+            Assert.True(closeButtonHost.InternalEntity);
+            Assert.True(statusHost.InternalEntity);
+            Assert.True(cancelButtonHost.InternalEntity);
+            Assert.True(saveButtonHost.InternalEntity);
+            Assert.All(platformLabelHosts, host => Assert.True(host.InternalEntity));
+            Assert.All(platformCheckBoxHosts, host => Assert.True(host.InternalEntity));
+        }
+
+        /// <summary>
+        /// Ensures the dialog exposes a header close action that raises cancel.
+        /// </summary>
+        [Fact]
+        public void HandleCloseClicked_RaisesCancelRequested() {
+            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            bool raised = false;
+            dialog.CancelRequested += () => raised = true;
+            dialog.Show(
+                CreateAvailablePlatforms("windows"),
+                new List<string> {
+                    "windows"
+                });
+            dialog.UpdateLayout(1280, 720);
+
+            InvokePrivate(dialog, "HandleCloseClicked");
+
+            Assert.True(raised);
+        }
+
+        /// <summary>
+        /// Ensures modal checkboxes render above the modal panel instead of using panel-surface render orders.
+        /// </summary>
+        [Fact]
+        public void Show_WhenPlatformRowsAreCreated_UsesModalRenderOrdersForCheckBoxes() {
+            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+
+            dialog.Show(
+                CreateAvailablePlatforms("windows"),
+                new List<string> {
+                    "windows"
+                });
+
+            List<CheckBoxComponent> platformCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "PlatformCheckBoxes");
+            RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(platformCheckBoxes[0], "Background");
+            TextComponent checkMark = GetPrivateField<TextComponent>(platformCheckBoxes[0], "CheckMark");
+
+            Assert.Equal(RenderOrder2D.ModalForeground, background.RenderOrder2D);
+            Assert.Equal(RenderOrder2D.ModalForeground, checkMark.RenderOrder2D);
+        }
+
+        /// <summary>
         /// Ensures the dialog rejects confirmation when every platform is unchecked.
         /// </summary>
         [Fact]

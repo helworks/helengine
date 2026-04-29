@@ -46,6 +46,10 @@ namespace helengine.editor {
         /// </summary>
         static readonly int2 SaveButtonSize = new int2(88, 22);
         /// <summary>
+        /// Fixed size used for the header close button.
+        /// </summary>
+        static readonly int2 CloseButtonSize = new int2(22, 22);
+        /// <summary>
         /// Fixed size used for each platform checkbox.
         /// </summary>
         static readonly int2 CheckBoxSize = new int2(18, 18);
@@ -70,6 +74,14 @@ namespace helengine.editor {
         /// Title text shown at the top of the dialog.
         /// </summary>
         readonly TextComponent TitleText;
+        /// <summary>
+        /// Host entity for the header close button.
+        /// </summary>
+        readonly EditorEntity CloseButtonHost;
+        /// <summary>
+        /// Header close button component.
+        /// </summary>
+        readonly ButtonComponent CloseButton;
         /// <summary>
         /// Host entity for validation or empty-state text.
         /// </summary>
@@ -165,7 +177,8 @@ namespace helengine.editor {
 
             PanelRoot = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = float3.Zero,
+                InternalEntity = true
             };
             AddChild(PanelRoot);
 
@@ -181,7 +194,8 @@ namespace helengine.editor {
 
             TitleHost = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = float3.Zero,
+                InternalEntity = true
             };
             PanelRoot.AddChild(TitleHost);
 
@@ -194,9 +208,23 @@ namespace helengine.editor {
             };
             TitleHost.AddComponent(TitleText);
 
+            CloseButtonHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            PanelRoot.AddChild(CloseButtonHost);
+
+            CloseButton = new ButtonComponent("X", CloseButtonSize, font, HandleCloseClicked, 0f);
+            CloseButtonHost.AddComponent(CloseButton);
+            CloseButton.SetRenderOrders(TextOrder, TextOrder);
+            CloseButton.UseHoverOnlyBackground();
+            CloseButton.SetTextColor(ThemeManager.Colors.InputForegroundPrimary);
+
             StatusHost = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = float3.Zero,
+                InternalEntity = true
             };
             PanelRoot.AddChild(StatusHost);
 
@@ -211,7 +239,8 @@ namespace helengine.editor {
 
             CancelButtonHost = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = float3.Zero,
+                InternalEntity = true
             };
             PanelRoot.AddChild(CancelButtonHost);
 
@@ -221,7 +250,8 @@ namespace helengine.editor {
 
             SaveButtonHost = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = float3.Zero,
+                InternalEntity = true
             };
             PanelRoot.AddChild(SaveButtonHost);
 
@@ -306,6 +336,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Raises the cancel action from the header close button.
+        /// </summary>
+        void HandleCloseClicked() {
+            HandleCancelClicked();
+        }
+
+        /// <summary>
         /// Validates and raises the confirmed platform selection.
         /// </summary>
         void HandleSaveClicked() {
@@ -375,7 +412,8 @@ namespace helengine.editor {
         void CreatePlatformRow(AvailablePlatformDescriptor platform, bool isChecked) {
             EditorEntity labelHost = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = float3.Zero,
+                InternalEntity = true
             };
             PanelRoot.AddChild(labelHost);
             PlatformLabelHosts.Add(labelHost);
@@ -392,13 +430,15 @@ namespace helengine.editor {
 
             EditorEntity checkBoxHost = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = float3.Zero,
+                InternalEntity = true
             };
             PanelRoot.AddChild(checkBoxHost);
             PlatformCheckBoxHosts.Add(checkBoxHost);
 
             CheckBoxComponent checkBox = new CheckBoxComponent(CheckBoxSize, Font, isChecked);
             checkBoxHost.AddComponent(checkBox);
+            checkBox.SetRenderOrders(TextOrder, TextOrder);
             PlatformCheckBoxes.Add(checkBox);
         }
 
@@ -439,6 +479,8 @@ namespace helengine.editor {
         /// </summary>
         void LayoutTitle() {
             TitleHost.Position = new float3(PanelPadding, PanelPadding, 0f);
+            int closeButtonX = PanelWidth - PanelPadding - CloseButtonSize.X;
+            CloseButtonHost.Position = new float3(closeButtonX, PanelPadding, 0f);
         }
 
         /// <summary>
