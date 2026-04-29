@@ -19,11 +19,19 @@ namespace helengine.editor {
         /// Default wheel zoom speed in world units per scroll-wheel notch.
         /// </summary>
         public const double DefaultWheelZoomSpeed = 1.0;
+        /// <summary>
+        /// Default orbit distance used to derive a virtual target before the user selects one.
+        /// </summary>
+        public const double DefaultOrbitDistance = 10.0;
 
         /// <summary>
         /// Minimum length squared used to avoid normalizing a zero vector.
         /// </summary>
         const double MinLengthSquared = 0.000001;
+        /// <summary>
+        /// Minimum orbit distance allowed between the camera and its orbit pivot.
+        /// </summary>
+        const double MinOrbitDistance = 0.1;
         /// <summary>
         /// Maximum pitch angle in radians to avoid gimbal lock.
         /// </summary>
@@ -57,6 +65,10 @@ namespace helengine.editor {
         /// </summary>
         bool isPanning;
         /// <summary>
+        /// Tracks whether an Alt plus middle-click orbit started inside the viewport.
+        /// </summary>
+        bool isOrbiting;
+        /// <summary>
         /// Tracks whether the first look delta after activation should be ignored.
         /// </summary>
         bool ignoreNextLookDelta;
@@ -65,17 +77,17 @@ namespace helengine.editor {
         /// </summary>
         bool ignoreNextPanDelta;
         /// <summary>
-        /// Last mouse position recorded for look deltas.
+        /// Tracks whether the first orbit delta after activation should be ignored.
         /// </summary>
-        int2 lastLookPosition;
-        /// <summary>
-        /// Last mouse position recorded for pan deltas.
-        /// </summary>
-        int2 lastPanPosition;
+        bool ignoreNextOrbitDelta;
         /// <summary>
         /// Tracks whether yaw and pitch have been initialized from the current orientation.
         /// </summary>
         bool hasOrientationState;
+        /// <summary>
+        /// Tracks whether the controller already has a virtual orbit target.
+        /// </summary>
+        bool hasVirtualTargetState;
         /// <summary>
         /// Current yaw angle in radians.
         /// </summary>
@@ -84,6 +96,14 @@ namespace helengine.editor {
         /// Current pitch angle in radians.
         /// </summary>
         double pitch;
+        /// <summary>
+        /// Current orbit distance from the camera to the orbit target.
+        /// </summary>
+        double orbitDistance;
+        /// <summary>
+        /// Current virtual target used when no scene entity is selected.
+        /// </summary>
+        float3 virtualTarget;
 
         /// <summary>
         /// Initializes a new controller for the specified camera.
@@ -95,6 +115,7 @@ namespace helengine.editor {
             LookSensitivity = DefaultLookSensitivity;
             PanSpeed = DefaultPanSpeed;
             WheelZoomSpeed = DefaultWheelZoomSpeed;
+            orbitDistance = DefaultOrbitDistance;
         }
 
         /// <summary>
@@ -131,6 +152,11 @@ namespace helengine.editor {
                 hasOrientationState = true;
             }
 
+            if (!hasVirtualTargetState) {
+                UpdateVirtualTargetFromCamera();
+                hasVirtualTargetState = true;
+            }
+
             if (input.WasMouseRightButtonPressed()) {
                 if (isPointerBlocked) {
                     isActive = false;
@@ -138,7 +164,6 @@ namespace helengine.editor {
                 } else {
                     isActive = IsPointerInsideViewport(input);
                     if (isActive) {
-                        lastLookPosition = input.GetMousePosition();
                         ignoreNextLookDelta = true;
                     }
                 }
@@ -152,20 +177,38 @@ namespace helengine.editor {
             if (input.WasMouseMiddleButtonPressed()) {
                 if (isPointerBlocked) {
                     isPanning = false;
+                    isOrbiting = false;
                     ignoreNextPanDelta = false;
+                    ignoreNextOrbitDelta = false;
                 } else {
-                    isPanning = IsPointerInsideViewport(input);
-                    if (isPanning) {
-                        lastPanPosition = input.GetMousePosition();
-                        ignoreNextPanDelta = true;
+                    bool isPointerInsideViewport = IsPointerInsideViewport(input);
+                    if (IsOrbitModifierDown(input)) {
+                        isPanning = false;
+                        ignoreNextPanDelta = false;
+                        isOrbiting = isPointerInsideViewport;
+                        if (isOrbiting) {
+                            ResolveOrbitTarget();
+                            ignoreNextOrbitDelta = true;
+                        }
+                    } else {
+                        isOrbiting = false;
+                        ignoreNextOrbitDelta = false;
+                        isPanning = isPointerInsideViewport;
+                        if (isPanning) {
+                            ignoreNextPanDelta = true;
+                        }
                     }
                 }
             }
 
             if (input.WasMouseMiddleButtonReleased() || input.GetMouseMiddleButtonState() == ButtonState.Released) {
                 isPanning = false;
+                isOrbiting = false;
                 ignoreNextPanDelta = false;
+                ignoreNextOrbitDelta = false;
             }
+
+            UpdatePointerWrapState(input);
 
             if (isActive) {
                 ApplyMouseLook(input);
@@ -177,24 +220,29 @@ namespace helengine.editor {
 
             ApplyWheelZoom(input, isPointerBlocked, forward);
 
-            if (!isActive && !isPanning) {
+            if (isOrbiting) {
+                ApplyOrbit(input);
+                forward = GetForward(Parent.Orientation);
+                right = NormalizeSafe(float3.Cross(forward, WorldUp), new float3(1f, 0f, 0f));
+                up = NormalizeSafe(float3.Cross(right, forward), WorldUp);
+            }
+
+            if (!isActive && !isPanning && !isOrbiting) {
                 return;
             }
 
             if (isPanning) {
                 if (ignoreNextPanDelta) {
-                    lastPanPosition = input.GetMousePosition();
                     ignoreNextPanDelta = false;
                 } else {
-                    int2 current = input.GetMousePosition();
-                    int2 delta = new int2(current.X - lastPanPosition.X, current.Y - lastPanPosition.Y);
-                    lastPanPosition = current;
+                    int2 delta = input.GetMouseDelta();
                     if (delta.X != 0 || delta.Y != 0) {
                         double panScale = PanSpeed;
                         float3 panMove =
                             right * (float)(-delta.X * panScale) +
                             up * (float)(delta.Y * panScale);
                         Parent.Position += panMove;
+                        virtualTarget += panMove;
                     }
                 }
             }
@@ -207,6 +255,9 @@ namespace helengine.editor {
 
             move = NormalizeSafe(move, forward);
             Parent.Position += move * MoveSpeed;
+            if (isActive) {
+                UpdateVirtualTargetFromCamera();
+            }
         }
 
         /// <summary>
@@ -230,6 +281,7 @@ namespace helengine.editor {
             double notchDelta = wheelDelta / WheelDeltaPerNotch;
             double zoomDistance = notchDelta * WheelZoomSpeed;
             Parent.Position += forward * (float)zoomDistance;
+            UpdateOrbitDistanceFromTarget();
         }
 
         /// <summary>
@@ -238,14 +290,11 @@ namespace helengine.editor {
         /// <param name="input">Input manager providing mouse delta.</param>
         void ApplyMouseLook(InputManager input) {
             if (ignoreNextLookDelta) {
-                lastLookPosition = input.GetMousePosition();
                 ignoreNextLookDelta = false;
                 return;
             }
 
-            int2 current = input.GetMousePosition();
-            int2 delta = new int2(current.X - lastLookPosition.X, current.Y - lastLookPosition.Y);
-            lastLookPosition = current;
+            int2 delta = input.GetMouseDelta();
             if (delta.X == 0 && delta.Y == 0) {
                 return;
             }
@@ -258,6 +307,17 @@ namespace helengine.editor {
             float4.CreateFromYawPitchRoll((float)yaw, (float)pitch, 0f, out orientation);
             orientation.Normalize();
             Parent.Orientation = orientation;
+            UpdateVirtualTargetFromCamera();
+        }
+
+        /// <summary>
+        /// Enables client-edge pointer wrapping while camera navigation is active.
+        /// </summary>
+        /// <param name="input">Input manager receiving the desired pointer-wrap state.</param>
+        void UpdatePointerWrapState(InputManager input) {
+            if (isActive || isPanning || isOrbiting) {
+                input.RequestPointerWrapEnabled();
+            }
         }
 
         /// <summary>
@@ -268,6 +328,95 @@ namespace helengine.editor {
             yaw = Math.Atan2(forward.X, -forward.Z);
             pitch = Math.Asin(forward.Y);
             pitch = Math.Clamp(pitch, -MaxPitch, MaxPitch);
+        }
+
+        /// <summary>
+        /// Applies orbit deltas to the camera while keeping the orbit pivot fixed.
+        /// </summary>
+        /// <param name="input">Input manager providing mouse delta.</param>
+        void ApplyOrbit(InputManager input) {
+            if (ignoreNextOrbitDelta) {
+                ignoreNextOrbitDelta = false;
+                return;
+            }
+
+            int2 delta = input.GetMouseDelta();
+            if (delta.X == 0 && delta.Y == 0) {
+                return;
+            }
+
+            yaw -= delta.X * LookSensitivity;
+            pitch -= delta.Y * LookSensitivity;
+            pitch = Math.Clamp(pitch, -MaxPitch, MaxPitch);
+
+            float4 orientation;
+            float4.CreateFromYawPitchRoll((float)yaw, (float)pitch, 0f, out orientation);
+            orientation.Normalize();
+            Parent.Orientation = orientation;
+
+            float3 forward = GetForward(orientation);
+            float3 target = ResolveOrbitTarget();
+            Parent.Position = target - (forward * (float)orbitDistance);
+        }
+
+        /// <summary>
+        /// Determines whether the current input state requests orbit instead of pan.
+        /// </summary>
+        /// <param name="input">Input manager used to query modifier keys.</param>
+        /// <returns>True when either Alt key is pressed.</returns>
+        bool IsOrbitModifierDown(InputManager input) {
+            return input.IsKeyDown(Keys.LeftAlt) || input.IsKeyDown(Keys.RightAlt);
+        }
+
+        /// <summary>
+        /// Resolves the active orbit target from the selection or the stored virtual target.
+        /// </summary>
+        /// <returns>World-space target position used for orbit interactions.</returns>
+        float3 ResolveOrbitTarget() {
+            Entity selectedEntity = EditorSelectionService.SelectedEntity;
+            if (selectedEntity != null) {
+                virtualTarget = selectedEntity.Position;
+                orbitDistance = GetDistance(Parent.Position, virtualTarget);
+                if (orbitDistance < MinOrbitDistance) {
+                    orbitDistance = MinOrbitDistance;
+                }
+            }
+
+            hasVirtualTargetState = true;
+            return virtualTarget;
+        }
+
+        /// <summary>
+        /// Updates the stored virtual target so it remains in front of the camera at the current orbit distance.
+        /// </summary>
+        void UpdateVirtualTargetFromCamera() {
+            float3 forward = GetForward(Parent.Orientation);
+            virtualTarget = Parent.Position + (forward * (float)orbitDistance);
+            hasVirtualTargetState = true;
+        }
+
+        /// <summary>
+        /// Recomputes orbit distance against the current virtual target after the camera position changes.
+        /// </summary>
+        void UpdateOrbitDistanceFromTarget() {
+            float3 target = ResolveOrbitTarget();
+            orbitDistance = GetDistance(Parent.Position, target);
+            if (orbitDistance < MinOrbitDistance) {
+                orbitDistance = MinOrbitDistance;
+            }
+        }
+
+        /// <summary>
+        /// Computes the world-space distance between two positions.
+        /// </summary>
+        /// <param name="left">First world position.</param>
+        /// <param name="right">Second world position.</param>
+        /// <returns>Distance between the supplied positions.</returns>
+        double GetDistance(float3 left, float3 right) {
+            double deltaX = left.X - right.X;
+            double deltaY = left.Y - right.Y;
+            double deltaZ = left.Z - right.Z;
+            return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
         }
 
         /// <summary>

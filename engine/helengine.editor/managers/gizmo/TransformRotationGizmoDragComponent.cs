@@ -75,10 +75,16 @@ namespace helengine.editor {
             InputManager input = Core.Instance.InputManager;
             if (IsDragging) {
                 UpdateActiveDrag(input);
+                if (IsDragging) {
+                    input.RequestPointerWrapEnabled();
+                }
                 return;
             }
 
             TryBeginDrag(input);
+            if (IsDragging) {
+                input.RequestPointerWrapEnabled();
+            }
         }
 
         /// <summary>

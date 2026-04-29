@@ -33,6 +33,18 @@ public abstract class InputManager {
     /// Tracks whether input has been captured for the current frame.
     /// </summary>
     bool hasCapturedInput;
+    /// <summary>
+    /// Mouse movement delta cached for the current frame.
+    /// </summary>
+    int2 mouseDelta;
+    /// <summary>
+    /// Tracks whether client-edge pointer wrapping is currently active on the mouse backend.
+    /// </summary>
+    bool ActivePointerWrapEnabled;
+    /// <summary>
+    /// Tracks whether any editor interaction requested pointer wrapping for the next frame.
+    /// </summary>
+    bool RequestedPointerWrapEnabled;
 
     /// <summary>
     /// Initializes the input manager and caches the core instance.
@@ -87,9 +99,32 @@ public abstract class InputManager {
     }
 
     /// <summary>
+    /// Enables or disables client-edge pointer wrapping for the active mouse backend.
+    /// </summary>
+    /// <param name="isEnabled">True when active interactions should wrap across the client bounds.</param>
+    public void SetPointerWrapEnabled(bool isEnabled) {
+        ActivePointerWrapEnabled = isEnabled;
+        RequestedPointerWrapEnabled = isEnabled;
+
+        if (Mouse == null) {
+            return;
+        }
+
+        Mouse.SetPointerWrapEnabled(isEnabled);
+    }
+
+    /// <summary>
+    /// Requests client-edge pointer wrapping for the next input frame.
+    /// </summary>
+    public void RequestPointerWrapEnabled() {
+        RequestedPointerWrapEnabled = true;
+    }
+
+    /// <summary>
     /// Captures keyboard and mouse input at the start of a frame.
     /// </summary>
     public virtual void EarlyUpdate() {
+        ApplyPointerWrapState();
         EnsureInputStateCaptured();
     }
 
@@ -106,7 +141,7 @@ public abstract class InputManager {
     /// </summary>
     /// <returns>Mouse movement delta in pixels.</returns>
     public int2 GetMouseDelta() {
-        return new int2(mouseState.X - lastMouseState.X, mouseState.Y - lastMouseState.Y);
+        return mouseDelta;
     }
 
     /// <summary>
@@ -327,8 +362,8 @@ public abstract class InputManager {
                     (int)MathF.Round(capturedLocal.Y - Highlighted.Parent.Position.Y)
                 );
 
-                int deltaX = mouseState.X - lastMouseState.X;
-                int deltaY = mouseState.Y - lastMouseState.Y;
+                int deltaX = mouseDelta.X;
+                int deltaY = mouseDelta.Y;
                 if (interaction == PointerInteraction.None && (deltaX != 0 || deltaY != 0)) {
                     interaction = PointerInteraction.Hover;
                 }
@@ -401,8 +436,8 @@ public abstract class InputManager {
                     (int)MathF.Round(localMouse.Y - Hovering.Parent.Position.Y)
                 );
 
-                int deltaX = mouseState.X - lastMouseState.X;
-                int deltaY = mouseState.Y - lastMouseState.Y;
+                int deltaX = mouseDelta.X;
+                int deltaY = mouseDelta.Y;
 
                 // Click started on this interactable
                 if (interaction == PointerInteraction.Press) {
@@ -427,6 +462,7 @@ public abstract class InputManager {
                 }
             }
         } finally {
+            CommitPointerWrapState();
             hasCapturedInput = false;
         }
     }
@@ -481,11 +517,41 @@ public abstract class InputManager {
     void CaptureInputState() {
         lastMouseState = mouseState;
         mouseState = Mouse.GetState();
+        int2 pointerWrapDeltaOffset = Mouse.ConsumePointerWrapDeltaOffset();
+        mouseDelta = new int2(
+            mouseState.X - lastMouseState.X + pointerWrapDeltaOffset.X,
+            mouseState.Y - lastMouseState.Y + pointerWrapDeltaOffset.Y
+        );
 
         lastKeyboardState = keyboardState;
         keyboardState = Keyboard.GetState();
 
         hasCapturedInput = true;
+    }
+
+    /// <summary>
+    /// Applies the currently active pointer-wrap state to the mouse backend before input capture begins.
+    /// </summary>
+    void ApplyPointerWrapState() {
+        if (Mouse == null) {
+            return;
+        }
+
+        Mouse.SetPointerWrapEnabled(ActivePointerWrapEnabled);
+    }
+
+    /// <summary>
+    /// Commits all pointer-wrap requests gathered during the current frame and updates the backend for the next frame.
+    /// </summary>
+    void CommitPointerWrapState() {
+        ActivePointerWrapEnabled = RequestedPointerWrapEnabled;
+        RequestedPointerWrapEnabled = false;
+
+        if (Mouse == null) {
+            return;
+        }
+
+        Mouse.SetPointerWrapEnabled(ActivePointerWrapEnabled);
     }
 
     /// <summary>

@@ -42,5 +42,20 @@ namespace helengine.editor.tests.testing {
         public void SetMouseState(MouseState state) {
             TestMouse.State = state;
         }
+
+        /// <summary>
+        /// Configures the client bounds used by the test mouse when pointer wrapping is enabled.
+        /// </summary>
+        /// <param name="clientBounds">Client width and height for the simulated test window.</param>
+        public void SetMouseClientBounds(int2 clientBounds) {
+            TestMouse.SetClientBounds(clientBounds);
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether simulated client-edge pointer wrapping is currently active.
+        /// </summary>
+        public bool IsPointerWrapEnabled {
+            get { return TestMouse.IsPointerWrapEnabled; }
+        }
     }
 }

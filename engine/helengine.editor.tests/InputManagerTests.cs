@@ -151,6 +151,64 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the shared input layer leaves edge positions unchanged when pointer wrapping is disabled.
+        /// </summary>
+        [Fact]
+        public void EarlyUpdate_WhenPointerWrapIsDisabled_KeepsTheRawEdgePosition() {
+            TestInputManager input = InitializeCore();
+            input.SetMouseClientBounds(new int2(320, 240));
+            input.SetPointerWrapEnabled(false);
+
+            CaptureInputFrame(input, CreateReleasedMouseState(319, 120));
+
+            Assert.Equal(new int2(319, 120), input.GetMousePosition());
+        }
+
+        /// <summary>
+        /// Ensures the shared input layer wraps the pointer from the right client edge to the left interior edge when wrapping is enabled.
+        /// </summary>
+        [Fact]
+        public void EarlyUpdate_WhenPointerWrapIsEnabledAtRightEdge_WrapsToTheLeftInteriorEdge() {
+            TestInputManager input = InitializeCore();
+            input.SetMouseClientBounds(new int2(320, 240));
+            input.SetPointerWrapEnabled(true);
+
+            CaptureInputFrame(input, CreateReleasedMouseState(319, 120));
+
+            Assert.Equal(new int2(1, 120), input.GetMousePosition());
+        }
+
+        /// <summary>
+        /// Ensures the shared input layer wraps both axes when the pointer reaches a client corner during an active wrapped interaction.
+        /// </summary>
+        [Fact]
+        public void EarlyUpdate_WhenPointerWrapIsEnabledAtBottomRightCorner_WrapsBothAxes() {
+            TestInputManager input = InitializeCore();
+            input.SetMouseClientBounds(new int2(320, 240));
+            input.SetPointerWrapEnabled(true);
+
+            CaptureInputFrame(input, CreateReleasedMouseState(319, 239));
+
+            Assert.Equal(new int2(1, 1), input.GetMousePosition());
+        }
+
+        /// <summary>
+        /// Ensures the first delta after a pointer wrap preserves the local movement without including the full teleport distance.
+        /// </summary>
+        [Fact]
+        public void EarlyUpdate_WhenPointerWrapOccurs_PreservesTheLocalDeltaWithoutReportingTheTeleportDistance() {
+            TestInputManager input = InitializeCore();
+            input.SetMouseClientBounds(new int2(320, 240));
+            input.SetPointerWrapEnabled(true);
+
+            CaptureInputFrame(input, CreateReleasedMouseState(318, 120));
+            CaptureInputFrame(input, CreateReleasedMouseState(319, 120));
+
+            Assert.Equal(new int2(1, 120), input.GetMousePosition());
+            Assert.Equal(new int2(1, 0), input.GetMouseDelta());
+        }
+
+        /// <summary>
         /// Initializes a core instance with the minimum services required for input-routing tests.
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
@@ -206,6 +264,35 @@ namespace helengine.editor.tests {
             };
             entity.AddComponent(interactable);
             return interactable;
+        }
+
+        /// <summary>
+        /// Captures and completes one input frame for tests that only inspect cached mouse state.
+        /// </summary>
+        /// <param name="input">Input manager receiving the frame state.</param>
+        /// <param name="state">Mouse state to capture for the frame.</param>
+        void CaptureInputFrame(TestInputManager input, MouseState state) {
+            input.SetMouseState(state);
+            input.EarlyUpdate();
+            input.Update();
+        }
+
+        /// <summary>
+        /// Creates one released-button mouse state at the supplied pointer coordinates.
+        /// </summary>
+        /// <param name="x">Pointer X coordinate in window pixels.</param>
+        /// <param name="y">Pointer Y coordinate in window pixels.</param>
+        /// <returns>Mouse state with all buttons released.</returns>
+        MouseState CreateReleasedMouseState(int x, int y) {
+            return new MouseState(
+                x,
+                y,
+                0,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released);
         }
     }
 }
