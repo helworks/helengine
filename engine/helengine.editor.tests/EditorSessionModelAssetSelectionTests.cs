@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -6,11 +7,11 @@ using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies editor-session handling of platform-aware asset import settings.
+    /// Verifies selecting filesystem model assets does not leak editor UI entities into the scene hierarchy.
     /// </summary>
-    public class EditorSessionAssetImportSettingsTests : IDisposable {
+    public class EditorSessionModelAssetSelectionTests : IDisposable {
         /// <summary>
-        /// Temporary project root used for asset-settings session tests.
+        /// Temporary project root used by the model-selection session tests.
         /// </summary>
         readonly string TempProjectRootPath;
 
@@ -20,10 +21,10 @@ namespace helengine.editor.tests {
         readonly string AssetsRootPath;
 
         /// <summary>
-        /// Initializes one isolated project root and the UI services required by properties-panel tests.
+        /// Initializes isolated editor services required by the model-selection tests.
         /// </summary>
-        public EditorSessionAssetImportSettingsTests() {
-            TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-asset-settings-tests", Guid.NewGuid().ToString("N"));
+        public EditorSessionModelAssetSelectionTests() {
+            TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-model-selection-tests", Guid.NewGuid().ToString("N"));
             AssetsRootPath = Path.Combine(TempProjectRootPath, "assets");
             Directory.CreateDirectory(AssetsRootPath);
 
@@ -43,110 +44,68 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures applying import settings persists the selected project platform, updates the import manager, and rehydrates the properties panel.
+        /// Ensures selecting one filesystem model asset does not add visible scene entities.
         /// </summary>
         [Fact]
-        public void HandleImportSettingsApplyRequested_WhenPlatformSettingsApplied_PersistsPlatformAndReloadsView() {
-            string sourcePath = WriteSourceModel("sponza.obj");
+        public void HandleAssetSelected_WhenFileSystemModelIsSelected_DoesNotAddVisibleSceneHierarchyNodes() {
+            string sourcePath = WriteSourceModel("Sponza.obj");
             EditorSession session = CreateSession();
-            AssetImportManager manager = GetPrivateField<AssetImportManager>(session, "assetImportManager");
-            PropertiesPanel panel = GetPrivateField<PropertiesPanel>(session, "propertiesPanel");
-            EditorProjectLocalSettingsService localSettingsService = GetPrivateField<EditorProjectLocalSettingsService>(session, "ProjectLocalSettingsService");
+            SceneHierarchyPanel hierarchyPanel = GetPrivateField<SceneHierarchyPanel>(session, "sceneHierarchyPanel");
             AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile(
-                "sponza.obj",
-                "Models/sponza.obj",
+                "Sponza.obj",
+                "Models/Sponza.obj",
                 sourcePath,
                 ".obj",
                 AssetEntryKind.Model);
-            AssetProcessorSettings processorSettings = new AssetProcessorSettings();
-            processorSettings.Platforms["windows"] = new AssetPlatformProcessorSettings {
-                Model = new ModelAssetProcessorSettings {
-                    FlipWinding = true
-                }
-            };
-            processorSettings.Platforms["android"] = new AssetPlatformProcessorSettings {
-                Model = new ModelAssetProcessorSettings {
-                    FlipWinding = false
-                }
-            };
-            AssetImportSettingsApplyRequest request = new AssetImportSettingsApplyRequest("test-model", "windows", processorSettings);
 
-            InvokePrivate(session, "HandleImportSettingsApplyRequested", entry, request);
+            hierarchyPanel.RefreshHierarchy();
+            int hierarchyCountBeforeSelection = GetHierarchyNodeCount(hierarchyPanel);
 
-            AssetImportSettings savedSettings = manager.LoadOrCreateImportSettings(sourcePath);
-            AssetImportSettingsView view = GetPrivateField<AssetImportSettingsView>(panel, "importSettingsView");
-            Assert.Equal("windows", session.CurrentProjectPlatform);
-            Assert.Equal("windows", manager.CurrentPlatformId);
-            Assert.Equal("windows", localSettingsService.LoadActivePlatform());
-            Assert.Equal("test-model", savedSettings.Importer.ImporterId);
-            Assert.True(savedSettings.Processor.Platforms["windows"].Model.FlipWinding);
-            Assert.Equal("windows", view.SelectedPlatformId);
-            Assert.True(view.CurrentFlipWindingValue);
+            InvokePrivate(session, "HandleAssetSelected", entry);
+
+            hierarchyPanel.RefreshHierarchy();
+            int hierarchyCountAfterSelection = GetHierarchyNodeCount(hierarchyPanel);
+
+            Assert.Equal(hierarchyCountBeforeSelection, hierarchyCountAfterSelection);
         }
 
         /// <summary>
-        /// Ensures applying model processor settings rebuilds the live scene mesh from the processed cache using the selected platform.
+        /// Creates one partially initialized editor session containing the collaborators used by asset selection.
         /// </summary>
-        [Fact]
-        public void HandleImportSettingsApplyRequested_WhenSceneUsesFileSystemModel_RebuildsTheLiveMeshModel() {
-            string sourcePath = WriteSourceModel(Path.Combine("Models", "sponza.obj"));
-            EditorSession session = CreateSession();
-            AssetImportManager manager = GetPrivateField<AssetImportManager>(session, "assetImportManager");
-            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            EditorEntity entity = new EditorEntity();
-            MeshComponent meshComponent = new MeshComponent {
-                Model = new TestRuntimeModel()
-            };
-            RuntimeModel originalModel = meshComponent.Model;
-            entity.AddComponent(meshComponent);
-            GetSaveComponent(entity).SetAssetReference(meshComponent, "Model", new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
-                RelativePath = "Models/sponza.obj"
-            });
-            AssetProcessorSettings processorSettings = new AssetProcessorSettings();
-            processorSettings.Platforms["windows"] = new AssetPlatformProcessorSettings {
-                Model = new ModelAssetProcessorSettings {
-                    FlipWinding = true
-                }
-            };
-            AssetImportSettingsApplyRequest request = new AssetImportSettingsApplyRequest("test-model", "windows", processorSettings);
-
-            InvokePrivate(session, "HandleImportSettingsApplyRequested", AssetBrowserEntry.CreateFileSystemFile(
-                "sponza.obj",
-                "Models/sponza.obj",
-                sourcePath,
-                ".obj",
-                AssetEntryKind.Model), request);
-
-            ModelAsset rebuiltAsset = Assert.Single(renderManager.BuiltModelAssets);
-            Assert.NotSame(originalModel, meshComponent.Model);
-            Assert.Equal(new ushort[] { 0, 2, 1 }, rebuiltAsset.Indices16);
-            Assert.True(manager.CurrentPlatformId == "windows");
-        }
-
-        /// <summary>
-        /// Creates one partially initialized editor session containing the collaborators used by import-settings apply handling.
-        /// </summary>
-        /// <returns>Editor session configured for asset-settings tests.</returns>
+        /// <returns>Editor session configured for filesystem model asset selection tests.</returns>
         EditorSession CreateSession() {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             ContentManager contentManager = new ContentManager(AssetsRootPath);
             AssetImportManager manager = new AssetImportManager(TempProjectRootPath, contentManager);
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), contentManager);
-            IReadOnlyList<string> supportedPlatforms = new List<string> { "windows", "android" };
+            PropertiesPanel propertiesPanel = new PropertiesPanel(CreateFont(), contentManager);
+            PreviewPanel previewPanel = new PreviewPanel(CreateFont());
+            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(CreateFont());
+            IReadOnlyList<string> supportedPlatforms = new List<string> { "windows" };
             EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, supportedPlatforms);
-            localSettingsService.SaveActivePlatform("android");
-            manager.CurrentPlatformId = "android";
+
+            manager.CurrentPlatformId = "windows";
             manager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
 
             SetPrivateField(session, "assetImportManager", manager);
-            SetPrivateField(session, "propertiesPanel", panel);
+            SetPrivateField(session, "propertiesPanel", propertiesPanel);
+            SetPrivateField(session, "previewPanel", previewPanel);
+            SetPrivateField(session, "sceneHierarchyPanel", sceneHierarchyPanel);
             SetPrivateField(session, "ProjectSupportedPlatforms", supportedPlatforms);
             SetPrivateField(session, "ProjectLocalSettingsService", localSettingsService);
-            SetPrivateField(session, "ActiveProjectPlatform", "android");
-            SetPrivateField(session, "SceneModelRefreshService", new EditorSceneModelRefreshService(new EditorFileSystemModelResolver(manager)));
+            SetPrivateField(session, "ActiveProjectPlatform", "windows");
 
             return session;
+        }
+
+        /// <summary>
+        /// Reads the flattened hierarchy node count from one scene hierarchy panel.
+        /// </summary>
+        /// <param name="panel">Scene hierarchy panel to inspect.</param>
+        /// <returns>Current number of visible hierarchy nodes.</returns>
+        int GetHierarchyNodeCount(SceneHierarchyPanel panel) {
+            FieldInfo nodesField = panel.GetType().GetField("nodes", BindingFlags.Instance | BindingFlags.NonPublic);
+            ICollection nodes = Assert.IsAssignableFrom<ICollection>(nodesField.GetValue(panel));
+            return nodes.Count;
         }
 
         /// <summary>
@@ -194,39 +153,27 @@ namespace helengine.editor.tests {
             }
 
             string sourcePath = Path.Combine(AssetsRootPath, fileName);
-            string directoryPath = Path.GetDirectoryName(sourcePath);
-            if (!string.IsNullOrWhiteSpace(directoryPath)) {
-                Directory.CreateDirectory(directoryPath);
-            }
-
             File.WriteAllText(sourcePath, "test model source");
             return sourcePath;
         }
 
         /// <summary>
-        /// Retrieves the hidden save component attached to one editor entity.
-        /// </summary>
-        /// <param name="entity">Entity whose save component should be read.</param>
-        /// <returns>Attached hidden save component.</returns>
-        EntitySaveComponent GetSaveComponent(EditorEntity entity) {
-            return Assert.IsType<EntitySaveComponent>(Assert.Single(entity.Components, component => component is EntitySaveComponent));
-        }
-
-        /// <summary>
-        /// Creates a small font asset that can satisfy properties-panel layout requirements.
+        /// Creates a small font asset that can satisfy properties and hierarchy layout requirements.
         /// </summary>
         /// <returns>Font asset with basic glyph metrics for the current test.</returns>
         FontAsset CreateFont() {
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
                 ['A'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
-                ['C'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['F'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['D'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['H'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
                 ['I'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
+                ['M'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f),
                 ['P'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['W'] = new FontChar(new float4(0f, 0f, 11f, 12f), 0f, 11f, 0f, 0f),
+                ['S'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['c'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
                 ['d'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['e'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['g'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['h'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['i'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
@@ -240,7 +187,8 @@ namespace helengine.editor.tests {
                 ['t'] = new FontChar(new float4(0f, 0f, 5f, 12f), 0f, 5f, 0f, 0f),
                 ['u'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['w'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f),
-                ['y'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)
+                ['y'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['z'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f)
             };
 
             return new FontAsset(

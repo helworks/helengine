@@ -173,6 +173,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntityReparentService ReparentService;
         /// <summary>
+        /// Refreshes live scene mesh components after file-system model assets are reprocessed.
+        /// </summary>
+        readonly EditorSceneModelRefreshService SceneModelRefreshService;
+        /// <summary>
         /// Modal dialog used to choose scene save destinations.
         /// </summary>
         readonly SaveFileDialog saveFileDialog;
@@ -348,6 +352,7 @@ namespace helengine.editor {
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
             SceneCreationService = new EditorSceneCreationService();
             ReparentService = new EditorEntityReparentService();
+            SceneModelRefreshService = new EditorSceneModelRefreshService(fileSystemModelResolver);
             saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
             openFileDialog = new OpenFileDialog(uiFont, this.projectPath);
             reparentEntityDialog = new ReparentEntityDialog(uiFont);
@@ -1285,8 +1290,9 @@ namespace helengine.editor {
                 AssetImportSettings settings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
                 settings.Importer.ImporterId = request.ImporterId;
                 settings.Processor = request.ProcessorSettings;
-                assetImportManager.SaveImportSettings(entry.FullPath, settings);
                 SetActiveProjectPlatform(request.SelectedPlatformId);
+                assetImportManager.SaveImportSettings(entry.FullPath, settings);
+                SceneModelRefreshService.RefreshFileSystemModel(entry.FullPath, entry.RelativePath);
 
                 IReadOnlyList<string> importerIds = assetImportManager.GetImporterIdsForExtension(entry.Extension);
                 propertiesPanel.ShowImportSettings(entry, settings, importerIds, SupportedPlatforms, CurrentProjectPlatform);

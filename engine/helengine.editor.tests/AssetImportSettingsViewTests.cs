@@ -97,6 +97,38 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures repeated model-setting refreshes do not leak platform-tab entities into the scene hierarchy.
+        /// </summary>
+        [Fact]
+        public void Show_WhenModelSettingsAreShownRepeatedly_DoesNotLeakPlatformTabEntitiesIntoSceneHierarchy() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+
+            view.Show(
+                ["assimp"],
+                CreateSettings(false, false),
+                ["windows"],
+                "windows",
+                AssetEntryKind.Model);
+            panel.RefreshHierarchy();
+
+            int firstHierarchyCount = GetHierarchyNodeCount(panel);
+
+            view.Show(
+                ["assimp"],
+                CreateSettings(false, false),
+                ["windows"],
+                "windows",
+                AssetEntryKind.Model);
+            panel.RefreshHierarchy();
+
+            int secondHierarchyCount = GetHierarchyNodeCount(panel);
+
+            Assert.Equal(0, firstHierarchyCount);
+            Assert.Equal(0, secondHierarchyCount);
+        }
+
+        /// <summary>
         /// Ensures the properties panel forwards the richer apply payload emitted by the asset settings view.
         /// </summary>
         [Fact]
@@ -178,6 +210,17 @@ namespace helengine.editor.tests {
         void InvokePrivate(object target, string methodName, params object[] arguments) {
             MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
             method.Invoke(target, arguments);
+        }
+
+        /// <summary>
+        /// Counts the visible rows currently shown by one scene hierarchy panel.
+        /// </summary>
+        /// <param name="panel">Hierarchy panel to inspect.</param>
+        /// <returns>Number of visible hierarchy rows.</returns>
+        int GetHierarchyNodeCount(SceneHierarchyPanel panel) {
+            FieldInfo rowsField = typeof(SceneHierarchyPanel).GetField("rows", BindingFlags.Instance | BindingFlags.NonPublic);
+            var rows = Assert.IsType<List<SceneHierarchyRow>>(rowsField.GetValue(panel));
+            return rows.Count;
         }
 
         /// <summary>
