@@ -156,6 +156,43 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the header uses a dedicated title-bar color instead of the panel fill color.
+        /// </summary>
+        [Fact]
+        public void Constructor_UsesDistinctHeaderColor() {
+            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            SpriteComponent headerBackground = GetPrivateField<SpriteComponent>(dialog, "HeaderBackground");
+
+            Assert.Equal(ThemeManager.Colors.AccentSecondary, headerBackground.Color);
+            Assert.NotEqual(panelBackground.FillColor, headerBackground.Color);
+        }
+
+        /// <summary>
+        /// Ensures dragging the title bar moves the dialog panel.
+        /// </summary>
+        [Fact]
+        public void HandleHeaderCursor_WhenDragged_MovesPanelPosition() {
+            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            dialog.Show(
+                CreateAvailablePlatforms("windows"),
+                new List<string> {
+                    "windows"
+                });
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity panelRoot = GetPrivateField<EditorEntity>(dialog, "PanelRoot");
+            float3 initialPosition = panelRoot.Position;
+
+            InvokePrivate(dialog, "HandleHeaderCursor", new int2(16, 16), new int2(0, 0), PointerInteraction.Press);
+            InvokePrivate(dialog, "HandleHeaderCursor", new int2(32, 28), new int2(24, 12), PointerInteraction.Hover);
+            InvokePrivate(dialog, "HandleHeaderCursor", new int2(32, 28), new int2(0, 0), PointerInteraction.Release);
+
+            Assert.Equal(initialPosition.X + 24, panelRoot.Position.X);
+            Assert.Equal(initialPosition.Y + 12, panelRoot.Position.Y);
+        }
+
+        /// <summary>
         /// Ensures the dialog rejects confirmation when every platform is unchecked.
         /// </summary>
         [Fact]
@@ -252,6 +289,17 @@ namespace helengine.editor.tests {
         void InvokePrivate(object target, string methodName) {
             MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
             method.Invoke(target, Array.Empty<object>());
+        }
+
+        /// <summary>
+        /// Invokes one non-public instance method with parameters.
+        /// </summary>
+        /// <param name="target">Target object that owns the method.</param>
+        /// <param name="methodName">Name of the method to invoke.</param>
+        /// <param name="arguments">Arguments passed to the invoked method.</param>
+        void InvokePrivate(object target, string methodName, params object[] arguments) {
+            MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            method.Invoke(target, arguments);
         }
 
         /// <summary>

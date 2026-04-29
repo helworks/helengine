@@ -30,6 +30,10 @@ namespace helengine.editor {
         /// </summary>
         public const int FooterHeight = 28;
         /// <summary>
+        /// Height reserved for the draggable title bar.
+        /// </summary>
+        public const int HeaderHeight = 32;
+        /// <summary>
         /// Corner radius applied to the dialog background.
         /// </summary>
         const float PanelRadius = 6f;
@@ -37,6 +41,14 @@ namespace helengine.editor {
         /// Border thickness applied to the dialog background.
         /// </summary>
         const float PanelBorderThickness = 2f;
+        /// <summary>
+        /// Padding used inside the title bar for text and buttons.
+        /// </summary>
+        const int HeaderPadding = 8;
+        /// <summary>
+        /// Spacing used between the title text and the close button.
+        /// </summary>
+        const int HeaderButtonSpacing = 8;
         /// <summary>
         /// Fixed size used for the cancel button.
         /// </summary>
@@ -66,6 +78,18 @@ namespace helengine.editor {
         /// Dialog background shape.
         /// </summary>
         readonly RoundedRectComponent PanelBackground;
+        /// <summary>
+        /// Root entity for the draggable title bar.
+        /// </summary>
+        readonly EditorEntity HeaderRoot;
+        /// <summary>
+        /// Background sprite for the title bar.
+        /// </summary>
+        readonly SpriteComponent HeaderBackground;
+        /// <summary>
+        /// Interactable region used to drag the dialog.
+        /// </summary>
+        readonly InteractableComponent HeaderInteractable;
         /// <summary>
         /// Host entity for the dialog title.
         /// </summary>
@@ -135,9 +159,21 @@ namespace helengine.editor {
         /// </summary>
         readonly byte TextOrder;
         /// <summary>
+        /// Cached host size for panel clamping.
+        /// </summary>
+        int2 HostSize;
+        /// <summary>
         /// Cached panel position relative to the host window.
         /// </summary>
         int2 PanelPosition;
+        /// <summary>
+        /// Tracks whether the user has manually moved the dialog.
+        /// </summary>
+        bool IsUserPositioned;
+        /// <summary>
+        /// Tracks whether the title bar is currently being dragged.
+        /// </summary>
+        bool IsDragging;
         /// <summary>
         /// Tracks whether the dialog has completed initialization.
         /// </summary>
@@ -192,12 +228,33 @@ namespace helengine.editor {
             };
             PanelRoot.AddComponent(PanelBackground);
 
+            HeaderRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            PanelRoot.AddChild(HeaderRoot);
+
+            HeaderBackground = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = ThemeManager.Colors.AccentSecondary,
+                RenderOrder2D = PanelOrder,
+                Size = new int2(0, 0)
+            };
+            HeaderRoot.AddComponent(HeaderBackground);
+
+            HeaderInteractable = new InteractableComponent {
+                Size = new int2(0, 0)
+            };
+            HeaderInteractable.CursorEvent += HandleHeaderCursor;
+            HeaderRoot.AddComponent(HeaderInteractable);
+
             TitleHost = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            PanelRoot.AddChild(TitleHost);
+            HeaderRoot.AddChild(TitleHost);
 
             TitleText = new TextComponent {
                 Font = font,
@@ -213,7 +270,7 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            PanelRoot.AddChild(CloseButtonHost);
+            HeaderRoot.AddChild(CloseButtonHost);
 
             CloseButton = new ButtonComponent("X", CloseButtonSize, font, HandleCloseClicked, 0f);
             CloseButtonHost.AddComponent(CloseButton);
@@ -281,6 +338,8 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(supportedPlatforms));
             }
 
+            IsDragging = false;
+            IsUserPositioned = false;
             Enabled = true;
             StatusText.Text = string.Empty;
 
@@ -293,6 +352,8 @@ namespace helengine.editor {
         /// </summary>
         public void Hide() {
             EditorInputCaptureService.ClearBlocker(this);
+            IsDragging = false;
+            IsUserPositioned = false;
             Enabled = false;
             StatusText.Text = string.Empty;
         }
@@ -313,13 +374,18 @@ namespace helengine.editor {
 
             int safeWidth = Math.Max(1, windowWidth);
             int safeHeight = Math.Max(1, windowHeight);
-            PanelPosition = new int2(
-                Math.Max(0, (safeWidth - PanelWidth) / 2),
-                Math.Max(0, (safeHeight - PanelHeight) / 2));
+            HostSize = new int2(safeWidth, safeHeight);
+            if (!IsUserPositioned) {
+                PanelPosition = new int2(
+                    Math.Max(0, (safeWidth - PanelWidth) / 2),
+                    Math.Max(0, (safeHeight - PanelHeight) / 2));
+            }
 
-            PanelRoot.Position = new float3(PanelPosition.X, PanelPosition.Y, 0.1f);
+            ClampPanelPosition();
+            ApplyPanelPosition();
             EditorInputCaptureService.SetBlocker(this, PanelPosition, new int2(PanelWidth, PanelHeight));
 
+            LayoutHeader();
             LayoutTitle();
             LayoutPlatformRows();
             LayoutStatus();
@@ -477,17 +543,34 @@ namespace helengine.editor {
         /// <summary>
         /// Positions the dialog title.
         /// </summary>
+        void LayoutHeader() {
+            int headerWidth = Math.Max(0, PanelWidth - PanelPadding * 2);
+            HeaderRoot.Position = new float3(PanelPadding, PanelPadding, 0.2f);
+            HeaderBackground.Size = new int2(headerWidth, HeaderHeight);
+            HeaderInteractable.Size = new int2(headerWidth, HeaderHeight);
+        }
+
+        /// <summary>
+        /// Positions the dialog title.
+        /// </summary>
         void LayoutTitle() {
-            TitleHost.Position = new float3(PanelPadding, PanelPadding, 0f);
-            int closeButtonX = PanelWidth - PanelPadding - CloseButtonSize.X;
-            CloseButtonHost.Position = new float3(closeButtonX, PanelPadding, 0f);
+            int headerWidth = Math.Max(0, PanelWidth - PanelPadding * 2);
+            int closeButtonY = (int)Math.Round((HeaderHeight - CloseButtonSize.Y) * 0.5);
+            int closeButtonX = Math.Max(HeaderButtonSpacing, headerWidth - CloseButtonSize.X - HeaderButtonSpacing);
+            CloseButtonHost.Position = new float3(closeButtonX, closeButtonY, 0.2f);
+
+            FontTightMetrics headerMetrics = Font.MeasureTight(TitleText.Text);
+            float titleTop = GetTextTopOffset(HeaderHeight, headerMetrics);
+            TitleHost.Position = new float3(HeaderPadding, titleTop, 0.2f);
+            int textWidth = Math.Max(0, closeButtonX - HeaderPadding - HeaderButtonSpacing);
+            TitleText.Size = new int2(textWidth, Math.Max(1, (int)Math.Ceiling(headerMetrics.Height)));
         }
 
         /// <summary>
         /// Positions each visible platform row.
         /// </summary>
         void LayoutPlatformRows() {
-            int rowsTop = PanelPadding + GetTextHeight() + SectionSpacing;
+            int rowsTop = PanelPadding + HeaderHeight + SectionSpacing;
             int checkBoxX = PanelWidth - PanelPadding - CheckBoxSize.X;
             int labelYAdjust = Math.Max(0, (PlatformRowHeight - GetTextHeight()) / 2);
             int checkBoxYAdjust = Math.Max(0, (PlatformRowHeight - CheckBoxSize.Y) / 2);
@@ -503,7 +586,7 @@ namespace helengine.editor {
         /// Positions the validation and empty-state text.
         /// </summary>
         void LayoutStatus() {
-            int rowsTop = PanelPadding + GetTextHeight() + SectionSpacing;
+            int rowsTop = PanelPadding + HeaderHeight + SectionSpacing;
             int rowsHeight = PlatformRowHeight * Math.Max(1, AvailablePlatforms.Count);
             int statusTop = rowsTop + rowsHeight + SectionSpacing;
             StatusHost.Position = new float3(PanelPadding, statusTop, 0f);
@@ -523,11 +606,99 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Handles pointer interactions on the title bar so the dialog can be dragged.
+        /// </summary>
+        /// <param name="pos">Pointer position relative to the title bar.</param>
+        /// <param name="delta">Pointer movement delta.</param>
+        /// <param name="state">Current pointer interaction state.</param>
+        void HandleHeaderCursor(int2 pos, int2 delta, PointerInteraction state) {
+            switch (state) {
+                case PointerInteraction.Press:
+                    if (IsPointerOverCloseButton(pos)) {
+                        return;
+                    }
+
+                    IsDragging = true;
+                    IsUserPositioned = true;
+                    break;
+                case PointerInteraction.Hover:
+                    if (IsDragging) {
+                        PanelPosition = new int2(PanelPosition.X + delta.X, PanelPosition.Y + delta.Y);
+                        ClampPanelPosition();
+                        ApplyPanelPosition();
+                    }
+                    break;
+                case PointerInteraction.Release:
+                case PointerInteraction.Leave:
+                    IsDragging = false;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Determines whether the pointer is inside the close-button region.
+        /// </summary>
+        /// <param name="pos">Pointer position relative to the title bar.</param>
+        /// <returns>True when the pointer overlaps the close button.</returns>
+        bool IsPointerOverCloseButton(int2 pos) {
+            int headerWidth = Math.Max(0, PanelWidth - PanelPadding * 2);
+            int closeButtonX = Math.Max(HeaderButtonSpacing, headerWidth - CloseButtonSize.X - HeaderButtonSpacing);
+            int closeButtonY = (int)Math.Round((HeaderHeight - CloseButtonSize.Y) * 0.5);
+            return pos.X >= closeButtonX &&
+                   pos.X <= closeButtonX + CloseButtonSize.X &&
+                   pos.Y >= closeButtonY &&
+                   pos.Y <= closeButtonY + CloseButtonSize.Y;
+        }
+
+        /// <summary>
+        /// Computes the vertical offset needed to center text using tight font metrics.
+        /// </summary>
+        /// <param name="containerHeight">Height of the title bar.</param>
+        /// <param name="metrics">Measured metrics for the title text.</param>
+        /// <returns>Top offset that vertically centers the text.</returns>
+        float GetTextTopOffset(float containerHeight, FontTightMetrics metrics) {
+            return (float)Math.Round(containerHeight * 0.5 - metrics.Height * 0.5 - metrics.MinTop);
+        }
+
+        /// <summary>
         /// Gets the line height used by dialog text rows.
         /// </summary>
         /// <returns>Dialog text line height in pixels.</returns>
         int GetTextHeight() {
             return Math.Max(1, (int)Math.Ceiling(Math.Max(Font.LineHeight, 1f)));
+        }
+
+        /// <summary>
+        /// Applies the cached panel position to the dialog root entity.
+        /// </summary>
+        void ApplyPanelPosition() {
+            PanelRoot.Position = new float3(PanelPosition.X, PanelPosition.Y, 0.1f);
+        }
+
+        /// <summary>
+        /// Clamps the cached panel position to the visible host area.
+        /// </summary>
+        void ClampPanelPosition() {
+            int maxX = Math.Max(0, HostSize.X - PanelWidth);
+            int maxY = Math.Max(0, HostSize.Y - PanelHeight);
+
+            int clampedX = PanelPosition.X;
+            if (clampedX < 0) {
+                clampedX = 0;
+            } else if (clampedX > maxX) {
+                clampedX = maxX;
+            }
+
+            int clampedY = PanelPosition.Y;
+            if (clampedY < 0) {
+                clampedY = 0;
+            } else if (clampedY > maxY) {
+                clampedY = maxY;
+            }
+
+            PanelPosition = new int2(clampedX, clampedY);
         }
     }
 }

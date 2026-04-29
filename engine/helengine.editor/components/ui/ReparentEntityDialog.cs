@@ -16,6 +16,10 @@ namespace helengine.editor {
         /// </summary>
         public const int PanelPadding = 16;
         /// <summary>
+        /// Height reserved for the draggable title bar.
+        /// </summary>
+        public const int HeaderHeight = 32;
+        /// <summary>
         /// Height reserved for the embedded hierarchy picker.
         /// </summary>
         public const int HierarchyHeight = 176;
@@ -36,6 +40,14 @@ namespace helengine.editor {
         /// </summary>
         const float PanelBorderThickness = 2f;
         /// <summary>
+        /// Padding used inside the title bar for text and buttons.
+        /// </summary>
+        const int HeaderPadding = 8;
+        /// <summary>
+        /// Spacing used between the title text and the close button.
+        /// </summary>
+        const int HeaderButtonSpacing = 8;
+        /// <summary>
         /// Fixed size used for the cancel button.
         /// </summary>
         static readonly int2 CancelButtonSize = new int2(88, 22);
@@ -43,83 +55,119 @@ namespace helengine.editor {
         /// Fixed size used for the apply button.
         /// </summary>
         static readonly int2 ApplyButtonSize = new int2(88, 22);
+        /// <summary>
+        /// Fixed size used for the header close button.
+        /// </summary>
+        static readonly int2 CloseButtonSize = new int2(22, 22);
 
         /// <summary>
         /// Font used for dialog labels and buttons.
         /// </summary>
-        readonly FontAsset font;
+        readonly FontAsset Font;
         /// <summary>
         /// Root entity hosting the panel content.
         /// </summary>
-        readonly EditorEntity panelRoot;
+        readonly EditorEntity PanelRoot;
         /// <summary>
         /// Dialog background shape.
         /// </summary>
-        readonly RoundedRectComponent panelBackground;
+        readonly RoundedRectComponent PanelBackground;
         /// <summary>
-        /// Host entity for the dialog title.
+        /// Root entity for the draggable title bar.
         /// </summary>
-        readonly EditorEntity titleHost;
+        readonly EditorEntity HeaderRoot;
         /// <summary>
-        /// Dialog title text.
+        /// Background sprite rendered behind the title bar.
         /// </summary>
-        readonly TextComponent titleText;
+        readonly SpriteComponent HeaderBackground;
+        /// <summary>
+        /// Interactable region used to drag the dialog from its title bar.
+        /// </summary>
+        readonly InteractableComponent HeaderInteractable;
+        /// <summary>
+        /// Host entity for the dialog title text.
+        /// </summary>
+        readonly EditorEntity TitleHost;
+        /// <summary>
+        /// Dialog title text shown in the title bar.
+        /// </summary>
+        readonly TextComponent TitleText;
+        /// <summary>
+        /// Host entity for the title-bar close button.
+        /// </summary>
+        readonly EditorEntity CloseButtonHost;
+        /// <summary>
+        /// Button used to cancel and close the dialog.
+        /// </summary>
+        readonly ButtonComponent CloseButton;
         /// <summary>
         /// Host entity for the target-entity label.
         /// </summary>
-        readonly EditorEntity targetHost;
+        readonly EditorEntity TargetHost;
         /// <summary>
         /// Text showing which entity will be reparented.
         /// </summary>
-        readonly TextComponent targetText;
+        readonly TextComponent TargetText;
         /// <summary>
         /// Embedded hierarchy picker used to choose the destination parent.
         /// </summary>
-        readonly SceneHierarchyPickerView parentHierarchyView;
+        readonly SceneHierarchyPickerView ParentHierarchyView;
         /// <summary>
         /// Host entity for validation or status text.
         /// </summary>
-        readonly EditorEntity statusHost;
+        readonly EditorEntity StatusHost;
         /// <summary>
         /// Validation or status text shown above the footer.
         /// </summary>
-        readonly TextComponent statusText;
+        readonly TextComponent StatusText;
         /// <summary>
         /// Host entity for the cancel button.
         /// </summary>
-        readonly EditorEntity cancelButtonHost;
+        readonly EditorEntity CancelButtonHost;
         /// <summary>
         /// Cancel button component.
         /// </summary>
-        readonly ButtonComponent cancelButton;
+        readonly ButtonComponent CancelButton;
         /// <summary>
         /// Host entity for the apply button.
         /// </summary>
-        readonly EditorEntity applyButtonHost;
+        readonly EditorEntity ApplyButtonHost;
         /// <summary>
         /// Apply button component.
         /// </summary>
-        readonly ButtonComponent applyButton;
+        readonly ButtonComponent ApplyButton;
         /// <summary>
         /// Alternative parent choices exposed to the session and tests.
         /// </summary>
-        readonly List<Entity> availableParentEntities;
+        readonly List<Entity> AvailableParentEntitiesInternal;
         /// <summary>
         /// Render order used for panel surfaces.
         /// </summary>
-        readonly byte panelOrder;
+        readonly byte PanelOrder;
         /// <summary>
         /// Render order used for foreground text and controls.
         /// </summary>
-        readonly byte textOrder;
+        readonly byte TextOrder;
+        /// <summary>
+        /// Cached host size used to clamp manual dialog movement.
+        /// </summary>
+        int2 HostSize;
         /// <summary>
         /// Cached panel position relative to the host window.
         /// </summary>
-        int2 panelPosition;
+        int2 PanelPosition;
+        /// <summary>
+        /// Tracks whether the user has manually moved the dialog.
+        /// </summary>
+        bool IsUserPositioned;
+        /// <summary>
+        /// Tracks whether the title bar is currently being dragged.
+        /// </summary>
+        bool IsDragging;
         /// <summary>
         /// Tracks whether the dialog has completed initialization.
         /// </summary>
-        bool isInitialized;
+        bool IsInitialized;
 
         /// <summary>
         /// Raised when the user confirms one reparent selection.
@@ -139,103 +187,144 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(font));
             }
 
-            this.font = font;
-            availableParentEntities = new List<Entity>(8);
+            Font = font;
+            AvailableParentEntitiesInternal = new List<Entity>(8);
 
             LayerMask = 0b1000000000000000;
             InternalEntity = true;
             Name = "ReparentEntityDialog";
 
-            panelOrder = RenderOrder2D.ModalBackground;
-            textOrder = RenderOrder2D.ModalForeground;
+            PanelOrder = RenderOrder2D.ModalBackground;
+            TextOrder = RenderOrder2D.ModalForeground;
 
-            panelRoot = new EditorEntity {
+            PanelRoot = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = float3.Zero,
+                InternalEntity = true
             };
-            AddChild(panelRoot);
+            AddChild(PanelRoot);
 
-            panelBackground = new RoundedRectComponent {
+            PanelBackground = new RoundedRectComponent {
                 FillColor = ThemeManager.Colors.SurfacePrimary,
                 BorderColor = ThemeManager.Colors.AccentTertiary,
                 BorderThickness = PanelBorderThickness,
                 Radius = PanelRadius,
-                RenderOrder2D = panelOrder,
+                RenderOrder2D = PanelOrder,
                 Size = new int2(PanelWidth, PanelHeight)
             };
-            panelRoot.AddComponent(panelBackground);
+            PanelRoot.AddComponent(PanelBackground);
 
-            titleHost = new EditorEntity {
+            HeaderRoot = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = float3.Zero,
+                InternalEntity = true
             };
-            panelRoot.AddChild(titleHost);
+            PanelRoot.AddChild(HeaderRoot);
 
-            titleText = new TextComponent {
+            HeaderBackground = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = ThemeManager.Colors.AccentSecondary,
+                RenderOrder2D = PanelOrder,
+                Size = new int2(0, 0)
+            };
+            HeaderRoot.AddComponent(HeaderBackground);
+
+            HeaderInteractable = new InteractableComponent {
+                Size = new int2(0, 0)
+            };
+            HeaderInteractable.CursorEvent += HandleHeaderCursor;
+            HeaderRoot.AddComponent(HeaderInteractable);
+
+            TitleHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            HeaderRoot.AddChild(TitleHost);
+
+            TitleText = new TextComponent {
                 Font = font,
                 Text = "Reparent",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
-                RenderOrder2D = textOrder
+                RenderOrder2D = TextOrder
             };
-            titleHost.AddComponent(titleText);
+            TitleHost.AddComponent(TitleText);
 
-            targetHost = new EditorEntity {
+            CloseButtonHost = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = float3.Zero,
+                InternalEntity = true
             };
-            panelRoot.AddChild(targetHost);
+            HeaderRoot.AddChild(CloseButtonHost);
 
-            targetText = new TextComponent {
+            CloseButton = new ButtonComponent("X", CloseButtonSize, font, HandleCloseClicked, 0f);
+            CloseButtonHost.AddComponent(CloseButton);
+            CloseButton.SetRenderOrders(TextOrder, TextOrder);
+            CloseButton.UseHoverOnlyBackground();
+            CloseButton.SetTextColor(ThemeManager.Colors.InputForegroundPrimary);
+
+            TargetHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            PanelRoot.AddChild(TargetHost);
+
+            TargetText = new TextComponent {
                 Font = font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
-                RenderOrder2D = textOrder
+                RenderOrder2D = TextOrder
             };
-            targetHost.AddComponent(targetText);
+            TargetHost.AddComponent(TargetText);
 
-            parentHierarchyView = new SceneHierarchyPickerView(font, LayerMask, panelOrder, textOrder);
-            parentHierarchyView.ParentEntitySelected += HandleParentEntitySelected;
-            panelRoot.AddChild(parentHierarchyView.Entity);
+            ParentHierarchyView = new SceneHierarchyPickerView(font, LayerMask, PanelOrder, TextOrder);
+            ParentHierarchyView.Entity.InternalEntity = true;
+            ParentHierarchyView.ParentEntitySelected += HandleParentEntitySelected;
+            PanelRoot.AddChild(ParentHierarchyView.Entity);
 
-            statusHost = new EditorEntity {
+            StatusHost = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = float3.Zero,
+                InternalEntity = true
             };
-            panelRoot.AddChild(statusHost);
+            PanelRoot.AddChild(StatusHost);
 
-            statusText = new TextComponent {
+            StatusText = new TextComponent {
                 Font = font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
-                RenderOrder2D = textOrder
+                RenderOrder2D = TextOrder
             };
-            statusHost.AddComponent(statusText);
+            StatusHost.AddComponent(StatusText);
 
-            cancelButtonHost = new EditorEntity {
+            CancelButtonHost = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = float3.Zero,
+                InternalEntity = true
             };
-            panelRoot.AddChild(cancelButtonHost);
+            PanelRoot.AddChild(CancelButtonHost);
 
-            cancelButton = new ButtonComponent("Cancel", CancelButtonSize, font, HandleCancelClicked, 0f);
-            cancelButtonHost.AddComponent(cancelButton);
-            cancelButton.SetRenderOrders(textOrder, textOrder);
+            CancelButton = new ButtonComponent("Cancel", CancelButtonSize, font, HandleCancelClicked, 0f);
+            CancelButtonHost.AddComponent(CancelButton);
+            CancelButton.SetRenderOrders(TextOrder, TextOrder);
 
-            applyButtonHost = new EditorEntity {
+            ApplyButtonHost = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = float3.Zero
+                Position = float3.Zero,
+                InternalEntity = true
             };
-            panelRoot.AddChild(applyButtonHost);
+            PanelRoot.AddChild(ApplyButtonHost);
 
-            applyButton = new ButtonComponent("Apply", ApplyButtonSize, font, HandleApplyClicked, 0f);
-            applyButtonHost.AddComponent(applyButton);
-            applyButton.SetRenderOrders(textOrder, textOrder);
+            ApplyButton = new ButtonComponent("Apply", ApplyButtonSize, font, HandleApplyClicked, 0f);
+            ApplyButtonHost.AddComponent(ApplyButton);
+            ApplyButton.SetRenderOrders(TextOrder, TextOrder);
 
             Enabled = false;
-            isInitialized = true;
+            IsInitialized = true;
         }
 
         /// <summary>
@@ -251,7 +340,7 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the visible scene entities available to the hierarchy picker.
         /// </summary>
-        public IReadOnlyList<Entity> AvailableParentEntities => availableParentEntities;
+        public IReadOnlyList<Entity> AvailableParentEntities => AvailableParentEntitiesInternal;
 
         /// <summary>
         /// Gets the parent entity currently selected in the dialog, or null for the scene root.
@@ -271,12 +360,14 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(parentEntities));
             }
 
+            IsDragging = false;
+            IsUserPositioned = false;
             TargetEntity = targetEntity;
             SelectedParentEntity = targetEntity.Parent;
-            statusText.Text = string.Empty;
-            targetText.Text = GetEntityDisplayName(targetEntity);
+            StatusText.Text = string.Empty;
+            TargetText.Text = GetEntityDisplayName(targetEntity);
             CopyAvailableParentEntities(parentEntities);
-            parentHierarchyView.Show(targetEntity, parentEntities, SelectedParentEntity);
+            ParentHierarchyView.Show(targetEntity, parentEntities, SelectedParentEntity);
             Enabled = true;
         }
 
@@ -284,13 +375,15 @@ namespace helengine.editor {
         /// Hides the dialog and clears its input blocker and transient state.
         /// </summary>
         public void Hide() {
-            parentHierarchyView.Hide();
+            ParentHierarchyView.Hide();
             EditorInputCaptureService.ClearBlocker(this);
-            statusText.Text = string.Empty;
+            IsDragging = false;
+            IsUserPositioned = false;
+            StatusText.Text = string.Empty;
             Enabled = false;
             TargetEntity = null;
             SelectedParentEntity = null;
-            availableParentEntities.Clear();
+            AvailableParentEntitiesInternal.Clear();
         }
 
         /// <summary>
@@ -298,7 +391,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="message">Message to display.</param>
         public void ShowError(string message) {
-            statusText.Text = message ?? string.Empty;
+            StatusText.Text = message ?? string.Empty;
         }
 
         /// <summary>
@@ -307,7 +400,7 @@ namespace helengine.editor {
         /// <param name="windowWidth">Current host window width.</param>
         /// <param name="windowHeight">Current host window height.</param>
         public void UpdateLayout(int windowWidth, int windowHeight) {
-            if (!isInitialized) {
+            if (!IsInitialized) {
                 return;
             }
             if (!Enabled) {
@@ -317,14 +410,18 @@ namespace helengine.editor {
 
             int safeWidth = Math.Max(1, windowWidth);
             int safeHeight = Math.Max(1, windowHeight);
-            panelPosition = new int2(
-                Math.Max(0, (safeWidth - PanelWidth) / 2),
-                Math.Max(0, (safeHeight - PanelHeight) / 2));
+            HostSize = new int2(safeWidth, safeHeight);
+            if (!IsUserPositioned) {
+                PanelPosition = new int2(
+                    Math.Max(0, (safeWidth - PanelWidth) / 2),
+                    Math.Max(0, (safeHeight - PanelHeight) / 2));
+            }
 
-            panelRoot.Position = new float3(panelPosition.X, panelPosition.Y, 0.1f);
-            EditorInputCaptureService.SetBlocker(this, panelPosition, new int2(PanelWidth, PanelHeight));
+            ClampPanelPosition();
+            ApplyPanelPosition();
+            EditorInputCaptureService.SetBlocker(this, PanelPosition, new int2(PanelWidth, PanelHeight));
 
-            LayoutTitle();
+            LayoutHeader();
             LayoutTarget();
             LayoutParentHierarchy();
             LayoutStatus();
@@ -336,9 +433,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="parentEntities">Visible scene entities provided by the editor session.</param>
         void CopyAvailableParentEntities(IReadOnlyList<Entity> parentEntities) {
-            availableParentEntities.Clear();
+            AvailableParentEntitiesInternal.Clear();
             for (int entityIndex = 0; entityIndex < parentEntities.Count; entityIndex++) {
-                availableParentEntities.Add(parentEntities[entityIndex]);
+                AvailableParentEntitiesInternal.Add(parentEntities[entityIndex]);
             }
         }
 
@@ -348,7 +445,7 @@ namespace helengine.editor {
         /// <param name="entity">Selected parent entity, or null for the scene root.</param>
         void HandleParentEntitySelected(Entity entity) {
             SelectedParentEntity = entity;
-            statusText.Text = string.Empty;
+            StatusText.Text = string.Empty;
         }
 
         /// <summary>
@@ -374,36 +471,52 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Lays out the dialog title.
+        /// Raises one cancel request from the title-bar close button.
         /// </summary>
-        void LayoutTitle() {
-            titleHost.Position = new float3(PanelPadding, PanelPadding, 0.2f);
-            FontTightMetrics metrics = font.MeasureTight(titleText.Text);
-            titleText.Size = new int2(
-                Math.Max(1, (int)Math.Ceiling(metrics.Width)),
-                Math.Max(1, (int)Math.Ceiling(Math.Max(metrics.Height, font.LineHeight))));
+        void HandleCloseClicked() {
+            HandleCancelClicked();
+        }
+
+        /// <summary>
+        /// Updates the title-bar placement within the dialog panel.
+        /// </summary>
+        void LayoutHeader() {
+            int headerWidth = Math.Max(0, PanelWidth - PanelPadding * 2);
+            HeaderRoot.Position = new float3(PanelPadding, PanelPadding, 0.2f);
+            HeaderBackground.Size = new int2(headerWidth, HeaderHeight);
+            HeaderInteractable.Size = new int2(headerWidth, HeaderHeight);
+
+            int closeButtonY = (int)Math.Round((HeaderHeight - CloseButtonSize.Y) * 0.5);
+            int closeButtonX = Math.Max(HeaderButtonSpacing, headerWidth - CloseButtonSize.X - HeaderButtonSpacing);
+            CloseButtonHost.Position = new float3(closeButtonX, closeButtonY, 0.2f);
+
+            FontTightMetrics titleMetrics = Font.MeasureTight(TitleText.Text);
+            float titleY = GetTextTopOffset(HeaderHeight, titleMetrics);
+            TitleHost.Position = new float3(HeaderPadding, titleY, 0.2f);
+            int textWidth = Math.Max(1, closeButtonX - HeaderPadding - HeaderButtonSpacing);
+            TitleText.Size = new int2(textWidth, Math.Max(1, (int)Math.Ceiling(titleMetrics.Height)));
         }
 
         /// <summary>
         /// Lays out the target-entity label.
         /// </summary>
         void LayoutTarget() {
-            int y = PanelPadding + GetLineHeight() + SectionSpacing;
-            targetHost.Position = new float3(PanelPadding, y, 0.2f);
+            int y = PanelPadding + HeaderHeight + SectionSpacing;
+            TargetHost.Position = new float3(PanelPadding, y, 0.2f);
 
-            FontTightMetrics metrics = font.MeasureTight(targetText.Text);
-            targetText.Size = new int2(
+            FontTightMetrics metrics = Font.MeasureTight(TargetText.Text);
+            TargetText.Size = new int2(
                 Math.Max(1, PanelWidth - (PanelPadding * 2)),
-                Math.Max(1, (int)Math.Ceiling(Math.Max(metrics.Height, font.LineHeight))));
+                Math.Max(1, (int)Math.Ceiling(Math.Max(metrics.Height, Font.LineHeight))));
         }
 
         /// <summary>
         /// Lays out the embedded hierarchy picker.
         /// </summary>
         void LayoutParentHierarchy() {
-            int y = PanelPadding + GetLineHeight() + SectionSpacing + GetLineHeight() + SectionSpacing;
-            parentHierarchyView.Entity.Position = new float3(PanelPadding, y, 0.2f);
-            parentHierarchyView.UpdateLayout(PanelWidth - (PanelPadding * 2), HierarchyHeight);
+            int y = PanelPadding + HeaderHeight + SectionSpacing + GetLineHeight() + SectionSpacing;
+            ParentHierarchyView.Entity.Position = new float3(PanelPadding, y, 0.2f);
+            ParentHierarchyView.UpdateLayout(PanelWidth - (PanelPadding * 2), HierarchyHeight);
         }
 
         /// <summary>
@@ -411,12 +524,12 @@ namespace helengine.editor {
         /// </summary>
         void LayoutStatus() {
             int y = PanelHeight - PanelPadding - FooterHeight - SectionSpacing - GetLineHeight();
-            statusHost.Position = new float3(PanelPadding, y, 0.2f);
+            StatusHost.Position = new float3(PanelPadding, y, 0.2f);
 
-            FontTightMetrics metrics = font.MeasureTight(statusText.Text);
-            statusText.Size = new int2(
+            FontTightMetrics metrics = Font.MeasureTight(StatusText.Text);
+            StatusText.Size = new int2(
                 Math.Max(1, PanelWidth - (PanelPadding * 2)),
-                Math.Max(1, (int)Math.Ceiling(Math.Max(metrics.Height, font.LineHeight))));
+                Math.Max(1, (int)Math.Ceiling(Math.Max(metrics.Height, Font.LineHeight))));
         }
 
         /// <summary>
@@ -427,8 +540,85 @@ namespace helengine.editor {
             int cancelX = PanelWidth - PanelPadding - CancelButtonSize.X;
             int applyX = cancelX - 8 - ApplyButtonSize.X;
 
-            cancelButtonHost.Position = new float3(cancelX, buttonY, 0.2f);
-            applyButtonHost.Position = new float3(applyX, buttonY, 0.2f);
+            CancelButtonHost.Position = new float3(cancelX, buttonY, 0.2f);
+            ApplyButtonHost.Position = new float3(applyX, buttonY, 0.2f);
+        }
+
+        /// <summary>
+        /// Handles pointer interactions on the title bar to allow dragging the dialog window.
+        /// </summary>
+        /// <param name="pos">Pointer position relative to the title bar.</param>
+        /// <param name="delta">Pointer movement delta.</param>
+        /// <param name="state">Pointer interaction state.</param>
+        void HandleHeaderCursor(int2 pos, int2 delta, PointerInteraction state) {
+            switch (state) {
+                case PointerInteraction.Press:
+                    if (IsPointerOverCloseButton(pos)) {
+                        return;
+                    }
+                    IsDragging = true;
+                    IsUserPositioned = true;
+                    break;
+                case PointerInteraction.Hover:
+                    if (IsDragging) {
+                        PanelPosition = new int2(PanelPosition.X + delta.X, PanelPosition.Y + delta.Y);
+                        ClampPanelPosition();
+                        ApplyPanelPosition();
+                    }
+                    break;
+                case PointerInteraction.Release:
+                case PointerInteraction.Leave:
+                    IsDragging = false;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Determines whether the pointer is inside the close-button region.
+        /// </summary>
+        /// <param name="pos">Pointer position relative to the title bar.</param>
+        /// <returns>True when the pointer overlaps the close button.</returns>
+        bool IsPointerOverCloseButton(int2 pos) {
+            int headerWidth = Math.Max(0, PanelWidth - PanelPadding * 2);
+            int closeButtonX = Math.Max(HeaderButtonSpacing, headerWidth - CloseButtonSize.X - HeaderButtonSpacing);
+            int closeButtonY = (int)Math.Round((HeaderHeight - CloseButtonSize.Y) * 0.5);
+            return pos.X >= closeButtonX &&
+                   pos.X <= closeButtonX + CloseButtonSize.X &&
+                   pos.Y >= closeButtonY &&
+                   pos.Y <= closeButtonY + CloseButtonSize.Y;
+        }
+
+        /// <summary>
+        /// Applies the cached panel position to the dialog root entity.
+        /// </summary>
+        void ApplyPanelPosition() {
+            PanelRoot.Position = new float3(PanelPosition.X, PanelPosition.Y, 0.1f);
+        }
+
+        /// <summary>
+        /// Clamps the cached panel position to the visible host area.
+        /// </summary>
+        void ClampPanelPosition() {
+            int maxX = Math.Max(0, HostSize.X - PanelWidth);
+            int maxY = Math.Max(0, HostSize.Y - PanelHeight);
+
+            int clampedX = PanelPosition.X;
+            if (clampedX < 0) {
+                clampedX = 0;
+            } else if (clampedX > maxX) {
+                clampedX = maxX;
+            }
+
+            int clampedY = PanelPosition.Y;
+            if (clampedY < 0) {
+                clampedY = 0;
+            } else if (clampedY > maxY) {
+                clampedY = maxY;
+            }
+
+            PanelPosition = new int2(clampedX, clampedY);
         }
 
         /// <summary>
@@ -436,7 +626,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Rounded line height for the configured font.</returns>
         int GetLineHeight() {
-            return Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)));
+            return Math.Max(1, (int)Math.Ceiling(Math.Max(Font.LineHeight, 1f)));
         }
 
         /// <summary>
@@ -453,6 +643,16 @@ namespace helengine.editor {
             }
 
             return entity.GetType().Name;
+        }
+
+        /// <summary>
+        /// Computes the vertical offset needed to center text using tight font metrics.
+        /// </summary>
+        /// <param name="containerHeight">Height of the title bar.</param>
+        /// <param name="metrics">Measured metrics for the title text.</param>
+        /// <returns>Top offset that vertically centers the text.</returns>
+        float GetTextTopOffset(float containerHeight, FontTightMetrics metrics) {
+            return (float)Math.Round(containerHeight * 0.5 - metrics.Height * 0.5 - metrics.MinTop);
         }
     }
 }

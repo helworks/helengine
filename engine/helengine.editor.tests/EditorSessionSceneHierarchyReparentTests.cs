@@ -314,7 +314,7 @@ namespace helengine.editor.tests {
         /// <param name="entity">Entity represented by the desired row.</param>
         /// <returns>Matching visible row.</returns>
         SceneHierarchyRow FindDialogRow(ReparentEntityDialog dialog, Entity entity) {
-            object hierarchyView = GetPrivateFieldValue(dialog, "parentHierarchyView");
+            object hierarchyView = GetPrivateFieldValue(dialog, "ParentHierarchyView");
             List<SceneHierarchyRow> rows = GetPrivateField<List<SceneHierarchyRow>>(hierarchyView, "rows");
             for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++) {
                 SceneHierarchyRow row = rows[rowIndex];
