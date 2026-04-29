@@ -258,7 +258,7 @@ namespace helengine.editor {
 
             TitleText = new TextComponent {
                 Font = font,
-                Text = "Build Settings",
+                Text = "Build Platforms",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
                 RenderOrder2D = TextOrder

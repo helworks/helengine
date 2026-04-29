@@ -50,7 +50,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the Build menu shows Build Settings and hides the other title-bar menus.
+        /// Ensures the Build menu shows Build Platforms and hides the other title-bar menus.
         /// </summary>
         [Fact]
         public void ToggleBuildMenu_ShowsBuildSettingsAndHidesOtherMenus() {
@@ -69,7 +69,7 @@ namespace helengine.editor.tests {
             Assert.True(buildMenu.IsVisible);
             Assert.Collection(
                 activeItems,
-                item => Assert.Equal("Build Settings...", item.Label));
+                item => Assert.Equal("Build Platforms...", item.Label));
         }
 
         /// <summary>

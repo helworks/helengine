@@ -448,7 +448,7 @@ namespace helengine.editor {
         /// <returns>Immutable collection of Build menu items.</returns>
         IReadOnlyList<ContextMenuItem> BuildBuildMenuItems() {
             return new ContextMenuItem[] {
-                new ContextMenuItem("Build Settings...", RaiseBuildSettingsRequested)
+                new ContextMenuItem("Build Platforms...", RaiseBuildSettingsRequested)
             };
         }
 
