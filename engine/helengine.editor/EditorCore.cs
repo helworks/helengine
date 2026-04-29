@@ -1,17 +1,47 @@
-﻿namespace helengine {
-    public class EditorCore : Core {
-        public ObjectManager EditorObjectManager { get; private set; }
+﻿using helengine.ui;
 
-        public EditorCore() {
-            EditorObjectManager = new ObjectManager();
+namespace helengine {
+    /// <summary>
+    /// Provides the core editor loop responsible for updating and drawing editor-owned systems.
+    /// </summary>
+    public class EditorCore : Core {
+        /// <summary>
+        /// Creates a new editor core instance for the specified project.
+        /// </summary>
+        /// <param name="project">The project to open in the editor.</param>
+        public EditorCore(Project project) {
+            Project = project;
         }
 
+        /// <summary>
+        /// Gets the object manager that tracks editor objects.
+        /// </summary>
+        public ObjectManager EditorObjectManager { get; private set; }
+
+        /// <summary>
+        /// Gets the project currently loaded into the editor.
+        /// </summary>
+        public Project Project { get; private set; }
+
+        /// <inheritdoc />
+        public override void Initialize(
+            RenderManager3D render3D,
+            RenderManager2D render2D,
+            InputManager input,
+            CoreInitializationOptions options) {
+            base.Initialize(render3D, render2D, input, options);
+
+            EditorObjectManager = new ObjectManager(InitializationOptions);
+        }
+
+        /// <inheritdoc />
         public override void Update() {
             base.Update();
 
             EditorObjectManager.Update();
         }
 
+        /// <inheritdoc />
         public override void Draw() {
             base.Draw();
 

@@ -1,0 +1,9 @@
+using helengine;
+
+namespace helengine.editor.tests.testing {
+    /// <summary>
+    /// Provides a minimal runtime-material implementation for editor test doubles.
+    /// </summary>
+    public class TestRuntimeMaterial : RuntimeMaterial {
+    }
+}

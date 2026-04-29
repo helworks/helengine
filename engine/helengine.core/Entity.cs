@@ -1,27 +1,57 @@
-﻿namespace helengine {
-    public class Entity {
+namespace helengine {
+    /// <summary>
+    /// Represents an object in the scene graph that can own components and children.
+    /// </summary>
+    public class Entity : IDisposable {
         bool isEnabled;
         bool isStatic;
         float3 position;
         float3 scale;
         float4 orientation;
 
+        /// <summary>
+        /// Initializes a new entity with default transforms and registers it with the object manager.
+        /// </summary>
+        public Entity() {
+            isEnabled = true;
+            Orientation = float4.Identity;
+            Scale = float3.One;
+            LayerMask = 0b00000001;
+
+            Core.Instance.ObjectManager.RegisterEntity(this);
+        }
+
+        /// <summary>
+        /// Gets or sets the local position relative to the parent and resolves world position through parent transforms.
+        /// </summary>
         public virtual float3 Position {
             get {
-                float3 pos = this.position;
+                float3 pos = position;
 
                 if (Parent != null) {
-                    pos += Parent.Position;
+                    float3 rotatedLocal = float4.RotateVector(pos, Parent.Orientation);
+                    pos = rotatedLocal + Parent.Position;
                 }
 
                 return pos;
             }
             set { position = value; }
         }
-        
+
+        /// <summary>
+        /// Gets or sets the uncomposed local position stored on the entity.
+        /// </summary>
+        public float3 LocalPosition {
+            get { return position; }
+            set { position = value; }
+        }
+
+        /// <summary>
+        /// Gets or sets the scale of the entity. Inherits from parent when present.
+        /// </summary>
         public float3 Scale {
             get {
-                float3 sca = this.scale;
+                float3 sca = scale;
 
                 if (Parent != null) {
                     sca += Parent.Scale;
@@ -32,9 +62,20 @@
             set { scale = value; }
         }
 
+        /// <summary>
+        /// Gets or sets the uncomposed local scale stored on the entity.
+        /// </summary>
+        public float3 LocalScale {
+            get { return scale; }
+            set { scale = value; }
+        }
+
+        /// <summary>
+        /// Gets or sets the orientation quaternion. Multiplies with parent orientation when present.
+        /// </summary>
         public float4 Orientation {
             get {
-                float4 ori = this.orientation;
+                float4 ori = orientation;
 
                 if (Parent != null) {
                     ori *= Parent.Orientation;
@@ -45,30 +86,71 @@
             set { orientation = value; }
         }
 
+        /// <summary>
+        /// Gets or sets the uncomposed local orientation stored on the entity.
+        /// </summary>
+        public float4 LocalOrientation {
+            get { return orientation; }
+            set { orientation = value; }
+        }
+
+        /// <summary>
+        /// Gets the parent entity when part of a hierarchy.
+        /// </summary>
         public Entity Parent { get; private set; }
 
+        /// <summary>
+        /// Gets or sets the layer mask used for filtering rendering and input.
+        /// </summary>
         public ushort LayerMask { get; set; }
 
         /// <summary>
-        /// TODO seal/rework this list, adding directly breaks the system
+        /// Gets the list of components attached to this entity.
         /// </summary>
-        public List<Component>? Components { get; internal set; }
+        public List<Component> Components { get; internal set; }
 
         /// <summary>
-        /// TODO seal/rework this list, adding directly breaks the system
+        /// Gets the list of child entities owned by this entity.
         /// </summary>
-        public List<Entity>? Children { get; internal set; }
+        public List<Entity> Children { get; internal set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether the entity is enabled.
+        /// </summary>
         public bool Enabled {
             get { return isEnabled; }
             set {
+                bool wasHierarchyEnabled = IsHierarchyEnabled;
                 if (isEnabled != value) {
-                    ParentEnabledChange(value);
+                    isEnabled = value;
+                    bool isHierarchyEnabled = IsHierarchyEnabled;
+                    if (wasHierarchyEnabled != isHierarchyEnabled) {
+                        ParentEnabledChange(isHierarchyEnabled);
+                    }
                 }
-                isEnabled = value;
             }
         }
 
+        /// <summary>
+        /// Gets a value indicating whether this entity is effectively enabled after combining its local state with all parents.
+        /// </summary>
+        public bool IsHierarchyEnabled {
+            get {
+                if (!isEnabled) {
+                    return false;
+                }
+
+                if (Parent == null) {
+                    return true;
+                }
+
+                return Parent.IsHierarchyEnabled;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the entity is static.
+        /// </summary>
         public bool Static {
             get { return isStatic; }
             set {
@@ -79,52 +161,77 @@
             }
         }
 
-        public Entity() {
-            isEnabled = true;
-            Orientation = float4.Identity;
-            Scale = float3.One;
-            LayerMask = 0b00000001;
-
-            Core.Instance.ObjectManager.RegisterEntity(this);
-        }
-
+        /// <summary>
+        /// Initializes the children collection for this entity.
+        /// </summary>
         public void InitChildren() {
             Children = new List<Entity>();
         }
 
+        /// <summary>
+        /// Adds a child entity, enforcing that it does not already have a parent.
+        /// </summary>
+        /// <param name="entity">Child entity to add.</param>
         public void AddChild(Entity entity) {
             if (entity.Parent != null) {
                 throw new Exception("Parent is not empty");
             }
 
+            bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
             entity.Parent = this;
             Children.Add(entity);
+            bool isHierarchyEnabled = entity.IsHierarchyEnabled;
+            if (wasHierarchyEnabled != isHierarchyEnabled) {
+                entity.ParentEnabledChange(isHierarchyEnabled);
+            }
         }
 
+        /// <summary>
+        /// Removes one direct child entity and updates its effective hierarchy-enabled state.
+        /// </summary>
+        /// <param name="entity">Child entity to remove.</param>
+        public void RemoveChild(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            } else if (Children == null) {
+                throw new InvalidOperationException("Children collection has not been initialized.");
+            } else if (entity.Parent != this) {
+                throw new InvalidOperationException("Entity is not parented to this parent.");
+            }
+
+            bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
+            if (!Children.Remove(entity)) {
+                throw new InvalidOperationException("Entity could not be removed from the child collection.");
+            }
+
+            entity.Parent = null;
+            bool isHierarchyEnabled = entity.IsHierarchyEnabled;
+            if (wasHierarchyEnabled != isHierarchyEnabled) {
+                entity.ParentEnabledChange(isHierarchyEnabled);
+            }
+        }
+
+        /// <summary>
+        /// Initializes the component collection for this entity.
+        /// </summary>
         public void InitComponents() {
             Components = new List<Component>();
         }
 
+        /// <summary>
+        /// Adds a component to the entity and triggers its attach callback.
+        /// </summary>
+        /// <param name="comp">Component to add.</param>
         public void AddComponent(Component comp) {
             Components.Add(comp);
             comp.ComponentAdded(this);
         }
 
+        /// <summary>
+        /// Notifies components and children that the enabled state changed.
+        /// </summary>
+        /// <param name="newEnabled">New enabled state.</param>
         protected virtual void ParentEnabledChange(bool newEnabled) {
-            if (Components != null) {
-                for (int i = 0; i < Components.Count; i++) {
-                    Components[i].ParentStaticChange(newEnabled);
-                }
-            }
-
-            if (Children != null) {
-                for (int i = 0; i < Children.Count; i++) {
-                    Children[i].ParentEnabledChange(newEnabled);
-                }
-            }
-        }
-
-        protected virtual void ParentStaticChange(bool newEnabled) {
             if (Components != null) {
                 for (int i = 0; i < Components.Count; i++) {
                     Components[i].ParentEnabledChange(newEnabled);
@@ -133,9 +240,33 @@
 
             if (Children != null) {
                 for (int i = 0; i < Children.Count; i++) {
+                    Children[i].ParentEnabledChange(Children[i].IsHierarchyEnabled);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Notifies components and children that the static state changed.
+        /// </summary>
+        /// <param name="newEnabled">New static state.</param>
+        protected virtual void ParentStaticChange(bool newEnabled) {
+            if (Components != null) {
+                for (int i = 0; i < Components.Count; i++) {
+                    Components[i].ParentStaticChange(newEnabled);
+                }
+            }
+
+            if (Children != null) {
+                for (int i = 0; i < Children.Count; i++) {
                     Children[i].ParentStaticChange(newEnabled);
                 }
             }
+        }
+
+        /// <summary>
+        /// Performs cleanup logic for the entity.
+        /// </summary>
+        public void Dispose() {
         }
     }
 }

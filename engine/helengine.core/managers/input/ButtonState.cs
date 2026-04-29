@@ -20,7 +20,14 @@ namespace helengine {
         /// </summary>
         Pressed,
 
+        /// <summary>
+        /// The button transitioned from pressed to released this frame.
+        /// </summary>
         JustReleased,
+
+        /// <summary>
+        /// The button transitioned from released to pressed this frame.
+        /// </summary>
         JustPressed
     }
 }

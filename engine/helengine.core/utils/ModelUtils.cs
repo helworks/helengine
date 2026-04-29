@@ -1,6 +1,14 @@
-﻿
 namespace helengine {
+    /// <summary>
+    /// Helper methods for generating basic model assets procedurally.
+    /// </summary>
     public class ModelUtils {
+        /// <summary>
+        /// Generates a cube mesh centered at the given position with the specified scale.
+        /// </summary>
+        /// <param name="position">Cube center position.</param>
+        /// <param name="scale">Cube scale.</param>
+        /// <returns>Generated model asset.</returns>
         public static ModelAsset GenerateCubeMesh(float3 position, float3 scale) {
             ModelAsset modelData = new ModelAsset();
             modelData.Id = new Guid().ToString();
@@ -66,6 +74,12 @@ namespace helengine {
             return modelData;
         }
 
+        /// <summary>
+        /// Generates a simple quad/plane mesh at the given position and scale.
+        /// </summary>
+        /// <param name="position">Center position.</param>
+        /// <param name="scale">Scale to apply.</param>
+        /// <returns>Generated model asset.</returns>
         public static ModelAsset GeneratePlaneMesh(float3 position, float3 scale) {
             ModelAsset modelData = new ModelAsset();
             modelData.Id = new Guid().ToString();

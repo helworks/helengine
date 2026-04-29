@@ -16,6 +16,9 @@ namespace helengine {
         private readonly byte[] _keyState = new byte[256];
         private readonly List<Keys> _keys = new List<Keys>(10);
 
+        /// <summary>
+        /// Tracks whether the keyboard input device should capture state.
+        /// </summary>
         private bool _isActive;
 
         private Predicate<Keys> isKeyReleasedPredicate;
@@ -56,7 +59,11 @@ namespace helengine {
             return new KeyboardState(_keys, Console.CapsLock, Console.NumberLock);
         }
 
-        public void SetActive(bool isActive) {
+        /// <summary>
+        /// Enables or disables keyboard capture for the Windows backend.
+        /// </summary>
+        /// <param name="isActive">True to capture key state; false to ignore input.</param>
+        public override void SetActive(bool isActive) {
             _isActive = isActive;
             if (!_isActive) {
                 _keys.Clear();

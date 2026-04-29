@@ -1,0 +1,48 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net9.0-windows</TargetFramework>
+		<Nullable>disable</Nullable>
+		<UseWindowsForms>true</UseWindowsForms>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+		<EnableWindowsFormsHighDpiAutoResizing>false</EnableWindowsFormsHighDpiAutoResizing>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+		<NoWarn>1701;1702;WFO1000</NoWarn>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<NoWarn>1701;1702;WFO1000</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Remove="Theming\**" />
+		<EmbeddedResource Remove="Theming\**" />
+		<None Remove="Theming\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="System.Drawing.Common" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Content Include="content\icons\toolbar\*.png">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<TargetPath>content\icons\toolbar\%(Filename)%(Extension)</TargetPath>
+		</Content>
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\engine\helengine.core.windows\helengine.core.windows.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.core\helengine.core.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.editor.fbximporter\helengine.editor.assimp.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.editor.windows\helengine.editor.windows.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.editor\helengine.editor.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.directx11\helengine.directx11.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.vulkan\helengine.vulkan.csproj" SkipGetTargetFrameworkProperties="true" />
+	</ItemGroup>
+
+</Project>

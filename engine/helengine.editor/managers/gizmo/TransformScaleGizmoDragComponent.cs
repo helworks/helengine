@@ -1,0 +1,563 @@
+namespace helengine.editor {
+    /// <summary>
+    /// Scales the selected entity while the user drags a hovered scale gizmo handle.
+    /// </summary>
+    public class TransformScaleGizmoDragComponent : UpdateComponent {
+        /// <summary>
+        /// Smallest squared vector magnitude treated as non-zero during normalization.
+        /// </summary>
+        const double MinimumVectorLengthSquared = 0.000000000001;
+        /// <summary>
+        /// Smallest denominator accepted by closest-point line solving.
+        /// </summary>
+        const double MinimumClosestPointDenominator = 0.000000000001;
+        /// <summary>
+        /// Smallest denominator accepted by ray-plane intersection solving.
+        /// </summary>
+        const double MinimumPlaneIntersectionDenominator = 0.000000000001;
+        /// <summary>
+        /// Smallest allowed scale value for any single component.
+        /// </summary>
+        const float MinimumScaleComponent = 0.0001f;
+        /// <summary>
+        /// Scene camera used to convert mouse pointer positions into world-space rays.
+        /// </summary>
+        readonly CameraComponent SceneCamera;
+
+        /// <summary>
+        /// True while a gizmo drag is currently active.
+        /// </summary>
+        bool IsDragging;
+        /// <summary>
+        /// Selected entity being scaled by the active drag.
+        /// </summary>
+        Entity DraggedEntity;
+        /// <summary>
+        /// Handle entity driving the active drag constraint.
+        /// </summary>
+        Entity DragHandleEntity;
+        /// <summary>
+        /// Active drag constraint type.
+        /// </summary>
+        TransformGizmoHandleConstraintType DragConstraintType;
+        /// <summary>
+        /// World-space primary drag direction used by axis and plane constraints.
+        /// </summary>
+        float3 DragPrimaryDirection;
+        /// <summary>
+        /// World-space secondary drag direction used by plane constraints.
+        /// </summary>
+        float3 DragSecondaryDirection;
+        /// <summary>
+        /// World-space plane normal used by plane constraints.
+        /// </summary>
+        float3 DragPlaneNormal;
+        /// <summary>
+        /// Selected entity scale captured when dragging started.
+        /// </summary>
+        float3 DragStartEntityScale;
+        /// <summary>
+        /// Selected entity position captured when dragging started.
+        /// </summary>
+        float3 DragStartEntityPosition;
+        /// <summary>
+        /// Axis parameter value captured from pointer position when axis dragging started.
+        /// </summary>
+        double DragStartAxisParameter;
+        /// <summary>
+        /// World-space point captured on the drag plane when plane dragging started.
+        /// </summary>
+        float3 DragStartPlanePoint;
+        /// <summary>
+        /// Tracks whether the active drag produced an actual scale change.
+        /// </summary>
+        bool DragChanged;
+
+        /// <summary>
+        /// Initializes a new scale gizmo drag controller.
+        /// </summary>
+        /// <param name="sceneCamera">Scene camera used for mouse ray construction.</param>
+        public TransformScaleGizmoDragComponent(CameraComponent sceneCamera) {
+            SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
+        }
+
+        /// <summary>
+        /// Updates drag activation and applies scaling while dragging.
+        /// </summary>
+        public override void Update() {
+            if (!IsScaleToolActive()) {
+                if (IsDragging) {
+                    EndDrag();
+                }
+                return;
+            }
+
+            InputManager input = Core.Instance.InputManager;
+            if (IsDragging) {
+                UpdateActiveDrag(input);
+                if (IsDragging) {
+                    input.RequestPointerWrapEnabled();
+                }
+                return;
+            }
+
+            TryBeginDrag(input);
+            if (IsDragging) {
+                input.RequestPointerWrapEnabled();
+            }
+        }
+
+        /// <summary>
+        /// Ends any active drag when this component is removed.
+        /// </summary>
+        /// <param name="entity">Entity losing this component.</param>
+        public override void ComponentRemoved(Entity entity) {
+            base.ComponentRemoved(entity);
+            EndDrag();
+        }
+
+        /// <summary>
+        /// Attempts to begin a drag from the current pointer and hover state.
+        /// </summary>
+        /// <param name="input">Input manager used to query pointer and button state.</param>
+        void TryBeginDrag(InputManager input) {
+            if (input == null) {
+                throw new ArgumentNullException(nameof(input));
+            }
+
+            if (!input.WasMouseLeftButtonPressed()) {
+                return;
+            }
+
+            int2 pointer = input.GetMousePosition();
+            if (EditorInputCaptureService.IsPointerBlocked(pointer)) {
+                return;
+            }
+
+            if (!IsPointerInsideViewport(pointer)) {
+                return;
+            }
+
+            Entity hoveredHandle = EditorGizmoHoverService.HoveredHandleEntity;
+            if (hoveredHandle == null) {
+                return;
+            }
+
+            Entity selectedEntity = EditorSelectionService.SelectedEntity;
+            if (!CanScaleSelection(selectedEntity)) {
+                return;
+            }
+
+            if (!TryResolveHandleConstraint(
+                hoveredHandle,
+                out TransformGizmoHandleConstraintType constraintType,
+                out float3 primaryDirection,
+                out float3 secondaryDirection,
+                out float3 planeNormal)) {
+                return;
+            }
+
+            float3 selectionStartPosition = selectedEntity.Position;
+            if (constraintType == TransformGizmoHandleConstraintType.Axis) {
+                if (!TryComputeAxisParameter(pointer, selectionStartPosition, primaryDirection, out double axisParameter)) {
+                    return;
+                }
+
+                DragStartAxisParameter = axisParameter;
+                DragStartPlanePoint = float3.Zero;
+            } else if (constraintType == TransformGizmoHandleConstraintType.Plane) {
+                if (!TryComputePlanePoint(pointer, selectionStartPosition, planeNormal, out float3 planePoint)) {
+                    return;
+                }
+
+                DragStartPlanePoint = planePoint;
+                DragStartAxisParameter = 0.0;
+            } else {
+                throw new InvalidOperationException("Transform gizmo handle constraint type is not supported.");
+            }
+
+            IsDragging = true;
+            DraggedEntity = selectedEntity;
+            DragHandleEntity = hoveredHandle;
+            DragConstraintType = constraintType;
+            DragPrimaryDirection = primaryDirection;
+            DragSecondaryDirection = secondaryDirection;
+            DragPlaneNormal = planeNormal;
+            DragStartEntityScale = selectedEntity.Scale;
+            DragStartEntityPosition = selectionStartPosition;
+            EditorGizmoDragService.BeginDrag(SceneCamera, selectedEntity);
+            EditorGizmoHoverService.SetHoveredHandle(hoveredHandle);
+        }
+
+        /// <summary>
+        /// Updates the active drag and applies the scaled size to the selected entity.
+        /// </summary>
+        /// <param name="input">Input manager used to query pointer and button state.</param>
+        void UpdateActiveDrag(InputManager input) {
+            if (input == null) {
+                throw new ArgumentNullException(nameof(input));
+            }
+
+            if (input.WasMouseLeftButtonReleased() || input.GetMouseLeftButtonState() == ButtonState.Released) {
+                EndDrag();
+                return;
+            }
+
+            if (DraggedEntity == null || DragHandleEntity == null) {
+                EndDrag();
+                return;
+            }
+
+            if (!ReferenceEquals(EditorSelectionService.SelectedEntity, DraggedEntity)) {
+                EndDrag();
+                return;
+            }
+
+            int2 pointer = input.GetMousePosition();
+            if (DragConstraintType == TransformGizmoHandleConstraintType.Axis) {
+                if (!TryComputeAxisParameter(pointer, DragStartEntityPosition, DragPrimaryDirection, out double currentAxisParameter)) {
+                    EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
+                    return;
+                }
+
+                double deltaParameter = currentAxisParameter - DragStartAxisParameter;
+                float3 newScale = ResolveAxisDragScale(deltaParameter, input);
+                if (DraggedEntity.Scale != newScale) {
+                    DraggedEntity.Scale = newScale;
+                }
+                DragChanged = DragChanged || newScale != DragStartEntityScale;
+            } else if (DragConstraintType == TransformGizmoHandleConstraintType.Plane) {
+                if (!TryComputePlanePoint(pointer, DragStartEntityPosition, DragPlaneNormal, out float3 currentPlanePoint)) {
+                    EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
+                    return;
+                }
+
+                float3 planeDelta = ProjectVectorOntoPlane(currentPlanePoint - DragStartPlanePoint, DragPlaneNormal);
+                float3 newScale = ResolvePlaneDragScale(planeDelta, input);
+                if (DraggedEntity.Scale != newScale) {
+                    DraggedEntity.Scale = newScale;
+                }
+                DragChanged = DragChanged || newScale != DragStartEntityScale;
+            } else {
+                throw new InvalidOperationException("Transform gizmo handle constraint type is not supported.");
+            }
+
+            EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
+        }
+
+        /// <summary>
+        /// Ends the active drag and clears cached drag state.
+        /// </summary>
+        void EndDrag() {
+            if (DragChanged) {
+                EditorSceneMutationService.MarkSceneMutated();
+            }
+
+            EditorGizmoDragService.EndDrag(SceneCamera);
+            IsDragging = false;
+            DragChanged = false;
+            DraggedEntity = null;
+            DragHandleEntity = null;
+            DragConstraintType = TransformGizmoHandleConstraintType.Axis;
+            DragPrimaryDirection = float3.Zero;
+            DragSecondaryDirection = float3.Zero;
+            DragPlaneNormal = float3.Zero;
+            DragStartEntityScale = float3.Zero;
+            DragStartEntityPosition = float3.Zero;
+            DragStartAxisParameter = 0.0;
+            DragStartPlanePoint = float3.Zero;
+        }
+
+        /// <summary>
+        /// Determines whether an entity can be scaled through gizmo interaction.
+        /// </summary>
+        /// <param name="selectedEntity">Entity currently selected in the editor.</param>
+        /// <returns>True when the entity is valid for scaling.</returns>
+        bool CanScaleSelection(Entity selectedEntity) {
+            if (selectedEntity == null) {
+                return false;
+            }
+
+            if (!selectedEntity.Enabled) {
+                return false;
+            }
+
+            if (selectedEntity is EditorEntity editorEntity && editorEntity.InternalEntity) {
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Determines whether the pointer is currently inside the scene camera viewport.
+        /// </summary>
+        /// <param name="pointer">Pointer position in window coordinates.</param>
+        /// <returns>True when the pointer is inside the viewport rectangle.</returns>
+        bool IsPointerInsideViewport(int2 pointer) {
+            float4 viewport = SceneCamera.Viewport;
+            return pointer.X >= viewport.X &&
+                   pointer.X < viewport.X + viewport.Z &&
+                   pointer.Y >= viewport.Y &&
+                   pointer.Y < viewport.Y + viewport.W;
+        }
+
+        /// <summary>
+        /// Resolves world-space drag constraint data from a hovered handle entity.
+        /// </summary>
+        /// <param name="handleEntity">Hovered handle entity to resolve.</param>
+        /// <param name="constraintType">Resolved constraint type.</param>
+        /// <param name="primaryDirection">Resolved primary world-space direction.</param>
+        /// <param name="secondaryDirection">Resolved secondary world-space direction for plane constraints.</param>
+        /// <param name="planeNormal">Resolved world-space plane normal for plane constraints.</param>
+        /// <returns>True when valid constraint data is available.</returns>
+        bool TryResolveHandleConstraint(
+            Entity handleEntity,
+            out TransformGizmoHandleConstraintType constraintType,
+            out float3 primaryDirection,
+            out float3 secondaryDirection,
+            out float3 planeNormal) {
+            if (handleEntity == null) {
+                constraintType = TransformGizmoHandleConstraintType.Axis;
+                primaryDirection = float3.Zero;
+                secondaryDirection = float3.Zero;
+                planeNormal = float3.Zero;
+                return false;
+            }
+
+            if (!TryFindTransformHandleComponent(handleEntity, out TransformGizmoHandleComponent handleComponent)) {
+                constraintType = TransformGizmoHandleConstraintType.Axis;
+                primaryDirection = float3.Zero;
+                secondaryDirection = float3.Zero;
+                planeNormal = float3.Zero;
+                return false;
+            }
+
+            float4 handleOrientation = handleEntity.Orientation;
+            float3 worldPrimary = NormalizeSafe(float4.RotateVector(handleComponent.LocalPrimaryDirection, handleOrientation), float3.Zero);
+            if (worldPrimary == float3.Zero) {
+                constraintType = TransformGizmoHandleConstraintType.Axis;
+                primaryDirection = float3.Zero;
+                secondaryDirection = float3.Zero;
+                planeNormal = float3.Zero;
+                return false;
+            }
+
+            if (handleComponent.ConstraintType == TransformGizmoHandleConstraintType.Axis) {
+                constraintType = TransformGizmoHandleConstraintType.Axis;
+                primaryDirection = worldPrimary;
+                secondaryDirection = float3.Zero;
+                planeNormal = float3.Zero;
+                return true;
+            }
+
+            if (handleComponent.ConstraintType == TransformGizmoHandleConstraintType.Plane) {
+                float3 worldSecondary = NormalizeSafe(float4.RotateVector(handleComponent.LocalSecondaryDirection, handleOrientation), float3.Zero);
+                if (worldSecondary == float3.Zero) {
+                    constraintType = TransformGizmoHandleConstraintType.Axis;
+                    primaryDirection = float3.Zero;
+                    secondaryDirection = float3.Zero;
+                    planeNormal = float3.Zero;
+                    return false;
+                }
+
+                float3 normal = NormalizeSafe(float3.Cross(worldPrimary, worldSecondary), float3.Zero);
+                if (normal == float3.Zero) {
+                    constraintType = TransformGizmoHandleConstraintType.Axis;
+                    primaryDirection = float3.Zero;
+                    secondaryDirection = float3.Zero;
+                    planeNormal = float3.Zero;
+                    return false;
+                }
+
+                constraintType = TransformGizmoHandleConstraintType.Plane;
+                primaryDirection = worldPrimary;
+                secondaryDirection = worldSecondary;
+                planeNormal = normal;
+                return true;
+            }
+
+            throw new InvalidOperationException("Transform gizmo handle constraint type is not supported.");
+        }
+
+        /// <summary>
+        /// Finds the transform-gizmo handle component on an entity.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <param name="handleComponent">Resolved handle component.</param>
+        /// <returns>True when the component was found.</returns>
+        bool TryFindTransformHandleComponent(Entity entity, out TransformGizmoHandleComponent handleComponent) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            if (entity.Components == null) {
+                handleComponent = null;
+                return false;
+            }
+
+            for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                if (entity.Components[componentIndex] is TransformGizmoHandleComponent transformHandle) {
+                    handleComponent = transformHandle;
+                    return true;
+                }
+            }
+
+            handleComponent = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Solves for the closest-point parameter on the drag axis for the current pointer ray.
+        /// </summary>
+        /// <param name="pointer">Pointer position in window coordinates.</param>
+        /// <param name="axisOrigin">Origin point of the drag axis.</param>
+        /// <param name="axisDirection">Normalized drag axis direction.</param>
+        /// <param name="axisParameter">Solved parameter along the drag axis.</param>
+        /// <returns>True when the parameter is solvable from the current camera ray.</returns>
+        bool TryComputeAxisParameter(
+            int2 pointer,
+            float3 axisOrigin,
+            float3 axisDirection,
+            out double axisParameter) {
+            if (!EditorViewportPointerRayBuilder.TryBuildPerspectiveCameraRay(SceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection)) {
+                axisParameter = 0.0;
+                return false;
+            }
+
+            double rayAxisDot = float3.Dot(rayDirection, axisDirection);
+            double denominator = 1.0 - (rayAxisDot * rayAxisDot);
+            if (Math.Abs(denominator) <= MinimumClosestPointDenominator) {
+                axisParameter = 0.0;
+                return false;
+            }
+
+            float3 cameraToAxis = rayOrigin - axisOrigin;
+            double rayCameraDot = float3.Dot(rayDirection, cameraToAxis);
+            double axisCameraDot = float3.Dot(axisDirection, cameraToAxis);
+            axisParameter = (axisCameraDot - (rayAxisDot * rayCameraDot)) / denominator;
+            return true;
+        }
+
+        /// <summary>
+        /// Computes the pointer ray intersection point on a world-space drag plane.
+        /// </summary>
+        /// <param name="pointer">Pointer position in window coordinates.</param>
+        /// <param name="planeOrigin">Plane origin point in world space.</param>
+        /// <param name="planeNormal">Normalized plane normal in world space.</param>
+        /// <param name="planePoint">Solved world-space point on the plane.</param>
+        /// <returns>True when the ray intersects the plane.</returns>
+        bool TryComputePlanePoint(
+            int2 pointer,
+            float3 planeOrigin,
+            float3 planeNormal,
+            out float3 planePoint) {
+            if (!EditorViewportPointerRayBuilder.TryBuildPerspectiveCameraRay(SceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection)) {
+                planePoint = float3.Zero;
+                return false;
+            }
+
+            double denominator = float3.Dot(planeNormal, rayDirection);
+            if (Math.Abs(denominator) <= MinimumPlaneIntersectionDenominator) {
+                planePoint = float3.Zero;
+                return false;
+            }
+
+            float3 planeDelta = planeOrigin - rayOrigin;
+            double distanceAlongRay = float3.Dot(planeDelta, planeNormal) / denominator;
+            planePoint = rayOrigin + (rayDirection * (float)distanceAlongRay);
+            return true;
+        }
+
+        /// <summary>
+        /// Projects a vector onto a plane by removing its normal component.
+        /// </summary>
+        /// <param name="value">Vector to project.</param>
+        /// <param name="planeNormal">Normalized plane normal.</param>
+        /// <returns>Projected vector that lies on the plane.</returns>
+        float3 ProjectVectorOntoPlane(float3 value, float3 planeNormal) {
+            double normalDot = float3.Dot(value, planeNormal);
+            return value - (planeNormal * (float)normalDot);
+        }
+
+        /// <summary>
+        /// Resolves the axis scale for the current drag update, applying snap when a modifier is held.
+        /// </summary>
+        /// <param name="deltaParameter">Signed drag delta along the active axis.</param>
+        /// <param name="input">Input manager used to read snap modifiers.</param>
+        /// <returns>Resolved scale vector for the selected entity.</returns>
+        float3 ResolveAxisDragScale(double deltaParameter, InputManager input) {
+            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Scale);
+            if (activeSnapValue <= 0.0) {
+                return TransformScaleGizmoScaleResolver.ResolveAxisScale(
+                    DragStartEntityScale,
+                    DragPrimaryDirection,
+                    deltaParameter,
+                    MinimumScaleComponent);
+            }
+
+            return TransformScaleGizmoScaleResolver.ResolveSnappedAxisScale(
+                DragStartEntityScale,
+                DragPrimaryDirection,
+                deltaParameter,
+                activeSnapValue,
+                MinimumScaleComponent);
+        }
+
+        /// <summary>
+        /// Resolves the plane scale for the current drag update, applying snap when a modifier is held.
+        /// </summary>
+        /// <param name="planeDelta">World-space pointer delta measured on the drag plane.</param>
+        /// <param name="input">Input manager used to read snap modifiers.</param>
+        /// <returns>Resolved scale vector for the selected entity.</returns>
+        float3 ResolvePlaneDragScale(float3 planeDelta, InputManager input) {
+            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Scale);
+            if (activeSnapValue <= 0.0) {
+                return TransformScaleGizmoScaleResolver.ResolvePlaneScale(
+                    DragStartEntityScale,
+                    DragPrimaryDirection,
+                    DragSecondaryDirection,
+                    planeDelta,
+                    MinimumScaleComponent);
+            }
+
+            return TransformScaleGizmoScaleResolver.ResolveSnappedPlaneScale(
+                DragStartEntityScale,
+                DragPrimaryDirection,
+                DragSecondaryDirection,
+                planeDelta,
+                activeSnapValue,
+                MinimumScaleComponent);
+        }
+
+        /// <summary>
+        /// Normalizes a vector or returns a fallback when the magnitude is too small.
+        /// </summary>
+        /// <param name="value">Vector to normalize.</param>
+        /// <param name="fallback">Fallback direction returned for near-zero vectors.</param>
+        /// <returns>Normalized vector when valid; otherwise the fallback value.</returns>
+        float3 NormalizeSafe(float3 value, float3 fallback) {
+            double lengthSquared =
+                (value.X * value.X) +
+                (value.Y * value.Y) +
+                (value.Z * value.Z);
+            if (lengthSquared <= MinimumVectorLengthSquared) {
+                return fallback;
+            }
+
+            double inverseLength = 1.0 / Math.Sqrt(lengthSquared);
+            return new float3(
+                (float)(value.X * inverseLength),
+                (float)(value.Y * inverseLength),
+                (float)(value.Z * inverseLength));
+        }
+
+        /// <summary>
+        /// Determines whether scale drag interactions should be active for the scene camera viewport.
+        /// </summary>
+        /// <returns>True when the viewport tool mode is scale.</returns>
+        bool IsScaleToolActive() {
+            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Scale;
+        }
+    }
+}

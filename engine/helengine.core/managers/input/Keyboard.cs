@@ -17,5 +17,12 @@ namespace helengine {
         /// </summary>
         /// <returns>Current keyboard state.</returns>
 		public abstract KeyboardState GetState();
+
+        /// <summary>
+        /// Enables or disables keyboard input capture for the current platform.
+        /// </summary>
+        /// <param name="isActive">True to capture key state; false to ignore input.</param>
+        public virtual void SetActive(bool isActive) {
+        }
 	}
 }

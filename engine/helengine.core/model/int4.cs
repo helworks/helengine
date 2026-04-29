@@ -1,51 +1,76 @@
-﻿// MIT License - Copyright (C) The Mono.Xna Team
+// MIT License - Copyright (C) The Mono.Xna Team
 // Portions of this file are based on work by The Mono.Xna Team and are subject to
 // the terms and conditions defined in file 'LICENSE.txt', which is part of this source code package.
 //
 // Additional modifications and work by Helena.
 
 namespace helengine {
+    /// <summary>
+    /// Represents a 4D vector of 32-bit integer components.
+    /// </summary>
     public struct int4 {
-        private static readonly int4 _identity = new int4(0, 0, 0, 1);
+        /// <summary>
+        /// Identity-like vector with W set to one.
+        /// </summary>
+        private static readonly int4 identity = new int4(0, 0, 0, 1);
 
+        /// <summary>
+        /// X component of the vector.
+        /// </summary>
         public int X;
+
+        /// <summary>
+        /// Y component of the vector.
+        /// </summary>
         public int Y;
+
+        /// <summary>
+        /// Z component of the vector.
+        /// </summary>
         public int Z;
+
+        /// <summary>
+        /// W component of the vector.
+        /// </summary>
         public int W;
 
         /// <summary>
-        /// Returns a quaternion representing no rotation.
+        /// Initializes a vector with specified component values.
         /// </summary>
-        public static int4 Identity {
-            get { return _identity; }
+        /// <param name="x">X component.</param>
+        /// <param name="y">Y component.</param>
+        /// <param name="z">Z component.</param>
+        /// <param name="w">W component.</param>
+        public int4(int x, int y, int z, int w) {
+            X = x;
+            Y = y;
+            Z = z;
+            W = w;
         }
 
         /// <summary>
-        /// Constructs a quaternion with X, Y, Z and W from four values.
+        /// Gets a vector representing no rotation (identity).
         /// </summary>
-        /// <param name="x">The x coordinate in 3d-space.</param>
-        /// <param name="y">The y coordinate in 3d-space.</param>
-        /// <param name="z">The z coordinate in 3d-space.</param>
-        /// <param name="w">The rotation component.</param>
-        public int4(int x, int y, int z, int w) {
-            this.X = x;
-            this.Y = y;
-            this.Z = z;
-            this.W = w;
+        public static int4 Identity {
+            get { return identity; }
         }
 
+        /// <summary>
+        /// Returns a string representing the vector components.
+        /// </summary>
+        /// <returns>Formatted string.</returns>
         public override string ToString() {
             return $"{X}, {Y}, {Z}, {W}";
         }
 
         /// <summary>
-        /// Gets whether or not the provided coordinates lie within the bounds of this <see cref="int4"/>.
+        /// Determines whether a point lies within the bounds described by this vector.
         /// </summary>
-        /// <param name="x">The x coordinate of the point to check for containment.</param>
-        /// <param name="y">The y coordinate of the point to check for containment.</param>
-        /// <returns><c>true</c> if the provided coordinates lie inside this <see cref="int4"/>; <c>false</c> otherwise.</returns>
+        /// <param name="x">X coordinate to test.</param>
+        /// <param name="y">Y coordinate to test.</param>
+        /// <returns>True if the point is within the rectangle; otherwise false.</returns>
         public bool Contains(int x, int y) {
-            return ((((this.X <= x) && (x < (this.X + this.Z))) && (this.Y <= y)) && (y < (this.Y + this.W)));
+            return ((((X <= x) && (x < (X + Z))) && (Y <= y)) && (y < (Y + W)));
         }
     }
 }

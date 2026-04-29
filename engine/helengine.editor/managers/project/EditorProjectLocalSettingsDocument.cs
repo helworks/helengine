@@ -1,0 +1,11 @@
+namespace helengine.editor {
+    /// <summary>
+    /// Represents editor-local per-project settings stored in `settings/project.json`.
+    /// </summary>
+    public sealed class EditorProjectLocalSettingsDocument {
+        /// <summary>
+        /// Gets or sets the active project platform currently selected for editor workflows.
+        /// </summary>
+        public string ActivePlatform { get; set; } = string.Empty;
+    }
+}

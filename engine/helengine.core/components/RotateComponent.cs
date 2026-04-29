@@ -1,5 +1,11 @@
-﻿namespace helengine {
+namespace helengine {
+    /// <summary>
+    /// Continuously rotates the parent entity around the Y-axis.
+    /// </summary>
     public class RotateComponent : UpdateComponent {
+        /// <summary>
+        /// Applies a small rotation each frame and normalizes orientation.
+        /// </summary>
         public override void Update() {
             base.Update();
 

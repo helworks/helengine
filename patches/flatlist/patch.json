@@ -1,0 +1,35 @@
+{
+    "id": "flatlist",
+    "version": "0.1.0",
+    "description": "Replaces render bucket registries with flat lists (single bucket) while keeping public APIs stable.",
+    "dependencies": [],
+    "conflicts": [],
+    "defines": [
+        "HELENGINE_FLATLIST"
+    ],
+    "includeFiles": [
+        "Index2D.FlatList.cs",
+        "RenderBucket2D.FlatList.cs",
+        "Camera2DRegistry.FlatList.cs",
+        "ReferenceEqualityComparer.FlatList.cs",
+        "Index3D.FlatList.cs",
+        "RenderBucket3D.FlatList.cs",
+        "Camera3DRegistry.FlatList.cs",
+        "ObjectManager.FlatList.cs",
+        "CameraComponent.FlatList.cs"
+    ],
+    "excludeFiles": [
+        "engine/helengine.core/managers/rendering/RenderBuckets2D.cs",
+        "engine/helengine.core/managers/rendering/RenderBuckets3D.cs",
+        "engine/helengine.core/managers/ObjectManager.cs",
+        "engine/helengine.core/components/CameraComponent.cs"
+    ],
+    "features": [
+        {
+            "id": "helengine.render.flatlist",
+            "version": "0.1",
+            "description": "Render registry uses flat lists instead of bucket arrays.",
+            "optional": true
+        }
+    ]
+}

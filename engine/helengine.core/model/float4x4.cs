@@ -7,35 +7,82 @@
 using System.Numerics;
 
 namespace helengine {
+    /// <summary>
+    /// Represents a 4x4 matrix with single-precision elements and related math helpers.
+    /// </summary>
     public struct float4x4 {
+        /// <summary>
+        /// Matrix element at first row, first column.
+        /// </summary>
         public float M11;
+        /// <summary>
+        /// Matrix element at first row, second column.
+        /// </summary>
         public float M12;
+        /// <summary>
+        /// Matrix element at first row, third column.
+        /// </summary>
         public float M13;
+        /// <summary>
+        /// Matrix element at first row, fourth column.
+        /// </summary>
         public float M14;
+        /// <summary>
+        /// Matrix element at second row, first column.
+        /// </summary>
         public float M21;
+        /// <summary>
+        /// Matrix element at second row, second column.
+        /// </summary>
         public float M22;
+        /// <summary>
+        /// Matrix element at second row, third column.
+        /// </summary>
         public float M23;
+        /// <summary>
+        /// Matrix element at second row, fourth column.
+        /// </summary>
         public float M24;
+        /// <summary>
+        /// Matrix element at third row, first column.
+        /// </summary>
         public float M31;
+        /// <summary>
+        /// Matrix element at third row, second column.
+        /// </summary>
         public float M32;
+        /// <summary>
+        /// Matrix element at third row, third column.
+        /// </summary>
         public float M33;
+        /// <summary>
+        /// Matrix element at third row, fourth column.
+        /// </summary>
         public float M34;
+        /// <summary>
+        /// Matrix element at fourth row, first column.
+        /// </summary>
         public float M41;
+        /// <summary>
+        /// Matrix element at fourth row, second column.
+        /// </summary>
         public float M42;
+        /// <summary>
+        /// Matrix element at fourth row, third column.
+        /// </summary>
         public float M43;
+        /// <summary>
+        /// Matrix element at fourth row, fourth column.
+        /// </summary>
         public float M44;
 
+        /// <summary>
+        /// Backing field for the identity matrix value.
+        /// </summary>
         private static float4x4 identity = new float4x4(1f, 0f, 0f, 0f,
                                             0f, 1f, 0f, 0f,
                                             0f, 0f, 1f, 0f,
                                             0f, 0f, 0f, 1f);
-
-        /// <summary>
-        /// Returns the identity matrix.
-        /// </summary>
-        public static float4x4 Identity {
-            get { return identity; }
-        }
 
         /// <summary>
         /// Constructs a matrix.
@@ -76,6 +123,12 @@ namespace helengine {
             this.M44 = m44;
         }
 
+        /// <summary>
+        /// Returns the identity matrix.
+        /// </summary>
+        public static float4x4 Identity {
+            get { return identity; }
+        }
 
         /// <summary>
         /// Creates a new viewing <see cref="Matrix"/>.
@@ -296,6 +349,11 @@ namespace helengine {
             result.M44 = m44;
         }
 
+        /// <summary>
+        /// Transposes the given matrix.
+        /// </summary>
+        /// <param name="matrix">Matrix to transpose.</param>
+        /// <param name="result">Transposed matrix.</param>
         public static void Transpose(ref float4x4 matrix, out float4x4 result) {
             float4x4 ret;
 
@@ -322,6 +380,13 @@ namespace helengine {
             result = ret;
         }
 
+        /// <summary>
+        /// Creates a rotation matrix from yaw, pitch, and roll angles.
+        /// </summary>
+        /// <param name="yaw">Yaw around the Y axis in radians.</param>
+        /// <param name="pitch">Pitch around the X axis in radians.</param>
+        /// <param name="roll">Roll around the Z axis in radians.</param>
+        /// <param name="result">Output rotation matrix.</param>
         public static void CreateFromYawPitchRoll(float yaw, float pitch, float roll, out float4x4 result) {
             float4 quaternion;
             float4.CreateFromYawPitchRoll(yaw, pitch, roll, out quaternion);

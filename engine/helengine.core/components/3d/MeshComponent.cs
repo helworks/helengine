@@ -1,14 +1,28 @@
-﻿namespace helengine {
+namespace helengine {
+    /// <summary>
+    /// Renders a 3D mesh using the 3D render manager.
+    /// </summary>
     public class MeshComponent : Component, IDrawable3D {
         byte renderOrder3D;
 
-        public RuntimeModel? Model { get; set; }
+        /// <summary>
+        /// Gets or sets the runtime model to render.
+        /// </summary>
+        public RuntimeModel Model { get; set; }
 
+        /// <summary>
+        /// Gets or sets the runtime material to use for rendering.
+        /// </summary>
+        public RuntimeMaterial Material { get; set; }
+
+        /// <summary>
+        /// Gets or sets the render order for this mesh.
+        /// </summary>
         public byte RenderOrder3D {
             get { return renderOrder3D; }
             set {
                 if (renderOrder3D != value) {
-                    if (Parent.Enabled) {
+                    if (Parent != null && Parent.IsHierarchyEnabled) {
                         Core.Instance.ObjectManager.RemoveFromRender3D(this);
                         renderOrder3D = value;
                         Core.Instance.ObjectManager.RegisterForRender3D(this);
@@ -19,19 +33,28 @@
             }
         }
 
-        public byte Variant { get; set; }
-
+        /// <summary>
+        /// Initializes a new mesh component.
+        /// </summary>
         public MeshComponent() {
         }
 
+        /// <summary>
+        /// Registers the mesh with the render manager when added to an enabled entity.
+        /// </summary>
+        /// <param name="entity">Owning entity.</param>
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            if (entity.Enabled) {
+            if (entity.IsHierarchyEnabled) {
                 Core.Instance.ObjectManager.RegisterForRender3D(this);
             }
         }
 
+        /// <summary>
+        /// Registers or unregisters the mesh based on enabled state changes.
+        /// </summary>
+        /// <param name="newEnabled">New enabled state.</param>
         public override void ParentEnabledChange(bool newEnabled) {
             base.ParentEnabledChange(newEnabled);
 

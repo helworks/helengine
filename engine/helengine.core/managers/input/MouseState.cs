@@ -33,7 +33,7 @@ namespace helengine {
         /// <param name="rightButton">Right mouse button's state.</param>
         /// <param name="xButton1">XBUTTON1's state.</param>
         /// <param name="xButton2">XBUTTON2's state.</param>
-        /// <remarks>Normally <see cref="Mouse.GetState()"/> should be used to get mouse current state. The constructor is provided for simulating mouse input.</remarks>
+        /// <remarks>Normally the <see cref="InputManager"/> mouse query methods should be used to access cached input for the current frame. The constructor is provided for simulating mouse input.</remarks>
         public MouseState(
             int x,
             int y,
@@ -69,7 +69,7 @@ namespace helengine {
         /// <param name="xButton1">XBUTTON1's state.</param>
         /// <param name="xButton2">XBUTTON2's state.</param>
         /// <param name="horizontalScrollWheel">Mouse horizontal scroll wheel's value.</param>
-        /// <remarks>Normally <see cref="Mouse.GetState()"/> should be used to get mouse current state. The constructor is provided for simulating mouse input.</remarks>
+        /// <remarks>Normally the <see cref="InputManager"/> mouse query methods should be used to access cached input for the current frame. The constructor is provided for simulating mouse input.</remarks>
         public MouseState(
             int x,
             int y,
