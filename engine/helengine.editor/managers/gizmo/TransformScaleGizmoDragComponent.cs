@@ -4,10 +4,6 @@ namespace helengine.editor {
     /// </summary>
     public class TransformScaleGizmoDragComponent : UpdateComponent {
         /// <summary>
-        /// Perspective vertical field of view used by scene camera rendering.
-        /// </summary>
-        const double PerspectiveVerticalFieldOfViewRadians = Math.PI / 4.0;
-        /// <summary>
         /// Smallest squared vector magnitude treated as non-zero during normalization.
         /// </summary>
         const double MinimumVectorLengthSquared = 0.000000000001;
@@ -23,11 +19,6 @@ namespace helengine.editor {
         /// Smallest allowed scale value for any single component.
         /// </summary>
         const float MinimumScaleComponent = 0.0001f;
-        /// <summary>
-        /// Forward axis used by cameras before orientation is applied.
-        /// </summary>
-        static readonly float3 CameraForwardAxis = new float3(0f, 0f, -1f);
-
         /// <summary>
         /// Scene camera used to convert mouse pointer positions into world-space rays.
         /// </summary>
@@ -423,7 +414,7 @@ namespace helengine.editor {
             float3 axisOrigin,
             float3 axisDirection,
             out double axisParameter) {
-            if (!TryBuildCameraRay(pointer, out float3 rayOrigin, out float3 rayDirection)) {
+            if (!EditorViewportPointerRayBuilder.TryBuildPerspectiveCameraRay(SceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection)) {
                 axisParameter = 0.0;
                 return false;
             }
@@ -455,7 +446,7 @@ namespace helengine.editor {
             float3 planeOrigin,
             float3 planeNormal,
             out float3 planePoint) {
-            if (!TryBuildCameraRay(pointer, out float3 rayOrigin, out float3 rayDirection)) {
+            if (!EditorViewportPointerRayBuilder.TryBuildPerspectiveCameraRay(SceneCamera, pointer, out float3 rayOrigin, out float3 rayDirection)) {
                 planePoint = float3.Zero;
                 return false;
             }
@@ -470,51 +461,6 @@ namespace helengine.editor {
             double distanceAlongRay = float3.Dot(planeDelta, planeNormal) / denominator;
             planePoint = rayOrigin + (rayDirection * (float)distanceAlongRay);
             return true;
-        }
-
-        /// <summary>
-        /// Builds a normalized world-space camera ray from the current pointer location.
-        /// </summary>
-        /// <param name="pointer">Pointer position in window coordinates.</param>
-        /// <param name="rayOrigin">Ray origin in world space.</param>
-        /// <param name="rayDirection">Ray direction in world space.</param>
-        /// <returns>True when the camera ray can be constructed.</returns>
-        bool TryBuildCameraRay(int2 pointer, out float3 rayOrigin, out float3 rayDirection) {
-            Entity cameraEntity = SceneCamera.Parent;
-            if (cameraEntity == null) {
-                throw new InvalidOperationException("Scene camera must belong to an entity.");
-            }
-
-            float4 viewport = SceneCamera.Viewport;
-            if (viewport.Z <= 1f || viewport.W <= 1f) {
-                rayOrigin = float3.Zero;
-                rayDirection = float3.Zero;
-                return false;
-            }
-
-            double normalizedX = (pointer.X - viewport.X) / viewport.Z;
-            double normalizedY = (pointer.Y - viewport.Y) / viewport.W;
-            double clampedX = Math.Clamp(normalizedX, 0.0, 1.0);
-            double clampedY = Math.Clamp(normalizedY, 0.0, 1.0);
-            double ndcX = (clampedX * 2.0) - 1.0;
-            double ndcY = 1.0 - (clampedY * 2.0);
-            double aspect = viewport.Z / viewport.W;
-            if (aspect <= 0.0) {
-                throw new InvalidOperationException("Scene camera viewport aspect ratio must be positive.");
-            }
-
-            double tanHalfFov = Math.Tan(PerspectiveVerticalFieldOfViewRadians * 0.5);
-            float3 cameraSpaceDirection = new float3(
-                (float)(ndcX * aspect * tanHalfFov),
-                (float)(ndcY * tanHalfFov),
-                -1f);
-            cameraSpaceDirection = NormalizeSafe(cameraSpaceDirection, CameraForwardAxis);
-
-            float4 cameraOrientation = cameraEntity.Orientation;
-            float3 forwardFallback = float4.RotateVector(CameraForwardAxis, cameraOrientation);
-            rayDirection = NormalizeSafe(float4.RotateVector(cameraSpaceDirection, cameraOrientation), forwardFallback);
-            rayOrigin = cameraEntity.Position;
-            return rayDirection != float3.Zero;
         }
 
         /// <summary>
