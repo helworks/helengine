@@ -93,6 +93,40 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the title bar touches the panel borders instead of using inset chrome.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_PositionsHeaderFlushToPanelEdges() {
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            dialog.Show();
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity headerRoot = GetPrivateField<EditorEntity>(dialog, "HeaderRoot");
+            SpriteComponent headerBackground = GetPrivateField<SpriteComponent>(dialog, "HeaderBackground");
+
+            Assert.Equal(0f, headerRoot.LocalPosition.X);
+            Assert.Equal(0f, headerRoot.LocalPosition.Y);
+            Assert.Equal(UnsavedChangesDialog.PanelWidth, headerBackground.Size.X);
+            Assert.Equal(UnsavedChangesDialog.HeaderHeight, headerBackground.Size.Y);
+        }
+
+        /// <summary>
+        /// Ensures the close button fills the title-bar height and touches the right edge.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_PositionsCloseButtonAsFullHeightRightEdgeChrome() {
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            dialog.Show();
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity closeButtonHost = GetPrivateField<EditorEntity>(dialog, "CloseButtonHost");
+            RoundedRectComponent closeButtonBackground = closeButtonHost.Components.OfType<RoundedRectComponent>().Single();
+            Assert.Equal(UnsavedChangesDialog.PanelWidth - closeButtonBackground.Size.X, closeButtonHost.LocalPosition.X);
+            Assert.Equal(0f, closeButtonHost.LocalPosition.Y);
+            Assert.Equal(UnsavedChangesDialog.HeaderHeight, closeButtonBackground.Size.Y);
+        }
+
+        /// <summary>
         /// Ensures dragging the title bar moves the dialog panel.
         /// </summary>
         [Fact]

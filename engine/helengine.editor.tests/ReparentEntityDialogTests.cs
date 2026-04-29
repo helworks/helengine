@@ -48,6 +48,56 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the title bar touches the panel borders instead of using inset chrome.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_PositionsHeaderFlushToPanelEdges() {
+            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
+            EditorEntity root = new EditorEntity {
+                Name = "Root"
+            };
+            EditorEntity child = new EditorEntity {
+                Name = "Child"
+            };
+            root.AddChild(child);
+
+            dialog.Show(child, new Entity[] { root, child });
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity headerRoot = GetPrivateField<EditorEntity>(dialog, "HeaderRoot");
+            SpriteComponent headerBackground = GetPrivateField<SpriteComponent>(dialog, "HeaderBackground");
+
+            Assert.Equal(0f, headerRoot.LocalPosition.X);
+            Assert.Equal(0f, headerRoot.LocalPosition.Y);
+            Assert.Equal(ReparentEntityDialog.PanelWidth, headerBackground.Size.X);
+            Assert.Equal(ReparentEntityDialog.HeaderHeight, headerBackground.Size.Y);
+        }
+
+        /// <summary>
+        /// Ensures the close button fills the title-bar height and touches the right edge.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_PositionsCloseButtonAsFullHeightRightEdgeChrome() {
+            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
+            EditorEntity root = new EditorEntity {
+                Name = "Root"
+            };
+            EditorEntity child = new EditorEntity {
+                Name = "Child"
+            };
+            root.AddChild(child);
+
+            dialog.Show(child, new Entity[] { root, child });
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity closeButtonHost = GetPrivateField<EditorEntity>(dialog, "CloseButtonHost");
+            RoundedRectComponent closeButtonBackground = closeButtonHost.Components.OfType<RoundedRectComponent>().Single();
+            Assert.Equal(ReparentEntityDialog.PanelWidth - closeButtonBackground.Size.X, closeButtonHost.LocalPosition.X);
+            Assert.Equal(0f, closeButtonHost.LocalPosition.Y);
+            Assert.Equal(ReparentEntityDialog.HeaderHeight, closeButtonBackground.Size.Y);
+        }
+
+        /// <summary>
         /// Ensures dragging the title bar moves the dialog panel.
         /// </summary>
         [Fact]

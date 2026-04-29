@@ -60,7 +60,7 @@ namespace helengine.editor {
         /// <summary>
         /// Fixed size used for the header close button.
         /// </summary>
-        static readonly int2 CloseButtonSize = new int2(22, 22);
+        static readonly int2 CloseButtonSize = new int2(40, HeaderHeight);
         /// <summary>
         /// Fixed size used for each platform checkbox.
         /// </summary>
@@ -276,7 +276,8 @@ namespace helengine.editor {
             CloseButtonHost.AddComponent(CloseButton);
             CloseButton.SetRenderOrders(TextOrder, TextOrder);
             CloseButton.UseHoverOnlyBackground();
-            CloseButton.SetTextColor(ThemeManager.Colors.InputForegroundPrimary);
+            CloseButton.UseSquareCorners();
+            CloseButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
 
             StatusHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -544,8 +545,8 @@ namespace helengine.editor {
         /// Positions the dialog title.
         /// </summary>
         void LayoutHeader() {
-            int headerWidth = Math.Max(0, PanelWidth - PanelPadding * 2);
-            HeaderRoot.Position = new float3(PanelPadding, PanelPadding, 0.2f);
+            int headerWidth = PanelWidth;
+            HeaderRoot.Position = new float3(0f, 0f, 0.2f);
             HeaderBackground.Size = new int2(headerWidth, HeaderHeight);
             HeaderInteractable.Size = new int2(headerWidth, HeaderHeight);
         }
@@ -554,10 +555,9 @@ namespace helengine.editor {
         /// Positions the dialog title.
         /// </summary>
         void LayoutTitle() {
-            int headerWidth = Math.Max(0, PanelWidth - PanelPadding * 2);
-            int closeButtonY = (int)Math.Round((HeaderHeight - CloseButtonSize.Y) * 0.5);
-            int closeButtonX = Math.Max(HeaderButtonSpacing, headerWidth - CloseButtonSize.X - HeaderButtonSpacing);
-            CloseButtonHost.Position = new float3(closeButtonX, closeButtonY, 0.2f);
+            int headerWidth = PanelWidth;
+            int closeButtonX = headerWidth - CloseButtonSize.X;
+            CloseButtonHost.Position = new float3(closeButtonX, 0f, 0.2f);
 
             FontTightMetrics headerMetrics = Font.MeasureTight(TitleText.Text);
             float titleTop = GetTextTopOffset(HeaderHeight, headerMetrics);
@@ -643,13 +643,11 @@ namespace helengine.editor {
         /// <param name="pos">Pointer position relative to the title bar.</param>
         /// <returns>True when the pointer overlaps the close button.</returns>
         bool IsPointerOverCloseButton(int2 pos) {
-            int headerWidth = Math.Max(0, PanelWidth - PanelPadding * 2);
-            int closeButtonX = Math.Max(HeaderButtonSpacing, headerWidth - CloseButtonSize.X - HeaderButtonSpacing);
-            int closeButtonY = (int)Math.Round((HeaderHeight - CloseButtonSize.Y) * 0.5);
+            int closeButtonX = PanelWidth - CloseButtonSize.X;
             return pos.X >= closeButtonX &&
                    pos.X <= closeButtonX + CloseButtonSize.X &&
-                   pos.Y >= closeButtonY &&
-                   pos.Y <= closeButtonY + CloseButtonSize.Y;
+                   pos.Y >= 0 &&
+                   pos.Y <= CloseButtonSize.Y;
         }
 
         /// <summary>
