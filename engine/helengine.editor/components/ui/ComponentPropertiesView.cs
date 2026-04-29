@@ -64,6 +64,10 @@ namespace helengine.editor {
         /// </summary>
         readonly SceneAssetReferenceFactory AssetReferenceFactory;
         /// <summary>
+        /// Resolves file-system model source files through the processed model cache.
+        /// </summary>
+        readonly EditorFileSystemModelResolver FileSystemModelResolver;
+        /// <summary>
         /// Root entity that hosts the component property rows.
         /// </summary>
         readonly EditorEntity RootEntity;
@@ -105,7 +109,15 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for row labels.</param>
         /// <param name="contentManager">Content manager used to load serialized assets.</param>
-        public ComponentPropertiesView(FontAsset font, ContentManager contentManager) {
+        public ComponentPropertiesView(FontAsset font, ContentManager contentManager) : this(font, contentManager, null) { }
+
+        /// <summary>
+        /// Initializes a new component properties view with support for file-system model source resolution.
+        /// </summary>
+        /// <param name="font">Font used for row labels.</param>
+        /// <param name="contentManager">Content manager used to load serialized assets.</param>
+        /// <param name="fileSystemModelResolver">Resolver that imports or loads processed model assets for file-system model sources.</param>
+        public ComponentPropertiesView(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -116,6 +128,7 @@ namespace helengine.editor {
             Font = font;
             AssetContentManager = contentManager;
             AssetReferenceFactory = new SceneAssetReferenceFactory();
+            FileSystemModelResolver = fileSystemModelResolver;
             RootEntity = new EditorEntity();
             RootEntity.LayerMask = 0b1000000000000000;
             RootEntity.Position = float3.Zero;
@@ -1214,8 +1227,12 @@ namespace helengine.editor {
                 return GeneratedAssetProviderRegistry.ResolveRuntimeModel(entry);
             }
 
-            ModelAsset modelAsset = LoadModelAsset(entry.FullPath);
-            return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+            if (FileSystemModelResolver == null) {
+                ModelAsset modelAsset = LoadModelAsset(entry.FullPath);
+                return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+            }
+
+            return FileSystemModelResolver.ResolveRuntimeModel(entry.FullPath);
         }
 
         /// <summary>

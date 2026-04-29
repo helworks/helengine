@@ -12,6 +12,10 @@ namespace helengine.editor {
         /// Content manager used to load file-backed model and material assets.
         /// </summary>
         readonly ContentManager AssetContentManager;
+        /// <summary>
+        /// Resolves file-system model source files through the processed model cache.
+        /// </summary>
+        readonly EditorFileSystemModelResolver FileSystemModelResolver;
 
         /// <summary>
         /// Initializes a new runtime asset resolver for scene loading.
@@ -29,6 +33,29 @@ namespace helengine.editor {
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "assets"));
             AssetContentManager = assetContentManager;
+        }
+
+        /// <summary>
+        /// Initializes a new runtime asset resolver for scene loading with support for file-system model source resolution.
+        /// </summary>
+        /// <param name="assetContentManager">Content manager used to load file-backed assets.</param>
+        /// <param name="projectRootPath">Project root that owns the assets folder.</param>
+        /// <param name="fileSystemModelResolver">Resolver that imports or loads processed model assets for file-system model sources.</param>
+        public EditorSceneAssetReferenceResolver(ContentManager assetContentManager, string projectRootPath, EditorFileSystemModelResolver fileSystemModelResolver) {
+            if (assetContentManager == null) {
+                throw new ArgumentNullException(nameof(assetContentManager));
+            }
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+            if (fileSystemModelResolver == null) {
+                throw new ArgumentNullException(nameof(fileSystemModelResolver));
+            }
+
+            string fullProjectRootPath = Path.GetFullPath(projectRootPath);
+            AssetsRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "assets"));
+            AssetContentManager = assetContentManager;
+            FileSystemModelResolver = fileSystemModelResolver;
         }
 
         /// <summary>
@@ -80,14 +107,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves one file-backed model reference by loading the serialized model asset from disk.
+        /// Resolves one file-backed model reference by importing or loading the processed cached model asset for the source file.
         /// </summary>
         /// <param name="reference">File-backed model reference to resolve.</param>
-        /// <returns>Runtime model built from the serialized model asset.</returns>
+        /// <returns>Runtime model built from the processed model asset.</returns>
         RuntimeModel ResolveFileSystemModel(SceneAssetReference reference) {
             string fullPath = ResolveFileSystemAssetPath(reference);
-            ModelAsset modelAsset = AssetContentManager.Load<ModelAsset>(fullPath, EditorContentProcessorIds.ModelAsset);
-            return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+            if (FileSystemModelResolver == null) {
+                ModelAsset modelAsset = AssetContentManager.Load<ModelAsset>(fullPath, EditorContentProcessorIds.ModelAsset);
+                return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+            }
+
+            return FileSystemModelResolver.ResolveRuntimeModel(fullPath);
         }
 
         /// <summary>

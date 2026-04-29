@@ -207,7 +207,15 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager) : base(font) {
+        public PropertiesPanel(FontAsset font, ContentManager contentManager) : this(font, contentManager, null) { }
+
+        /// <summary>
+        /// Initializes a new properties panel with the provided font.
+        /// </summary>
+        /// <param name="font">Font used for the title bar.</param>
+        /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
+        /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
+        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver) : base(font) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -248,7 +256,11 @@ namespace helengine.editor {
             TransformRoot.Position = new float3(0, 0, 0.2f);
             contentRoot.AddChild(TransformRoot);
 
-            ComponentView = new ComponentPropertiesView(font, contentManager);
+            if (fileSystemModelResolver == null) {
+                ComponentView = new ComponentPropertiesView(font, contentManager);
+            } else {
+                ComponentView = new ComponentPropertiesView(font, contentManager, fileSystemModelResolver);
+            }
             contentRoot.AddChild(ComponentView.Root);
 
             CreateNameRow(out NameRow, out NameLabel, out NameFieldHost, out NameField);

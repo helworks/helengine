@@ -313,10 +313,11 @@ namespace helengine.editor {
             titleBar = new EditorTitleBar(uiFont, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle());
 
             dockingManager = new DockingManager();
+            EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath);
             mainViewport = new EditorViewport(sceneCameraComponent, uiFont, snapModifierFont, toolbarIcons);
-            propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager);
+            propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver);
             loggerPanel = new LoggerPanel(uiFont);
             previewPanel = new PreviewPanel(uiFont);
             EditorKeyboardFocusService.RegisterGroup(sceneHierarchyPanel);
@@ -339,7 +340,7 @@ namespace helengine.editor {
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
                 persistenceRegistry,
-                new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath));
+                new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver));
             CurrentScenePath = string.Empty;
             PendingOpenScenePath = string.Empty;
             PendingSceneTransition = SceneTransitionKind.None;

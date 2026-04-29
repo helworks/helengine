@@ -41,33 +41,17 @@ namespace helengine.editor.tests {
         public void HandleModelPicked_WhenEntryIsFileSystem_StoresAFileSystemSceneAssetReference() {
             string modelPath = Path.Combine(TempRootPath, "assets", "Models", "Ship.obj");
             Directory.CreateDirectory(Path.GetDirectoryName(modelPath));
-            using (FileStream stream = new FileStream(modelPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                AssetSerializer.Serialize(stream, new ModelAsset {
-                    Id = "Models/Ship.obj",
-                    Positions = new[] {
-                        new float3(0f, 0f, 0f),
-                        new float3(1f, 0f, 0f),
-                        new float3(0f, 1f, 0f)
-                    },
-                    Normals = new[] {
-                        new float3(0f, 0f, 1f),
-                        new float3(0f, 0f, 1f),
-                        new float3(0f, 0f, 1f)
-                    },
-                    TexCoords = new[] {
-                        new float2(0f, 0f),
-                        new float2(1f, 0f),
-                        new float2(0f, 1f)
-                    },
-                    Indices16 = new ushort[] { 0, 1, 2 }
-                });
-            }
+            File.WriteAllText(modelPath, "raw obj source");
 
             ContentManager contentManager = new ContentManager(TempRootPath);
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            AssetImportManager assetImportManager = CreateAssetImportManager();
             MeshComponent meshComponent = new MeshComponent();
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), contentManager);
+            ComponentPropertiesView view = new ComponentPropertiesView(
+                CreateFont(),
+                contentManager,
+                new EditorFileSystemModelResolver(assetImportManager));
             view.ShowComponents(entity);
 
             ComponentPropertyRow modelRow = FindModelRow(view);
@@ -87,6 +71,17 @@ namespace helengine.editor.tests {
             Assert.True(saveState.TryGetAssetReference("Model", out SceneAssetReference reference));
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, reference.SourceKind);
             Assert.Equal("Models/Ship.obj", reference.RelativePath);
+        }
+
+        /// <summary>
+        /// Creates one asset import manager that resolves raw model source files for the current test project.
+        /// </summary>
+        /// <returns>Configured asset import manager for `.obj` source files.</returns>
+        AssetImportManager CreateAssetImportManager() {
+            ContentManager contentManager = new ContentManager(Path.Combine(TempRootPath, "assets"));
+            AssetImportManager assetImportManager = new AssetImportManager(TempRootPath, contentManager);
+            assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
+            return assetImportManager;
         }
 
         /// <summary>

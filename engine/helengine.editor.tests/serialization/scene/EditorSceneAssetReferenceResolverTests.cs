@@ -58,5 +58,41 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.Same(runtimeMaterial, resolvedMaterial);
         }
+
+        /// <summary>
+        /// Ensures filesystem-backed model references resolve through the processed model cache instead of deserializing the raw source file.
+        /// </summary>
+        [Fact]
+        public void ResolveModel_WhenReferenceIsFileSystem_UsesImportedModelAsset() {
+            string modelPath = Path.Combine(TempProjectRootPath, "assets", "Models", "Sponza.obj");
+            Directory.CreateDirectory(Path.GetDirectoryName(modelPath));
+            File.WriteAllText(modelPath, "raw obj source");
+            AssetImportManager assetImportManager = CreateAssetImportManager();
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
+                new ContentManager(TempProjectRootPath),
+                TempProjectRootPath,
+                new EditorFileSystemModelResolver(assetImportManager));
+
+            RuntimeModel runtimeModel = resolver.ResolveModel(new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "Models/Sponza.obj"
+            });
+
+            Assert.NotNull(runtimeModel);
+            ModelAsset builtModelAsset = Assert.Single(renderManager.BuiltModelAssets);
+            Assert.Equal(new ushort[] { 0, 1, 2 }, builtModelAsset.Indices16);
+        }
+
+        /// <summary>
+        /// Creates one asset import manager that can import `.obj` source files for the current resolver test project.
+        /// </summary>
+        /// <returns>Configured asset import manager.</returns>
+        AssetImportManager CreateAssetImportManager() {
+            ContentManager contentManager = new ContentManager(Path.Combine(TempProjectRootPath, "assets"));
+            AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
+            assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
+            return assetImportManager;
+        }
     }
 }
