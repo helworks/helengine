@@ -38,8 +38,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.vulkan", "..\engi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.editor.app", "helengine.editor.app\helengine.editor.app.csproj", "{3C74754D-F82C-4A00-D665-AF82B29B7064}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "nucleusdotnet", "nucleusdotnet", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.editor.windows", "..\engine\helengine.editor.windows\helengine.editor.windows.csproj", "{4B4C57C7-85D6-416B-A136-9338424700F2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.patching", "..\engine\helengine.patching\helengine.patching.csproj", "{7AE9F6D2-ED92-6212-32C3-8314AE3B55FF}"
@@ -53,6 +51,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.projectfile", "..\engine\helengine.projectfile\helengine.projectfile.csproj", "{85DE1646-117B-4A4F-9C09-B1020365E692}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.projectfile.tests", "..\engine\helengine.projectfile.tests\helengine.projectfile.tests.csproj", "{52BCA084-F145-4AE7-BE12-0E266FE05A82}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "helengine.platforms", "..\engine\helengine.platforms\helengine.platforms.csproj", "{E0C7A132-5237-4A49-BAB3-DEBB53A960CB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -280,6 +280,18 @@ Global
 		{52BCA084-F145-4AE7-BE12-0E266FE05A82}.Release|x64.Build.0 = Release|Any CPU
 		{52BCA084-F145-4AE7-BE12-0E266FE05A82}.Release|x86.ActiveCfg = Release|Any CPU
 		{52BCA084-F145-4AE7-BE12-0E266FE05A82}.Release|x86.Build.0 = Release|Any CPU
+		{E0C7A132-5237-4A49-BAB3-DEBB53A960CB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E0C7A132-5237-4A49-BAB3-DEBB53A960CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E0C7A132-5237-4A49-BAB3-DEBB53A960CB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E0C7A132-5237-4A49-BAB3-DEBB53A960CB}.Debug|x64.Build.0 = Debug|Any CPU
+		{E0C7A132-5237-4A49-BAB3-DEBB53A960CB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E0C7A132-5237-4A49-BAB3-DEBB53A960CB}.Debug|x86.Build.0 = Debug|Any CPU
+		{E0C7A132-5237-4A49-BAB3-DEBB53A960CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E0C7A132-5237-4A49-BAB3-DEBB53A960CB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E0C7A132-5237-4A49-BAB3-DEBB53A960CB}.Release|x64.ActiveCfg = Release|Any CPU
+		{E0C7A132-5237-4A49-BAB3-DEBB53A960CB}.Release|x64.Build.0 = Release|Any CPU
+		{E0C7A132-5237-4A49-BAB3-DEBB53A960CB}.Release|x86.ActiveCfg = Release|Any CPU
+		{E0C7A132-5237-4A49-BAB3-DEBB53A960CB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -290,7 +302,6 @@ Global
 		{1C1A049E-235C-4CD0-B6FA-D53AC418F4DA} = {5DC288B9-64DA-44D7-B076-2695B4C19D13}
 		{EBD9022F-BC83-4846-9A11-6F7F3772DC64} = {5DC288B9-64DA-44D7-B076-2695B4C19D13}
 		{7AD1DAC8-7FBE-49D5-8614-7321233DB82E} = {5DC288B9-64DA-44D7-B076-2695B4C19D13}
-		{3DA99C4E-89E3-4049-9C22-0A7EC60D83D8} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{0BD61AD0-ADF2-4CB7-B8C8-05C805CED6C0} = {0B0188C9-57AB-47CA-818B-ACFCA79A44F5}
 		{DF08A1E1-3F05-4F30-A430-329FBE385968} = {0B0188C9-57AB-47CA-818B-ACFCA79A44F5}
 		{C91F6F03-A613-C839-7A02-FE7D7ED1DAD6} = {A31E52AC-B0FF-4D5D-9356-B386062F090E}
@@ -300,6 +311,7 @@ Global
 		{1D6F2232-B79B-4A1D-9402-896012D09A7F} = {5DC288B9-64DA-44D7-B076-2695B4C19D13}
 		{85DE1646-117B-4A4F-9C09-B1020365E692} = {0B0188C9-57AB-47CA-818B-ACFCA79A44F5}
 		{52BCA084-F145-4AE7-BE12-0E266FE05A82} = {0B0188C9-57AB-47CA-818B-ACFCA79A44F5}
+		{E0C7A132-5237-4A49-BAB3-DEBB53A960CB} = {0B0188C9-57AB-47CA-818B-ACFCA79A44F5}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {83CB65B8-011F-4ED7-BCD3-A6CFA935EF7E}
