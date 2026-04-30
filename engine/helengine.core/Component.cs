@@ -21,6 +21,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Entity losing the component.</param>
         public virtual void ComponentRemoved(Entity entity) {
+            Parent = null;
         }
 
         /// <summary>
