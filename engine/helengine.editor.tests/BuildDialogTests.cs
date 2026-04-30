@@ -19,6 +19,7 @@ namespace helengine.editor.tests {
         public BuildDialogTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-build-dialog-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
+            EditorInputCaptureService.Reset();
 
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
@@ -30,6 +31,7 @@ namespace helengine.editor.tests {
         /// Deletes the temporary content root after each test.
         /// </summary>
         public void Dispose() {
+            EditorInputCaptureService.Reset();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -357,6 +359,228 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the build dialog uses the lighter modal foreground color for its labels and queue text.
+        /// </summary>
+        [Fact]
+        public void Show_UsesModalForegroundColorForBuildDialogText() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = [
+                        new EditorBuildQueueItemDocument {
+                            QueueItemId = "queue-1",
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows",
+                            Status = EditorBuildQueueItemStatus.Pending
+                        }
+                    ]
+                });
+
+            TextComponent copySourceLabelText = GetPrivateField<TextComponent>(dialog, "CopySourceLabelText");
+            TextComponent outputLabelText = GetPrivateField<TextComponent>(dialog, "OutputLabelText");
+            List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
+            List<TextComponent> queueItemTexts = GetPrivateField<List<TextComponent>>(dialog, "QueueItemTexts");
+
+            Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, copySourceLabelText.Color);
+            Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, outputLabelText.Color);
+            Assert.All(mapLabelTexts, label => Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, label.Color));
+            Assert.All(queueItemTexts, label => Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, label.Color));
+        }
+
+        /// <summary>
+        /// Ensures the shared modal shell blocks pointer capture across the full host backdrop, not only inside the panel bounds.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_WhenDialogIsVisible_BlocksPointerOutsidePanelAcrossHost() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ]
+                });
+            dialog.UpdateLayout(1280, 720);
+
+            Assert.True(EditorInputCaptureService.IsPointerBlocked(new int2(8, 8)));
+
+            dialog.Hide();
+
+            Assert.False(EditorInputCaptureService.IsPointerBlocked(new int2(8, 8)));
+        }
+
+        /// <summary>
+        /// Ensures the scene list is enclosed by a bordered surface instead of leaving the rows visually floating.
+        /// </summary>
+        [Fact]
+        public void Show_CreatesBorderedSceneListContainer() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen",
+                    "Scenes/Menu.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ]
+                });
+
+            EditorEntity sceneListRoot = GetPrivateField<EditorEntity>(dialog, "SceneListRoot");
+            RoundedRectComponent sceneListBackground = GetPrivateField<RoundedRectComponent>(dialog, "SceneListBackground");
+            List<EditorEntity> mapLabelHosts = GetPrivateField<List<EditorEntity>>(dialog, "MapLabelHosts");
+
+            Assert.Equal(0f, sceneListRoot.LocalPosition.X);
+            Assert.True(sceneListRoot.LocalPosition.Y >= BuildDialog.PlatformTabHeight);
+            Assert.Equal(ThemeManager.Colors.AccentTertiary, sceneListBackground.BorderColor);
+            Assert.Equal(2f, sceneListBackground.BorderThickness);
+            Assert.Equal(BuildDialog.PanelWidth - BuildDialog.QueueColumnWidth - (BuildDialog.PanelPadding * 3), sceneListBackground.Size.X);
+            Assert.True(sceneListBackground.Size.Y > 0);
+            Assert.All(mapLabelHosts, host => Assert.Equal(BuildDialog.SceneListPadding, host.LocalPosition.X));
+        }
+
+        /// <summary>
+        /// Ensures the lower-left controls stay within the dialog bounds even when many scenes are available.
+        /// </summary>
+        [Fact]
+        public void Show_WhenManyScenesAreAvailable_KeepsCopyControlsInsideDialogBounds() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows", "linux"],
+                CreateSceneIds(18),
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/Map00.helen"
+                            ]
+                        },
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "linux",
+                            SelectedSceneIds = [
+                                "Scenes/Map00.helen"
+                            ]
+                        }
+                    ]
+                });
+
+            EditorEntity copySourcePlatformComboBoxHost = GetPrivateField<EditorEntity>(dialog, "CopySourcePlatformComboBoxHost");
+            ComboBoxComponent copySourcePlatformComboBox = GetPrivateField<ComboBoxComponent>(dialog, "CopySourcePlatformComboBox");
+            EditorEntity outputFieldHost = GetPrivateField<EditorEntity>(dialog, "OutputFieldHost");
+            TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
+            EditorEntity addToBuildButtonHost = GetPrivateField<EditorEntity>(dialog, "AddToBuildButtonHost");
+
+            Assert.InRange(copySourcePlatformComboBoxHost.LocalPosition.Y, 0f, BuildDialog.PanelHeight - BuildDialog.HeaderHeight - BuildDialog.PanelPadding);
+            Assert.True(copySourcePlatformComboBoxHost.LocalPosition.Y + copySourcePlatformComboBox.Size.Y <= BuildDialog.PanelHeight - BuildDialog.HeaderHeight);
+            Assert.True(outputFieldHost.LocalPosition.Y + outputDirectoryField.Size.Y <= BuildDialog.PanelHeight - BuildDialog.HeaderHeight);
+            Assert.True(addToBuildButtonHost.LocalPosition.Y + BuildDialog.FooterButtonHeight <= BuildDialog.PanelHeight - BuildDialog.HeaderHeight);
+        }
+
+        /// <summary>
+        /// Ensures the output-folder row exposes a browse button and keeps the Add to Build footer height aligned with Build Queue.
+        /// </summary>
+        [Fact]
+        public void Show_CreatesOutputFolderBrowseRowAndMatchesFooterButtonHeights() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ]
+                });
+
+            EditorEntity outputFieldHost = GetPrivateField<EditorEntity>(dialog, "OutputFieldHost");
+            TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
+            EditorEntity browseOutputFolderButtonHost = GetPrivateField<EditorEntity>(dialog, "BrowseOutputFolderButtonHost");
+            ButtonComponent browseOutputFolderButton = GetPrivateField<ButtonComponent>(dialog, "BrowseOutputFolderButton");
+            ButtonComponent addToBuildButton = GetPrivateField<ButtonComponent>(dialog, "AddToBuildButton");
+            ButtonComponent buildQueueButton = GetPrivateField<ButtonComponent>(dialog, "BuildQueueButton");
+            int2 browseButtonSize = GetPrivateField<int2>(browseOutputFolderButton, "size");
+            int2 addToBuildButtonSize = GetPrivateField<int2>(addToBuildButton, "size");
+            int2 buildQueueButtonSize = GetPrivateField<int2>(buildQueueButton, "size");
+
+            Assert.True(outputDirectoryField.Size.X < BuildDialog.PanelWidth - BuildDialog.QueueColumnWidth - (BuildDialog.PanelPadding * 3));
+            Assert.True(browseOutputFolderButtonHost.LocalPosition.X > outputFieldHost.LocalPosition.X);
+            Assert.Equal("Browse", GetPrivateField<string>(browseOutputFolderButton, "text"));
+            Assert.Equal(BuildDialog.FooterButtonHeight, browseButtonSize.Y);
+            Assert.Equal(buildQueueButtonSize.Y, addToBuildButtonSize.Y);
+        }
+
+        /// <summary>
+        /// Ensures the browse button raises the output-folder browse request event.
+        /// </summary>
+        [Fact]
+        public void HandleBrowseOutputFolderClicked_WhenInvoked_RaisesBrowseOutputFolderRequested() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            bool raised = false;
+            dialog.BrowseOutputFolderRequested += () => raised = true;
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ]
+                });
+
+            InvokePrivate(dialog, "HandleBrowseOutputFolderClicked");
+
+            Assert.True(raised);
+        }
+
+        /// <summary>
         /// Creates one deterministic font asset for modal layout and control tests.
         /// </summary>
         /// <returns>Font asset with stable glyph metrics.</returns>
@@ -378,6 +602,21 @@ namespace helengine.editor.tests {
                 16f,
                 128,
                 128);
+        }
+
+        /// <summary>
+        /// Creates one deterministic scene list for layout-stress coverage.
+        /// </summary>
+        /// <param name="count">Number of scene ids to create.</param>
+        /// <returns>Scene ids with stable ordering.</returns>
+        IReadOnlyList<string> CreateSceneIds(int count) {
+            List<string> sceneIds = new List<string>(count);
+
+            for (int index = 0; index < count; index++) {
+                sceneIds.Add("Scenes/Map" + index.ToString("00") + ".helen");
+            }
+
+            return sceneIds;
         }
 
         /// <summary>

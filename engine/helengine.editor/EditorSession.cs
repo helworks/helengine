@@ -249,6 +249,10 @@ namespace helengine.editor {
         /// Active platform identifier currently selected for editor-local asset processing workflows.
         /// </summary>
         string ActiveProjectPlatform;
+        /// <summary>
+        /// Host-provided folder picker used by build-planning dialogs.
+        /// </summary>
+        Func<string> BrowseOutputFolderResolver;
 
         /// <summary>
         /// Initializes a new editor session and sets up cameras, docking, and starter content.
@@ -264,6 +268,7 @@ namespace helengine.editor {
         /// <param name="renderHeight">Initial render height in pixels.</param>
         /// <param name="toolbarIcons">Toolbar icon textures used by the main viewport tool buttons.</param>
         /// <param name="importers">Asset importers to register for import settings.</param>
+        /// <param name="browseOutputFolderResolver">Host callback that opens a folder picker for build output selection.</param>
         public EditorSession(
             EditorCore core,
             string projectPath,
@@ -275,8 +280,10 @@ namespace helengine.editor {
             int renderWidth,
             int renderHeight,
             EditorViewportToolbarIconSet toolbarIcons,
-            IReadOnlyList<IAssetImporterRegistration> importers) {
+            IReadOnlyList<IAssetImporterRegistration> importers,
+            Func<string> browseOutputFolderResolver) {
             this.core = core ?? throw new ArgumentNullException(nameof(core));
+            BrowseOutputFolderResolver = browseOutputFolderResolver ?? throw new ArgumentNullException(nameof(browseOutputFolderResolver));
             CanonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
             this.projectPath = ResolveProjectRootPathFromCanonicalProjectFile(CanonicalProjectFilePath);
             ProjectDisplayName = ResolveProjectDisplayNameFromCanonicalProjectFile(CanonicalProjectFilePath);
@@ -430,6 +437,7 @@ namespace helengine.editor {
             buildSettingsDialog.ConfirmRequested += HandleBuildSettingsDialogConfirmed;
             buildSettingsDialog.CancelRequested += HandleBuildSettingsDialogCancelRequested;
             buildDialog.AddRequested += HandleBuildDialogAddRequested;
+            buildDialog.BrowseOutputFolderRequested += HandleBuildDialogBrowseOutputFolderRequested;
             buildDialog.BuildQueueRequested += HandleBuildDialogBuildQueueRequested;
             buildDialog.CancelRequested += HandleBuildDialogCancelRequested;
             unsavedChangesDialog.SaveRequested += HandleUnsavedChangesSaveRequested;
@@ -737,6 +745,7 @@ namespace helengine.editor {
             buildSettingsDialog.ConfirmRequested -= HandleBuildSettingsDialogConfirmed;
             buildSettingsDialog.CancelRequested -= HandleBuildSettingsDialogCancelRequested;
             buildDialog.AddRequested -= HandleBuildDialogAddRequested;
+            buildDialog.BrowseOutputFolderRequested -= HandleBuildDialogBrowseOutputFolderRequested;
             buildDialog.BuildQueueRequested -= HandleBuildDialogBuildQueueRequested;
             buildDialog.CancelRequested -= HandleBuildDialogCancelRequested;
             unsavedChangesDialog.SaveRequested -= HandleUnsavedChangesSaveRequested;
@@ -969,6 +978,22 @@ namespace helengine.editor {
             });
             buildConfigService.Save(buildConfig);
             buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), request.PlatformId, buildConfig);
+        }
+
+        /// <summary>
+        /// Opens the host folder picker for the Build dialog and writes the chosen output path back into the active platform row.
+        /// </summary>
+        void HandleBuildDialogBrowseOutputFolderRequested() {
+            if (BrowseOutputFolderResolver == null) {
+                throw new InvalidOperationException("Missing host output-folder picker resolver.");
+            }
+
+            string selectedOutputFolder = BrowseOutputFolderResolver();
+            if (string.IsNullOrWhiteSpace(selectedOutputFolder)) {
+                return;
+            }
+
+            buildDialog.SetOutputDirectoryPath(selectedOutputFolder);
         }
 
         /// <summary>

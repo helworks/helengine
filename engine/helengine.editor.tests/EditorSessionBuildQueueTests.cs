@@ -135,6 +135,33 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the build-dialog browse action uses the host resolver and writes the chosen folder back into the visible output field.
+        /// </summary>
+        [Fact]
+        public void HandleBuildDialogBrowseOutputFolderRequested_WhenResolverReturnsPath_UpdatesDialogOutputField() {
+            EditorBuildConfigService buildConfigService = new EditorBuildConfigService(TempProjectRootPath);
+            EditorBuildQueueService buildQueueService = new EditorBuildQueueService(buildConfigService, new TestEditorBuildExecutor([]));
+            EditorSession session = CreateSession(buildConfigService, buildQueueService, "windows");
+            BuildDialog dialog = GetPrivateField<BuildDialog>(session, "buildDialog");
+            dialog.Show([
+                    "windows"
+                ],
+                [
+                    CurrentSceneId
+                ],
+                "windows",
+                buildConfigService.Load([
+                    "windows"
+                ], CurrentSceneId));
+            SetPrivateField(session, "BrowseOutputFolderResolver", new Func<string>(() => @"D:\exports\windows"));
+
+            InvokePrivate(session, "HandleBuildDialogBrowseOutputFolderRequested");
+
+            TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
+            Assert.Equal(@"D:\exports\windows", outputDirectoryField.Text);
+        }
+
+        /// <summary>
         /// Creates one partially initialized editor session containing only the collaborators required by the Build dialog workflow.
         /// </summary>
         /// <param name="buildConfigService">Service used to persist local build dialog state.</param>

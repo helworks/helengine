@@ -36,6 +36,14 @@ namespace helengine.editor {
         /// </summary>
         public const int SceneRowHeight = 24;
         /// <summary>
+        /// Top margin applied before the bordered scene-list container.
+        /// </summary>
+        public const int SceneListTopMargin = 8;
+        /// <summary>
+        /// Inner padding used inside the bordered scene-list container.
+        /// </summary>
+        public const int SceneListPadding = 8;
+        /// <summary>
         /// Height reserved for each rendered queue item row.
         /// </summary>
         public const int QueueRowHeight = 42;
@@ -52,9 +60,21 @@ namespace helengine.editor {
         /// </summary>
         public const int FooterButtonWidth = 124;
         /// <summary>
+        /// Width reserved for the output-folder browse button.
+        /// </summary>
+        public const int BrowseButtonWidth = 84;
+        /// <summary>
         /// Root entity for all left-side build-planning controls.
         /// </summary>
         readonly EditorEntity BuildColumnRoot;
+        /// <summary>
+        /// Root entity for the bordered scene-list container.
+        /// </summary>
+        readonly EditorEntity SceneListRoot;
+        /// <summary>
+        /// Bordered background surface rendered behind the scene list.
+        /// </summary>
+        readonly RoundedRectComponent SceneListBackground;
         /// <summary>
         /// Root entity for all right-side queue controls.
         /// </summary>
@@ -132,6 +152,14 @@ namespace helengine.editor {
         /// </summary>
         readonly TextBoxComponent OutputDirectoryField;
         /// <summary>
+        /// Host entity for the output-folder browse button.
+        /// </summary>
+        readonly EditorEntity BrowseOutputFolderButtonHost;
+        /// <summary>
+        /// Button used to open a host-provided folder picker for the active platform output directory.
+        /// </summary>
+        readonly ButtonComponent BrowseOutputFolderButton;
+        /// <summary>
         /// Host entity for the Add to Build button.
         /// </summary>
         readonly EditorEntity AddToBuildButtonHost;
@@ -168,6 +196,10 @@ namespace helengine.editor {
         /// </summary>
         public event Action<BuildDialogAddRequest> AddRequested;
         /// <summary>
+        /// Raised when the user wants to browse for an output folder for the active platform.
+        /// </summary>
+        public event Action BrowseOutputFolderRequested;
+        /// <summary>
         /// Raised when the user wants to start running the queued builds.
         /// </summary>
         public event Action BuildQueueRequested;
@@ -203,6 +235,23 @@ namespace helengine.editor {
             };
             DialogPanelRoot.AddChild(BuildColumnRoot);
 
+            SceneListRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BuildColumnRoot.AddChild(SceneListRoot);
+
+            SceneListBackground = new RoundedRectComponent {
+                FillColor = ThemeManager.Colors.SurfacePrimary,
+                BorderColor = ThemeManager.Colors.AccentTertiary,
+                BorderThickness = 2f,
+                Radius = 6f,
+                RenderOrder2D = DialogPanelOrder,
+                Size = new int2(GetBuildColumnWidth(), 1)
+            };
+            SceneListRoot.AddComponent(SceneListBackground);
+
             QueueColumnRoot = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = new float3(PanelWidth - QueueColumnWidth - PanelPadding, HeaderHeight + PanelPadding, 0.1f),
@@ -227,7 +276,7 @@ namespace helengine.editor {
             CopySourceLabelText = new TextComponent {
                 Font = DialogFont,
                 Text = "Copy Map List From",
-                Color = ThemeManager.Colors.TextPrimary,
+                Color = ThemeManager.Colors.InputForegroundPrimary,
                 RenderOrder2D = DialogTextOrder
             };
             CopySourceLabelHost.AddComponent(CopySourceLabelText);
@@ -257,7 +306,7 @@ namespace helengine.editor {
             OutputLabelText = new TextComponent {
                 Font = DialogFont,
                 Text = "Output Folder",
-                Color = ThemeManager.Colors.TextPrimary,
+                Color = ThemeManager.Colors.InputForegroundPrimary,
                 RenderOrder2D = DialogTextOrder
             };
             OutputLabelHost.AddComponent(OutputLabelText);
@@ -269,8 +318,19 @@ namespace helengine.editor {
             };
             BuildColumnRoot.AddChild(OutputFieldHost);
 
-            OutputDirectoryField = new TextBoxComponent(new int2(GetBuildColumnWidth(), OutputFieldHeight), DialogFont, "Select an output folder");
+            OutputDirectoryField = new TextBoxComponent(new int2(GetOutputFieldWidth(), OutputFieldHeight), DialogFont, "Select an output folder");
             OutputFieldHost.AddComponent(OutputDirectoryField);
+
+            BrowseOutputFolderButtonHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BuildColumnRoot.AddChild(BrowseOutputFolderButtonHost);
+
+            BrowseOutputFolderButton = new ButtonComponent("Browse", new int2(BrowseButtonWidth, FooterButtonHeight), DialogFont, HandleBrowseOutputFolderClicked);
+            BrowseOutputFolderButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
+            BrowseOutputFolderButtonHost.AddComponent(BrowseOutputFolderButton);
 
             AddToBuildButtonHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -336,20 +396,16 @@ namespace helengine.editor {
         /// <param name="width">Current host width in pixels.</param>
         /// <param name="height">Current host height in pixels.</param>
         public void UpdateLayout(int width, int height) {
-            UpdateHostSize(width, height);
-            UpdateDialogChromeLayout();
-            if (DialogIsUserPositioned) {
-                ApplyDialogPosition();
+            if (!UpdateDialogFrame(width, height)) {
                 return;
             }
-
-            CenterDialogIfNeeded();
         }
 
         /// <summary>
         /// Hides the dialog and stops any active title-bar drag.
         /// </summary>
         public void Hide() {
+            ClearDialogBackdrop();
             ResetDialogPositioning();
             Enabled = false;
         }
@@ -375,6 +431,14 @@ namespace helengine.editor {
         void HandleBuildQueueRequested() {
             SyncActivePlatformConfig();
             BuildQueueRequested?.Invoke();
+        }
+
+        /// <summary>
+        /// Raises the browse request so the editor host can choose one output folder for the active platform.
+        /// </summary>
+        void HandleBrowseOutputFolderClicked() {
+            SyncActivePlatformConfig();
+            BrowseOutputFolderRequested?.Invoke();
         }
 
         /// <summary>
@@ -496,7 +560,7 @@ namespace helengine.editor {
                 tabButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
                 if (platformId != ActivePlatformId) {
                     tabButton.UseHoverOnlyBackground();
-                    tabButton.SetTextColor(ThemeManager.Colors.TextPrimary);
+                    tabButton.SetTextColor(ThemeManager.Colors.InputForegroundPrimary);
                 }
 
                 tabHost.AddComponent(tabButton);
@@ -530,8 +594,8 @@ namespace helengine.editor {
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
             List<string> selectedSceneIds = platformConfig.SelectedSceneIds;
-            int topOffset = PlatformTabHeight + 16;
-            int checkBoxX = GetBuildColumnWidth() - 22;
+            int topOffset = SceneListPadding;
+            int checkBoxX = GetBuildColumnWidth() - SceneListPadding - 18;
 
             for (int index = 0; index < SceneIds.Count; index++) {
                 string sceneId = SceneIds[index];
@@ -539,16 +603,16 @@ namespace helengine.editor {
 
                 EditorEntity labelHost = new EditorEntity {
                     LayerMask = LayerMask,
-                    Position = new float3(0f, rowY, 0.1f),
+                    Position = new float3(SceneListPadding, rowY, 0.1f),
                     InternalEntity = true
                 };
-                BuildColumnRoot.AddChild(labelHost);
+                SceneListRoot.AddChild(labelHost);
                 MapLabelHosts.Add(labelHost);
 
                 TextComponent labelText = new TextComponent {
                     Font = DialogFont,
                     Text = sceneId,
-                    Color = ThemeManager.Colors.TextPrimary,
+                    Color = ThemeManager.Colors.InputForegroundPrimary,
                     RenderOrder2D = DialogTextOrder
                 };
                 labelHost.AddComponent(labelText);
@@ -559,7 +623,7 @@ namespace helengine.editor {
                     Position = new float3(checkBoxX, rowY - 2, 0.1f),
                     InternalEntity = true
                 };
-                BuildColumnRoot.AddChild(checkBoxHost);
+                SceneListRoot.AddChild(checkBoxHost);
                 MapCheckBoxHosts.Add(checkBoxHost);
 
                 bool isChecked = selectedSceneIds.Contains(sceneId);
@@ -569,16 +633,28 @@ namespace helengine.editor {
                 MapCheckBoxes.Add(checkBox);
             }
 
-            float copyControlsY = topOffset + (SceneIds.Count * SceneRowHeight) + 16f;
-            CopySourceLabelHost.Position = new float3(0f, copyControlsY, 0.1f);
-            CopySourcePlatformComboBoxHost.Position = new float3(0f, CopySourceLabelHost.Position.Y + 20f, 0.1f);
-            CopyMapListButtonHost.Position = new float3(CopySourcePlatformComboBox.Size.X + 8f, CopySourcePlatformComboBoxHost.Position.Y, 0.1f);
+            LayoutLowerLeftControls();
             RebuildCopySourcePlatformItems();
-
-            OutputLabelHost.Position = new float3(0f, CopySourcePlatformComboBoxHost.Position.Y + OutputFieldHeight + 16f, 0.1f);
-            OutputFieldHost.Position = new float3(0f, OutputLabelHost.Position.Y + 20f, 0.1f);
             OutputDirectoryField.Text = platformConfig.OutputDirectoryPath ?? "";
-            AddToBuildButtonHost.Position = new float3(0f, OutputFieldHost.Position.Y + OutputFieldHeight + 16, 0.1f);
+        }
+
+        /// <summary>
+        /// Replaces the active platform output-directory text with a host-selected folder path.
+        /// </summary>
+        /// <param name="outputDirectoryPath">Folder path chosen by the host picker.</param>
+        public void SetOutputDirectoryPath(string outputDirectoryPath) {
+            if (string.IsNullOrWhiteSpace(outputDirectoryPath)) {
+                return;
+            }
+
+            OutputDirectoryField.Text = outputDirectoryPath;
+
+            if (CurrentBuildConfig == null || string.IsNullOrWhiteSpace(ActivePlatformId)) {
+                return;
+            }
+
+            EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
+            platformConfig.OutputDirectoryPath = outputDirectoryPath;
         }
 
         /// <summary>
@@ -601,12 +677,35 @@ namespace helengine.editor {
                 TextComponent queueText = new TextComponent {
                     Font = DialogFont,
                     Text = BuildQueueItemText(queueItem),
-                    Color = ThemeManager.Colors.TextPrimary,
+                    Color = ThemeManager.Colors.InputForegroundPrimary,
                     RenderOrder2D = DialogTextOrder
                 };
                 queueItemHost.AddComponent(queueText);
                 QueueItemTexts.Add(queueText);
             }
+        }
+
+        /// <summary>
+        /// Anchors the copy-source, output-folder, and add-to-build controls to the lower portion of the left column.
+        /// </summary>
+        void LayoutLowerLeftControls() {
+            int addButtonY = PanelHeight - HeaderHeight - PanelPadding - FooterButtonHeight;
+            int outputFieldY = addButtonY - 16 - OutputFieldHeight;
+            int outputLabelY = outputFieldY - 20;
+            int copyComboY = outputLabelY - 16 - OutputFieldHeight;
+            int copyLabelY = copyComboY - 20;
+            int sceneListTop = PlatformTabHeight + SceneListTopMargin;
+            int sceneListHeight = Math.Max(1, copyLabelY - 12 - sceneListTop);
+
+            SceneListRoot.Position = new float3(0f, sceneListTop, 0.1f);
+            SceneListBackground.Size = new int2(GetBuildColumnWidth(), sceneListHeight);
+            CopySourceLabelHost.Position = new float3(0f, copyLabelY, 0.1f);
+            CopySourcePlatformComboBoxHost.Position = new float3(0f, copyComboY, 0.1f);
+            CopyMapListButtonHost.Position = new float3(CopySourcePlatformComboBox.Size.X + 8f, copyComboY, 0.1f);
+            OutputLabelHost.Position = new float3(0f, outputLabelY, 0.1f);
+            OutputFieldHost.Position = new float3(0f, outputFieldY, 0.1f);
+            BrowseOutputFolderButtonHost.Position = new float3(GetOutputFieldWidth() + 8f, outputFieldY, 0.1f);
+            AddToBuildButtonHost.Position = new float3(0f, addButtonY, 0.1f);
         }
 
         /// <summary>
@@ -706,6 +805,14 @@ namespace helengine.editor {
         /// <returns>Width available for build-planning controls.</returns>
         int GetBuildColumnWidth() {
             return PanelWidth - QueueColumnWidth - (PanelPadding * 3);
+        }
+
+        /// <summary>
+        /// Computes the width available for the output-folder text box after reserving browse-button space.
+        /// </summary>
+        /// <returns>Width available for the output-folder text box.</returns>
+        int GetOutputFieldWidth() {
+            return GetBuildColumnWidth() - BrowseButtonWidth - 8;
         }
 
         /// <summary>

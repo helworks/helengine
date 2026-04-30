@@ -161,7 +161,8 @@ namespace helengine.editor.app {
                 renderWidth,
                 renderHeight,
                 toolbarIcons,
-                importers);
+                importers,
+                FolderDialog.OpenFolderDialog);
 
             editorSession.TitleChanged += SetWindowTitle;
             TitleBarWindowAdapter.Attach(editorSession.TitleBar, this, () => ToggleMaximizeState());
