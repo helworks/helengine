@@ -1,6 +1,6 @@
 namespace helengine.editor {
     /// <summary>
-    /// Represents editor-local per-project settings stored in `settings/project.json`.
+    /// Represents editor-local per-project settings stored in `user_settings/project.json`.
     /// </summary>
     public sealed class EditorProjectLocalSettingsDocument {
         /// <summary>

@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace helengine.editor {
     /// <summary>
-    /// Loads and persists editor-local project settings stored in `settings/project.json`.
+    /// Loads and persists editor-local project settings stored in `user_settings/project.json`.
     /// </summary>
     public sealed class EditorProjectLocalSettingsService {
         /// <summary>
@@ -22,6 +22,24 @@ namespace helengine.editor {
         /// Gets the supported platform identifiers allowed for the current project.
         /// </summary>
         IReadOnlyList<string> SupportedPlatforms { get; }
+
+        /// <summary>
+        /// Gets the absolute path to the current `user_settings/project.json` file.
+        /// </summary>
+        string UserSettingsFilePath {
+            get {
+                return Path.Combine(ProjectRootPath, "user_settings", "project.json");
+            }
+        }
+
+        /// <summary>
+        /// Gets the absolute path to the legacy `settings/project.json` file.
+        /// </summary>
+        string LegacySettingsFilePath {
+            get {
+                return Path.Combine(ProjectRootPath, "settings", "project.json");
+            }
+        }
 
         /// <summary>
         /// Initializes one local-settings service for the supplied project root and supported platforms.
@@ -59,7 +77,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Persists one validated active project platform to `settings/project.json`.
+        /// Persists one validated active project platform to `user_settings/project.json`.
         /// </summary>
         /// <param name="activePlatform">Supported platform identifier to persist.</param>
         public void SaveActivePlatform(string activePlatform) {
@@ -67,7 +85,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Platform '{activePlatform}' is not supported by the current project.");
             }
 
-            string settingsDirectoryPath = Path.Combine(ProjectRootPath, "settings");
+            string settingsDirectoryPath = Path.GetDirectoryName(UserSettingsFilePath);
             Directory.CreateDirectory(settingsDirectoryPath);
 
             EditorProjectLocalSettingsDocument document = new EditorProjectLocalSettingsDocument {
@@ -75,7 +93,7 @@ namespace helengine.editor {
             };
 
             string json = JsonSerializer.Serialize(document, JsonSerializerOptions);
-            File.WriteAllText(Path.Combine(settingsDirectoryPath, "project.json"), json);
+            File.WriteAllText(UserSettingsFilePath, json);
         }
 
         /// <summary>
@@ -83,7 +101,35 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Loaded local settings document, or null when the file is missing or malformed.</returns>
         EditorProjectLocalSettingsDocument TryLoadDocument() {
-            string settingsFilePath = Path.Combine(ProjectRootPath, "settings", "project.json");
+            EditorProjectLocalSettingsDocument document = TryLoadDocumentFromPath(UserSettingsFilePath);
+            if (document != null) {
+                return document;
+            }
+
+            document = TryLoadDocumentFromPath(LegacySettingsFilePath);
+            if (document == null) {
+                return null;
+            }
+
+            if (IsSupportedPlatform(document.ActivePlatform)) {
+                SaveActivePlatform(document.ActivePlatform);
+            } else {
+                SaveActivePlatform(ResolveDefaultPlatform());
+            }
+
+            if (File.Exists(LegacySettingsFilePath)) {
+                File.Delete(LegacySettingsFilePath);
+            }
+
+            return TryLoadDocumentFromPath(UserSettingsFilePath);
+        }
+
+        /// <summary>
+        /// Attempts to load one local settings document from the supplied file path.
+        /// </summary>
+        /// <param name="settingsFilePath">Absolute path to the local settings file to read.</param>
+        /// <returns>Loaded local settings document, or null when the file is missing or malformed.</returns>
+        EditorProjectLocalSettingsDocument TryLoadDocumentFromPath(string settingsFilePath) {
             if (!File.Exists(settingsFilePath)) {
                 return null;
             }
