@@ -202,6 +202,10 @@ namespace helengine.editor {
         /// </summary>
         readonly BuildSettingsDialog buildSettingsDialog;
         /// <summary>
+        /// Modal dialog used to configure local build map selections and the queued build list.
+        /// </summary>
+        readonly BuildDialog buildDialog;
+        /// <summary>
         /// Modal dialog used to confirm whether pending scene transitions should save dirty changes.
         /// </summary>
         readonly UnsavedChangesDialog unsavedChangesDialog;
@@ -209,6 +213,18 @@ namespace helengine.editor {
         /// Resolves the available platform list that can be selected in Build Settings.
         /// </summary>
         readonly AvailablePlatformProviderResolver availablePlatformProviderResolver;
+        /// <summary>
+        /// Persists local build dialog state in `user_settings/build_config.json`.
+        /// </summary>
+        readonly EditorBuildConfigService buildConfigService;
+        /// <summary>
+        /// Executes and persists queued local build items for the current project.
+        /// </summary>
+        readonly EditorBuildQueueService buildQueueService;
+        /// <summary>
+        /// Enumerates project scene ids used by the build dialog map checklist.
+        /// </summary>
+        readonly EditorProjectSceneCatalogService sceneCatalogService;
         /// <summary>
         /// Deserializes `.helen` scene files into editor entities.
         /// </summary>
@@ -373,10 +389,14 @@ namespace helengine.editor {
             SceneCreationService = new EditorSceneCreationService();
             ReparentService = new EditorEntityReparentService();
             SceneModelRefreshService = new EditorSceneModelRefreshService(fileSystemModelResolver);
+            buildConfigService = new EditorBuildConfigService(this.projectPath);
+            buildQueueService = new EditorBuildQueueService(buildConfigService, new EditorPlaceholderBuildExecutor());
+            sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
             saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
             openFileDialog = new OpenFileDialog(uiFont, this.projectPath);
             reparentEntityDialog = new ReparentEntityDialog(uiFont);
             buildSettingsDialog = new BuildSettingsDialog(uiFont);
+            buildDialog = new BuildDialog(uiFont);
             unsavedChangesDialog = new UnsavedChangesDialog(uiFont);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
@@ -398,6 +418,7 @@ namespace helengine.editor {
             titleBar.OpenMapRequested += HandleOpenMapRequested;
             titleBar.SaveMapRequested += HandleSaveMapRequested;
             titleBar.SaveMapAsRequested += HandleSaveMapAsRequested;
+            titleBar.BuildRequested += HandleBuildRequested;
             titleBar.BuildSettingsRequested += HandleBuildSettingsRequested;
             titleBar.AddEmptyRequested += HandleAddEmptyRequested;
             titleBar.AddCubeRequested += HandleAddCubeRequested;
@@ -408,6 +429,9 @@ namespace helengine.editor {
             reparentEntityDialog.CancelRequested += HandleReparentEntityDialogCancelRequested;
             buildSettingsDialog.ConfirmRequested += HandleBuildSettingsDialogConfirmed;
             buildSettingsDialog.CancelRequested += HandleBuildSettingsDialogCancelRequested;
+            buildDialog.AddRequested += HandleBuildDialogAddRequested;
+            buildDialog.BuildQueueRequested += HandleBuildDialogBuildQueueRequested;
+            buildDialog.CancelRequested += HandleBuildDialogCancelRequested;
             unsavedChangesDialog.SaveRequested += HandleUnsavedChangesSaveRequested;
             unsavedChangesDialog.DontSaveRequested += HandleUnsavedChangesDontSaveRequested;
             unsavedChangesDialog.CancelRequested += HandleUnsavedChangesCancelRequested;
@@ -616,6 +640,7 @@ namespace helengine.editor {
             openFileDialog.UpdateLayout(width, height);
             reparentEntityDialog.UpdateLayout(width, height);
             buildSettingsDialog.UpdateLayout(width, height);
+            buildDialog.UpdateLayout(width, height);
             unsavedChangesDialog.UpdateLayout(width, height);
             mainViewport.RefreshInputBlockers();
             UpdateDockInputBlockers();
@@ -700,6 +725,7 @@ namespace helengine.editor {
             titleBar.OpenMapRequested -= HandleOpenMapRequested;
             titleBar.SaveMapRequested -= HandleSaveMapRequested;
             titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested;
+            titleBar.BuildRequested -= HandleBuildRequested;
             titleBar.BuildSettingsRequested -= HandleBuildSettingsRequested;
             titleBar.AddEmptyRequested -= HandleAddEmptyRequested;
             titleBar.AddCubeRequested -= HandleAddCubeRequested;
@@ -710,6 +736,9 @@ namespace helengine.editor {
             reparentEntityDialog.CancelRequested -= HandleReparentEntityDialogCancelRequested;
             buildSettingsDialog.ConfirmRequested -= HandleBuildSettingsDialogConfirmed;
             buildSettingsDialog.CancelRequested -= HandleBuildSettingsDialogCancelRequested;
+            buildDialog.AddRequested -= HandleBuildDialogAddRequested;
+            buildDialog.BuildQueueRequested -= HandleBuildDialogBuildQueueRequested;
+            buildDialog.CancelRequested -= HandleBuildDialogCancelRequested;
             unsavedChangesDialog.SaveRequested -= HandleUnsavedChangesSaveRequested;
             unsavedChangesDialog.DontSaveRequested -= HandleUnsavedChangesDontSaveRequested;
             unsavedChangesDialog.CancelRequested -= HandleUnsavedChangesCancelRequested;
@@ -720,6 +749,7 @@ namespace helengine.editor {
             openFileDialog.Hide();
             reparentEntityDialog.Hide();
             buildSettingsDialog.Hide();
+            buildDialog.Hide();
             unsavedChangesDialog.Hide();
             shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
             shaderModuleManager.Dispose();
@@ -894,6 +924,68 @@ namespace helengine.editor {
         /// </summary>
         void HandleBuildSettingsDialogCancelRequested() {
             buildSettingsDialog.Hide();
+        }
+
+        /// <summary>
+        /// Opens the local Build dialog using the current scene to seed first-use map selections.
+        /// </summary>
+        void HandleBuildRequested() {
+            IReadOnlyList<string> sceneIds = sceneCatalogService.GetSceneIds();
+            string currentSceneId = sceneCatalogService.ResolveSceneId(CurrentScenePath);
+            EditorBuildConfigDocument buildConfig = buildConfigService.Load(SupportedPlatforms, currentSceneId);
+            buildDialog.Show(SupportedPlatforms, sceneIds, ActiveProjectPlatform, buildConfig);
+        }
+
+        /// <summary>
+        /// Resolves the local build configuration currently being edited, loading persisted state when the dialog has not been shown yet.
+        /// </summary>
+        /// <returns>Mutable local build configuration document used by build-queue workflows.</returns>
+        EditorBuildConfigDocument ResolveCurrentBuildConfig() {
+            if (buildDialog.BuildConfig != null) {
+                return buildDialog.BuildConfig;
+            }
+
+            string currentSceneId = sceneCatalogService.ResolveSceneId(CurrentScenePath);
+            return buildConfigService.Load(SupportedPlatforms, currentSceneId);
+        }
+
+        /// <summary>
+        /// Persists one queued build item from the active Build dialog tab and refreshes the visible queue.
+        /// </summary>
+        /// <param name="request">Queued build request captured from the active tab.</param>
+        void HandleBuildDialogAddRequested(BuildDialogAddRequest request) {
+            if (request == null) {
+                throw new ArgumentNullException(nameof(request));
+            }
+
+            EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
+            buildConfig.QueueItems.Add(new EditorBuildQueueItemDocument {
+                QueueItemId = Guid.NewGuid().ToString("N"),
+                PlatformId = request.PlatformId,
+                SelectedSceneIds = new List<string>(request.SelectedSceneIds),
+                OutputDirectoryPath = request.OutputDirectoryPath,
+                Status = EditorBuildQueueItemStatus.Pending,
+                StatusMessage = string.Empty
+            });
+            buildConfigService.Save(buildConfig);
+            buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), request.PlatformId, buildConfig);
+        }
+
+        /// <summary>
+        /// Executes all pending queued builds sequentially and refreshes the dialog with persisted results.
+        /// </summary>
+        void HandleBuildDialogBuildQueueRequested() {
+            EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
+            buildConfigService.Save(buildConfig);
+            buildQueueService.RunPending(buildConfig, SupportedPlatforms);
+            buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), ActiveProjectPlatform, buildConfig);
+        }
+
+        /// <summary>
+        /// Cancels the Build dialog without changing project-shared platform state.
+        /// </summary>
+        void HandleBuildDialogCancelRequested() {
+            buildDialog.Hide();
         }
 
         /// <summary>

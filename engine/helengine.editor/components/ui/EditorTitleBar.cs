@@ -380,6 +380,10 @@ namespace helengine.editor {
         /// Raised when the user selects the Build Settings command.
         /// </summary>
         public event Action BuildSettingsRequested;
+        /// <summary>
+        /// Raised when the user selects the Build command.
+        /// </summary>
+        public event Action BuildRequested;
 
         /// <summary>
         /// Updates button placement, menu clamping, and title sizing to fit the provided host size.
@@ -448,7 +452,8 @@ namespace helengine.editor {
         /// <returns>Immutable collection of Build menu items.</returns>
         IReadOnlyList<ContextMenuItem> BuildBuildMenuItems() {
             return new ContextMenuItem[] {
-                new ContextMenuItem("Build Platforms...", RaiseBuildSettingsRequested)
+                new ContextMenuItem("Build Platforms...", RaiseBuildSettingsRequested),
+                new ContextMenuItem("Build...", RaiseBuildRequested)
             };
         }
 
@@ -857,6 +862,16 @@ namespace helengine.editor {
             HideMenus();
             if (BuildSettingsRequested != null) {
                 BuildSettingsRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Build command event.
+        /// </summary>
+        void RaiseBuildRequested() {
+            HideMenus();
+            if (BuildRequested != null) {
+                BuildRequested();
             }
         }
 

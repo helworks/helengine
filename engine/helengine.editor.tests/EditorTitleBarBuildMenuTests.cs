@@ -5,7 +5,7 @@ using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies the editor title bar exposes the Build menu and Build Settings command.
+    /// Verifies the editor title bar exposes the Build menu commands.
     /// </summary>
     public class EditorTitleBarBuildMenuTests : IDisposable {
         /// <summary>
@@ -50,7 +50,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the Build menu shows Build Platforms and hides the other title-bar menus.
+        /// Ensures the Build menu shows Build Platforms and Build while hiding the other title-bar menus.
         /// </summary>
         [Fact]
         public void ToggleBuildMenu_ShowsBuildSettingsAndHidesOtherMenus() {
@@ -69,7 +69,8 @@ namespace helengine.editor.tests {
             Assert.True(buildMenu.IsVisible);
             Assert.Collection(
                 activeItems,
-                item => Assert.Equal("Build Platforms...", item.Label));
+                item => Assert.Equal("Build Platforms...", item.Label),
+                item => Assert.Equal("Build...", item.Label));
         }
 
         /// <summary>
@@ -87,6 +88,26 @@ namespace helengine.editor.tests {
             List<ContextMenuItem> activeItems = GetPrivateField<List<ContextMenuItem>>(buildMenu, "ActiveItems");
 
             activeItems[0].Action();
+
+            Assert.True(raised);
+            Assert.False(buildMenu.IsVisible);
+        }
+
+        /// <summary>
+        /// Ensures activating Build raises the public command event.
+        /// </summary>
+        [Fact]
+        public void BuildMenu_WhenBuildActivated_RaisesBuildRequested() {
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            bool raised = false;
+            titleBar.BuildRequested += () => raised = true;
+
+            InvokePrivate(titleBar, "ToggleBuildMenu");
+
+            ContextMenu buildMenu = GetPrivateField<ContextMenu>(titleBar, "BuildMenu");
+            List<ContextMenuItem> activeItems = GetPrivateField<List<ContextMenuItem>>(buildMenu, "ActiveItems");
+
+            activeItems[1].Action();
 
             Assert.True(raised);
             Assert.False(buildMenu.IsVisible);

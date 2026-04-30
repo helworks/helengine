@@ -4,7 +4,7 @@ using Xunit;
 namespace helengine.editor.tests;
 
 /// <summary>
-/// Verifies editor-local project settings persist the active platform inside `settings/project.json`.
+/// Verifies editor-local project settings persist the active platform inside `user_settings/project.json`.
 /// </summary>
 public sealed class EditorProjectLocalSettingsServiceTests : IDisposable {
     /// <summary>
@@ -112,6 +112,26 @@ public sealed class EditorProjectLocalSettingsServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures the service migrates legacy local settings from `settings/project.json` into `user_settings/project.json`.
+    /// </summary>
+    [Fact]
+    public void LoadActivePlatform_WhenLegacySettingsExist_MigratesToUserSettingsAndDeletesLegacyFile() {
+        WriteLegacySettingsFile(
+            """
+            {
+              "activePlatform": "android"
+            }
+            """);
+        EditorProjectLocalSettingsService service = CreateService();
+
+        string activePlatform = service.LoadActivePlatform();
+
+        Assert.Equal("android", activePlatform);
+        Assert.Equal("android", ReadActivePlatformFromDisk());
+        Assert.False(File.Exists(Path.Combine(TempProjectRootPath, "settings", "project.json")));
+    }
+
+    /// <summary>
     /// Creates the service under test for the current temporary project root.
     /// </summary>
     /// <returns>Project-local settings service configured for the current test project.</returns>
@@ -120,10 +140,20 @@ public sealed class EditorProjectLocalSettingsServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Writes raw project-local settings JSON to the expected settings path.
+    /// Writes raw project-local settings JSON to the expected user settings path.
     /// </summary>
     /// <param name="json">JSON payload to persist.</param>
     void WriteSettingsFile(string json) {
+        string settingsDirectoryPath = Path.Combine(TempProjectRootPath, "user_settings");
+        Directory.CreateDirectory(settingsDirectoryPath);
+        File.WriteAllText(Path.Combine(settingsDirectoryPath, "project.json"), json);
+    }
+
+    /// <summary>
+    /// Writes raw project-local settings JSON to the legacy settings path.
+    /// </summary>
+    /// <param name="json">JSON payload to persist.</param>
+    void WriteLegacySettingsFile(string json) {
         string settingsDirectoryPath = Path.Combine(TempProjectRootPath, "settings");
         Directory.CreateDirectory(settingsDirectoryPath);
         File.WriteAllText(Path.Combine(settingsDirectoryPath, "project.json"), json);
@@ -134,7 +164,7 @@ public sealed class EditorProjectLocalSettingsServiceTests : IDisposable {
     /// </summary>
     /// <returns>Active platform value stored in the local settings file.</returns>
     string ReadActivePlatformFromDisk() {
-        string settingsFilePath = Path.Combine(TempProjectRootPath, "settings", "project.json");
+        string settingsFilePath = Path.Combine(TempProjectRootPath, "user_settings", "project.json");
         string json = File.ReadAllText(settingsFilePath);
         using JsonDocument document = JsonDocument.Parse(json);
         return document.RootElement.GetProperty("activePlatform").GetString();
