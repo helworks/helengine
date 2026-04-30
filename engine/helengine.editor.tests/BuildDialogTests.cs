@@ -205,12 +205,14 @@ namespace helengine.editor.tests {
 
             for (int frame = 0; frame < 3; frame++) {
                 outputDirectoryField.Update();
+                dialog.UpdateLayout(1280, 720);
             }
 
             Assert.NotEqual(originalPosition, outputFieldHost.LocalPosition);
 
             for (int frame = 0; frame < 24; frame++) {
                 outputDirectoryField.Update();
+                dialog.UpdateLayout(1280, 720);
             }
 
             Assert.Equal(originalPosition, outputFieldHost.LocalPosition);
@@ -226,7 +228,59 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures Add to Build does not raise a request when no scenes are selected, and the scene list shows invalid feedback until a scene is selected again.
+        /// Ensures one Add to Build click validates both the output folder and the scene list, so empty scenes still show feedback even when the output folder is also blank.
+        /// </summary>
+        [Fact]
+        public void HandleAddToBuildClicked_WhenOutputFolderAndScenesAreBothInvalid_ShowsBothValidationFeedbackStates() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows"
+                        }
+                    ]
+                });
+
+            TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
+            RoundedRectComponent outputBackgroundSprite = GetPrivateField<RoundedRectComponent>(outputDirectoryField, "backgroundSprite");
+            RoundedRectComponent sceneListBackground = GetPrivateField<RoundedRectComponent>(dialog, "SceneListBackground");
+            List<CheckBoxComponent> mapCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "MapCheckBoxes");
+            EditorEntity outputFieldHost = GetPrivateField<EditorEntity>(dialog, "OutputFieldHost");
+            EditorEntity sceneListRoot = GetPrivateField<EditorEntity>(dialog, "SceneListRoot");
+            float3 originalOutputPosition = outputFieldHost.LocalPosition;
+            float3 originalPosition = sceneListRoot.LocalPosition;
+
+            outputDirectoryField.Text = "";
+            mapCheckBoxes[0].IsChecked = false;
+
+            InvokePrivate(dialog, "HandleAddToBuildClicked");
+
+            Assert.Equal(ThemeManager.Colors.StateDanger, outputBackgroundSprite.BorderColor);
+            Assert.Equal(ThemeManager.Colors.StateDanger, sceneListBackground.BorderColor);
+
+            for (int frame = 0; frame < 3; frame++) {
+                outputDirectoryField.Update();
+                InvokePrivate(dialog, "UpdateFeedbackAnimation");
+                dialog.UpdateLayout(1280, 720);
+            }
+
+            Assert.NotEqual(originalOutputPosition, outputFieldHost.LocalPosition);
+            Assert.NotEqual(originalPosition, sceneListRoot.LocalPosition);
+        }
+
+        /// <summary>
+        /// Ensures Add to Build does not raise a request when no scenes are selected, and the scene list shows invalid feedback only after the Add to Build click until a scene is selected again.
+        /// The shake must survive the dialog layout pass used by the live editor frame loop.
         /// </summary>
         [Fact]
         public void HandleAddToBuildClicked_WhenNoScenesSelected_ShakesAndMarksSceneListInvalidUntilSelectionReturns() {
@@ -258,6 +312,9 @@ namespace helengine.editor.tests {
             float3 originalPosition = sceneListRoot.LocalPosition;
             mapCheckBoxes[0].IsChecked = false;
 
+            Assert.Equal(ThemeManager.Colors.AccentTertiary, sceneListBackground.BorderColor);
+            Assert.Equal(originalPosition, sceneListRoot.LocalPosition);
+
             InvokePrivate(dialog, "HandleAddToBuildClicked");
 
             Assert.Null(raisedRequest);
@@ -265,12 +322,16 @@ namespace helengine.editor.tests {
 
             for (int frame = 0; frame < 3; frame++) {
                 InvokePrivate(dialog, "UpdateFeedbackAnimation");
+                dialog.UpdateLayout(1280, 720);
             }
 
+            float shakeOffsetX = GetPrivateField<float>(dialog, "SceneListShakeOffsetX");
+            Assert.NotEqual(0f, shakeOffsetX);
             Assert.NotEqual(originalPosition, sceneListRoot.LocalPosition);
 
             for (int frame = 0; frame < 24; frame++) {
                 InvokePrivate(dialog, "UpdateFeedbackAnimation");
+                dialog.UpdateLayout(1280, 720);
             }
 
             Assert.Equal(originalPosition, sceneListRoot.LocalPosition);

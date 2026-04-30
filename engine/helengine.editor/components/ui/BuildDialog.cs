@@ -268,9 +268,9 @@ namespace helengine.editor {
         /// </summary>
         float SceneListShakeElapsedSeconds;
         /// <summary>
-        /// Base local position used to restore the scene-list container after invalid-selection feedback.
+        /// Horizontal offset currently applied to the scene-list container during invalid-selection feedback.
         /// </summary>
-        float3 SceneListShakeBaseLocalPosition;
+        float SceneListShakeOffsetX;
         /// <summary>
         /// Platform id shown by the currently active tab.
         /// </summary>
@@ -542,6 +542,9 @@ namespace helengine.editor {
             if (!UpdateDialogFrame(width, height)) {
                 return;
             }
+
+            LayoutLowerLeftControls();
+            LayoutStaticControls();
         }
 
         /// <summary>
@@ -560,10 +563,10 @@ namespace helengine.editor {
             SyncActivePlatformConfig();
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
-            if (string.IsNullOrWhiteSpace(platformConfig.OutputDirectoryPath)) {
+            bool hasInvalidOutputDirectory = string.IsNullOrWhiteSpace(platformConfig.OutputDirectoryPath);
+            if (hasInvalidOutputDirectory) {
                 OutputDirectoryField.SetInvalidState(true);
                 OutputDirectoryField.TriggerInvalidShake();
-                return;
             }
 
             List<string> selectedSceneIds = new List<string>(platformConfig.SelectedSceneIds.Count);
@@ -571,9 +574,13 @@ namespace helengine.editor {
                 selectedSceneIds.Add(platformConfig.SelectedSceneIds[index]);
             }
 
-            if (selectedSceneIds.Count == 0) {
+            bool hasNoSelectedScenes = selectedSceneIds.Count == 0;
+            if (hasNoSelectedScenes) {
                 SetSceneListInvalidState(true);
                 TriggerSceneListInvalidShake();
+            }
+
+            if (hasInvalidOutputDirectory || hasNoSelectedScenes) {
                 return;
             }
 
@@ -596,6 +603,7 @@ namespace helengine.editor {
 
         /// <summary>
         /// Clears the scene-list invalid state as soon as at least one scene becomes selected again.
+        /// Empty scene selections are still validated only when Add to Build is clicked.
         /// </summary>
         /// <param name="checkBox">Checkbox whose selection changed.</param>
         /// <param name="isChecked">True when the checkbox is now selected.</param>
@@ -929,13 +937,13 @@ namespace helengine.editor {
             int sceneListTop = PlatformTabHeight + SceneListTopMargin;
             int sceneListHeight = Math.Max(1, copyLabelY - 12 - sceneListTop);
 
-            SceneListRoot.Position = new float3(0f, sceneListTop, 0.1f);
+            SceneListRoot.Position = new float3(SceneListShakeOffsetX, sceneListTop, 0.1f);
             SceneListBackground.Size = new int2(GetBuildColumnWidth(), sceneListHeight);
             CopySourceLabelHost.Position = new float3(0f, copyLabelY, 0.1f);
             CopySourcePlatformComboBoxHost.Position = new float3(0f, copyComboY, 0.1f);
             CopyMapListButtonHost.Position = new float3(CopySourcePlatformComboBox.Size.X + 8f, copyComboY, 0.1f);
             OutputLabelHost.Position = new float3(0f, outputLabelY, 0.1f);
-            OutputFieldHost.Position = new float3(0f, outputFieldY, 0.1f);
+            OutputFieldHost.Position = new float3(OutputDirectoryField.CurrentShakeOffsetX, outputFieldY, 0.1f);
             BrowseOutputFolderButtonHost.Position = new float3(GetOutputFieldWidth() + 8f, outputFieldY, 0.1f);
             AddToBuildButtonHost.Position = new float3(0f, addButtonY, 0.1f);
         }
@@ -950,8 +958,9 @@ namespace helengine.editor {
 
             SceneListShakeElapsedSeconds += SceneListEffectFrameDeltaSeconds;
             if (SceneListShakeElapsedSeconds >= SceneListShakeDurationSeconds) {
-                SceneListRoot.LocalPosition = SceneListShakeBaseLocalPosition;
+                SceneListShakeOffsetX = 0f;
                 IsSceneListShakeActive = false;
+                LayoutLowerLeftControls();
                 return;
             }
 
@@ -959,10 +968,8 @@ namespace helengine.editor {
             double amplitude = SceneListShakeAmplitudePixels * (1d - progress);
             double angle = SceneListShakeElapsedSeconds * SceneListShakeFrequencyHz * Math.PI * 2d;
             double offset = Math.Sin(angle) * amplitude;
-            SceneListRoot.LocalPosition = new float3(
-                SceneListShakeBaseLocalPosition.X + (float)offset,
-                SceneListShakeBaseLocalPosition.Y,
-                SceneListShakeBaseLocalPosition.Z);
+            SceneListShakeOffsetX = (float)offset;
+            LayoutLowerLeftControls();
         }
 
         /// <summary>
@@ -1023,13 +1030,23 @@ namespace helengine.editor {
         /// Starts a short horizontal shake on the scene-list container to highlight an invalid empty selection.
         /// </summary>
         void TriggerSceneListInvalidShake() {
-            if (IsSceneListShakeActive) {
-                SceneListRoot.LocalPosition = SceneListShakeBaseLocalPosition;
-            }
-
-            SceneListShakeBaseLocalPosition = SceneListRoot.LocalPosition;
+            SceneListShakeOffsetX = 0f;
             SceneListShakeElapsedSeconds = 0f;
             IsSceneListShakeActive = true;
+        }
+
+        /// <summary>
+        /// Returns true when at least one scene checkbox is currently selected in the active platform view.
+        /// </summary>
+        /// <returns>True when the active platform has one selected scene; otherwise false.</returns>
+        bool HasAnySelectedScene() {
+            for (int index = 0; index < MapCheckBoxes.Count; index++) {
+                if (MapCheckBoxes[index].IsChecked) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

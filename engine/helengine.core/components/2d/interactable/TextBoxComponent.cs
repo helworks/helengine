@@ -151,6 +151,12 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets the transient horizontal shake offset currently applied for invalid-input feedback.
+        /// Layout systems can use this to preserve the shake during host relayout.
+        /// </summary>
+        public float CurrentShakeOffsetX => currentShakeOffsetX;
+
+        /// <summary>
         /// Overrides the render order used for the textbox background and text.
         /// </summary>
         /// <param name="backgroundOrder">Render order for the textbox background.</param>
