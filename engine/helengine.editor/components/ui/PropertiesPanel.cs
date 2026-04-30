@@ -97,6 +97,10 @@ namespace helengine.editor {
         /// </summary>
         readonly ComponentPropertiesView ComponentView;
         /// <summary>
+        /// Confirmation dialog shown before removing one component from the selected entity.
+        /// </summary>
+        readonly RemoveComponentDialog RemoveComponentDialog;
+        /// <summary>
         /// Row entity for the entity name field.
         /// </summary>
         readonly EditorEntity NameRow;
@@ -180,6 +184,10 @@ namespace helengine.editor {
         /// Currently selected entity, if any.
         /// </summary>
         Entity SelectedEntity;
+        /// <summary>
+        /// Component currently pending removal confirmation.
+        /// </summary>
+        Component PendingRemovalComponent;
         /// <summary>
         /// True when transform controls should be visible.
         /// </summary>
@@ -265,7 +273,13 @@ namespace helengine.editor {
             } else {
                 ComponentView = new ComponentPropertiesView(font, contentManager, fileSystemModelResolver);
             }
+            ComponentView.RemoveRequested += HandleComponentRemoveRequested;
             contentRoot.AddChild(ComponentView.Root);
+
+            RemoveComponentDialog = new RemoveComponentDialog(font);
+            RemoveComponentDialog.ConfirmRequested += HandleRemoveComponentConfirmed;
+            RemoveComponentDialog.CancelRequested += HandleRemoveComponentCanceled;
+            AddChild(RemoveComponentDialog);
 
             CreateNameRow(out NameRow, out NameLabel, out NameFieldHost, out NameField);
             CreateTransformRow("Position", out PositionRow, out PositionLabel, out PositionFieldHosts, out PositionFields);
@@ -319,6 +333,7 @@ namespace helengine.editor {
             }
 
             currentEntry = entry;
+            HideRemoveComponentDialog();
             importSettingsView.Show(importerIds, settings, supportedPlatforms, activePlatformId, entry.EntryKind);
             MaterialView.Hide();
             SetTransformVisible(false);
@@ -342,6 +357,7 @@ namespace helengine.editor {
             }
 
             currentEntry = null;
+            HideRemoveComponentDialog();
             importSettingsView.Hide();
             MaterialView.Hide();
             SetTransformVisible(false);
@@ -359,6 +375,7 @@ namespace helengine.editor {
         /// </summary>
         public void ShowEmpty() {
             currentEntry = null;
+            HideRemoveComponentDialog();
             importSettingsView.Hide();
             MaterialView.Hide();
             SetTransformVisible(false);
@@ -382,6 +399,7 @@ namespace helengine.editor {
             }
 
             currentEntry = entry;
+            HideRemoveComponentDialog();
             importSettingsView.Hide();
             MaterialView.Show(entry, materialAsset);
             SetTransformVisible(false);
@@ -450,6 +468,7 @@ namespace helengine.editor {
             }
 
             currentEntry = null;
+            HideRemoveComponentDialog();
             importSettingsView.Hide();
             MaterialView.Hide();
             SelectedEntity = entity;
@@ -458,6 +477,50 @@ namespace helengine.editor {
             ComponentView.ShowComponents(entity);
             SetTransformVisible(true);
             LayoutLines();
+        }
+
+        /// <summary>
+        /// Opens the remove-component confirmation dialog for the supplied component.
+        /// </summary>
+        /// <param name="component">Component pending removal.</param>
+        void HandleComponentRemoveRequested(Component component) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+            if (SelectedEntity == null) {
+                return;
+            }
+
+            PendingRemovalComponent = component;
+            string entityName = SelectedEntity is EditorEntity editorEntity ? editorEntity.Name : SelectedEntity.GetType().Name;
+            RemoveComponentDialog.Show(entityName, FormatComponentTitle(component.GetType().Name));
+            RemoveComponentDialog.UpdateLayout(Size.X, Size.Y);
+        }
+
+        /// <summary>
+        /// Removes the pending component from the selected entity after confirmation.
+        /// </summary>
+        void HandleRemoveComponentConfirmed() {
+            if (SelectedEntity == null || PendingRemovalComponent == null) {
+                HideRemoveComponentDialog();
+                return;
+            }
+            if (SelectedEntity.Components == null || !SelectedEntity.Components.Contains(PendingRemovalComponent)) {
+                HideRemoveComponentDialog();
+                return;
+            }
+
+            SelectedEntity.RemoveComponent(PendingRemovalComponent);
+            EditorSceneMutationService.MarkSceneMutated();
+            HideRemoveComponentDialog();
+            ShowEntityProperties(SelectedEntity);
+        }
+
+        /// <summary>
+        /// Cancels the pending component removal.
+        /// </summary>
+        void HandleRemoveComponentCanceled() {
+            HideRemoveComponentDialog();
         }
 
         /// <summary>
@@ -1131,6 +1194,8 @@ namespace helengine.editor {
                 TransformRoot.Enabled = false;
                 ComponentView.Hide();
             }
+
+            RemoveComponentDialog.UpdateLayout(Size.X, Size.Y);
         }
 
         /// <summary>
@@ -1140,6 +1205,36 @@ namespace helengine.editor {
         int GetTransformSectionHeight() {
             int rowSpacing = LineSpacing + 2;
             return (TransformRowHeight * 4) + (rowSpacing * 3);
+        }
+
+        /// <summary>
+        /// Hides the remove-component confirmation dialog and clears the pending component.
+        /// </summary>
+        void HideRemoveComponentDialog() {
+            PendingRemovalComponent = null;
+            RemoveComponentDialog.Hide();
+        }
+
+        /// <summary>
+        /// Formats one component type name into a readable title.
+        /// </summary>
+        /// <param name="componentTypeName">Raw component type name.</param>
+        /// <returns>Readable component title.</returns>
+        string FormatComponentTitle(string componentTypeName) {
+            if (string.IsNullOrWhiteSpace(componentTypeName)) {
+                return string.Empty;
+            }
+
+            var builder = new System.Text.StringBuilder(componentTypeName.Length + 8);
+            for (int i = 0; i < componentTypeName.Length; i++) {
+                char current = componentTypeName[i];
+                if (i > 0 && char.IsUpper(current) && !char.IsUpper(componentTypeName[i - 1])) {
+                    builder.Append(' ');
+                }
+                builder.Append(current);
+            }
+
+            return builder.ToString();
         }
 
         /// <summary>

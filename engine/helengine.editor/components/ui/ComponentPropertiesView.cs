@@ -11,6 +11,26 @@ namespace helengine.editor {
         /// </summary>
         const int HeaderHeight = 22;
         /// <summary>
+        /// Height of one component title bar in pixels.
+        /// </summary>
+        const int SectionHeaderHeight = 26;
+        /// <summary>
+        /// Vertical spacing preserved between one component title bar and its first row.
+        /// </summary>
+        const int SectionHeaderSpacing = 6;
+        /// <summary>
+        /// Vertical spacing preserved between component sections.
+        /// </summary>
+        const int SectionSpacing = 10;
+        /// <summary>
+        /// Padding applied before the title text inside one component section header.
+        /// </summary>
+        const int SectionHeaderPadding = 8;
+        /// <summary>
+        /// Width reserved for the fixed remove button in one component section header.
+        /// </summary>
+        const int SectionRemoveButtonWidth = 32;
+        /// <summary>
         /// Height of property rows in pixels.
         /// </summary>
         const int RowHeight = 24;
@@ -80,6 +100,14 @@ namespace helengine.editor {
         /// </summary>
         readonly List<ComponentPropertyRow> ActiveRows;
         /// <summary>
+        /// Pool of inactive component sections that can be reused.
+        /// </summary>
+        readonly List<ComponentSectionView> SectionPool;
+        /// <summary>
+        /// Active component sections currently displayed.
+        /// </summary>
+        readonly List<ComponentSectionView> ActiveSections;
+        /// <summary>
         /// Map of vector text fields to their owning row.
         /// </summary>
         readonly Dictionary<TextBoxComponent, ComponentPropertyRow> VectorFieldRows;
@@ -100,9 +128,18 @@ namespace helengine.editor {
         /// </summary>
         readonly byte TextOrder;
         /// <summary>
+        /// Tracks the collapsed state currently chosen for visible components.
+        /// </summary>
+        readonly Dictionary<Component, bool> CollapsedStates;
+        /// <summary>
         /// Tracks whether the view is updating text fields internally.
         /// </summary>
         bool IsSynchronizing;
+
+        /// <summary>
+        /// Raised when the user requests to remove one component section.
+        /// </summary>
+        public event Action<Component> RemoveRequested;
 
         /// <summary>
         /// Initializes a new component properties view.
@@ -136,10 +173,13 @@ namespace helengine.editor {
 
             RowPool = new List<ComponentPropertyRow>(16);
             ActiveRows = new List<ComponentPropertyRow>(16);
+            SectionPool = new List<ComponentSectionView>(8);
+            ActiveSections = new List<ComponentSectionView>(8);
             VectorFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ModelLabels = new Dictionary<RuntimeModel, string>();
             MaterialLabels = new Dictionary<RuntimeMaterial, string>();
+            CollapsedStates = new Dictionary<Component, bool>();
             TextOrder = RenderOrder2D.PanelForeground;
         }
 
@@ -163,6 +203,7 @@ namespace helengine.editor {
             }
 
             ClearActiveRows();
+            ClearActiveSections();
             if (entity.Components == null || entity.Components.Count == 0) {
                 RootEntity.Enabled = false;
                 return;
@@ -179,11 +220,12 @@ namespace helengine.editor {
                     continue;
                 }
 
-                AddHeaderRow(component.GetType().Name);
-                AddPropertyRows(component);
+                ComponentSectionView section = AcquireSection(component);
+                AddPropertyRows(section, component);
+                ActiveSections.Add(section);
             }
 
-            if (ActiveRows.Count == 0) {
+            if (ActiveSections.Count == 0) {
                 RootEntity.Enabled = false;
             }
         }
@@ -193,6 +235,7 @@ namespace helengine.editor {
         /// </summary>
         public void Hide() {
             ClearActiveRows();
+            ClearActiveSections();
             RootEntity.Enabled = false;
         }
 
@@ -210,11 +253,25 @@ namespace helengine.editor {
             RootEntity.Position = new float3(left, top, 0.2f);
             int width = Math.Max(0, maxWidth);
             int y = 0;
-            for (int i = 0; i < ActiveRows.Count; i++) {
-                ComponentPropertyRow row = ActiveRows[i];
-                int rowHeight = row.Kind == ComponentPropertyRowKind.Header ? HeaderHeight : RowHeight;
-                LayoutRow(row, width, y, rowHeight);
-                y += rowHeight + RowSpacing;
+            for (int i = 0; i < ActiveSections.Count; i++) {
+                ComponentSectionView section = ActiveSections[i];
+                LayoutSectionHeader(section, width, y);
+                y += SectionHeaderHeight;
+
+                if (!section.IsCollapsed) {
+                    y += SectionHeaderSpacing;
+                    for (int rowIndex = 0; rowIndex < section.Rows.Count; rowIndex++) {
+                        ComponentPropertyRow row = section.Rows[rowIndex];
+                        int rowHeight = row.Kind == ComponentPropertyRowKind.Header ? HeaderHeight : RowHeight;
+                        row.Entity.Enabled = true;
+                        LayoutRow(row, width, y, rowHeight);
+                        y += rowHeight + RowSpacing;
+                    }
+                } else {
+                    SetSectionRowsEnabled(section, false);
+                }
+
+                y += SectionSpacing;
             }
         }
 
@@ -234,22 +291,26 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Adds a header row for a component section.
+        /// Clears active component sections and returns them to the pool.
         /// </summary>
-        /// <param name="title">Component name to display.</param>
-        void AddHeaderRow(string title) {
-            ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Header);
-            row.Label.Text = title ?? string.Empty;
-            row.Label.Color = ThemeManager.Colors.InputForegroundSecondary;
-            row.Entity.Enabled = true;
-            ActiveRows.Add(row);
+        void ClearActiveSections() {
+            for (int i = 0; i < ActiveSections.Count; i++) {
+                ComponentSectionView section = ActiveSections[i];
+                section.Root.Enabled = false;
+                section.TargetComponent = null;
+                section.Rows.Clear();
+                section.IsCollapsed = false;
+                SectionPool.Add(section);
+            }
+
+            ActiveSections.Clear();
         }
 
         /// <summary>
         /// Adds editable rows for the properties of a component.
         /// </summary>
         /// <param name="component">Component to inspect.</param>
-        void AddPropertyRows(Component component) {
+        void AddPropertyRows(ComponentSectionView section, Component component) {
             PropertyInfo[] properties = component.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public);
             for (int i = 0; i < properties.Length; i++) {
                 PropertyInfo property = properties[i];
@@ -264,6 +325,7 @@ namespace helengine.editor {
                     ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Vector3);
                     BindPropertyRow(row, component, property);
                     UpdateVectorRow(row);
+                    section.Rows.Add(row);
                     ActiveRows.Add(row);
                     continue;
                 }
@@ -272,6 +334,7 @@ namespace helengine.editor {
                     ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Material);
                     BindPropertyRow(row, component, property);
                     UpdateMaterialRow(row);
+                    section.Rows.Add(row);
                     ActiveRows.Add(row);
                     continue;
                 }
@@ -280,6 +343,7 @@ namespace helengine.editor {
                     ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Model);
                     BindPropertyRow(row, component, property);
                     UpdateModelRow(row);
+                    section.Rows.Add(row);
                     ActiveRows.Add(row);
                     continue;
                 }
@@ -288,6 +352,7 @@ namespace helengine.editor {
                     ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Scalar);
                     BindPropertyRow(row, component, property);
                     UpdateScalarRow(row);
+                    section.Rows.Add(row);
                     ActiveRows.Add(row);
                     continue;
                 }
@@ -295,6 +360,7 @@ namespace helengine.editor {
                 ComponentPropertyRow readOnly = AcquireRow(ComponentPropertyRowKind.ReadOnly);
                 BindPropertyRow(readOnly, component, property);
                 UpdateReadOnlyRow(readOnly);
+                section.Rows.Add(readOnly);
                 ActiveRows.Add(readOnly);
             }
         }
@@ -888,6 +954,30 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Updates the placement of one component section title bar.
+        /// </summary>
+        /// <param name="section">Section whose title bar should be laid out.</param>
+        /// <param name="width">Available content width.</param>
+        /// <param name="top">Top offset for the section title bar.</param>
+        void LayoutSectionHeader(ComponentSectionView section, int width, int top) {
+            int safeWidth = Math.Max(1, width);
+            section.Root.Enabled = true;
+            section.Root.Position = new float3(0f, top, 0.2f);
+            section.Background.Size = new int2(safeWidth, SectionHeaderHeight);
+            section.HeaderInteractable.Size = new int2(safeWidth, SectionHeaderHeight);
+
+            FontTightMetrics titleMetrics = Font.MeasureTight(section.TitleText.Text ?? string.Empty);
+            float titleY = GetTextTopOffset(SectionHeaderHeight, titleMetrics);
+            section.TitleHost.Position = new float3(SectionHeaderPadding, titleY, 0.2f);
+
+            int titleWidth = Math.Max(1, safeWidth - SectionHeaderPadding - SectionRemoveButtonWidth - SectionHeaderPadding);
+            section.TitleText.Size = new int2(titleWidth, Math.Max(1, (int)Math.Ceiling(Math.Max(titleMetrics.Height, Font.LineHeight))));
+
+            int removeButtonX = Math.Max(0, safeWidth - SectionRemoveButtonWidth);
+            section.RemoveButtonHost.Position = new float3(removeButtonX, 0f, 0.2f);
+        }
+
+        /// <summary>
         /// Layouts a Vector3 row with three text fields.
         /// </summary>
         /// <param name="row">Vector3 row to layout.</param>
@@ -969,6 +1059,183 @@ namespace helengine.editor {
             float valueY = GetTextTopOffset(height, valueMetrics);
             row.ValueHost.Position = new float3(labelWidth + FieldSpacing, valueY, 0.2f);
             row.ValueText.Size = new int2(valueWidth, (int)Math.Ceiling(valueMetrics.Height));
+        }
+
+        /// <summary>
+        /// Sets the enabled state for all rows owned by one component section.
+        /// </summary>
+        /// <param name="section">Section whose rows should be toggled.</param>
+        /// <param name="enabled">True when the rows should be visible.</param>
+        void SetSectionRowsEnabled(ComponentSectionView section, bool enabled) {
+            for (int i = 0; i < section.Rows.Count; i++) {
+                section.Rows[i].Entity.Enabled = enabled;
+            }
+        }
+
+        /// <summary>
+        /// Retrieves or creates a component section for the supplied component.
+        /// </summary>
+        /// <param name="component">Component that will own the section.</param>
+        /// <returns>Prepared component section.</returns>
+        ComponentSectionView AcquireSection(Component component) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            ComponentSectionView section;
+            if (SectionPool.Count > 0) {
+                int index = SectionPool.Count - 1;
+                section = SectionPool[index];
+                SectionPool.RemoveAt(index);
+            } else {
+                section = CreateSection();
+            }
+
+            section.TargetComponent = component;
+            section.TitleText.Text = FormatComponentTitle(component.GetType().Name);
+            section.IsCollapsed = CollapsedStates.TryGetValue(component, out bool isCollapsed) && isCollapsed;
+            section.Root.Enabled = true;
+            section.Rows.Clear();
+            return section;
+        }
+
+        /// <summary>
+        /// Creates one reusable component section with header chrome and remove button wiring.
+        /// </summary>
+        /// <returns>Prepared component section instance.</returns>
+        ComponentSectionView CreateSection() {
+            EditorEntity root = new EditorEntity();
+            root.LayerMask = RootEntity.LayerMask;
+            root.Position = float3.Zero;
+            root.Enabled = false;
+            RootEntity.AddChild(root);
+
+            SpriteComponent background = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = ThemeManager.Colors.AccentSecondary,
+                RenderOrder2D = RenderOrder2D.PanelSurface,
+                Size = new int2(1, SectionHeaderHeight)
+            };
+            root.AddComponent(background);
+
+            InteractableComponent interactable = new InteractableComponent {
+                Size = new int2(1, SectionHeaderHeight),
+                HoverCursor = PointerCursorKind.Hand
+            };
+            root.AddComponent(interactable);
+
+            EditorEntity titleHost = new EditorEntity {
+                LayerMask = RootEntity.LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            root.AddChild(titleHost);
+
+            TextComponent titleText = new TextComponent {
+                Font = Font,
+                Text = string.Empty,
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                Size = new int2(1, 1),
+                RenderOrder2D = TextOrder
+            };
+            titleHost.AddComponent(titleText);
+
+            EditorEntity removeButtonHost = new EditorEntity {
+                LayerMask = RootEntity.LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            root.AddChild(removeButtonHost);
+
+            ComponentSectionView section = null;
+            section = new ComponentSectionView(
+                root,
+                background,
+                interactable,
+                titleHost,
+                titleText,
+                removeButtonHost,
+                new ButtonComponent("X", new int2(SectionRemoveButtonWidth, SectionHeaderHeight), Font, () => HandleSectionRemoveClicked(section), 0f));
+
+            removeButtonHost.AddComponent(section.RemoveButton);
+            section.RemoveButton.SetRenderOrders(TextOrder, TextOrder);
+            section.RemoveButton.UseHoverOnlyBackground();
+            section.RemoveButton.UseSquareCorners();
+            section.RemoveButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
+            interactable.CursorEvent += (pos, delta, state) => HandleSectionHeaderCursor(section, pos, state);
+
+            return section;
+        }
+
+        /// <summary>
+        /// Handles header pointer interactions so one section can be collapsed or expanded.
+        /// </summary>
+        /// <param name="section">Section receiving the interaction.</param>
+        /// <param name="pos">Pointer position relative to the header.</param>
+        /// <param name="state">Current pointer state.</param>
+        void HandleSectionHeaderCursor(ComponentSectionView section, int2 pos, PointerInteraction state) {
+            if (section == null || state != PointerInteraction.Press) {
+                return;
+            }
+            if (IsPointerOverSectionRemoveButton(pos, section.Background.Size.X)) {
+                return;
+            }
+
+            section.IsCollapsed = !section.IsCollapsed;
+            if (section.TargetComponent != null) {
+                CollapsedStates[section.TargetComponent] = section.IsCollapsed;
+            }
+            SetSectionRowsEnabled(section, !section.IsCollapsed);
+        }
+
+        /// <summary>
+        /// Raises one remove request for the supplied component section.
+        /// </summary>
+        /// <param name="section">Section whose component should be removed.</param>
+        void HandleSectionRemoveClicked(ComponentSectionView section) {
+            if (section == null || section.TargetComponent == null) {
+                return;
+            }
+
+            if (RemoveRequested != null) {
+                RemoveRequested(section.TargetComponent);
+            }
+        }
+
+        /// <summary>
+        /// Determines whether a pointer position overlaps the fixed remove button area.
+        /// </summary>
+        /// <param name="pos">Pointer position relative to the header.</param>
+        /// <param name="headerWidth">Current width of the header.</param>
+        /// <returns>True when the pointer overlaps the remove button area.</returns>
+        bool IsPointerOverSectionRemoveButton(int2 pos, int headerWidth) {
+            int removeButtonX = Math.Max(0, headerWidth - SectionRemoveButtonWidth);
+            return pos.X >= removeButtonX &&
+                   pos.X <= headerWidth &&
+                   pos.Y >= 0 &&
+                   pos.Y <= SectionHeaderHeight;
+        }
+
+        /// <summary>
+        /// Formats one component type name into a readable editor title.
+        /// </summary>
+        /// <param name="componentTypeName">Raw component type name.</param>
+        /// <returns>Readable component title.</returns>
+        string FormatComponentTitle(string componentTypeName) {
+            if (string.IsNullOrWhiteSpace(componentTypeName)) {
+                return string.Empty;
+            }
+
+            var builder = new System.Text.StringBuilder(componentTypeName.Length + 8);
+            for (int i = 0; i < componentTypeName.Length; i++) {
+                char current = componentTypeName[i];
+                if (i > 0 && char.IsUpper(current) && !char.IsUpper(componentTypeName[i - 1])) {
+                    builder.Append(' ');
+                }
+                builder.Append(current);
+            }
+
+            return builder.ToString();
         }
 
         /// <summary>

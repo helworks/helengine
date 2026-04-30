@@ -228,6 +228,30 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Removes one component from the entity and triggers its detach callback.
+        /// </summary>
+        /// <param name="comp">Component to remove.</param>
+        public void RemoveComponent(Component comp) {
+            if (comp == null) {
+                throw new ArgumentNullException(nameof(comp));
+            } else if (Components == null) {
+                throw new InvalidOperationException("Components collection has not been initialized.");
+            } else if (comp.Parent != this) {
+                throw new InvalidOperationException("Component is not attached to this entity.");
+            }
+
+            if (!Components.Remove(comp)) {
+                throw new InvalidOperationException("Component could not be removed from the component collection.");
+            }
+
+            if (IsHierarchyEnabled) {
+                comp.ParentEnabledChange(false);
+            }
+
+            comp.ComponentRemoved(this);
+        }
+
+        /// <summary>
         /// Notifies components and children that the enabled state changed.
         /// </summary>
         /// <param name="newEnabled">New enabled state.</param>
