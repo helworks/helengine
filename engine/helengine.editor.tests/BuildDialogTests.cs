@@ -333,6 +333,30 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the build dialog close button uses the lighter modal chrome text color.
+        /// </summary>
+        [Fact]
+        public void Constructor_UsesLighterCloseButtonTextColor() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            ButtonComponent closeButton = GetPrivateField<ButtonComponent>(dialog, "CloseButton");
+            byte4 buttonTextColor = GetPrivateField<byte4>(closeButton, "ButtonTextColor");
+
+            Assert.Equal(ThemeManager.Colors.AccentQuaternary, buttonTextColor);
+        }
+
+        /// <summary>
+        /// Ensures the build dialog close button owns a left separator line like the editor window chrome.
+        /// </summary>
+        [Fact]
+        public void Constructor_CreatesCloseButtonLeftSeparator() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            SpriteComponent closeButtonSeparator = GetPrivateField<SpriteComponent>(dialog, "CloseButtonSeparator");
+
+            Assert.Equal(TextureUtils.PixelTexture, closeButtonSeparator.Texture);
+            Assert.Equal(ThemeManager.Colors.AccentQuaternary, closeButtonSeparator.Color);
+        }
+
+        /// <summary>
         /// Creates one deterministic font asset for modal layout and control tests.
         /// </summary>
         /// <returns>Font asset with stable glyph metrics.</returns>
@@ -364,7 +388,7 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Exact private field name.</param>
         /// <returns>Field value cast to the requested type.</returns>
         T GetPrivateField<T>(object target, string fieldName) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo field = FindPrivateField(target.GetType(), fieldName);
             object value = field.GetValue(target);
             return Assert.IsType<T>(value);
         }
@@ -375,7 +399,7 @@ namespace helengine.editor.tests {
         /// <param name="target">Object that owns the method.</param>
         /// <param name="methodName">Exact private method name.</param>
         void InvokePrivate(object target, string methodName) {
-            MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            MethodInfo method = FindPrivateMethod(target.GetType(), methodName);
             method.Invoke(target, []);
         }
 
@@ -386,10 +410,54 @@ namespace helengine.editor.tests {
         /// <param name="methodName">Exact private method name.</param>
         /// <param name="value">String argument passed to the method.</param>
         void InvokePrivate(object target, string methodName, string value) {
-            MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            MethodInfo method = FindPrivateMethod(target.GetType(), methodName);
             method.Invoke(target, [
                 value
             ]);
+        }
+
+        /// <summary>
+        /// Finds one inherited non-public instance field by walking the type hierarchy.
+        /// </summary>
+        /// <param name="type">Type that starts the field lookup.</param>
+        /// <param name="fieldName">Exact field name to locate.</param>
+        /// <returns>Matching field metadata.</returns>
+        FieldInfo FindPrivateField(Type type, string fieldName) {
+            Type currentType = type;
+
+            while (currentType != null) {
+                FieldInfo field = currentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+
+                if (field != null) {
+                    return field;
+                }
+
+                currentType = currentType.BaseType;
+            }
+
+            throw new InvalidOperationException($"Field '{fieldName}' was not found on type '{type.FullName}'.");
+        }
+
+        /// <summary>
+        /// Finds one inherited non-public instance method by walking the type hierarchy.
+        /// </summary>
+        /// <param name="type">Type that starts the method lookup.</param>
+        /// <param name="methodName">Exact method name to locate.</param>
+        /// <returns>Matching method metadata.</returns>
+        MethodInfo FindPrivateMethod(Type type, string methodName) {
+            Type currentType = type;
+
+            while (currentType != null) {
+                MethodInfo method = currentType.GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+
+                if (method != null) {
+                    return method;
+                }
+
+                currentType = currentType.BaseType;
+            }
+
+            throw new InvalidOperationException($"Method '{methodName}' was not found on type '{type.FullName}'.");
         }
     }
 }

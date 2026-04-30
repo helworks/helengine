@@ -4,176 +4,112 @@ namespace helengine.editor {
     /// <summary>
     /// Floating modal dialog used to change the supported build platforms for the current project.
     /// </summary>
-    public class BuildSettingsDialog : EditorEntity {
+    public class BuildSettingsDialog : EditorDialogBase {
         /// <summary>
         /// Fixed panel width used by the dialog.
         /// </summary>
         public const int PanelWidth = 420;
+
         /// <summary>
         /// Fixed panel height used by the dialog.
         /// </summary>
         public const int PanelHeight = 236;
+
         /// <summary>
         /// Padding applied inside the dialog panel.
         /// </summary>
         public const int PanelPadding = 16;
+
         /// <summary>
         /// Vertical spacing between dialog sections.
         /// </summary>
         public const int SectionSpacing = 10;
+
         /// <summary>
         /// Height reserved for each platform row.
         /// </summary>
         public const int PlatformRowHeight = 24;
+
         /// <summary>
         /// Height reserved for the footer buttons.
         /// </summary>
         public const int FooterHeight = 28;
+
         /// <summary>
         /// Height reserved for the draggable title bar.
         /// </summary>
         public const int HeaderHeight = 32;
-        /// <summary>
-        /// Corner radius applied to the dialog background.
-        /// </summary>
-        const float PanelRadius = 6f;
-        /// <summary>
-        /// Border thickness applied to the dialog background.
-        /// </summary>
-        const float PanelBorderThickness = 2f;
-        /// <summary>
-        /// Padding used inside the title bar for text and buttons.
-        /// </summary>
-        const int HeaderPadding = 8;
-        /// <summary>
-        /// Spacing used between the title text and the close button.
-        /// </summary>
-        const int HeaderButtonSpacing = 8;
+
         /// <summary>
         /// Fixed size used for the cancel button.
         /// </summary>
         static readonly int2 CancelButtonSize = new int2(88, 22);
+
         /// <summary>
         /// Fixed size used for the save button.
         /// </summary>
         static readonly int2 SaveButtonSize = new int2(88, 22);
-        /// <summary>
-        /// Fixed size used for the header close button.
-        /// </summary>
-        static readonly int2 CloseButtonSize = new int2(40, HeaderHeight);
+
         /// <summary>
         /// Fixed size used for each platform checkbox.
         /// </summary>
         static readonly int2 CheckBoxSize = new int2(18, 18);
 
         /// <summary>
-        /// Font used for dialog labels and buttons.
-        /// </summary>
-        readonly FontAsset Font;
-        /// <summary>
-        /// Root entity hosting the panel content.
-        /// </summary>
-        readonly EditorEntity PanelRoot;
-        /// <summary>
-        /// Dialog background shape.
-        /// </summary>
-        readonly RoundedRectComponent PanelBackground;
-        /// <summary>
-        /// Root entity for the draggable title bar.
-        /// </summary>
-        readonly EditorEntity HeaderRoot;
-        /// <summary>
-        /// Background sprite for the title bar.
-        /// </summary>
-        readonly SpriteComponent HeaderBackground;
-        /// <summary>
-        /// Interactable region used to drag the dialog.
-        /// </summary>
-        readonly InteractableComponent HeaderInteractable;
-        /// <summary>
-        /// Host entity for the dialog title.
-        /// </summary>
-        readonly EditorEntity TitleHost;
-        /// <summary>
-        /// Title text shown at the top of the dialog.
-        /// </summary>
-        readonly TextComponent TitleText;
-        /// <summary>
-        /// Host entity for the header close button.
-        /// </summary>
-        readonly EditorEntity CloseButtonHost;
-        /// <summary>
-        /// Header close button component.
-        /// </summary>
-        readonly ButtonComponent CloseButton;
-        /// <summary>
         /// Host entity for validation or empty-state text.
         /// </summary>
         readonly EditorEntity StatusHost;
+
         /// <summary>
         /// Validation or empty-state text shown above the footer.
         /// </summary>
         readonly TextComponent StatusText;
+
         /// <summary>
         /// Host entity for the cancel button.
         /// </summary>
         readonly EditorEntity CancelButtonHost;
+
         /// <summary>
         /// Cancel button component.
         /// </summary>
         readonly ButtonComponent CancelButton;
+
         /// <summary>
         /// Host entity for the save button.
         /// </summary>
         readonly EditorEntity SaveButtonHost;
+
         /// <summary>
         /// Save button component.
         /// </summary>
         readonly ButtonComponent SaveButton;
+
         /// <summary>
         /// Hosts created for each platform label row.
         /// </summary>
         readonly List<EditorEntity> PlatformLabelHosts;
+
         /// <summary>
         /// Text components used to render the platform names.
         /// </summary>
         readonly List<TextComponent> PlatformLabelTexts;
+
         /// <summary>
         /// Hosts created for each platform checkbox row.
         /// </summary>
         readonly List<EditorEntity> PlatformCheckBoxHosts;
+
         /// <summary>
         /// Checkbox components used to select supported platforms.
         /// </summary>
         readonly List<CheckBoxComponent> PlatformCheckBoxes;
+
         /// <summary>
         /// Platform descriptors currently shown by the dialog.
         /// </summary>
         readonly List<AvailablePlatformDescriptor> AvailablePlatforms;
-        /// <summary>
-        /// Render order used for panel surfaces.
-        /// </summary>
-        readonly byte PanelOrder;
-        /// <summary>
-        /// Render order used for foreground text and controls.
-        /// </summary>
-        readonly byte TextOrder;
-        /// <summary>
-        /// Cached host size for panel clamping.
-        /// </summary>
-        int2 HostSize;
-        /// <summary>
-        /// Cached panel position relative to the host window.
-        /// </summary>
-        int2 PanelPosition;
-        /// <summary>
-        /// Tracks whether the user has manually moved the dialog.
-        /// </summary>
-        bool IsUserPositioned;
-        /// <summary>
-        /// Tracks whether the title bar is currently being dragged.
-        /// </summary>
-        bool IsDragging;
+
         /// <summary>
         /// Tracks whether the dialog has completed initialization.
         /// </summary>
@@ -183,6 +119,7 @@ namespace helengine.editor {
         /// Raised when the user confirms one supported-platform selection.
         /// </summary>
         public event Action<BuildSettingsSelection> ConfirmRequested;
+
         /// <summary>
         /// Raised when the user cancels the build-settings workflow.
         /// </summary>
@@ -192,106 +129,26 @@ namespace helengine.editor {
         /// Initializes a new build-settings dialog.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
-        public BuildSettingsDialog(FontAsset font) {
-            if (font == null) {
-                throw new ArgumentNullException(nameof(font));
-            }
-
-            Font = font;
+        public BuildSettingsDialog(FontAsset font) : base("BuildSettingsDialog", "Build Platforms", font, PanelWidth, PanelHeight, HeaderHeight) {
             PlatformLabelHosts = new List<EditorEntity>(8);
             PlatformLabelTexts = new List<TextComponent>(8);
             PlatformCheckBoxHosts = new List<EditorEntity>(8);
             PlatformCheckBoxes = new List<CheckBoxComponent>(8);
             AvailablePlatforms = new List<AvailablePlatformDescriptor>(8);
 
-            LayerMask = 0b1000000000000000;
-            InternalEntity = true;
-            Name = "BuildSettingsDialog";
-
-            PanelOrder = RenderOrder2D.ModalBackground;
-            TextOrder = RenderOrder2D.ModalForeground;
-
-            PanelRoot = new EditorEntity {
-                LayerMask = LayerMask,
-                Position = float3.Zero,
-                InternalEntity = true
-            };
-            AddChild(PanelRoot);
-
-            PanelBackground = new RoundedRectComponent {
-                FillColor = ThemeManager.Colors.SurfacePrimary,
-                BorderColor = ThemeManager.Colors.AccentTertiary,
-                BorderThickness = PanelBorderThickness,
-                Radius = PanelRadius,
-                RenderOrder2D = PanelOrder,
-                Size = new int2(PanelWidth, PanelHeight)
-            };
-            PanelRoot.AddComponent(PanelBackground);
-
-            HeaderRoot = new EditorEntity {
-                LayerMask = LayerMask,
-                Position = float3.Zero,
-                InternalEntity = true
-            };
-            PanelRoot.AddChild(HeaderRoot);
-
-            HeaderBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
-                Color = ThemeManager.Colors.AccentSecondary,
-                RenderOrder2D = PanelOrder,
-                Size = new int2(0, 0)
-            };
-            HeaderRoot.AddComponent(HeaderBackground);
-
-            HeaderInteractable = new InteractableComponent {
-                Size = new int2(0, 0)
-            };
-            HeaderInteractable.CursorEvent += HandleHeaderCursor;
-            HeaderRoot.AddComponent(HeaderInteractable);
-
-            TitleHost = new EditorEntity {
-                LayerMask = LayerMask,
-                Position = float3.Zero,
-                InternalEntity = true
-            };
-            HeaderRoot.AddChild(TitleHost);
-
-            TitleText = new TextComponent {
-                Font = font,
-                Text = "Build Platforms",
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
-                RenderOrder2D = TextOrder
-            };
-            TitleHost.AddComponent(TitleText);
-
-            CloseButtonHost = new EditorEntity {
-                LayerMask = LayerMask,
-                Position = float3.Zero,
-                InternalEntity = true
-            };
-            HeaderRoot.AddChild(CloseButtonHost);
-
-            CloseButton = new ButtonComponent("X", CloseButtonSize, font, HandleCloseClicked, 0f);
-            CloseButtonHost.AddComponent(CloseButton);
-            CloseButton.SetRenderOrders(TextOrder, TextOrder);
-            CloseButton.UseHoverOnlyBackground();
-            CloseButton.UseSquareCorners();
-            CloseButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
-
             StatusHost = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            PanelRoot.AddChild(StatusHost);
+            DialogPanelRoot.AddChild(StatusHost);
 
             StatusText = new TextComponent {
-                Font = font,
+                Font = DialogFont,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.StateWarning,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f)))),
-                RenderOrder2D = TextOrder
+                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
+                RenderOrder2D = DialogTextOrder
             };
             StatusHost.AddComponent(StatusText);
 
@@ -300,31 +157,26 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            PanelRoot.AddChild(CancelButtonHost);
+            DialogPanelRoot.AddChild(CancelButtonHost);
 
-            CancelButton = new ButtonComponent("Cancel", CancelButtonSize, font, HandleCancelClicked, 0f);
+            CancelButton = new ButtonComponent("Cancel", CancelButtonSize, DialogFont, HandleCancelClicked, 0f);
             CancelButtonHost.AddComponent(CancelButton);
-            CancelButton.SetRenderOrders(TextOrder, TextOrder);
+            CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             SaveButtonHost = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            PanelRoot.AddChild(SaveButtonHost);
+            DialogPanelRoot.AddChild(SaveButtonHost);
 
-            SaveButton = new ButtonComponent("Save", SaveButtonSize, font, HandleSaveClicked, 0f);
+            SaveButton = new ButtonComponent("Save", SaveButtonSize, DialogFont, HandleSaveClicked, 0f);
             SaveButtonHost.AddComponent(SaveButton);
-            SaveButton.SetRenderOrders(TextOrder, TextOrder);
+            SaveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
             Enabled = false;
             IsInitialized = true;
         }
-
-        /// <summary>
-        /// Gets a value indicating whether the dialog is currently visible.
-        /// </summary>
-        public bool IsVisible => Enabled;
 
         /// <summary>
         /// Shows the dialog for the provided available and currently supported platforms.
@@ -339,8 +191,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(supportedPlatforms));
             }
 
-            IsDragging = false;
-            IsUserPositioned = false;
+            ResetDialogPositioning();
             Enabled = true;
             StatusText.Text = string.Empty;
 
@@ -353,8 +204,7 @@ namespace helengine.editor {
         /// </summary>
         public void Hide() {
             EditorInputCaptureService.ClearBlocker(this);
-            IsDragging = false;
-            IsUserPositioned = false;
+            ResetDialogPositioning();
             Enabled = false;
             StatusText.Text = string.Empty;
         }
@@ -373,21 +223,18 @@ namespace helengine.editor {
                 return;
             }
 
-            int safeWidth = Math.Max(1, windowWidth);
-            int safeHeight = Math.Max(1, windowHeight);
-            HostSize = new int2(safeWidth, safeHeight);
-            if (!IsUserPositioned) {
-                PanelPosition = new int2(
-                    Math.Max(0, (safeWidth - PanelWidth) / 2),
-                    Math.Max(0, (safeHeight - PanelHeight) / 2));
+            UpdateHostSize(windowWidth, windowHeight);
+            if (!DialogIsUserPositioned) {
+                DialogPanelPosition = new int2(
+                    Math.Max(0, (DialogHostSize.X - PanelWidth) / 2),
+                    Math.Max(0, (DialogHostSize.Y - PanelHeight) / 2));
             }
 
-            ClampPanelPosition();
-            ApplyPanelPosition();
-            EditorInputCaptureService.SetBlocker(this, PanelPosition, new int2(PanelWidth, PanelHeight));
+            ClampDialogPosition();
+            ApplyDialogPosition();
+            EditorInputCaptureService.SetBlocker(this, DialogPanelPosition, new int2(PanelWidth, PanelHeight));
 
-            LayoutHeader();
-            LayoutTitle();
+            UpdateDialogChromeLayout();
             LayoutPlatformRows();
             LayoutStatus();
             LayoutButtons();
@@ -400,13 +247,6 @@ namespace helengine.editor {
             if (CancelRequested != null) {
                 CancelRequested();
             }
-        }
-
-        /// <summary>
-        /// Raises the cancel action from the header close button.
-        /// </summary>
-        void HandleCloseClicked() {
-            HandleCancelClicked();
         }
 
         /// <summary>
@@ -458,11 +298,11 @@ namespace helengine.editor {
         /// </summary>
         void ClearPlatformRows() {
             for (int index = 0; index < PlatformLabelHosts.Count; index++) {
-                PanelRoot.RemoveChild(PlatformLabelHosts[index]);
+                DialogPanelRoot.RemoveChild(PlatformLabelHosts[index]);
             }
 
             for (int index = 0; index < PlatformCheckBoxHosts.Count; index++) {
-                PanelRoot.RemoveChild(PlatformCheckBoxHosts[index]);
+                DialogPanelRoot.RemoveChild(PlatformCheckBoxHosts[index]);
             }
 
             PlatformLabelHosts.Clear();
@@ -482,15 +322,15 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            PanelRoot.AddChild(labelHost);
+            DialogPanelRoot.AddChild(labelHost);
             PlatformLabelHosts.Add(labelHost);
 
             TextComponent labelText = new TextComponent {
-                Font = Font,
+                Font = DialogFont,
                 Text = platform.DisplayName,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(Font.LineHeight, 1f)))),
-                RenderOrder2D = TextOrder
+                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
+                RenderOrder2D = DialogTextOrder
             };
             labelHost.AddComponent(labelText);
             PlatformLabelTexts.Add(labelText);
@@ -500,12 +340,12 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            PanelRoot.AddChild(checkBoxHost);
+            DialogPanelRoot.AddChild(checkBoxHost);
             PlatformCheckBoxHosts.Add(checkBoxHost);
 
-            CheckBoxComponent checkBox = new CheckBoxComponent(CheckBoxSize, Font, isChecked);
+            CheckBoxComponent checkBox = new CheckBoxComponent(CheckBoxSize, DialogFont, isChecked);
             checkBoxHost.AddComponent(checkBox);
-            checkBox.SetRenderOrders(TextOrder, TextOrder);
+            checkBox.SetRenderOrders(DialogTextOrder, DialogTextOrder);
             PlatformCheckBoxes.Add(checkBox);
         }
 
@@ -542,37 +382,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Positions the dialog title.
-        /// </summary>
-        void LayoutHeader() {
-            int headerWidth = PanelWidth;
-            HeaderRoot.Position = new float3(0f, 0f, 0.2f);
-            HeaderBackground.Size = new int2(headerWidth, HeaderHeight);
-            HeaderInteractable.Size = new int2(headerWidth, HeaderHeight);
-        }
-
-        /// <summary>
-        /// Positions the dialog title.
-        /// </summary>
-        void LayoutTitle() {
-            int headerWidth = PanelWidth;
-            int closeButtonX = headerWidth - CloseButtonSize.X;
-            CloseButtonHost.Position = new float3(closeButtonX, 0f, 0.2f);
-
-            FontTightMetrics headerMetrics = Font.MeasureTight(TitleText.Text);
-            float titleTop = GetTextTopOffset(HeaderHeight, headerMetrics);
-            TitleHost.Position = new float3(HeaderPadding, titleTop, 0.2f);
-            int textWidth = Math.Max(0, closeButtonX - HeaderPadding - HeaderButtonSpacing);
-            TitleText.Size = new int2(textWidth, Math.Max(1, (int)Math.Ceiling(headerMetrics.Height)));
-        }
-
-        /// <summary>
         /// Positions each visible platform row.
         /// </summary>
         void LayoutPlatformRows() {
             int rowsTop = PanelPadding + HeaderHeight + SectionSpacing;
             int checkBoxX = PanelWidth - PanelPadding - CheckBoxSize.X;
-            int labelYAdjust = Math.Max(0, (PlatformRowHeight - GetTextHeight()) / 2);
+            int labelYAdjust = Math.Max(0, (PlatformRowHeight - GetDialogLineHeight()) / 2);
             int checkBoxYAdjust = Math.Max(0, (PlatformRowHeight - CheckBoxSize.Y) / 2);
 
             for (int index = 0; index < PlatformLabelHosts.Count; index++) {
@@ -606,97 +421,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Handles pointer interactions on the title bar so the dialog can be dragged.
+        /// Raises the cancel action when the shared close button is pressed.
         /// </summary>
-        /// <param name="pos">Pointer position relative to the title bar.</param>
-        /// <param name="delta">Pointer movement delta.</param>
-        /// <param name="state">Current pointer interaction state.</param>
-        void HandleHeaderCursor(int2 pos, int2 delta, PointerInteraction state) {
-            switch (state) {
-                case PointerInteraction.Press:
-                    if (IsPointerOverCloseButton(pos)) {
-                        return;
-                    }
-
-                    IsDragging = true;
-                    IsUserPositioned = true;
-                    break;
-                case PointerInteraction.Hover:
-                    if (IsDragging) {
-                        PanelPosition = new int2(PanelPosition.X + delta.X, PanelPosition.Y + delta.Y);
-                        ClampPanelPosition();
-                        ApplyPanelPosition();
-                    }
-                    break;
-                case PointerInteraction.Release:
-                case PointerInteraction.Leave:
-                    IsDragging = false;
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// Determines whether the pointer is inside the close-button region.
-        /// </summary>
-        /// <param name="pos">Pointer position relative to the title bar.</param>
-        /// <returns>True when the pointer overlaps the close button.</returns>
-        bool IsPointerOverCloseButton(int2 pos) {
-            int closeButtonX = PanelWidth - CloseButtonSize.X;
-            return pos.X >= closeButtonX &&
-                   pos.X <= closeButtonX + CloseButtonSize.X &&
-                   pos.Y >= 0 &&
-                   pos.Y <= CloseButtonSize.Y;
-        }
-
-        /// <summary>
-        /// Computes the vertical offset needed to center text using tight font metrics.
-        /// </summary>
-        /// <param name="containerHeight">Height of the title bar.</param>
-        /// <param name="metrics">Measured metrics for the title text.</param>
-        /// <returns>Top offset that vertically centers the text.</returns>
-        float GetTextTopOffset(float containerHeight, FontTightMetrics metrics) {
-            return (float)Math.Round(containerHeight * 0.5 - metrics.Height * 0.5 - metrics.MinTop);
-        }
-
-        /// <summary>
-        /// Gets the line height used by dialog text rows.
-        /// </summary>
-        /// <returns>Dialog text line height in pixels.</returns>
-        int GetTextHeight() {
-            return Math.Max(1, (int)Math.Ceiling(Math.Max(Font.LineHeight, 1f)));
-        }
-
-        /// <summary>
-        /// Applies the cached panel position to the dialog root entity.
-        /// </summary>
-        void ApplyPanelPosition() {
-            PanelRoot.Position = new float3(PanelPosition.X, PanelPosition.Y, 0.1f);
-        }
-
-        /// <summary>
-        /// Clamps the cached panel position to the visible host area.
-        /// </summary>
-        void ClampPanelPosition() {
-            int maxX = Math.Max(0, HostSize.X - PanelWidth);
-            int maxY = Math.Max(0, HostSize.Y - PanelHeight);
-
-            int clampedX = PanelPosition.X;
-            if (clampedX < 0) {
-                clampedX = 0;
-            } else if (clampedX > maxX) {
-                clampedX = maxX;
-            }
-
-            int clampedY = PanelPosition.Y;
-            if (clampedY < 0) {
-                clampedY = 0;
-            } else if (clampedY > maxY) {
-                clampedY = maxY;
-            }
-
-            PanelPosition = new int2(clampedX, clampedY);
+        protected override void OnCloseRequested() {
+            HandleCancelClicked();
         }
     }
 }

@@ -211,6 +211,18 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the close button owns the same left separator used by the editor window chrome.
+        /// </summary>
+        [Fact]
+        public void Constructor_CreatesCloseButtonLeftSeparator() {
+            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            SpriteComponent closeButtonSeparator = GetPrivateField<SpriteComponent>(dialog, "CloseButtonSeparator");
+
+            Assert.Equal(TextureUtils.PixelTexture, closeButtonSeparator.Texture);
+            Assert.Equal(ThemeManager.Colors.AccentQuaternary, closeButtonSeparator.Color);
+        }
+
+        /// <summary>
         /// Ensures dragging the title bar moves the dialog panel.
         /// </summary>
         [Fact]
@@ -319,7 +331,7 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to read.</param>
         /// <returns>Field value cast to the requested type.</returns>
         T GetPrivateField<T>(object target, string fieldName) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo field = FindPrivateField(target.GetType(), fieldName);
             return Assert.IsType<T>(field.GetValue(target));
         }
 
@@ -329,7 +341,7 @@ namespace helengine.editor.tests {
         /// <param name="target">Target object that owns the method.</param>
         /// <param name="methodName">Name of the method to invoke.</param>
         void InvokePrivate(object target, string methodName) {
-            MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            MethodInfo method = FindPrivateMethod(target.GetType(), methodName);
             method.Invoke(target, Array.Empty<object>());
         }
 
@@ -340,8 +352,52 @@ namespace helengine.editor.tests {
         /// <param name="methodName">Name of the method to invoke.</param>
         /// <param name="arguments">Arguments passed to the invoked method.</param>
         void InvokePrivate(object target, string methodName, params object[] arguments) {
-            MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            MethodInfo method = FindPrivateMethod(target.GetType(), methodName);
             method.Invoke(target, arguments);
+        }
+
+        /// <summary>
+        /// Finds one inherited non-public instance field by walking the type hierarchy.
+        /// </summary>
+        /// <param name="type">Type that starts the field lookup.</param>
+        /// <param name="fieldName">Name of the field to locate.</param>
+        /// <returns>Matching field metadata.</returns>
+        FieldInfo FindPrivateField(Type type, string fieldName) {
+            Type currentType = type;
+
+            while (currentType != null) {
+                FieldInfo field = currentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+
+                if (field != null) {
+                    return field;
+                }
+
+                currentType = currentType.BaseType;
+            }
+
+            throw new InvalidOperationException($"Field '{fieldName}' was not found on type '{type.FullName}'.");
+        }
+
+        /// <summary>
+        /// Finds one inherited non-public instance method by walking the type hierarchy.
+        /// </summary>
+        /// <param name="type">Type that starts the method lookup.</param>
+        /// <param name="methodName">Name of the method to locate.</param>
+        /// <returns>Matching method metadata.</returns>
+        MethodInfo FindPrivateMethod(Type type, string methodName) {
+            Type currentType = type;
+
+            while (currentType != null) {
+                MethodInfo method = currentType.GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+
+                if (method != null) {
+                    return method;
+                }
+
+                currentType = currentType.BaseType;
+            }
+
+            throw new InvalidOperationException($"Method '{methodName}' was not found on type '{type.FullName}'.");
         }
 
         /// <summary>

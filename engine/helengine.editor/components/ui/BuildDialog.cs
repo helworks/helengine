@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Floating modal dialog used to prepare local per-platform build selections and queued builds.
     /// </summary>
-    public class BuildDialog : EditorEntity {
+    public class BuildDialog : EditorDialogBase {
         /// <summary>
         /// Fixed panel width used by the dialog.
         /// </summary>
@@ -51,62 +51,6 @@ namespace helengine.editor {
         /// Width reserved for footer action buttons.
         /// </summary>
         public const int FooterButtonWidth = 124;
-        /// <summary>
-        /// Corner radius applied to the dialog background.
-        /// </summary>
-        const float PanelRadius = 6f;
-        /// <summary>
-        /// Border thickness applied to the dialog background.
-        /// </summary>
-        const float PanelBorderThickness = 2f;
-        /// <summary>
-        /// Render order used for panel surfaces.
-        /// </summary>
-        readonly byte PanelOrder;
-        /// <summary>
-        /// Render order used for panel foreground text and controls.
-        /// </summary>
-        readonly byte TextOrder;
-        /// <summary>
-        /// Font used for labels and controls.
-        /// </summary>
-        readonly FontAsset Font;
-        /// <summary>
-        /// Root entity hosting the panel background and child sections.
-        /// </summary>
-        readonly EditorEntity PanelRoot;
-        /// <summary>
-        /// Background shape for the modal panel.
-        /// </summary>
-        readonly RoundedRectComponent PanelBackground;
-        /// <summary>
-        /// Root entity for the title bar.
-        /// </summary>
-        readonly EditorEntity HeaderRoot;
-        /// <summary>
-        /// Title-bar background surface.
-        /// </summary>
-        readonly SpriteComponent HeaderBackground;
-        /// <summary>
-        /// Interactable region used to drag the dialog by its title bar.
-        /// </summary>
-        readonly InteractableComponent HeaderInteractable;
-        /// <summary>
-        /// Host entity for the dialog title text.
-        /// </summary>
-        readonly EditorEntity TitleHost;
-        /// <summary>
-        /// Title text shown in the header.
-        /// </summary>
-        readonly TextComponent TitleText;
-        /// <summary>
-        /// Host entity for the close button.
-        /// </summary>
-        readonly EditorEntity CloseButtonHost;
-        /// <summary>
-        /// Header close button.
-        /// </summary>
-        readonly ButtonComponent CloseButton;
         /// <summary>
         /// Root entity for all left-side build-planning controls.
         /// </summary>
@@ -220,23 +164,6 @@ namespace helengine.editor {
         /// </summary>
         string ActivePlatformId;
         /// <summary>
-        /// Tracks whether the user is actively dragging the title bar.
-        /// </summary>
-        bool IsDragging;
-        /// <summary>
-        /// Cached panel position relative to the host window.
-        /// </summary>
-        int2 PanelPosition;
-        /// <summary>
-        /// Cached host size used to center the dialog before the first drag.
-        /// </summary>
-        int2 HostSize;
-        /// <summary>
-        /// Tracks whether the dialog has been manually positioned.
-        /// </summary>
-        bool IsUserPositioned;
-
-        /// <summary>
         /// Raised when the user wants to add one queued build from the active platform tab.
         /// </summary>
         public event Action<BuildDialogAddRequest> AddRequested;
@@ -254,22 +181,10 @@ namespace helengine.editor {
         /// </summary>
         public EditorBuildConfigDocument BuildConfig => CurrentBuildConfig;
         /// <summary>
-        /// Gets a value indicating whether the dialog is currently visible.
-        /// </summary>
-        public bool IsVisible => Enabled;
-
-        /// <summary>
         /// Initializes one build dialog with a shared modal shell and build-planning controls.
         /// </summary>
         /// <param name="font">Font used for dialog labels and controls.</param>
-        public BuildDialog(FontAsset font) {
-            if (font == null) {
-                throw new ArgumentNullException(nameof(font));
-            }
-
-            Font = font;
-            PanelOrder = RenderOrder2D.ModalBackground;
-            TextOrder = RenderOrder2D.ModalForeground;
+        public BuildDialog(FontAsset font) : base("BuildDialog", "Build", font, PanelWidth, PanelHeight, HeaderHeight) {
             PlatformTabHosts = new List<EditorEntity>(8);
             PlatformTabs = new List<ButtonComponent>(8);
             MapLabelHosts = new List<EditorEntity>(16);
@@ -281,90 +196,19 @@ namespace helengine.editor {
             SceneIds = new List<string>(32);
             SupportedPlatformIds = new List<string>(8);
 
-            LayerMask = 0b1000000000000000;
-            InternalEntity = true;
-            Name = "BuildDialog";
-            Enabled = false;
-
-            PanelRoot = new EditorEntity {
-                LayerMask = LayerMask,
-                Position = float3.Zero,
-                InternalEntity = true
-            };
-            AddChild(PanelRoot);
-
-            PanelBackground = new RoundedRectComponent {
-                FillColor = ThemeManager.Colors.SurfacePrimary,
-                BorderColor = ThemeManager.Colors.AccentTertiary,
-                BorderThickness = PanelBorderThickness,
-                Radius = PanelRadius,
-                RenderOrder2D = PanelOrder,
-                Size = new int2(PanelWidth, PanelHeight)
-            };
-            PanelRoot.AddComponent(PanelBackground);
-
-            HeaderRoot = new EditorEntity {
-                LayerMask = LayerMask,
-                Position = float3.Zero,
-                InternalEntity = true
-            };
-            PanelRoot.AddChild(HeaderRoot);
-
-            HeaderBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
-                Color = ThemeManager.Colors.AccentSecondary,
-                RenderOrder2D = PanelOrder,
-                Size = new int2(PanelWidth, HeaderHeight)
-            };
-            HeaderRoot.AddComponent(HeaderBackground);
-
-            HeaderInteractable = new InteractableComponent {
-                Size = new int2(PanelWidth, HeaderHeight)
-            };
-            HeaderInteractable.CursorEvent += HandleHeaderCursor;
-            HeaderRoot.AddComponent(HeaderInteractable);
-
-            TitleHost = new EditorEntity {
-                LayerMask = LayerMask,
-                Position = new float3(10f, 8f, 0.1f),
-                InternalEntity = true
-            };
-            HeaderRoot.AddChild(TitleHost);
-
-            TitleText = new TextComponent {
-                Font = font,
-                Text = "Build",
-                Color = ThemeManager.Colors.TextOnAccent,
-                RenderOrder2D = TextOrder
-            };
-            TitleHost.AddComponent(TitleText);
-
-            CloseButtonHost = new EditorEntity {
-                LayerMask = LayerMask,
-                Position = new float3(PanelWidth - 40, 0f, 0.1f),
-                InternalEntity = true
-            };
-            HeaderRoot.AddChild(CloseButtonHost);
-
-            CloseButton = new ButtonComponent("X", new int2(40, HeaderHeight), font, HandleCancelRequested);
-            CloseButton.SetRenderOrders(PanelOrder, TextOrder);
-            CloseButton.UseSquareCorners();
-            CloseButton.SetTextColor(ThemeManager.Colors.TextOnAccent);
-            CloseButtonHost.AddComponent(CloseButton);
-
             BuildColumnRoot = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = new float3(PanelPadding, HeaderHeight + PanelPadding, 0.1f),
                 InternalEntity = true
             };
-            PanelRoot.AddChild(BuildColumnRoot);
+            DialogPanelRoot.AddChild(BuildColumnRoot);
 
             QueueColumnRoot = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = new float3(PanelWidth - QueueColumnWidth - PanelPadding, HeaderHeight + PanelPadding, 0.1f),
                 InternalEntity = true
             };
-            PanelRoot.AddChild(QueueColumnRoot);
+            DialogPanelRoot.AddChild(QueueColumnRoot);
 
             OutputLabelHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -381,10 +225,10 @@ namespace helengine.editor {
             BuildColumnRoot.AddChild(CopySourceLabelHost);
 
             CopySourceLabelText = new TextComponent {
-                Font = font,
+                Font = DialogFont,
                 Text = "Copy Map List From",
                 Color = ThemeManager.Colors.TextPrimary,
-                RenderOrder2D = TextOrder
+                RenderOrder2D = DialogTextOrder
             };
             CopySourceLabelHost.AddComponent(CopySourceLabelText);
 
@@ -395,8 +239,8 @@ namespace helengine.editor {
             };
             BuildColumnRoot.AddChild(CopySourcePlatformComboBoxHost);
 
-            CopySourcePlatformComboBox = new ComboBoxComponent(new int2(200, OutputFieldHeight), font, Array.Empty<string>(), -1);
-            CopySourcePlatformComboBox.SetRenderOrders(PanelOrder, TextOrder, RenderOrder2D.ModalBackground, RenderOrder2D.ModalForeground);
+            CopySourcePlatformComboBox = new ComboBoxComponent(new int2(200, OutputFieldHeight), DialogFont, Array.Empty<string>(), -1);
+            CopySourcePlatformComboBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder, RenderOrder2D.ModalBackground, RenderOrder2D.ModalForeground);
             CopySourcePlatformComboBoxHost.AddComponent(CopySourcePlatformComboBox);
 
             CopyMapListButtonHost = new EditorEntity {
@@ -406,15 +250,15 @@ namespace helengine.editor {
             };
             BuildColumnRoot.AddChild(CopyMapListButtonHost);
 
-            CopyMapListButton = new ButtonComponent("Copy", new int2(84, FooterButtonHeight), font, HandleCopyMapListClicked);
-            CopyMapListButton.SetRenderOrders(PanelOrder, TextOrder);
+            CopyMapListButton = new ButtonComponent("Copy", new int2(84, FooterButtonHeight), DialogFont, HandleCopyMapListClicked);
+            CopyMapListButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CopyMapListButtonHost.AddComponent(CopyMapListButton);
 
             OutputLabelText = new TextComponent {
-                Font = font,
+                Font = DialogFont,
                 Text = "Output Folder",
                 Color = ThemeManager.Colors.TextPrimary,
-                RenderOrder2D = TextOrder
+                RenderOrder2D = DialogTextOrder
             };
             OutputLabelHost.AddComponent(OutputLabelText);
 
@@ -425,7 +269,7 @@ namespace helengine.editor {
             };
             BuildColumnRoot.AddChild(OutputFieldHost);
 
-            OutputDirectoryField = new TextBoxComponent(new int2(GetBuildColumnWidth(), OutputFieldHeight), font, "Select an output folder");
+            OutputDirectoryField = new TextBoxComponent(new int2(GetBuildColumnWidth(), OutputFieldHeight), DialogFont, "Select an output folder");
             OutputFieldHost.AddComponent(OutputDirectoryField);
 
             AddToBuildButtonHost = new EditorEntity {
@@ -435,8 +279,8 @@ namespace helengine.editor {
             };
             BuildColumnRoot.AddChild(AddToBuildButtonHost);
 
-            AddToBuildButton = new ButtonComponent("Add to Build", new int2(FooterButtonWidth, FooterButtonHeight), font, HandleAddToBuildClicked);
-            AddToBuildButton.SetRenderOrders(PanelOrder, TextOrder);
+            AddToBuildButton = new ButtonComponent("Add to Build", new int2(FooterButtonWidth, FooterButtonHeight), DialogFont, HandleAddToBuildClicked);
+            AddToBuildButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             AddToBuildButtonHost.AddComponent(AddToBuildButton);
 
             BuildQueueButtonHost = new EditorEntity {
@@ -446,8 +290,8 @@ namespace helengine.editor {
             };
             QueueColumnRoot.AddChild(BuildQueueButtonHost);
 
-            BuildQueueButton = new ButtonComponent("Build Queue", new int2(FooterButtonWidth, FooterButtonHeight), font, HandleBuildQueueRequested);
-            BuildQueueButton.SetRenderOrders(PanelOrder, TextOrder);
+            BuildQueueButton = new ButtonComponent("Build Queue", new int2(FooterButtonWidth, FooterButtonHeight), DialogFont, HandleBuildQueueRequested);
+            BuildQueueButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             BuildQueueButtonHost.AddComponent(BuildQueueButton);
         }
 
@@ -471,6 +315,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(buildConfig));
             }
 
+            ResetDialogPositioning();
             CopyPlatforms(supportedPlatformIds);
             CopyScenes(sceneIds);
             CurrentBuildConfig = buildConfig;
@@ -480,7 +325,8 @@ namespace helengine.editor {
             RebuildActivePlatformSceneRows();
             RebuildQueueRows();
             LayoutStaticControls();
-            CenterPanelIfNeeded();
+            UpdateDialogChromeLayout();
+            CenterDialogIfNeeded();
             Enabled = true;
         }
 
@@ -490,20 +336,21 @@ namespace helengine.editor {
         /// <param name="width">Current host width in pixels.</param>
         /// <param name="height">Current host height in pixels.</param>
         public void UpdateLayout(int width, int height) {
-            HostSize = new int2(Math.Max(1, width), Math.Max(1, height));
-            if (IsUserPositioned) {
-                PanelRoot.Position = new float3(PanelPosition.X, PanelPosition.Y, 0f);
+            UpdateHostSize(width, height);
+            UpdateDialogChromeLayout();
+            if (DialogIsUserPositioned) {
+                ApplyDialogPosition();
                 return;
             }
 
-            CenterPanelIfNeeded();
+            CenterDialogIfNeeded();
         }
 
         /// <summary>
         /// Hides the dialog and stops any active title-bar drag.
         /// </summary>
         public void Hide() {
-            IsDragging = false;
+            ResetDialogPositioning();
             Enabled = false;
         }
 
@@ -558,30 +405,6 @@ namespace helengine.editor {
         void HandleCancelRequested() {
             Hide();
             CancelRequested?.Invoke();
-        }
-
-        /// <summary>
-        /// Handles title-bar dragging so the dialog can be repositioned.
-        /// </summary>
-        /// <param name="relPos">Pointer position relative to the title bar.</param>
-        /// <param name="delta">Pointer movement delta.</param>
-        /// <param name="state">Pointer interaction state.</param>
-        void HandleHeaderCursor(int2 relPos, int2 delta, PointerInteraction state) {
-            if (state == PointerInteraction.Press) {
-                IsDragging = true;
-                IsUserPositioned = true;
-                return;
-            }
-
-            if (state == PointerInteraction.Release || state == PointerInteraction.Leave) {
-                IsDragging = false;
-                return;
-            }
-
-            if (state == PointerInteraction.Hover && IsDragging) {
-                PanelPosition = new int2(PanelPosition.X + delta.X, PanelPosition.Y + delta.Y);
-                PanelRoot.Position = new float3(PanelPosition.X, PanelPosition.Y, 0f);
-            }
         }
 
         /// <summary>
@@ -669,8 +492,8 @@ namespace helengine.editor {
                 BuildColumnRoot.AddChild(tabHost);
                 PlatformTabHosts.Add(tabHost);
 
-                ButtonComponent tabButton = new ButtonComponent(platformId, new int2(PlatformTabWidth, PlatformTabHeight), Font, () => HandlePlatformTabClicked(platformId));
-                tabButton.SetRenderOrders(PanelOrder, TextOrder);
+                ButtonComponent tabButton = new ButtonComponent(platformId, new int2(PlatformTabWidth, PlatformTabHeight), DialogFont, () => HandlePlatformTabClicked(platformId));
+                tabButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
                 if (platformId != ActivePlatformId) {
                     tabButton.UseHoverOnlyBackground();
                     tabButton.SetTextColor(ThemeManager.Colors.TextPrimary);
@@ -723,10 +546,10 @@ namespace helengine.editor {
                 MapLabelHosts.Add(labelHost);
 
                 TextComponent labelText = new TextComponent {
-                    Font = Font,
+                    Font = DialogFont,
                     Text = sceneId,
                     Color = ThemeManager.Colors.TextPrimary,
-                    RenderOrder2D = TextOrder
+                    RenderOrder2D = DialogTextOrder
                 };
                 labelHost.AddComponent(labelText);
                 MapLabelTexts.Add(labelText);
@@ -740,8 +563,8 @@ namespace helengine.editor {
                 MapCheckBoxHosts.Add(checkBoxHost);
 
                 bool isChecked = selectedSceneIds.Contains(sceneId);
-                CheckBoxComponent checkBox = new CheckBoxComponent(new int2(18, 18), Font, isChecked);
-                checkBox.SetRenderOrders(PanelOrder, TextOrder);
+                CheckBoxComponent checkBox = new CheckBoxComponent(new int2(18, 18), DialogFont, isChecked);
+                checkBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
                 checkBoxHost.AddComponent(checkBox);
                 MapCheckBoxes.Add(checkBox);
             }
@@ -776,10 +599,10 @@ namespace helengine.editor {
                 QueueItemHosts.Add(queueItemHost);
 
                 TextComponent queueText = new TextComponent {
-                    Font = Font,
+                    Font = DialogFont,
                     Text = BuildQueueItemText(queueItem),
                     Color = ThemeManager.Colors.TextPrimary,
-                    RenderOrder2D = TextOrder
+                    RenderOrder2D = DialogTextOrder
                 };
                 queueItemHost.AddComponent(queueText);
                 QueueItemTexts.Add(queueText);
@@ -805,25 +628,6 @@ namespace helengine.editor {
         /// </summary>
         void LayoutStaticControls() {
             BuildQueueButtonHost.Position = new float3(0f, PanelHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8, 0.1f);
-        }
-
-        /// <summary>
-        /// Centers the panel the first time it is shown before any user drag occurs.
-        /// </summary>
-        void CenterPanelIfNeeded() {
-            if (IsUserPositioned) {
-                return;
-            }
-
-            int width = 1280;
-            int height = 720;
-            if (HostSize.X > 0 && HostSize.Y > 0) {
-                width = HostSize.X;
-                height = HostSize.Y;
-            }
-
-            PanelPosition = new int2((width - PanelWidth) / 2, (height - PanelHeight) / 2);
-            PanelRoot.Position = new float3(PanelPosition.X, PanelPosition.Y, 0f);
         }
 
         /// <summary>
@@ -902,6 +706,13 @@ namespace helengine.editor {
         /// <returns>Width available for build-planning controls.</returns>
         int GetBuildColumnWidth() {
             return PanelWidth - QueueColumnWidth - (PanelPadding * 3);
+        }
+
+        /// <summary>
+        /// Raises the cancel event when the shared close button is pressed.
+        /// </summary>
+        protected override void OnCloseRequested() {
+            HandleCancelRequested();
         }
     }
 }
