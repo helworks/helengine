@@ -215,23 +215,27 @@ namespace helengine.editor.tests {
 
             EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
             EditorEntity addButtonEntity = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
+            EditorEntity buildButtonEntity = GetPrivateField<EditorEntity>(titleBar, "BuildMenuButtonEntity");
             EditorEntity minimizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MinimizeButtonEntity");
             EditorEntity maximizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MaximizeButtonEntity");
             EditorEntity closeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "CloseButtonEntity");
 
             RoundedRectComponent fileBackground = FindComponent<RoundedRectComponent>(fileButtonEntity);
             RoundedRectComponent addBackground = FindComponent<RoundedRectComponent>(addButtonEntity);
+            RoundedRectComponent buildBackground = FindComponent<RoundedRectComponent>(buildButtonEntity);
             RoundedRectComponent minimizeBackground = FindComponent<RoundedRectComponent>(minimizeButtonEntity);
             RoundedRectComponent maximizeBackground = FindComponent<RoundedRectComponent>(maximizeButtonEntity);
             RoundedRectComponent closeBackground = FindComponent<RoundedRectComponent>(closeButtonEntity);
 
             AssertBorderPositions(fileButtonEntity, fileButtonEntity.Position.X);
             AssertBorderPositions(addButtonEntity, addButtonEntity.Position.X, addButtonEntity.Position.X + addBackground.Size.X - 1f);
+            AssertBorderPositions(buildButtonEntity, buildButtonEntity.Position.X + buildBackground.Size.X - 1f);
             AssertBorderPositions(minimizeButtonEntity, minimizeButtonEntity.Position.X);
             AssertBorderPositions(maximizeButtonEntity, maximizeButtonEntity.Position.X);
             AssertBorderPositions(closeButtonEntity, closeButtonEntity.Position.X);
 
             Assert.DoesNotContain(fileButtonEntity.Position.X + fileBackground.Size.X - 1f, GetButtonBorderAbsoluteXPositions(fileButtonEntity));
+            Assert.DoesNotContain(buildButtonEntity.Position.X, GetButtonBorderAbsoluteXPositions(buildButtonEntity));
             Assert.DoesNotContain(minimizeButtonEntity.Position.X + minimizeBackground.Size.X - 1f, GetButtonBorderAbsoluteXPositions(minimizeButtonEntity));
             Assert.DoesNotContain(maximizeButtonEntity.Position.X + maximizeBackground.Size.X - 1f, GetButtonBorderAbsoluteXPositions(maximizeButtonEntity));
             Assert.DoesNotContain(closeButtonEntity.Position.X + closeBackground.Size.X - 1f, GetButtonBorderAbsoluteXPositions(closeButtonEntity));

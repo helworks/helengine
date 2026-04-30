@@ -203,7 +203,7 @@ namespace helengine.editor {
         /// Hides the dialog and clears its input-capture blocker.
         /// </summary>
         public void Hide() {
-            EditorInputCaptureService.ClearBlocker(this);
+            ClearDialogBackdrop();
             ResetDialogPositioning();
             Enabled = false;
             StatusText.Text = string.Empty;
@@ -218,23 +218,9 @@ namespace helengine.editor {
             if (!IsInitialized) {
                 return;
             }
-            if (!Enabled) {
-                EditorInputCaptureService.ClearBlocker(this);
+            if (!UpdateDialogFrame(windowWidth, windowHeight)) {
                 return;
             }
-
-            UpdateHostSize(windowWidth, windowHeight);
-            if (!DialogIsUserPositioned) {
-                DialogPanelPosition = new int2(
-                    Math.Max(0, (DialogHostSize.X - PanelWidth) / 2),
-                    Math.Max(0, (DialogHostSize.Y - PanelHeight) / 2));
-            }
-
-            ClampDialogPosition();
-            ApplyDialogPosition();
-            EditorInputCaptureService.SetBlocker(this, DialogPanelPosition, new int2(PanelWidth, PanelHeight));
-
-            UpdateDialogChromeLayout();
             LayoutPlatformRows();
             LayoutStatus();
             LayoutButtons();

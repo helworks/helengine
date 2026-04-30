@@ -439,6 +439,7 @@ namespace helengine.editor {
             buildDialog.AddRequested += HandleBuildDialogAddRequested;
             buildDialog.BrowseOutputFolderRequested += HandleBuildDialogBrowseOutputFolderRequested;
             buildDialog.BuildQueueRequested += HandleBuildDialogBuildQueueRequested;
+            buildDialog.RemoveQueueItemRequested += HandleBuildDialogRemoveQueueItemRequested;
             buildDialog.CancelRequested += HandleBuildDialogCancelRequested;
             unsavedChangesDialog.SaveRequested += HandleUnsavedChangesSaveRequested;
             unsavedChangesDialog.DontSaveRequested += HandleUnsavedChangesDontSaveRequested;
@@ -747,6 +748,7 @@ namespace helengine.editor {
             buildDialog.AddRequested -= HandleBuildDialogAddRequested;
             buildDialog.BrowseOutputFolderRequested -= HandleBuildDialogBrowseOutputFolderRequested;
             buildDialog.BuildQueueRequested -= HandleBuildDialogBuildQueueRequested;
+            buildDialog.RemoveQueueItemRequested -= HandleBuildDialogRemoveQueueItemRequested;
             buildDialog.CancelRequested -= HandleBuildDialogCancelRequested;
             unsavedChangesDialog.SaveRequested -= HandleUnsavedChangesSaveRequested;
             unsavedChangesDialog.DontSaveRequested -= HandleUnsavedChangesDontSaveRequested;
@@ -967,6 +969,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(request));
             }
 
+            if (string.IsNullOrWhiteSpace(request.OutputDirectoryPath)) {
+                return;
+            }
+
             EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
             buildConfig.QueueItems.Add(new EditorBuildQueueItemDocument {
                 QueueItemId = Guid.NewGuid().ToString("N"),
@@ -978,6 +984,27 @@ namespace helengine.editor {
             });
             buildConfigService.Save(buildConfig);
             buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), request.PlatformId, buildConfig);
+        }
+
+        /// <summary>
+        /// Removes one queued build item from persisted local build state and refreshes the visible queue.
+        /// </summary>
+        /// <param name="queueItemId">Persisted queued build item id to remove.</param>
+        void HandleBuildDialogRemoveQueueItemRequested(string queueItemId) {
+            if (string.IsNullOrWhiteSpace(queueItemId)) {
+                throw new ArgumentException("Queue item id is required.", nameof(queueItemId));
+            }
+
+            EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
+            for (int index = 0; index < buildConfig.QueueItems.Count; index++) {
+                if (buildConfig.QueueItems[index].QueueItemId == queueItemId) {
+                    buildConfig.QueueItems.RemoveAt(index);
+                    break;
+                }
+            }
+
+            buildConfigService.Save(buildConfig);
+            buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), ActiveProjectPlatform, buildConfig);
         }
 
         /// <summary>

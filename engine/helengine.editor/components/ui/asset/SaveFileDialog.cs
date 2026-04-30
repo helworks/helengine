@@ -52,6 +52,10 @@ namespace helengine.editor {
         /// </summary>
         const float PanelBorderThickness = 2f;
         /// <summary>
+        /// Render order used by the fullscreen modal backdrop behind the panel.
+        /// </summary>
+        const byte BackdropOrder = RenderOrder2D.ModalBackground - 1;
+        /// <summary>
         /// Horizontal padding inside the header.
         /// </summary>
         const int HeaderPadding = 8;
@@ -72,6 +76,18 @@ namespace helengine.editor {
         /// Path resolver used to validate scene save destinations.
         /// </summary>
         readonly SceneSavePathResolver PathResolver;
+        /// <summary>
+        /// Root entity hosting the fullscreen modal backdrop.
+        /// </summary>
+        readonly EditorEntity BackdropRoot;
+        /// <summary>
+        /// Fullscreen dimming surface rendered behind the dialog panel.
+        /// </summary>
+        readonly SpriteComponent BackdropSurface;
+        /// <summary>
+        /// Fullscreen interactable that absorbs pointer input outside the panel.
+        /// </summary>
+        readonly InteractableComponent BackdropInteractable;
         /// <summary>
         /// Root entity hosting the panel content.
         /// </summary>
@@ -208,6 +224,26 @@ namespace helengine.editor {
             byte rowBackgroundOrder = RenderOrder2D.ModalBackground;
             byte iconBackgroundOrder = RenderOrder2D.ModalBackground;
             TextOrder = RenderOrder2D.ModalForeground;
+
+            BackdropRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            AddChild(BackdropRoot);
+
+            BackdropSurface = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = new byte4(0, 0, 0, 144),
+                RenderOrder2D = BackdropOrder,
+                Size = new int2(0, 0)
+            };
+            BackdropRoot.AddComponent(BackdropSurface);
+
+            BackdropInteractable = new InteractableComponent {
+                Size = new int2(0, 0)
+            };
+            BackdropRoot.AddComponent(BackdropInteractable);
 
             PanelRoot = new EditorEntity {
                 LayerMask = LayerMask,
@@ -364,6 +400,8 @@ namespace helengine.editor {
         public void Hide() {
             IsUserPositioned = false;
             IsDragging = false;
+            BackdropSurface.Size = new int2(0, 0);
+            BackdropInteractable.Size = new int2(0, 0);
             EditorInputCaptureService.ClearBlocker(this);
             Enabled = false;
         }
@@ -403,13 +441,15 @@ namespace helengine.editor {
 
             PanelSize = new int2(panelWidth, panelHeight);
             PanelBackground.Size = PanelSize;
+            BackdropSurface.Size = HostSize;
+            BackdropInteractable.Size = HostSize;
             if (!IsUserPositioned) {
                 PanelPosition = new int2(Math.Max(0, (width - panelWidth) / 2), Math.Max(0, (height - panelHeight) / 2));
             }
 
             ClampPanelPosition();
             ApplyPanelPosition();
-            EditorInputCaptureService.SetBlocker(this, PanelPosition, PanelSize);
+            EditorInputCaptureService.SetBlocker(this, new int2(0, 0), HostSize);
 
             LayoutHeader(panelWidth);
             LayoutBrowser(panelWidth, panelHeight);

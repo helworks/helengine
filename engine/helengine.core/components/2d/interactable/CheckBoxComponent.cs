@@ -4,11 +4,6 @@ namespace helengine {
     /// </summary>
     public class CheckBoxComponent : Component {
         /// <summary>
-        /// Glyph rendered when the checkbox is checked.
-        /// </summary>
-        const string CheckMarkText = "X";
-
-        /// <summary>
         /// Size of the checkbox in pixels.
         /// </summary>
         int2 SizeValue;
@@ -292,7 +287,7 @@ namespace helengine {
             }
 
             if (CheckMark != null) {
-                CheckMark.Text = IsCheckedValue ? CheckMarkText : string.Empty;
+                CheckMark.Text = string.Empty;
             }
         }
 
@@ -304,13 +299,8 @@ namespace helengine {
                 return;
             }
 
-            var tight = Font.MeasureTight(CheckMarkText);
-            double lineHeight = Math.Max((double)Font.LineHeight, 1d);
-            double positionX = Math.Round((SizeValue.X - tight.Width) / 2d);
-            double positionY = Math.Round((SizeValue.Y - lineHeight) / 2d);
-
-            CheckMarkEntity.Position = new float3((float)positionX, (float)positionY, 0.1f);
-            CheckMark.Size = new int2((int)Math.Ceiling(tight.Width), (int)Math.Ceiling(lineHeight));
+            CheckMarkEntity.Position = new float3(0f, 0f, 0.1f);
+            CheckMark.Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max((double)Font.LineHeight, 1d))));
         }
     }
 }

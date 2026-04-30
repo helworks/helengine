@@ -263,7 +263,7 @@ namespace helengine.editor {
             FileMenuButtonWidth = fileMenuButtonWidth;
             AddMenuButtonEntity = CreateTitleBarButton("Add", ToggleAddMenu, HandleAddMenuButtonHovered, true, true, out int addMenuButtonWidth);
             AddMenuButtonWidth = addMenuButtonWidth;
-            BuildMenuButtonEntity = CreateTitleBarButton("Build", ToggleBuildMenu, HandleBuildMenuButtonHovered, true, true, out int buildMenuButtonWidth);
+            BuildMenuButtonEntity = CreateTitleBarButton("Build", ToggleBuildMenu, HandleBuildMenuButtonHovered, false, true, out int buildMenuButtonWidth);
             BuildMenuButtonWidth = buildMenuButtonWidth;
 
             TitleEntity = new EditorEntity {

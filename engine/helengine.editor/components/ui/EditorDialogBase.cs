@@ -34,6 +34,11 @@ namespace helengine.editor {
         const float PanelRadius = 6f;
 
         /// <summary>
+        /// Render order used by the fullscreen modal backdrop behind the dialog panel.
+        /// </summary>
+        const byte BackdropOrder = RenderOrder2D.ModalBackground - 1;
+
+        /// <summary>
         /// Border thickness used for the shared dialog panel chrome.
         /// </summary>
         const float PanelBorderThickness = 2f;
@@ -54,9 +59,29 @@ namespace helengine.editor {
         readonly byte TextOrder;
 
         /// <summary>
+        /// Root entity that owns the fullscreen modal backdrop behind the panel.
+        /// </summary>
+        readonly EditorEntity BackdropRoot;
+
+        /// <summary>
+        /// Fullscreen backdrop surface rendered behind the dialog panel to dim lower UI.
+        /// </summary>
+        readonly SpriteComponent BackdropSurface;
+
+        /// <summary>
+        /// Fullscreen interactable that absorbs pointer input outside the dialog panel.
+        /// </summary>
+        readonly InteractableComponent BackdropInteractable;
+
+        /// <summary>
         /// Root entity that owns the panel background and all dialog content.
         /// </summary>
         readonly EditorEntity PanelRoot;
+
+        /// <summary>
+        /// Tint applied to the shared fullscreen modal backdrop.
+        /// </summary>
+        static readonly byte4 BackdropColor = new byte4(0, 0, 0, 144);
 
         /// <summary>
         /// Rounded panel background rendered behind the dialog content.
@@ -169,6 +194,26 @@ namespace helengine.editor {
             InternalEntity = true;
             Name = dialogName;
             Enabled = false;
+
+            BackdropRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            AddChild(BackdropRoot);
+
+            BackdropSurface = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = BackdropColor,
+                RenderOrder2D = BackdropOrder,
+                Size = new int2(0, 0)
+            };
+            BackdropRoot.AddComponent(BackdropSurface);
+
+            BackdropInteractable = new InteractableComponent {
+                Size = new int2(0, 0)
+            };
+            BackdropRoot.AddComponent(BackdropInteractable);
 
             PanelRoot = new EditorEntity {
                 LayerMask = LayerMask,
@@ -311,6 +356,46 @@ namespace helengine.editor {
         /// <param name="height">Current host height.</param>
         protected void UpdateHostSize(int width, int height) {
             HostSize = new int2(Math.Max(1, width), Math.Max(1, height));
+        }
+
+        /// <summary>
+        /// Updates the shared fullscreen backdrop and blocking rectangle for the current host size.
+        /// </summary>
+        protected void UpdateDialogBackdrop() {
+            BackdropRoot.Position = float3.Zero;
+            BackdropSurface.Size = HostSize;
+            BackdropInteractable.Size = HostSize;
+            EditorInputCaptureService.SetBlocker(this, new int2(0, 0), HostSize);
+        }
+
+        /// <summary>
+        /// Clears the shared fullscreen backdrop blocker when the dialog is hidden.
+        /// </summary>
+        protected void ClearDialogBackdrop() {
+            BackdropSurface.Size = new int2(0, 0);
+            BackdropInteractable.Size = new int2(0, 0);
+            EditorInputCaptureService.ClearBlocker(this);
+        }
+
+        /// <summary>
+        /// Updates the shared dialog shell layout and fullscreen modal backdrop.
+        /// </summary>
+        /// <param name="windowWidth">Current host window width.</param>
+        /// <param name="windowHeight">Current host window height.</param>
+        /// <returns>True when the dialog remains visible and should continue laying out content.</returns>
+        protected bool UpdateDialogFrame(int windowWidth, int windowHeight) {
+            if (!Enabled) {
+                ClearDialogBackdrop();
+                return false;
+            }
+
+            UpdateHostSize(windowWidth, windowHeight);
+            CenterDialogIfNeeded();
+            ClampDialogPosition();
+            ApplyDialogPosition();
+            UpdateDialogBackdrop();
+            UpdateDialogChromeLayout();
+            return true;
         }
 
         /// <summary>

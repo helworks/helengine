@@ -18,6 +18,7 @@ namespace helengine.editor.tests {
         public ReparentEntityDialogTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-reparent-dialog-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
+            EditorInputCaptureService.Reset();
 
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
@@ -29,6 +30,7 @@ namespace helengine.editor.tests {
         /// Deletes temporary project state after each test.
         /// </summary>
         public void Dispose() {
+            EditorInputCaptureService.Reset();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }

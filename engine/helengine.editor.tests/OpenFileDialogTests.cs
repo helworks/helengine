@@ -23,6 +23,7 @@ namespace helengine.editor.tests {
         public OpenFileDialogTests() {
             ProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-open-file-dialog-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Scenes"));
+            EditorInputCaptureService.Reset();
 
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = ProjectRootPath
@@ -35,6 +36,7 @@ namespace helengine.editor.tests {
         /// Deletes temporary test state after each test.
         /// </summary>
         public void Dispose() {
+            EditorInputCaptureService.Reset();
             if (Directory.Exists(ProjectRootPath)) {
                 Directory.Delete(ProjectRootPath, true);
             }
@@ -140,6 +142,37 @@ namespace helengine.editor.tests {
             int pointerX = panelPosition.X + OpenFileDialog.PanelPadding;
             int pointerY = panelPosition.Y + panelSize.Y - OpenFileDialog.PanelPadding - (OpenFileDialog.FooterHeight / 2);
             Input.SetMouseState(new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Input.EarlyUpdate();
+            Input.Update();
+
+            Assert.NotSame(behindInteractable, Input.Hovering);
+            Assert.Equal(0, behindHoverCount);
+        }
+
+        /// <summary>
+        /// Ensures the modal backdrop outside the panel also absorbs hover instead of leaking through to lower editor controls.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPointerMovesAcrossBackdropOutsidePanel_DoesNotHoverInteractablesBehindDialog() {
+            CreateUiCamera(1280, 720);
+
+            InteractableComponent behindInteractable = CreateInteractableEntity(
+                new float3(0f, 0f, 0f),
+                new int2(1280, 720),
+                RenderOrder2D.PanelSurface);
+            int behindHoverCount = 0;
+            behindInteractable.CursorEvent += (pos, delta, state) => {
+                if (state == PointerInteraction.Hover) {
+                    behindHoverCount++;
+                }
+            };
+
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            dialog.Show("Scenes");
+            dialog.UpdateLayout(1280, 720);
+
+            Input.SetMouseState(new MouseState(8, 8, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
 
             Input.EarlyUpdate();
             Input.Update();

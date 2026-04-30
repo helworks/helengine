@@ -33,6 +33,7 @@ namespace helengine.editor.tests {
             Assert.True(raisedValue);
             Assert.Equal(1, raisedCount);
             Assert.Equal(PointerCursorKind.Hand, interactable.HoverCursor);
+            Assert.Equal(string.Empty, GetPrivateField<TextComponent>(checkBox, "CheckMark").Text);
         }
 
         /// <summary>
@@ -52,6 +53,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(RenderOrder2D.ModalForeground, background.RenderOrder2D);
             Assert.Equal(RenderOrder2D.ModalForeground, checkMark.RenderOrder2D);
+            Assert.Equal(string.Empty, checkMark.Text);
         }
 
         /// <summary>
