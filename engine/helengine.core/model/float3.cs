@@ -100,6 +100,21 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Linearly interpolates between two vectors by a normalized amount.
+        /// </summary>
+        /// <param name="start">Start vector.</param>
+        /// <param name="end">End vector.</param>
+        /// <param name="amount">Interpolation amount where 0 returns <paramref name="start"/> and 1 returns <paramref name="end"/>.</param>
+        /// <returns>Interpolated vector.</returns>
+        public static float3 Lerp(float3 start, float3 end, float amount) {
+            double normalizedAmount = amount;
+            return new float3(
+                (float)(start.X + ((end.X - start.X) * normalizedAmount)),
+                (float)(start.Y + ((end.Y - start.Y) * normalizedAmount)),
+                (float)(start.Z + ((end.Z - start.Z) * normalizedAmount)));
+        }
+
+        /// <summary>
         /// Computes the cross product of two vectors.
         /// </summary>
         /// <param name="vector1">First vector.</param>

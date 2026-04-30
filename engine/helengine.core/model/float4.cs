@@ -85,6 +85,35 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Linearly interpolates between two quaternions and normalizes the result.
+        /// </summary>
+        /// <param name="start">Start quaternion.</param>
+        /// <param name="end">End quaternion.</param>
+        /// <param name="amount">Interpolation amount where 0 returns <paramref name="start"/> and 1 returns <paramref name="end"/>.</param>
+        /// <returns>Normalized interpolated quaternion.</returns>
+        public static float4 Lerp(float4 start, float4 end, float amount) {
+            double normalizedAmount = amount;
+            double dot =
+                (start.X * end.X) +
+                (start.Y * end.Y) +
+                (start.Z * end.Z) +
+                (start.W * end.W);
+
+            float4 adjustedEnd = end;
+            if (dot < 0d) {
+                adjustedEnd = new float4(-end.X, -end.Y, -end.Z, -end.W);
+            }
+
+            float4 result = new float4(
+                (float)(start.X + ((adjustedEnd.X - start.X) * normalizedAmount)),
+                (float)(start.Y + ((adjustedEnd.Y - start.Y) * normalizedAmount)),
+                (float)(start.Z + ((adjustedEnd.Z - start.Z) * normalizedAmount)),
+                (float)(start.W + ((adjustedEnd.W - start.W) * normalizedAmount)));
+            result.Normalize();
+            return result;
+        }
+
+        /// <summary>
         /// Rotates a vector by the provided quaternion.
         /// </summary>
         /// <param name="value">Vector to rotate.</param>
