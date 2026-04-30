@@ -7,6 +7,22 @@ namespace helengine {
         /// Horizontal padding between the textbox border and its text content.
         /// </summary>
         const int TextPaddingX = 8;
+        /// <summary>
+        /// Fixed per-frame time step used by transient textbox feedback effects.
+        /// </summary>
+        const float EffectFrameDeltaSeconds = 1f / 60f;
+        /// <summary>
+        /// Total duration used by the invalid-input shake effect.
+        /// </summary>
+        const float ShakeDurationSeconds = 0.3f;
+        /// <summary>
+        /// Peak horizontal amplitude used by the invalid-input shake effect.
+        /// </summary>
+        const float ShakeAmplitudePixels = 10f;
+        /// <summary>
+        /// Oscillation frequency used by the invalid-input shake effect.
+        /// </summary>
+        const float ShakeFrequencyHz = 16f;
 
         static TextBoxComponent focusedTextBox;
         string text = "";
@@ -17,6 +33,14 @@ namespace helengine {
         bool cursorVisible = true;
         DateTime lastCursorBlink = DateTime.Now;
         int cursorPosition;
+        bool hasRenderOrderOverrides;
+        byte backgroundRenderOrder;
+        byte textRenderOrder;
+        bool isInvalid;
+        bool isShakeActive;
+        float shakeElapsedSeconds;
+        float currentShakeOffsetX;
+        float3 shakeBaseLocalPosition;
         
         // Child components
         RoundedRectComponent backgroundSprite;
@@ -33,6 +57,11 @@ namespace helengine {
         /// Raised when the focus state changes.
         /// </summary>
         public event Action<TextBoxComponent, bool> FocusChanged;
+
+        /// <summary>
+        /// Raised when the text content changes.
+        /// </summary>
+        public event Action<TextBoxComponent> TextChanged;
 
         /// <summary>
         /// Gets or sets the focus group that owns this text box during keyboard traversal.
@@ -60,9 +89,14 @@ namespace helengine {
         public string Text {
             get { return text; }
             set {
+                if (text == (value ?? "")) {
+                    return;
+                }
+
                 text = value ?? "";
                 cursorPosition = Math.Min(cursorPosition, text.Length);
                 UpdateTextDisplay();
+                TextChanged?.Invoke(this);
             }
         }
 
@@ -117,6 +151,52 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Overrides the render order used for the textbox background and text.
+        /// </summary>
+        /// <param name="backgroundOrder">Render order for the textbox background.</param>
+        /// <param name="textOrder">Render order for textbox text.</param>
+        public void SetRenderOrders(byte backgroundOrder, byte textOrder) {
+            hasRenderOrderOverrides = true;
+            backgroundRenderOrder = backgroundOrder;
+            textRenderOrder = textOrder;
+
+            if (backgroundSprite != null) {
+                backgroundSprite.RenderOrder2D = backgroundOrder;
+            }
+
+            if (textComponent != null) {
+                textComponent.RenderOrder2D = textOrder;
+            }
+        }
+
+        /// <summary>
+        /// Applies or clears the invalid visual state without changing the current text or focus state.
+        /// </summary>
+        /// <param name="isInvalid">True when the text box should use the invalid border color.</param>
+        public void SetInvalidState(bool isInvalid) {
+            this.isInvalid = isInvalid;
+            UpdateFocusVisual();
+        }
+
+        /// <summary>
+        /// Starts a short horizontal shake that provides invalid-input feedback while preserving the textbox layout base position.
+        /// </summary>
+        public void TriggerInvalidShake() {
+            if (Parent == null) {
+                throw new InvalidOperationException("Text boxes must be attached to an entity before they can animate invalid-input feedback.");
+            }
+
+            if (isShakeActive) {
+                Parent.LocalPosition = shakeBaseLocalPosition;
+                currentShakeOffsetX = 0f;
+            }
+
+            shakeBaseLocalPosition = Parent.LocalPosition;
+            shakeElapsedSeconds = 0f;
+            isShakeActive = true;
+        }
+
+        /// <summary>
         /// Creates a new text box with size, font, and optional placeholder.
         /// </summary>
         /// <param name="size">Dimensions of the text box.</param>
@@ -137,6 +217,10 @@ namespace helengine {
 
             byte backgroundOrder = RenderOrder2D.PanelSurface;
             byte textOrder = RenderOrder2D.PanelForeground;
+            if (hasRenderOrderOverrides) {
+                backgroundOrder = backgroundRenderOrder;
+                textOrder = textRenderOrder;
+            }
 
             // Create rounded background
             backgroundSprite = new RoundedRectComponent();
@@ -198,6 +282,8 @@ namespace helengine {
         /// Handles blinking, key input, and updates the displayed text each frame.
         /// </summary>
         public void Update() {
+            UpdateShakeAnimation();
+
             if (!isFocused) return;
 
             // Handle cursor blinking
@@ -221,6 +307,34 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Advances the short invalid-input shake effect and restores the original layout position when it finishes.
+        /// </summary>
+        void UpdateShakeAnimation() {
+            if (!isShakeActive || Parent == null) {
+                return;
+            }
+
+            shakeElapsedSeconds += EffectFrameDeltaSeconds;
+            if (shakeElapsedSeconds >= ShakeDurationSeconds) {
+                Parent.LocalPosition = shakeBaseLocalPosition;
+                currentShakeOffsetX = 0f;
+                isShakeActive = false;
+                return;
+            }
+
+            double progress = shakeElapsedSeconds / ShakeDurationSeconds;
+            double amplitude = ShakeAmplitudePixels * (1d - progress);
+            double angle = shakeElapsedSeconds * ShakeFrequencyHz * Math.PI * 2d;
+            double offset = Math.Sin(angle) * amplitude;
+
+            currentShakeOffsetX = (float)offset;
+            Parent.LocalPosition = new float3(
+                shakeBaseLocalPosition.X + currentShakeOffsetX,
+                shakeBaseLocalPosition.Y,
+                shakeBaseLocalPosition.Z);
+        }
+
+        /// <summary>
         /// Processes a key press to modify text, move the cursor, or delete characters.
         /// </summary>
         /// <param name="key">Key pressed.</param>
@@ -229,16 +343,14 @@ namespace helengine {
             switch (key) {
                 case Keys.Back:
                     if (cursorPosition > 0) {
-                        text = text.Remove(cursorPosition - 1, 1);
+                        Text = text.Remove(cursorPosition - 1, 1);
                         cursorPosition--;
-                        UpdateTextDisplay();
                     }
                     break;
                     
                 case Keys.Delete:
                     if (cursorPosition < text.Length) {
-                        text = text.Remove(cursorPosition, 1);
-                        UpdateTextDisplay();
+                        Text = text.Remove(cursorPosition, 1);
                     }
                     break;
                     
@@ -268,9 +380,8 @@ namespace helengine {
                 default:
                     char character = KeyToChar(key, isShiftPressed);
                     if (character != '\0') {
-                        text = text.Insert(cursorPosition, character.ToString());
+                        Text = text.Insert(cursorPosition, character.ToString());
                         cursorPosition++;
-                        UpdateTextDisplay();
                     }
                     break;
             }
@@ -464,6 +575,11 @@ namespace helengine {
         /// </summary>
         void UpdateFocusVisual() {
             if (backgroundSprite == null) {
+                return;
+            }
+
+            if (isInvalid) {
+                backgroundSprite.BorderColor = ThemeManager.Colors.StateDanger;
                 return;
             }
 

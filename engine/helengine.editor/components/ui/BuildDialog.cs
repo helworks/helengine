@@ -48,6 +48,22 @@ namespace helengine.editor {
         /// </summary>
         public const int QueueRowHeight = 42;
         /// <summary>
+        /// Height reserved for the queue section header bar.
+        /// </summary>
+        public const int QueueHeaderHeight = 28;
+        /// <summary>
+        /// Inner padding used inside the bordered queue container.
+        /// </summary>
+        public const int QueueListPadding = 8;
+        /// <summary>
+        /// Vertical gap applied between bordered queue cards.
+        /// </summary>
+        public const int QueueCardSpacing = 8;
+        /// <summary>
+        /// Inner left padding applied inside each bordered queue card.
+        /// </summary>
+        public const int QueueCardTextPadding = 8;
+        /// <summary>
         /// Height reserved for the output directory text field.
         /// </summary>
         public const int OutputFieldHeight = 28;
@@ -64,6 +80,22 @@ namespace helengine.editor {
         /// </summary>
         public const int BrowseButtonWidth = 84;
         /// <summary>
+        /// Fixed per-frame time step used by transient scene-list feedback effects.
+        /// </summary>
+        public const float SceneListEffectFrameDeltaSeconds = 1f / 60f;
+        /// <summary>
+        /// Total duration used by the invalid scene-list shake effect.
+        /// </summary>
+        public const float SceneListShakeDurationSeconds = 0.3f;
+        /// <summary>
+        /// Peak horizontal amplitude used by the invalid scene-list shake effect.
+        /// </summary>
+        public const float SceneListShakeAmplitudePixels = 10f;
+        /// <summary>
+        /// Oscillation frequency used by the invalid scene-list shake effect.
+        /// </summary>
+        public const float SceneListShakeFrequencyHz = 16f;
+        /// <summary>
         /// Root entity for all left-side build-planning controls.
         /// </summary>
         readonly EditorEntity BuildColumnRoot;
@@ -79,6 +111,30 @@ namespace helengine.editor {
         /// Root entity for all right-side queue controls.
         /// </summary>
         readonly EditorEntity QueueColumnRoot;
+        /// <summary>
+        /// Root entity for the bordered queue section.
+        /// </summary>
+        readonly EditorEntity QueueSectionRoot;
+        /// <summary>
+        /// Bordered background surface rendered behind the queue section.
+        /// </summary>
+        readonly RoundedRectComponent QueueListBackground;
+        /// <summary>
+        /// Background surface used for the queue section title bar.
+        /// </summary>
+        readonly RoundedRectComponent QueueHeaderBackground;
+        /// <summary>
+        /// Host entity for the queue section title text.
+        /// </summary>
+        readonly EditorEntity QueueHeaderTextHost;
+        /// <summary>
+        /// Text component used to render the queue section title.
+        /// </summary>
+        readonly TextComponent QueueHeaderText;
+        /// <summary>
+        /// Root entity used to place bordered queue-item cards under the queue header.
+        /// </summary>
+        readonly EditorEntity QueueItemsRoot;
         /// <summary>
         /// Host entities created for the currently rendered platform tabs.
         /// </summary>
@@ -111,6 +167,18 @@ namespace helengine.editor {
         /// Text components used to render queue item summaries.
         /// </summary>
         readonly List<TextComponent> QueueItemTexts;
+        /// <summary>
+        /// Host entities created for the current queue-item remove buttons.
+        /// </summary>
+        readonly List<EditorEntity> QueueItemRemoveButtonHosts;
+        /// <summary>
+        /// Remove buttons rendered for the current queue items.
+        /// </summary>
+        readonly List<ButtonComponent> QueueItemRemoveButtons;
+        /// <summary>
+        /// Bordered card backgrounds rendered for the current queue items.
+        /// </summary>
+        readonly List<RoundedRectComponent> QueueItemCardBackgrounds;
         /// <summary>
         /// Host entity for the output-directory label.
         /// </summary>
@@ -188,6 +256,22 @@ namespace helengine.editor {
         /// </summary>
         EditorBuildConfigDocument CurrentBuildConfig;
         /// <summary>
+        /// Tracks whether the scene-list container is currently showing an invalid-selection border.
+        /// </summary>
+        bool IsSceneListInvalid;
+        /// <summary>
+        /// Tracks whether the scene-list container is currently playing its invalid-selection shake.
+        /// </summary>
+        bool IsSceneListShakeActive;
+        /// <summary>
+        /// Elapsed shake time for the current invalid scene-list feedback pass.
+        /// </summary>
+        float SceneListShakeElapsedSeconds;
+        /// <summary>
+        /// Base local position used to restore the scene-list container after invalid-selection feedback.
+        /// </summary>
+        float3 SceneListShakeBaseLocalPosition;
+        /// <summary>
         /// Platform id shown by the currently active tab.
         /// </summary>
         string ActivePlatformId;
@@ -203,6 +287,10 @@ namespace helengine.editor {
         /// Raised when the user wants to start running the queued builds.
         /// </summary>
         public event Action BuildQueueRequested;
+        /// <summary>
+        /// Raised when the user wants to remove one queued build item from the current queue.
+        /// </summary>
+        public event Action<string> RemoveQueueItemRequested;
         /// <summary>
         /// Raised when the user closes the build dialog without confirming another action.
         /// </summary>
@@ -225,6 +313,9 @@ namespace helengine.editor {
             MapCheckBoxes = new List<CheckBoxComponent>(16);
             QueueItemHosts = new List<EditorEntity>(16);
             QueueItemTexts = new List<TextComponent>(16);
+            QueueItemRemoveButtonHosts = new List<EditorEntity>(16);
+            QueueItemRemoveButtons = new List<ButtonComponent>(16);
+            QueueItemCardBackgrounds = new List<RoundedRectComponent>(16);
             SceneIds = new List<string>(32);
             SupportedPlatformIds = new List<string>(8);
 
@@ -241,6 +332,7 @@ namespace helengine.editor {
                 InternalEntity = true
             };
             BuildColumnRoot.AddChild(SceneListRoot);
+            SceneListRoot.AddComponent(new BuildDialogFeedbackUpdateComponent(this));
 
             SceneListBackground = new RoundedRectComponent {
                 FillColor = ThemeManager.Colors.SurfacePrimary,
@@ -258,6 +350,55 @@ namespace helengine.editor {
                 InternalEntity = true
             };
             DialogPanelRoot.AddChild(QueueColumnRoot);
+
+            QueueSectionRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            QueueColumnRoot.AddChild(QueueSectionRoot);
+
+            QueueListBackground = new RoundedRectComponent {
+                FillColor = ThemeManager.Colors.SurfacePrimary,
+                BorderColor = ThemeManager.Colors.AccentTertiary,
+                BorderThickness = 2f,
+                Radius = 6f,
+                RenderOrder2D = DialogPanelOrder,
+                Size = new int2(QueueColumnWidth, 1)
+            };
+            QueueSectionRoot.AddComponent(QueueListBackground);
+
+            QueueHeaderBackground = new RoundedRectComponent {
+                FillColor = ThemeManager.Colors.AccentSecondary,
+                BorderColor = ThemeManager.Colors.AccentSecondary,
+                BorderThickness = 0f,
+                Radius = 6f,
+                RenderOrder2D = DialogPanelOrder,
+                Size = new int2(QueueColumnWidth, QueueHeaderHeight)
+            };
+            QueueSectionRoot.AddComponent(QueueHeaderBackground);
+
+            QueueHeaderTextHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = new float3(QueueListPadding, 6f, 0.1f),
+                InternalEntity = true
+            };
+            QueueSectionRoot.AddChild(QueueHeaderTextHost);
+
+            QueueHeaderText = new TextComponent {
+                Font = DialogFont,
+                Text = "Queue",
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                RenderOrder2D = DialogTextOrder
+            };
+            QueueHeaderTextHost.AddComponent(QueueHeaderText);
+
+            QueueItemsRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = new float3(0f, QueueHeaderHeight + QueueListPadding, 0.1f),
+                InternalEntity = true
+            };
+            QueueSectionRoot.AddChild(QueueItemsRoot);
 
             OutputLabelHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -319,6 +460,8 @@ namespace helengine.editor {
             BuildColumnRoot.AddChild(OutputFieldHost);
 
             OutputDirectoryField = new TextBoxComponent(new int2(GetOutputFieldWidth(), OutputFieldHeight), DialogFont, "Select an output folder");
+            OutputDirectoryField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
+            OutputDirectoryField.TextChanged += HandleOutputDirectoryFieldTextChanged;
             OutputFieldHost.AddComponent(OutputDirectoryField);
 
             BrowseOutputFolderButtonHost = new EditorEntity {
@@ -417,12 +560,65 @@ namespace helengine.editor {
             SyncActivePlatformConfig();
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
+            if (string.IsNullOrWhiteSpace(platformConfig.OutputDirectoryPath)) {
+                OutputDirectoryField.SetInvalidState(true);
+                OutputDirectoryField.TriggerInvalidShake();
+                return;
+            }
+
             List<string> selectedSceneIds = new List<string>(platformConfig.SelectedSceneIds.Count);
             for (int index = 0; index < platformConfig.SelectedSceneIds.Count; index++) {
                 selectedSceneIds.Add(platformConfig.SelectedSceneIds[index]);
             }
 
+            if (selectedSceneIds.Count == 0) {
+                SetSceneListInvalidState(true);
+                TriggerSceneListInvalidShake();
+                return;
+            }
+
             AddRequested?.Invoke(new BuildDialogAddRequest(ActivePlatformId, selectedSceneIds, platformConfig.OutputDirectoryPath));
+        }
+
+        /// <summary>
+        /// Clears the output-folder invalid state as soon as the current text becomes non-blank.
+        /// </summary>
+        /// <param name="textBox">Output-folder text box that changed.</param>
+        void HandleOutputDirectoryFieldTextChanged(TextBoxComponent textBox) {
+            if (textBox == null) {
+                throw new ArgumentNullException(nameof(textBox));
+            }
+
+            if (!string.IsNullOrWhiteSpace(textBox.Text)) {
+                textBox.SetInvalidState(false);
+            }
+        }
+
+        /// <summary>
+        /// Clears the scene-list invalid state as soon as at least one scene becomes selected again.
+        /// </summary>
+        /// <param name="checkBox">Checkbox whose selection changed.</param>
+        /// <param name="isChecked">True when the checkbox is now selected.</param>
+        void HandleSceneSelectionChanged(CheckBoxComponent checkBox, bool isChecked) {
+            if (checkBox == null) {
+                throw new ArgumentNullException(nameof(checkBox));
+            }
+
+            if (isChecked) {
+                SetSceneListInvalidState(false);
+            }
+        }
+
+        /// <summary>
+        /// Raises the queue-item remove request event for the supplied queued build id.
+        /// </summary>
+        /// <param name="queueItemId">Persisted queue item id that should be removed.</param>
+        void HandleQueueItemRemoveClicked(string queueItemId) {
+            if (string.IsNullOrWhiteSpace(queueItemId)) {
+                throw new ArgumentException("Queue item id is required.", nameof(queueItemId));
+            }
+
+            RemoveQueueItemRequested?.Invoke(queueItemId);
         }
 
         /// <summary>
@@ -629,6 +825,7 @@ namespace helengine.editor {
                 bool isChecked = selectedSceneIds.Contains(sceneId);
                 CheckBoxComponent checkBox = new CheckBoxComponent(new int2(18, 18), DialogFont, isChecked);
                 checkBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
+                checkBox.CheckedChanged += HandleSceneSelectionChanged;
                 checkBoxHost.AddComponent(checkBox);
                 MapCheckBoxes.Add(checkBox);
             }
@@ -636,6 +833,8 @@ namespace helengine.editor {
             LayoutLowerLeftControls();
             RebuildCopySourcePlatformItems();
             OutputDirectoryField.Text = platformConfig.OutputDirectoryPath ?? "";
+            OutputDirectoryField.SetInvalidState(false);
+            SetSceneListInvalidState(false);
         }
 
         /// <summary>
@@ -663,16 +862,43 @@ namespace helengine.editor {
         void RebuildQueueRows() {
             ClearEntities(QueueItemHosts);
             QueueItemTexts.Clear();
+            ClearEntities(QueueItemRemoveButtonHosts);
+            QueueItemRemoveButtons.Clear();
+            QueueItemCardBackgrounds.Clear();
 
             for (int index = 0; index < CurrentBuildConfig.QueueItems.Count; index++) {
                 EditorBuildQueueItemDocument queueItem = CurrentBuildConfig.QueueItems[index];
                 EditorEntity queueItemHost = new EditorEntity {
                     LayerMask = LayerMask,
-                    Position = new float3(0f, index * QueueRowHeight, 0.1f),
+                    Position = new float3(QueueListPadding, index * QueueRowHeight, 0.1f),
                     InternalEntity = true
                 };
-                QueueColumnRoot.AddChild(queueItemHost);
+                QueueItemsRoot.AddChild(queueItemHost);
                 QueueItemHosts.Add(queueItemHost);
+
+                RoundedRectComponent queueCardBackground = new RoundedRectComponent {
+                    FillColor = ThemeManager.Colors.SurfacePrimary,
+                    BorderColor = ThemeManager.Colors.AccentTertiary,
+                    BorderThickness = 2f,
+                    Radius = 6f,
+                    RenderOrder2D = DialogPanelOrder,
+                    Size = new int2(GetQueueCardWidth(), GetQueueCardHeight())
+                };
+                queueItemHost.AddComponent(queueCardBackground);
+                QueueItemCardBackgrounds.Add(queueCardBackground);
+
+                EditorEntity removeButtonHost = new EditorEntity {
+                    LayerMask = LayerMask,
+                    Position = new float3(GetQueueCardWidth() - 36, 6f, 0.1f),
+                    InternalEntity = true
+                };
+                queueItemHost.AddChild(removeButtonHost);
+                QueueItemRemoveButtonHosts.Add(removeButtonHost);
+
+                ButtonComponent removeButton = new ButtonComponent("X", new int2(28, 24), DialogFont, () => HandleQueueItemRemoveClicked(queueItem.QueueItemId));
+                removeButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
+                removeButtonHost.AddComponent(removeButton);
+                QueueItemRemoveButtons.Add(removeButton);
 
                 TextComponent queueText = new TextComponent {
                     Font = DialogFont,
@@ -680,7 +906,13 @@ namespace helengine.editor {
                     Color = ThemeManager.Colors.InputForegroundPrimary,
                     RenderOrder2D = DialogTextOrder
                 };
-                queueItemHost.AddComponent(queueText);
+                EditorEntity queueTextHost = new EditorEntity {
+                    LayerMask = LayerMask,
+                    Position = new float3(QueueCardTextPadding, 10f, 0.1f),
+                    InternalEntity = true
+                };
+                queueItemHost.AddChild(queueTextHost);
+                queueTextHost.AddComponent(queueText);
                 QueueItemTexts.Add(queueText);
             }
         }
@@ -689,7 +921,7 @@ namespace helengine.editor {
         /// Anchors the copy-source, output-folder, and add-to-build controls to the lower portion of the left column.
         /// </summary>
         void LayoutLowerLeftControls() {
-            int addButtonY = PanelHeight - HeaderHeight - PanelPadding - FooterButtonHeight;
+            int addButtonY = PanelHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8;
             int outputFieldY = addButtonY - 16 - OutputFieldHeight;
             int outputLabelY = outputFieldY - 20;
             int copyComboY = outputLabelY - 16 - OutputFieldHeight;
@@ -706,6 +938,31 @@ namespace helengine.editor {
             OutputFieldHost.Position = new float3(0f, outputFieldY, 0.1f);
             BrowseOutputFolderButtonHost.Position = new float3(GetOutputFieldWidth() + 8f, outputFieldY, 0.1f);
             AddToBuildButtonHost.Position = new float3(0f, addButtonY, 0.1f);
+        }
+
+        /// <summary>
+        /// Advances transient scene-list feedback animations such as the invalid-selection shake.
+        /// </summary>
+        internal void UpdateFeedbackAnimation() {
+            if (!IsSceneListShakeActive) {
+                return;
+            }
+
+            SceneListShakeElapsedSeconds += SceneListEffectFrameDeltaSeconds;
+            if (SceneListShakeElapsedSeconds >= SceneListShakeDurationSeconds) {
+                SceneListRoot.LocalPosition = SceneListShakeBaseLocalPosition;
+                IsSceneListShakeActive = false;
+                return;
+            }
+
+            double progress = SceneListShakeElapsedSeconds / SceneListShakeDurationSeconds;
+            double amplitude = SceneListShakeAmplitudePixels * (1d - progress);
+            double angle = SceneListShakeElapsedSeconds * SceneListShakeFrequencyHz * Math.PI * 2d;
+            double offset = Math.Sin(angle) * amplitude;
+            SceneListRoot.LocalPosition = new float3(
+                SceneListShakeBaseLocalPosition.X + (float)offset,
+                SceneListShakeBaseLocalPosition.Y,
+                SceneListShakeBaseLocalPosition.Z);
         }
 
         /// <summary>
@@ -726,7 +983,10 @@ namespace helengine.editor {
         /// Applies the static layout for the queue button based on the current panel geometry.
         /// </summary>
         void LayoutStaticControls() {
-            BuildQueueButtonHost.Position = new float3(0f, PanelHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8, 0.1f);
+            int buildQueueButtonY = PanelHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8;
+            BuildQueueButtonHost.Position = new float3(0f, buildQueueButtonY, 0.1f);
+            QueueListBackground.Size = new int2(QueueColumnWidth, GetQueueSectionHeight());
+            QueueHeaderBackground.Size = new int2(QueueColumnWidth, QueueHeaderHeight);
         }
 
         /// <summary>
@@ -746,6 +1006,30 @@ namespace helengine.editor {
             }
 
             platformConfig.OutputDirectoryPath = OutputDirectoryField.Text ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Applies or clears the invalid-selection border state on the scene-list container.
+        /// </summary>
+        /// <param name="isInvalid">True when the scene-list container should use the invalid border color.</param>
+        void SetSceneListInvalidState(bool isInvalid) {
+            IsSceneListInvalid = isInvalid;
+            SceneListBackground.BorderColor = isInvalid
+                ? ThemeManager.Colors.StateDanger
+                : ThemeManager.Colors.AccentTertiary;
+        }
+
+        /// <summary>
+        /// Starts a short horizontal shake on the scene-list container to highlight an invalid empty selection.
+        /// </summary>
+        void TriggerSceneListInvalidShake() {
+            if (IsSceneListShakeActive) {
+                SceneListRoot.LocalPosition = SceneListShakeBaseLocalPosition;
+            }
+
+            SceneListShakeBaseLocalPosition = SceneListRoot.LocalPosition;
+            SceneListShakeElapsedSeconds = 0f;
+            IsSceneListShakeActive = true;
         }
 
         /// <summary>
@@ -792,6 +1076,7 @@ namespace helengine.editor {
             for (int index = 0; index < hosts.Count; index++) {
                 EditorEntity host = hosts[index];
                 if (host.Parent != null) {
+                    host.Enabled = false;
                     host.Parent.RemoveChild(host);
                 }
             }
@@ -805,6 +1090,30 @@ namespace helengine.editor {
         /// <returns>Width available for build-planning controls.</returns>
         int GetBuildColumnWidth() {
             return PanelWidth - QueueColumnWidth - (PanelPadding * 3);
+        }
+
+        /// <summary>
+        /// Gets the width available for one bordered queue card inside the queue section.
+        /// </summary>
+        /// <returns>Width available for one queue card.</returns>
+        int GetQueueCardWidth() {
+            return QueueColumnWidth - (QueueListPadding * 2);
+        }
+
+        /// <summary>
+        /// Gets the height used by one bordered queue card.
+        /// </summary>
+        /// <returns>Height used by one queue card.</returns>
+        int GetQueueCardHeight() {
+            return QueueRowHeight - QueueCardSpacing;
+        }
+
+        /// <summary>
+        /// Gets the height available for the bordered queue section above the queue action button.
+        /// </summary>
+        /// <returns>Height available for the queue section chrome and cards.</returns>
+        int GetQueueSectionHeight() {
+            return PanelHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 20;
         }
 
         /// <summary>

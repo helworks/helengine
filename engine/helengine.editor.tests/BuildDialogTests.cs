@@ -136,6 +136,151 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Add to Build does not raise a request when the active platform output folder is blank.
+        /// </summary>
+        [Fact]
+        public void HandleAddToBuildClicked_WhenOutputFolderIsBlank_DoesNotRaiseAddRequested() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialogAddRequest raisedRequest = null;
+            dialog.AddRequested += request => raisedRequest = request;
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows"
+                        }
+                    ]
+                });
+
+            TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
+            outputDirectoryField.Text = "";
+
+            InvokePrivate(dialog, "HandleAddToBuildClicked");
+
+            Assert.Null(raisedRequest);
+        }
+
+        /// <summary>
+        /// Ensures the output-folder textbox turns red after an invalid add click and clears immediately when a valid path is entered.
+        /// </summary>
+        [Fact]
+        public void HandleAddToBuildClicked_WhenOutputFolderValidationChanges_UpdatesOutputFieldBorderImmediately() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows"
+                        }
+                    ]
+                });
+
+            TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
+            RoundedRectComponent backgroundSprite = GetPrivateField<RoundedRectComponent>(outputDirectoryField, "backgroundSprite");
+            EditorEntity outputFieldHost = GetPrivateField<EditorEntity>(dialog, "OutputFieldHost");
+            float3 originalPosition = outputFieldHost.LocalPosition;
+            outputDirectoryField.Text = "";
+
+            InvokePrivate(dialog, "HandleAddToBuildClicked");
+
+            Assert.Equal(ThemeManager.Colors.StateDanger, backgroundSprite.BorderColor);
+
+            for (int frame = 0; frame < 3; frame++) {
+                outputDirectoryField.Update();
+            }
+
+            Assert.NotEqual(originalPosition, outputFieldHost.LocalPosition);
+
+            for (int frame = 0; frame < 24; frame++) {
+                outputDirectoryField.Update();
+            }
+
+            Assert.Equal(originalPosition, outputFieldHost.LocalPosition);
+
+            outputDirectoryField.Text = @"D:\exports\windows";
+
+            Assert.Equal(ThemeManager.Colors.AccentTertiary, backgroundSprite.BorderColor);
+
+            outputDirectoryField.Text = "";
+            InvokePrivate(dialog, "HandleAddToBuildClicked");
+
+            Assert.Equal(ThemeManager.Colors.StateDanger, backgroundSprite.BorderColor);
+        }
+
+        /// <summary>
+        /// Ensures Add to Build does not raise a request when no scenes are selected, and the scene list shows invalid feedback until a scene is selected again.
+        /// </summary>
+        [Fact]
+        public void HandleAddToBuildClicked_WhenNoScenesSelected_ShakesAndMarksSceneListInvalidUntilSelectionReturns() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialogAddRequest raisedRequest = null;
+            dialog.AddRequested += request => raisedRequest = request;
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen",
+                    "Scenes/Menu.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows"
+                        }
+                    ]
+                });
+
+            List<CheckBoxComponent> mapCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "MapCheckBoxes");
+            RoundedRectComponent sceneListBackground = GetPrivateField<RoundedRectComponent>(dialog, "SceneListBackground");
+            EditorEntity sceneListRoot = GetPrivateField<EditorEntity>(dialog, "SceneListRoot");
+            float3 originalPosition = sceneListRoot.LocalPosition;
+            mapCheckBoxes[0].IsChecked = false;
+
+            InvokePrivate(dialog, "HandleAddToBuildClicked");
+
+            Assert.Null(raisedRequest);
+            Assert.Equal(ThemeManager.Colors.StateDanger, sceneListBackground.BorderColor);
+
+            for (int frame = 0; frame < 3; frame++) {
+                InvokePrivate(dialog, "UpdateFeedbackAnimation");
+            }
+
+            Assert.NotEqual(originalPosition, sceneListRoot.LocalPosition);
+
+            for (int frame = 0; frame < 24; frame++) {
+                InvokePrivate(dialog, "UpdateFeedbackAnimation");
+            }
+
+            Assert.Equal(originalPosition, sceneListRoot.LocalPosition);
+
+            InvokePrivate(dialog, "HandleSceneSelectionChanged", mapCheckBoxes[1], true);
+
+            Assert.Equal(ThemeManager.Colors.AccentTertiary, sceneListBackground.BorderColor);
+        }
+
+        /// <summary>
         /// Ensures switching to another platform tab writes the current tab's pending map and folder edits back into the local config document.
         /// </summary>
         [Fact]
@@ -332,6 +477,144 @@ namespace helengine.editor.tests {
             Assert.Contains("Pending", queueItemTexts[0].Text);
             Assert.Contains("Failed", queueItemTexts[1].Text);
             Assert.Contains("Unsupported scene format.", queueItemTexts[1].Text);
+        }
+
+        /// <summary>
+        /// Ensures the queue area is enclosed by a bordered section with its own header label.
+        /// </summary>
+        [Fact]
+        public void Show_CreatesBorderedQueueSectionWithHeader() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ]
+                });
+
+            RoundedRectComponent queueListBackground = GetPrivateField<RoundedRectComponent>(dialog, "QueueListBackground");
+            RoundedRectComponent queueHeaderBackground = GetPrivateField<RoundedRectComponent>(dialog, "QueueHeaderBackground");
+            TextComponent queueHeaderText = GetPrivateField<TextComponent>(dialog, "QueueHeaderText");
+
+            Assert.Equal(ThemeManager.Colors.AccentTertiary, queueListBackground.BorderColor);
+            Assert.Equal(2f, queueListBackground.BorderThickness);
+            Assert.Equal(ThemeManager.Colors.AccentSecondary, queueHeaderBackground.FillColor);
+            Assert.Equal("Queue", queueHeaderText.Text);
+            Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, queueHeaderText.Color);
+        }
+
+        /// <summary>
+        /// Ensures each queued build is rendered inside its own bordered card instead of floating as loose text.
+        /// </summary>
+        [Fact]
+        public void Show_WhenQueueItemsProvided_RendersBorderedCardPerQueueItem() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = [
+                        new EditorBuildQueueItemDocument {
+                            QueueItemId = "queue-1",
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows",
+                            Status = EditorBuildQueueItemStatus.Pending
+                        },
+                        new EditorBuildQueueItemDocument {
+                            QueueItemId = "queue-2",
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/Menu.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows-two",
+                            Status = EditorBuildQueueItemStatus.Failed
+                        }
+                    ]
+                });
+
+            List<RoundedRectComponent> queueItemCardBackgrounds = GetPrivateField<List<RoundedRectComponent>>(dialog, "QueueItemCardBackgrounds");
+
+            Assert.Equal(2, queueItemCardBackgrounds.Count);
+            Assert.All(queueItemCardBackgrounds, background => {
+                Assert.Equal(ThemeManager.Colors.AccentTertiary, background.BorderColor);
+                Assert.Equal(2f, background.BorderThickness);
+                Assert.True(background.Size.X > 0);
+                Assert.True(background.Size.Y > 0);
+            });
+        }
+
+        /// <summary>
+        /// Ensures each queued build card exposes one remove button aligned on the right edge.
+        /// </summary>
+        [Fact]
+        public void Show_WhenQueueItemsProvided_CreatesRemoveButtonPerQueueItem() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            string removedQueueItemId = string.Empty;
+            dialog.RemoveQueueItemRequested += queueItemId => removedQueueItemId = queueItemId;
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = [
+                        new EditorBuildQueueItemDocument {
+                            QueueItemId = "queue-1",
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows",
+                            Status = EditorBuildQueueItemStatus.Pending
+                        }
+                    ]
+                });
+
+            List<ButtonComponent> queueItemRemoveButtons = GetPrivateField<List<ButtonComponent>>(dialog, "QueueItemRemoveButtons");
+            List<EditorEntity> queueItemRemoveButtonHosts = GetPrivateField<List<EditorEntity>>(dialog, "QueueItemRemoveButtonHosts");
+            RoundedRectComponent queueCardBackground = Assert.Single(GetPrivateField<List<RoundedRectComponent>>(dialog, "QueueItemCardBackgrounds"));
+            ButtonComponent removeButton = Assert.Single(queueItemRemoveButtons);
+            EditorEntity removeButtonHost = Assert.Single(queueItemRemoveButtonHosts);
+
+            Assert.Equal("X", GetPrivateField<string>(removeButton, "text"));
+            Assert.True(removeButtonHost.LocalPosition.X > queueCardBackground.Size.X - 48);
+
+            InvokePrivate(dialog, "HandleQueueItemRemoveClicked", "queue-1");
+
+            Assert.Equal("queue-1", removedQueueItemId);
         }
 
         /// <summary>
@@ -539,6 +822,8 @@ namespace helengine.editor.tests {
             ButtonComponent browseOutputFolderButton = GetPrivateField<ButtonComponent>(dialog, "BrowseOutputFolderButton");
             ButtonComponent addToBuildButton = GetPrivateField<ButtonComponent>(dialog, "AddToBuildButton");
             ButtonComponent buildQueueButton = GetPrivateField<ButtonComponent>(dialog, "BuildQueueButton");
+            EditorEntity addToBuildButtonHost = GetPrivateField<EditorEntity>(dialog, "AddToBuildButtonHost");
+            EditorEntity buildQueueButtonHost = GetPrivateField<EditorEntity>(dialog, "BuildQueueButtonHost");
             int2 browseButtonSize = GetPrivateField<int2>(browseOutputFolderButton, "size");
             int2 addToBuildButtonSize = GetPrivateField<int2>(addToBuildButton, "size");
             int2 buildQueueButtonSize = GetPrivateField<int2>(buildQueueButton, "size");
@@ -548,6 +833,38 @@ namespace helengine.editor.tests {
             Assert.Equal("Browse", GetPrivateField<string>(browseOutputFolderButton, "text"));
             Assert.Equal(BuildDialog.FooterButtonHeight, browseButtonSize.Y);
             Assert.Equal(buildQueueButtonSize.Y, addToBuildButtonSize.Y);
+            Assert.Equal(buildQueueButtonHost.LocalPosition.Y, addToBuildButtonHost.LocalPosition.Y);
+        }
+
+        /// <summary>
+        /// Ensures the output-folder textbox uses modal render orders so it remains visible above the dialog surface.
+        /// </summary>
+        [Fact]
+        public void Show_RendersOutputFolderTextBoxInModalForeground() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ]
+                });
+
+            TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
+            RoundedRectComponent backgroundSprite = GetPrivateField<RoundedRectComponent>(outputDirectoryField, "backgroundSprite");
+            TextComponent textComponent = GetPrivateField<TextComponent>(outputDirectoryField, "textComponent");
+
+            Assert.Equal(RenderOrder2D.ModalBackground, backgroundSprite.RenderOrder2D);
+            Assert.Equal(RenderOrder2D.ModalForeground, textComponent.RenderOrder2D);
         }
 
         /// <summary>
@@ -652,6 +969,21 @@ namespace helengine.editor.tests {
             MethodInfo method = FindPrivateMethod(target.GetType(), methodName);
             method.Invoke(target, [
                 value
+            ]);
+        }
+
+        /// <summary>
+        /// Invokes one non-public instance method that accepts a checkbox and checked-state payload.
+        /// </summary>
+        /// <param name="target">Object that owns the method.</param>
+        /// <param name="methodName">Exact private method name.</param>
+        /// <param name="checkBox">Checkbox argument passed to the method.</param>
+        /// <param name="isChecked">Checked-state argument passed to the method.</param>
+        void InvokePrivate(object target, string methodName, CheckBoxComponent checkBox, bool isChecked) {
+            MethodInfo method = FindPrivateMethod(target.GetType(), methodName);
+            method.Invoke(target, [
+                checkBox,
+                isChecked
             ]);
         }
 
