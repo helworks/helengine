@@ -50,7 +50,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the Add menu shows Empty, Cube, and Plane and hides File when opened.
+        /// Ensures the Add menu shows Empty, Cube, Plane, and Camera and hides File when opened.
         /// </summary>
         [Fact]
         public void ToggleAddMenu_ShowsExpectedItemsAndHidesFileMenu() {
@@ -69,7 +69,8 @@ namespace helengine.editor.tests {
                 activeItems,
                 item => Assert.Equal("Empty", item.Label),
                 item => Assert.Equal("Cube", item.Label),
-                item => Assert.Equal("Plane", item.Label));
+                item => Assert.Equal("Plane", item.Label),
+                item => Assert.Equal("Camera", item.Label));
         }
 
         /// <summary>

@@ -56,6 +56,16 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
                 new EditorBuildPlatformConfigDocument {
                     PlatformId = "windows",
                     SelectedSceneIds = ["Scenes/City.helen", "Scenes/Menu.helen"],
+                    SceneOrders = [
+                        new EditorBuildSceneOrderDocument {
+                            SceneId = "Scenes/City.helen",
+                            OrderNumber = 2
+                        },
+                        new EditorBuildSceneOrderDocument {
+                            SceneId = "Scenes/Menu.helen",
+                            OrderNumber = 1
+                        }
+                    ],
                     OutputDirectoryPath = @"C:\builds\windows"
                 }
             ],
@@ -84,6 +94,11 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
 
         Assert.Single(loadedDocument.Platforms);
         AssertPlatform(loadedDocument.Platforms[0], "windows", ["Scenes/City.helen", "Scenes/Menu.helen"], @"C:\builds\windows");
+        Assert.Equal(2, loadedDocument.Platforms[0].SceneOrders.Count);
+        Assert.Equal("Scenes/City.helen", loadedDocument.Platforms[0].SceneOrders[0].SceneId);
+        Assert.Equal(2, loadedDocument.Platforms[0].SceneOrders[0].OrderNumber);
+        Assert.Equal("Scenes/Menu.helen", loadedDocument.Platforms[0].SceneOrders[1].SceneId);
+        Assert.Equal(1, loadedDocument.Platforms[0].SceneOrders[1].OrderNumber);
         Assert.Equal(2, loadedDocument.QueueItems.Count);
         Assert.Equal(EditorBuildQueueItemStatus.Pending, loadedDocument.QueueItems[0].Status);
         Assert.Equal(EditorBuildQueueItemStatus.Failed, loadedDocument.QueueItems[1].Status);

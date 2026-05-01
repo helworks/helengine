@@ -36,6 +36,14 @@ namespace helengine.editor {
         /// </summary>
         public const int SceneRowHeight = 24;
         /// <summary>
+        /// Width reserved for the scene ordering textbox in each scene row.
+        /// </summary>
+        public const int SceneOrderFieldWidth = 44;
+        /// <summary>
+        /// Height reserved for the scene ordering textbox in each scene row.
+        /// </summary>
+        public const int SceneOrderFieldHeight = 18;
+        /// <summary>
         /// Top margin applied before the bordered scene-list container.
         /// </summary>
         public const int SceneListTopMargin = 8;
@@ -159,6 +167,14 @@ namespace helengine.editor {
         /// Checkbox components used to select maps for the active platform.
         /// </summary>
         readonly List<CheckBoxComponent> MapCheckBoxes;
+        /// <summary>
+        /// Host entities created for the current platform's scene-order text boxes.
+        /// </summary>
+        readonly List<EditorEntity> MapOrderHosts;
+        /// <summary>
+        /// Text boxes used to edit per-scene ordering numbers.
+        /// </summary>
+        readonly List<TextBoxComponent> MapOrderFields;
         /// <summary>
         /// Host entities created for the currently rendered queue rows.
         /// </summary>
@@ -311,6 +327,8 @@ namespace helengine.editor {
             MapLabelTexts = new List<TextComponent>(16);
             MapCheckBoxHosts = new List<EditorEntity>(16);
             MapCheckBoxes = new List<CheckBoxComponent>(16);
+            MapOrderHosts = new List<EditorEntity>(16);
+            MapOrderFields = new List<TextBoxComponent>(16);
             QueueItemHosts = new List<EditorEntity>(16);
             QueueItemTexts = new List<TextComponent>(16);
             QueueItemRemoveButtonHosts = new List<EditorEntity>(16);
@@ -584,7 +602,8 @@ namespace helengine.editor {
                 return;
             }
 
-            AddRequested?.Invoke(new BuildDialogAddRequest(ActivePlatformId, selectedSceneIds, platformConfig.OutputDirectoryPath));
+            List<string> orderedSceneIds = BuildOrderedSceneIds(platformConfig, selectedSceneIds);
+            AddRequested?.Invoke(new BuildDialogAddRequest(ActivePlatformId, orderedSceneIds, platformConfig.OutputDirectoryPath));
         }
 
         /// <summary>
@@ -664,6 +683,8 @@ namespace helengine.editor {
                 activePlatformConfig.SelectedSceneIds.Add(sourcePlatformConfig.SelectedSceneIds[index]);
             }
 
+            CopySceneOrders(sourcePlatformConfig, activePlatformConfig);
+
             RebuildActivePlatformSceneRows();
         }
 
@@ -698,6 +719,30 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Copies one platform's scene-order entries into another platform configuration.
+        /// </summary>
+        /// <param name="sourcePlatformConfig">Platform configuration supplying the saved order values.</param>
+        /// <param name="destinationPlatformConfig">Platform configuration receiving the copied order values.</param>
+        void CopySceneOrders(EditorBuildPlatformConfigDocument sourcePlatformConfig, EditorBuildPlatformConfigDocument destinationPlatformConfig) {
+            if (sourcePlatformConfig == null) {
+                throw new ArgumentNullException(nameof(sourcePlatformConfig));
+            }
+
+            if (destinationPlatformConfig == null) {
+                throw new ArgumentNullException(nameof(destinationPlatformConfig));
+            }
+
+            destinationPlatformConfig.SceneOrders.Clear();
+            for (int index = 0; index < sourcePlatformConfig.SceneOrders.Count; index++) {
+                EditorBuildSceneOrderDocument sourceSceneOrder = sourcePlatformConfig.SceneOrders[index];
+                destinationPlatformConfig.SceneOrders.Add(new EditorBuildSceneOrderDocument {
+                    SceneId = sourceSceneOrder.SceneId,
+                    OrderNumber = sourceSceneOrder.OrderNumber
+                });
+            }
+        }
+
+        /// <summary>
         /// Ensures the build configuration contains one local platform entry for each enabled platform.
         /// </summary>
         void EnsurePlatformConfigs() {
@@ -717,6 +762,10 @@ namespace helengine.editor {
 
                 if (platformConfig.SelectedSceneIds == null) {
                     platformConfig.SelectedSceneIds = new List<string>();
+                }
+
+                if (platformConfig.SceneOrders == null) {
+                    platformConfig.SceneOrders = new List<EditorBuildSceneOrderDocument>();
                 }
             }
 
@@ -793,21 +842,43 @@ namespace helengine.editor {
         void RebuildActivePlatformSceneRows() {
             ClearEntities(MapLabelHosts);
             ClearEntities(MapCheckBoxHosts);
+            ClearEntities(MapOrderHosts);
             MapLabelTexts.Clear();
             MapCheckBoxes.Clear();
+            MapOrderFields.Clear();
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
+            EnsureSceneOrderEntries(platformConfig);
             List<string> selectedSceneIds = platformConfig.SelectedSceneIds;
+            List<string> orderedSceneIds = BuildDisplayedSceneIds(platformConfig);
             int topOffset = SceneListPadding;
+            int orderFieldX = SceneListPadding;
+            int sceneLabelX = orderFieldX + SceneOrderFieldWidth + 8;
             int checkBoxX = GetBuildColumnWidth() - SceneListPadding - 18;
 
-            for (int index = 0; index < SceneIds.Count; index++) {
-                string sceneId = SceneIds[index];
+            for (int index = 0; index < orderedSceneIds.Count; index++) {
+                string sceneId = orderedSceneIds[index];
                 float rowY = topOffset + (index * SceneRowHeight);
+
+                EditorEntity orderHost = new EditorEntity {
+                    LayerMask = LayerMask,
+                    Position = new float3(orderFieldX, rowY - 2, 0.1f),
+                    InternalEntity = true
+                };
+                SceneListRoot.AddChild(orderHost);
+                MapOrderHosts.Add(orderHost);
+
+                TextBoxComponent orderField = new TextBoxComponent(new int2(SceneOrderFieldWidth, SceneOrderFieldHeight), DialogFont, string.Empty);
+                orderField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
+                orderField.TextChanged += currentOrderField => HandleSceneOrderFieldChanged(sceneId, currentOrderField);
+                orderField.Submitted += currentOrderField => HandleSceneOrderFieldSubmitted(sceneId, currentOrderField);
+                orderField.Text = GetSceneOrderNumber(platformConfig, sceneId).ToString();
+                orderHost.AddComponent(orderField);
+                MapOrderFields.Add(orderField);
 
                 EditorEntity labelHost = new EditorEntity {
                     LayerMask = LayerMask,
-                    Position = new float3(SceneListPadding, rowY, 0.1f),
+                    Position = new float3(sceneLabelX, rowY, 0.1f),
                     InternalEntity = true
                 };
                 SceneListRoot.AddChild(labelHost);
@@ -1005,6 +1076,7 @@ namespace helengine.editor {
             }
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
+            EnsureSceneOrderEntries(platformConfig);
             platformConfig.SelectedSceneIds.Clear();
             for (int index = 0; index < MapCheckBoxes.Count; index++) {
                 if (MapCheckBoxes[index].IsChecked) {
@@ -1013,6 +1085,204 @@ namespace helengine.editor {
             }
 
             platformConfig.OutputDirectoryPath = OutputDirectoryField.Text ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Keeps the persisted scene-order entries aligned with the current project scene list.
+        /// </summary>
+        /// <param name="platformConfig">Platform configuration that stores the saved ordering values.</param>
+        void EnsureSceneOrderEntries(EditorBuildPlatformConfigDocument platformConfig) {
+            if (platformConfig.SceneOrders == null) {
+                platformConfig.SceneOrders = new List<EditorBuildSceneOrderDocument>();
+            }
+
+            for (int index = platformConfig.SceneOrders.Count - 1; index >= 0; index--) {
+                EditorBuildSceneOrderDocument sceneOrder = platformConfig.SceneOrders[index];
+                if (!SceneIds.Contains(sceneOrder.SceneId)) {
+                    platformConfig.SceneOrders.RemoveAt(index);
+                }
+            }
+
+            for (int index = 0; index < SceneIds.Count; index++) {
+                string sceneId = SceneIds[index];
+                if (FindSceneOrder(platformConfig, sceneId) != null) {
+                    continue;
+                }
+
+                platformConfig.SceneOrders.Add(new EditorBuildSceneOrderDocument {
+                    SceneId = sceneId,
+                    OrderNumber = GetNextSceneOrderNumber(platformConfig)
+                });
+            }
+        }
+
+        /// <summary>
+        /// Applies one scene-order edit to the persisted active-platform configuration.
+        /// </summary>
+        /// <param name="sceneId">Project-relative scene identifier whose order should be updated.</param>
+        /// <param name="textBox">Textbox currently editing the order value.</param>
+        void HandleSceneOrderFieldChanged(string sceneId, TextBoxComponent textBox) {
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                throw new ArgumentException("Scene id is required.", nameof(sceneId));
+            }
+
+            if (textBox == null) {
+                throw new ArgumentNullException(nameof(textBox));
+            }
+
+            EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
+            EditorBuildSceneOrderDocument sceneOrder = FindSceneOrder(platformConfig, sceneId);
+            if (sceneOrder == null) {
+                return;
+            }
+
+            if (!int.TryParse(textBox.Text, out int orderNumber) || orderNumber <= 0) {
+                textBox.SetInvalidState(true);
+                return;
+            }
+
+            sceneOrder.OrderNumber = orderNumber;
+            textBox.SetInvalidState(false);
+        }
+
+        /// <summary>
+        /// Commits one scene-order edit and rebuilds the active platform rows after Enter is pressed.
+        /// </summary>
+        /// <param name="sceneId">Project-relative scene identifier whose order was submitted.</param>
+        /// <param name="textBox">Textbox that submitted the current order value.</param>
+        void HandleSceneOrderFieldSubmitted(string sceneId, TextBoxComponent textBox) {
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                throw new ArgumentException("Scene id is required.", nameof(sceneId));
+            }
+
+            if (textBox == null) {
+                throw new ArgumentNullException(nameof(textBox));
+            }
+
+            SyncActivePlatformConfig();
+            EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
+            EditorBuildSceneOrderDocument sceneOrder = FindSceneOrder(platformConfig, sceneId);
+            if (sceneOrder == null) {
+                return;
+            }
+
+            if (!int.TryParse(textBox.Text, out int orderNumber) || orderNumber <= 0) {
+                textBox.SetInvalidState(true);
+                return;
+            }
+
+            sceneOrder.OrderNumber = orderNumber;
+            textBox.SetInvalidState(false);
+            RebuildActivePlatformSceneRows();
+        }
+
+        /// <summary>
+        /// Finds one persisted scene-order entry for the requested scene identifier.
+        /// </summary>
+        /// <param name="platformConfig">Platform configuration containing the saved ordering values.</param>
+        /// <param name="sceneId">Project-relative scene identifier to find.</param>
+        /// <returns>Matching scene-order entry, or null when none exists.</returns>
+        EditorBuildSceneOrderDocument FindSceneOrder(EditorBuildPlatformConfigDocument platformConfig, string sceneId) {
+            for (int index = 0; index < platformConfig.SceneOrders.Count; index++) {
+                EditorBuildSceneOrderDocument sceneOrder = platformConfig.SceneOrders[index];
+                if (sceneOrder.SceneId == sceneId) {
+                    return sceneOrder;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Returns the next available ordering number for a new scene entry.
+        /// </summary>
+        /// <param name="platformConfig">Platform configuration that stores the saved ordering values.</param>
+        /// <returns>1-based ordering number that comes after all currently saved order values.</returns>
+        int GetNextSceneOrderNumber(EditorBuildPlatformConfigDocument platformConfig) {
+            int nextOrderNumber = 1;
+            for (int index = 0; index < platformConfig.SceneOrders.Count; index++) {
+                int candidateOrderNumber = platformConfig.SceneOrders[index].OrderNumber;
+                if (candidateOrderNumber >= nextOrderNumber) {
+                    nextOrderNumber = candidateOrderNumber + 1;
+                }
+            }
+
+            return nextOrderNumber;
+        }
+
+        /// <summary>
+        /// Reads the persisted ordering number for one scene, falling back to the catalog order when needed.
+        /// </summary>
+        /// <param name="platformConfig">Platform configuration containing the saved ordering values.</param>
+        /// <param name="sceneId">Project-relative scene identifier whose order should be resolved.</param>
+        /// <returns>1-based ordering number for the requested scene.</returns>
+        int GetSceneOrderNumber(EditorBuildPlatformConfigDocument platformConfig, string sceneId) {
+            EditorBuildSceneOrderDocument sceneOrder = FindSceneOrder(platformConfig, sceneId);
+            if (sceneOrder != null && sceneOrder.OrderNumber > 0) {
+                return sceneOrder.OrderNumber;
+            }
+
+            int sceneIndex = SceneIds.IndexOf(sceneId);
+            if (sceneIndex >= 0) {
+                return sceneIndex + 1;
+            }
+
+            return int.MaxValue;
+        }
+
+        /// <summary>
+        /// Sorts one selected-scene list by the currently persisted per-scene ordering values.
+        /// </summary>
+        /// <param name="platformConfig">Platform configuration that stores the saved ordering values.</param>
+        /// <param name="selectedSceneIds">Selected scenes to sort for the queued build request.</param>
+        /// <returns>New scene-id list ordered by the saved per-scene order numbers.</returns>
+        List<string> BuildOrderedSceneIds(EditorBuildPlatformConfigDocument platformConfig, IReadOnlyList<string> selectedSceneIds) {
+            List<string> orderedSceneIds = new List<string>(selectedSceneIds.Count);
+            for (int index = 0; index < selectedSceneIds.Count; index++) {
+                orderedSceneIds.Add(selectedSceneIds[index]);
+            }
+
+            orderedSceneIds.Sort((leftSceneId, rightSceneId) => {
+                int leftOrderNumber = GetSceneOrderNumber(platformConfig, leftSceneId);
+                int rightOrderNumber = GetSceneOrderNumber(platformConfig, rightSceneId);
+                int orderComparison = leftOrderNumber.CompareTo(rightOrderNumber);
+                if (orderComparison != 0) {
+                    return orderComparison;
+                }
+
+                int leftSceneIndex = SceneIds.IndexOf(leftSceneId);
+                int rightSceneIndex = SceneIds.IndexOf(rightSceneId);
+                return leftSceneIndex.CompareTo(rightSceneIndex);
+            });
+
+            return orderedSceneIds;
+        }
+
+        /// <summary>
+        /// Builds the current scene-list row order from the saved per-scene ordering values.
+        /// </summary>
+        /// <param name="platformConfig">Platform configuration that stores the saved ordering values.</param>
+        /// <returns>Scene ids sorted for display in the build dialog.</returns>
+        List<string> BuildDisplayedSceneIds(EditorBuildPlatformConfigDocument platformConfig) {
+            List<string> orderedSceneIds = new List<string>(SceneIds.Count);
+            for (int index = 0; index < SceneIds.Count; index++) {
+                orderedSceneIds.Add(SceneIds[index]);
+            }
+
+            orderedSceneIds.Sort((leftSceneId, rightSceneId) => {
+                int leftOrderNumber = GetSceneOrderNumber(platformConfig, leftSceneId);
+                int rightOrderNumber = GetSceneOrderNumber(platformConfig, rightSceneId);
+                int orderComparison = leftOrderNumber.CompareTo(rightOrderNumber);
+                if (orderComparison != 0) {
+                    return orderComparison;
+                }
+
+                int leftSceneIndex = SceneIds.IndexOf(leftSceneId);
+                int rightSceneIndex = SceneIds.IndexOf(rightSceneId);
+                return leftSceneIndex.CompareTo(rightSceneIndex);
+            });
+
+            return orderedSceneIds;
         }
 
         /// <summary>

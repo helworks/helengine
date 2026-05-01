@@ -29,6 +29,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// Deletes temporary project state after each test.
         /// </summary>
         public void Dispose() {
+            EditorCameraVisualResources.ResetForTests();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -124,6 +125,44 @@ namespace helengine.editor.tests.serialization.scene {
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => saveService.Save(scenePath));
 
             Assert.Contains(nameof(AnchorComponent), exception.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures camera entities persist only the camera component and rebuild the hidden editor visual when loaded.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenSceneContainsCameraEntity_RoundTripsCameraAndReattachesHiddenEditorVisual() {
+            EditorSceneCreationService creationService = new EditorSceneCreationService();
+            EditorEntity cameraEntity = creationService.CreateCamera();
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            registry.Register(new CameraComponentPersistenceDescriptor());
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CameraRoundTrip.helen");
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.Single(asset.RootEntities);
+            Assert.Single(asset.RootEntities[0].Components);
+            Assert.Equal("helengine.CameraComponent", asset.RootEntities[0].Components[0].ComponentTypeId);
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
+            EditorEntity loadedCameraEntity = Assert.Single(loadedRoots);
+            CameraComponent loadedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedCameraEntity.Components, component => component is CameraComponent));
+            EditorSceneCameraSuppressionComponent suppressionComponent = Assert.IsType<EditorSceneCameraSuppressionComponent>(Assert.Single(loadedCameraEntity.Components, component => component is EditorSceneCameraSuppressionComponent));
+            EditorCameraVisualComponent loadedVisual = Assert.IsType<EditorCameraVisualComponent>(Assert.Single(loadedCameraEntity.Components, component => component is EditorCameraVisualComponent));
+
+            Assert.Equal((ushort)0, loadedCamera.LayerMask);
+            Assert.False(loadedCamera.ClearSettings.ClearColorEnabled);
+            Assert.Equal(EditorLayerMasks.SceneObjects, suppressionComponent.LayerMask);
+            Assert.True(suppressionComponent.ClearSettings.ClearColorEnabled);
+            Assert.NotNull(loadedVisual.Model);
+            Assert.NotNull(loadedVisual.Material);
         }
 
         /// <summary>

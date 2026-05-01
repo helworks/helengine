@@ -69,6 +69,9 @@ namespace helengine.editor {
                 entity.AddComponent(component);
             }
 
+            EditorSceneCameraSuppressionService.AttachAndSuppress(entity);
+            EditorCameraVisualAttachmentService.Attach(entity);
+
             SceneEntityAsset[] children = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
             for (int i = 0; i < children.Length; i++) {
                 entity.AddChild(LoadEntity(children[i]));

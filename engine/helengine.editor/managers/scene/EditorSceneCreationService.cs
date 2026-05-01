@@ -47,6 +47,24 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates a root camera entity for the scene and attaches the editor-only camera visual.
+        /// </summary>
+        /// <returns>Configured camera scene entity.</returns>
+        public EditorEntity CreateCamera() {
+            EditorEntity entity = CreateBaseEntity("Camera");
+            CameraComponent cameraComponent = new CameraComponent {
+                LayerMask = EditorLayerMasks.SceneObjects,
+                CameraDrawOrder = 0,
+                Viewport = new float4(0f, 0f, 1f, 1f),
+                ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0)
+            };
+            entity.AddComponent(cameraComponent);
+            EditorSceneCameraSuppressionService.AttachAndSuppress(entity);
+            EditorCameraVisualAttachmentService.Attach(entity);
+            return entity;
+        }
+
+        /// <summary>
         /// Creates one primitive entity backed by a generated runtime model.
         /// </summary>
         /// <param name="name">Display name assigned to the entity.</param>

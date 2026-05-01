@@ -69,12 +69,17 @@ namespace helengine.editor.tests {
                 });
 
             List<ButtonComponent> platformTabs = GetPrivateField<List<ButtonComponent>>(dialog, "PlatformTabs");
+            List<TextBoxComponent> mapOrderFields = GetPrivateField<List<TextBoxComponent>>(dialog, "MapOrderFields");
             List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
             List<CheckBoxComponent> mapCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "MapCheckBoxes");
             string activePlatformId = GetPrivateField<string>(dialog, "ActivePlatformId");
 
             Assert.Equal(2, platformTabs.Count);
             Assert.Equal("linux", activePlatformId);
+            Assert.Collection(
+                mapOrderFields,
+                field => Assert.Equal("1", field.Text),
+                field => Assert.Equal("2", field.Text));
             Assert.Collection(
                 mapLabelTexts,
                 label => Assert.Equal("Scenes/City.helen", label.Text),
@@ -118,7 +123,10 @@ namespace helengine.editor.tests {
                 });
 
             List<CheckBoxComponent> mapCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "MapCheckBoxes");
+            List<TextBoxComponent> mapOrderFields = GetPrivateField<List<TextBoxComponent>>(dialog, "MapOrderFields");
             TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
+            mapOrderFields[0].Text = "2";
+            mapOrderFields[1].Text = "1";
             mapCheckBoxes[1].IsChecked = true;
             outputDirectoryField.Text = @"D:\exports\windows";
 
@@ -128,11 +136,66 @@ namespace helengine.editor.tests {
             Assert.Equal("windows", raisedRequest.PlatformId);
             Assert.Equal(
                 new[] {
-                    "Scenes/City.helen",
-                    "Scenes/Menu.helen"
+                    "Scenes/Menu.helen",
+                    "Scenes/City.helen"
                 },
                 raisedRequest.SelectedSceneIds);
             Assert.Equal(@"D:\exports\windows", raisedRequest.OutputDirectoryPath);
+        }
+
+        /// <summary>
+        /// Ensures pressing Enter in a scene-order field reflows the visible scene rows using the committed order numbers.
+        /// </summary>
+        [Fact]
+        public void HandleSceneOrderFieldSubmitted_WhenPressedEnter_ReflowsSceneRowsByOrderNumber() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen",
+                    "Scenes/Menu.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen",
+                                "Scenes/Menu.helen"
+                            ],
+                            SceneOrders = [
+                                new EditorBuildSceneOrderDocument {
+                                    SceneId = "Scenes/City.helen",
+                                    OrderNumber = 1
+                                },
+                                new EditorBuildSceneOrderDocument {
+                                    SceneId = "Scenes/Menu.helen",
+                                    OrderNumber = 2
+                                }
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows"
+                        }
+                    ]
+                });
+
+            List<TextBoxComponent> mapOrderFields = GetPrivateField<List<TextBoxComponent>>(dialog, "MapOrderFields");
+            mapOrderFields[0].Text = "2";
+            mapOrderFields[1].Text = "1";
+            mapOrderFields[1].SetTargetFocused(true);
+            mapOrderFields[1].ActivateFromKey(Keys.Enter);
+
+            List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
+            List<TextBoxComponent> reflowedOrderFields = GetPrivateField<List<TextBoxComponent>>(dialog, "MapOrderFields");
+
+            Assert.Collection(
+                mapLabelTexts,
+                label => Assert.Equal("Scenes/Menu.helen", label.Text),
+                label => Assert.Equal("Scenes/City.helen", label.Text));
+            Assert.Collection(
+                reflowedOrderFields,
+                field => Assert.Equal("1", field.Text),
+                field => Assert.Equal("2", field.Text));
         }
 
         /// <summary>
@@ -354,6 +417,16 @@ namespace helengine.editor.tests {
                         SelectedSceneIds = [
                             "Scenes/City.helen"
                         ],
+                        SceneOrders = [
+                            new EditorBuildSceneOrderDocument {
+                                SceneId = "Scenes/City.helen",
+                                OrderNumber = 2
+                            },
+                            new EditorBuildSceneOrderDocument {
+                                SceneId = "Scenes/Menu.helen",
+                                OrderNumber = 1
+                            }
+                        ],
                         OutputDirectoryPath = @"C:\builds\windows"
                     },
                     new EditorBuildPlatformConfigDocument {
@@ -476,6 +549,7 @@ namespace helengine.editor.tests {
             InvokePrivate(dialog, "HandleCopyMapListClicked");
 
             List<CheckBoxComponent> mapCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "MapCheckBoxes");
+            List<TextBoxComponent> mapOrderFields = GetPrivateField<List<TextBoxComponent>>(dialog, "MapOrderFields");
             EditorBuildPlatformConfigDocument linuxConfig = Assert.Single(buildConfig.Platforms.Where(platform => platform.PlatformId == "linux"));
             Assert.True(mapCheckBoxes[0].IsChecked);
             Assert.False(mapCheckBoxes[1].IsChecked);
@@ -484,6 +558,11 @@ namespace helengine.editor.tests {
                     "Scenes/City.helen"
                 },
                 linuxConfig.SelectedSceneIds);
+            Assert.Equal("2", mapOrderFields[0].Text);
+            Assert.Equal("1", mapOrderFields[1].Text);
+            Assert.Equal(2, linuxConfig.SceneOrders.Count);
+            Assert.Equal(2, linuxConfig.SceneOrders[0].OrderNumber);
+            Assert.Equal(1, linuxConfig.SceneOrders[1].OrderNumber);
             Assert.Equal("/tmp/linux-build", linuxConfig.OutputDirectoryPath);
         }
 

@@ -70,6 +70,16 @@ namespace helengine {
         public InputManager InputManager { get; private set; }
 
         /// <summary>
+        /// Gets the packaged scene asset resolver configured for the current runtime target.
+        /// </summary>
+        public RuntimeSceneAssetReferenceResolver SceneAssetReferenceResolver { get; private set; }
+
+        /// <summary>
+        /// Gets the runtime scene loader configured for packaged player scene assets.
+        /// </summary>
+        public RuntimeSceneLoadService SceneLoadService { get; private set; }
+
+        /// <summary>
         /// Initializes core systems with rendering and input managers.
         /// </summary>
         /// <param name="render3D">3D renderer instance.</param>
@@ -103,6 +113,13 @@ namespace helengine {
             InitializationOptions = options;
 
             ObjectManager = new ObjectManager(options);
+            ContentManager contentManager = GetContentManager();
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            SceneAssetReferenceResolver = new RuntimeSceneAssetReferenceResolver(
+                contentManager,
+                InitializationOptions.ContentRootPath,
+                ShaderCompileTarget.DirectX11);
+            SceneLoadService = new RuntimeSceneLoadService(SceneAssetReferenceResolver);
         }
 
         /// <summary>

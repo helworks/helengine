@@ -377,6 +377,10 @@ namespace helengine.editor {
         /// </summary>
         public event Action AddPlaneRequested;
         /// <summary>
+        /// Raised when the user selects the Add Camera command.
+        /// </summary>
+        public event Action AddCameraRequested;
+        /// <summary>
         /// Raised when the user selects the Build Settings command.
         /// </summary>
         public event Action BuildSettingsRequested;
@@ -442,7 +446,8 @@ namespace helengine.editor {
             return new ContextMenuItem[] {
                 new ContextMenuItem("Empty", RaiseAddEmptyRequested),
                 new ContextMenuItem("Cube", RaiseAddCubeRequested),
-                new ContextMenuItem("Plane", RaiseAddPlaneRequested)
+                new ContextMenuItem("Plane", RaiseAddPlaneRequested),
+                new ContextMenuItem("Camera", RaiseAddCameraRequested)
             };
         }
 
@@ -852,6 +857,15 @@ namespace helengine.editor {
         void RaiseAddPlaneRequested() {
             if (AddPlaneRequested != null) {
                 AddPlaneRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Add Camera command event.
+        /// </summary>
+        void RaiseAddCameraRequested() {
+            if (AddCameraRequested != null) {
+                AddCameraRequested();
             }
         }
 

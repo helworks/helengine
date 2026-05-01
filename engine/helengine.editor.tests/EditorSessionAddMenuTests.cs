@@ -30,6 +30,7 @@ namespace helengine.editor.tests {
             EditorSceneMutationService.Reset();
             EngineGeneratedModelCache.ResetForTests();
             EngineGeneratedMaterialCache.ResetForTests();
+            EditorCameraVisualResources.ResetForTests();
         }
 
         /// <summary>
@@ -40,6 +41,7 @@ namespace helengine.editor.tests {
             EditorSceneMutationService.Reset();
             EngineGeneratedModelCache.ResetForTests();
             EngineGeneratedMaterialCache.ResetForTests();
+            EditorCameraVisualResources.ResetForTests();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -75,6 +77,28 @@ namespace helengine.editor.tests {
             Assert.Equal("Cube", selectedEntity.Name);
             Assert.NotNull(meshComponent.Model);
             Assert.NotNull(meshComponent.Material);
+            Assert.Equal(1, GetHierarchyNodeCount(session));
+        }
+
+        /// <summary>
+        /// Ensures Add > Camera creates a camera-backed scene entity and selects it.
+        /// </summary>
+        [Fact]
+        public void HandleAddCameraRequested_CreatesCameraEntityAndSelectsIt() {
+            EditorSession session = CreateSessionForAddCommands();
+
+            InvokePrivate(session, "HandleAddCameraRequested");
+
+            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            CameraComponent cameraComponent = Assert.IsType<CameraComponent>(Assert.Single(selectedEntity.Components, component => component is CameraComponent));
+            EditorSceneCameraSuppressionComponent suppressionComponent = Assert.IsType<EditorSceneCameraSuppressionComponent>(Assert.Single(selectedEntity.Components, component => component is EditorSceneCameraSuppressionComponent));
+            EditorCameraVisualComponent visualComponent = Assert.IsType<EditorCameraVisualComponent>(Assert.Single(selectedEntity.Components, component => component is EditorCameraVisualComponent));
+
+            Assert.Equal("Camera", selectedEntity.Name);
+            Assert.Equal((ushort)0, cameraComponent.LayerMask);
+            Assert.False(cameraComponent.ClearSettings.ClearColorEnabled);
+            Assert.Equal(EditorLayerMasks.SceneObjects, suppressionComponent.LayerMask);
+            Assert.NotNull(visualComponent.Model);
             Assert.Equal(1, GetHierarchyNodeCount(session));
         }
 

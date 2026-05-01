@@ -391,13 +391,14 @@ namespace helengine.editor {
             assetPickerModal = new AssetPickerModal(uiFont, this.projectPath);
             ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
             persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new CameraComponentPersistenceDescriptor());
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
             SceneCreationService = new EditorSceneCreationService();
             ReparentService = new EditorEntityReparentService();
             SceneModelRefreshService = new EditorSceneModelRefreshService(fileSystemModelResolver);
             buildConfigService = new EditorBuildConfigService(this.projectPath);
-            buildQueueService = new EditorBuildQueueService(buildConfigService, new EditorPlaceholderBuildExecutor());
+            buildQueueService = new EditorBuildQueueService(buildConfigService, new EditorWindowsBuildExecutor(this.projectPath));
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
             saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
             openFileDialog = new OpenFileDialog(uiFont, this.projectPath);
@@ -430,6 +431,7 @@ namespace helengine.editor {
             titleBar.AddEmptyRequested += HandleAddEmptyRequested;
             titleBar.AddCubeRequested += HandleAddCubeRequested;
             titleBar.AddPlaneRequested += HandleAddPlaneRequested;
+            titleBar.AddCameraRequested += HandleAddCameraRequested;
             saveFileDialog.SaveRequested += HandleSceneSaveRequested;
             openFileDialog.OpenRequested += HandleSceneOpenRequested;
             reparentEntityDialog.ConfirmRequested += HandleReparentEntityDialogConfirmed;
@@ -739,6 +741,7 @@ namespace helengine.editor {
             titleBar.AddEmptyRequested -= HandleAddEmptyRequested;
             titleBar.AddCubeRequested -= HandleAddCubeRequested;
             titleBar.AddPlaneRequested -= HandleAddPlaneRequested;
+            titleBar.AddCameraRequested -= HandleAddCameraRequested;
             saveFileDialog.SaveRequested -= HandleSceneSaveRequested;
             openFileDialog.OpenRequested -= HandleSceneOpenRequested;
             reparentEntityDialog.ConfirmRequested -= HandleReparentEntityDialogConfirmed;
@@ -861,6 +864,13 @@ namespace helengine.editor {
         /// </summary>
         void HandleAddPlaneRequested() {
             CreateAndSelectSceneEntity(SceneCreationService.CreatePlane);
+        }
+
+        /// <summary>
+        /// Handles the Add Camera command from the editor title bar.
+        /// </summary>
+        void HandleAddCameraRequested() {
+            CreateAndSelectSceneEntity(SceneCreationService.CreateCamera);
         }
 
         /// <summary>

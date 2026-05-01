@@ -97,6 +97,11 @@ namespace helengine.editor {
 
                 document.Platforms ??= [];
                 document.QueueItems ??= [];
+                for (int index = 0; index < document.Platforms.Count; index++) {
+                    EditorBuildPlatformConfigDocument platform = document.Platforms[index];
+                    platform.SelectedSceneIds ??= [];
+                    platform.SceneOrders ??= [];
+                }
                 return document;
             } catch {
                 return null;
