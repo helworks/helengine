@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace helengine {
     /// <summary>
     /// Renders a reusable two-line FPS overlay using the core 2D text pipeline.
@@ -13,7 +11,7 @@ namespace helengine {
         /// <summary>
         /// Font used by both overlay lines.
         /// </summary>
-        readonly FontAsset Font;
+        FontAsset font;
 
         /// <summary>
         /// Root entity that positions the overlay in viewport space.
@@ -101,6 +99,24 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets or sets the font used by both overlay lines.
+        /// </summary>
+        public FontAsset Font {
+            get { return font; }
+            set {
+                if (value == null) {
+                    throw new ArgumentNullException(nameof(value));
+                }
+                if (font == value) {
+                    return;
+                }
+
+                font = value;
+                ApplyFont();
+            }
+        }
+
+        /// <summary>
         /// Gets the last formatted update-FPS line.
         /// </summary>
         public string UpdateFpsText { get; private set; }
@@ -126,15 +142,10 @@ namespace helengine {
         byte renderOrder2D = 250;
 
         /// <summary>
-        /// Creates a new FPS overlay that renders with the provided font.
+        /// Creates a new FPS overlay using the default font configured on the active core.
         /// </summary>
-        /// <param name="font">Font used for both overlay lines.</param>
-        public FPSComponent(FontAsset font) {
-            if (font == null) {
-                throw new ArgumentNullException(nameof(font));
-            }
-
-            Font = font;
+        public FPSComponent() {
+            Font = ResolveDefaultFont();
         }
 
         /// <summary>
@@ -182,11 +193,11 @@ namespace helengine {
             OverlayHost.AddChild(RenderRowHost);
 
             RenderTextComponent = new TextComponent();
-            RenderTextComponent.Font = Font;
             RenderTextComponent.Color = new byte4(255, 255, 255, 255);
             RenderTextComponent.RenderOrder2D = RenderOrder2D;
             RenderRowHost.AddComponent(RenderTextComponent);
 
+            ApplyFont();
             ResetSamplingWindow();
             ApplyPadding();
             Initialized = true;
@@ -285,6 +296,23 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Applies the configured font to both overlay text rows and repositions the second line.
+        /// </summary>
+        void ApplyFont() {
+            if (UpdateTextComponent != null) {
+                UpdateTextComponent.Font = Font;
+            }
+
+            if (RenderTextComponent != null) {
+                RenderTextComponent.Font = Font;
+            }
+
+            if (RenderRowHost != null) {
+                RenderRowHost.LocalPosition = new float3(0f, Font.LineHeight, 0.1f);
+            }
+        }
+
+        /// <summary>
         /// Resets the current sampling window and restores the placeholder text.
         /// </summary>
         void ResetSamplingWindow() {
@@ -307,7 +335,7 @@ namespace helengine {
         /// Formats the latest FPS values once the configured refresh interval has elapsed.
         /// </summary>
         void TryRefreshOverlay() {
-            double elapsedSeconds = (DateTime.UtcNow - LastSampleUtc).TotalSeconds;
+            double elapsedSeconds = (DateTime.UtcNow - LastSampleUtc).TotalMilliseconds / 1000.0;
             if (refreshIntervalSeconds > 0d && elapsedSeconds < refreshIntervalSeconds) {
                 return;
             }
@@ -316,8 +344,8 @@ namespace helengine {
             double updateFps = UpdateFrameCount / safeElapsedSeconds;
             double renderFps = RenderFrameCount / safeElapsedSeconds;
 
-            UpdateFpsText = string.Format(CultureInfo.InvariantCulture, "Update FPS: {0:0.0}", updateFps);
-            RenderFpsText = string.Format(CultureInfo.InvariantCulture, "Render FPS: {0:0.0}", renderFps);
+            UpdateFpsText = "Update FPS: " + updateFps;
+            RenderFpsText = "Render FPS: " + renderFps;
 
             if (UpdateTextComponent != null) {
                 UpdateTextComponent.Text = UpdateFpsText;
@@ -330,6 +358,21 @@ namespace helengine {
             UpdateFrameCount = 0;
             RenderFrameCount = 0;
             LastSampleUtc = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Resolves the default font configured on the active core instance.
+        /// </summary>
+        /// <returns>Default font used for new FPS overlays.</returns>
+        static FontAsset ResolveDefaultFont() {
+            if (Core.Instance == null) {
+                throw new InvalidOperationException("FPSComponent requires an active core before it can resolve the default font.");
+            }
+            if (Core.Instance.DefaultFontAsset == null) {
+                throw new InvalidOperationException("FPSComponent requires Core.DefaultFontAsset to be configured before construction.");
+            }
+
+            return Core.Instance.DefaultFontAsset;
         }
     }
 }

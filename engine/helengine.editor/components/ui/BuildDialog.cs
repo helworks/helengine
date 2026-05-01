@@ -612,7 +612,7 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            BuildColumnRoot.AddChild(AddToBuildButtonHost);
+            QueueColumnRoot.AddChild(AddToBuildButtonHost);
 
             AddToBuildButton = new ButtonComponent("Add to Build", new int2(FooterButtonWidth, FooterButtonHeight), DialogFont, HandleAddToBuildClicked);
             AddToBuildButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
@@ -1285,7 +1285,8 @@ namespace helengine.editor {
         /// </summary>
         void LayoutStaticControls() {
             int buildQueueButtonY = LegacyContentHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8;
-            BuildQueueButtonHost.Position = new float3(0f, buildQueueButtonY, 0.1f);
+            AddToBuildButtonHost.Position = new float3(0f, buildQueueButtonY, 0.1f);
+            BuildQueueButtonHost.Position = new float3(FooterButtonWidth + 8f, buildQueueButtonY, 0.1f);
             QueueListBackground.Size = new int2(QueueColumnWidth, GetQueueSectionHeight());
             QueueHeaderBackground.Size = new int2(QueueColumnWidth, QueueHeaderHeight);
             LayoutBuildLogsSection();

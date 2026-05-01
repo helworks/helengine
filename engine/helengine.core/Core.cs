@@ -14,6 +14,11 @@ namespace helengine {
         readonly object ContentManagerLock;
 
         /// <summary>
+        /// Backing field for the default font asset used by text-heavy components.
+        /// </summary>
+        FontAsset DefaultFontAssetValue;
+
+        /// <summary>
         /// Initializes a new core instance with default initialization options.
         /// </summary>
         public Core() : this(new CoreInitializationOptions()) { }
@@ -68,6 +73,20 @@ namespace helengine {
         /// Gets the input manager handling keyboard and mouse.
         /// </summary>
         public InputManager InputManager { get; private set; }
+
+        /// <summary>
+        /// Gets or sets the default font asset used by components that need a text font without being configured explicitly.
+        /// </summary>
+        public FontAsset DefaultFontAsset {
+            get { return DefaultFontAssetValue; }
+            set {
+                if (value == null) {
+                    throw new ArgumentNullException(nameof(value));
+                }
+
+                DefaultFontAssetValue = value;
+            }
+        }
 
         /// <summary>
         /// Gets the packaged scene asset resolver configured for the current runtime target.

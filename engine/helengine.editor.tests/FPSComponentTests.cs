@@ -44,7 +44,8 @@ namespace helengine.editor.tests {
             entity.InitChildren();
 
             FontAsset font = CreateFont();
-            FPSComponent fps = new FPSComponent(font);
+            Core.Instance.DefaultFontAsset = font;
+            FPSComponent fps = new FPSComponent();
 
             entity.AddComponent(fps);
 
@@ -73,9 +74,10 @@ namespace helengine.editor.tests {
             entity.InitComponents();
             entity.InitChildren();
 
-            FPSComponent fps = new FPSComponent(CreateFont()) {
-                RefreshIntervalSeconds = 0d
-            };
+            FontAsset font = CreateFont();
+            Core.Instance.DefaultFontAsset = font;
+            FPSComponent fps = new FPSComponent();
+            fps.RefreshIntervalSeconds = 0d;
 
             entity.AddComponent(fps);
 
@@ -103,7 +105,8 @@ namespace helengine.editor.tests {
             entity.InitComponents();
             entity.InitChildren();
 
-            FPSComponent fps = new FPSComponent(CreateFont());
+            Core.Instance.DefaultFontAsset = CreateFont();
+            FPSComponent fps = new FPSComponent();
 
             entity.AddComponent(fps);
 
@@ -122,10 +125,61 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the parameterless constructor uses the configured default font asset.
+        /// </summary>
+        [Fact]
+        public void Constructor_WhenCoreDefaultFontIsConfigured_AssignsThatFont() {
+            FontAsset font = CreateFont();
+            Core.Instance.DefaultFontAsset = font;
+
+            FPSComponent fps = new FPSComponent();
+
+            Assert.Same(font, fps.Font);
+        }
+
+        /// <summary>
+        /// Ensures changing the font after attachment updates the rendered overlay text.
+        /// </summary>
+        [Fact]
+        public void FontProperty_WhenChangedAfterAttachment_UpdatesOverlayTextFonts() {
+            Entity entity = new Entity();
+            entity.InitComponents();
+            entity.InitChildren();
+
+            FontAsset initialFont = CreateFont(16f);
+            FontAsset replacementFont = CreateFont(24f);
+            Core.Instance.DefaultFontAsset = initialFont;
+
+            FPSComponent fps = new FPSComponent();
+            entity.AddComponent(fps);
+            fps.Font = replacementFont;
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            Entity updateRow = overlayHost.Children[0];
+            Entity renderRow = overlayHost.Children[1];
+            TextComponent updateText = Assert.Single(updateRow.Components.OfType<TextComponent>());
+            TextComponent renderText = Assert.Single(renderRow.Components.OfType<TextComponent>());
+
+            Assert.Same(replacementFont, fps.Font);
+            Assert.Same(replacementFont, updateText.Font);
+            Assert.Same(replacementFont, renderText.Font);
+            Assert.Equal(replacementFont.LineHeight, renderRow.LocalPosition.Y);
+        }
+
+        /// <summary>
         /// Creates a deterministic font asset containing the glyphs needed by the overlay labels.
         /// </summary>
         /// <returns>Font asset with stable glyph metrics for the tests.</returns>
         FontAsset CreateFont() {
+            return CreateFont(16f);
+        }
+
+        /// <summary>
+        /// Creates a deterministic font asset containing the glyphs needed by the overlay labels.
+        /// </summary>
+        /// <param name="lineHeight">Line height assigned to the generated test font.</param>
+        /// <returns>Font asset with stable glyph metrics for the tests.</returns>
+        FontAsset CreateFont(float lineHeight) {
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
                 ['U'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
                 ['p'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
@@ -166,7 +220,7 @@ namespace helengine.editor.tests {
                     Height = 64
                 },
                 characters,
-                16f,
+                lineHeight,
                 64,
                 64);
         }

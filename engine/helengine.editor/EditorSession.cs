@@ -329,6 +329,7 @@ namespace helengine.editor {
             snapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
             toolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
             Importers = importers ?? throw new ArgumentNullException(nameof(importers));
+            this.core.DefaultFontAsset = this.uiFont;
 
             EditorKeyboardFocusService.Reset();
             core.Initialize(render3D, render2D, input);

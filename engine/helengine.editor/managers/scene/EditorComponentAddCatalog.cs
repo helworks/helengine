@@ -110,7 +110,8 @@ namespace helengine.editor {
         /// <returns>Editor descriptor that can instantiate the component.</returns>
         static EditorComponentAddDescriptor CreateDescriptor(Type componentType) {
             string displayName = FormatDisplayName(componentType.Name);
-            return new EditorComponentAddDescriptor(displayName, componentType, false, entity => AddComponent(entity, componentType));
+            bool singleInstance = componentType == typeof(FPSComponent);
+            return new EditorComponentAddDescriptor(displayName, componentType, singleInstance, entity => AddComponent(entity, componentType));
         }
 
         /// <summary>

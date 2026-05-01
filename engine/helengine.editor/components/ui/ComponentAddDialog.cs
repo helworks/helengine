@@ -124,11 +124,6 @@ namespace helengine.editor {
         readonly List<EditorComponentAddDescriptor> ScriptDescriptors;
 
         /// <summary>
-        /// Additional descriptors that require the dialog's shared font to instantiate.
-        /// </summary>
-        readonly List<EditorComponentAddDescriptor> SpecialDescriptors;
-
-        /// <summary>
         /// Currently targeted editor entity.
         /// </summary>
         EditorEntity TargetEntity;
@@ -193,7 +188,6 @@ namespace helengine.editor {
             AvailableDescriptors = new List<EditorComponentAddDescriptor>(16);
             FilteredDescriptors = new List<EditorComponentAddDescriptor>(16);
             ScriptDescriptors = new List<EditorComponentAddDescriptor>(16);
-            SpecialDescriptors = BuildSpecialDescriptors();
             ScrollOffset = 0;
             VisibleRowCount = 1;
             LastActivatedTicks = 0;
@@ -409,82 +403,8 @@ namespace helengine.editor {
                 AvailableDescriptors.Add(descriptor);
             }
 
-            for (int i = 0; i < SpecialDescriptors.Count; i++) {
-                EditorComponentAddDescriptor descriptor = SpecialDescriptors[i];
-                if (descriptor == null) {
-                    continue;
-                }
-
-                if (descriptor.SingleInstance && HasExactComponent(TargetEntity, descriptor.ComponentType)) {
-                    continue;
-                }
-
-                AvailableDescriptors.Add(descriptor);
-            }
-
             RebuildFilteredDescriptors();
             UpdateListLayout();
-        }
-
-        /// <summary>
-        /// Builds the non-reflected descriptors that need the dialog font to create their components.
-        /// </summary>
-        /// <returns>Descriptors that should always be merged into the picker list.</returns>
-        List<EditorComponentAddDescriptor> BuildSpecialDescriptors() {
-            List<EditorComponentAddDescriptor> descriptors = new List<EditorComponentAddDescriptor>(1) {
-                new EditorComponentAddDescriptor("FPS", typeof(FPSComponent), true, AddFpsComponent)
-            };
-
-            return descriptors;
-        }
-
-        /// <summary>
-        /// Attaches an FPS overlay component to the selected editor entity.
-        /// </summary>
-        /// <param name="entity">Entity that will receive the overlay component.</param>
-        void AddFpsComponent(Entity entity) {
-            EditorEntity editorEntity = RequireEditorEntity(entity);
-            editorEntity.AddComponent(new FPSComponent(SearchFont));
-        }
-
-        /// <summary>
-        /// Resolves the editor entity used by the add action.
-        /// </summary>
-        /// <param name="entity">Entity targeted by the add action.</param>
-        /// <returns>The supplied entity as an editor entity.</returns>
-        static EditorEntity RequireEditorEntity(Entity entity) {
-            if (entity is not EditorEntity editorEntity) {
-                throw new InvalidOperationException("Addable components can only be attached to editor entities.");
-            }
-
-            return editorEntity;
-        }
-
-        /// <summary>
-        /// Returns whether one entity already owns a component of the exact requested type.
-        /// </summary>
-        /// <param name="entity">Entity whose component list should be searched.</param>
-        /// <param name="componentType">Concrete component type to locate.</param>
-        /// <returns>True when the entity already owns the exact component type.</returns>
-        static bool HasExactComponent(Entity entity, Type componentType) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            }
-            if (componentType == null) {
-                throw new ArgumentNullException(nameof(componentType));
-            }
-            if (entity.Components == null) {
-                return false;
-            }
-
-            for (int i = 0; i < entity.Components.Count; i++) {
-                Component component = entity.Components[i];
-                if (component != null && component.GetType() == componentType) {
-                    return true;
-                }
-            }
-
-            return false;
         }
 
         /// <summary>

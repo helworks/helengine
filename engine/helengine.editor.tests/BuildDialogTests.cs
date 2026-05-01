@@ -1177,6 +1177,7 @@ namespace helengine.editor.tests {
             Assert.Equal(BuildDialog.FooterButtonHeight, browseButtonSize.Y);
             Assert.Equal(buildQueueButtonSize.Y, addToBuildButtonSize.Y);
             Assert.Equal(buildQueueButtonHost.LocalPosition.Y, addToBuildButtonHost.LocalPosition.Y);
+            Assert.True(addToBuildButtonHost.LocalPosition.X < buildQueueButtonHost.LocalPosition.X);
         }
 
         /// <summary>
