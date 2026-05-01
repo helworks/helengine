@@ -6,7 +6,7 @@ Add one editor dialog that groups platform-scoped profile settings in a single p
 
 ## Scope
 
-This change adds one new Build menu action, `Profiles...`, which opens a single dialog with two sections:
+This change adds one new Build menu action, `Profiles...`, which opens a single dialog with two tabs:
 
 - Build Profiles
 - Graphics Profiles
@@ -15,21 +15,22 @@ The dialog is platform-aware. It edits settings for the currently active platfor
 
 ## Recommended Structure
 
-### 1. One dialog, two sections
+### 1. One dialog, two tabs
 
 The dialog stays a single editor modal instead of becoming two separate commands.
 
 - `Build Profiles` owns asset cooking and export behavior.
 - `Graphics Profiles` owns runtime presentation defaults.
 
-That keeps the menu surface small while still separating concerns inside the dialog.
+That keeps the menu surface small while still separating concerns inside the dialog. Switching tabs only changes the visible draft state; it does not commit edits.
 
 ### 2. Platform-scoped selection
 
 The dialog operates on the active platform already persisted by the editor.
 
 - When the user changes platform, the dialog loads that platform's profile values.
-- When the dialog closes with confirmation, the values are persisted for that platform.
+- The dialog keeps edits in memory until Save is pressed.
+- When the user presses Save, the current platform's draft values are persisted for that platform.
 - The active platform remains the source of truth for which profile set is being edited.
 
 ### 3. Build Profiles content
@@ -68,8 +69,8 @@ This keeps the menu from growing into separate profile entry points that mostly 
 
 - `EditorSession` opens the dialog from the Build menu.
 - The dialog reads the current active platform from editor-local build settings.
-- The dialog edits platform-scoped profile values in the build settings store.
-- Confirming the dialog persists the current platform's settings immediately.
+- The dialog edits platform-scoped profile values in local draft state.
+- Pressing Save persists the current platform's Build and Graphics profile values.
 - The next build queue item snapshots the platform profile values that were active at queue time.
 
 ## Error Handling
@@ -77,7 +78,7 @@ This keeps the menu from growing into separate profile entry points that mostly 
 The dialog should fail clearly rather than silently inventing defaults.
 
 - If the active platform cannot be resolved, opening the dialog should fail.
-- If a profile value is missing for a platform, the dialog should show the current platform defaults explicitly instead of creating a hidden fallback record.
+- If a profile value is missing for a platform, the dialog should show the current platform defaults explicitly in the draft state instead of creating a hidden fallback record.
 - If a platform entry is missing from discovery, it should be visible elsewhere in the platform UI as missing, but the profile dialog should not allow editing a non-existent active platform.
 
 ## Testing
@@ -86,8 +87,9 @@ Add focused coverage for:
 
 - the Build menu exposing `Profiles...`
 - the dialog opening with the current active platform selected
+- switching tabs without committing draft values
 - switching platforms inside the dialog loading the correct profile values
-- confirming the dialog persisting the selected platform's Build and Graphics profile values
+- confirming the dialog persisting the selected platform's Build and Graphics profile values only on Save
 - keeping the existing `Platforms...` workflow separate from profile editing
 
 ## Out of Scope
@@ -97,5 +99,6 @@ This dialog does not change the runtime renderer itself.
 - It does not remove vsync by default.
 - It does not alter the Windows swap-chain behavior.
 - It does not implement the actual profile consumers yet.
+- It does not auto-save when tab changes occur.
 
 Those behaviors should be wired after the dialog and persistence shape are in place.
