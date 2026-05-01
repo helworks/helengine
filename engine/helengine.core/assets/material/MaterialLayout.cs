@@ -6,15 +6,7 @@ namespace helengine {
         /// <summary>
         /// Shared empty layout used by runtime materials that have not yet been configured from shader metadata.
         /// </summary>
-        static readonly MaterialLayout EmptyValue = new MaterialLayout(
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            string.Empty,
-            new MaterialRenderState(),
-            Array.Empty<MaterialLayoutBinding>(),
-            Array.Empty<MaterialLayoutBinding>(),
-            Array.Empty<MaterialLayoutBinding>());
+        static readonly MaterialLayout EmptyValue = CreateEmptyValue();
 
         /// <summary>
         /// Initializes a new material layout.
@@ -50,6 +42,22 @@ namespace helengine {
         /// Gets the empty shared layout used before a runtime material is configured.
         /// </summary>
         public static MaterialLayout Empty => EmptyValue;
+
+        /// <summary>
+        /// Builds the shared empty layout used before a runtime material is configured.
+        /// </summary>
+        /// <returns>Shared empty material layout.</returns>
+        static MaterialLayout CreateEmptyValue() {
+            return new MaterialLayout(
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                new MaterialRenderState(),
+                Array.Empty<MaterialLayoutBinding>(),
+                Array.Empty<MaterialLayoutBinding>(),
+                Array.Empty<MaterialLayoutBinding>());
+        }
 
         /// <summary>
         /// Gets the shader asset identifier that owns the selected programs.

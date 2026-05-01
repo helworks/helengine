@@ -283,6 +283,50 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the footer and status rows stay attached to the dialog shell when it is resized.
+        /// </summary>
+        [Fact]
+        public void HandleBottomRightResizeGrip_WhenDragged_RepositionsFooterAndStatusWithTheShell() {
+            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            dialog.Show(
+                CreateAvailablePlatforms("windows"),
+                new List<string> {
+                    "windows"
+                });
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity panelRoot = GetPrivateField<EditorEntity>(dialog, "PanelRoot");
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            EditorEntity statusHost = GetPrivateField<EditorEntity>(dialog, "StatusHost");
+            EditorEntity cancelButtonHost = GetPrivateField<EditorEntity>(dialog, "CancelButtonHost");
+            EditorEntity saveButtonHost = GetPrivateField<EditorEntity>(dialog, "SaveButtonHost");
+            ButtonComponent cancelButton = cancelButtonHost.Components.OfType<ButtonComponent>().Single();
+            ButtonComponent saveButton = saveButtonHost.Components.OfType<ButtonComponent>().Single();
+            EditorEntity bottomRightGrip = Assert.IsType<EditorEntity>(panelRoot.Children.Single(child => string.Equals(((EditorEntity)child).Name, "ResizeBottomRightGrip", StringComparison.Ordinal)));
+            InteractableComponent bottomRightInteractable = bottomRightGrip.Components.OfType<InteractableComponent>().Single();
+            int2 initialSize = panelBackground.Size;
+
+            bottomRightInteractable.OnCursor(new int2(panelBackground.Size.X - 8, panelBackground.Size.Y - 8), new int2(0, 0), PointerInteraction.Press);
+            bottomRightInteractable.OnCursor(new int2(panelBackground.Size.X - 8, panelBackground.Size.Y - 8), new int2(48, 32), PointerInteraction.Hover);
+            bottomRightInteractable.OnCursor(new int2(panelBackground.Size.X - 8, panelBackground.Size.Y - 8), new int2(0, 0), PointerInteraction.Release);
+            dialog.UpdateLayout(1280, 720);
+
+            Assert.Equal(initialSize.X + 48, panelBackground.Size.X);
+            Assert.Equal(initialSize.Y + 32, panelBackground.Size.Y);
+            int expectedFooterTop = panelBackground.Size.Y - BuildSettingsDialog.PanelPadding - BuildSettingsDialog.FooterHeight;
+            int expectedButtonY = expectedFooterTop + Math.Max(0, (BuildSettingsDialog.FooterHeight - saveButton.Size.Y) / 2);
+            int expectedCancelX = panelBackground.Size.X - BuildSettingsDialog.PanelPadding - saveButton.Size.X - BuildSettingsDialog.SectionSpacing - cancelButton.Size.X;
+            int expectedSaveX = panelBackground.Size.X - BuildSettingsDialog.PanelPadding - saveButton.Size.X;
+            int expectedStatusY = panelBackground.Size.Y - BuildSettingsDialog.FooterHeight - 38;
+
+            Assert.Equal(expectedStatusY, (int)Math.Round(statusHost.LocalPosition.Y));
+            Assert.Equal(expectedCancelX, (int)Math.Round(cancelButtonHost.LocalPosition.X));
+            Assert.Equal(expectedSaveX, (int)Math.Round(saveButtonHost.LocalPosition.X));
+            Assert.Equal(expectedButtonY, (int)Math.Round(cancelButtonHost.LocalPosition.Y));
+            Assert.Equal(expectedButtonY, (int)Math.Round(saveButtonHost.LocalPosition.Y));
+        }
+
+        /// <summary>
         /// Ensures the dialog rejects confirmation when every platform is unchecked.
         /// </summary>
         [Fact]

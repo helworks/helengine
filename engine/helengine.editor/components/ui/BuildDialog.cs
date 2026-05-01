@@ -1,3 +1,5 @@
+using helengine.baseplatform.Definitions;
+
 namespace helengine.editor {
     /// <summary>
     /// Floating modal dialog used to prepare local per-platform build selections and queued builds.
@@ -360,6 +362,10 @@ namespace helengine.editor {
         /// </summary>
         EditorBuildConfigDocument CurrentBuildConfig;
         /// <summary>
+        /// Builder-provided metadata for the currently active platform.
+        /// </summary>
+        EditorPlatformBuildSelectionModel ActivePlatformSelectionModel;
+        /// <summary>
         /// Tracks whether the scene-list container is currently showing an invalid-selection border.
         /// </summary>
         bool IsSceneListInvalid;
@@ -719,7 +725,28 @@ namespace helengine.editor {
         /// <param name="sceneIds">Project-relative scenes available for the build.</param>
         /// <param name="activePlatformId">Platform tab to activate first.</param>
         /// <param name="buildConfig">Current local build configuration to render.</param>
-        public void Show(IReadOnlyList<string> supportedPlatformIds, IReadOnlyList<string> sceneIds, string activePlatformId, EditorBuildConfigDocument buildConfig) {
+        public void Show(
+            IReadOnlyList<string> supportedPlatformIds,
+            IReadOnlyList<string> sceneIds,
+            string activePlatformId,
+            EditorBuildConfigDocument buildConfig) {
+            Show(supportedPlatformIds, sceneIds, activePlatformId, buildConfig, null);
+        }
+
+        /// <summary>
+        /// Shows the dialog for the provided available and currently supported platforms.
+        /// </summary>
+        /// <param name="availablePlatforms">Selectable platforms discovered for the current engine environment.</param>
+        /// <param name="supportedPlatforms">Platforms currently written into the project file.</param>
+        /// <param name="activePlatformId">Platform tab to activate first.</param>
+        /// <param name="buildConfig">Current local build configuration to render.</param>
+        /// <param name="selectionModel">Builder-provided metadata for the active platform.</param>
+        public void Show(
+            IReadOnlyList<string> supportedPlatformIds,
+            IReadOnlyList<string> sceneIds,
+            string activePlatformId,
+            EditorBuildConfigDocument buildConfig,
+            EditorPlatformBuildSelectionModel selectionModel) {
             if (supportedPlatformIds == null) {
                 throw new ArgumentNullException(nameof(supportedPlatformIds));
             }
@@ -736,6 +763,7 @@ namespace helengine.editor {
             CopyPlatforms(supportedPlatformIds);
             CopyScenes(sceneIds);
             CurrentBuildConfig = buildConfig;
+            ActivePlatformSelectionModel = selectionModel;
             EnsurePlatformConfigs();
             SetActivePlatform(activePlatformId);
             RebuildPlatformTabs();
@@ -800,7 +828,16 @@ namespace helengine.editor {
             }
 
             List<string> orderedSceneIds = BuildOrderedSceneIds(platformConfig, selectedSceneIds);
-            AddRequested?.Invoke(new BuildDialogAddRequest(ActivePlatformId, orderedSceneIds, platformConfig.OutputDirectoryPath, platformConfig.DebugBuild));
+            EnsurePlatformSelectionDefaults(platformConfig);
+            AddRequested?.Invoke(new BuildDialogAddRequest(
+                ActivePlatformId,
+                orderedSceneIds,
+                platformConfig.OutputDirectoryPath,
+                platformConfig.DebugBuild,
+                platformConfig.SelectedBuildProfileId,
+                platformConfig.SelectedGraphicsProfileId,
+                platformConfig.SelectedBuildOptionValues,
+                platformConfig.SelectedGraphicsOptionValues));
         }
 
         /// <summary>
@@ -1339,6 +1376,32 @@ namespace helengine.editor {
 
             platformConfig.OutputDirectoryPath = OutputDirectoryField.Text ?? string.Empty;
             platformConfig.DebugBuild = DebugBuildCheckBox.IsChecked;
+            EnsurePlatformSelectionDefaults(platformConfig);
+        }
+
+        /// <summary>
+        /// Ensures the active platform has a selected build profile and graphics profile snapshot.
+        /// </summary>
+        /// <param name="platformConfig">Active platform configuration to normalize.</param>
+        void EnsurePlatformSelectionDefaults(EditorBuildPlatformConfigDocument platformConfig) {
+            if (platformConfig == null || ActivePlatformSelectionModel == null) {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(platformConfig.SelectedBuildProfileId) && ActivePlatformSelectionModel.BuildProfiles.Length > 0) {
+                PlatformBuildProfileDefinition buildProfile = ActivePlatformSelectionModel.BuildProfiles[0];
+                platformConfig.SelectedBuildProfileId = buildProfile.ProfileId;
+                if (!string.IsNullOrWhiteSpace(buildProfile.GraphicsProfileId)) {
+                    platformConfig.SelectedGraphicsProfileId = buildProfile.GraphicsProfileId;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(platformConfig.SelectedGraphicsProfileId) && ActivePlatformSelectionModel.GraphicsProfiles.Length > 0) {
+                platformConfig.SelectedGraphicsProfileId = ActivePlatformSelectionModel.GraphicsProfiles[0].ProfileId;
+            }
+
+            platformConfig.SelectedBuildOptionValues ??= new Dictionary<string, string>();
+            platformConfig.SelectedGraphicsOptionValues ??= new Dictionary<string, string>();
         }
 
         /// <summary>

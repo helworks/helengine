@@ -46,8 +46,10 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(snapValue), "Snap value must be greater than zero.");
             }
 
-            double snappedAxisDelta = SnapScalar(axisDelta, snapValue);
-            return ResolveAxisScale(startScale, worldAxisDirection, snappedAxisDelta, minimumScaleComponent);
+            int axisIndex = ResolveDominantAxisIndex(worldAxisDirection);
+            double startValue = GetScaleComponent(startScale, axisIndex);
+            double resolvedValue = ClampScaleComponent(SnapScalar(startValue + axisDelta, snapValue), minimumScaleComponent);
+            return SetScaleComponent(startScale, axisIndex, (float)resolvedValue);
         }
 
         /// <summary>
@@ -108,17 +110,20 @@ namespace helengine.editor {
             float3 normalizedSecondary = NormalizeDirection(worldSecondaryDirection);
             double primaryDelta = float3.Dot(planeDelta, normalizedPrimary);
             double secondaryDelta = float3.Dot(planeDelta, normalizedSecondary);
-            double snappedPrimary = SnapScalar(primaryDelta, snapValue);
-            double snappedSecondary = SnapScalar(secondaryDelta, snapValue);
-            float3 snappedPlaneDelta =
-                (normalizedPrimary * (float)snappedPrimary) +
-                (normalizedSecondary * (float)snappedSecondary);
-            return ResolvePlaneScale(
-                startScale,
-                normalizedPrimary,
-                normalizedSecondary,
-                snappedPlaneDelta,
-                minimumScaleComponent);
+            int primaryAxisIndex = ResolveDominantAxisIndex(normalizedPrimary);
+            int secondaryAxisIndex = ResolveDominantAxisIndex(normalizedSecondary);
+            if (primaryAxisIndex == secondaryAxisIndex) {
+                throw new InvalidOperationException("Plane scale directions must affect two distinct scale components.");
+            }
+
+            double startPrimary = GetScaleComponent(startScale, primaryAxisIndex);
+            double startSecondary = GetScaleComponent(startScale, secondaryAxisIndex);
+            double resolvedPrimary = ClampScaleComponent(SnapScalar(startPrimary + primaryDelta, snapValue), minimumScaleComponent);
+            double resolvedSecondary = ClampScaleComponent(SnapScalar(startSecondary + secondaryDelta, snapValue), minimumScaleComponent);
+
+            float3 resolvedScale = SetScaleComponent(startScale, primaryAxisIndex, (float)resolvedPrimary);
+            resolvedScale = SetScaleComponent(resolvedScale, secondaryAxisIndex, (float)resolvedSecondary);
+            return resolvedScale;
         }
 
         /// <summary>

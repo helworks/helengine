@@ -112,6 +112,21 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the title-bar backdrop reaches the minimize button border instead of leaving a gap.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_PositionsBackdropTopFlushToWindowControlCluster() {
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            dialog.Show();
+            dialog.UpdateLayout(1280, 720);
+
+            SpriteComponent backdropTopSurface = GetPrivateField<SpriteComponent>(dialog, "BackdropTopSurface");
+
+            Assert.Equal(1280 - (EditorDialogBase.CloseButtonWidth * 3), backdropTopSurface.Size.X);
+            Assert.Equal(EditorTitleBar.HeightPixels, backdropTopSurface.Size.Y);
+        }
+
+        /// <summary>
         /// Ensures the message block and footer buttons are anchored to the dialog shell and stay aligned after a resize.
         /// </summary>
         [Fact]

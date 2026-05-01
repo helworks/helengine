@@ -37,5 +37,25 @@ namespace helengine.editor {
         /// Gets or sets the persisted debug-build snapshot captured when the queue item was created.
         /// </summary>
         public bool DebugBuild { get; set; }
+
+        /// <summary>
+        /// Gets or sets the selected builder-provided build profile id.
+        /// </summary>
+        public string SelectedBuildProfileId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the selected builder-provided graphics profile id.
+        /// </summary>
+        public string SelectedGraphicsProfileId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the selected builder-provided build option values.
+        /// </summary>
+        public Dictionary<string, string> SelectedBuildOptionValues { get; set; } = [];
+
+        /// <summary>
+        /// Gets or sets the selected builder-provided graphics option values.
+        /// </summary>
+        public Dictionary<string, string> SelectedGraphicsOptionValues { get; set; } = [];
     }
 }

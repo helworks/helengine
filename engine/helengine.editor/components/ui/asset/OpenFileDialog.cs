@@ -12,11 +12,11 @@ namespace helengine.editor {
         /// </summary>
         public const int MinPanelHeight = 320;
         /// <summary>
-        /// Default maximum width for the dialog panel.
+        /// Default maximum width for the dialog panel at first show.
         /// </summary>
         public const int MaxPanelWidth = 920;
         /// <summary>
-        /// Default maximum height for the dialog panel.
+        /// Default maximum height for the dialog panel at first show.
         /// </summary>
         public const int MaxPanelHeight = 760;
         /// <summary>
@@ -40,9 +40,6 @@ namespace helengine.editor {
         /// </summary>
         public const int SectionSpacing = 10;
         /// <summary>
-        /// Background color applied to the Open Map modal panel.
-        /// </summary>
-        static readonly byte4 PanelBackgroundColor = new byte4(100, 149, 237, 255);
         /// <summary>
         /// Maximum time in milliseconds between row activations that counts as a double-click.
         /// </summary>
@@ -132,7 +129,7 @@ namespace helengine.editor {
             Font = font;
             PanelSize = new int2(MinPanelWidth, MinPanelHeight);
             PanelPosition = int2.Zero;
-            DialogPanelBackground.FillColor = PanelBackgroundColor;
+            DialogPanelBackground.FillColor = ThemeManager.Colors.SurfacePrimary;
 
             byte toolbarOrder = DialogPanelOrder;
             byte rowBackgroundOrder = DialogPanelOrder;
@@ -254,17 +251,19 @@ namespace helengine.editor {
 
             int safeWindowWidth = Math.Max(1, windowWidth);
             int safeWindowHeight = Math.Max(1, windowHeight);
-            int maxWidth = Math.Max(MinPanelWidth, safeWindowWidth - PanelPadding * 2);
-            int maxHeight = Math.Max(MinPanelHeight, safeWindowHeight - PanelPadding * 2);
-            int panelWidth = Math.Min(MaxPanelWidth, Math.Min(maxWidth, safeWindowWidth));
-            int panelHeight = Math.Min(MaxPanelHeight, Math.Min(maxHeight, safeWindowHeight));
+            if (!DialogIsUserPositioned) {
+                int maxWidth = Math.Max(MinPanelWidth, safeWindowWidth - PanelPadding * 2);
+                int maxHeight = Math.Max(MinPanelHeight, safeWindowHeight - PanelPadding * 2);
+                int panelWidth = Math.Min(MaxPanelWidth, Math.Min(maxWidth, safeWindowWidth));
+                int panelHeight = Math.Min(MaxPanelHeight, Math.Min(maxHeight, safeWindowHeight));
+                SetDialogSize(panelWidth, panelHeight);
+            }
 
-            SetDialogSize(panelWidth, panelHeight);
-            PanelSize = new int2(panelWidth, panelHeight);
             if (!UpdateDialogFrame(windowWidth, windowHeight)) {
                 return;
             }
 
+            PanelSize = DialogPanelBackground.Size;
             PanelPosition = DialogPanelPosition;
             LayoutBrowser();
             LayoutStatus();

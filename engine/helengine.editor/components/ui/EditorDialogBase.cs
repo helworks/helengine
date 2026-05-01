@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Provides the shared modal panel, title-bar chrome, close button, and drag behavior used by editor dialogs.
     /// </summary>
-    public abstract class EditorDialogBase : EditorEntity {
+    public abstract class EditorDialogBase : EditorEntity, IAnchorBoundsProvider {
         /// <summary>
         /// Width used by the shared close button chrome.
         /// </summary>
@@ -43,9 +43,9 @@ namespace helengine.editor {
         /// </summary>
         const byte BackdropOrder = RenderOrder2D.ModalBackground - 1;
         /// <summary>
-        /// Width reserved on the right side of the host title bar so the window buttons stay interactive.
+        /// Width reserved on the right side of the host title bar for the minimize, maximize, and close button cluster.
         /// </summary>
-        const int HostTitleBarButtonGapWidth = EditorTitleBar.HeightPixels * 4;
+        const int HostTitleBarButtonGapWidth = CloseButtonWidth * 3;
 
         /// <summary>
         /// Border thickness used for the shared dialog panel chrome.
@@ -271,6 +271,16 @@ namespace helengine.editor {
         /// Gets or sets the minimum size allowed while the dialog is resized.
         /// </summary>
         protected int2 DialogMinimumSize { get; set; }
+
+        /// <summary>
+        /// Gets the local bounds used by anchored children that live under the dialog shell.
+        /// </summary>
+        public int2 AnchorBounds => new int2(DialogWidth, DialogHeight);
+
+        /// <summary>
+        /// Raised when the dialog size changes and anchored children should refresh.
+        /// </summary>
+        public event Action AnchorBoundsChanged;
 
         /// <summary>
         /// Initializes the shared dialog shell for one concrete editor dialog.
@@ -513,8 +523,15 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(dialogHeight));
             }
 
-            DialogWidth = Math.Max(Math.Max(1, DialogMinimumSize.X), dialogWidth);
-            DialogHeight = Math.Max(Math.Max(1, DialogMinimumSize.Y), dialogHeight);
+            int newWidth = Math.Max(Math.Max(1, DialogMinimumSize.X), dialogWidth);
+            int newHeight = Math.Max(Math.Max(1, DialogMinimumSize.Y), dialogHeight);
+            bool sizeChanged = DialogWidth != newWidth || DialogHeight != newHeight;
+            DialogWidth = newWidth;
+            DialogHeight = newHeight;
+
+            if (sizeChanged) {
+                NotifyAnchorBoundsChanged();
+            }
         }
 
         /// <summary>
@@ -587,6 +604,15 @@ namespace helengine.editor {
         /// <param name="height">Current host height.</param>
         protected void UpdateHostSize(int width, int height) {
             HostSize = new int2(Math.Max(1, width), Math.Max(1, height));
+        }
+
+        /// <summary>
+        /// Raises the anchor bounds changed event for children that are pinned to the dialog shell.
+        /// </summary>
+        void NotifyAnchorBoundsChanged() {
+            if (AnchorBoundsChanged != null) {
+                AnchorBoundsChanged();
+            }
         }
 
         /// <summary>
@@ -844,13 +870,17 @@ namespace helengine.editor {
                     int widthDelta = Math.Min(delta.X, maxWidthShrink);
                     newX += widthDelta;
                     newWidth -= widthDelta;
-                    newHeight = Math.Max(minimumHeight, DialogHeight + delta.Y);
+                    int maxHeight = Math.Max(minimumHeight, HostSize.Y - PanelPosition.Y);
+                    newHeight = Math.Max(minimumHeight, Math.Min(DialogHeight + delta.Y, maxHeight));
                     break;
                 }
-                case ResizeGripKind.BottomRight:
-                    newWidth = Math.Max(minimumWidth, DialogWidth + delta.X);
-                    newHeight = Math.Max(minimumHeight, DialogHeight + delta.Y);
+                case ResizeGripKind.BottomRight: {
+                    int maxWidth = Math.Max(minimumWidth, HostSize.X - PanelPosition.X);
+                    int maxHeight = Math.Max(minimumHeight, HostSize.Y - PanelPosition.Y);
+                    newWidth = Math.Max(minimumWidth, Math.Min(DialogWidth + delta.X, maxWidth));
+                    newHeight = Math.Max(minimumHeight, Math.Min(DialogHeight + delta.Y, maxHeight));
                     break;
+                }
             }
 
             DialogWidth = newWidth;

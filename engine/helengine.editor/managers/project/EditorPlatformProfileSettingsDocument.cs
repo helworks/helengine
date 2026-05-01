@@ -17,5 +17,10 @@ namespace helengine.editor {
         /// Gets or sets the graphics-profile values used when configuring the runtime player for this platform.
         /// </summary>
         public EditorGraphicsProfileSettingsDocument Graphics { get; set; } = new EditorGraphicsProfileSettingsDocument();
+
+        /// <summary>
+        /// Gets or sets the cached builder metadata for the selected platform.
+        /// </summary>
+        public EditorPlatformBuildSelectionModel SelectionModel { get; set; }
     }
 }

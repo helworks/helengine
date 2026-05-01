@@ -4,6 +4,11 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorGraphicsProfileSettingsDocument {
         /// <summary>
+        /// Gets or sets the selected builder-provided graphics profile id.
+        /// </summary>
+        public string SelectedGraphicsProfileId { get; set; } = string.Empty;
+
+        /// <summary>
         /// Gets or sets the default runtime backbuffer width.
         /// </summary>
         public int DefaultWidth { get; set; } = 1280;
@@ -22,5 +27,10 @@ namespace helengine.editor {
         /// Gets or sets whether the runtime player should start in fullscreen mode.
         /// </summary>
         public bool FullscreenEnabled { get; set; } = false;
+
+        /// <summary>
+        /// Gets or sets the builder-provided graphics option values keyed by setting id.
+        /// </summary>
+        public Dictionary<string, string> SelectedOptionValues { get; set; } = [];
     }
 }

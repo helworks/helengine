@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Simple interactable button that renders rounded rect styling and invokes a click action.
     /// </summary>
-    public class ButtonComponent : Component, IFocusTarget {
+    public class ButtonComponent : Component, IFocusTarget, IAnchorSizeProvider {
         string text;
         FontAsset font;
         int2 size;
@@ -84,6 +84,11 @@ namespace helengine {
         /// Gets the current button size.
         /// </summary>
         public int2 Size => size;
+
+        /// <summary>
+        /// Gets the size used by anchor components when the button host is pinned to a layout edge.
+        /// </summary>
+        public int2 AnchorSize => size;
 
         /// <summary>
         /// Raised when the pointer first enters the button during a hover interaction.

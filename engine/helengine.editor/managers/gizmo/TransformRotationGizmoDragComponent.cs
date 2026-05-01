@@ -41,6 +41,10 @@ namespace helengine.editor {
         /// </summary>
         float4 DragStartEntityOrientation;
         /// <summary>
+        /// Twist angle extracted from the selected entity at drag start around the active rotation axis.
+        /// </summary>
+        double DragStartRotationAngle;
+        /// <summary>
         /// Total unsnapped signed drag angle accumulated since the drag started.
         /// </summary>
         double DragAccumulatedAngle;
@@ -148,6 +152,7 @@ namespace helengine.editor {
             DragRotationAxis = rotationAxis;
             DragRotationCenter = rotationCenter;
             DragStartEntityOrientation = selectedEntity.Orientation;
+            DragStartRotationAngle = ResolveAxisTwistAngle(DragStartEntityOrientation, DragRotationAxis);
             DragAccumulatedAngle = 0.0;
             DragPreviousVector = dragVector;
             EditorGizmoDragService.BeginDrag(SceneCamera, selectedEntity);
@@ -224,6 +229,7 @@ namespace helengine.editor {
             DragRotationAxis = float3.Zero;
             DragRotationCenter = float3.Zero;
             DragStartEntityOrientation = float4.Identity;
+            DragStartRotationAngle = 0.0;
             DragAccumulatedAngle = 0.0;
             DragPreviousVector = float3.Zero;
         }
@@ -377,7 +383,31 @@ namespace helengine.editor {
                 return DragAccumulatedAngle;
             }
 
-            return TransformRotationGizmoSnapResolver.ResolveSnappedDeltaAngle(DragAccumulatedAngle, activeSnapValue);
+            double snappedAngle = TransformRotationGizmoSnapResolver.ResolveSnappedAngle(DragStartRotationAngle + DragAccumulatedAngle, activeSnapValue);
+            return snappedAngle - DragStartRotationAngle;
+        }
+
+        /// <summary>
+        /// Extracts the signed twist angle around one axis from a quaternion.
+        /// </summary>
+        /// <param name="orientation">Orientation to inspect.</param>
+        /// <param name="axis">Axis around which the twist should be measured.</param>
+        /// <returns>Signed twist angle in radians around the supplied axis.</returns>
+        double ResolveAxisTwistAngle(float4 orientation, float3 axis) {
+            float3 normalizedAxis = NormalizeSafe(axis, float3.Zero);
+            if (normalizedAxis == float3.Zero) {
+                return 0.0;
+            }
+
+            float4 normalizedOrientation = orientation;
+            normalizedOrientation.Normalize();
+
+            float3 vectorPart = new float3(
+                normalizedOrientation.X,
+                normalizedOrientation.Y,
+                normalizedOrientation.Z);
+            double axisProjection = float3.Dot(vectorPart, normalizedAxis);
+            return 2.0 * Math.Atan2(axisProjection, normalizedOrientation.W);
         }
 
         /// <summary>

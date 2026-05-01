@@ -34,5 +34,15 @@ namespace helengine.editor.tests.managers.gizmo {
 
             Assert.Equal(-15.0 * DegreesToRadians, resolvedAngle, AngleTolerance);
         }
+
+        /// <summary>
+        /// Ensures snapped rotation angles land on the fixed snap grid instead of preserving intermediate offsets.
+        /// </summary>
+        [Fact]
+        public void ResolveSnappedAngle_SnapsToTheNearestFixedIncrement() {
+            double resolvedAngle = TransformRotationGizmoSnapResolver.ResolveSnappedAngle(2.75 * DegreesToRadians, 2.5);
+
+            Assert.Equal(2.5 * DegreesToRadians, resolvedAngle, AngleTolerance);
+        }
     }
 }

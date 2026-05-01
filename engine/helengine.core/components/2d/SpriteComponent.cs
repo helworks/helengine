@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders a textured quad using the 2D render manager.
     /// </summary>
-    public class SpriteComponent : Component, ISpriteDrawable2D {
+    public class SpriteComponent : Component, ISpriteDrawable2D, IAnchorSizeProvider {
         byte renderOrder2D;
 
         /// <summary>
@@ -47,6 +47,11 @@ namespace helengine {
         /// Gets or sets the destination size of the sprite.
         /// </summary>
         public int2 Size { get; set; }
+
+        /// <summary>
+        /// Gets the size used by anchor components when the sprite host participates in layout.
+        /// </summary>
+        public int2 AnchorSize => Size;
 
         /// <summary>
         /// Gets or sets the color tint applied to the sprite.

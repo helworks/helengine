@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Linq;
 using helengine.editor;
 using helengine.editor.tests.testing;
 using Xunit;
@@ -138,7 +139,7 @@ namespace helengine.editor.tests {
             Assert.IsAssignableFrom<EditorDialogBase>(dialog);
             Assert.Equal("Open Map", titleText.Text);
             Assert.NotNull(closeButton);
-            Assert.Equal(new byte4(100, 149, 237, 255), panelBackground.FillColor);
+            Assert.Equal(ThemeManager.Colors.SurfacePrimary, panelBackground.FillColor);
         }
 
         /// <summary>
@@ -155,6 +156,78 @@ namespace helengine.editor.tests {
             int2 panelSize = GetPrivateField<int2>(dialog, "PanelSize");
 
             Assert.Equal(panelSize, panelBackground.Size);
+        }
+
+        /// <summary>
+        /// Ensures the open dialog starts at its expected default size when shown in a standard desktop window.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_WhenShown_UsesTheExpectedStartingPanelSize() {
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+
+            dialog.Show("Scenes");
+            dialog.UpdateLayout(1280, 720);
+
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+
+            Assert.Equal(new int2(920, 688), panelBackground.Size);
+        }
+
+        /// <summary>
+        /// Ensures the open dialog keeps a manual resize after the next layout pass instead of snapping back to its original size.
+        /// </summary>
+        [Fact]
+        public void HandleBottomRightResizeGrip_WhenDragged_PreservesTheResizedPanelSizeAcrossLayoutUpdates() {
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+
+            dialog.Show("Scenes");
+            dialog.UpdateLayout(1280, 720);
+            EditorEntity panelRoot = GetPrivateField<EditorEntity>(dialog, "PanelRoot");
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            EditorEntity bottomRightGrip = Assert.IsType<EditorEntity>(panelRoot.Children.Single(child => string.Equals(((EditorEntity)child).Name, "ResizeBottomRightGrip", StringComparison.Ordinal)));
+            InteractableComponent bottomRightInteractable = bottomRightGrip.Components.OfType<InteractableComponent>().Single();
+
+            int2 initialSize = panelBackground.Size;
+
+            bottomRightInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Press);
+            bottomRightInteractable.OnCursor(new int2(8, 8), new int2(100, 60), PointerInteraction.Hover);
+            bottomRightInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Release);
+
+            int2 resizedSize = panelBackground.Size;
+            Assert.True(resizedSize.X > initialSize.X);
+            Assert.True(resizedSize.Y > initialSize.Y);
+
+            dialog.UpdateLayout(1280, 720);
+
+            Assert.Equal(resizedSize, panelBackground.Size);
+        }
+
+        /// <summary>
+        /// Ensures dragging the bottom-right resize grip into the bottom edge stops at the host boundary instead of pushing the dialog upward.
+        /// </summary>
+        [Fact]
+        public void HandleBottomRightResizeGrip_WhenDraggedToTheBottomEdge_ClampsTheDialogHeightAtTheHostBoundary() {
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+
+            dialog.Show("Scenes");
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity panelRoot = GetPrivateField<EditorEntity>(dialog, "PanelRoot");
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            EditorEntity bottomRightGrip = Assert.IsType<EditorEntity>(panelRoot.Children.Single(child => string.Equals(((EditorEntity)child).Name, "ResizeBottomRightGrip", StringComparison.Ordinal)));
+            InteractableComponent bottomRightInteractable = bottomRightGrip.Components.OfType<InteractableComponent>().Single();
+
+            int2 initialPosition = GetPrivateField<int2>(dialog, "PanelPosition");
+
+            bottomRightInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Press);
+            bottomRightInteractable.OnCursor(new int2(8, 8), new int2(0, 1000), PointerInteraction.Hover);
+            bottomRightInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Release);
+
+            int2 resizedPosition = GetPrivateField<int2>(dialog, "PanelPosition");
+
+            Assert.Equal(initialPosition.X, resizedPosition.X);
+            Assert.Equal(initialPosition.Y, resizedPosition.Y);
+            Assert.Equal(new int2(920, 704), panelBackground.Size);
         }
 
         /// <summary>

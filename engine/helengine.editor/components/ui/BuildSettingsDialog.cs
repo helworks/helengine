@@ -175,6 +175,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         public BuildSettingsDialog(FontAsset font) : base("BuildSettingsDialog", "Build Platforms", font, PanelWidth, PanelHeight, HeaderHeight) {
+            DialogMinimumSize = new int2(PanelWidth, PanelHeight);
+
             PlatformLabelHosts = new List<EditorEntity>(8);
             PlatformLabelTexts = new List<TextComponent>(8);
             PlatformStatusHosts = new List<EditorEntity>(8);
@@ -548,9 +550,7 @@ namespace helengine.editor {
         /// Positions the validation and empty-state text.
         /// </summary>
         void LayoutStatus() {
-            int rowsTop = PanelPadding + HeaderHeight + SectionSpacing + TableHeaderHeight + SectionSpacing;
-            int rowsHeight = PlatformRowHeight * Math.Max(1, AvailablePlatforms.Count);
-            int statusTop = rowsTop + rowsHeight + SectionSpacing;
+            int statusTop = DialogHeight - FooterHeight - 38;
             StatusHost.Position = new float3(PanelPadding, statusTop, 0f);
         }
 
@@ -591,9 +591,9 @@ namespace helengine.editor {
         /// Positions the footer buttons.
         /// </summary>
         void LayoutButtons() {
-            int footerTop = PanelHeight - PanelPadding - FooterHeight;
-            int cancelX = PanelWidth - PanelPadding - SaveButtonSize.X - SectionSpacing - CancelButtonSize.X;
-            int saveX = PanelWidth - PanelPadding - SaveButtonSize.X;
+            int footerTop = DialogHeight - PanelPadding - FooterHeight;
+            int cancelX = DialogWidth - PanelPadding - SaveButtonSize.X - SectionSpacing - CancelButtonSize.X;
+            int saveX = DialogWidth - PanelPadding - SaveButtonSize.X;
             int buttonY = footerTop + Math.Max(0, (FooterHeight - SaveButtonSize.Y) / 2);
 
             CancelButtonHost.Position = new float3(cancelX, buttonY, 0f);

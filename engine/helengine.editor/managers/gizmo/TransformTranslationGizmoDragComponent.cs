@@ -484,7 +484,7 @@ namespace helengine.editor {
                 return DragPrimaryDirection * (float)deltaParameter;
             }
 
-            return TransformTranslationGizmoSnapResolver.ResolveAxisOffset(DragPrimaryDirection, deltaParameter, activeSnapValue);
+            return TransformTranslationGizmoSnapResolver.ResolveAxisOffset(DragStartEntityPosition, DragPrimaryDirection, deltaParameter, activeSnapValue);
         }
 
         /// <summary>
@@ -501,6 +501,7 @@ namespace helengine.editor {
             }
 
             return TransformTranslationGizmoSnapResolver.ResolvePlaneOffset(
+                DragStartEntityPosition,
                 DragPrimaryDirection,
                 DragSecondaryDirection,
                 projectedPlaneDelta,

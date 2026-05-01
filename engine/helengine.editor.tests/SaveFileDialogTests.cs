@@ -83,6 +83,21 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the backdrop strip ends at the window-button cluster instead of leaving a gap by the minimize button.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_PositionsBackdropTopFlushToWindowControlCluster() {
+            SaveFileDialog dialog = new SaveFileDialog(CreateFont(), ProjectRootPath);
+            dialog.Show("Scenes", "Prototype");
+            dialog.UpdateLayout(1280, 720);
+
+            SpriteComponent backdropTopSurface = GetPrivateField<SpriteComponent>(dialog, "BackdropTopSurface");
+
+            Assert.Equal(1280 - (EditorDialogBase.CloseButtonWidth * 3), backdropTopSurface.Size.X);
+            Assert.Equal(EditorTitleBar.HeightPixels, backdropTopSurface.Size.Y);
+        }
+
+        /// <summary>
         /// Assigns the save-file name field through the private dialog field.
         /// </summary>
         /// <param name="dialog">Dialog whose file name should be updated.</param>

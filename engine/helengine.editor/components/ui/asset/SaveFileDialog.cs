@@ -56,9 +56,9 @@ namespace helengine.editor {
         /// </summary>
         const byte BackdropOrder = RenderOrder2D.ModalBackground - 1;
         /// <summary>
-        /// Width reserved on the right side of the host title bar so the window buttons stay interactive.
+        /// Width reserved on the right side of the host title bar for the minimize, maximize, and close button cluster.
         /// </summary>
-        const int HostTitleBarButtonGapWidth = EditorTitleBar.HeightPixels * 4;
+        const int HostTitleBarButtonGapWidth = EditorDialogBase.CloseButtonWidth * 3;
         /// <summary>
         /// Horizontal padding inside the header.
         /// </summary>

@@ -255,6 +255,10 @@ namespace helengine.editor {
         /// </summary>
         readonly AvailablePlatformProviderResolver availablePlatformProviderResolver;
         /// <summary>
+        /// Loads dynamic platform builders and their metadata.
+        /// </summary>
+        readonly EditorPlatformCatalogService platformCatalogService;
+        /// <summary>
         /// Persists local build dialog state in `user_settings/build_config.json`.
         /// </summary>
         readonly EditorBuildConfigService buildConfigService;
@@ -346,6 +350,7 @@ namespace helengine.editor {
             ProjectLocalSettingsService = new EditorProjectLocalSettingsService(this.projectPath, ProjectSupportedPlatforms);
             ActiveProjectPlatform = ProjectLocalSettingsService.LoadActivePlatform();
             availablePlatformProviderResolver = CreateAvailablePlatformProviderResolver();
+            platformCatalogService = CreatePlatformCatalogService();
             EditorContentManager = this.core.GetContentManager();
             this.uiFont = uiFont ?? throw new ArgumentNullException(nameof(uiFont));
             snapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
@@ -1060,7 +1065,7 @@ namespace helengine.editor {
         /// </summary>
         void HandleProfilesRequested() {
             EditorProfileSettingsDocument profileSettings = profileSettingsService.Load(SupportedPlatforms);
-            profilesDialog.Show(profileSettings, SupportedPlatforms, ActiveProjectPlatform);
+            profilesDialog.Show(profileSettings, SupportedPlatforms, ActiveProjectPlatform, ResolvePlatformSelectionModel(ActiveProjectPlatform));
         }
 
         /// <summary>
@@ -1094,7 +1099,7 @@ namespace helengine.editor {
             IReadOnlyList<string> sceneIds = sceneCatalogService.GetSceneIds();
             string currentSceneId = sceneCatalogService.ResolveSceneId(CurrentScenePath);
             EditorBuildConfigDocument buildConfig = buildConfigService.Load(SupportedPlatforms, currentSceneId);
-            buildDialog.Show(SupportedPlatforms, sceneIds, ActiveProjectPlatform, buildConfig);
+            buildDialog.Show(SupportedPlatforms, sceneIds, ActiveProjectPlatform, buildConfig, ResolvePlatformSelectionModel(ActiveProjectPlatform));
         }
 
         /// <summary>
@@ -1135,6 +1140,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves one platform selection model for the supplied platform id, if the platform exposes a builder assembly.
+        /// </summary>
+        /// <param name="platformId">Stable platform identifier.</param>
+        /// <returns>Builder-provided selection model or null when unavailable.</returns>
+        EditorPlatformBuildSelectionModel ResolvePlatformSelectionModel(string platformId) {
+            try {
+                return platformCatalogService.ResolveSelectionModel(platformId);
+            } catch {
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Persists one queued build item from the active Build dialog tab and refreshes the visible queue.
         /// </summary>
         /// <param name="request">Queued build request captured from the active tab.</param>
@@ -1154,11 +1172,15 @@ namespace helengine.editor {
                 SelectedSceneIds = new List<string>(request.SelectedSceneIds),
                 OutputDirectoryPath = request.OutputDirectoryPath,
                 DebugBuild = request.DebugBuild,
+                SelectedBuildProfileId = request.SelectedBuildProfileId,
+                SelectedGraphicsProfileId = request.SelectedGraphicsProfileId,
+                SelectedBuildOptionValues = new Dictionary<string, string>(request.SelectedBuildOptionValues),
+                SelectedGraphicsOptionValues = new Dictionary<string, string>(request.SelectedGraphicsOptionValues),
                 Status = EditorBuildQueueItemStatus.Pending,
                 StatusMessage = string.Empty
             });
             buildConfigService.Save(buildConfig);
-            buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), request.PlatformId, buildConfig);
+            buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), request.PlatformId, buildConfig, ResolvePlatformSelectionModel(request.PlatformId));
         }
 
         /// <summary>
@@ -1179,7 +1201,7 @@ namespace helengine.editor {
             }
 
             buildConfigService.Save(buildConfig);
-            buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), ActiveProjectPlatform, buildConfig);
+            buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), ActiveProjectPlatform, buildConfig, ResolvePlatformSelectionModel(ActiveProjectPlatform));
         }
 
         /// <summary>
@@ -1205,7 +1227,7 @@ namespace helengine.editor {
             EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
             buildConfigService.Save(buildConfig);
             buildQueueService.RunPending(buildConfig, SupportedPlatforms);
-            buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), ActiveProjectPlatform, buildConfig);
+            buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), ActiveProjectPlatform, buildConfig, ResolvePlatformSelectionModel(ActiveProjectPlatform));
         }
 
         /// <summary>
@@ -2025,6 +2047,15 @@ namespace helengine.editor {
             PlatformDiscoveryOptions options = new PlatformDiscoveryOptions(Path.Combine(helEngineRootPath, "user_settings"));
             WindowsLauncherInstallRootLocator launcherInstallRootLocator = new WindowsLauncherInstallRootLocator();
             return new AvailablePlatformProviderResolver(options, launcherInstallRootLocator);
+        }
+
+        /// <summary>
+        /// Creates the dynamic platform catalog service used to load builder metadata.
+        /// </summary>
+        /// <returns>Platform catalog backed by the current platform resolver.</returns>
+        EditorPlatformCatalogService CreatePlatformCatalogService() {
+            IReadOnlyList<AvailablePlatformDescriptor> platforms = availablePlatformProviderResolver.LoadPlatforms(RequiredEngineVersion);
+            return new EditorPlatformCatalogService(platforms);
         }
 
         /// <summary>

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using helengine.editor;
 using helengine.editor.tests.testing;
 using Xunit;
 using Xunit.Sdk;
@@ -171,6 +172,21 @@ namespace helengine.editor.tests {
             } finally {
                 EditorAssetPickerService.PickRequested -= handler;
             }
+        }
+
+        /// <summary>
+        /// Ensures the asset picker backdrop strip reaches the minimize button border instead of leaving a gap.
+        /// </summary>
+        [Fact]
+        public void RequestModelPick_WhenAssetPickerModalIsShown_PositionsBackdropTopFlushToWindowControlCluster() {
+            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath);
+            modal.Show(_ => { }, ".obj");
+            modal.UpdateLayout(1280, 720);
+
+            SpriteComponent backdropTopSurface = GetPrivateField<SpriteComponent>(modal, "BackdropTopSurface");
+
+            Assert.Equal(1280 - (EditorDialogBase.CloseButtonWidth * 3), backdropTopSurface.Size.X);
+            Assert.Equal(EditorTitleBar.HeightPixels, backdropTopSurface.Size.Y);
         }
 
         /// <summary>

@@ -55,8 +55,7 @@ namespace helengine {
             }
 
             loadStopwatch.Stop();
-            Logger.WriteLine(
-                $"Loaded packaged scene assets in {loadStopwatch.Elapsed.TotalMilliseconds:0.00} ms ({rootEntities.Count} root entities).");
+            Logger.WriteLine($"Loaded packaged scene assets ({rootEntities.Count} root entities).");
 
             return rootEntities;
         }

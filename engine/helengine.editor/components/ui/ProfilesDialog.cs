@@ -321,7 +321,7 @@ namespace helengine.editor {
             DialogPanelRoot.AddChild(PlatformComboBoxHost);
             PlatformComboBox = new ComboBoxComponent(new int2(PlatformComboBoxWidth, FieldRowHeight), DialogFontValue, Array.Empty<string>(), -1);
             PlatformComboBox.SelectionChanged += HandlePlatformSelectionChanged;
-            PlatformComboBox.SetRenderOrders(DialogTextOrder, DialogTextOrder, DialogTextOrder, DialogTextOrder);
+            PlatformComboBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder, RenderOrder2D.ModalBackground, RenderOrder2D.ModalForeground);
             PlatformComboBoxHost.AddComponent(PlatformComboBox);
 
             BuildTitleHost = CreateTextHost();
@@ -337,6 +337,7 @@ namespace helengine.editor {
             TextureScaleTextBoxHost = CreateTextHost();
             DialogPanelRoot.AddChild(TextureScaleTextBoxHost);
             TextureScaleTextBox = new TextBoxComponent(new int2(NumericFieldWidth, FieldRowHeight), DialogFontValue, string.Empty);
+            TextureScaleTextBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             TextureScaleTextBoxHost.AddComponent(TextureScaleTextBox);
 
             ShaderPruningLabelHost = CreateTextHost();
@@ -347,6 +348,7 @@ namespace helengine.editor {
             ShaderPruningCheckBoxHost = CreateTextHost();
             DialogPanelRoot.AddChild(ShaderPruningCheckBoxHost);
             ShaderPruningCheckBox = new CheckBoxComponent(new int2(18, 18), DialogFontValue, true);
+            ShaderPruningCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             ShaderPruningCheckBoxHost.AddComponent(ShaderPruningCheckBox);
 
             GraphicsTitleHost = CreateTextHost();
@@ -362,6 +364,7 @@ namespace helengine.editor {
             WidthTextBoxHost = CreateTextHost();
             DialogPanelRoot.AddChild(WidthTextBoxHost);
             WidthTextBox = new TextBoxComponent(new int2(NumericFieldWidth, FieldRowHeight), DialogFontValue, string.Empty);
+            WidthTextBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             WidthTextBoxHost.AddComponent(WidthTextBox);
 
             HeightLabelHost = CreateTextHost();
@@ -372,6 +375,7 @@ namespace helengine.editor {
             HeightTextBoxHost = CreateTextHost();
             DialogPanelRoot.AddChild(HeightTextBoxHost);
             HeightTextBox = new TextBoxComponent(new int2(NumericFieldWidth, FieldRowHeight), DialogFontValue, string.Empty);
+            HeightTextBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             HeightTextBoxHost.AddComponent(HeightTextBox);
 
             VSyncLabelHost = CreateTextHost();
@@ -382,6 +386,7 @@ namespace helengine.editor {
             VSyncCheckBoxHost = CreateTextHost();
             DialogPanelRoot.AddChild(VSyncCheckBoxHost);
             VSyncCheckBox = new CheckBoxComponent(new int2(18, 18), DialogFontValue, true);
+            VSyncCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             VSyncCheckBoxHost.AddComponent(VSyncCheckBox);
 
             FullscreenLabelHost = CreateTextHost();
@@ -392,6 +397,7 @@ namespace helengine.editor {
             FullscreenCheckBoxHost = CreateTextHost();
             DialogPanelRoot.AddChild(FullscreenCheckBoxHost);
             FullscreenCheckBox = new CheckBoxComponent(new int2(18, 18), DialogFontValue, false);
+            FullscreenCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             FullscreenCheckBoxHost.AddComponent(FullscreenCheckBox);
 
             StatusHost = CreateTextHost();

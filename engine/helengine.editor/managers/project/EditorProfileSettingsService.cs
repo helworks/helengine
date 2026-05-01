@@ -104,6 +104,8 @@ namespace helengine.editor {
 
                     platform.Build ??= new EditorBuildProfileSettingsDocument();
                     platform.Graphics ??= new EditorGraphicsProfileSettingsDocument();
+                    platform.Build.SelectedOptionValues ??= [];
+                    platform.Graphics.SelectedOptionValues ??= [];
                 }
 
                 return document;
@@ -145,9 +147,17 @@ namespace helengine.editor {
                     platform.Build = new EditorBuildProfileSettingsDocument();
                     changed = true;
                 }
+                if (platform.Build.SelectedOptionValues == null) {
+                    platform.Build.SelectedOptionValues = [];
+                    changed = true;
+                }
 
                 if (platform.Graphics == null) {
                     platform.Graphics = new EditorGraphicsProfileSettingsDocument();
+                    changed = true;
+                }
+                if (platform.Graphics.SelectedOptionValues == null) {
+                    platform.Graphics.SelectedOptionValues = [];
                     changed = true;
                 }
 
