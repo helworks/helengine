@@ -214,6 +214,10 @@ namespace helengine.editor {
         /// </summary>
         readonly BuildSettingsDialog buildSettingsDialog;
         /// <summary>
+        /// Modal dialog used to edit per-platform build and graphics profiles.
+        /// </summary>
+        readonly ProfilesDialog profilesDialog;
+        /// <summary>
         /// Modal dialog used to configure local build map selections and the queued build list.
         /// </summary>
         readonly BuildDialog buildDialog;
@@ -221,6 +225,10 @@ namespace helengine.editor {
         /// Service that generates and opens the game solution for scripting.
         /// </summary>
         readonly EditorGameSolutionService gameSolutionService;
+        /// <summary>
+        /// Service that persists editor-local platform profile settings.
+        /// </summary>
+        readonly EditorProfileSettingsService profileSettingsService;
         /// <summary>
         /// Service that builds and hot-reloads the generated game scripting assembly.
         /// </summary>
@@ -433,12 +441,14 @@ namespace helengine.editor {
             ReparentService = new EditorEntityReparentService();
             SceneModelRefreshService = new EditorSceneModelRefreshService(fileSystemModelResolver);
             buildConfigService = new EditorBuildConfigService(this.projectPath);
+            profileSettingsService = new EditorProfileSettingsService(this.projectPath);
             buildQueueService = new EditorBuildQueueService(buildConfigService, new EditorWindowsBuildExecutor(this.projectPath, RequiredEngineVersion, Importers));
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
             saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
             openFileDialog = new OpenFileDialog(uiFont, this.projectPath);
             reparentEntityDialog = new ReparentEntityDialog(uiFont);
             buildSettingsDialog = new BuildSettingsDialog(uiFont);
+            profilesDialog = new ProfilesDialog(uiFont);
             buildDialog = new BuildDialog(uiFont);
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
             scriptHotReloadService = new EditorGameScriptHotReloadService(
@@ -468,6 +478,7 @@ namespace helengine.editor {
             titleBar.SaveMapAsRequested += HandleSaveMapAsRequested;
             titleBar.BuildRequested += HandleBuildRequested;
             titleBar.BuildSettingsRequested += HandleBuildSettingsRequested;
+            titleBar.ProfilesRequested += HandleProfilesRequested;
             titleBar.BuildScriptsRequested += HandleBuildScriptsRequested;
             titleBar.OpenInIDERequested += HandleOpenInIDERequested;
             titleBar.AddEmptyRequested += HandleAddEmptyRequested;
@@ -480,6 +491,8 @@ namespace helengine.editor {
             reparentEntityDialog.CancelRequested += HandleReparentEntityDialogCancelRequested;
             buildSettingsDialog.ConfirmRequested += HandleBuildSettingsDialogConfirmed;
             buildSettingsDialog.CancelRequested += HandleBuildSettingsDialogCancelRequested;
+            profilesDialog.ConfirmRequested += HandleProfilesDialogConfirmed;
+            profilesDialog.CancelRequested += HandleProfilesDialogCancelRequested;
             buildDialog.AddRequested += HandleBuildDialogAddRequested;
             buildDialog.BrowseOutputFolderRequested += HandleBuildDialogBrowseOutputFolderRequested;
             buildDialog.BuildQueueRequested += HandleBuildDialogBuildQueueRequested;
@@ -697,6 +710,7 @@ namespace helengine.editor {
             openFileDialog.UpdateLayout(width, height);
             reparentEntityDialog.UpdateLayout(width, height);
             buildSettingsDialog.UpdateLayout(width, height);
+            profilesDialog.UpdateLayout(width, height);
             buildDialog.UpdateLayout(width, height);
             unsavedChangesDialog.UpdateLayout(width, height);
             propertiesPanel.UpdateModalLayout(width, height);
@@ -785,6 +799,7 @@ namespace helengine.editor {
             titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested;
             titleBar.BuildRequested -= HandleBuildRequested;
             titleBar.BuildSettingsRequested -= HandleBuildSettingsRequested;
+            titleBar.ProfilesRequested -= HandleProfilesRequested;
             titleBar.BuildScriptsRequested -= HandleBuildScriptsRequested;
             titleBar.OpenInIDERequested -= HandleOpenInIDERequested;
             titleBar.AddEmptyRequested -= HandleAddEmptyRequested;
@@ -797,6 +812,8 @@ namespace helengine.editor {
             reparentEntityDialog.CancelRequested -= HandleReparentEntityDialogCancelRequested;
             buildSettingsDialog.ConfirmRequested -= HandleBuildSettingsDialogConfirmed;
             buildSettingsDialog.CancelRequested -= HandleBuildSettingsDialogCancelRequested;
+            profilesDialog.ConfirmRequested -= HandleProfilesDialogConfirmed;
+            profilesDialog.CancelRequested -= HandleProfilesDialogCancelRequested;
             buildDialog.AddRequested -= HandleBuildDialogAddRequested;
             buildDialog.BrowseOutputFolderRequested -= HandleBuildDialogBrowseOutputFolderRequested;
             buildDialog.BuildQueueRequested -= HandleBuildDialogBuildQueueRequested;
@@ -995,6 +1012,38 @@ namespace helengine.editor {
         /// </summary>
         void HandleBuildSettingsDialogCancelRequested() {
             buildSettingsDialog.Hide();
+        }
+
+        /// <summary>
+        /// Opens the profiles dialog using the current active platform and persisted profile settings.
+        /// </summary>
+        void HandleProfilesRequested() {
+            EditorProfileSettingsDocument profileSettings = profileSettingsService.Load(SupportedPlatforms);
+            profilesDialog.Show(profileSettings, SupportedPlatforms, ActiveProjectPlatform);
+        }
+
+        /// <summary>
+        /// Persists the confirmed profiles selection and updates the active platform when needed.
+        /// </summary>
+        /// <param name="selection">Confirmed platform profile selection.</param>
+        void HandleProfilesDialogConfirmed(ProfilesDialogSelection selection) {
+            if (selection == null) {
+                throw new ArgumentNullException(nameof(selection));
+            }
+
+            profileSettingsService.Save(selection.ProfileSettingsDocument);
+            if (!string.Equals(ActiveProjectPlatform, selection.ActivePlatformId, StringComparison.OrdinalIgnoreCase) && IsInstalledPlatform(selection.ActivePlatformId)) {
+                SetActiveProjectPlatform(selection.ActivePlatformId);
+            }
+
+            profilesDialog.Hide();
+        }
+
+        /// <summary>
+        /// Cancels the profiles workflow and hides the dialog.
+        /// </summary>
+        void HandleProfilesDialogCancelRequested() {
+            profilesDialog.Hide();
         }
 
         /// <summary>

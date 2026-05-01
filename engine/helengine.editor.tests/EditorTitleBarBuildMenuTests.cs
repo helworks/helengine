@@ -50,10 +50,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the Build menu shows Build Platforms and Build while hiding the other title-bar menus.
+        /// Ensures the Build menu shows Platforms and Build while hiding the other title-bar menus.
         /// </summary>
         [Fact]
-        public void ToggleBuildMenu_ShowsBuildSettingsAndHidesOtherMenus() {
+        public void ToggleBuildMenu_ShowsBuildSettingsAndProfilesAndHidesOtherMenus() {
             EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
 
             InvokePrivate(titleBar, "ToggleFileMenu");
@@ -69,7 +69,8 @@ namespace helengine.editor.tests {
             Assert.True(buildMenu.IsVisible);
             Assert.Collection(
                 activeItems,
-                item => Assert.Equal("Build Platforms...", item.Label),
+                item => Assert.Equal("Platforms...", item.Label),
+                item => Assert.Equal("Profiles...", item.Label),
                 item => Assert.Equal("Build...", item.Label),
                 item => Assert.Equal("Build Scripts...", item.Label),
                 item => Assert.Equal("Open in IDE...", item.Label));
@@ -90,6 +91,26 @@ namespace helengine.editor.tests {
             List<ContextMenuItem> activeItems = GetPrivateField<List<ContextMenuItem>>(buildMenu, "ActiveItems");
 
             activeItems[0].Action();
+
+            Assert.True(raised);
+            Assert.False(buildMenu.IsVisible);
+        }
+
+        /// <summary>
+        /// Ensures activating Profiles raises the public command event.
+        /// </summary>
+        [Fact]
+        public void BuildMenu_WhenProfilesActivated_RaisesProfilesRequested() {
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            bool raised = false;
+            titleBar.ProfilesRequested += () => raised = true;
+
+            InvokePrivate(titleBar, "ToggleBuildMenu");
+
+            ContextMenu buildMenu = GetPrivateField<ContextMenu>(titleBar, "BuildMenu");
+            List<ContextMenuItem> activeItems = GetPrivateField<List<ContextMenuItem>>(buildMenu, "ActiveItems");
+
+            activeItems[1].Action();
 
             Assert.True(raised);
             Assert.False(buildMenu.IsVisible);

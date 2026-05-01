@@ -139,9 +139,9 @@ namespace helengine.editor.tests {
             EditorEntity panelRoot = GetPrivateField<EditorEntity>(dialog, "PanelRoot");
             RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
 
-            EditorEntity topLeftGrip = Assert.IsType<EditorEntity>(Assert.Single(panelRoot.Children, child => string.Equals(child.Name, "ResizeTopLeftGrip", StringComparison.Ordinal)));
-            EditorEntity bottomLeftGrip = Assert.IsType<EditorEntity>(Assert.Single(panelRoot.Children, child => string.Equals(child.Name, "ResizeBottomLeftGrip", StringComparison.Ordinal)));
-            EditorEntity bottomRightGrip = Assert.IsType<EditorEntity>(Assert.Single(panelRoot.Children, child => string.Equals(child.Name, "ResizeBottomRightGrip", StringComparison.Ordinal)));
+            EditorEntity topLeftGrip = Assert.IsType<EditorEntity>(Assert.Single(panelRoot.Children, child => string.Equals(((EditorEntity)child).Name, "ResizeTopLeftGrip", StringComparison.Ordinal)));
+            EditorEntity bottomLeftGrip = Assert.IsType<EditorEntity>(Assert.Single(panelRoot.Children, child => string.Equals(((EditorEntity)child).Name, "ResizeBottomLeftGrip", StringComparison.Ordinal)));
+            EditorEntity bottomRightGrip = Assert.IsType<EditorEntity>(Assert.Single(panelRoot.Children, child => string.Equals(((EditorEntity)child).Name, "ResizeBottomRightGrip", StringComparison.Ordinal)));
 
             InteractableComponent topLeftInteractable = topLeftGrip.Components.OfType<InteractableComponent>().Single();
             InteractableComponent bottomLeftInteractable = bottomLeftGrip.Components.OfType<InteractableComponent>().Single();
@@ -204,7 +204,7 @@ namespace helengine.editor.tests {
 
             EditorEntity panelRoot = GetPrivateField<EditorEntity>(dialog, "PanelRoot");
             RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
-            EditorEntity topLeftGrip = Assert.IsType<EditorEntity>(panelRoot.Children.Single(child => string.Equals(child.Name, "ResizeTopLeftGrip", StringComparison.Ordinal)));
+            EditorEntity topLeftGrip = Assert.IsType<EditorEntity>(panelRoot.Children.Single(child => string.Equals(((EditorEntity)child).Name, "ResizeTopLeftGrip", StringComparison.Ordinal)));
             InteractableComponent topLeftInteractable = topLeftGrip.Components.OfType<InteractableComponent>().Single();
 
             float3 initialPosition = panelRoot.Position;

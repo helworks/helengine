@@ -423,6 +423,10 @@ namespace helengine.editor {
         /// </summary>
         public event Action BuildRequested;
         /// <summary>
+        /// Raised when the user selects the Profiles command.
+        /// </summary>
+        public event Action ProfilesRequested;
+        /// <summary>
         /// Raised when the user selects the Build Scripts command.
         /// </summary>
         public event Action BuildScriptsRequested;
@@ -499,7 +503,8 @@ namespace helengine.editor {
         /// <returns>Immutable collection of Build menu items.</returns>
         IReadOnlyList<ContextMenuItem> BuildBuildMenuItems() {
             return new ContextMenuItem[] {
-                new ContextMenuItem("Build Platforms...", RaiseBuildSettingsRequested),
+                new ContextMenuItem("Platforms...", RaiseBuildSettingsRequested),
+                new ContextMenuItem("Profiles...", RaiseProfilesRequested),
                 new ContextMenuItem("Build...", RaiseBuildRequested),
                 new ContextMenuItem("Build Scripts...", RaiseBuildScriptsRequested),
                 new ContextMenuItem("Open in IDE...", RaiseOpenInIDERequested)
@@ -930,6 +935,16 @@ namespace helengine.editor {
             HideMenus();
             if (BuildRequested != null) {
                 BuildRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Profiles command event.
+        /// </summary>
+        void RaiseProfilesRequested() {
+            HideMenus();
+            if (ProfilesRequested != null) {
+                ProfilesRequested();
             }
         }
 
