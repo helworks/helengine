@@ -389,6 +389,10 @@ namespace helengine.editor {
         /// </summary>
         public event Action BuildRequested;
         /// <summary>
+        /// Raised when the user selects the Build Scripts command.
+        /// </summary>
+        public event Action BuildScriptsRequested;
+        /// <summary>
         /// Raised when the user selects the Open in IDE command.
         /// </summary>
         public event Action OpenInIDERequested;
@@ -463,6 +467,7 @@ namespace helengine.editor {
             return new ContextMenuItem[] {
                 new ContextMenuItem("Build Platforms...", RaiseBuildSettingsRequested),
                 new ContextMenuItem("Build...", RaiseBuildRequested),
+                new ContextMenuItem("Build Scripts...", RaiseBuildScriptsRequested),
                 new ContextMenuItem("Open in IDE...", RaiseOpenInIDERequested)
             };
         }
@@ -891,6 +896,16 @@ namespace helengine.editor {
             HideMenus();
             if (BuildRequested != null) {
                 BuildRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Build Scripts command event.
+        /// </summary>
+        void RaiseBuildScriptsRequested() {
+            HideMenus();
+            if (BuildScriptsRequested != null) {
+                BuildScriptsRequested();
             }
         }
 

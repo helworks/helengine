@@ -214,6 +214,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorGameSolutionService gameSolutionService;
         /// <summary>
+        /// Service that builds and hot-reloads the generated game scripting assembly.
+        /// </summary>
+        readonly EditorGameScriptHotReloadService scriptHotReloadService;
+        /// <summary>
         /// Modal dialog used to confirm whether pending scene transitions should save dirty changes.
         /// </summary>
         readonly UnsavedChangesDialog unsavedChangesDialog;
@@ -415,6 +419,10 @@ namespace helengine.editor {
             buildSettingsDialog = new BuildSettingsDialog(uiFont);
             buildDialog = new BuildDialog(uiFont);
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
+            scriptHotReloadService = new EditorGameScriptHotReloadService(
+                gameSolutionService,
+                new EditorDotNetScriptBuildTool(),
+                new EditorGameScriptAssemblyHost(this.projectPath));
             unsavedChangesDialog = new UnsavedChangesDialog(uiFont);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
@@ -438,6 +446,7 @@ namespace helengine.editor {
             titleBar.SaveMapAsRequested += HandleSaveMapAsRequested;
             titleBar.BuildRequested += HandleBuildRequested;
             titleBar.BuildSettingsRequested += HandleBuildSettingsRequested;
+            titleBar.BuildScriptsRequested += HandleBuildScriptsRequested;
             titleBar.OpenInIDERequested += HandleOpenInIDERequested;
             titleBar.AddEmptyRequested += HandleAddEmptyRequested;
             titleBar.AddCubeRequested += HandleAddCubeRequested;
@@ -750,6 +759,7 @@ namespace helengine.editor {
             titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested;
             titleBar.BuildRequested -= HandleBuildRequested;
             titleBar.BuildSettingsRequested -= HandleBuildSettingsRequested;
+            titleBar.BuildScriptsRequested -= HandleBuildScriptsRequested;
             titleBar.OpenInIDERequested -= HandleOpenInIDERequested;
             titleBar.AddEmptyRequested -= HandleAddEmptyRequested;
             titleBar.AddCubeRequested -= HandleAddCubeRequested;
@@ -769,6 +779,7 @@ namespace helengine.editor {
             unsavedChangesDialog.SaveRequested -= HandleUnsavedChangesSaveRequested;
             unsavedChangesDialog.DontSaveRequested -= HandleUnsavedChangesDontSaveRequested;
             unsavedChangesDialog.CancelRequested -= HandleUnsavedChangesCancelRequested;
+            scriptHotReloadService.Dispose();
             mainViewport.ClearInputBlockers();
             EditorViewportToolService.ClearToolMode(sceneCameraComponent);
             assetPickerModal.Hide();
@@ -968,6 +979,19 @@ namespace helengine.editor {
             string currentSceneId = sceneCatalogService.ResolveSceneId(CurrentScenePath);
             EditorBuildConfigDocument buildConfig = buildConfigService.Load(SupportedPlatforms, currentSceneId);
             buildDialog.Show(SupportedPlatforms, sceneIds, ActiveProjectPlatform, buildConfig);
+        }
+
+        /// <summary>
+        /// Builds the generated scripting solution and reloads the resulting assembly.
+        /// </summary>
+        void HandleBuildScriptsRequested() {
+            EditorBuildExecutionResult result = scriptHotReloadService.BuildAndReload();
+            if (result.Succeeded) {
+                Logger.WriteInfo(result.Message);
+                return;
+            }
+
+            Logger.WriteError(result.Message);
         }
 
         /// <summary>

@@ -153,6 +153,24 @@ namespace helengine.editor {
         public string GeneratedSolutionFilePath => SolutionFilePath;
 
         /// <summary>
+        /// Gets the output directory where the generated scripting project writes compiled binaries.
+        /// </summary>
+        public string GeneratedOutputDirectoryPath {
+            get {
+                return Path.Combine(ProjectAssetsRootPath, "bin", "Debug", TargetFrameworkValue);
+            }
+        }
+
+        /// <summary>
+        /// Gets the absolute path to the generated scripting assembly.
+        /// </summary>
+        public string GeneratedOutputAssemblyPath {
+            get {
+                return Path.Combine(GeneratedOutputDirectoryPath, ProjectIdentifier + ".dll");
+            }
+        }
+
+        /// <summary>
         /// Generates the solution and project files, overwriting any older copies in place.
         /// </summary>
         /// <returns>Absolute path to the generated solution file.</returns>

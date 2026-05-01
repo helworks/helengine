@@ -59,6 +59,8 @@ namespace helengine.editor.tests {
             Assert.Contains("<Compile Include=\"**/*.cs\" />", projectFileContents);
             Assert.Contains("SkyRider", solutionFileContents);
             Assert.Contains("assets/SkyRider.csproj", solutionFileContents);
+            Assert.Equal(Path.Combine(TempProjectRootPath, "assets", "bin", "Debug", "net9.0"), service.GeneratedOutputDirectoryPath);
+            Assert.Equal(Path.Combine(TempProjectRootPath, "assets", "bin", "Debug", "net9.0", "SkyRider.dll"), service.GeneratedOutputAssemblyPath);
         }
 
         /// <summary>
