@@ -105,7 +105,7 @@ this->ConstantBufferBindings = (constantBufferBindings != nullptr ? constantBuff
 this->SamplerBindings = (samplerBindings != nullptr ? samplerBindings : throw new ArgumentNullException("samplerBindings"));
 }
 
-::MaterialLayout* MaterialLayout::EmptyValue = ([&]() {
+::MaterialLayout* MaterialLayout::EmptyValue = ([]() {
 auto __ctor_arg_44fdbd33 = String::Empty;
 auto __ctor_arg_e4f34a4a = String::Empty;
 auto __ctor_arg_41ec80c4 = String::Empty;

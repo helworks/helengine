@@ -99,14 +99,16 @@ namespace helengine.editor {
                 ValidateQueueItem(queueItem);
 
                 EditorWindowsBuildPaths buildPaths = new EditorWindowsBuildPaths(queueItem.OutputDirectoryPath);
+                string buildConfigurationName = ResolveBuildConfigurationName(queueItem);
+                string stagedBuildRootPath = ResolveStagedBuildRootPath(buildPaths, buildConfigurationName);
                 ResetBuildDirectories(buildPaths);
                 GenerateCore(buildPaths);
-                EditorWindowsBuildScenePackagerResult packageResult = PackageScenes(queueItem, buildPaths);
-                ExportReferencedShaderPackages(packageResult, buildPaths);
-                BuildWindowsHost(buildPaths);
-                CopyWindowsArtifacts(buildPaths);
+                EditorWindowsBuildScenePackagerResult packageResult = PackageScenes(queueItem, stagedBuildRootPath);
+                ExportReferencedShaderPackages(packageResult, stagedBuildRootPath);
+                BuildWindowsHost(buildPaths, buildConfigurationName);
+                CopyWindowsArtifacts(buildPaths, buildConfigurationName, stagedBuildRootPath);
 
-                string executablePath = Path.Combine(buildPaths.BuildRootPath, WindowsExecutableName);
+                string executablePath = Path.Combine(stagedBuildRootPath, WindowsExecutableName);
                 return EditorBuildExecutionResult.Success($"Windows build completed: {executablePath}");
             } catch (Exception ex) {
                 return EditorBuildExecutionResult.Failure($"Windows build failed: {ex.Message}");
@@ -172,9 +174,9 @@ namespace helengine.editor {
         /// <param name="queueItem">Queued build item describing which scenes should be packaged.</param>
         /// <param name="buildPaths">Build paths describing the final build root.</param>
         /// <returns>Result describing the referenced shader packages discovered during scene packaging.</returns>
-        EditorWindowsBuildScenePackagerResult PackageScenes(EditorBuildQueueItemDocument queueItem, EditorWindowsBuildPaths buildPaths) {
+        EditorWindowsBuildScenePackagerResult PackageScenes(EditorBuildQueueItemDocument queueItem, string buildRootPath) {
             EditorWindowsBuildScenePackager packager = new EditorWindowsBuildScenePackager(ProjectRootPath, Importers);
-            return packager.Package(queueItem.SelectedSceneIds, buildPaths.BuildRootPath);
+            return packager.Package(queueItem.SelectedSceneIds, buildRootPath);
         }
 
         /// <summary>
@@ -182,20 +184,20 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="packageResult">Referenced shader ids collected while packaging scenes.</param>
         /// <param name="buildPaths">Build paths describing the final build root.</param>
-        void ExportReferencedShaderPackages(EditorWindowsBuildScenePackagerResult packageResult, EditorWindowsBuildPaths buildPaths) {
+        void ExportReferencedShaderPackages(EditorWindowsBuildScenePackagerResult packageResult, string buildRootPath) {
             if (packageResult == null) {
                 throw new ArgumentNullException(nameof(packageResult));
             }
 
             EditorShaderPackageExportService exportService = new EditorShaderPackageExportService(Path.Combine(ProjectRootPath, "shader-cache"));
-            exportService.Export(packageResult.ReferencedShaderAssetIds, ShaderCompileTarget.DirectX11, buildPaths.BuildRootPath);
+            exportService.Export(packageResult.ReferencedShaderAssetIds, ShaderCompileTarget.DirectX11, buildRootPath);
         }
 
         /// <summary>
         /// Configures and builds the Windows host against the freshly generated core output.
         /// </summary>
         /// <param name="buildPaths">Build paths describing generated-source and intermediate roots.</param>
-        void BuildWindowsHost(EditorWindowsBuildPaths buildPaths) {
+        void BuildWindowsHost(EditorWindowsBuildPaths buildPaths, string buildConfigurationName) {
             string helEngineWindowsRootPath = ResolveWindowsPlatformSourceRootPath();
             string cmakePath = ResolveCMakePath();
 
@@ -205,8 +207,38 @@ namespace helengine.editor {
                 helEngineWindowsRootPath);
             RunProcess(
                 cmakePath,
-                string.Concat("--build \"", buildPaths.CMakeBuildRootPath, "\" --config Debug"),
+                string.Concat("--build \"", buildPaths.CMakeBuildRootPath, "\" --config ", buildConfigurationName),
                 helEngineWindowsRootPath);
+        }
+
+        /// <summary>
+        /// Resolves the native build configuration name used for the current queue item.
+        /// </summary>
+        /// <param name="queueItem">Queued build item describing whether the output should be debug or release.</param>
+        /// <returns>`Debug` when the queue item requested a debug player; otherwise `Release`.</returns>
+        string ResolveBuildConfigurationName(EditorBuildQueueItemDocument queueItem) {
+            if (queueItem.DebugBuild) {
+                return "Debug";
+            }
+
+            return "Release";
+        }
+
+        /// <summary>
+        /// Resolves the staged final build root for one native build configuration.
+        /// </summary>
+        /// <param name="buildPaths">Deployment-root paths for the current build.</param>
+        /// <param name="buildConfigurationName">Native build configuration name.</param>
+        /// <returns>Configuration-specific staging root under the selected deployment root.</returns>
+        string ResolveStagedBuildRootPath(EditorWindowsBuildPaths buildPaths, string buildConfigurationName) {
+            if (buildPaths == null) {
+                throw new ArgumentNullException(nameof(buildPaths));
+            }
+            if (string.IsNullOrWhiteSpace(buildConfigurationName)) {
+                throw new ArgumentException("Build configuration name must be provided.", nameof(buildConfigurationName));
+            }
+
+            return Path.Combine(buildPaths.BuildRootPath, buildConfigurationName);
         }
 
         /// <summary>
@@ -233,19 +265,19 @@ namespace helengine.editor {
         /// Copies the native Windows build outputs from the CMake build folder into the final build root.
         /// </summary>
         /// <param name="buildPaths">Build paths describing the intermediate and final build roots.</param>
-        void CopyWindowsArtifacts(EditorWindowsBuildPaths buildPaths) {
-            string debugOutputRootPath = Path.Combine(buildPaths.CMakeBuildRootPath, "Debug");
-            if (!Directory.Exists(debugOutputRootPath)) {
-                throw new InvalidOperationException($"Windows build output folder '{debugOutputRootPath}' was not produced.");
+        void CopyWindowsArtifacts(EditorWindowsBuildPaths buildPaths, string buildConfigurationName, string stagedBuildRootPath) {
+            string buildOutputRootPath = Path.Combine(buildPaths.CMakeBuildRootPath, buildConfigurationName);
+            if (!Directory.Exists(buildOutputRootPath)) {
+                throw new InvalidOperationException($"Windows build output folder '{buildOutputRootPath}' was not produced.");
             }
 
             CopyFileIfPresent(
-                Path.Combine(debugOutputRootPath, WindowsExecutableName),
-                Path.Combine(buildPaths.BuildRootPath, WindowsExecutableName),
+                Path.Combine(buildOutputRootPath, WindowsExecutableName),
+                Path.Combine(stagedBuildRootPath, WindowsExecutableName),
                 true);
             CopyFileIfPresent(
-                Path.Combine(debugOutputRootPath, WindowsSymbolFileName),
-                Path.Combine(buildPaths.BuildRootPath, WindowsSymbolFileName),
+                Path.Combine(buildOutputRootPath, WindowsSymbolFileName),
+                Path.Combine(stagedBuildRootPath, WindowsSymbolFileName),
                 false);
         }
 

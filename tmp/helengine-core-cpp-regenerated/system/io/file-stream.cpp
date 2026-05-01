@@ -4,6 +4,8 @@
 #include <sys/stat.h> // For file size retrieval
 #if defined(_WIN32)
 #include <io.h>
+#else
+#include <unistd.h>
 #endif
 
 // Helper function to get file mode as C-style string

@@ -58,6 +58,9 @@ namespace helengine.editor {
             if (type == null) {
                 return false;
             }
+            if (type == typeof(Component)) {
+                return false;
+            }
             if (!type.IsClass || type.IsAbstract || type.ContainsGenericParameters) {
                 return false;
             }

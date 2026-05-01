@@ -22,5 +22,10 @@ namespace helengine.editor {
         /// Gets or sets the last output directory path chosen for this platform.
         /// </summary>
         public string OutputDirectoryPath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets whether this platform should default to a debug native player build.
+        /// </summary>
+        public bool DebugBuild { get; set; }
     }
 }

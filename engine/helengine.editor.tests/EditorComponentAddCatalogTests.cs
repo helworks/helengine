@@ -12,7 +12,7 @@ namespace helengine.editor.tests {
         readonly string TempRootPath;
 
         /// <summary>
-        /// Initializes the core services required by the editor-only camera add action.
+        /// Initializes the core services required by the reflection-based component catalog tests.
         /// </summary>
         public EditorComponentAddCatalogTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-component-add-catalog-tests", Guid.NewGuid().ToString("N"));
@@ -40,10 +40,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the catalog hides the camera option once the entity already owns one camera component.
+        /// Ensures the catalog does not expose the camera option even when the entity already owns one.
         /// </summary>
         [Fact]
-        public void GetAvailableComponents_WhenEntityAlreadyHasCamera_HidesCameraDescriptor() {
+        public void GetAvailableComponents_WhenEntityAlreadyHasCamera_DoesNotIncludeCameraDescriptor() {
             EditorEntity entity = new EditorEntity();
             entity.AddComponent(new CameraComponent());
 
@@ -67,27 +67,75 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the camera add action attaches the authored camera and the editor-only suppression chrome.
+        /// Ensures the default component catalog does not expose the camera component as an addable option.
         /// </summary>
         [Fact]
-        public void AddAction_WhenCameraDescriptorIsInvoked_AttachesEditorCameraComponents() {
+        public void GetAvailableComponents_WhenEntityHasNoComponents_DoesNotIncludeCameraDescriptor() {
             EditorEntity entity = new EditorEntity();
-            EditorComponentAddDescriptor cameraDescriptor = Assert.Single(EditorComponentAddCatalog.GetAvailableComponents(entity), component => string.Equals(component.DisplayName, "Camera", StringComparison.Ordinal));
 
-            cameraDescriptor.AddAction(entity);
+            IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
 
-            CameraComponent camera = Assert.IsType<CameraComponent>(Assert.Single(entity.Components, component => component is CameraComponent));
-            EditorSceneCameraSuppressionComponent suppression = Assert.IsType<EditorSceneCameraSuppressionComponent>(Assert.Single(entity.Components, component => component is EditorSceneCameraSuppressionComponent));
-            EditorEntity visualEntity = Assert.IsType<EditorEntity>(Assert.Single(entity.Children));
-            EditorCameraVisualComponent visual = Assert.IsType<EditorCameraVisualComponent>(Assert.Single(visualEntity.Components, component => component is EditorCameraVisualComponent));
+            Assert.DoesNotContain(components, component => string.Equals(component.DisplayName, "Camera", StringComparison.Ordinal));
+        }
 
-            Assert.Equal((ushort)EditorLayerMasks.SceneObjects, camera.LayerMask);
-            Assert.False(camera.ClearSettings.ClearColorEnabled);
-            Assert.Equal(EditorLayerMasks.SceneObjects, suppression.LayerMask);
-            Assert.True(visualEntity.InternalEntity);
-            Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
-            Assert.NotNull(visual.Model);
-            Assert.NotNull(visual.Material);
+        /// <summary>
+        /// Ensures the reflected catalog still exposes the rotate component even though it inherits the update base type.
+        /// </summary>
+        [Fact]
+        public void GetAvailableComponents_WhenEntityHasNoComponents_StillIncludesRotateDescriptor() {
+            EditorEntity entity = new EditorEntity();
+
+            IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
+
+            Assert.Contains(components, component => string.Equals(component.DisplayName, "Rotate", StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Ensures the reflected catalog never exposes the base component type as an addable option.
+        /// </summary>
+        [Fact]
+        public void BuildDescriptors_WhenAssemblyContainsBaseComponent_DoesNotExposeBaseComponentDescriptor() {
+            Exception exception = Record.Exception(() => EditorComponentAddCatalog.BuildDescriptors(typeof(Component).Assembly));
+
+            Assert.Null(exception);
+
+            IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.BuildDescriptors(typeof(Component).Assembly);
+
+            Assert.DoesNotContain(components, component => component.ComponentType == typeof(Component));
+        }
+
+        /// <summary>
+        /// Ensures the catalog can discover addable component types from a reflected assembly.
+        /// </summary>
+        [Fact]
+        public void BuildDescriptors_WhenAssemblyContainsPublicComponent_ProducesDescriptor() {
+            IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.BuildDescriptors(typeof(TestReflectedComponent).Assembly);
+
+            Assert.Contains(components, component => component.ComponentType == typeof(TestReflectedComponent));
+        }
+
+        /// <summary>
+        /// Ensures the mesh add action attaches the reflected mesh component.
+        /// </summary>
+        [Fact]
+        public void AddAction_WhenMeshDescriptorIsInvoked_AttachesMeshComponent() {
+            EditorEntity entity = new EditorEntity();
+            EditorComponentAddDescriptor meshDescriptor = Assert.Single(EditorComponentAddCatalog.GetAvailableComponents(entity), component => string.Equals(component.DisplayName, "Mesh", StringComparison.Ordinal));
+
+            meshDescriptor.AddAction(entity);
+
+            Assert.IsType<MeshComponent>(Assert.Single(entity.Components, component => component is MeshComponent));
+        }
+
+        /// <summary>
+        /// Simple reflected test component used to verify assembly scanning.
+        /// </summary>
+        public class TestReflectedComponent : Component {
+            /// <summary>
+            /// Creates a parameterless reflected component instance.
+            /// </summary>
+            public TestReflectedComponent() {
+            }
         }
     }
 }

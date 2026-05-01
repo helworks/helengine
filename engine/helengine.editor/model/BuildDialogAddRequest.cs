@@ -19,12 +19,18 @@ namespace helengine.editor {
         public string OutputDirectoryPath { get; }
 
         /// <summary>
+        /// Gets the debug-build snapshot selected for this queued build.
+        /// </summary>
+        public bool DebugBuild { get; }
+
+        /// <summary>
         /// Initializes one queued-build request captured from the dialog UI.
         /// </summary>
         /// <param name="platformId">Platform id for the queued build.</param>
         /// <param name="selectedSceneIds">Project-relative scene ids selected by the user.</param>
         /// <param name="outputDirectoryPath">Output directory path chosen by the user.</param>
-        public BuildDialogAddRequest(string platformId, IReadOnlyList<string> selectedSceneIds, string outputDirectoryPath) {
+        /// <param name="debugBuild">True when the queued build should use the debug native player configuration.</param>
+        public BuildDialogAddRequest(string platformId, IReadOnlyList<string> selectedSceneIds, string outputDirectoryPath, bool debugBuild = false) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id is required.", nameof(platformId));
             }
@@ -45,6 +51,7 @@ namespace helengine.editor {
             PlatformId = platformId;
             SelectedSceneIds = copiedSceneIds;
             OutputDirectoryPath = outputDirectoryPath;
+            DebugBuild = debugBuild;
         }
     }
 }

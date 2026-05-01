@@ -332,6 +332,7 @@ namespace helengine.editor {
 
             EditorKeyboardFocusService.Reset();
             core.Initialize(render3D, render2D, input);
+            EditorComponentAddCatalog.Initialize();
             core.InputManager.SetKeyboardActive(true);
 
             EditorProjectPaths.Initialize(this.projectPath);
@@ -1061,6 +1062,7 @@ namespace helengine.editor {
                 PlatformId = request.PlatformId,
                 SelectedSceneIds = new List<string>(request.SelectedSceneIds),
                 OutputDirectoryPath = request.OutputDirectoryPath,
+                DebugBuild = request.DebugBuild,
                 Status = EditorBuildQueueItemStatus.Pending,
                 StatusMessage = string.Empty
             });

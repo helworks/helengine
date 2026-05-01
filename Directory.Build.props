@@ -8,4 +8,5 @@
     <AnalysisMode>None</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
+
 </Project>

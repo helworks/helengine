@@ -144,6 +144,82 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures switching to another platform restores that platform's saved debug-build value.
+        /// </summary>
+        [Fact]
+        public void HandlePlatformTabClicked_WhenPlatformsStoreDifferentDebugBuildValues_RestoresTheActiveValue() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows", "linux"],
+                [
+                    "Scenes/City.helen",
+                    "Scenes/Menu.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows",
+                            DebugBuild = true
+                        },
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "linux",
+                            SelectedSceneIds = [
+                                "Scenes/Menu.helen"
+                            ],
+                            OutputDirectoryPath = "/tmp/linux-build",
+                            DebugBuild = false
+                        }
+                    ]
+                });
+
+            CheckBoxComponent debugBuildCheckBox = GetPrivateField<CheckBoxComponent>(dialog, "DebugBuildCheckBox");
+
+            Assert.True(debugBuildCheckBox.IsChecked);
+
+            InvokePrivate(dialog, "HandlePlatformTabClicked", "linux");
+
+            Assert.False(debugBuildCheckBox.IsChecked);
+        }
+
+        /// <summary>
+        /// Ensures Add to Build snapshots the active platform's debug-build flag into the queued build request.
+        /// </summary>
+        [Fact]
+        public void HandleAddToBuildClicked_WhenDebugBuildIsEnabled_SnapshotsTheDebugBuildFlag() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialogAddRequest raisedRequest = null;
+            dialog.AddRequested += request => raisedRequest = request;
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows",
+                            DebugBuild = true
+                        }
+                    ]
+                });
+
+            InvokePrivate(dialog, "HandleAddToBuildClicked");
+
+            Assert.NotNull(raisedRequest);
+            Assert.True(raisedRequest.DebugBuild);
+        }
+
+        /// <summary>
         /// Ensures pressing Enter in a scene-order field reflows the visible scene rows using the committed order numbers.
         /// </summary>
         [Fact]

@@ -106,6 +106,58 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures the per-platform debug-build flag survives save and reload.
+    /// </summary>
+    [Fact]
+    public void Load_WhenBuildConfigContainsDebugBuild_PreservesItAfterReload() {
+        EditorBuildConfigService service = CreateService();
+        EditorBuildConfigDocument savedDocument = new EditorBuildConfigDocument {
+            Platforms = [
+                new EditorBuildPlatformConfigDocument {
+                    PlatformId = "windows",
+                    SelectedSceneIds = ["Scenes/City.helen"],
+                    SceneOrders = [],
+                    OutputDirectoryPath = @"C:\builds\windows",
+                    DebugBuild = true
+                }
+            ]
+        };
+        service.Save(savedDocument);
+
+        EditorBuildConfigDocument loadedDocument = service.Load(["windows"], "Scenes/Other.helen");
+
+        Assert.True(loadedDocument.Platforms[0].DebugBuild);
+    }
+
+    /// <summary>
+    /// Ensures legacy build-config files without a debug-build field load as release builds.
+    /// </summary>
+    [Fact]
+    public void Load_WhenBuildConfigOmitsDebugBuild_DefaultsItToFalse() {
+        EditorBuildConfigService service = CreateService();
+        WriteBuildConfigFile(
+            """
+            {
+              "platforms": [
+                {
+                  "platformId": "windows",
+                  "selectedSceneIds": [
+                    "Scenes/City.helen"
+                  ],
+                  "sceneOrders": [],
+                  "outputDirectoryPath": "C:\\builds\\windows"
+                }
+              ],
+              "queueItems": []
+            }
+            """);
+
+        EditorBuildConfigDocument loadedDocument = service.Load(["windows"], "Scenes/Other.helen");
+
+        Assert.False(loadedDocument.Platforms[0].DebugBuild);
+    }
+
+    /// <summary>
     /// Ensures newly enabled platforms are added with one current-scene default without overwriting existing selections.
     /// </summary>
     [Fact]

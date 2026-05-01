@@ -157,6 +157,25 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the add-component modal includes the runtime FPS overlay component.
+        /// </summary>
+        [Fact]
+        public void HandleAddComponentClicked_WhenDialogOpens_IncludesFpsDescriptor() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Cube"
+            };
+
+            panel.ShowEntityProperties(entity);
+            InvokePrivate(panel, "HandleAddComponentClicked");
+
+            ComponentAddDialog dialog = GetPrivateField<ComponentAddDialog>(panel, "AddComponentDialog");
+            List<EditorComponentAddDescriptor> descriptors = GetPrivateField<List<EditorComponentAddDescriptor>>(dialog, "FilteredDescriptors");
+
+            Assert.Contains(descriptors, descriptor => string.Equals(descriptor.DisplayName, "FPS", StringComparison.Ordinal));
+        }
+
+        /// <summary>
         /// Ensures the add-component modal search field live-filters the visible component list.
         /// </summary>
         [Fact]
@@ -218,7 +237,7 @@ namespace helengine.editor.tests {
 
             ComponentAddDialog dialog = GetPrivateField<ComponentAddDialog>(panel, "AddComponentDialog");
             List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(dialog, "Rows");
-            ContextMenuRow row = rows.First(value => value.Entity.Enabled && string.Equals(value.Label.Text, "Camera", StringComparison.Ordinal));
+            ContextMenuRow row = rows.First(value => value.Entity.Enabled && string.Equals(value.Label.Text, "Mesh", StringComparison.Ordinal));
             byte4 beforeHover = row.Background.Color;
 
             row.Interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Hover);
@@ -245,7 +264,7 @@ namespace helengine.editor.tests {
             ComponentAddDialog dialog = GetPrivateField<ComponentAddDialog>(panel, "AddComponentDialog");
             dialog.ComponentSelected += _ => componentSelected = true;
             List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(dialog, "Rows");
-            ContextMenuRow row = rows.First(value => value.Entity.Enabled && string.Equals(value.Label.Text, "Camera", StringComparison.Ordinal));
+            ContextMenuRow row = rows.First(value => value.Entity.Enabled && string.Equals(value.Label.Text, "Mesh", StringComparison.Ordinal));
             byte4 beforeClick = row.Background.Color;
 
             row.Interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Hover);
@@ -255,7 +274,7 @@ namespace helengine.editor.tests {
             Assert.True(dialog.IsVisible);
             Assert.Same(row, GetPrivateField<ContextMenuRow>(dialog, "SelectedRow"));
             Assert.NotNull(GetPrivateField<EditorComponentAddDescriptor>(dialog, "SelectedDescriptor"));
-            Assert.Equal("Camera", GetPrivateField<EditorComponentAddDescriptor>(dialog, "SelectedDescriptor").DisplayName);
+            Assert.Equal("Mesh", GetPrivateField<EditorComponentAddDescriptor>(dialog, "SelectedDescriptor").DisplayName);
             Assert.False(componentSelected);
             Assert.NotEqual(beforeClick, row.Background.Color);
             Assert.Equal(ThemeManager.Colors.AccentPrimary, row.Background.Color);
@@ -276,7 +295,7 @@ namespace helengine.editor.tests {
 
             ComponentAddDialog dialog = GetPrivateField<ComponentAddDialog>(panel, "AddComponentDialog");
             List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(dialog, "Rows");
-            ContextMenuRow row = rows.First(value => value.Entity.Enabled && string.Equals(value.Label.Text, "Camera", StringComparison.Ordinal));
+            ContextMenuRow row = rows.First(value => value.Entity.Enabled && string.Equals(value.Label.Text, "Mesh", StringComparison.Ordinal));
 
             row.Interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Hover);
             row.Interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Press);
@@ -286,7 +305,7 @@ namespace helengine.editor.tests {
             row.Interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Release);
 
             Assert.False(dialog.IsVisible);
-            Assert.Contains(entity.Components, value => value is CameraComponent);
+            Assert.Contains(entity.Components, value => value is MeshComponent);
         }
 
         /// <summary>
@@ -304,7 +323,7 @@ namespace helengine.editor.tests {
 
             ComponentAddDialog dialog = GetPrivateField<ComponentAddDialog>(panel, "AddComponentDialog");
             List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(dialog, "Rows");
-            ContextMenuRow row = rows.First(value => value.Entity.Enabled && string.Equals(value.Label.Text, "Camera", StringComparison.Ordinal));
+            ContextMenuRow row = rows.First(value => value.Entity.Enabled && string.Equals(value.Label.Text, "Mesh", StringComparison.Ordinal));
 
             row.Interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Hover);
             row.Interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Press);
@@ -312,7 +331,7 @@ namespace helengine.editor.tests {
             InvokePrivate(dialog, "HandleAddClicked");
 
             Assert.False(dialog.IsVisible);
-            Assert.Contains(entity.Components, value => value is CameraComponent);
+            Assert.Contains(entity.Components, value => value is MeshComponent);
         }
 
         /// <summary>

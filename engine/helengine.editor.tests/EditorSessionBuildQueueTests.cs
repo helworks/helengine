@@ -99,6 +99,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the session snapshots the active platform's debug-build flag into the persisted queue item.
+        /// </summary>
+        [Fact]
+        public void HandleBuildDialogAddRequested_WhenDebugBuildIsEnabled_PersistsTheDebugBuildFlag() {
+            EditorBuildConfigService buildConfigService = new EditorBuildConfigService(TempProjectRootPath);
+            EditorBuildQueueService buildQueueService = new EditorBuildQueueService(buildConfigService, new TestEditorBuildExecutor([]));
+            EditorSession session = CreateSession(buildConfigService, buildQueueService, "windows");
+
+            InvokePrivate(session, "HandleBuildDialogAddRequested", new BuildDialogAddRequest("windows", [
+                CurrentSceneId
+            ], @"C:\builds\windows", true));
+
+            EditorBuildConfigDocument persistedDocument = buildConfigService.Load([
+                "windows"
+            ], CurrentSceneId);
+            EditorBuildQueueItemDocument queueItem = Assert.Single(persistedDocument.QueueItems);
+
+            Assert.True(queueItem.DebugBuild);
+        }
+
+        /// <summary>
         /// Ensures the session does not persist a queued build when the requested output folder is blank.
         /// </summary>
         [Fact]

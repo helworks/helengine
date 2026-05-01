@@ -53,6 +53,24 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the executor resolves a debug queue item to the Debug native configuration and staging folder.
+        /// </summary>
+        [Fact]
+        public void ResolveBuildConfigurationName_WhenQueueItemUsesDebugBuild_ReturnsDebug() {
+            EditorWindowsBuildExecutor executor = new EditorWindowsBuildExecutor(ProjectRootPath, "1.0.0-test");
+            EditorWindowsBuildPaths buildPaths = new EditorWindowsBuildPaths(BuildRootPath);
+            EditorBuildQueueItemDocument queueItem = new EditorBuildQueueItemDocument {
+                DebugBuild = true
+            };
+
+            string buildConfigurationName = InvokePrivate<string>(executor, "ResolveBuildConfigurationName", queueItem);
+            string stagedBuildRootPath = InvokePrivate<string>(executor, "ResolveStagedBuildRootPath", buildPaths, buildConfigurationName);
+
+            Assert.Equal("Debug", buildConfigurationName);
+            Assert.Equal(Path.Combine(BuildRootPath, "Build", "Debug"), stagedBuildRootPath);
+        }
+
+        /// <summary>
         /// Writes one compiled shader package into the local shader cache for executor verification.
         /// </summary>
         /// <param name="shaderAssetId">Shader asset identifier to encode.</param>
@@ -103,6 +121,18 @@ namespace helengine.editor.tests {
         /// <param name="methodName">Private method name to invoke.</param>
         /// <param name="arguments">Arguments passed to the private method.</param>
         static void InvokePrivate(object instance, string methodName, params object[] arguments) {
+            InvokePrivate<object>(instance, methodName, arguments);
+        }
+
+        /// <summary>
+        /// Invokes one private executor method through reflection and returns its result.
+        /// </summary>
+        /// <typeparam name="T">Expected return type.</typeparam>
+        /// <param name="instance">Object instance whose private method should be called.</param>
+        /// <param name="methodName">Private method name to invoke.</param>
+        /// <param name="arguments">Arguments passed to the private method.</param>
+        /// <returns>Method return value cast to the requested type.</returns>
+        static T InvokePrivate<T>(object instance, string methodName, params object[] arguments) {
             if (instance == null) {
                 throw new ArgumentNullException(nameof(instance));
             }
@@ -116,7 +146,16 @@ namespace helengine.editor.tests {
                 throw new InvalidOperationException($"Private method '{methodName}' was not found.");
             }
 
-            method.Invoke(instance, arguments);
+            object result = method.Invoke(instance, arguments);
+            if (result is T typedResult) {
+                return typedResult;
+            }
+
+            if (result == null) {
+                return default(T);
+            }
+
+            throw new InvalidOperationException($"Private method '{methodName}' returned an unexpected result type.");
         }
     }
 }

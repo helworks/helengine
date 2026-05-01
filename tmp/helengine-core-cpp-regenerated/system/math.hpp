@@ -14,9 +14,13 @@ class Math {
 public:
     inline static constexpr double PI = 3.14159265358979323846;
 
-    template <typename TValue>
-    static TValue Clamp(TValue value, TValue minValue, TValue maxValue) {
-        return std::clamp(value, minValue, maxValue);
+    template <typename TValue, typename TMin, typename TMax>
+    static std::common_type_t<TValue, TMin, TMax> Clamp(TValue value, TMin minValue, TMax maxValue) {
+        using TResult = std::common_type_t<TValue, TMin, TMax>;
+        return std::clamp(
+            static_cast<TResult>(value),
+            static_cast<TResult>(minValue),
+            static_cast<TResult>(maxValue));
     }
 
     template <typename TValue>
@@ -93,8 +97,8 @@ public:
 
 class MathF {
 public:
-    template <typename TValue>
-    static float Clamp(TValue value, TValue minValue, TValue maxValue) {
+    template <typename TValue, typename TMin, typename TMax>
+    static float Clamp(TValue value, TMin minValue, TMax maxValue) {
         return static_cast<float>(Math::Clamp(value, minValue, maxValue));
     }
 

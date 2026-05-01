@@ -166,7 +166,8 @@ namespace helengine.editor {
         EditorBuildPlatformConfigDocument CreatePlatformDocument(string platformId, string currentSceneId) {
             EditorBuildPlatformConfigDocument document = new EditorBuildPlatformConfigDocument {
                 PlatformId = platformId,
-                OutputDirectoryPath = string.Empty
+                OutputDirectoryPath = string.Empty,
+                DebugBuild = false
             };
 
             if (!string.IsNullOrWhiteSpace(currentSceneId)) {

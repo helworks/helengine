@@ -32,5 +32,10 @@ namespace helengine.editor {
         /// Gets or sets the human-readable status detail associated with the current queue item state.
         /// </summary>
         public string StatusMessage { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the persisted debug-build snapshot captured when the queue item was created.
+        /// </summary>
+        public bool DebugBuild { get; set; }
     }
 }

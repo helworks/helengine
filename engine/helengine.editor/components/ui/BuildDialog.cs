@@ -232,6 +232,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity OutputLabelHost;
         /// <summary>
+        /// Host entity for the debug-build label.
+        /// </summary>
+        readonly EditorEntity DebugBuildLabelHost;
+        /// <summary>
         /// Host entity for the copy-source label.
         /// </summary>
         readonly EditorEntity CopySourceLabelHost;
@@ -260,6 +264,10 @@ namespace helengine.editor {
         /// </summary>
         readonly TextComponent OutputLabelText;
         /// <summary>
+        /// Debug-build label text.
+        /// </summary>
+        readonly TextComponent DebugBuildLabelText;
+        /// <summary>
         /// Host entity for the output-directory textbox.
         /// </summary>
         readonly EditorEntity OutputFieldHost;
@@ -267,6 +275,14 @@ namespace helengine.editor {
         /// Text box used to edit the active platform's output directory.
         /// </summary>
         readonly TextBoxComponent OutputDirectoryField;
+        /// <summary>
+        /// Host entity for the debug-build checkbox.
+        /// </summary>
+        readonly EditorEntity DebugBuildCheckBoxHost;
+        /// <summary>
+        /// Checkbox used to choose whether the active platform defaults to a debug native build.
+        /// </summary>
+        readonly CheckBoxComponent DebugBuildCheckBox;
         /// <summary>
         /// Host entity for the output-folder browse button.
         /// </summary>
@@ -542,6 +558,21 @@ namespace helengine.editor {
             };
             OutputLabelHost.AddComponent(OutputLabelText);
 
+            DebugBuildLabelHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BuildColumnRoot.AddChild(DebugBuildLabelHost);
+
+            DebugBuildLabelText = new TextComponent {
+                Font = DialogFont,
+                Text = "Debug build",
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                RenderOrder2D = DialogTextOrder
+            };
+            DebugBuildLabelHost.AddComponent(DebugBuildLabelText);
+
             OutputFieldHost = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
@@ -553,6 +584,17 @@ namespace helengine.editor {
             OutputDirectoryField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             OutputDirectoryField.TextChanged += HandleOutputDirectoryFieldTextChanged;
             OutputFieldHost.AddComponent(OutputDirectoryField);
+
+            DebugBuildCheckBoxHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BuildColumnRoot.AddChild(DebugBuildCheckBoxHost);
+
+            DebugBuildCheckBox = new CheckBoxComponent(new int2(18, 18), DialogFont, false);
+            DebugBuildCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
+            DebugBuildCheckBoxHost.AddComponent(DebugBuildCheckBox);
 
             BrowseOutputFolderButtonHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -758,7 +800,7 @@ namespace helengine.editor {
             }
 
             List<string> orderedSceneIds = BuildOrderedSceneIds(platformConfig, selectedSceneIds);
-            AddRequested?.Invoke(new BuildDialogAddRequest(ActivePlatformId, orderedSceneIds, platformConfig.OutputDirectoryPath));
+            AddRequested?.Invoke(new BuildDialogAddRequest(ActivePlatformId, orderedSceneIds, platformConfig.OutputDirectoryPath, platformConfig.DebugBuild));
         }
 
         /// <summary>
@@ -1068,6 +1110,7 @@ namespace helengine.editor {
             RebuildCopySourcePlatformItems();
             OutputDirectoryField.Text = platformConfig.OutputDirectoryPath ?? "";
             OutputDirectoryField.SetInvalidState(false);
+            DebugBuildCheckBox.IsChecked = platformConfig.DebugBuild;
             SetSceneListInvalidState(false);
         }
 
@@ -1180,11 +1223,12 @@ namespace helengine.editor {
         /// Anchors the copy-source, output-folder, and add-to-build controls to the lower portion of the left column.
         /// </summary>
         void LayoutLowerLeftControls() {
-            int addButtonY = LegacyContentHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8;
-            int outputFieldY = addButtonY - 16 - OutputFieldHeight;
+            int outputFieldY = LegacyContentHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8 - 16 - OutputFieldHeight;
+            int addButtonY = outputFieldY + OutputFieldHeight + 16 + 18 + 16;
             int outputLabelY = outputFieldY - 20;
             int copyComboY = outputLabelY - 16 - OutputFieldHeight;
             int copyLabelY = copyComboY - 20;
+            int debugBuildY = outputFieldY + OutputFieldHeight + 16;
             int sceneListTop = PlatformTabHeight + SceneListTopMargin;
             int sceneListHeight = Math.Max(1, copyLabelY - 12 - sceneListTop);
 
@@ -1196,6 +1240,8 @@ namespace helengine.editor {
             OutputLabelHost.Position = new float3(0f, outputLabelY, 0.1f);
             OutputFieldHost.Position = new float3(OutputDirectoryField.CurrentShakeOffsetX, outputFieldY, 0.1f);
             BrowseOutputFolderButtonHost.Position = new float3(GetOutputFieldWidth() + 8f, outputFieldY, 0.1f);
+            DebugBuildLabelHost.Position = new float3(24f, debugBuildY, 0.1f);
+            DebugBuildCheckBoxHost.Position = new float3(0f, debugBuildY - 2, 0.1f);
             AddToBuildButtonHost.Position = new float3(0f, addButtonY, 0.1f);
         }
 
@@ -1291,6 +1337,7 @@ namespace helengine.editor {
             }
 
             platformConfig.OutputDirectoryPath = OutputDirectoryField.Text ?? string.Empty;
+            platformConfig.DebugBuild = DebugBuildCheckBox.IsChecked;
         }
 
         /// <summary>
