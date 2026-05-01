@@ -8,7 +8,7 @@ namespace helengine {
         /// <summary>
         /// Underlying stream receiving the payload bytes.
         /// </summary>
-        readonly Stream BaseStream;
+        protected readonly Stream BaseStream;
 
         /// <summary>
         /// Indicates whether disposing the writer should leave the underlying stream open.
@@ -35,11 +35,6 @@ namespace helengine {
         public abstract EngineBinaryEndianness Endianness { get; }
 
         /// <summary>
-        /// Gets the stream being written.
-        /// </summary>
-        protected Stream Stream => BaseStream;
-
-        /// <summary>
         /// Creates a writer for the requested payload endianness.
         /// </summary>
         /// <param name="stream">Destination stream for the payload bytes.</param>
@@ -63,7 +58,7 @@ namespace helengine {
         /// </summary>
         /// <param name="value">Byte value to write.</param>
         public void WriteByte(byte value) {
-            Stream.WriteByte(value);
+            BaseStream.WriteByte(value);
         }
 
         /// <summary>
@@ -110,7 +105,7 @@ namespace helengine {
 
             byte[] bytes = Encoding.UTF8.GetBytes(value);
             WriteInt32(bytes.Length);
-            Stream.Write(bytes, 0, bytes.Length);
+            BaseStream.Write(bytes, 0, bytes.Length);
         }
 
         /// <summary>
@@ -124,7 +119,7 @@ namespace helengine {
             }
 
             WriteInt32(value.Length);
-            Stream.Write(value, 0, value.Length);
+            BaseStream.Write(value, 0, value.Length);
         }
 
         /// <summary>

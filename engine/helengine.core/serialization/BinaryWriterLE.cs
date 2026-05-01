@@ -26,7 +26,7 @@ namespace helengine {
         public override void WriteUInt16(ushort value) {
             Span<byte> buffer = stackalloc byte[sizeof(ushort)];
             BinaryPrimitives.WriteUInt16LittleEndian(buffer, value);
-            Stream.Write(buffer);
+            BaseStream.Write(buffer);
         }
 
         /// <summary>
@@ -36,7 +36,7 @@ namespace helengine {
         public override void WriteInt32(int value) {
             Span<byte> buffer = stackalloc byte[sizeof(int)];
             BinaryPrimitives.WriteInt32LittleEndian(buffer, value);
-            Stream.Write(buffer);
+            BaseStream.Write(buffer);
         }
 
         /// <summary>
@@ -46,7 +46,7 @@ namespace helengine {
         public override void WriteUInt32(uint value) {
             Span<byte> buffer = stackalloc byte[sizeof(uint)];
             BinaryPrimitives.WriteUInt32LittleEndian(buffer, value);
-            Stream.Write(buffer);
+            BaseStream.Write(buffer);
         }
 
         /// <summary>
@@ -56,7 +56,7 @@ namespace helengine {
         public override void WriteInt64(long value) {
             Span<byte> buffer = stackalloc byte[sizeof(long)];
             BinaryPrimitives.WriteInt64LittleEndian(buffer, value);
-            Stream.Write(buffer);
+            BaseStream.Write(buffer);
         }
     }
 }

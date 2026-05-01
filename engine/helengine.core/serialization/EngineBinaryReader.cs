@@ -35,11 +35,6 @@ namespace helengine {
         public abstract EngineBinaryEndianness Endianness { get; }
 
         /// <summary>
-        /// Gets the stream being read.
-        /// </summary>
-        protected Stream Stream => BaseStream;
-
-        /// <summary>
         /// Creates a reader for the requested payload endianness.
         /// </summary>
         /// <param name="stream">Stream containing the payload bytes.</param>
@@ -63,7 +58,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Decoded byte value.</returns>
         public byte ReadByte() {
-            int value = Stream.ReadByte();
+            int value = BaseStream.ReadByte();
             if (value < 0) {
                 throw new EndOfStreamException("Unexpected end of stream while reading engine binary data.");
             }
@@ -197,7 +192,7 @@ namespace helengine {
         protected void ReadRequiredBytes(Span<byte> buffer) {
             int totalBytesRead = 0;
             while (totalBytesRead < buffer.Length) {
-                int bytesRead = Stream.Read(buffer.Slice(totalBytesRead));
+                int bytesRead = BaseStream.Read(buffer.Slice(totalBytesRead));
                 if (bytesRead <= 0) {
                     throw new EndOfStreamException("Unexpected end of stream while reading engine binary data.");
                 }
