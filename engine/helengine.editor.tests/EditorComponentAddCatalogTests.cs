@@ -59,7 +59,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void GetAvailableComponents_WhenEntityHasEditorCameraVisualComponent_StillIncludesMeshDescriptor() {
             EditorEntity entity = new EditorEntity();
-            entity.AddComponent(new EditorCameraVisualComponent());
+            EditorCameraVisualAttachmentService.Attach(entity);
 
             IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
 
@@ -78,11 +78,14 @@ namespace helengine.editor.tests {
 
             CameraComponent camera = Assert.IsType<CameraComponent>(Assert.Single(entity.Components, component => component is CameraComponent));
             EditorSceneCameraSuppressionComponent suppression = Assert.IsType<EditorSceneCameraSuppressionComponent>(Assert.Single(entity.Components, component => component is EditorSceneCameraSuppressionComponent));
-            EditorCameraVisualComponent visual = Assert.IsType<EditorCameraVisualComponent>(Assert.Single(entity.Components, component => component is EditorCameraVisualComponent));
+            EditorEntity visualEntity = Assert.IsType<EditorEntity>(Assert.Single(entity.Children));
+            EditorCameraVisualComponent visual = Assert.IsType<EditorCameraVisualComponent>(Assert.Single(visualEntity.Components, component => component is EditorCameraVisualComponent));
 
             Assert.Equal((ushort)EditorLayerMasks.SceneObjects, camera.LayerMask);
             Assert.False(camera.ClearSettings.ClearColorEnabled);
             Assert.Equal(EditorLayerMasks.SceneObjects, suppression.LayerMask);
+            Assert.True(visualEntity.InternalEntity);
+            Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
             Assert.NotNull(visual.Model);
             Assert.NotNull(visual.Material);
         }

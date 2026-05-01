@@ -22,5 +22,10 @@ namespace helengine.editor {
         /// Layer mask used by in-scene editor gizmos.
         /// </summary>
         public const ushort SceneGizmo = 0b0010000000000000;
+
+        /// <summary>
+        /// Layer mask used by editor-only camera visual children.
+        /// </summary>
+        public const ushort SceneCameraVisuals = 0b0000100000000000;
     }
 }

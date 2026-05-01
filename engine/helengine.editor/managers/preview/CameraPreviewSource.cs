@@ -136,6 +136,8 @@ namespace helengine.editor {
 
             isDisposed = true;
             DisposeRenderTarget();
+            Core.Instance.ObjectManager.RemoveCamera(previewCameraComponent);
+            Core.Instance.ObjectManager.RemoveEntity(previewEntity);
             previewEntity.Dispose();
         }
 

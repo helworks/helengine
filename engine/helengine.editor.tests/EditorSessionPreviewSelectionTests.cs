@@ -118,7 +118,7 @@ namespace helengine.editor.tests {
                 "Textures/Preview.png",
                 sourcePath,
                 ".png",
-                AssetEntryKind.Texture);
+                AssetEntryKind.Image);
         }
 
         /// <summary>

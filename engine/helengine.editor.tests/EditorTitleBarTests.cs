@@ -44,6 +44,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the editor logo renders inside the reserved left title-bar slot when a texture is supplied.
+        /// </summary>
+        [Fact]
+        public void Constructor_WithIconTexture_RendersEditorLogoInLeftSlot() {
+            InitializeCore();
+            RuntimeTexture iconTexture = new TestRuntimeTexture {
+                Width = 128,
+                Height = 128
+            };
+
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title", iconTexture);
+
+            EditorEntity iconEntity = GetPrivateField<EditorEntity>(titleBar, "IconEntity");
+            SpriteComponent iconSprite = GetPrivateField<SpriteComponent>(titleBar, "IconSprite");
+
+            Assert.NotNull(iconEntity);
+            Assert.Equal(6f, iconEntity.Position.X);
+            Assert.Equal(6f, iconEntity.Position.Y);
+            Assert.Same(iconTexture, iconSprite.Texture);
+            Assert.Equal(new int2(24, 24), iconSprite.Size);
+        }
+
+        /// <summary>
         /// Ensures the main File menu renders above docked panel content and labels.
         /// </summary>
         [Fact]

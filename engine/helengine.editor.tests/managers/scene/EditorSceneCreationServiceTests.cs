@@ -98,7 +98,8 @@ namespace helengine.editor.tests.managers.scene {
 
             CameraComponent cameraComponent = Assert.IsType<CameraComponent>(Assert.Single(entity.Components, component => component is CameraComponent));
             EditorSceneCameraSuppressionComponent suppressionComponent = Assert.IsType<EditorSceneCameraSuppressionComponent>(Assert.Single(entity.Components, component => component is EditorSceneCameraSuppressionComponent));
-            EditorCameraVisualComponent visualComponent = Assert.IsType<EditorCameraVisualComponent>(Assert.Single(entity.Components, component => component is EditorCameraVisualComponent));
+            EditorEntity visualEntity = Assert.IsType<EditorEntity>(Assert.Single(entity.Children));
+            EditorCameraVisualComponent visualComponent = Assert.IsType<EditorCameraVisualComponent>(Assert.Single(visualEntity.Components, component => component is EditorCameraVisualComponent));
 
             Assert.Equal("Camera", entity.Name);
             Assert.Equal(EditorLayerMasks.SceneObjects, entity.LayerMask);
@@ -109,6 +110,8 @@ namespace helengine.editor.tests.managers.scene {
             Assert.Equal(EditorLayerMasks.SceneObjects, suppressionComponent.LayerMask);
             Assert.True(suppressionComponent.ClearSettings.ClearColorEnabled);
             Assert.True(suppressionComponent.ClearSettings.ClearDepthEnabled);
+            Assert.True(visualEntity.InternalEntity);
+            Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
             Assert.NotNull(visualComponent.Model);
             Assert.NotNull(visualComponent.Material);
         }

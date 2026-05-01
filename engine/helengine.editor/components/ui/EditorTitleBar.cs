@@ -16,6 +16,14 @@ namespace helengine.editor {
         /// </summary>
         const int LeftIconSlotWidth = HeightPixels;
         /// <summary>
+        /// Size used for the rendered editor icon inside the left slot.
+        /// </summary>
+        const int IconSize = 24;
+        /// <summary>
+        /// Padding applied around the rendered editor icon.
+        /// </summary>
+        const int IconPadding = (HeightPixels - IconSize) / 2;
+        /// <summary>
         /// Top offset used for title bar buttons.
         /// </summary>
         const int ButtonTop = 0;
@@ -96,6 +104,14 @@ namespace helengine.editor {
         /// Text component that renders the current window title.
         /// </summary>
         readonly TextComponent TitleTextComponent;
+        /// <summary>
+        /// Entity that hosts the optional editor logo shown in the left title-bar slot.
+        /// </summary>
+        readonly EditorEntity IconEntity;
+        /// <summary>
+        /// Sprite component used to render the editor logo in the title bar.
+        /// </summary>
+        readonly SpriteComponent IconSprite;
         /// <summary>
         /// Entity that hosts the File menu trigger button.
         /// </summary>
@@ -205,13 +221,16 @@ namespace helengine.editor {
         /// <param name="windowWidth">Initial host window width.</param>
         /// <param name="windowHeight">Initial host window height.</param>
         /// <param name="titleText">Initial window title text.</param>
-        public EditorTitleBar(FontAsset font, int windowWidth, int windowHeight, string titleText) {
+        /// <param name="iconTexture">Optional editor logo texture rendered in the left title-bar slot.</param>
+        public EditorTitleBar(FontAsset font, int windowWidth, int windowHeight, string titleText, RuntimeTexture iconTexture = null) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
 
             Font = font;
             TitleValue = titleText ?? string.Empty;
+            IconEntity = null;
+            IconSprite = null;
             BackgroundOrder = RenderOrder2D.PanelSurface;
             TextOrder = RenderOrder2D.PanelForeground;
             InputSurfaceOrder = RenderOrder2D.OverlayInput;
@@ -281,6 +300,21 @@ namespace helengine.editor {
                 RenderOrder2D = TextOrder
             };
             TitleEntity.AddComponent(TitleTextComponent);
+
+            if (iconTexture != null) {
+                IconEntity = new EditorEntity {
+                    LayerMask = TitleBarLayerMask,
+                    Position = new float3(IconPadding, IconPadding, 0f)
+                };
+                RootEntity.AddChild(IconEntity);
+
+                IconSprite = new SpriteComponent {
+                    Texture = iconTexture,
+                    Size = new int2(IconSize, IconSize),
+                    RenderOrder2D = TextOrder
+                };
+                IconEntity.AddComponent(IconSprite);
+            }
 
             byte menuBackgroundOrder = RenderOrder2D.OverlayBackground;
             byte menuTextOrder = RenderOrder2D.OverlayForeground;

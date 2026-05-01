@@ -46,11 +46,17 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(sceneAsset));
             }
 
+            Logger.WriteLine("Loading packaged scene assets.");
+            System.Diagnostics.Stopwatch loadStopwatch = System.Diagnostics.Stopwatch.StartNew();
             SceneEntityAsset[] rootEntityAssets = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
             List<Entity> rootEntities = new List<Entity>(rootEntityAssets.Length);
             for (int index = 0; index < rootEntityAssets.Length; index++) {
                 rootEntities.Add(LoadEntity(rootEntityAssets[index]));
             }
+
+            loadStopwatch.Stop();
+            Logger.WriteLine(
+                $"Loaded packaged scene assets in {loadStopwatch.Elapsed.TotalMilliseconds:0.00} ms ({rootEntities.Count} root entities).");
 
             return rootEntities;
         }

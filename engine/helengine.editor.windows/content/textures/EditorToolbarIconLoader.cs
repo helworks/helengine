@@ -44,6 +44,10 @@ namespace helengine.editor {
         /// Root-relative path for the shift-key toolbar label icon.
         /// </summary>
         static readonly string ShiftKeyIconPath = Path.Combine("content", "icons", "toolbar", "key-shift.png");
+        /// <summary>
+        /// Root-relative path for the editor title-bar icon.
+        /// </summary>
+        static readonly string TitleBarIconPath = Path.Combine("content", "icons", "titlebar", "helengine_icon.png");
 
         /// <summary>
         /// Loads the default toolbar icon set used by the editor viewport.
@@ -78,6 +82,23 @@ namespace helengine.editor {
                 magnetIcon,
                 ctrlKeyIcon,
                 shiftKeyIcon);
+        }
+
+        /// <summary>
+        /// Loads the editor application icon used in the top-left title-bar slot.
+        /// </summary>
+        /// <param name="content">Content manager used to resolve and parse the icon file.</param>
+        /// <param name="applicationRootPath">Absolute application root path used to resolve built-in editor content.</param>
+        /// <returns>Runtime texture that can be assigned to the title-bar icon slot.</returns>
+        public static RuntimeTexture LoadTitleBarIcon(ContentManager content, string applicationRootPath) {
+            if (content == null) {
+                throw new ArgumentNullException(nameof(content));
+            }
+            if (string.IsNullOrWhiteSpace(applicationRootPath)) {
+                throw new ArgumentException("Application root path must be provided.", nameof(applicationRootPath));
+            }
+
+            return LoadTexture(content, applicationRootPath, TitleBarIconPath);
         }
 
         /// <summary>

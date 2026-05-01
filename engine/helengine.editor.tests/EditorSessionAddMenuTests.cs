@@ -92,12 +92,15 @@ namespace helengine.editor.tests {
             EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
             CameraComponent cameraComponent = Assert.IsType<CameraComponent>(Assert.Single(selectedEntity.Components, component => component is CameraComponent));
             EditorSceneCameraSuppressionComponent suppressionComponent = Assert.IsType<EditorSceneCameraSuppressionComponent>(Assert.Single(selectedEntity.Components, component => component is EditorSceneCameraSuppressionComponent));
-            EditorCameraVisualComponent visualComponent = Assert.IsType<EditorCameraVisualComponent>(Assert.Single(selectedEntity.Components, component => component is EditorCameraVisualComponent));
+            EditorEntity visualEntity = Assert.IsType<EditorEntity>(Assert.Single(selectedEntity.Children));
+            EditorCameraVisualComponent visualComponent = Assert.IsType<EditorCameraVisualComponent>(Assert.Single(visualEntity.Components, component => component is EditorCameraVisualComponent));
 
             Assert.Equal("Camera", selectedEntity.Name);
             Assert.Equal((ushort)0, cameraComponent.LayerMask);
             Assert.False(cameraComponent.ClearSettings.ClearColorEnabled);
             Assert.Equal(EditorLayerMasks.SceneObjects, suppressionComponent.LayerMask);
+            Assert.True(visualEntity.InternalEntity);
+            Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
             Assert.NotNull(visualComponent.Model);
             Assert.Equal(1, GetHierarchyNodeCount(session));
         }

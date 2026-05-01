@@ -149,6 +149,7 @@ namespace helengine.editor.app {
             FontAsset snapModifierFont = GDIFontProcessor.ImportFont(new Font("Consolas", 15, FontStyle.Bold, GraphicsUnit.Pixel));
             ContentManager contentManager = core.ContentManager;
             EditorViewportToolbarIconSet toolbarIcons = EditorToolbarIconLoader.LoadDefaultToolbarIcons(contentManager, AppContext.BaseDirectory);
+            RuntimeTexture titleBarIcon = EditorToolbarIconLoader.LoadTitleBarIcon(contentManager, AppContext.BaseDirectory);
             IReadOnlyList<IAssetImporterRegistration> importers = BuildImporters();
             editorSession = new EditorSession(
                 core,
@@ -161,6 +162,7 @@ namespace helengine.editor.app {
                 renderWidth,
                 renderHeight,
                 toolbarIcons,
+                titleBarIcon,
                 importers,
                 FolderDialog.OpenFolderDialog);
 

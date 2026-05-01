@@ -468,12 +468,16 @@ public abstract class InputManager {
     }
 
     /// <summary>
-    /// Finds the topmost camera whose viewport contains the given screen coordinates.
+    /// Finds the topmost back-buffer camera whose viewport contains the given screen coordinates.
     /// </summary>
     private ICamera GetTopmostCameraAt(int x, int y) {
         var cameras = core.ObjectManager.Cameras;
         for (int i = cameras.Count - 1; i >= 0; i--) {
             var cam = cameras[i];
+            if (cam.RenderTarget != null) {
+                continue;
+            }
+
             var vp = cam.Viewport;
             if (x >= vp.X && x < vp.X + vp.Z && y >= vp.Y && y < vp.Y + vp.W) {
                 return cam;
@@ -483,12 +487,16 @@ public abstract class InputManager {
     }
 
     /// <summary>
-    /// Finds the camera containing the specified interactable at the given mouse position.
+    /// Finds the topmost back-buffer camera containing the specified interactable at the given mouse position.
     /// </summary>
     private ICamera FindCameraForInteractableAt(IInteractable2D interactable, int mouseX, int mouseY) {
         var cameras = core.ObjectManager.Cameras;
         for (int i = cameras.Count - 1; i >= 0; i--) {
             var cam = cameras[i];
+            if (cam.RenderTarget != null) {
+                continue;
+            }
+
             if ((interactable.Parent.LayerMask & cam.LayerMask) == 0) {
                 continue;
             }

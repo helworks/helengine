@@ -62,7 +62,7 @@ namespace helengine.editor.tests {
                 "Textures/Preview.png",
                 sourcePath,
                 ".png",
-                AssetEntryKind.Texture);
+                AssetEntryKind.Image);
 
             bool resolved = resolver.TryResolve(entry, null, out IPreviewSource source);
 
@@ -96,7 +96,7 @@ namespace helengine.editor.tests {
                 "Textures/Preview.png",
                 sourcePath,
                 ".png",
-                AssetEntryKind.Texture);
+                AssetEntryKind.Image);
             EditorEntity cameraEntity = CreateCameraEntity();
 
             bool resolved = resolver.TryResolve(entry, cameraEntity, out IPreviewSource source);

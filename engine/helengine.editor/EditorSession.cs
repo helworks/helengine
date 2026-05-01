@@ -295,6 +295,7 @@ namespace helengine.editor {
         /// <param name="renderWidth">Initial render width in pixels.</param>
         /// <param name="renderHeight">Initial render height in pixels.</param>
         /// <param name="toolbarIcons">Toolbar icon textures used by the main viewport tool buttons.</param>
+        /// <param name="titleBarIcon">Runtime texture rendered in the editor title bar's left icon slot.</param>
         /// <param name="importers">Asset importers to register for import settings.</param>
         /// <param name="browseOutputFolderResolver">Host callback that opens a folder picker for build output selection.</param>
         public EditorSession(
@@ -308,6 +309,7 @@ namespace helengine.editor {
             int renderWidth,
             int renderHeight,
             EditorViewportToolbarIconSet toolbarIcons,
+            RuntimeTexture titleBarIcon,
             IReadOnlyList<IAssetImporterRegistration> importers,
             Func<string> browseOutputFolderResolver) {
             this.core = core ?? throw new ArgumentNullException(nameof(core));
@@ -351,7 +353,7 @@ namespace helengine.editor {
             sceneCameraEntity.InternalEntity = true;
             sceneCameraEntity.Position = new float3(0, 3, -8);
             sceneCameraComponent = new CameraComponent();
-            sceneCameraComponent.LayerMask = EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneGrid;
+            sceneCameraComponent.LayerMask = EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneGrid | EditorLayerMasks.SceneCameraVisuals;
             sceneCameraComponent.CameraDrawOrder = SceneCameraDrawOrder;
             sceneCameraComponent.ClearSettings = new CameraClearSettings(true, new float4(0.39215687f, 0.58431375f, 0.92941177f, 1f), true, 1.0f, false, 0);
             sceneCameraEntity.AddComponent(sceneCameraComponent);
@@ -389,7 +391,7 @@ namespace helengine.editor {
             hiddenCameraEntity.Orientation = sceneCameraEntity.Orientation;
             hiddenCameraEntity.LayerMask = EditorLayerMasks.SceneObjects;
             hiddenCameraComponent = new CameraComponent();
-            hiddenCameraComponent.LayerMask = EditorLayerMasks.SceneObjects;
+            hiddenCameraComponent.LayerMask = EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneCameraVisuals;
             hiddenCameraComponent.Viewport = new float4(0, 0, 640, 360);
             hiddenCameraComponent.ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
             if (render3D is helengine.directx11.DirectX11Renderer3D pickerRenderer) {
@@ -403,7 +405,7 @@ namespace helengine.editor {
                 Logger.WriteWarning("Scene picking is currently available only on the DirectX11 renderer.");
             }
 
-            titleBar = new EditorTitleBar(uiFont, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle());
+            titleBar = new EditorTitleBar(uiFont, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle(), titleBarIcon);
 
             dockingManager = new DockingManager();
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);

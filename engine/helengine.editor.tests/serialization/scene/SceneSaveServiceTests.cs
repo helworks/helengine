@@ -155,12 +155,15 @@ namespace helengine.editor.tests.serialization.scene {
             EditorEntity loadedCameraEntity = Assert.Single(loadedRoots);
             CameraComponent loadedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedCameraEntity.Components, component => component is CameraComponent));
             EditorSceneCameraSuppressionComponent suppressionComponent = Assert.IsType<EditorSceneCameraSuppressionComponent>(Assert.Single(loadedCameraEntity.Components, component => component is EditorSceneCameraSuppressionComponent));
-            EditorCameraVisualComponent loadedVisual = Assert.IsType<EditorCameraVisualComponent>(Assert.Single(loadedCameraEntity.Components, component => component is EditorCameraVisualComponent));
+            EditorEntity loadedVisualEntity = Assert.IsType<EditorEntity>(Assert.Single(loadedCameraEntity.Children));
+            EditorCameraVisualComponent loadedVisual = Assert.IsType<EditorCameraVisualComponent>(Assert.Single(loadedVisualEntity.Components, component => component is EditorCameraVisualComponent));
 
             Assert.Equal((ushort)0, loadedCamera.LayerMask);
             Assert.False(loadedCamera.ClearSettings.ClearColorEnabled);
             Assert.Equal(EditorLayerMasks.SceneObjects, suppressionComponent.LayerMask);
             Assert.True(suppressionComponent.ClearSettings.ClearColorEnabled);
+            Assert.True(loadedVisualEntity.InternalEntity);
+            Assert.Equal(EditorLayerMasks.SceneCameraVisuals, loadedVisualEntity.LayerMask);
             Assert.NotNull(loadedVisual.Model);
             Assert.NotNull(loadedVisual.Material);
         }
