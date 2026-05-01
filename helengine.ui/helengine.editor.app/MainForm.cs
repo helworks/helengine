@@ -37,6 +37,10 @@ namespace helengine.editor.app {
         /// </summary>
         bool closed;
         /// <summary>
+        /// Tracks whether the next close attempt should be allowed after a session-driven exit request.
+        /// </summary>
+        bool allowSessionDrivenClose;
+        /// <summary>
         /// Tracks whether initialization has completed to guard resize logic.
         /// </summary>
         bool initialized;
@@ -167,6 +171,7 @@ namespace helengine.editor.app {
                 FolderDialog.OpenFolderDialog);
 
             editorSession.TitleChanged += SetWindowTitle;
+            editorSession.CloseRequested += HandleEditorSessionCloseRequested;
             TitleBarWindowAdapter.Attach(editorSession.TitleBar, this, () => ToggleMaximizeState());
             SetWindowTitle(editorSession.WindowTitle);
 
@@ -300,7 +305,27 @@ namespace helengine.editor.app {
             base.OnClosed(e);
 
             closed = true;
+            editorSession.CloseRequested -= HandleEditorSessionCloseRequested;
             editorSession.Dispose();
+        }
+
+        /// <summary>
+        /// Intercepts close attempts so dirty scenes can show the unsaved-changes prompt before exit.
+        /// </summary>
+        /// <param name="e">Event data.</param>
+        protected override void OnFormClosing(FormClosingEventArgs e) {
+            if (allowSessionDrivenClose) {
+                allowSessionDrivenClose = false;
+                base.OnFormClosing(e);
+                return;
+            }
+
+            if (editorSession != null && editorSession.RequestClose()) {
+                e.Cancel = true;
+                return;
+            }
+
+            base.OnFormClosing(e);
         }
 
         /// <summary>
@@ -350,6 +375,14 @@ namespace helengine.editor.app {
         /// </summary>
         void ToggleMaximizeState() {
             WindowStateController.ToggleMaximize(this);
+        }
+
+        /// <summary>
+        /// Handles the session request to close the host window after pending unsaved changes are resolved.
+        /// </summary>
+        void HandleEditorSessionCloseRequested() {
+            allowSessionDrivenClose = true;
+            Close();
         }
 
         /// <summary>

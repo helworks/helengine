@@ -47,7 +47,12 @@ namespace helengine.editor {
             /// <summary>
             /// The session should open one scene file chosen by the user.
             /// </summary>
-            OpenMap
+            OpenMap,
+
+            /// <summary>
+            /// The editor host should close after the unsaved-changes guard resolves.
+            /// </summary>
+            Exit
         }
         /// <summary>
         /// Editor core driving updates and rendering.
@@ -237,6 +242,10 @@ namespace helengine.editor {
         /// Modal dialog used to confirm whether pending scene transitions should save dirty changes.
         /// </summary>
         readonly UnsavedChangesDialog unsavedChangesDialog;
+        /// <summary>
+        /// Raised when the editor host should close after a pending dirty-state prompt completes.
+        /// </summary>
+        public event Action CloseRequested;
         /// <summary>
         /// Resolves the available platform list that can be selected in Build Settings.
         /// </summary>
@@ -889,6 +898,26 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Requests that the editor host close, prompting for unsaved changes first when needed.
+        /// </summary>
+        /// <returns>True when the close request was deferred behind the unsaved-changes dialog.</returns>
+        public bool RequestClose() {
+            if (!IsSceneDirty) {
+                PendingSceneTransition = SceneTransitionKind.None;
+                PendingOpenScenePath = string.Empty;
+                reparentEntityDialog.Hide();
+                unsavedChangesDialog.Hide();
+                return false;
+            }
+
+            PendingSceneTransition = SceneTransitionKind.Exit;
+            PendingOpenScenePath = string.Empty;
+            reparentEntityDialog.Hide();
+            unsavedChangesDialog.Show();
+            return true;
+        }
+
+        /// <summary>
         /// Continues the transition currently stored in pending scene state.
         /// </summary>
         void ContinuePendingSceneTransition() {
@@ -909,6 +938,10 @@ namespace helengine.editor {
                 }
 
                 LoadSceneIntoSession(pendingOpenPath);
+            } else if (pendingTransition == SceneTransitionKind.Exit) {
+                if (CloseRequested != null) {
+                    CloseRequested();
+                }
             }
         }
 
