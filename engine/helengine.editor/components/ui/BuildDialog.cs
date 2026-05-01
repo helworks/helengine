@@ -56,9 +56,13 @@ namespace helengine.editor {
         /// </summary>
         public const int SceneListPadding = 8;
         /// <summary>
-        /// Height reserved for each rendered queue item row.
+        /// Height reserved for each queued build row.
         /// </summary>
-        public const int QueueRowHeight = 42;
+        public const int QueueRowHeight = 56;
+        /// <summary>
+        /// Width reserved for the queue-row remove button.
+        /// </summary>
+        public const int QueueCardRemoveButtonWidth = 28;
         /// <summary>
         /// Height reserved for the queue section header bar.
         /// </summary>
@@ -68,13 +72,13 @@ namespace helengine.editor {
         /// </summary>
         public const int QueueListPadding = 8;
         /// <summary>
-        /// Vertical gap applied between bordered queue cards.
-        /// </summary>
-        public const int QueueCardSpacing = 8;
-        /// <summary>
-        /// Inner left padding applied inside each bordered queue card.
+        /// Inner left padding applied inside each queued build row.
         /// </summary>
         public const int QueueCardTextPadding = 8;
+        /// <summary>
+        /// Horizontal gap reserved between clipped status text and the remove button.
+        /// </summary>
+        public const int QueueCardTextButtonGap = 12;
         /// <summary>
         /// Height reserved for the output directory text field.
         /// </summary>
@@ -168,7 +172,7 @@ namespace helengine.editor {
         /// </summary>
         readonly TextComponent QueueHeaderText;
         /// <summary>
-        /// Root entity used to place bordered queue-item cards under the queue header.
+        /// Root entity used to place the queued-build rows under the queue header.
         /// </summary>
         readonly EditorEntity QueueItemsRoot;
         /// <summary>
@@ -208,7 +212,7 @@ namespace helengine.editor {
         /// </summary>
         readonly List<EditorEntity> QueueItemHosts;
         /// <summary>
-        /// Text components used to render queue item summaries.
+        /// Text components used to render queue item summaries and clipped status lines.
         /// </summary>
         readonly List<TextComponent> QueueItemTexts;
         /// <summary>
@@ -220,7 +224,7 @@ namespace helengine.editor {
         /// </summary>
         readonly List<ButtonComponent> QueueItemRemoveButtons;
         /// <summary>
-        /// Bordered card backgrounds rendered for the current queue items.
+        /// Row backgrounds rendered behind the current queue items.
         /// </summary>
         readonly List<RoundedRectComponent> QueueItemCardBackgrounds;
         /// <summary>
@@ -1100,7 +1104,7 @@ namespace helengine.editor {
                 EditorBuildQueueItemDocument queueItem = CurrentBuildConfig.QueueItems[index];
                 EditorEntity queueItemHost = new EditorEntity {
                     LayerMask = LayerMask,
-                    Position = new float3(QueueListPadding, index * QueueRowHeight, 0.1f),
+                    Position = new float3(2f, index * QueueRowHeight, 0.1f),
                     InternalEntity = true
                 };
                 QueueItemsRoot.AddChild(queueItemHost);
@@ -1108,37 +1112,55 @@ namespace helengine.editor {
 
                 RoundedRectComponent queueCardBackground = new RoundedRectComponent {
                     FillColor = ThemeManager.Colors.SurfacePrimary,
-                    BorderColor = ThemeManager.Colors.AccentTertiary,
-                    BorderThickness = 2f,
-                    Radius = 6f,
+                    BorderColor = ThemeManager.Colors.SurfacePrimary,
+                    BorderThickness = 0f,
+                    Radius = 0f,
                     RenderOrder2D = DialogPanelOrder,
                     Size = new int2(GetQueueCardWidth(), GetQueueCardHeight())
                 };
                 queueItemHost.AddComponent(queueCardBackground);
                 QueueItemCardBackgrounds.Add(queueCardBackground);
 
+                EditorEntity queueSeparatorHost = new EditorEntity {
+                    LayerMask = LayerMask,
+                    Position = new float3(0f, QueueRowHeight - 1, 0.2f),
+                    InternalEntity = true
+                };
+                queueItemHost.AddChild(queueSeparatorHost);
+
+                SpriteComponent queueSeparator = new SpriteComponent {
+                    Texture = TextureUtils.PixelTexture,
+                    Color = ThemeManager.Colors.AccentTertiary,
+                    RenderOrder2D = DialogPanelOrder,
+                    Size = new int2(GetQueueCardWidth(), 1)
+                };
+                queueSeparatorHost.AddComponent(queueSeparator);
+
                 EditorEntity removeButtonHost = new EditorEntity {
                     LayerMask = LayerMask,
-                    Position = new float3(GetQueueCardWidth() - 36, 6f, 0.1f),
+                    Position = new float3(GetQueueCardWidth() - QueueCardRemoveButtonWidth - QueueCardTextPadding, 8f, 0.2f),
                     InternalEntity = true
                 };
                 queueItemHost.AddChild(removeButtonHost);
                 QueueItemRemoveButtonHosts.Add(removeButtonHost);
 
-                ButtonComponent removeButton = new ButtonComponent("X", new int2(28, 24), DialogFont, () => HandleQueueItemRemoveClicked(queueItem.QueueItemId));
+                ButtonComponent removeButton = new ButtonComponent("X", new int2(QueueCardRemoveButtonWidth, 24), DialogFont, () => HandleQueueItemRemoveClicked(queueItem.QueueItemId));
                 removeButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
                 removeButtonHost.AddComponent(removeButton);
                 QueueItemRemoveButtons.Add(removeButton);
 
+                int queueTextWidth = GetQueueCardTextWidth();
+                int queueTextHeight = Math.Max(GetDialogLineHeight() * 2, GetQueueCardHeight() - 12);
                 TextComponent queueText = new TextComponent {
                     Font = DialogFont,
                     Text = BuildQueueItemText(queueItem),
                     Color = ThemeManager.Colors.InputForegroundPrimary,
-                    RenderOrder2D = DialogTextOrder
+                    RenderOrder2D = DialogTextOrder,
+                    Size = new int2(queueTextWidth, queueTextHeight)
                 };
                 EditorEntity queueTextHost = new EditorEntity {
                     LayerMask = LayerMask,
-                    Position = new float3(QueueCardTextPadding, 10f, 0.1f),
+                    Position = new float3(QueueCardTextPadding, 8f, 0.2f),
                     InternalEntity = true
                 };
                 queueItemHost.AddChild(queueTextHost);
@@ -1207,12 +1229,9 @@ namespace helengine.editor {
         /// <param name="queueItem">Persisted queue item to summarize.</param>
         /// <returns>Queue summary text shown in the queue column.</returns>
         string BuildQueueItemText(EditorBuildQueueItemDocument queueItem) {
-            string text = queueItem.PlatformId + " | " + queueItem.Status + " | " + queueItem.SelectedSceneIds.Count + " scene(s)";
-            if (!string.IsNullOrWhiteSpace(queueItem.StatusMessage)) {
-                text += " | " + queueItem.StatusMessage;
-            }
-
-            return text;
+            string summaryText = queueItem.PlatformId + " | " + queueItem.Status + " | " + queueItem.SelectedSceneIds.Count + " scene(s)";
+            string statusMessage = BuildQueueItemStatusMessage(queueItem.StatusMessage);
+            return summaryText + "\n" + statusMessage;
         }
 
         /// <summary>
@@ -1567,19 +1586,81 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Gets the width available for one bordered queue card inside the queue section.
+        /// Gets the width available for one queued build row inside the queue section.
         /// </summary>
-        /// <returns>Width available for one queue card.</returns>
+        /// <returns>Width available for one queue row.</returns>
         int GetQueueCardWidth() {
-            return QueueColumnWidth - (QueueListPadding * 2);
+            return QueueColumnWidth - 4;
         }
 
         /// <summary>
-        /// Gets the height used by one bordered queue card.
+        /// Gets the height used by one queued build row.
         /// </summary>
-        /// <returns>Height used by one queue card.</returns>
+        /// <returns>Height used by one queue row.</returns>
         int GetQueueCardHeight() {
-            return QueueRowHeight - QueueCardSpacing;
+            return QueueRowHeight;
+        }
+
+        /// <summary>
+        /// Gets the usable width for clipped queue-row status text.
+        /// </summary>
+        /// <returns>Width available for the status line.</returns>
+        int GetQueueCardTextWidth() {
+            return Math.Max(1, GetQueueCardWidth() - (QueueCardTextPadding * 2) - QueueCardRemoveButtonWidth - QueueCardTextButtonGap);
+        }
+
+        /// <summary>
+        /// Clips the queue-row status message to fit inside the available row width.
+        /// </summary>
+        /// <param name="statusMessage">Status message to clip.</param>
+        /// <returns>Clipped status message or an empty string when no status message is provided.</returns>
+        string BuildQueueItemStatusMessage(string statusMessage) {
+            if (string.IsNullOrWhiteSpace(statusMessage)) {
+                return string.Empty;
+            }
+
+            string sanitizedMessage = statusMessage.Replace('\r', ' ').Replace('\n', ' ');
+            return ClipTextToWidth(sanitizedMessage, GetQueueCardTextWidth());
+        }
+
+        /// <summary>
+        /// Clips a single-line string to the available width using the dialog font metrics.
+        /// </summary>
+        /// <param name="text">Text to clip.</param>
+        /// <param name="maxWidth">Maximum allowed width in pixels.</param>
+        /// <returns>Original or clipped text depending on the measured width.</returns>
+        string ClipTextToWidth(string text, int maxWidth) {
+            if (string.IsNullOrEmpty(text) || maxWidth <= 0) {
+                return string.Empty;
+            }
+
+            if (DialogFont.MeasureTight(text).Width <= maxWidth) {
+                return text;
+            }
+
+            string ellipsis = "...";
+            if (DialogFont.MeasureTight(ellipsis).Width > maxWidth) {
+                return string.Empty;
+            }
+
+            int lowerBound = 0;
+            int upperBound = text.Length;
+            while (lowerBound < upperBound) {
+                int candidateLength = (lowerBound + upperBound + 1) / 2;
+                string candidateText = text.Substring(0, candidateLength) + ellipsis;
+
+                if (DialogFont.MeasureTight(candidateText).Width <= maxWidth) {
+                    lowerBound = candidateLength;
+                } else {
+                    upperBound = candidateLength - 1;
+                }
+            }
+
+            if (lowerBound <= 0) {
+                return ellipsis;
+            }
+
+            return text.Substring(0, lowerBound) + ellipsis;
         }
 
         /// <summary>

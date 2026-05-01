@@ -157,6 +157,7 @@ namespace helengine {
         /// </summary>
         public virtual void Update() {
             InputManager.EarlyUpdate();
+            FPSComponent.RecordUpdateFrame();
 
             ObjectManager.Update();
 
@@ -168,6 +169,7 @@ namespace helengine {
         /// </summary>
         public virtual void Draw() {
             RenderManager3D.Draw();
+            FPSComponent.RecordRenderFrame();
         }
 
         /// <summary>

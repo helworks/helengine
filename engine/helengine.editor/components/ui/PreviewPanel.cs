@@ -1,6 +1,6 @@
 namespace helengine.editor {
     /// <summary>
-    /// Dockable panel that previews texture assets.
+    /// Dockable panel that hosts the active preview source and renders it inside the preview area.
     /// </summary>
     public class PreviewPanel : DockableEntity {
         /// <summary>
@@ -25,13 +25,9 @@ namespace helengine.editor {
         /// </summary>
         readonly SpriteComponent textureSprite;
         /// <summary>
-        /// Tracks the current texture size.
+        /// Currently active preview source.
         /// </summary>
-        int2 textureSize;
-        /// <summary>
-        /// Tracks whether a texture is currently displayed.
-        /// </summary>
-        bool hasTexture;
+        IPreviewSource ActivePreviewSourceValue;
         /// <summary>
         /// Tracks whether the panel finished initialization.
         /// </summary>
@@ -68,11 +64,17 @@ namespace helengine.editor {
             textureHost.AddComponent(textureSprite);
 
             ClearPreview();
+            AddComponent(new PreviewPanelUpdater(this));
             isInitialized = true;
         }
 
         /// <summary>
-        /// Displays a texture asset at its native size.
+        /// Gets the current preview source, when one is bound.
+        /// </summary>
+        public IPreviewSource ActivePreviewSource => ActivePreviewSourceValue;
+
+        /// <summary>
+        /// Displays one texture asset through a texture preview source.
         /// </summary>
         /// <param name="asset">Texture asset to preview.</param>
         public void ShowTexture(TextureAsset asset) {
@@ -81,9 +83,30 @@ namespace helengine.editor {
             }
 
             RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(asset);
-            textureSprite.Texture = runtimeTexture;
-            textureSize = new int2(asset.Width, asset.Height);
-            hasTexture = true;
+            SetPreviewSource(new TexturePreviewSource(runtimeTexture));
+        }
+
+        /// <summary>
+        /// Binds one active preview source to the panel.
+        /// </summary>
+        /// <param name="previewSource">Preview source to bind, or null to clear the panel.</param>
+        public void SetPreviewSource(IPreviewSource previewSource) {
+            if (ReferenceEquals(ActivePreviewSourceValue, previewSource)) {
+                return;
+            }
+
+            if (ActivePreviewSourceValue != null) {
+                ActivePreviewSourceValue.Dispose();
+            }
+
+            ActivePreviewSourceValue = previewSource;
+            if (ActivePreviewSourceValue == null) {
+                ClearPreviewVisuals();
+                return;
+            }
+
+            ActivePreviewSourceValue.Resize(GetContentSize());
+            textureSprite.Texture = ActivePreviewSourceValue.Texture;
             LayoutPreview();
         }
 
@@ -91,10 +114,25 @@ namespace helengine.editor {
         /// Clears the current preview.
         /// </summary>
         public void ClearPreview() {
-            hasTexture = false;
-            textureSprite.Texture = null;
-            textureSprite.Size = new int2(1, 1);
-            textureHost.Enabled = false;
+            if (ActivePreviewSourceValue != null) {
+                ActivePreviewSourceValue.Dispose();
+            }
+
+            ActivePreviewSourceValue = null;
+            ClearPreviewVisuals();
+        }
+
+        /// <summary>
+        /// Updates the active preview source for the current frame.
+        /// </summary>
+        internal void UpdatePreviewSource() {
+            if (ActivePreviewSourceValue == null) {
+                return;
+            }
+
+            ActivePreviewSourceValue.Update();
+            textureSprite.Texture = ActivePreviewSourceValue.Texture;
+            LayoutPreview();
         }
 
         /// <summary>
@@ -106,6 +144,10 @@ namespace helengine.editor {
                 return;
             }
 
+            if (ActivePreviewSourceValue != null) {
+                ActivePreviewSourceValue.Resize(GetContentSize());
+            }
+
             LayoutPreview();
         }
 
@@ -113,16 +155,17 @@ namespace helengine.editor {
         /// Lays out the preview sprite within the panel.
         /// </summary>
         void LayoutPreview() {
-            if (!hasTexture) {
+            if (ActivePreviewSourceValue == null || ActivePreviewSourceValue.Texture == null) {
                 textureHost.Enabled = false;
                 return;
             }
 
             textureHost.Enabled = true;
-            int availableWidth = Math.Max(1, Size.X - ContentPadding * 2);
-            int availableHeight = Math.Max(1, Size.Y - TitleBarHeight - ContentPadding * 2);
-            int sourceWidth = Math.Max(1, textureSize.X);
-            int sourceHeight = Math.Max(1, textureSize.Y);
+            int2 contentSize = GetContentSize();
+            int availableWidth = contentSize.X;
+            int availableHeight = contentSize.Y;
+            int sourceWidth = Math.Max(1, ActivePreviewSourceValue.Texture.Width);
+            int sourceHeight = Math.Max(1, ActivePreviewSourceValue.Texture.Height);
 
             double widthScale = availableWidth / (double)sourceWidth;
             double heightScale = availableHeight / (double)sourceHeight;
@@ -136,6 +179,25 @@ namespace helengine.editor {
 
             textureHost.Position = new float3(offsetX, offsetY, 0.2f);
             textureSprite.Size = new int2(targetWidth, targetHeight);
+        }
+
+        /// <summary>
+        /// Clears the displayed texture and disables the preview host.
+        /// </summary>
+        void ClearPreviewVisuals() {
+            textureSprite.Texture = null;
+            textureSprite.Size = new int2(1, 1);
+            textureHost.Enabled = false;
+        }
+
+        /// <summary>
+        /// Gets the usable content size for the current panel dimensions.
+        /// </summary>
+        /// <returns>Usable preview content size in pixels.</returns>
+        int2 GetContentSize() {
+            return new int2(
+                Math.Max(1, Size.X - ContentPadding * 2),
+                Math.Max(1, Size.Y - TitleBarHeight - ContentPadding * 2));
         }
     }
 }

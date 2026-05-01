@@ -122,6 +122,10 @@ namespace helengine.editor {
         /// </summary>
         readonly PreviewPanel previewPanel;
         /// <summary>
+        /// Resolves the active preview source for the current selection snapshot.
+        /// </summary>
+        readonly PreviewSourceResolver previewSourceResolver;
+        /// <summary>
         /// Modal used to pick an asset for editor fields.
         /// </summary>
         readonly AssetPickerModal assetPickerModal;
@@ -262,6 +266,14 @@ namespace helengine.editor {
         /// </summary>
         string PendingOpenScenePath;
         /// <summary>
+        /// Currently selected asset browser entry used for preview resolution.
+        /// </summary>
+        AssetBrowserEntry SelectedAssetEntry;
+        /// <summary>
+        /// Currently selected scene entity used for preview resolution.
+        /// </summary>
+        Entity SelectedSceneEntity;
+        /// <summary>
         /// Active platform identifier currently selected for editor-local asset processing workflows.
         /// </summary>
         string ActiveProjectPlatform;
@@ -324,6 +336,7 @@ namespace helengine.editor {
 
             assetImportManager = InitializeAssetImports(Importers);
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
+            previewSourceResolver = new PreviewSourceResolver(assetImportManager, render2D, render3D);
 
             uiCameraEntity = new EditorEntity();
             uiCameraEntity.InternalEntity = true;
@@ -1486,15 +1499,16 @@ namespace helengine.editor {
                 return;
             }
 
+            SelectedAssetEntry = entry;
             if (entry.IsGenerated) {
                 propertiesPanel.ShowGeneratedAssetSummary(entry);
-                previewPanel.ClearPreview();
+                RefreshPreviewSource();
                 return;
             }
 
             if (entry.EntryKind == AssetEntryKind.Scene) {
                 propertiesPanel.ShowSceneAssetSummary(entry);
-                previewPanel.ClearPreview();
+                RefreshPreviewSource();
                 return;
             }
 
@@ -1505,6 +1519,7 @@ namespace helengine.editor {
                 } catch (Exception ex) {
                     propertiesPanel.ShowImportError(entry, ex.Message);
                 }
+                RefreshPreviewSource();
                 return;
             }
 
@@ -1512,7 +1527,7 @@ namespace helengine.editor {
                 AssetImportSettings settings;
                 if (!assetImportManager.TryLoadOrCreateImportSettings(entry.FullPath, out settings)) {
                     propertiesPanel.ShowEmpty();
-                    previewPanel.ClearPreview();
+                    RefreshPreviewSource();
                     return;
                 }
 
@@ -1520,15 +1535,15 @@ namespace helengine.editor {
                 IReadOnlyList<string> importerIds = assetImportManager.GetImporterIdsForExtension(entry.Extension);
                 if (importerIds.Count == 0) {
                     propertiesPanel.ShowImportError(entry, "No importers are registered for this asset type.");
-                    previewPanel.ClearPreview();
+                    RefreshPreviewSource();
                     return;
                 }
 
                 propertiesPanel.ShowImportSettings(entry, settings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
-                UpdatePreview(entry);
+                RefreshPreviewSource();
             } catch (Exception ex) {
                 propertiesPanel.ShowImportError(entry, ex.Message);
-                previewPanel.ClearPreview();
+                RefreshPreviewSource();
             }
         }
 
@@ -1614,8 +1629,9 @@ namespace helengine.editor {
         /// Clears property and preview panels when no asset is selected.
         /// </summary>
         void HandleAssetSelectionCleared() {
+            SelectedAssetEntry = null;
             propertiesPanel.ShowEmpty();
-            previewPanel.ClearPreview();
+            RefreshPreviewSource();
         }
 
         /// <summary>
@@ -1627,30 +1643,32 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(args));
             }
 
+            SelectedSceneEntity = args.HasSelection ? args.SelectedEntity : null;
             if (args.HasSelection) {
                 propertiesPanel.ShowEntityProperties(args.SelectedEntity);
             } else {
                 propertiesPanel.ShowEmpty();
             }
+
+            RefreshPreviewSource();
         }
 
         /// <summary>
-        /// Updates the preview panel based on the selected asset.
+        /// Recomputes the active preview source from the current selection snapshot.
         /// </summary>
-        /// <param name="entry">Selected asset entry.</param>
-        void UpdatePreview(AssetBrowserEntry entry) {
-            if (entry == null) {
-                throw new ArgumentNullException(nameof(entry));
+        void RefreshPreviewSource() {
+            if (previewPanel == null) {
+                return;
             }
 
-            if (!assetImportManager.IsTextureExtension(entry.Extension)) {
+            if (previewSourceResolver == null) {
                 previewPanel.ClearPreview();
                 return;
             }
 
-            TextureAsset texture;
-            if (assetImportManager.TryLoadTextureAsset(entry.FullPath, out texture)) {
-                previewPanel.ShowTexture(texture);
+            IPreviewSource previewSource;
+            if (previewSourceResolver.TryResolve(SelectedAssetEntry, SelectedSceneEntity, out previewSource)) {
+                previewPanel.SetPreviewSource(previewSource);
             } else {
                 previewPanel.ClearPreview();
             }

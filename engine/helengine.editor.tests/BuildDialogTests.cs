@@ -614,9 +614,10 @@ namespace helengine.editor.tests {
             List<TextComponent> queueItemTexts = GetPrivateField<List<TextComponent>>(dialog, "QueueItemTexts");
 
             Assert.Equal(2, queueItemTexts.Count);
+            Assert.Contains('\n', queueItemTexts[0].Text);
             Assert.Contains("Pending", queueItemTexts[0].Text);
             Assert.Contains("Failed", queueItemTexts[1].Text);
-            Assert.Contains("Unsupported scene format.", queueItemTexts[1].Text);
+            Assert.Contains("\nUnsupported scene format.", queueItemTexts[1].Text);
         }
 
         /// <summary>
@@ -721,10 +722,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures each queued build is rendered inside its own bordered card instead of floating as loose text.
+        /// Ensures each queued build spans the queue column and uses a bottom separator instead of a full card border.
         /// </summary>
         [Fact]
-        public void Show_WhenQueueItemsProvided_RendersBorderedCardPerQueueItem() {
+        public void Show_WhenQueueItemsProvided_RendersFullWidthRowPerQueueItem() {
             BuildDialog dialog = new BuildDialog(CreateFont());
             dialog.Show(
                 ["windows"],
@@ -763,19 +764,76 @@ namespace helengine.editor.tests {
                     ]
                 });
 
+            List<EditorEntity> queueItemHosts = GetPrivateField<List<EditorEntity>>(dialog, "QueueItemHosts");
             List<RoundedRectComponent> queueItemCardBackgrounds = GetPrivateField<List<RoundedRectComponent>>(dialog, "QueueItemCardBackgrounds");
 
+            Assert.Equal(2, queueItemHosts.Count);
             Assert.Equal(2, queueItemCardBackgrounds.Count);
-            Assert.All(queueItemCardBackgrounds, background => {
-                Assert.Equal(ThemeManager.Colors.AccentTertiary, background.BorderColor);
-                Assert.Equal(2f, background.BorderThickness);
-                Assert.True(background.Size.X > 0);
-                Assert.True(background.Size.Y > 0);
+            Assert.All(queueItemHosts, queueItemHost => {
+                RoundedRectComponent background = FindComponent<RoundedRectComponent>(queueItemHost);
+                SpriteComponent separator = FindComponent<SpriteComponent>(queueItemHost);
+
+                Assert.Equal(2f, queueItemHost.LocalPosition.X);
+                Assert.Equal(ThemeManager.Colors.SurfacePrimary, background.FillColor);
+                Assert.Equal(ThemeManager.Colors.SurfacePrimary, background.BorderColor);
+                Assert.Equal(0f, background.BorderThickness);
+                Assert.Equal(BuildDialog.QueueColumnWidth - 4, background.Size.X);
+                Assert.Equal(BuildDialog.QueueRowHeight, background.Size.Y);
+                Assert.Equal(TextureUtils.PixelTexture, separator.Texture);
+                Assert.Equal(ThemeManager.Colors.AccentTertiary, separator.Color);
+                Assert.Equal(BuildDialog.QueueColumnWidth - 4, separator.Size.X);
+                Assert.Equal(1, separator.Size.Y);
+                Assert.Equal(BuildDialog.QueueRowHeight - 1f, separator.Parent.LocalPosition.Y);
             });
         }
 
         /// <summary>
-        /// Ensures each queued build card exposes one remove button aligned on the right edge.
+        /// Ensures a long queue-row status message is clipped on the second line before it reaches the remove button.
+        /// </summary>
+        [Fact]
+        public void Show_WhenQueueItemsProvided_ClipsStatusMessageOnSecondLine() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            string longStatusMessage = "This queue status message is intentionally long enough to overflow the row width and needs clipping before it is rendered in the second line of the card.";
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = [
+                        new EditorBuildQueueItemDocument {
+                            QueueItemId = "queue-1",
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows",
+                            Status = EditorBuildQueueItemStatus.Failed,
+                            StatusMessage = longStatusMessage
+                        }
+                    ]
+                });
+
+            TextComponent queueText = Assert.Single(GetPrivateField<List<TextComponent>>(dialog, "QueueItemTexts"));
+            string[] lines = queueText.Text.Split('\n');
+
+            Assert.Equal(2, lines.Length);
+            Assert.StartsWith("windows | Failed | 1 scene(s)", lines[0]);
+            Assert.DoesNotContain(longStatusMessage, lines[1]);
+            Assert.EndsWith("...", lines[1]);
+        }
+
+        /// <summary>
+        /// Ensures each queued build row exposes one remove button aligned on the right edge.
         /// </summary>
         [Fact]
         public void Show_WhenQueueItemsProvided_CreatesRemoveButtonPerQueueItem() {
@@ -1156,6 +1214,41 @@ namespace helengine.editor.tests {
             FieldInfo field = FindPrivateField(target.GetType(), fieldName);
             object value = field.GetValue(target);
             return Assert.IsType<T>(value);
+        }
+
+        /// <summary>
+        /// Finds the first component of the requested type anywhere in the supplied entity hierarchy.
+        /// </summary>
+        /// <typeparam name="T">Component type to locate.</typeparam>
+        /// <param name="entity">Root entity to inspect.</param>
+        /// <returns>Matching component instance.</returns>
+        T FindComponent<T>(Entity entity) where T : Component {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            List<Entity> pendingEntities = new List<Entity> {
+                entity
+            };
+
+            for (int entityIndex = 0; entityIndex < pendingEntities.Count; entityIndex++) {
+                Entity currentEntity = pendingEntities[entityIndex];
+                if (currentEntity.Components != null) {
+                    for (int componentIndex = 0; componentIndex < currentEntity.Components.Count; componentIndex++) {
+                        if (currentEntity.Components[componentIndex] is T component) {
+                            return component;
+                        }
+                    }
+                }
+
+                if (currentEntity.Children != null) {
+                    for (int childIndex = 0; childIndex < currentEntity.Children.Count; childIndex++) {
+                        pendingEntities.Add(currentEntity.Children[childIndex]);
+                    }
+                }
+            }
+
+            throw new InvalidOperationException("Expected to find the requested component in the entity hierarchy.");
         }
 
         /// <summary>
