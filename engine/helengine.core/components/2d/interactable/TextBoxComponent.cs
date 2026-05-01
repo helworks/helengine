@@ -36,6 +36,10 @@ namespace helengine {
         byte backgroundRenderOrder;
         byte textRenderOrder;
         bool isInvalid;
+        /// <summary>
+        /// Tracks whether the mouse is currently dragging a text selection inside the textbox.
+        /// </summary>
+        bool isSelectingText;
         bool isShakeActive;
         float shakeElapsedSeconds;
         float currentShakeOffsetX;
@@ -43,6 +47,14 @@ namespace helengine {
         
         // Child components
         RoundedRectComponent backgroundSprite;
+        /// <summary>
+        /// Hosts the translucent rectangle used to visualize the active text selection.
+        /// </summary>
+        Entity selectionEntity;
+        /// <summary>
+        /// Draws the active text-selection highlight behind the caret and glyphs.
+        /// </summary>
+        RoundedRectComponent selectionSprite;
         Entity textEntity;
         TextComponent textComponent;
         InteractableComponent interactableComponent;
@@ -236,6 +248,29 @@ namespace helengine {
             backgroundSprite.RenderOrder2D = backgroundOrder;
             entity.AddComponent(backgroundSprite);
 
+            // Create selection highlight so dragged text can be shown behind the caret and text.
+            selectionEntity = new Entity();
+            selectionEntity.LayerMask = entity.LayerMask;
+            selectionEntity.Enabled = true;
+            selectionEntity.InitComponents();
+            if (entity.Children == null) {
+                entity.InitChildren();
+            }
+
+            entity.AddChild(selectionEntity);
+
+            selectionSprite = new RoundedRectComponent();
+            selectionSprite.Radius = 2f;
+            selectionSprite.BorderThickness = 0f;
+            selectionSprite.FillColor = new byte4(
+                ThemeManager.Colors.AccentPrimary.X,
+                ThemeManager.Colors.AccentPrimary.Y,
+                ThemeManager.Colors.AccentPrimary.Z,
+                96);
+            selectionSprite.BorderColor = selectionSprite.FillColor;
+            selectionSprite.RenderOrder2D = textOrder;
+            selectionEntity.AddComponent(selectionSprite);
+
             // Create text component
             textEntity = new Entity();
             textEntity.LayerMask = entity.LayerMask;
@@ -278,7 +313,16 @@ namespace helengine {
                     focusedTextBox.IsFocused = false;
                 }
                 IsFocused = true;
-                EditState.SetCursorToEnd();
+                int cursorPosition = ResolveCursorPositionFromClick(relPos.X);
+                EditState.SetSelection(cursorPosition, cursorPosition);
+                isSelectingText = true;
+                UpdateTextDisplay();
+            } else if (state == PointerInteraction.Hover && isSelectingText) {
+                EditState.CursorPosition = ResolveCursorPositionFromClick(relPos.X);
+                UpdateTextDisplay();
+            } else if (state == PointerInteraction.Release) {
+                isSelectingText = false;
+                UpdateTextDisplay();
             }
         }
 
@@ -348,45 +392,43 @@ namespace helengine {
             bool layoutChanged = false;
             switch (key) {
                 case Keys.Back:
-                    if (EditState.CursorPosition > 0) {
-                        EditState.Backspace();
-                        textChanged = true;
-                    }
+                    string previousBackspaceText = EditState.Text;
+                    EditState.Backspace();
+                    textChanged = previousBackspaceText != EditState.Text;
                     break;
                     
                 case Keys.Delete:
-                    if (EditState.CursorPosition < EditState.Text.Length) {
-                        EditState.Delete();
-                        textChanged = true;
-                    }
+                    string previousDeleteText = EditState.Text;
+                    EditState.Delete();
+                    textChanged = previousDeleteText != EditState.Text;
                     break;
                     
                 case Keys.Left:
-                    if (EditState.CursorPosition > 0) {
-                        EditState.MoveCursorLeft();
-                        layoutChanged = true;
-                    }
+                    int previousLeftCursor = EditState.CursorPosition;
+                    bool previousLeftSelection = EditState.HasSelection;
+                    EditState.MoveCursorLeft();
+                    layoutChanged = previousLeftCursor != EditState.CursorPosition || previousLeftSelection != EditState.HasSelection;
                     break;
                     
                 case Keys.Right:
-                    if (EditState.CursorPosition < EditState.Text.Length) {
-                        EditState.MoveCursorRight();
-                        layoutChanged = true;
-                    }
+                    int previousRightCursor = EditState.CursorPosition;
+                    bool previousRightSelection = EditState.HasSelection;
+                    EditState.MoveCursorRight();
+                    layoutChanged = previousRightCursor != EditState.CursorPosition || previousRightSelection != EditState.HasSelection;
                     break;
                     
                 case Keys.Home:
-                    if (EditState.CursorPosition > 0) {
-                        EditState.SetCursorToStart();
-                        layoutChanged = true;
-                    }
+                    int previousHomeCursor = EditState.CursorPosition;
+                    bool previousHomeSelection = EditState.HasSelection;
+                    EditState.SetCursorToStart();
+                    layoutChanged = previousHomeCursor != EditState.CursorPosition || previousHomeSelection != EditState.HasSelection;
                     break;
                     
                 case Keys.End:
-                    if (EditState.CursorPosition < EditState.Text.Length) {
-                        EditState.SetCursorToEnd();
-                        layoutChanged = true;
-                    }
+                    int previousEndCursor = EditState.CursorPosition;
+                    bool previousEndSelection = EditState.HasSelection;
+                    EditState.SetCursorToEnd();
+                    layoutChanged = previousEndCursor != EditState.CursorPosition || previousEndSelection != EditState.HasSelection;
                     break;
                 case Keys.Enter:
                     IsFocused = false;
@@ -395,8 +437,9 @@ namespace helengine {
                 default:
                     char character = KeyToChar(key, isShiftPressed);
                     if (character != '\0') {
+                        string previousText = EditState.Text;
                         EditState.InsertCharacter(character);
-                        textChanged = true;
+                        textChanged = previousText != EditState.Text;
                     }
                     break;
             }
@@ -479,6 +522,59 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Resolves the caret position for a pointer click within the textbox text area.
+        /// </summary>
+        /// <param name="clickX">Pointer X position relative to the textbox bounds.</param>
+        /// <returns>Caret index that best matches the clicked text position.</returns>
+        int ResolveCursorPositionFromClick(int clickX) {
+            if (Font == null) {
+                return 0;
+            }
+
+            string text = EditState.Text;
+            if (string.IsNullOrEmpty(text)) {
+                return 0;
+            }
+
+            double textX = Math.Max(0.0, (double)clickX - TextPaddingX);
+            double cursorX = 0.0;
+            for (int index = 0; index < text.Length; index++) {
+                double advance = ResolveCharacterAdvance(text[index]);
+                if (textX < cursorX + (advance * 0.5)) {
+                    return index;
+                }
+
+                cursorX += advance;
+            }
+
+            return text.Length;
+        }
+
+        /// <summary>
+        /// Resolves the horizontal advance used for one character when placing the caret.
+        /// </summary>
+        /// <param name="character">Character to measure.</param>
+        /// <returns>Advance width in pixels.</returns>
+        double ResolveCharacterAdvance(char character) {
+            if (character == ' ') {
+                return Math.Max((double)Font.FontInfo.SpaceWidth, 1.0);
+            }
+
+            if (Font.Characters != null && Font.Characters.TryGetValue(character, out FontChar glyph)) {
+                if (glyph.AdvanceWidth > 0f) {
+                    return glyph.AdvanceWidth;
+                }
+
+                double sourceWidth = (double)glyph.SourceRect.Z;
+                if (sourceWidth > 0.0) {
+                    return sourceWidth;
+                }
+            }
+
+            return 1.0;
+        }
+
+        /// <summary>
         /// Positions the textbox text host with shared left padding and vertically centers it using the font line height.
         /// </summary>
         void UpdateTextLayout() {
@@ -493,6 +589,7 @@ namespace helengine {
             textComponent.Size = new int2(
                 (int)Math.Ceiling(textMetrics.Width),
                 (int)Math.Ceiling(lineHeight));
+            UpdateSelectionVisual(textY, lineHeight);
         }
 
         /// <summary>
@@ -573,6 +670,11 @@ namespace helengine {
         /// <param name="submitOnBlur">True when losing focus should submit the text value.</param>
         void SetFocusedState(bool value, bool submitOnBlur) {
             if (isFocused == value) {
+                if (!value) {
+                    isSelectingText = false;
+                    EditState.ClearSelection();
+                    UpdateSelectionVisual();
+                }
                 UpdateFocusVisual();
                 return;
             }
@@ -583,6 +685,8 @@ namespace helengine {
                 focusedTextBox = this;
             } else if (focusedTextBox == this) {
                 focusedTextBox = null;
+                isSelectingText = false;
+                EditState.ClearSelection();
             }
 
             cursorVisible = true;
@@ -610,6 +714,78 @@ namespace helengine {
             backgroundSprite.BorderColor = isFocused
                 ? ThemeManager.Colors.AccentPrimary
                 : ThemeManager.Colors.AccentTertiary;
+        }
+
+        /// <summary>
+        /// Updates the selection highlight geometry so dragged text is shown behind the caret.
+        /// </summary>
+        /// <param name="textY">Vertical offset used for the textbox text host.</param>
+        /// <param name="lineHeight">Current text line height.</param>
+        void UpdateSelectionVisual(double textY, double lineHeight) {
+            if (selectionEntity == null || selectionSprite == null || font == null) {
+                return;
+            }
+
+            if (!isFocused || !EditState.HasSelection || string.IsNullOrEmpty(EditState.Text)) {
+                selectionSprite.Size = new int2(0, 0);
+                selectionSprite.FillColor = new byte4(
+                    ThemeManager.Colors.AccentPrimary.X,
+                    ThemeManager.Colors.AccentPrimary.Y,
+                    ThemeManager.Colors.AccentPrimary.Z,
+                    0);
+                selectionEntity.Position = new float3(TextPaddingX, (float)textY, 0.05f);
+                return;
+            }
+
+            double selectionStartX = ResolveTextWidth(0, EditState.SelectionStart);
+            double selectionWidth = ResolveTextWidth(EditState.SelectionStart, EditState.SelectionEnd);
+            selectionEntity.Position = new float3(
+                TextPaddingX + (float)selectionStartX,
+                (float)textY,
+                0.05f);
+            selectionSprite.Size = new int2(
+                (int)Math.Ceiling(selectionWidth),
+                (int)Math.Ceiling(lineHeight));
+            selectionSprite.FillColor = new byte4(
+                ThemeManager.Colors.AccentPrimary.X,
+                ThemeManager.Colors.AccentPrimary.Y,
+                ThemeManager.Colors.AccentPrimary.Z,
+                96);
+        }
+
+        /// <summary>
+        /// Updates the selection highlight using the current text layout metrics.
+        /// </summary>
+        void UpdateSelectionVisual() {
+            if (font == null) {
+                return;
+            }
+
+            double lineHeight = Math.Max((double)font.LineHeight, 1.0);
+            double textY = Math.Round((size.Y - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
+            UpdateSelectionVisual(textY, lineHeight);
+        }
+
+        /// <summary>
+        /// Measures the width of a substring using the configured font metrics.
+        /// </summary>
+        /// <param name="startIndex">First character index to include.</param>
+        /// <param name="endIndex">Character index immediately after the final character to include.</param>
+        /// <returns>Measured width in pixels.</returns>
+        double ResolveTextWidth(int startIndex, int endIndex) {
+            if (Font == null) {
+                return 0.0;
+            }
+
+            string text = EditState.Text;
+            int clampedStart = Math.Max(0, Math.Min(startIndex, text.Length));
+            int clampedEnd = Math.Max(0, Math.Min(endIndex, text.Length));
+            double width = 0.0;
+            for (int index = clampedStart; index < clampedEnd; index++) {
+                width += ResolveCharacterAdvance(text[index]);
+            }
+
+            return width;
         }
     }
 

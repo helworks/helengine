@@ -134,6 +134,67 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures clicking within the visible text moves the caret to the clicked character position instead of the end.
+        /// </summary>
+        [Fact]
+        public void TextBoxComponent_OnCursorEvent_WhenClickedInsideText_MovesCaretToTheClickedPosition() {
+            InitializeCore();
+            EditorEntity entity = new EditorEntity();
+            TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
+            entity.AddComponent(textBox);
+            textBox.Text = "Name";
+
+            InvokePrivate(textBox, "OnCursorEvent", new int2(18, 10), new int2(0, 0), PointerInteraction.Press);
+
+            TextBoxEditState editState = GetPrivateField<TextBoxEditState>(textBox, "EditState");
+
+            Assert.True(textBox.IsFocused);
+            Assert.Equal(1, editState.CursorPosition);
+        }
+
+        /// <summary>
+        /// Ensures dragging the mouse across text creates a live selection range.
+        /// </summary>
+        [Fact]
+        public void TextBoxComponent_OnCursorEvent_WhenDragged_SelectsTextRange() {
+            InitializeCore();
+            EditorEntity entity = new EditorEntity();
+            TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
+            entity.AddComponent(textBox);
+            textBox.Text = "Name";
+
+            InvokePrivate(textBox, "OnCursorEvent", new int2(18, 10), new int2(0, 0), PointerInteraction.Press);
+            InvokePrivate(textBox, "OnCursorEvent", new int2(42, 10), new int2(24, 0), PointerInteraction.Hover);
+
+            TextBoxEditState editState = GetPrivateField<TextBoxEditState>(textBox, "EditState");
+
+            Assert.True(editState.HasSelection);
+            Assert.Equal(1, editState.SelectionStart);
+            Assert.Equal(4, editState.SelectionEnd);
+        }
+
+        /// <summary>
+        /// Ensures typing while text is selected replaces the selected text instead of inserting beside it.
+        /// </summary>
+        [Fact]
+        public void TextBoxComponent_WhenSelectionExists_TypingReplacesSelectedText() {
+            InitializeCore();
+            EditorEntity entity = new EditorEntity();
+            TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
+            entity.AddComponent(textBox);
+            textBox.Text = "Name";
+            textBox.IsFocused = true;
+
+            InvokePrivate(textBox, "OnCursorEvent", new int2(18, 10), new int2(0, 0), PointerInteraction.Press);
+            InvokePrivate(textBox, "OnCursorEvent", new int2(42, 10), new int2(24, 0), PointerInteraction.Hover);
+
+            Core.Instance.InputManager.SetKeyboardState(new KeyboardState(Keys.B));
+            Core.Instance.Update();
+
+            Assert.Equal("Nb", textBox.Text);
+        }
+
+        /// <summary>
         /// Initializes the core services required by keyboard-focus tests.
         /// </summary>
         void InitializeCore() {

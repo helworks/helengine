@@ -49,6 +49,21 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures inserting a character while text is selected replaces the selected range.
+        /// </summary>
+        [Fact]
+        public void InsertCharacter_ReplacesSelectedText() {
+            TextBoxEditState state = new TextBoxEditState("name");
+
+            state.SetSelection(1, 4);
+            state.InsertCharacter('x');
+
+            Assert.Equal("nx", state.Text);
+            Assert.Equal(2, state.CursorPosition);
+            Assert.False(state.HasSelection);
+        }
+
+        /// <summary>
         /// Ensures replacing the text clamps the caret into the new valid range.
         /// </summary>
         [Fact]
