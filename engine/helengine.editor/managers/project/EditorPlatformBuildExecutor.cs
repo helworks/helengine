@@ -202,8 +202,9 @@ namespace helengine.editor {
                 stagedPayloadReferences[index] = new PlatformBuildPayloadReference(relativePath, relativePath);
             }
 
-            string selectedBuildProfileId = ResolveBuildProfileId(builderDefinition, queueItem.DebugBuild);
-            string selectedGraphicsProfileId = ResolveGraphicsProfileId(builderDefinition, selectedBuildProfileId);
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(builderDefinition);
+            string selectedBuildProfileId = ResolveSelectedBuildProfileId(queueItem, selectionModel);
+            string selectedGraphicsProfileId = ResolveSelectedGraphicsProfileId(queueItem, selectedBuildProfileId, selectionModel);
 
             PlatformBuildScene[] scenes = new PlatformBuildScene[queueItem.SelectedSceneIds.Count];
             for (int index = 0; index < queueItem.SelectedSceneIds.Count; index++) {
@@ -247,61 +248,95 @@ namespace helengine.editor {
                         PlatformSerializationEndianness.LittleEndian))
             ];
 
-            return new PlatformBuildRequest(manifest, targetVariants, cookProfiles, queueItem.OutputDirectoryPath, builderWorkingRoot);
+            return new PlatformBuildRequest(
+                manifest,
+                targetVariants,
+                cookProfiles,
+                queueItem.OutputDirectoryPath,
+                builderWorkingRoot,
+                selectedBuildProfileId,
+                selectedGraphicsProfileId,
+                queueItem.SelectedBuildOptionValues,
+                queueItem.SelectedGraphicsOptionValues);
         }
 
         /// <summary>
         /// Chooses one build profile id from the builder metadata.
         /// </summary>
-        /// <param name="definition">Typed builder metadata.</param>
-        /// <param name="debugBuild">True when the queue item requested a debug build.</param>
+        /// <param name="queueItem">Queued build item containing the requested metadata snapshot.</param>
+        /// <param name="selectionModel">Typed builder metadata exposed by the loaded platform.</param>
         /// <returns>Selected build profile id.</returns>
-        static string ResolveBuildProfileId(PlatformDefinition definition, bool debugBuild) {
-            if (definition == null) {
-                throw new ArgumentNullException(nameof(definition));
+        static string ResolveSelectedBuildProfileId(EditorBuildQueueItemDocument queueItem, EditorPlatformBuildSelectionModel selectionModel) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
             }
-            if (definition.BuildProfiles.Length == 0) {
-                return debugBuild ? "debug" : "release";
+            if (selectionModel == null) {
+                throw new ArgumentNullException(nameof(selectionModel));
             }
 
-            string desiredProfileId = debugBuild ? "debug" : "release";
-            for (int index = 0; index < definition.BuildProfiles.Length; index++) {
-                PlatformBuildProfileDefinition profile = definition.BuildProfiles[index];
-                if (string.Equals(profile.ProfileId, desiredProfileId, StringComparison.OrdinalIgnoreCase)) {
-                    return profile.ProfileId;
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedBuildProfileId)) {
+                PlatformBuildProfileDefinition selectedBuildProfile = selectionModel.ResolveBuildProfile(queueItem.SelectedBuildProfileId);
+                if (selectedBuildProfile != null) {
+                    return selectedBuildProfile.ProfileId;
                 }
             }
 
-            return definition.BuildProfiles[0].ProfileId;
+            if (queueItem.DebugBuild) {
+                PlatformBuildProfileDefinition debugProfile = selectionModel.ResolveBuildProfile("debug");
+                if (debugProfile != null) {
+                    return debugProfile.ProfileId;
+                }
+            } else {
+                PlatformBuildProfileDefinition releaseProfile = selectionModel.ResolveBuildProfile("release");
+                if (releaseProfile != null) {
+                    return releaseProfile.ProfileId;
+                }
+            }
+
+            PlatformBuildProfileDefinition selectedBuildProfile = selectionModel.ResolveBuildProfile(string.Empty);
+            if (selectedBuildProfile != null) {
+                return selectedBuildProfile.ProfileId;
+            }
+
+            return queueItem.DebugBuild ? "debug" : "release";
         }
 
         /// <summary>
         /// Chooses one graphics profile id from the builder metadata.
         /// </summary>
-        /// <param name="definition">Typed builder metadata.</param>
+        /// <param name="queueItem">Queued build item containing the requested metadata snapshot.</param>
         /// <param name="selectedBuildProfileId">Build profile id chosen for this queue item.</param>
+        /// <param name="selectionModel">Typed builder metadata exposed by the loaded platform.</param>
         /// <returns>Selected graphics profile id.</returns>
-        static string ResolveGraphicsProfileId(PlatformDefinition definition, string selectedBuildProfileId) {
-            if (definition == null) {
-                throw new ArgumentNullException(nameof(definition));
+        static string ResolveSelectedGraphicsProfileId(
+            EditorBuildQueueItemDocument queueItem,
+            string selectedBuildProfileId,
+            EditorPlatformBuildSelectionModel selectionModel) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+            if (selectionModel == null) {
+                throw new ArgumentNullException(nameof(selectionModel));
             }
 
-            for (int index = 0; index < definition.BuildProfiles.Length; index++) {
-                PlatformBuildProfileDefinition profile = definition.BuildProfiles[index];
-                if (!string.Equals(profile.ProfileId, selectedBuildProfileId, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
+            PlatformBuildProfileDefinition selectedBuildProfile = selectionModel.ResolveBuildProfile(selectedBuildProfileId);
+            if (selectedBuildProfile != null && !string.IsNullOrWhiteSpace(selectedBuildProfile.GraphicsProfileId)) {
+                return selectedBuildProfile.GraphicsProfileId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedGraphicsProfileId)) {
+                PlatformGraphicsProfileDefinition selectedGraphicsProfile = selectionModel.ResolveGraphicsProfile(queueItem.SelectedGraphicsProfileId);
+                if (selectedGraphicsProfile != null) {
+                    return selectedGraphicsProfile.ProfileId;
                 }
-
-                if (!string.IsNullOrWhiteSpace(profile.GraphicsProfileId)) {
-                    return profile.GraphicsProfileId;
-                }
             }
 
-            if (definition.GraphicsProfiles.Length > 0) {
-                return definition.GraphicsProfiles[0].ProfileId;
+            PlatformGraphicsProfileDefinition defaultGraphicsProfile = selectionModel.ResolveGraphicsProfile(string.Empty);
+            if (defaultGraphicsProfile != null) {
+                return defaultGraphicsProfile.ProfileId;
             }
 
-            return selectedBuildProfileId;
+            return string.Empty;
         }
 
         /// <summary>

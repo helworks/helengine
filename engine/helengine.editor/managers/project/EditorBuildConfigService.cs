@@ -99,8 +99,31 @@ namespace helengine.editor {
                 document.QueueItems ??= [];
                 for (int index = 0; index < document.Platforms.Count; index++) {
                     EditorBuildPlatformConfigDocument platform = document.Platforms[index];
+                    if (platform == null) {
+                        document.Platforms[index] = new EditorBuildPlatformConfigDocument();
+                        continue;
+                    }
+
                     platform.SelectedSceneIds ??= [];
                     platform.SceneOrders ??= [];
+                    platform.SelectedBuildProfileId ??= string.Empty;
+                    platform.SelectedGraphicsProfileId ??= string.Empty;
+                    platform.SelectedBuildOptionValues ??= [];
+                    platform.SelectedGraphicsOptionValues ??= [];
+                }
+
+                for (int index = 0; index < document.QueueItems.Count; index++) {
+                    EditorBuildQueueItemDocument queueItem = document.QueueItems[index];
+                    if (queueItem == null) {
+                        document.QueueItems[index] = new EditorBuildQueueItemDocument();
+                        continue;
+                    }
+
+                    queueItem.SelectedSceneIds ??= [];
+                    queueItem.SelectedBuildProfileId ??= string.Empty;
+                    queueItem.SelectedGraphicsProfileId ??= string.Empty;
+                    queueItem.SelectedBuildOptionValues ??= [];
+                    queueItem.SelectedGraphicsOptionValues ??= [];
                 }
                 return document;
             } catch {
@@ -167,7 +190,11 @@ namespace helengine.editor {
             EditorBuildPlatformConfigDocument document = new EditorBuildPlatformConfigDocument {
                 PlatformId = platformId,
                 OutputDirectoryPath = string.Empty,
-                DebugBuild = false
+                DebugBuild = false,
+                SelectedBuildProfileId = string.Empty,
+                SelectedGraphicsProfileId = string.Empty,
+                SelectedBuildOptionValues = [],
+                SelectedGraphicsOptionValues = []
             };
 
             if (!string.IsNullOrWhiteSpace(currentSceneId)) {

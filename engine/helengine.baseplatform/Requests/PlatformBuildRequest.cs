@@ -16,6 +16,10 @@ public class PlatformBuildRequest {
     /// <param name="cookProfiles">The shared cook profiles referenced by the requested target variants.</param>
     /// <param name="outputRoot">The root directory where cooked outputs should be written.</param>
     /// <param name="workingRoot">The temporary working directory the builder may use during execution.</param>
+    /// <param name="selectedBuildProfileId">The builder-selected build profile identifier.</param>
+    /// <param name="selectedGraphicsProfileId">The builder-selected graphics profile identifier.</param>
+    /// <param name="selectedBuildOptionValues">The selected build-profile option values.</param>
+    /// <param name="selectedGraphicsOptionValues">The selected graphics-profile option values.</param>
     /// <exception cref="ArgumentNullException">Thrown when the manifest, target variants, cook profiles, or filesystem roots are missing.</exception>
     /// <exception cref="ArgumentException">Thrown when any required string value is missing or a referenced cook profile is unavailable.</exception>
     public PlatformBuildRequest(
@@ -23,7 +27,34 @@ public class PlatformBuildRequest {
         PlatformBuildTargetVariant[] targetVariants,
         PlatformCookProfile[] cookProfiles,
         string outputRoot,
-        string workingRoot) {
+        string workingRoot)
+        : this(manifest, targetVariants, cookProfiles, outputRoot, workingRoot, string.Empty, string.Empty, null, null) {
+    }
+
+    /// <summary>
+    /// Initializes a new build request for one target platform output.
+    /// </summary>
+    /// <param name="manifest">The fully resolved manifest the builder must transform.</param>
+    /// <param name="targetVariants">The requested runtime target variants that share the build request.</param>
+    /// <param name="cookProfiles">The shared cook profiles referenced by the requested target variants.</param>
+    /// <param name="outputRoot">The root directory where cooked outputs should be written.</param>
+    /// <param name="workingRoot">The temporary working directory the builder may use during execution.</param>
+    /// <param name="selectedBuildProfileId">The builder-selected build profile identifier.</param>
+    /// <param name="selectedGraphicsProfileId">The builder-selected graphics profile identifier.</param>
+    /// <param name="selectedBuildOptionValues">The selected build-profile option values.</param>
+    /// <param name="selectedGraphicsOptionValues">The selected graphics-profile option values.</param>
+    /// <exception cref="ArgumentNullException">Thrown when the manifest, target variants, cook profiles, or filesystem roots are missing.</exception>
+    /// <exception cref="ArgumentException">Thrown when any required string value is missing or a referenced cook profile is unavailable.</exception>
+    public PlatformBuildRequest(
+        PlatformBuildManifest manifest,
+        PlatformBuildTargetVariant[] targetVariants,
+        PlatformCookProfile[] cookProfiles,
+        string outputRoot,
+        string workingRoot,
+        string selectedBuildProfileId,
+        string selectedGraphicsProfileId,
+        IReadOnlyDictionary<string, string> selectedBuildOptionValues,
+        IReadOnlyDictionary<string, string> selectedGraphicsOptionValues) {
         if (manifest == null) {
             throw new ArgumentNullException(nameof(manifest));
         } else if (targetVariants == null) {
@@ -71,6 +102,14 @@ public class PlatformBuildRequest {
         CookProfiles = [.. cookProfiles];
         OutputRoot = outputRoot;
         WorkingRoot = workingRoot;
+        SelectedBuildProfileId = selectedBuildProfileId ?? string.Empty;
+        SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
+        SelectedBuildOptionValues = selectedBuildOptionValues != null
+            ? new Dictionary<string, string>(selectedBuildOptionValues)
+            : [];
+        SelectedGraphicsOptionValues = selectedGraphicsOptionValues != null
+            ? new Dictionary<string, string>(selectedGraphicsOptionValues)
+            : [];
     }
 
     /// <summary>
@@ -97,4 +136,24 @@ public class PlatformBuildRequest {
     /// Gets the temporary working directory the builder may use during execution.
     /// </summary>
     public string WorkingRoot { get; }
+
+    /// <summary>
+    /// Gets the selected builder-provided build profile identifier.
+    /// </summary>
+    public string SelectedBuildProfileId { get; }
+
+    /// <summary>
+    /// Gets the selected builder-provided graphics profile identifier.
+    /// </summary>
+    public string SelectedGraphicsProfileId { get; }
+
+    /// <summary>
+    /// Gets the selected builder-provided build option values.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> SelectedBuildOptionValues { get; }
+
+    /// <summary>
+    /// Gets the selected builder-provided graphics option values.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> SelectedGraphicsOptionValues { get; }
 }

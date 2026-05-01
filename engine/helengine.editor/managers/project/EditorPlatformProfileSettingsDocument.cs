@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace helengine.editor {
     /// <summary>
     /// Represents one platform's persisted build and graphics profile values.
@@ -21,6 +23,7 @@ namespace helengine.editor {
         /// <summary>
         /// Gets or sets the cached builder metadata for the selected platform.
         /// </summary>
+        [JsonIgnore]
         public EditorPlatformBuildSelectionModel SelectionModel { get; set; }
     }
 }

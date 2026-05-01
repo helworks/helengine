@@ -54,8 +54,8 @@ namespace helengine.editor {
         /// <param name="selectedGraphicsProfileId">Selected builder-provided graphics profile id.</param>
         /// <param name="selectedBuildOptionValues">Selected builder-provided build option values.</param>
         /// <param name="selectedGraphicsOptionValues">Selected builder-provided graphics option values.</param>
-        public BuildDialogAddRequest(string platformId, IReadOnlyList<string> selectedSceneIds, string outputDirectoryPath, bool debugBuild = false) {
-            this(platformId, selectedSceneIds, outputDirectoryPath, debugBuild, string.Empty, string.Empty, null, null);
+        public BuildDialogAddRequest(string platformId, IReadOnlyList<string> selectedSceneIds, string outputDirectoryPath, bool debugBuild = false)
+            : this(platformId, selectedSceneIds, outputDirectoryPath, debugBuild, string.Empty, string.Empty, null, null) {
         }
 
         /// <summary>

@@ -1,4 +1,5 @@
 using System.Globalization;
+using helengine.baseplatform.Definitions;
 
 namespace helengine.editor {
     /// <summary>
@@ -276,6 +277,11 @@ namespace helengine.editor {
         EditorProfileSettingsDocument CurrentDocument;
 
         /// <summary>
+        /// Builder-provided metadata for the currently active platform.
+        /// </summary>
+        EditorPlatformBuildSelectionModel ActivePlatformSelectionModel;
+
+        /// <summary>
         /// Currently selected platform id being edited.
         /// </summary>
         string CurrentPlatformId;
@@ -442,6 +448,17 @@ namespace helengine.editor {
         /// <param name="supportedPlatforms">Supported platform identifiers declared by the project.</param>
         /// <param name="activePlatformId">Platform currently being edited.</param>
         public void Show(EditorProfileSettingsDocument document, IReadOnlyList<string> supportedPlatforms, string activePlatformId) {
+            Show(document, supportedPlatforms, activePlatformId, null);
+        }
+
+        /// <summary>
+        /// Shows the dialog for the provided profile document and platform set.
+        /// </summary>
+        /// <param name="document">Mutable profile settings document for the current project.</param>
+        /// <param name="supportedPlatforms">Supported platform identifiers declared by the project.</param>
+        /// <param name="activePlatformId">Platform currently being edited.</param>
+        /// <param name="selectionModel">Builder-provided metadata for the active platform.</param>
+        public void Show(EditorProfileSettingsDocument document, IReadOnlyList<string> supportedPlatforms, string activePlatformId, EditorPlatformBuildSelectionModel selectionModel) {
             if (document == null) {
                 throw new ArgumentNullException(nameof(document));
             }
@@ -455,6 +472,7 @@ namespace helengine.editor {
             int activeIndex = ResolvePlatformIndex(supportedPlatforms, activePlatformId);
             CurrentDocument = document;
             CurrentPlatformId = supportedPlatforms[activeIndex];
+            ActivePlatformSelectionModel = selectionModel;
 
             SupportedPlatformIds.Clear();
             for (int i = 0; i < supportedPlatforms.Count; i++) {
@@ -557,13 +575,45 @@ namespace helengine.editor {
         /// <param name="platformId">Platform identifier to load.</param>
         void LoadSelectedPlatformIntoFields(string platformId) {
             EditorPlatformProfileSettingsDocument platform = GetPlatformDocument(platformId);
+            platform.Build.SelectedOptionValues ??= [];
+            platform.Graphics.SelectedOptionValues ??= [];
 
-            TextureScaleTextBox.Text = platform.Build.TextureScalePercent.ToString(CultureInfo.InvariantCulture);
-            ShaderPruningCheckBox.IsChecked = platform.Build.ShaderVariantPruningEnabled;
-            WidthTextBox.Text = platform.Graphics.DefaultWidth.ToString(CultureInfo.InvariantCulture);
-            HeightTextBox.Text = platform.Graphics.DefaultHeight.ToString(CultureInfo.InvariantCulture);
-            VSyncCheckBox.IsChecked = platform.Graphics.VSyncEnabled;
-            FullscreenCheckBox.IsChecked = platform.Graphics.FullscreenEnabled;
+            PlatformBuildProfileDefinition buildProfile = ResolveBuildProfile(platform);
+            PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(platform, buildProfile);
+
+            PlatformSettingDefinition textureScaleSetting = GetSetting(buildProfile?.Settings, 0);
+            PlatformSettingDefinition shaderPruningSetting = GetSetting(buildProfile?.Settings, 1);
+            PlatformSettingDefinition widthSetting = GetSetting(graphicsProfile?.Settings, 0);
+            PlatformSettingDefinition heightSetting = GetSetting(graphicsProfile?.Settings, 1);
+            PlatformSettingDefinition vsyncSetting = GetSetting(graphicsProfile?.Settings, 2);
+            PlatformSettingDefinition fullscreenSetting = GetSetting(graphicsProfile?.Settings, 3);
+
+            BuildTitleText.Text = buildProfile != null ? $"Build Profile: {buildProfile.DisplayName}" : "Build Profiles";
+            GraphicsTitleText.Text = graphicsProfile != null ? $"Graphics Profile: {graphicsProfile.DisplayName}" : "Graphics Profiles";
+
+            TextureScaleLabelText.Text = textureScaleSetting?.DisplayName ?? "Texture scale %";
+            ShaderPruningLabelText.Text = shaderPruningSetting?.DisplayName ?? "Shader variant pruning";
+            WidthLabelText.Text = widthSetting?.DisplayName ?? "Default width";
+            HeightLabelText.Text = heightSetting?.DisplayName ?? "Default height";
+            VSyncLabelText.Text = vsyncSetting?.DisplayName ?? "VSync";
+            FullscreenLabelText.Text = fullscreenSetting?.DisplayName ?? "Fullscreen";
+
+            platform.Build.SelectedBuildProfileId = buildProfile?.ProfileId ?? platform.Build.SelectedBuildProfileId;
+            platform.Graphics.SelectedGraphicsProfileId = graphicsProfile?.ProfileId ?? platform.Graphics.SelectedGraphicsProfileId;
+
+            TextureScaleTextBox.Text = ResolveSettingText(platform.Build.SelectedOptionValues, textureScaleSetting, platform.Build.TextureScalePercent.ToString(CultureInfo.InvariantCulture));
+            ShaderPruningCheckBox.IsChecked = ResolveSettingBoolean(platform.Build.SelectedOptionValues, shaderPruningSetting, platform.Build.ShaderVariantPruningEnabled);
+            WidthTextBox.Text = ResolveSettingText(platform.Graphics.SelectedOptionValues, widthSetting, platform.Graphics.DefaultWidth.ToString(CultureInfo.InvariantCulture));
+            HeightTextBox.Text = ResolveSettingText(platform.Graphics.SelectedOptionValues, heightSetting, platform.Graphics.DefaultHeight.ToString(CultureInfo.InvariantCulture));
+            VSyncCheckBox.IsChecked = ResolveSettingBoolean(platform.Graphics.SelectedOptionValues, vsyncSetting, platform.Graphics.VSyncEnabled);
+            FullscreenCheckBox.IsChecked = ResolveSettingBoolean(platform.Graphics.SelectedOptionValues, fullscreenSetting, platform.Graphics.FullscreenEnabled);
+
+            platform.Build.TextureScalePercent = ParsePositiveInteger(TextureScaleTextBox.Text, platform.Build.TextureScalePercent);
+            platform.Build.ShaderVariantPruningEnabled = ShaderPruningCheckBox.IsChecked;
+            platform.Graphics.DefaultWidth = ParsePositiveInteger(WidthTextBox.Text, platform.Graphics.DefaultWidth);
+            platform.Graphics.DefaultHeight = ParsePositiveInteger(HeightTextBox.Text, platform.Graphics.DefaultHeight);
+            platform.Graphics.VSyncEnabled = VSyncCheckBox.IsChecked;
+            platform.Graphics.FullscreenEnabled = FullscreenCheckBox.IsChecked;
         }
 
         /// <summary>
@@ -595,6 +645,21 @@ namespace helengine.editor {
             }
 
             EditorPlatformProfileSettingsDocument platform = GetPlatformDocument(CurrentPlatformId);
+            PlatformBuildProfileDefinition buildProfile = ResolveBuildProfile(platform);
+            PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(platform, buildProfile);
+
+            platform.Build.SelectedBuildProfileId = buildProfile?.ProfileId ?? platform.Build.SelectedBuildProfileId;
+            platform.Graphics.SelectedGraphicsProfileId = graphicsProfile?.ProfileId ?? platform.Graphics.SelectedGraphicsProfileId;
+
+            platform.Build.SelectedOptionValues ??= [];
+            platform.Graphics.SelectedOptionValues ??= [];
+            StoreSettingValue(platform.Build.SelectedOptionValues, GetSetting(buildProfile?.Settings, 0), TextureScaleTextBox.Text);
+            StoreSettingValue(platform.Build.SelectedOptionValues, GetSetting(buildProfile?.Settings, 1), ShaderPruningCheckBox.IsChecked.ToString());
+            StoreSettingValue(platform.Graphics.SelectedOptionValues, GetSetting(graphicsProfile?.Settings, 0), WidthTextBox.Text);
+            StoreSettingValue(platform.Graphics.SelectedOptionValues, GetSetting(graphicsProfile?.Settings, 1), HeightTextBox.Text);
+            StoreSettingValue(platform.Graphics.SelectedOptionValues, GetSetting(graphicsProfile?.Settings, 2), VSyncCheckBox.IsChecked.ToString());
+            StoreSettingValue(platform.Graphics.SelectedOptionValues, GetSetting(graphicsProfile?.Settings, 3), FullscreenCheckBox.IsChecked.ToString());
+
             platform.Build.TextureScalePercent = textureScalePercent;
             platform.Build.ShaderVariantPruningEnabled = ShaderPruningCheckBox.IsChecked;
             platform.Graphics.DefaultWidth = defaultWidth;
@@ -623,6 +688,10 @@ namespace helengine.editor {
                     if (platform.Graphics == null) {
                         platform.Graphics = new EditorGraphicsProfileSettingsDocument();
                     }
+                    platform.Build.SelectedOptionValues ??= [];
+                    platform.Graphics.SelectedOptionValues ??= [];
+                    platform.Build.SelectedBuildProfileId ??= string.Empty;
+                    platform.Graphics.SelectedGraphicsProfileId ??= string.Empty;
 
                     return platform;
                 }
@@ -633,8 +702,112 @@ namespace helengine.editor {
                 Build = new EditorBuildProfileSettingsDocument(),
                 Graphics = new EditorGraphicsProfileSettingsDocument()
             };
+            createdPlatform.Build.SelectedOptionValues ??= [];
+            createdPlatform.Graphics.SelectedOptionValues ??= [];
             CurrentDocument.Platforms.Add(createdPlatform);
             return createdPlatform;
+        }
+
+        /// <summary>
+        /// Resolves the current builder-provided build profile for one platform record.
+        /// </summary>
+        /// <param name="platform">Persisted platform profile record.</param>
+        /// <returns>Resolved build profile metadata, or null when no builder metadata is available.</returns>
+        PlatformBuildProfileDefinition ResolveBuildProfile(EditorPlatformProfileSettingsDocument platform) {
+            if (ActivePlatformSelectionModel == null || platform == null) {
+                return null;
+            }
+
+            PlatformBuildProfileDefinition buildProfile = ActivePlatformSelectionModel.ResolveBuildProfile(platform.Build?.SelectedBuildProfileId);
+            return buildProfile;
+        }
+
+        /// <summary>
+        /// Resolves the current builder-provided graphics profile for one platform record.
+        /// </summary>
+        /// <param name="platform">Persisted platform profile record.</param>
+        /// <param name="buildProfile">Currently selected build profile metadata.</param>
+        /// <returns>Resolved graphics profile metadata, or null when no builder metadata is available.</returns>
+        PlatformGraphicsProfileDefinition ResolveGraphicsProfile(EditorPlatformProfileSettingsDocument platform, PlatformBuildProfileDefinition buildProfile) {
+            if (ActivePlatformSelectionModel == null || platform == null) {
+                return null;
+            }
+
+            string graphicsProfileId = platform.Graphics?.SelectedGraphicsProfileId;
+            if (string.IsNullOrWhiteSpace(graphicsProfileId) && buildProfile != null) {
+                graphicsProfileId = buildProfile.GraphicsProfileId;
+            }
+
+            return ActivePlatformSelectionModel.ResolveGraphicsProfile(graphicsProfileId);
+        }
+
+        /// <summary>
+        /// Returns one setting definition by ordinal position.
+        /// </summary>
+        /// <param name="settings">Setting collection to inspect.</param>
+        /// <param name="index">Ordinal position of the desired setting.</param>
+        /// <returns>Matching setting definition when present; otherwise null.</returns>
+        static PlatformSettingDefinition GetSetting(PlatformSettingDefinition[] settings, int index) {
+            if (settings == null || index < 0 || index >= settings.Length) {
+                return null;
+            }
+
+            return settings[index];
+        }
+
+        /// <summary>
+        /// Reads one text value from the selected option dictionary or falls back to the supplied value.
+        /// </summary>
+        /// <param name="values">Selected option values.</param>
+        /// <param name="setting">Setting definition to resolve.</param>
+        /// <param name="fallback">Fallback value used when the option has not been set.</param>
+        /// <returns>Resolved option value.</returns>
+        static string ResolveSettingText(Dictionary<string, string> values, PlatformSettingDefinition setting, string fallback) {
+            if (setting == null || values == null) {
+                return fallback;
+            }
+
+            if (values.TryGetValue(setting.SettingId, out string value) && !string.IsNullOrWhiteSpace(value)) {
+                return value;
+            }
+
+            return setting.DefaultValue ?? fallback;
+        }
+
+        /// <summary>
+        /// Reads one boolean value from the selected option dictionary or falls back to the supplied value.
+        /// </summary>
+        /// <param name="values">Selected option values.</param>
+        /// <param name="setting">Setting definition to resolve.</param>
+        /// <param name="fallback">Fallback value used when the option has not been set.</param>
+        /// <returns>Resolved option value.</returns>
+        static bool ResolveSettingBoolean(Dictionary<string, string> values, PlatformSettingDefinition setting, bool fallback) {
+            string text = ResolveSettingText(values, setting, fallback.ToString());
+            return bool.TryParse(text, out bool value) ? value : fallback;
+        }
+
+        /// <summary>
+        /// Stores one option value into the selected option dictionary.
+        /// </summary>
+        /// <param name="values">Selected option values.</param>
+        /// <param name="setting">Setting definition to write.</param>
+        /// <param name="value">Serialized option value.</param>
+        static void StoreSettingValue(Dictionary<string, string> values, PlatformSettingDefinition setting, string value) {
+            if (values == null || setting == null) {
+                return;
+            }
+
+            values[setting.SettingId] = value ?? setting.DefaultValue;
+        }
+
+        /// <summary>
+        /// Parses one positive integer and returns a fallback when parsing fails.
+        /// </summary>
+        /// <param name="text">Text to parse.</param>
+        /// <param name="fallback">Fallback value used when parsing fails.</param>
+        /// <returns>Parsed or fallback value.</returns>
+        static int ParsePositiveInteger(string text, int fallback) {
+            return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) && value > 0 ? value : fallback;
         }
 
         /// <summary>

@@ -1313,6 +1313,13 @@ namespace helengine.editor {
         /// <returns>Queue summary text shown in the queue column.</returns>
         string BuildQueueItemText(EditorBuildQueueItemDocument queueItem) {
             string summaryText = queueItem.PlatformId + " | " + queueItem.Status + " | " + queueItem.SelectedSceneIds.Count + " scene(s)";
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedBuildProfileId)) {
+                summaryText += " | build " + queueItem.SelectedBuildProfileId;
+            }
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedGraphicsProfileId)) {
+                summaryText += " | gfx " + queueItem.SelectedGraphicsProfileId;
+            }
+
             string statusMessage = BuildQueueItemStatusMessage(queueItem.StatusMessage);
             return summaryText + "\n" + statusMessage;
         }
@@ -1388,20 +1395,77 @@ namespace helengine.editor {
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(platformConfig.SelectedBuildProfileId) && ActivePlatformSelectionModel.BuildProfiles.Length > 0) {
-                PlatformBuildProfileDefinition buildProfile = ActivePlatformSelectionModel.BuildProfiles[0];
+            PlatformBuildProfileDefinition buildProfile = ResolveBuildProfile(platformConfig);
+            if (buildProfile != null) {
                 platformConfig.SelectedBuildProfileId = buildProfile.ProfileId;
-                if (!string.IsNullOrWhiteSpace(buildProfile.GraphicsProfileId)) {
+                if (string.IsNullOrWhiteSpace(platformConfig.SelectedGraphicsProfileId)) {
                     platformConfig.SelectedGraphicsProfileId = buildProfile.GraphicsProfileId;
                 }
+                EnsureSettingDefaults(platformConfig.SelectedBuildOptionValues, buildProfile.Settings);
             }
 
-            if (string.IsNullOrWhiteSpace(platformConfig.SelectedGraphicsProfileId) && ActivePlatformSelectionModel.GraphicsProfiles.Length > 0) {
-                platformConfig.SelectedGraphicsProfileId = ActivePlatformSelectionModel.GraphicsProfiles[0].ProfileId;
+            PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(platformConfig, buildProfile);
+            if (graphicsProfile != null) {
+                platformConfig.SelectedGraphicsProfileId = graphicsProfile.ProfileId;
+                EnsureSettingDefaults(platformConfig.SelectedGraphicsOptionValues, graphicsProfile.Settings);
             }
 
             platformConfig.SelectedBuildOptionValues ??= new Dictionary<string, string>();
             platformConfig.SelectedGraphicsOptionValues ??= new Dictionary<string, string>();
+        }
+
+        /// <summary>
+        /// Resolves the selected build profile metadata for one platform configuration.
+        /// </summary>
+        /// <param name="platformConfig">Platform configuration to inspect.</param>
+        /// <returns>Resolved build profile metadata, or null when unavailable.</returns>
+        PlatformBuildProfileDefinition ResolveBuildProfile(EditorBuildPlatformConfigDocument platformConfig) {
+            if (platformConfig == null || ActivePlatformSelectionModel == null) {
+                return null;
+            }
+
+            return ActivePlatformSelectionModel.ResolveBuildProfile(platformConfig.SelectedBuildProfileId);
+        }
+
+        /// <summary>
+        /// Resolves the selected graphics profile metadata for one platform configuration.
+        /// </summary>
+        /// <param name="platformConfig">Platform configuration to inspect.</param>
+        /// <param name="buildProfile">Resolved build profile metadata.</param>
+        /// <returns>Resolved graphics profile metadata, or null when unavailable.</returns>
+        PlatformGraphicsProfileDefinition ResolveGraphicsProfile(EditorBuildPlatformConfigDocument platformConfig, PlatformBuildProfileDefinition buildProfile) {
+            if (platformConfig == null || ActivePlatformSelectionModel == null) {
+                return null;
+            }
+
+            string graphicsProfileId = platformConfig.SelectedGraphicsProfileId;
+            if (string.IsNullOrWhiteSpace(graphicsProfileId) && buildProfile != null) {
+                graphicsProfileId = buildProfile.GraphicsProfileId;
+            }
+
+            return ActivePlatformSelectionModel.ResolveGraphicsProfile(graphicsProfileId);
+        }
+
+        /// <summary>
+        /// Seeds missing option values from the supplied setting collection.
+        /// </summary>
+        /// <param name="values">Persisted option values.</param>
+        /// <param name="settings">Builder-provided setting definitions.</param>
+        static void EnsureSettingDefaults(Dictionary<string, string> values, PlatformSettingDefinition[] settings) {
+            if (values == null || settings == null) {
+                return;
+            }
+
+            for (int index = 0; index < settings.Length; index++) {
+                PlatformSettingDefinition setting = settings[index];
+                if (setting == null || string.IsNullOrWhiteSpace(setting.SettingId)) {
+                    continue;
+                }
+
+                if (!values.TryGetValue(setting.SettingId, out string existingValue) || string.IsNullOrWhiteSpace(existingValue)) {
+                    values[setting.SettingId] = setting.DefaultValue;
+                }
+            }
         }
 
         /// <summary>

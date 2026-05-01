@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace helengine.editor {
     /// <summary>
@@ -104,6 +105,8 @@ namespace helengine.editor {
 
                     platform.Build ??= new EditorBuildProfileSettingsDocument();
                     platform.Graphics ??= new EditorGraphicsProfileSettingsDocument();
+                    platform.Build.SelectedBuildProfileId ??= string.Empty;
+                    platform.Graphics.SelectedGraphicsProfileId ??= string.Empty;
                     platform.Build.SelectedOptionValues ??= [];
                     platform.Graphics.SelectedOptionValues ??= [];
                 }
@@ -147,6 +150,10 @@ namespace helengine.editor {
                     platform.Build = new EditorBuildProfileSettingsDocument();
                     changed = true;
                 }
+                if (string.IsNullOrWhiteSpace(platform.Build.SelectedBuildProfileId)) {
+                    platform.Build.SelectedBuildProfileId = string.Empty;
+                    changed = true;
+                }
                 if (platform.Build.SelectedOptionValues == null) {
                     platform.Build.SelectedOptionValues = [];
                     changed = true;
@@ -154,6 +161,10 @@ namespace helengine.editor {
 
                 if (platform.Graphics == null) {
                     platform.Graphics = new EditorGraphicsProfileSettingsDocument();
+                    changed = true;
+                }
+                if (string.IsNullOrWhiteSpace(platform.Graphics.SelectedGraphicsProfileId)) {
+                    platform.Graphics.SelectedGraphicsProfileId = string.Empty;
                     changed = true;
                 }
                 if (platform.Graphics.SelectedOptionValues == null) {
