@@ -121,6 +121,10 @@ namespace helengine.editor {
         /// </summary>
         readonly ComponentAddDialog AddComponentDialog;
         /// <summary>
+        /// Provider that exposes components discovered from the currently loaded game script assembly.
+        /// </summary>
+        readonly IEditorScriptComponentCatalogProvider ScriptComponentCatalogProvider;
+        /// <summary>
         /// Confirmation dialog shown before removing one component from the selected entity.
         /// </summary>
         readonly RemoveComponentDialog RemoveComponentDialog;
@@ -259,7 +263,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager) : this(font, contentManager, null, new EditorEntity()) { }
+        public PropertiesPanel(FontAsset font, ContentManager contentManager) : this(font, contentManager, null, new EditorEntity(), null) { }
 
         /// <summary>
         /// Initializes a new properties panel with the provided font.
@@ -267,7 +271,7 @@ namespace helengine.editor {
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
         /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver) : this(font, contentManager, fileSystemModelResolver, new EditorEntity()) { }
+        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver) : this(font, contentManager, fileSystemModelResolver, new EditorEntity(), null) { }
 
         /// <summary>
         /// Initializes a new properties panel with the provided font and modal host.
@@ -276,7 +280,17 @@ namespace helengine.editor {
         /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
         /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
         /// <param name="modalHost">Shared root entity used to host screen-wide dialogs.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorEntity modalHost) : base(font) {
+        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorEntity modalHost) : this(font, contentManager, fileSystemModelResolver, modalHost, null) { }
+
+        /// <summary>
+        /// Initializes a new properties panel with the provided font, modal host, and script component provider.
+        /// </summary>
+        /// <param name="font">Font used for the title bar.</param>
+        /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
+        /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
+        /// <param name="modalHost">Shared root entity used to host screen-wide dialogs.</param>
+        /// <param name="scriptComponentCatalogProvider">Provider used to discover components from the current game script assembly.</param>
+        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorEntity modalHost, IEditorScriptComponentCatalogProvider scriptComponentCatalogProvider) : base(font) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -289,6 +303,7 @@ namespace helengine.editor {
 
             this.font = font;
             ModalHost = modalHost;
+            ScriptComponentCatalogProvider = scriptComponentCatalogProvider;
             AddComponentButtonWidth = Math.Max(128, (int)Math.Ceiling(font.MeasureTight("Add Component").Width) + AddComponentButtonPadding);
             Title = "Property Manager";
             MinSize = new int2(220, 160);
@@ -1313,7 +1328,12 @@ namespace helengine.editor {
                 return;
             }
 
-            AddComponentDialog.Show((EditorEntity)SelectedEntity);
+            IReadOnlyList<EditorComponentAddDescriptor> scriptDescriptors = null;
+            if (ScriptComponentCatalogProvider != null) {
+                scriptDescriptors = ScriptComponentCatalogProvider.GetAvailableScriptComponents(SelectedEntity);
+            }
+
+            AddComponentDialog.Show((EditorEntity)SelectedEntity, scriptDescriptors);
             if (ModalHostWidth > 0 && ModalHostHeight > 0) {
                 AddComponentDialog.UpdateLayout(ModalHostWidth, ModalHostHeight);
             }

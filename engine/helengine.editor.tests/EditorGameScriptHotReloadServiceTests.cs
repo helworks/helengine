@@ -130,6 +130,15 @@ namespace helengine.editor.tests {
             }
 
             /// <summary>
+            /// Returns no script descriptors in the test harness.
+            /// </summary>
+            /// <param name="entity">Entity that would receive the reflected component.</param>
+            /// <returns>Empty descriptor list.</returns>
+            public IReadOnlyList<EditorComponentAddDescriptor> GetAvailableScriptComponents(Entity entity) {
+                return Array.Empty<EditorComponentAddDescriptor>();
+            }
+
+            /// <summary>
             /// Disposes the fake host.
             /// </summary>
             public void Dispose() {

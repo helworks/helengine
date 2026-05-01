@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Builds the generated scripting solution and reloads the resulting game assembly.
     /// </summary>
-    public sealed class EditorGameScriptHotReloadService : IDisposable {
+    public sealed class EditorGameScriptHotReloadService : IDisposable, IEditorScriptComponentCatalogProvider {
         /// <summary>
         /// Generator used to rewrite the script solution before each build.
         /// </summary>
@@ -57,6 +57,15 @@ namespace helengine.editor {
         /// </summary>
         public void Dispose() {
             AssemblyHost.Dispose();
+        }
+
+        /// <summary>
+        /// Returns the addable script components discovered from the current loaded assembly.
+        /// </summary>
+        /// <param name="entity">Entity that will receive one selected component.</param>
+        /// <returns>Descriptors discovered from the current loaded assembly.</returns>
+        public IReadOnlyList<EditorComponentAddDescriptor> GetAvailableScriptComponents(Entity entity) {
+            return AssemblyHost.GetAvailableScriptComponents(entity);
         }
     }
 }

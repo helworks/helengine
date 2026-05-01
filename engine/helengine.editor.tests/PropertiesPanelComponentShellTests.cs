@@ -137,6 +137,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the add-component modal merges reflected script components from the current build result.
+        /// </summary>
+        [Fact]
+        public void HandleAddComponentClicked_WhenScriptProviderReturnsComponents_ShowsScriptDescriptors() {
+            TestScriptComponentCatalogProvider scriptProvider = new TestScriptComponentCatalogProvider();
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath), null, new EditorEntity(), scriptProvider);
+            EditorEntity entity = new EditorEntity {
+                Name = "Cube"
+            };
+
+            panel.ShowEntityProperties(entity);
+            InvokePrivate(panel, "HandleAddComponentClicked");
+
+            ComponentAddDialog dialog = GetPrivateField<ComponentAddDialog>(panel, "AddComponentDialog");
+            List<EditorComponentAddDescriptor> descriptors = GetPrivateField<List<EditorComponentAddDescriptor>>(dialog, "FilteredDescriptors");
+
+            Assert.Contains(descriptors, descriptor => string.Equals(descriptor.DisplayName, "Script Tool", StringComparison.Ordinal));
+        }
+
+        /// <summary>
         /// Ensures the add-component modal search field live-filters the visible component list.
         /// </summary>
         [Fact]
@@ -493,6 +513,28 @@ namespace helengine.editor.tests {
             }
 
             throw new InvalidOperationException($"Method '{methodName}' was not found on type '{type.FullName}'.");
+        }
+
+        /// <summary>
+        /// Script component provider used to verify reflection-discovered components flow into the add modal.
+        /// </summary>
+        sealed class TestScriptComponentCatalogProvider : IEditorScriptComponentCatalogProvider {
+            /// <summary>
+            /// Returns one synthetic script component descriptor.
+            /// </summary>
+            /// <param name="entity">Entity that would receive the reflected component.</param>
+            /// <returns>One script component descriptor.</returns>
+            public IReadOnlyList<EditorComponentAddDescriptor> GetAvailableScriptComponents(Entity entity) {
+                return new[] {
+                    new EditorComponentAddDescriptor("Script Tool", typeof(TestScriptComponent), false, target => target.AddComponent(new TestScriptComponent()))
+                };
+            }
+        }
+
+        /// <summary>
+        /// Synthetic script component used by the reflection-provider test.
+        /// </summary>
+        public sealed class TestScriptComponent : Component {
         }
 
         /// <summary>

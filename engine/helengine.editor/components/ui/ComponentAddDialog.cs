@@ -119,6 +119,11 @@ namespace helengine.editor {
         readonly List<EditorComponentAddDescriptor> FilteredDescriptors;
 
         /// <summary>
+        /// Script component descriptors discovered from the currently loaded game assembly.
+        /// </summary>
+        readonly List<EditorComponentAddDescriptor> ScriptDescriptors;
+
+        /// <summary>
         /// Currently targeted editor entity.
         /// </summary>
         EditorEntity TargetEntity;
@@ -182,6 +187,7 @@ namespace helengine.editor {
             Rows = new List<ContextMenuRow>(16);
             AvailableDescriptors = new List<EditorComponentAddDescriptor>(16);
             FilteredDescriptors = new List<EditorComponentAddDescriptor>(16);
+            ScriptDescriptors = new List<EditorComponentAddDescriptor>(16);
             ScrollOffset = 0;
             VisibleRowCount = 1;
             LastActivatedTicks = 0;
@@ -249,11 +255,29 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entity">Entity that will receive the selected component.</param>
         public void Show(EditorEntity entity) {
+            Show(entity, null);
+        }
+
+        /// <summary>
+        /// Shows the modal for the supplied editor entity and a set of script-discovered components.
+        /// </summary>
+        /// <param name="entity">Entity that will receive the selected component.</param>
+        /// <param name="scriptDescriptors">Descriptors discovered from the current game script assembly.</param>
+        public void Show(EditorEntity entity, IReadOnlyList<EditorComponentAddDescriptor> scriptDescriptors) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
 
             TargetEntity = entity;
+            ScriptDescriptors.Clear();
+            if (scriptDescriptors != null) {
+                for (int i = 0; i < scriptDescriptors.Count; i++) {
+                    EditorComponentAddDescriptor descriptor = scriptDescriptors[i];
+                    if (descriptor != null) {
+                        ScriptDescriptors.Add(descriptor);
+                    }
+                }
+            }
             ResetDialogPositioning();
             ScrollOffset = 0;
             ResetActivationTracking();
@@ -368,6 +392,15 @@ namespace helengine.editor {
                 if (descriptor != null) {
                     AvailableDescriptors.Add(descriptor);
                 }
+            }
+
+            for (int i = 0; i < ScriptDescriptors.Count; i++) {
+                EditorComponentAddDescriptor descriptor = ScriptDescriptors[i];
+                if (descriptor == null) {
+                    continue;
+                }
+
+                AvailableDescriptors.Add(descriptor);
             }
 
             RebuildFilteredDescriptors();

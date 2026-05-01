@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace helengine.editor {
     /// <summary>
     /// Copies built game-script binaries into an isolated snapshot and loads them into a collectible context.
@@ -12,6 +14,11 @@ namespace helengine.editor {
         /// Currently loaded collectible context for the active script assembly.
         /// </summary>
         EditorCollectibleScriptAssemblyLoadContext CurrentLoadContext;
+
+        /// <summary>
+        /// Currently loaded scripting assembly used for reflection-based discovery.
+        /// </summary>
+        Assembly CurrentAssembly;
 
         /// <summary>
         /// Snapshot directory that backs the currently loaded collectible context.
@@ -56,12 +63,13 @@ namespace helengine.editor {
 
             string snapshotAssemblyPath = Path.Combine(snapshotDirectoryPath, Path.GetFileName(mainAssemblyPath));
             EditorCollectibleScriptAssemblyLoadContext nextLoadContext = null;
+            EditorCollectibleScriptAssemblyLoadContext previousLoadContext = CurrentLoadContext;
+            string previousSnapshotDirectoryPath = CurrentSnapshotDirectoryPath;
             try {
                 nextLoadContext = new EditorCollectibleScriptAssemblyLoadContext(snapshotAssemblyPath);
-                nextLoadContext.LoadFromAssemblyPath(snapshotAssemblyPath);
+                Assembly nextAssembly = nextLoadContext.LoadFromAssemblyPath(snapshotAssemblyPath);
 
-                EditorCollectibleScriptAssemblyLoadContext previousLoadContext = CurrentLoadContext;
-                string previousSnapshotDirectoryPath = CurrentSnapshotDirectoryPath;
+                CurrentAssembly = null;
                 CurrentLoadContext = null;
                 CurrentSnapshotDirectoryPath = null;
 
@@ -69,8 +77,10 @@ namespace helengine.editor {
                     WeakReference previousLoadContextReference = BeginUnload(previousLoadContext);
                     previousLoadContext = null;
                     WaitForUnload(previousLoadContextReference);
+                    DeleteDirectoryIfPresent(previousSnapshotDirectoryPath);
                 }
 
+                CurrentAssembly = nextAssembly;
                 CurrentLoadContext = nextLoadContext;
                 CurrentSnapshotDirectoryPath = snapshotDirectoryPath;
             } catch {
@@ -78,6 +88,7 @@ namespace helengine.editor {
                     WeakReference nextLoadContextReference = BeginUnload(nextLoadContext);
                     nextLoadContext = null;
                     WaitForUnload(nextLoadContextReference);
+                    DeleteDirectoryIfPresent(snapshotDirectoryPath);
                 }
 
                 CurrentLoadContext = previousLoadContext;
@@ -98,11 +109,29 @@ namespace helengine.editor {
                 WeakReference loadContextReference = BeginUnload(CurrentLoadContext);
                 CurrentLoadContext = null;
                 WaitForUnload(loadContextReference);
+                DeleteDirectoryIfPresent(CurrentSnapshotDirectoryPath);
             } catch {
             }
 
             CurrentLoadContext = null;
             CurrentSnapshotDirectoryPath = null;
+            CurrentAssembly = null;
+        }
+
+        /// <summary>
+        /// Returns the addable component descriptors discovered from the current script assembly.
+        /// </summary>
+        /// <param name="entity">Entity that will receive one selected component.</param>
+        /// <returns>Descriptors discovered from the active script assembly.</returns>
+        public IReadOnlyList<EditorComponentAddDescriptor> GetAvailableScriptComponents(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+            if (CurrentAssembly == null) {
+                return Array.Empty<EditorComponentAddDescriptor>();
+            }
+
+            return EditorScriptComponentCatalog.BuildDescriptors(CurrentAssembly);
         }
 
         /// <summary>
