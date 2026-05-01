@@ -1,11 +1,12 @@
 using System.Reflection;
+using helengine.baseplatform.Definitions;
 using helengine.editor;
 using helengine.editor.tests.testing;
 using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies the profiles dialog loads and saves platform-scoped build and graphics settings.
+    /// Verifies the profiles dialog loads and saves builder-defined build and graphics settings.
     /// </summary>
     public sealed class ProfilesDialogTests : IDisposable {
         /// <summary>
@@ -38,28 +39,28 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the dialog loads the active platform profile into the visible fields.
+        /// Ensures the dialog loads the active platform profile into the visible settings rows.
         /// </summary>
         [Fact]
         public void Show_WhenActivePlatformIsProvided_LoadsThatPlatformProfileValues() {
             ProfilesDialog dialog = new ProfilesDialog(CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
 
-            dialog.Show(document, new List<string> { "windows", "ps2" }, "windows");
+            dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
 
-            TextBoxComponent textureScaleTextBox = GetPrivateField<TextBoxComponent>(dialog, "TextureScaleTextBox");
-            CheckBoxComponent shaderPruningCheckBox = GetPrivateField<CheckBoxComponent>(dialog, "ShaderPruningCheckBox");
-            TextBoxComponent widthTextBox = GetPrivateField<TextBoxComponent>(dialog, "WidthTextBox");
-            TextBoxComponent heightTextBox = GetPrivateField<TextBoxComponent>(dialog, "HeightTextBox");
-            CheckBoxComponent vSyncCheckBox = GetPrivateField<CheckBoxComponent>(dialog, "VSyncCheckBox");
-            CheckBoxComponent fullscreenCheckBox = GetPrivateField<CheckBoxComponent>(dialog, "FullscreenCheckBox");
+            EditorPlatformSettingsSection buildSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "BuildSettingsSection");
+            EditorPlatformSettingsSection graphicsSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "GraphicsSettingsSection");
 
-            Assert.Equal("50", textureScaleTextBox.Text);
-            Assert.False(shaderPruningCheckBox.IsChecked);
-            Assert.Equal("1920", widthTextBox.Text);
-            Assert.Equal("1080", heightTextBox.Text);
-            Assert.False(vSyncCheckBox.IsChecked);
-            Assert.True(fullscreenCheckBox.IsChecked);
+            Assert.Equal(2, buildSection.Items.Count);
+            Assert.Equal(4, graphicsSection.Items.Count);
+            Assert.Equal("Texture scale %", buildSection.Items[0].LabelText.Text);
+            Assert.Equal("50", buildSection.Items[0].TextBox.Text);
+            Assert.False(buildSection.Items[1].CheckBox.IsChecked);
+            Assert.Equal("Default width", graphicsSection.Items[0].LabelText.Text);
+            Assert.Equal("1920", graphicsSection.Items[0].TextBox.Text);
+            Assert.Equal("1080", graphicsSection.Items[1].TextBox.Text);
+            Assert.False(graphicsSection.Items[2].CheckBox.IsChecked);
+            Assert.True(graphicsSection.Items[3].CheckBox.IsChecked);
         }
 
         /// <summary>
@@ -70,18 +71,20 @@ namespace helengine.editor.tests {
             ProfilesDialog dialog = new ProfilesDialog(CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
 
-            dialog.Show(document, new List<string> { "windows", "ps2" }, "windows");
+            dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
 
             ComboBoxComponent platformComboBox = GetPrivateField<ComboBoxComponent>(dialog, "PlatformComboBox");
             platformComboBox.SelectedIndex = 1;
 
-            TextBoxComponent textureScaleTextBox = GetPrivateField<TextBoxComponent>(dialog, "TextureScaleTextBox");
-            TextBoxComponent widthTextBox = GetPrivateField<TextBoxComponent>(dialog, "WidthTextBox");
-            TextBoxComponent heightTextBox = GetPrivateField<TextBoxComponent>(dialog, "HeightTextBox");
+            EditorPlatformSettingsSection buildSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "BuildSettingsSection");
+            EditorPlatformSettingsSection graphicsSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "GraphicsSettingsSection");
 
-            Assert.Equal("75", textureScaleTextBox.Text);
-            Assert.Equal("1280", widthTextBox.Text);
-            Assert.Equal("720", heightTextBox.Text);
+            Assert.Equal("75", buildSection.Items[0].TextBox.Text);
+            Assert.True(buildSection.Items[1].CheckBox.IsChecked);
+            Assert.Equal("1280", graphicsSection.Items[0].TextBox.Text);
+            Assert.Equal("720", graphicsSection.Items[1].TextBox.Text);
+            Assert.True(graphicsSection.Items[2].CheckBox.IsChecked);
+            Assert.False(graphicsSection.Items[3].CheckBox.IsChecked);
             Assert.Equal("ps2", platformComboBox.SelectedItem);
         }
 
@@ -93,7 +96,7 @@ namespace helengine.editor.tests {
             ProfilesDialog dialog = new ProfilesDialog(CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
 
-            dialog.Show(document, new List<string> { "windows", "ps2" }, "windows");
+            dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
 
             ComboBoxComponent platformComboBox = GetPrivateField<ComboBoxComponent>(dialog, "PlatformComboBox");
             RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(platformComboBox, "background");
@@ -111,21 +114,17 @@ namespace helengine.editor.tests {
             ProfilesDialog dialog = new ProfilesDialog(CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
 
-            dialog.Show(document, new List<string> { "windows", "ps2" }, "windows");
+            dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
 
-            TextBoxComponent textureScaleTextBox = GetPrivateField<TextBoxComponent>(dialog, "TextureScaleTextBox");
-            TextBoxComponent widthTextBox = GetPrivateField<TextBoxComponent>(dialog, "WidthTextBox");
-            TextBoxComponent heightTextBox = GetPrivateField<TextBoxComponent>(dialog, "HeightTextBox");
-            CheckBoxComponent shaderPruningCheckBox = GetPrivateField<CheckBoxComponent>(dialog, "ShaderPruningCheckBox");
-            CheckBoxComponent vSyncCheckBox = GetPrivateField<CheckBoxComponent>(dialog, "VSyncCheckBox");
-            CheckBoxComponent fullscreenCheckBox = GetPrivateField<CheckBoxComponent>(dialog, "FullscreenCheckBox");
+            EditorPlatformSettingsSection buildSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "BuildSettingsSection");
+            EditorPlatformSettingsSection graphicsSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "GraphicsSettingsSection");
 
-            textureScaleTextBox.Text = "75";
-            widthTextBox.Text = "1600";
-            heightTextBox.Text = "900";
-            shaderPruningCheckBox.IsChecked = false;
-            vSyncCheckBox.IsChecked = false;
-            fullscreenCheckBox.IsChecked = true;
+            buildSection.Items[0].TextBox.Text = "75";
+            buildSection.Items[1].CheckBox.IsChecked = false;
+            graphicsSection.Items[0].TextBox.Text = "1600";
+            graphicsSection.Items[1].TextBox.Text = "900";
+            graphicsSection.Items[2].CheckBox.IsChecked = false;
+            graphicsSection.Items[3].CheckBox.IsChecked = true;
 
             ProfilesDialogSelection selection = null;
             dialog.ConfirmRequested += value => selection = value;
@@ -134,12 +133,12 @@ namespace helengine.editor.tests {
             Assert.NotNull(selection);
             Assert.Equal("windows", selection.ActivePlatformId);
             Assert.Same(document, selection.ProfileSettingsDocument);
-            Assert.Equal(75, document.Platforms[0].Build.TextureScalePercent);
-            Assert.False(document.Platforms[0].Build.ShaderVariantPruningEnabled);
-            Assert.Equal(1600, document.Platforms[0].Graphics.DefaultWidth);
-            Assert.Equal(900, document.Platforms[0].Graphics.DefaultHeight);
-            Assert.False(document.Platforms[0].Graphics.VSyncEnabled);
-            Assert.True(document.Platforms[0].Graphics.FullscreenEnabled);
+            Assert.Equal("75", document.Platforms[0].Build.SelectedOptionValues["texture-scale-percent"]);
+            Assert.Equal("False", document.Platforms[0].Build.SelectedOptionValues["shader-variant-pruning"]);
+            Assert.Equal("1600", document.Platforms[0].Graphics.SelectedOptionValues["default-width"]);
+            Assert.Equal("900", document.Platforms[0].Graphics.SelectedOptionValues["default-height"]);
+            Assert.Equal("False", document.Platforms[0].Graphics.SelectedOptionValues["vsync-enabled"]);
+            Assert.Equal("True", document.Platforms[0].Graphics.SelectedOptionValues["fullscreen-enabled"]);
         }
 
         /// <summary>
@@ -174,31 +173,128 @@ namespace helengine.editor.tests {
                     new EditorPlatformProfileSettingsDocument {
                         PlatformId = "windows",
                         Build = new EditorBuildProfileSettingsDocument {
-                            TextureScalePercent = 50,
-                            ShaderVariantPruningEnabled = false
+                            SelectedBuildProfileId = "debug",
+                            SelectedOptionValues = new Dictionary<string, string> {
+                                ["texture-scale-percent"] = "50",
+                                ["shader-variant-pruning"] = "false"
+                            }
                         },
                         Graphics = new EditorGraphicsProfileSettingsDocument {
-                            DefaultWidth = 1920,
-                            DefaultHeight = 1080,
-                            VSyncEnabled = false,
-                            FullscreenEnabled = true
+                            SelectedGraphicsProfileId = "directx11",
+                            SelectedOptionValues = new Dictionary<string, string> {
+                                ["default-width"] = "1920",
+                                ["default-height"] = "1080",
+                                ["vsync-enabled"] = "false",
+                                ["fullscreen-enabled"] = "true"
+                            }
                         }
                     },
                     new EditorPlatformProfileSettingsDocument {
                         PlatformId = "ps2",
                         Build = new EditorBuildProfileSettingsDocument {
-                            TextureScalePercent = 75,
-                            ShaderVariantPruningEnabled = true
+                            SelectedBuildProfileId = "debug",
+                            SelectedOptionValues = new Dictionary<string, string> {
+                                ["texture-scale-percent"] = "75",
+                                ["shader-variant-pruning"] = "true"
+                            }
                         },
                         Graphics = new EditorGraphicsProfileSettingsDocument {
-                            DefaultWidth = 1280,
-                            DefaultHeight = 720,
-                            VSyncEnabled = true,
-                            FullscreenEnabled = false
+                            SelectedGraphicsProfileId = "directx11",
+                            SelectedOptionValues = new Dictionary<string, string> {
+                                ["default-width"] = "1280",
+                                ["default-height"] = "720",
+                                ["vsync-enabled"] = "true",
+                                ["fullscreen-enabled"] = "false"
+                            }
                         }
                     }
-                }
+                ]
             };
+        }
+
+        /// <summary>
+        /// Creates one builder metadata model with builder-defined build and graphics settings.
+        /// </summary>
+        /// <returns>Selection model used by the tests.</returns>
+        static EditorPlatformBuildSelectionModel CreateSelectionModel() {
+            PlatformDefinition definition = new PlatformDefinition(
+                "windows",
+                "Windows DirectX",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "debug",
+                        "Debug",
+                        "Debug player build",
+                        "directx11",
+                        [
+                            new PlatformSettingDefinition(
+                                "texture-scale-percent",
+                                "Texture scale %",
+                                PlatformSettingKind.Text,
+                                "50",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "shader-variant-pruning",
+                                "Shader variant pruning",
+                                PlatformSettingKind.Boolean,
+                                "false",
+                                false,
+                                [])
+                        ])
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "directx11",
+                        "DirectX 11",
+                        "Default Windows renderer",
+                        [
+                            new PlatformSettingDefinition(
+                                "default-width",
+                                "Default width",
+                                PlatformSettingKind.Text,
+                                "1920",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "default-height",
+                                "Default height",
+                                PlatformSettingKind.Text,
+                                "1080",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "vsync-enabled",
+                                "VSync",
+                                PlatformSettingKind.Boolean,
+                                "false",
+                                false,
+                                []),
+                            new PlatformSettingDefinition(
+                                "fullscreen-enabled",
+                                "Fullscreen",
+                                PlatformSettingKind.Boolean,
+                                "true",
+                                false,
+                                [])
+                        ])
+                ],
+                [
+                    new PlatformAssetRequirementDefinition(
+                        "texture",
+                        "Texture",
+                        true,
+                        ["png", "tga"])
+                ],
+                [
+                    new PlatformComponentCompatibilityDefinition(
+                        "helengine.FPSComponent",
+                        PlatformComponentCompatibilityKind.PassThrough,
+                        "FPS overlay is canonical on this platform.",
+                        string.Empty)
+                ]);
+
+            return EditorPlatformBuildSelectionModel.From(definition);
         }
 
         /// <summary>
@@ -218,48 +314,34 @@ namespace helengine.editor.tests {
                 ['C'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
                 ['D'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
                 ['F'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
-                ['G'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
-                ['H'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
-                ['P'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
-                ['S'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['S'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
                 ['V'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
-                ['T'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
-                ['c'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['b'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['d'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['e'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['f'] = new FontChar(new float4(0f, 0f, 6f, 12f), 0f, 6f, 0f, 0f),
                 ['g'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['h'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['i'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
-                ['l'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
-                ['m'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f),
+                ['i'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['l'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['n'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['o'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['p'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['r'] = new FontChar(new float4(0f, 0f, 6f, 12f), 0f, 6f, 0f, 0f),
-                ['s'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
-                ['t'] = new FontChar(new float4(0f, 0f, 5f, 12f), 0f, 5f, 0f, 0f),
+                ['r'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['s'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['t'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['u'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['v'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['w'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f),
                 ['x'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['y'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['%'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f),
+                ['%'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 [' '] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f)
             };
 
-            return new FontAsset(
-                new FontInfo("Test", 16, 4f),
-                new TestRuntimeTexture {
-                    Width = 64,
-                    Height = 64
-                },
-                characters,
-                16f,
-                64,
-                64);
+            return new FontAsset {
+                FontTexture = new RuntimeTexture(),
+                FontCharacters = characters,
+                LineHeight = 12f
+            };
         }
     }
 }

@@ -1,4 +1,3 @@
-using System.Globalization;
 using helengine.baseplatform.Definitions;
 
 namespace helengine.editor {
@@ -97,144 +96,14 @@ namespace helengine.editor {
         readonly ComboBoxComponent PlatformComboBox;
 
         /// <summary>
-        /// Host entity for the build-profile section title.
+        /// Builder-defined build settings rendered for the active platform.
         /// </summary>
-        readonly EditorEntity BuildTitleHost;
+        readonly EditorPlatformSettingsSection BuildSettingsSection;
 
         /// <summary>
-        /// Text component that renders the build-profile section title.
+        /// Builder-defined graphics settings rendered for the active platform.
         /// </summary>
-        readonly TextComponent BuildTitleText;
-
-        /// <summary>
-        /// Host entity for the build texture scale label.
-        /// </summary>
-        readonly EditorEntity TextureScaleLabelHost;
-
-        /// <summary>
-        /// Label describing the texture-scale field.
-        /// </summary>
-        readonly TextComponent TextureScaleLabelText;
-
-        /// <summary>
-        /// Host entity for the build texture scale text box.
-        /// </summary>
-        readonly EditorEntity TextureScaleTextBoxHost;
-
-        /// <summary>
-        /// Text box used to edit build-time texture scaling.
-        /// </summary>
-        readonly TextBoxComponent TextureScaleTextBox;
-
-        /// <summary>
-        /// Host entity for the shader-pruning label.
-        /// </summary>
-        readonly EditorEntity ShaderPruningLabelHost;
-
-        /// <summary>
-        /// Label describing the shader-pruning checkbox.
-        /// </summary>
-        readonly TextComponent ShaderPruningLabelText;
-
-        /// <summary>
-        /// Host entity for the shader-pruning checkbox.
-        /// </summary>
-        readonly EditorEntity ShaderPruningCheckBoxHost;
-
-        /// <summary>
-        /// Checkbox used to toggle shader variant pruning.
-        /// </summary>
-        readonly CheckBoxComponent ShaderPruningCheckBox;
-
-        /// <summary>
-        /// Host entity for the graphics-profile section title.
-        /// </summary>
-        readonly EditorEntity GraphicsTitleHost;
-
-        /// <summary>
-        /// Text component that renders the graphics-profile section title.
-        /// </summary>
-        readonly TextComponent GraphicsTitleText;
-
-        /// <summary>
-        /// Host entity for the default-width label.
-        /// </summary>
-        readonly EditorEntity WidthLabelHost;
-
-        /// <summary>
-        /// Label describing the default-width field.
-        /// </summary>
-        readonly TextComponent WidthLabelText;
-
-        /// <summary>
-        /// Host entity for the default-width text box.
-        /// </summary>
-        readonly EditorEntity WidthTextBoxHost;
-
-        /// <summary>
-        /// Text box used to edit the default backbuffer width.
-        /// </summary>
-        readonly TextBoxComponent WidthTextBox;
-
-        /// <summary>
-        /// Host entity for the default-height label.
-        /// </summary>
-        readonly EditorEntity HeightLabelHost;
-
-        /// <summary>
-        /// Label describing the default-height field.
-        /// </summary>
-        readonly TextComponent HeightLabelText;
-
-        /// <summary>
-        /// Host entity for the default-height text box.
-        /// </summary>
-        readonly EditorEntity HeightTextBoxHost;
-
-        /// <summary>
-        /// Text box used to edit the default backbuffer height.
-        /// </summary>
-        readonly TextBoxComponent HeightTextBox;
-
-        /// <summary>
-        /// Host entity for the vsync label.
-        /// </summary>
-        readonly EditorEntity VSyncLabelHost;
-
-        /// <summary>
-        /// Label describing the vsync checkbox.
-        /// </summary>
-        readonly TextComponent VSyncLabelText;
-
-        /// <summary>
-        /// Host entity for the vsync checkbox.
-        /// </summary>
-        readonly EditorEntity VSyncCheckBoxHost;
-
-        /// <summary>
-        /// Checkbox used to toggle default vsync behavior.
-        /// </summary>
-        readonly CheckBoxComponent VSyncCheckBox;
-
-        /// <summary>
-        /// Host entity for the fullscreen label.
-        /// </summary>
-        readonly EditorEntity FullscreenLabelHost;
-
-        /// <summary>
-        /// Label describing the fullscreen checkbox.
-        /// </summary>
-        readonly TextComponent FullscreenLabelText;
-
-        /// <summary>
-        /// Host entity for the fullscreen checkbox.
-        /// </summary>
-        readonly EditorEntity FullscreenCheckBoxHost;
-
-        /// <summary>
-        /// Checkbox used to toggle default fullscreen behavior.
-        /// </summary>
-        readonly CheckBoxComponent FullscreenCheckBox;
+        readonly EditorPlatformSettingsSection GraphicsSettingsSection;
 
         /// <summary>
         /// Host entity for the status text.
@@ -330,81 +199,23 @@ namespace helengine.editor {
             PlatformComboBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder, RenderOrder2D.ModalBackground, RenderOrder2D.ModalForeground);
             PlatformComboBoxHost.AddComponent(PlatformComboBox);
 
-            BuildTitleHost = CreateTextHost();
-            DialogPanelRoot.AddChild(BuildTitleHost);
-            BuildTitleText = CreateSectionTitleText("Build Profiles");
-            BuildTitleHost.AddComponent(BuildTitleText);
-
-            TextureScaleLabelHost = CreateTextHost();
-            DialogPanelRoot.AddChild(TextureScaleLabelHost);
-            TextureScaleLabelText = CreateLabelText("Texture scale %");
-            TextureScaleLabelHost.AddComponent(TextureScaleLabelText);
-
-            TextureScaleTextBoxHost = CreateTextHost();
-            DialogPanelRoot.AddChild(TextureScaleTextBoxHost);
-            TextureScaleTextBox = new TextBoxComponent(new int2(NumericFieldWidth, FieldRowHeight), DialogFontValue, string.Empty);
-            TextureScaleTextBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-            TextureScaleTextBoxHost.AddComponent(TextureScaleTextBox);
-
-            ShaderPruningLabelHost = CreateTextHost();
-            DialogPanelRoot.AddChild(ShaderPruningLabelHost);
-            ShaderPruningLabelText = CreateLabelText("Shader variant pruning");
-            ShaderPruningLabelHost.AddComponent(ShaderPruningLabelText);
-
-            ShaderPruningCheckBoxHost = CreateTextHost();
-            DialogPanelRoot.AddChild(ShaderPruningCheckBoxHost);
-            ShaderPruningCheckBox = new CheckBoxComponent(new int2(18, 18), DialogFontValue, true);
-            ShaderPruningCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-            ShaderPruningCheckBoxHost.AddComponent(ShaderPruningCheckBox);
-
-            GraphicsTitleHost = CreateTextHost();
-            DialogPanelRoot.AddChild(GraphicsTitleHost);
-            GraphicsTitleText = CreateSectionTitleText("Graphics Profiles");
-            GraphicsTitleHost.AddComponent(GraphicsTitleText);
-
-            WidthLabelHost = CreateTextHost();
-            DialogPanelRoot.AddChild(WidthLabelHost);
-            WidthLabelText = CreateLabelText("Default width");
-            WidthLabelHost.AddComponent(WidthLabelText);
-
-            WidthTextBoxHost = CreateTextHost();
-            DialogPanelRoot.AddChild(WidthTextBoxHost);
-            WidthTextBox = new TextBoxComponent(new int2(NumericFieldWidth, FieldRowHeight), DialogFontValue, string.Empty);
-            WidthTextBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-            WidthTextBoxHost.AddComponent(WidthTextBox);
-
-            HeightLabelHost = CreateTextHost();
-            DialogPanelRoot.AddChild(HeightLabelHost);
-            HeightLabelText = CreateLabelText("Default height");
-            HeightLabelHost.AddComponent(HeightLabelText);
-
-            HeightTextBoxHost = CreateTextHost();
-            DialogPanelRoot.AddChild(HeightTextBoxHost);
-            HeightTextBox = new TextBoxComponent(new int2(NumericFieldWidth, FieldRowHeight), DialogFontValue, string.Empty);
-            HeightTextBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-            HeightTextBoxHost.AddComponent(HeightTextBox);
-
-            VSyncLabelHost = CreateTextHost();
-            DialogPanelRoot.AddChild(VSyncLabelHost);
-            VSyncLabelText = CreateLabelText("VSync");
-            VSyncLabelHost.AddComponent(VSyncLabelText);
-
-            VSyncCheckBoxHost = CreateTextHost();
-            DialogPanelRoot.AddChild(VSyncCheckBoxHost);
-            VSyncCheckBox = new CheckBoxComponent(new int2(18, 18), DialogFontValue, true);
-            VSyncCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-            VSyncCheckBoxHost.AddComponent(VSyncCheckBox);
-
-            FullscreenLabelHost = CreateTextHost();
-            DialogPanelRoot.AddChild(FullscreenLabelHost);
-            FullscreenLabelText = CreateLabelText("Fullscreen");
-            FullscreenLabelHost.AddComponent(FullscreenLabelText);
-
-            FullscreenCheckBoxHost = CreateTextHost();
-            DialogPanelRoot.AddChild(FullscreenCheckBoxHost);
-            FullscreenCheckBox = new CheckBoxComponent(new int2(18, 18), DialogFontValue, false);
-            FullscreenCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-            FullscreenCheckBoxHost.AddComponent(FullscreenCheckBox);
+            int settingValueWidth = PanelWidth - (PanelPadding * 2) - LabelColumnWidth - 12;
+            BuildSettingsSection = new EditorPlatformSettingsSection(
+                DialogPanelRoot,
+                LayerMask,
+                DialogFontValue,
+                DialogPanelOrder,
+                DialogTextOrder,
+                LabelColumnWidth,
+                settingValueWidth);
+            GraphicsSettingsSection = new EditorPlatformSettingsSection(
+                DialogPanelRoot,
+                LayerMask,
+                DialogFontValue,
+                DialogPanelOrder,
+                DialogTextOrder,
+                LabelColumnWidth,
+                settingValueWidth);
 
             StatusHost = CreateTextHost();
             DialogPanelRoot.AddChild(StatusHost);
@@ -516,8 +327,7 @@ namespace helengine.editor {
             }
 
             LayoutPlatformSelector();
-            LayoutBuildSection();
-            LayoutGraphicsSection();
+            LayoutSettingsSections();
             LayoutStatus();
             LayoutButtons();
         }
@@ -581,39 +391,18 @@ namespace helengine.editor {
             PlatformBuildProfileDefinition buildProfile = ResolveBuildProfile(platform);
             PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(platform, buildProfile);
 
-            PlatformSettingDefinition textureScaleSetting = FindSetting(buildProfile?.Settings, "texture-scale-percent");
-            PlatformSettingDefinition shaderPruningSetting = FindSetting(buildProfile?.Settings, "shader-variant-pruning");
-            PlatformSettingDefinition widthSetting = FindSetting(graphicsProfile?.Settings, "default-width");
-            PlatformSettingDefinition heightSetting = FindSetting(graphicsProfile?.Settings, "default-height");
-            PlatformSettingDefinition vsyncSetting = FindSetting(graphicsProfile?.Settings, "vsync-enabled");
-            PlatformSettingDefinition fullscreenSetting = FindSetting(graphicsProfile?.Settings, "fullscreen-enabled");
-
-            BuildTitleText.Text = buildProfile != null ? $"Build Profile: {buildProfile.DisplayName}" : "Build Profiles";
-            GraphicsTitleText.Text = graphicsProfile != null ? $"Graphics Profile: {graphicsProfile.DisplayName}" : "Graphics Profiles";
-
-            TextureScaleLabelText.Text = textureScaleSetting?.DisplayName ?? "Texture scale %";
-            ShaderPruningLabelText.Text = shaderPruningSetting?.DisplayName ?? "Shader variant pruning";
-            WidthLabelText.Text = widthSetting?.DisplayName ?? "Default width";
-            HeightLabelText.Text = heightSetting?.DisplayName ?? "Default height";
-            VSyncLabelText.Text = vsyncSetting?.DisplayName ?? "VSync";
-            FullscreenLabelText.Text = fullscreenSetting?.DisplayName ?? "Fullscreen";
-
             platform.Build.SelectedBuildProfileId = buildProfile?.ProfileId ?? platform.Build.SelectedBuildProfileId;
             platform.Graphics.SelectedGraphicsProfileId = graphicsProfile?.ProfileId ?? platform.Graphics.SelectedGraphicsProfileId;
 
-            TextureScaleTextBox.Text = ResolveSettingText(platform.Build.SelectedOptionValues, textureScaleSetting, platform.Build.TextureScalePercent.ToString(CultureInfo.InvariantCulture));
-            ShaderPruningCheckBox.IsChecked = ResolveSettingBoolean(platform.Build.SelectedOptionValues, shaderPruningSetting, platform.Build.ShaderVariantPruningEnabled);
-            WidthTextBox.Text = ResolveSettingText(platform.Graphics.SelectedOptionValues, widthSetting, platform.Graphics.DefaultWidth.ToString(CultureInfo.InvariantCulture));
-            HeightTextBox.Text = ResolveSettingText(platform.Graphics.SelectedOptionValues, heightSetting, platform.Graphics.DefaultHeight.ToString(CultureInfo.InvariantCulture));
-            VSyncCheckBox.IsChecked = ResolveSettingBoolean(platform.Graphics.SelectedOptionValues, vsyncSetting, platform.Graphics.VSyncEnabled);
-            FullscreenCheckBox.IsChecked = ResolveSettingBoolean(platform.Graphics.SelectedOptionValues, fullscreenSetting, platform.Graphics.FullscreenEnabled);
-
-            platform.Build.TextureScalePercent = ParsePositiveInteger(TextureScaleTextBox.Text, platform.Build.TextureScalePercent);
-            platform.Build.ShaderVariantPruningEnabled = ShaderPruningCheckBox.IsChecked;
-            platform.Graphics.DefaultWidth = ParsePositiveInteger(WidthTextBox.Text, platform.Graphics.DefaultWidth);
-            platform.Graphics.DefaultHeight = ParsePositiveInteger(HeightTextBox.Text, platform.Graphics.DefaultHeight);
-            platform.Graphics.VSyncEnabled = VSyncCheckBox.IsChecked;
-            platform.Graphics.FullscreenEnabled = FullscreenCheckBox.IsChecked;
+            BuildSettingsSection.Rebuild(
+                buildProfile != null ? $"Build Profile: {buildProfile.DisplayName}" : "Build Profiles",
+                buildProfile?.Settings,
+                platform.Build.SelectedOptionValues);
+            GraphicsSettingsSection.Rebuild(
+                graphicsProfile != null ? $"Graphics Profile: {graphicsProfile.DisplayName}" : "Graphics Profiles",
+                graphicsProfile?.Settings,
+                platform.Graphics.SelectedOptionValues);
+            LayoutSettingsSections();
         }
 
         /// <summary>
@@ -631,18 +420,6 @@ namespace helengine.editor {
                 errorMessage = "No active platform is selected.";
                 return false;
             }
-            if (!TryParsePositiveInteger(TextureScaleTextBox.Text, out int textureScalePercent)) {
-                errorMessage = "Texture scale must be a positive whole number.";
-                return false;
-            }
-            if (!TryParsePositiveInteger(WidthTextBox.Text, out int defaultWidth)) {
-                errorMessage = "Default width must be a positive whole number.";
-                return false;
-            }
-            if (!TryParsePositiveInteger(HeightTextBox.Text, out int defaultHeight)) {
-                errorMessage = "Default height must be a positive whole number.";
-                return false;
-            }
 
             EditorPlatformProfileSettingsDocument platform = GetPlatformDocument(CurrentPlatformId);
             PlatformBuildProfileDefinition buildProfile = ResolveBuildProfile(platform);
@@ -651,21 +428,14 @@ namespace helengine.editor {
             platform.Build.SelectedBuildProfileId = buildProfile?.ProfileId ?? platform.Build.SelectedBuildProfileId;
             platform.Graphics.SelectedGraphicsProfileId = graphicsProfile?.ProfileId ?? platform.Graphics.SelectedGraphicsProfileId;
 
-            platform.Build.SelectedOptionValues ??= [];
-            platform.Graphics.SelectedOptionValues ??= [];
-            StoreSettingValue(platform.Build.SelectedOptionValues, FindSetting(buildProfile?.Settings, "texture-scale-percent"), TextureScaleTextBox.Text);
-            StoreSettingValue(platform.Build.SelectedOptionValues, FindSetting(buildProfile?.Settings, "shader-variant-pruning"), ShaderPruningCheckBox.IsChecked.ToString());
-            StoreSettingValue(platform.Graphics.SelectedOptionValues, FindSetting(graphicsProfile?.Settings, "default-width"), WidthTextBox.Text);
-            StoreSettingValue(platform.Graphics.SelectedOptionValues, FindSetting(graphicsProfile?.Settings, "default-height"), HeightTextBox.Text);
-            StoreSettingValue(platform.Graphics.SelectedOptionValues, FindSetting(graphicsProfile?.Settings, "vsync-enabled"), VSyncCheckBox.IsChecked.ToString());
-            StoreSettingValue(platform.Graphics.SelectedOptionValues, FindSetting(graphicsProfile?.Settings, "fullscreen-enabled"), FullscreenCheckBox.IsChecked.ToString());
+            if (!BuildSettingsSection.TryValidate(out errorMessage)) {
+                return false;
+            }
 
-            platform.Build.TextureScalePercent = textureScalePercent;
-            platform.Build.ShaderVariantPruningEnabled = ShaderPruningCheckBox.IsChecked;
-            platform.Graphics.DefaultWidth = defaultWidth;
-            platform.Graphics.DefaultHeight = defaultHeight;
-            platform.Graphics.VSyncEnabled = VSyncCheckBox.IsChecked;
-            platform.Graphics.FullscreenEnabled = FullscreenCheckBox.IsChecked;
+            if (!GraphicsSettingsSection.TryValidate(out errorMessage)) {
+                return false;
+            }
+
             return true;
         }
 
@@ -742,82 +512,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns one setting definition by stable setting id.
-        /// </summary>
-        /// <param name="settings">Setting collection to inspect.</param>
-        /// <param name="settingId">Stable identifier of the desired setting.</param>
-        /// <returns>Matching setting definition when present; otherwise null.</returns>
-        static PlatformSettingDefinition FindSetting(PlatformSettingDefinition[] settings, string settingId) {
-            if (settings == null || string.IsNullOrWhiteSpace(settingId)) {
-                return null;
-            }
-
-            for (int index = 0; index < settings.Length; index++) {
-                PlatformSettingDefinition setting = settings[index];
-                if (setting != null && string.Equals(setting.SettingId, settingId, StringComparison.OrdinalIgnoreCase)) {
-                    return setting;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Reads one text value from the selected option dictionary or falls back to the supplied value.
-        /// </summary>
-        /// <param name="values">Selected option values.</param>
-        /// <param name="setting">Setting definition to resolve.</param>
-        /// <param name="fallback">Fallback value used when the option has not been set.</param>
-        /// <returns>Resolved option value.</returns>
-        static string ResolveSettingText(Dictionary<string, string> values, PlatformSettingDefinition setting, string fallback) {
-            if (setting == null || values == null) {
-                return fallback;
-            }
-
-            if (values.TryGetValue(setting.SettingId, out string value) && !string.IsNullOrWhiteSpace(value)) {
-                return value;
-            }
-
-            return setting.DefaultValue ?? fallback;
-        }
-
-        /// <summary>
-        /// Reads one boolean value from the selected option dictionary or falls back to the supplied value.
-        /// </summary>
-        /// <param name="values">Selected option values.</param>
-        /// <param name="setting">Setting definition to resolve.</param>
-        /// <param name="fallback">Fallback value used when the option has not been set.</param>
-        /// <returns>Resolved option value.</returns>
-        static bool ResolveSettingBoolean(Dictionary<string, string> values, PlatformSettingDefinition setting, bool fallback) {
-            string text = ResolveSettingText(values, setting, fallback.ToString());
-            return bool.TryParse(text, out bool value) ? value : fallback;
-        }
-
-        /// <summary>
-        /// Stores one option value into the selected option dictionary.
-        /// </summary>
-        /// <param name="values">Selected option values.</param>
-        /// <param name="setting">Setting definition to write.</param>
-        /// <param name="value">Serialized option value.</param>
-        static void StoreSettingValue(Dictionary<string, string> values, PlatformSettingDefinition setting, string value) {
-            if (values == null || setting == null) {
-                return;
-            }
-
-            values[setting.SettingId] = value ?? setting.DefaultValue;
-        }
-
-        /// <summary>
-        /// Parses one positive integer and returns a fallback when parsing fails.
-        /// </summary>
-        /// <param name="text">Text to parse.</param>
-        /// <param name="fallback">Fallback value used when parsing fails.</param>
-        /// <returns>Parsed or fallback value.</returns>
-        static int ParsePositiveInteger(string text, int fallback) {
-            return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) && value > 0 ? value : fallback;
-        }
-
-        /// <summary>
         /// Returns the selected index for one platform identifier in the supported list.
         /// </summary>
         /// <param name="platforms">Supported platform identifiers.</param>
@@ -831,21 +525,6 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Platform '{platformId}' is not available in the dialog.");
-        }
-
-        /// <summary>
-        /// Parses one positive integer from the supplied string.
-        /// </summary>
-        /// <param name="text">Text to parse.</param>
-        /// <param name="value">Parsed integer value when successful.</param>
-        /// <returns>True when the text parses as a positive integer.</returns>
-        bool TryParsePositiveInteger(string text, out int value) {
-            if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value) && value > 0) {
-                return true;
-            }
-
-            value = 0;
-            return false;
         }
 
         /// <summary>
@@ -876,21 +555,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates one section title text component for the dialog.
-        /// </summary>
-        /// <param name="text">Section title text to render.</param>
-        /// <returns>Configured title text component.</returns>
-        TextComponent CreateSectionTitleText(string text) {
-            return new TextComponent {
-                Font = DialogFontValue,
-                Text = text,
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFontValue.LineHeight, 1f)))),
-                RenderOrder2D = DialogTextOrder
-            };
-        }
-
-        /// <summary>
         /// Positions the platform selector row.
         /// </summary>
         void LayoutPlatformSelector() {
@@ -900,50 +564,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Positions the build-profile section controls.
+        /// Positions the builder-defined settings sections beneath the platform selector.
         /// </summary>
-        void LayoutBuildSection() {
-            float titleY = HeaderHeight + PanelPadding + FieldRowHeight + SectionSpacing;
-            BuildTitleHost.Position = new float3(PanelPadding, titleY, 0.1f);
+        void LayoutSettingsSections() {
+            float buildTopY = HeaderHeight + PanelPadding + FieldRowHeight + SectionSpacing;
+            BuildSettingsSection.Root.Position = new float3(PanelPadding, buildTopY, 0.1f);
+            BuildSettingsSection.Layout();
 
-            float row1Y = titleY + SectionTitleHeight + 6f;
-            TextureScaleLabelHost.Position = new float3(PanelPadding, row1Y + 2f, 0.1f);
-            TextureScaleTextBoxHost.Position = new float3(PanelPadding + LabelColumnWidth + 12f, row1Y, 0.1f);
-
-            float row2Y = row1Y + FieldRowHeight + 8f;
-            ShaderPruningLabelHost.Position = new float3(PanelPadding, row2Y + 2f, 0.1f);
-            ShaderPruningCheckBoxHost.Position = new float3(PanelPadding + LabelColumnWidth + 12f, row2Y + 3f, 0.1f);
-        }
-
-        /// <summary>
-        /// Positions the graphics-profile section controls.
-        /// </summary>
-        void LayoutGraphicsSection() {
-            float titleY = HeaderHeight + PanelPadding + FieldRowHeight + SectionSpacing + SectionTitleHeight + 6f + FieldRowHeight + 8f + FieldRowHeight + SectionSpacing;
-            GraphicsTitleHost.Position = new float3(PanelPadding, titleY, 0.1f);
-
-            float row1Y = titleY + SectionTitleHeight + 6f;
-            WidthLabelHost.Position = new float3(PanelPadding, row1Y + 2f, 0.1f);
-            WidthTextBoxHost.Position = new float3(PanelPadding + LabelColumnWidth + 12f, row1Y, 0.1f);
-
-            float row2Y = row1Y + FieldRowHeight + 8f;
-            HeightLabelHost.Position = new float3(PanelPadding, row2Y + 2f, 0.1f);
-            HeightTextBoxHost.Position = new float3(PanelPadding + LabelColumnWidth + 12f, row2Y, 0.1f);
-
-            float row3Y = row2Y + FieldRowHeight + 8f;
-            VSyncLabelHost.Position = new float3(PanelPadding, row3Y + 2f, 0.1f);
-            VSyncCheckBoxHost.Position = new float3(PanelPadding + LabelColumnWidth + 12f, row3Y + 3f, 0.1f);
-
-            float row4Y = row3Y + FieldRowHeight + 8f;
-            FullscreenLabelHost.Position = new float3(PanelPadding, row4Y + 2f, 0.1f);
-            FullscreenCheckBoxHost.Position = new float3(PanelPadding + LabelColumnWidth + 12f, row4Y + 3f, 0.1f);
+            float graphicsTopY = buildTopY + BuildSettingsSection.ContentHeight + SectionSpacing;
+            GraphicsSettingsSection.Root.Position = new float3(PanelPadding, graphicsTopY, 0.1f);
+            GraphicsSettingsSection.Layout();
         }
 
         /// <summary>
         /// Positions the status text above the footer.
         /// </summary>
         void LayoutStatus() {
-            float statusY = PanelHeight - FooterHeight - 38f;
+            float statusY = HeaderHeight + PanelPadding + FieldRowHeight + SectionSpacing + BuildSettingsSection.ContentHeight + SectionSpacing + GraphicsSettingsSection.ContentHeight + 8f;
+            float footerLimitY = PanelHeight - FooterHeight - 38f;
+            if (statusY > footerLimitY) {
+                statusY = footerLimitY;
+            }
             StatusHost.Position = new float3(PanelPadding, statusY, 0.1f);
         }
 
