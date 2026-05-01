@@ -126,7 +126,7 @@ namespace helengine {
                 return path;
             }
 
-            return path + Path.DirectorySeparatorChar;
+            return string.Concat(path, Path.DirectorySeparatorChar);
         }
     }
 }
