@@ -191,6 +191,11 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(input));
             }
 
+            ushort pickLayerMask = layerMask;
+            if (pickMode == PickModeSelection) {
+                pickLayerMask |= EditorLayerMasks.SceneCameraVisuals;
+            }
+
             CameraComponent sourceCamera = GetSourceCameraForMode(pickMode);
             Entity sourceCameraEntity = sourceCamera.Parent;
             if (sourceCameraEntity == null) {
@@ -199,12 +204,12 @@ namespace helengine.editor {
 
             PickerEntity.Position = sourceCameraEntity.Position;
             PickerEntity.Orientation = sourceCameraEntity.Orientation;
-            PickerCamera.LayerMask = layerMask;
+            PickerCamera.LayerMask = pickLayerMask;
             PendingPointer = input.GetMousePosition();
             PendingViewport = sourceCamera.Viewport;
 
             EnsurePickerRenderTargetSize(PendingViewport);
-            RebuildPickerRenderQueue(layerMask, pickMode);
+            RebuildPickerRenderQueue(pickLayerMask, pickMode);
             BuildPickColors(pickMode);
             PickerRenderer.RequestShaderPass(PickerCamera, PickerCamera.RenderQueue3D, PickerShaderPath, GetPickColor);
             PendingPickMode = pickMode;
@@ -382,7 +387,12 @@ namespace helengine.editor {
                     continue;
                 }
 
-                Entity selectedEntity = EditorViewportSceneSelectionFilter.ResolveSelectableEntity(drawable.Parent);
+                Entity selectedEntity;
+                if (pickMode == PickModeHoverAxis) {
+                    selectedEntity = ResolveTransformHandleEntity(drawable.Parent);
+                } else {
+                    selectedEntity = EditorViewportSceneSelectionFilter.ResolveSelectableEntity(drawable.Parent);
+                }
                 if (selectedEntity == null) {
                     continue;
                 }
