@@ -275,27 +275,27 @@ namespace helengine.editor {
             }
 
             if (!string.IsNullOrWhiteSpace(queueItem.SelectedBuildProfileId)) {
-                PlatformBuildProfileDefinition selectedBuildProfile = selectionModel.ResolveBuildProfile(queueItem.SelectedBuildProfileId);
-                if (selectedBuildProfile != null) {
-                    return selectedBuildProfile.ProfileId;
+                PlatformBuildProfileDefinition requestedBuildProfile = selectionModel.ResolveBuildProfile(queueItem.SelectedBuildProfileId);
+                if (requestedBuildProfile != null) {
+                    return requestedBuildProfile.ProfileId;
                 }
             }
 
             if (queueItem.DebugBuild) {
-                PlatformBuildProfileDefinition debugProfile = selectionModel.ResolveBuildProfile("debug");
-                if (debugProfile != null) {
-                    return debugProfile.ProfileId;
+                PlatformBuildProfileDefinition requestedDebugProfile = selectionModel.ResolveBuildProfile("debug");
+                if (requestedDebugProfile != null) {
+                    return requestedDebugProfile.ProfileId;
                 }
             } else {
-                PlatformBuildProfileDefinition releaseProfile = selectionModel.ResolveBuildProfile("release");
-                if (releaseProfile != null) {
-                    return releaseProfile.ProfileId;
+                PlatformBuildProfileDefinition requestedReleaseProfile = selectionModel.ResolveBuildProfile("release");
+                if (requestedReleaseProfile != null) {
+                    return requestedReleaseProfile.ProfileId;
                 }
             }
 
-            PlatformBuildProfileDefinition selectedBuildProfile = selectionModel.ResolveBuildProfile(string.Empty);
-            if (selectedBuildProfile != null) {
-                return selectedBuildProfile.ProfileId;
+            PlatformBuildProfileDefinition fallbackBuildProfile = selectionModel.ResolveBuildProfile(string.Empty);
+            if (fallbackBuildProfile != null) {
+                return fallbackBuildProfile.ProfileId;
             }
 
             return queueItem.DebugBuild ? "debug" : "release";
@@ -319,9 +319,9 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(selectionModel));
             }
 
-            PlatformBuildProfileDefinition selectedBuildProfile = selectionModel.ResolveBuildProfile(selectedBuildProfileId);
-            if (selectedBuildProfile != null && !string.IsNullOrWhiteSpace(selectedBuildProfile.GraphicsProfileId)) {
-                return selectedBuildProfile.GraphicsProfileId;
+            PlatformBuildProfileDefinition resolvedBuildProfile = selectionModel.ResolveBuildProfile(selectedBuildProfileId);
+            if (resolvedBuildProfile != null && !string.IsNullOrWhiteSpace(resolvedBuildProfile.GraphicsProfileId)) {
+                return resolvedBuildProfile.GraphicsProfileId;
             }
 
             if (!string.IsNullOrWhiteSpace(queueItem.SelectedGraphicsProfileId)) {

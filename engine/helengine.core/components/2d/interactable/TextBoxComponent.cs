@@ -25,14 +25,13 @@ namespace helengine {
         const float ShakeFrequencyHz = 16f;
 
         static TextBoxComponent focusedTextBox;
-        string text = "";
+        readonly TextBoxEditState EditState;
         string placeholder = "";
         FontAsset font;
         int2 size;
         bool isFocused;
         bool cursorVisible = true;
         DateTime lastCursorBlink = DateTime.Now;
-        int cursorPosition;
         bool hasRenderOrderOverrides;
         byte backgroundRenderOrder;
         byte textRenderOrder;
@@ -87,16 +86,14 @@ namespace helengine {
         /// Gets or sets the text content.
         /// </summary>
         public string Text {
-            get { return text; }
+            get { return EditState.Text; }
             set {
-                if (text == (value ?? "")) {
-                    return;
-                }
-
-                text = value ?? "";
-                cursorPosition = Math.Max(0, Math.Min(cursorPosition, text.Length));
+                string previousText = EditState.Text;
+                EditState.Text = value ?? "";
                 UpdateTextDisplay();
-                TextChanged?.Invoke(this);
+                if (previousText != EditState.Text) {
+                    TextChanged?.Invoke(this);
+                }
             }
         }
 
@@ -212,6 +209,7 @@ namespace helengine {
             this.size = size;
             this.font = font;
             this.placeholder = placeholder;
+            EditState = new TextBoxEditState();
         }
 
         /// <summary>
@@ -280,7 +278,7 @@ namespace helengine {
                     focusedTextBox.IsFocused = false;
                 }
                 IsFocused = true;
-                cursorPosition = text.Length; // For now, just move to end
+                EditState.SetCursorToEnd();
             }
         }
 
@@ -346,38 +344,49 @@ namespace helengine {
         /// <param name="key">Key pressed.</param>
         /// <param name="isShiftPressed">True when either shift key is pressed.</param>
         void HandleKeyPress(Keys key, bool isShiftPressed) {
+            bool textChanged = false;
+            bool layoutChanged = false;
             switch (key) {
                 case Keys.Back:
-                    if (cursorPosition > 0) {
-                        Text = text.Remove(cursorPosition - 1, 1);
-                        cursorPosition--;
+                    if (EditState.CursorPosition > 0) {
+                        EditState.Backspace();
+                        textChanged = true;
                     }
                     break;
                     
                 case Keys.Delete:
-                    if (cursorPosition < text.Length) {
-                        Text = text.Remove(cursorPosition, 1);
+                    if (EditState.CursorPosition < EditState.Text.Length) {
+                        EditState.Delete();
+                        textChanged = true;
                     }
                     break;
                     
                 case Keys.Left:
-                    cursorPosition = Math.Max(0, cursorPosition - 1);
-                    UpdateTextDisplay();
+                    if (EditState.CursorPosition > 0) {
+                        EditState.MoveCursorLeft();
+                        layoutChanged = true;
+                    }
                     break;
                     
                 case Keys.Right:
-                    cursorPosition = Math.Min(text.Length, cursorPosition + 1);
-                    UpdateTextDisplay();
+                    if (EditState.CursorPosition < EditState.Text.Length) {
+                        EditState.MoveCursorRight();
+                        layoutChanged = true;
+                    }
                     break;
                     
                 case Keys.Home:
-                    cursorPosition = 0;
-                    UpdateTextDisplay();
+                    if (EditState.CursorPosition > 0) {
+                        EditState.SetCursorToStart();
+                        layoutChanged = true;
+                    }
                     break;
                     
                 case Keys.End:
-                    cursorPosition = text.Length;
-                    UpdateTextDisplay();
+                    if (EditState.CursorPosition < EditState.Text.Length) {
+                        EditState.SetCursorToEnd();
+                        layoutChanged = true;
+                    }
                     break;
                 case Keys.Enter:
                     IsFocused = false;
@@ -386,11 +395,18 @@ namespace helengine {
                 default:
                     char character = KeyToChar(key, isShiftPressed);
                     if (character != '\0') {
-                        int insertionIndex = Math.Max(0, Math.Min(cursorPosition, text.Length));
-                        Text = text.Insert(insertionIndex, character.ToString());
-                        cursorPosition = insertionIndex + 1;
+                        EditState.InsertCharacter(character);
+                        textChanged = true;
                     }
                     break;
+            }
+
+            if (textChanged || layoutChanged) {
+                UpdateTextDisplay();
+            }
+
+            if (textChanged) {
+                TextChanged?.Invoke(this);
             }
         }
 
@@ -441,12 +457,12 @@ namespace helengine {
             if (textComponent == null) return;
 
             // Display text or placeholder; hide placeholder when focused
-            bool showPlaceholder = string.IsNullOrEmpty(text) && !isFocused;
-            string displayText = showPlaceholder ? placeholder : text;
+            bool showPlaceholder = string.IsNullOrEmpty(EditState.Text) && !isFocused;
+            string displayText = showPlaceholder ? placeholder : EditState.Text;
             
             // Add cursor if focused and visible
             if (isFocused && cursorVisible) {
-                int cursorIndex = Math.Max(0, Math.Min(cursorPosition, displayText.Length));
+                int cursorIndex = Math.Max(0, Math.Min(EditState.CursorPosition, displayText.Length));
                 displayText = displayText.Insert(cursorIndex, "|");
             }
             
@@ -563,7 +579,7 @@ namespace helengine {
 
             isFocused = value;
             if (isFocused) {
-                cursorPosition = text.Length;
+                EditState.SetCursorToEnd();
                 focusedTextBox = this;
             } else if (focusedTextBox == this) {
                 focusedTextBox = null;

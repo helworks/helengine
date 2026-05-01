@@ -96,7 +96,8 @@ namespace helengine.editor.tests {
             entity.AddComponent(textBox);
             textBox.Text = "abc";
 
-            SetPrivateField(textBox, "cursorPosition", -1);
+            TextBoxEditState editState = GetPrivateField<TextBoxEditState>(textBox, "EditState");
+            editState.CursorPosition = -1;
             SetPrivateField(textBox, "isFocused", true);
             SetPrivateField(textBox, "cursorVisible", true);
 
@@ -105,6 +106,31 @@ namespace helengine.editor.tests {
             TextComponent textComponent = GetPrivateField<TextComponent>(textBox, "textComponent");
 
             Assert.Equal("|abc", textComponent.Text);
+        }
+
+        /// <summary>
+        /// Ensures the textbox can accept typing and backspace edits through the normal engine update loop.
+        /// </summary>
+        [Fact]
+        public void TextBoxComponent_WhenFocused_ProcessesTypingAndBackspaceEdits() {
+            InitializeCore();
+            EditorEntity entity = new EditorEntity();
+            TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
+            entity.AddComponent(textBox);
+
+            textBox.IsFocused = true;
+
+            Core.Instance.InputManager.SetKeyboardState(new KeyboardState(Keys.A));
+            Core.Instance.Update();
+            Assert.Equal("a", textBox.Text);
+
+            Core.Instance.InputManager.SetKeyboardState(new KeyboardState(Keys.B));
+            Core.Instance.Update();
+            Assert.Equal("ab", textBox.Text);
+
+            Core.Instance.InputManager.SetKeyboardState(new KeyboardState(Keys.Back));
+            Core.Instance.Update();
+            Assert.Equal("a", textBox.Text);
         }
 
         /// <summary>

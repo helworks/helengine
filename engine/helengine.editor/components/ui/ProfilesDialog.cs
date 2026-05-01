@@ -581,12 +581,12 @@ namespace helengine.editor {
             PlatformBuildProfileDefinition buildProfile = ResolveBuildProfile(platform);
             PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(platform, buildProfile);
 
-            PlatformSettingDefinition textureScaleSetting = GetSetting(buildProfile?.Settings, 0);
-            PlatformSettingDefinition shaderPruningSetting = GetSetting(buildProfile?.Settings, 1);
-            PlatformSettingDefinition widthSetting = GetSetting(graphicsProfile?.Settings, 0);
-            PlatformSettingDefinition heightSetting = GetSetting(graphicsProfile?.Settings, 1);
-            PlatformSettingDefinition vsyncSetting = GetSetting(graphicsProfile?.Settings, 2);
-            PlatformSettingDefinition fullscreenSetting = GetSetting(graphicsProfile?.Settings, 3);
+            PlatformSettingDefinition textureScaleSetting = FindSetting(buildProfile?.Settings, "texture-scale-percent");
+            PlatformSettingDefinition shaderPruningSetting = FindSetting(buildProfile?.Settings, "shader-variant-pruning");
+            PlatformSettingDefinition widthSetting = FindSetting(graphicsProfile?.Settings, "default-width");
+            PlatformSettingDefinition heightSetting = FindSetting(graphicsProfile?.Settings, "default-height");
+            PlatformSettingDefinition vsyncSetting = FindSetting(graphicsProfile?.Settings, "vsync-enabled");
+            PlatformSettingDefinition fullscreenSetting = FindSetting(graphicsProfile?.Settings, "fullscreen-enabled");
 
             BuildTitleText.Text = buildProfile != null ? $"Build Profile: {buildProfile.DisplayName}" : "Build Profiles";
             GraphicsTitleText.Text = graphicsProfile != null ? $"Graphics Profile: {graphicsProfile.DisplayName}" : "Graphics Profiles";
@@ -653,12 +653,12 @@ namespace helengine.editor {
 
             platform.Build.SelectedOptionValues ??= [];
             platform.Graphics.SelectedOptionValues ??= [];
-            StoreSettingValue(platform.Build.SelectedOptionValues, GetSetting(buildProfile?.Settings, 0), TextureScaleTextBox.Text);
-            StoreSettingValue(platform.Build.SelectedOptionValues, GetSetting(buildProfile?.Settings, 1), ShaderPruningCheckBox.IsChecked.ToString());
-            StoreSettingValue(platform.Graphics.SelectedOptionValues, GetSetting(graphicsProfile?.Settings, 0), WidthTextBox.Text);
-            StoreSettingValue(platform.Graphics.SelectedOptionValues, GetSetting(graphicsProfile?.Settings, 1), HeightTextBox.Text);
-            StoreSettingValue(platform.Graphics.SelectedOptionValues, GetSetting(graphicsProfile?.Settings, 2), VSyncCheckBox.IsChecked.ToString());
-            StoreSettingValue(platform.Graphics.SelectedOptionValues, GetSetting(graphicsProfile?.Settings, 3), FullscreenCheckBox.IsChecked.ToString());
+            StoreSettingValue(platform.Build.SelectedOptionValues, FindSetting(buildProfile?.Settings, "texture-scale-percent"), TextureScaleTextBox.Text);
+            StoreSettingValue(platform.Build.SelectedOptionValues, FindSetting(buildProfile?.Settings, "shader-variant-pruning"), ShaderPruningCheckBox.IsChecked.ToString());
+            StoreSettingValue(platform.Graphics.SelectedOptionValues, FindSetting(graphicsProfile?.Settings, "default-width"), WidthTextBox.Text);
+            StoreSettingValue(platform.Graphics.SelectedOptionValues, FindSetting(graphicsProfile?.Settings, "default-height"), HeightTextBox.Text);
+            StoreSettingValue(platform.Graphics.SelectedOptionValues, FindSetting(graphicsProfile?.Settings, "vsync-enabled"), VSyncCheckBox.IsChecked.ToString());
+            StoreSettingValue(platform.Graphics.SelectedOptionValues, FindSetting(graphicsProfile?.Settings, "fullscreen-enabled"), FullscreenCheckBox.IsChecked.ToString());
 
             platform.Build.TextureScalePercent = textureScalePercent;
             platform.Build.ShaderVariantPruningEnabled = ShaderPruningCheckBox.IsChecked;
@@ -742,17 +742,24 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns one setting definition by ordinal position.
+        /// Returns one setting definition by stable setting id.
         /// </summary>
         /// <param name="settings">Setting collection to inspect.</param>
-        /// <param name="index">Ordinal position of the desired setting.</param>
+        /// <param name="settingId">Stable identifier of the desired setting.</param>
         /// <returns>Matching setting definition when present; otherwise null.</returns>
-        static PlatformSettingDefinition GetSetting(PlatformSettingDefinition[] settings, int index) {
-            if (settings == null || index < 0 || index >= settings.Length) {
+        static PlatformSettingDefinition FindSetting(PlatformSettingDefinition[] settings, string settingId) {
+            if (settings == null || string.IsNullOrWhiteSpace(settingId)) {
                 return null;
             }
 
-            return settings[index];
+            for (int index = 0; index < settings.Length; index++) {
+                PlatformSettingDefinition setting = settings[index];
+                if (setting != null && string.Equals(setting.SettingId, settingId, StringComparison.OrdinalIgnoreCase)) {
+                    return setting;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
