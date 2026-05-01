@@ -388,6 +388,10 @@ namespace helengine.editor {
         /// Raised when the user selects the Build command.
         /// </summary>
         public event Action BuildRequested;
+        /// <summary>
+        /// Raised when the user selects the Open in IDE command.
+        /// </summary>
+        public event Action OpenInIDERequested;
 
         /// <summary>
         /// Updates button placement, menu clamping, and title sizing to fit the provided host size.
@@ -458,7 +462,8 @@ namespace helengine.editor {
         IReadOnlyList<ContextMenuItem> BuildBuildMenuItems() {
             return new ContextMenuItem[] {
                 new ContextMenuItem("Build Platforms...", RaiseBuildSettingsRequested),
-                new ContextMenuItem("Build...", RaiseBuildRequested)
+                new ContextMenuItem("Build...", RaiseBuildRequested),
+                new ContextMenuItem("Open in IDE...", RaiseOpenInIDERequested)
             };
         }
 
@@ -886,6 +891,16 @@ namespace helengine.editor {
             HideMenus();
             if (BuildRequested != null) {
                 BuildRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Open in IDE command event.
+        /// </summary>
+        void RaiseOpenInIDERequested() {
+            HideMenus();
+            if (OpenInIDERequested != null) {
+                OpenInIDERequested();
             }
         }
 

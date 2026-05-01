@@ -70,6 +70,10 @@ namespace helengine.editor {
         /// </summary>
         readonly string RequiredEngineVersion;
         /// <summary>
+        /// Game project name loaded from the canonical project document.
+        /// </summary>
+        readonly string ProjectName;
+        /// <summary>
         /// Supported platform identifiers declared by the current project's `.heproj` file.
         /// </summary>
         IReadOnlyList<string> ProjectSupportedPlatforms;
@@ -206,6 +210,10 @@ namespace helengine.editor {
         /// </summary>
         readonly BuildDialog buildDialog;
         /// <summary>
+        /// Service that generates and opens the game solution for scripting.
+        /// </summary>
+        readonly EditorGameSolutionService gameSolutionService;
+        /// <summary>
         /// Modal dialog used to confirm whether pending scene transitions should save dirty changes.
         /// </summary>
         readonly UnsavedChangesDialog unsavedChangesDialog;
@@ -289,6 +297,7 @@ namespace helengine.editor {
             ProjectDisplayName = ResolveProjectDisplayNameFromCanonicalProjectFile(CanonicalProjectFilePath);
             ProjectFileDocument projectDocument = LoadProjectDocument(CanonicalProjectFilePath);
             RequiredEngineVersion = ResolveRequiredEngineVersion(projectDocument);
+            ProjectName = ResolveProjectName(projectDocument);
             ProjectSupportedPlatforms = LoadProjectSupportedPlatforms(projectDocument);
             ProjectLocalSettingsService = new EditorProjectLocalSettingsService(this.projectPath, ProjectSupportedPlatforms);
             ActiveProjectPlatform = ProjectLocalSettingsService.LoadActivePlatform();
@@ -405,6 +414,7 @@ namespace helengine.editor {
             reparentEntityDialog = new ReparentEntityDialog(uiFont);
             buildSettingsDialog = new BuildSettingsDialog(uiFont);
             buildDialog = new BuildDialog(uiFont);
+            gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
             unsavedChangesDialog = new UnsavedChangesDialog(uiFont);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
@@ -428,6 +438,7 @@ namespace helengine.editor {
             titleBar.SaveMapAsRequested += HandleSaveMapAsRequested;
             titleBar.BuildRequested += HandleBuildRequested;
             titleBar.BuildSettingsRequested += HandleBuildSettingsRequested;
+            titleBar.OpenInIDERequested += HandleOpenInIDERequested;
             titleBar.AddEmptyRequested += HandleAddEmptyRequested;
             titleBar.AddCubeRequested += HandleAddCubeRequested;
             titleBar.AddPlaneRequested += HandleAddPlaneRequested;
@@ -739,6 +750,7 @@ namespace helengine.editor {
             titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested;
             titleBar.BuildRequested -= HandleBuildRequested;
             titleBar.BuildSettingsRequested -= HandleBuildSettingsRequested;
+            titleBar.OpenInIDERequested -= HandleOpenInIDERequested;
             titleBar.AddEmptyRequested -= HandleAddEmptyRequested;
             titleBar.AddCubeRequested -= HandleAddCubeRequested;
             titleBar.AddPlaneRequested -= HandleAddPlaneRequested;
@@ -956,6 +968,17 @@ namespace helengine.editor {
             string currentSceneId = sceneCatalogService.ResolveSceneId(CurrentScenePath);
             EditorBuildConfigDocument buildConfig = buildConfigService.Load(SupportedPlatforms, currentSceneId);
             buildDialog.Show(SupportedPlatforms, sceneIds, ActiveProjectPlatform, buildConfig);
+        }
+
+        /// <summary>
+        /// Generates the game solution and opens it in Visual Studio.
+        /// </summary>
+        void HandleOpenInIDERequested() {
+            try {
+                gameSolutionService.OpenSolutionInIde();
+            } catch (Exception ex) {
+                Logger.WriteError($"Open in IDE failed: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -1786,6 +1809,22 @@ namespace helengine.editor {
             }
 
             return projectDocument.RequiredEngineVersion;
+        }
+
+        /// <summary>
+        /// Resolves the game project name declared by one loaded project document.
+        /// </summary>
+        /// <param name="projectDocument">Loaded canonical project document.</param>
+        /// <returns>Game project name used for generated scripting solution files.</returns>
+        string ResolveProjectName(ProjectFileDocument projectDocument) {
+            if (projectDocument == null) {
+                throw new ArgumentNullException(nameof(projectDocument));
+            }
+            if (string.IsNullOrWhiteSpace(projectDocument.Name)) {
+                throw new InvalidOperationException("Project file must declare a project name.");
+            }
+
+            return projectDocument.Name;
         }
 
         /// <summary>

@@ -70,7 +70,8 @@ namespace helengine.editor.tests {
             Assert.Collection(
                 activeItems,
                 item => Assert.Equal("Build Platforms...", item.Label),
-                item => Assert.Equal("Build...", item.Label));
+                item => Assert.Equal("Build...", item.Label),
+                item => Assert.Equal("Open in IDE...", item.Label));
         }
 
         /// <summary>
@@ -108,6 +109,26 @@ namespace helengine.editor.tests {
             List<ContextMenuItem> activeItems = GetPrivateField<List<ContextMenuItem>>(buildMenu, "ActiveItems");
 
             activeItems[1].Action();
+
+            Assert.True(raised);
+            Assert.False(buildMenu.IsVisible);
+        }
+
+        /// <summary>
+        /// Ensures activating Open in IDE raises the public command event.
+        /// </summary>
+        [Fact]
+        public void BuildMenu_WhenOpenInIDEActivated_RaisesOpenInIDERequested() {
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            bool raised = false;
+            titleBar.OpenInIDERequested += () => raised = true;
+
+            InvokePrivate(titleBar, "ToggleBuildMenu");
+
+            ContextMenu buildMenu = GetPrivateField<ContextMenu>(titleBar, "BuildMenu");
+            List<ContextMenuItem> activeItems = GetPrivateField<List<ContextMenuItem>>(buildMenu, "ActiveItems");
+
+            activeItems[2].Action();
 
             Assert.True(raised);
             Assert.False(buildMenu.IsVisible);
@@ -177,7 +198,10 @@ namespace helengine.editor.tests {
         FontAsset CreateFont() {
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
                 ['B'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['D'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['E'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['H'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['I'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
                 ['S'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['b'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
@@ -188,6 +212,8 @@ namespace helengine.editor.tests {
                 ['l'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
                 ['n'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['o'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['O'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['p'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['r'] = new FontChar(new float4(0f, 0f, 6f, 12f), 0f, 6f, 0f, 0f),
                 ['s'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
                 ['t'] = new FontChar(new float4(0f, 0f, 5f, 12f), 0f, 5f, 0f, 0f),
