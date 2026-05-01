@@ -81,12 +81,36 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the editor session can save a scene that contains an FPS overlay component.
+        /// </summary>
+        [Fact]
+        public void HandleSceneSaveRequested_WhenSceneContainsFpsComponent_WritesSceneFile() {
+            EditorSession session = CreateSessionForSceneSave();
+            Core.Instance.DefaultFontAsset = CreateFont();
+
+            EditorEntity entity = new EditorEntity {
+                Name = "FPS",
+                LayerMask = EditorLayerMasks.SceneObjects
+            };
+            FPSComponent fps = new FPSComponent();
+            entity.AddComponent(fps);
+
+            string expectedPath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Fps.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(expectedPath));
+
+            InvokePrivate(session, "HandleSceneSaveRequested", expectedPath);
+
+            Assert.True(File.Exists(expectedPath));
+        }
+
+        /// <summary>
         /// Creates a partially initialized editor session containing only the collaborators used by scene save handlers.
         /// </summary>
         /// <returns>Editor session instance configured for scene save tests.</returns>
         EditorSession CreateSessionForSceneSave() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             registry.Register(new MeshComponentPersistenceDescriptor());
+            registry.Register(new FPSComponentPersistenceDescriptor());
 
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath);

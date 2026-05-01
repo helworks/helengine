@@ -19,6 +19,11 @@ namespace helengine.editor {
         readonly ComponentPersistenceRegistry PersistenceRegistry;
 
         /// <summary>
+        /// Tracks stable entity ids for the current save session.
+        /// </summary>
+        readonly SceneEntityReferenceTable EntityReferenceTable;
+
+        /// <summary>
         /// Initializes a new scene save service for one project root.
         /// </summary>
         /// <param name="projectRootPath">Project root that owns the assets folder.</param>
@@ -34,6 +39,7 @@ namespace helengine.editor {
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
             PersistenceRegistry = persistenceRegistry;
+            EntityReferenceTable = new SceneEntityReferenceTable();
         }
 
         /// <summary>
@@ -100,6 +106,7 @@ namespace helengine.editor {
 
             List<SceneComponentAssetRecord> componentRecords = new List<SceneComponentAssetRecord>();
             EntitySaveComponent saveComponent = FindEntitySaveComponent(entity);
+            string entityId = EntityReferenceTable.GetOrCreateEntityId(entity);
             int persistedComponentIndex = 0;
             if (entity.Components != null) {
                 for (int i = 0; i < entity.Components.Count; i++) {
@@ -137,6 +144,7 @@ namespace helengine.editor {
             }
 
             return new SceneEntityAsset {
+                Id = entityId,
                 Name = entity.Name,
                 LocalPosition = entity.LocalPosition,
                 LocalScale = entity.LocalScale,

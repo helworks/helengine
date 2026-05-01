@@ -79,6 +79,10 @@ namespace helengine.editor {
         /// </summary>
         readonly string ProjectName;
         /// <summary>
+        /// Human-visible project version loaded from the canonical project document.
+        /// </summary>
+        readonly string ProjectVersion;
+        /// <summary>
         /// Supported platform identifiers declared by the current project's `.heproj` file.
         /// </summary>
         IReadOnlyList<string> ProjectSupportedPlatforms;
@@ -337,6 +341,7 @@ namespace helengine.editor {
             ProjectFileDocument projectDocument = LoadProjectDocument(CanonicalProjectFilePath);
             RequiredEngineVersion = ResolveRequiredEngineVersion(projectDocument);
             ProjectName = ResolveProjectName(projectDocument);
+            ProjectVersion = ResolveProjectVersion(projectDocument);
             ProjectSupportedPlatforms = LoadProjectSupportedPlatforms(projectDocument);
             ProjectLocalSettingsService = new EditorProjectLocalSettingsService(this.projectPath, ProjectSupportedPlatforms);
             ActiveProjectPlatform = ProjectLocalSettingsService.LoadActivePlatform();
@@ -444,6 +449,7 @@ namespace helengine.editor {
             ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
             persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
             persistenceRegistry.Register(new CameraComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new FPSComponentPersistenceDescriptor());
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
             SceneCreationService = new EditorSceneCreationService();
@@ -451,7 +457,18 @@ namespace helengine.editor {
             SceneModelRefreshService = new EditorSceneModelRefreshService(fileSystemModelResolver);
             buildConfigService = new EditorBuildConfigService(this.projectPath);
             profileSettingsService = new EditorProfileSettingsService(this.projectPath);
-            buildQueueService = new EditorBuildQueueService(buildConfigService, new EditorWindowsBuildExecutor(this.projectPath, RequiredEngineVersion, Importers));
+            buildQueueService = new EditorBuildQueueService(
+                buildConfigService,
+                new EditorBuildExecutorRouter(new Dictionary<string, IEditorBuildExecutor>(StringComparer.OrdinalIgnoreCase) {
+                    {
+                        "windows",
+                        new EditorWindowsBuildExecutor(this.projectPath, RequiredEngineVersion, Importers)
+                    },
+                    {
+                        "ps2",
+                        new EditorPs2BuildExecutor(this.projectPath, RequiredEngineVersion, ProjectName, ProjectVersion, Importers)
+                    }
+                }));
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
             saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
             openFileDialog = new OpenFileDialog(uiFont, this.projectPath);
@@ -1963,6 +1980,22 @@ namespace helengine.editor {
             }
 
             return projectDocument.Name;
+        }
+
+        /// <summary>
+        /// Resolves the human-visible project version declared by one loaded project document.
+        /// </summary>
+        /// <param name="projectDocument">Loaded canonical project document.</param>
+        /// <returns>Project version used for build metadata and queue reporting.</returns>
+        string ResolveProjectVersion(ProjectFileDocument projectDocument) {
+            if (projectDocument == null) {
+                throw new ArgumentNullException(nameof(projectDocument));
+            }
+            if (string.IsNullOrWhiteSpace(projectDocument.Version)) {
+                throw new InvalidOperationException("Project file must declare a project version.");
+            }
+
+            return projectDocument.Version;
         }
 
         /// <summary>

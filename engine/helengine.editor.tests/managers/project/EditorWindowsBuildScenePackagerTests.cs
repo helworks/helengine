@@ -68,6 +68,7 @@ namespace helengine.editor.tests {
                 Id = sceneId,
                 RootEntities = new[] {
                     new SceneEntityAsset {
+                        Id = "root-entity",
                         Name = "Root",
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
@@ -82,6 +83,7 @@ namespace helengine.editor.tests {
                         Children = Array.Empty<SceneEntityAsset>()
                     },
                     new SceneEntityAsset {
+                        Id = "second-root-entity",
                         Name = "SecondRoot",
                         LocalPosition = new float3(1f, 0f, 0f),
                         LocalScale = float3.One,

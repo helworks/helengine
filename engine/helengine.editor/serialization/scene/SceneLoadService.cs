@@ -14,6 +14,11 @@ namespace helengine.editor {
         readonly ISceneAssetReferenceResolver ReferenceResolver;
 
         /// <summary>
+        /// Tracks stable entity ids for the current load session.
+        /// </summary>
+        readonly SceneEntityReferenceTable EntityReferenceTable;
+
+        /// <summary>
         /// Initializes a new scene load service.
         /// </summary>
         /// <param name="persistenceRegistry">Registry used to deserialize persisted components.</param>
@@ -21,6 +26,7 @@ namespace helengine.editor {
         public SceneLoadService(ComponentPersistenceRegistry persistenceRegistry, ISceneAssetReferenceResolver referenceResolver) {
             PersistenceRegistry = persistenceRegistry ?? throw new ArgumentNullException(nameof(persistenceRegistry));
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
+            EntityReferenceTable = new SceneEntityReferenceTable();
         }
 
         /// <summary>
@@ -61,6 +67,15 @@ namespace helengine.editor {
             };
 
             EntitySaveComponent saveComponent = FindEntitySaveComponent(entity);
+            if (string.IsNullOrWhiteSpace(entityAsset.Id)) {
+                throw new InvalidOperationException("Serialized scene entities must define a stable id.");
+            }
+
+            EntityReferenceTable.RegisterEntity(entity, entityAsset.Id);
+            if (saveComponent != null) {
+                saveComponent.EntityId = entityAsset.Id;
+            }
+
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int i = 0; i < componentRecords.Length; i++) {
                 SceneComponentAssetRecord record = componentRecords[i];

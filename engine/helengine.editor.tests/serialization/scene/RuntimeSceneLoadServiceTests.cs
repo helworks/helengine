@@ -52,6 +52,7 @@ namespace helengine.editor.tests.serialization.scene {
                 SceneAsset sceneAsset = new SceneAsset {
                     RootEntities = new[] {
                         new SceneEntityAsset {
+                            Id = "root-entity",
                             Name = "Root"
                         }
                     }

@@ -9,6 +9,11 @@ namespace helengine {
         readonly Dictionary<Component, EntityComponentSaveState> SaveStatesByComponent;
 
         /// <summary>
+        /// Stable id used to reference the owning entity from serialized scene data.
+        /// </summary>
+        public string EntityId { get; set; }
+
+        /// <summary>
         /// Initializes a new empty entity save-component.
         /// </summary>
         public EntitySaveComponent() {

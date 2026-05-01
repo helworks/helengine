@@ -81,6 +81,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.Equal("Scenes/RoundTrip.helen", asset.Id);
             Assert.Single(asset.RootEntities);
+            Assert.False(string.IsNullOrWhiteSpace(asset.RootEntities[0].Id));
             Assert.Equal("Root", asset.RootEntities[0].Name);
             Assert.Single(asset.RootEntities[0].Children);
             Assert.Equal("Child", asset.RootEntities[0].Children[0].Name);
@@ -99,6 +100,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(new float3(1f, 2f, 3f), loadedRoot.LocalPosition);
             Assert.Equal(new float3(2f, 2f, 2f), loadedRoot.LocalScale);
             Assert.Equal(new float4(0f, 0.70710677f, 0f, 0.70710677f), loadedRoot.LocalOrientation);
+            Assert.Equal(asset.RootEntities[0].Id, GetSaveComponent(loadedRoot).EntityId);
             Assert.Single(loadedRoot.Children);
             Assert.Equal("Child", ((EditorEntity)loadedRoot.Children[0]).Name);
 

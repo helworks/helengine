@@ -94,6 +94,7 @@ namespace helengine.editor.tests {
                 Id = "Scenes/TestScene.helen",
                 RootEntities = new[] {
                     new SceneEntityAsset {
+                        Id = "root-entity",
                         Name = "Root",
                         LocalPosition = new float3(1f, 2f, 3f),
                         LocalScale = new float3(2f, 2f, 2f),
@@ -107,6 +108,7 @@ namespace helengine.editor.tests {
                         },
                         Children = new[] {
                             new SceneEntityAsset {
+                                Id = "child-entity",
                                 Name = "Child",
                                 LocalPosition = new float3(5f, 6f, 7f),
                                 LocalScale = float3.One,
@@ -128,9 +130,11 @@ namespace helengine.editor.tests {
             Assert.Equal((ushort)EditorAssetBinaryValueKind.SceneAsset, header.ValueKind);
             Assert.Equal("Scenes/TestScene.helen", deserialized.Id);
             Assert.Single(deserialized.RootEntities);
+            Assert.Equal("root-entity", deserialized.RootEntities[0].Id);
             Assert.Equal(new float3(1f, 2f, 3f), deserialized.RootEntities[0].LocalPosition);
             Assert.Equal(new float3(2f, 2f, 2f), deserialized.RootEntities[0].LocalScale);
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, deserialized.RootEntities[0].Components[0].Payload);
+            Assert.Equal("child-entity", deserialized.RootEntities[0].Children[0].Id);
             Assert.Equal("Child", deserialized.RootEntities[0].Children[0].Name);
         }
 
