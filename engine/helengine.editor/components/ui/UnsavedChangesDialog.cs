@@ -34,6 +34,11 @@ namespace helengine.editor {
         public const int SectionSpacing = 10;
 
         /// <summary>
+        /// Spacing used between footer buttons.
+        /// </summary>
+        const int FooterButtonSpacing = 8;
+
+        /// <summary>
         /// Fixed size used for the save button.
         /// </summary>
         static readonly int2 SaveButtonSize = new int2(88, 22);
@@ -52,6 +57,11 @@ namespace helengine.editor {
         /// Host entity for the dialog message text.
         /// </summary>
         readonly EditorEntity MessageHost;
+
+        /// <summary>
+        /// Anchor component that keeps the message block pinned to the upper-left content area.
+        /// </summary>
+        readonly AnchorComponent MessageAnchor;
 
         /// <summary>
         /// Message text shown above the footer buttons.
@@ -84,6 +94,21 @@ namespace helengine.editor {
         readonly EditorEntity CancelButtonHost;
 
         /// <summary>
+        /// Host entity for the footer button group anchor region.
+        /// </summary>
+        readonly EditorEntity FooterHost;
+
+        /// <summary>
+        /// Anchor component that keeps the footer row pinned to the bottom-right of the dialog.
+        /// </summary>
+        readonly AnchorComponent FooterAnchor;
+
+        /// <summary>
+        /// Invisible sprite that provides the footer group size for anchoring.
+        /// </summary>
+        readonly SpriteComponent FooterBoundsSurface;
+
+        /// <summary>
         /// Cancel button component.
         /// </summary>
         readonly ButtonComponent CancelButton;
@@ -113,12 +138,17 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         public UnsavedChangesDialog(FontAsset font) : base("UnsavedChangesDialog", "Unsaved Changes", font, PanelWidth, PanelHeight, HeaderHeight) {
+            DialogMinimumSize = new int2(PanelWidth, PanelHeight);
+
             MessageHost = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
             DialogPanelRoot.AddChild(MessageHost);
+            MessageAnchor = new AnchorComponent();
+            MessageHost.AddComponent(MessageAnchor);
+            MessageAnchor.SetAnchorDistances(left: PanelPadding, top: PanelPadding + HeaderHeight + SectionSpacing);
 
             MessageText = new TextComponent {
                 Font = DialogFont,
@@ -134,7 +164,29 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            DialogPanelRoot.AddChild(SaveButtonHost);
+            FooterHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            DialogPanelRoot.AddChild(FooterHost);
+            FooterBoundsSurface = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = new byte4(0, 0, 0, 0),
+                RenderOrder2D = RenderOrder2D.ModalInput,
+                Size = new int2(SaveButtonSize.X + DontSaveButtonSize.X + CancelButtonSize.X + FooterButtonSpacing * 2, FooterHeight)
+            };
+            FooterHost.AddComponent(FooterBoundsSurface);
+            FooterAnchor = new AnchorComponent();
+            FooterHost.AddComponent(FooterAnchor);
+            FooterAnchor.SetAnchorDistances(right: PanelPadding, bottom: PanelPadding);
+
+            SaveButtonHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            FooterHost.AddChild(SaveButtonHost);
 
             SaveButton = new ButtonComponent("Save", SaveButtonSize, DialogFont, HandleSaveClicked, 0f);
             SaveButtonHost.AddComponent(SaveButton);
@@ -145,7 +197,7 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            DialogPanelRoot.AddChild(DontSaveButtonHost);
+            FooterHost.AddChild(DontSaveButtonHost);
 
             DontSaveButton = new ButtonComponent("Don't Save", DontSaveButtonSize, DialogFont, HandleDontSaveClicked, 0f);
             DontSaveButtonHost.AddComponent(DontSaveButton);
@@ -156,7 +208,7 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            DialogPanelRoot.AddChild(CancelButtonHost);
+            FooterHost.AddChild(CancelButtonHost);
 
             CancelButton = new ButtonComponent("Cancel", CancelButtonSize, DialogFont, HandleCancelClicked, 0f);
             CancelButtonHost.AddComponent(CancelButton);
@@ -230,10 +282,8 @@ namespace helengine.editor {
         /// Updates the message text placement inside the dialog panel.
         /// </summary>
         void LayoutMessage() {
-            int contentWidth = Math.Max(1, PanelWidth - PanelPadding * 2);
+            int contentWidth = Math.Max(1, DialogWidth - PanelPadding * 2);
             FontTightMetrics messageMetrics = DialogFont.MeasureTight(MessageText.Text);
-            int messageTop = PanelPadding + HeaderHeight + SectionSpacing;
-            MessageHost.Position = new float3(PanelPadding, messageTop, 0.2f);
             MessageText.Size = new int2(contentWidth, Math.Max(1, (int)Math.Ceiling(Math.Max(messageMetrics.Height, DialogFont.LineHeight))));
         }
 
@@ -241,15 +291,20 @@ namespace helengine.editor {
         /// Updates footer button placement within the dialog panel.
         /// </summary>
         void LayoutButtons() {
-            int footerTop = PanelHeight - PanelPadding - FooterHeight;
-            int cancelButtonX = PanelWidth - PanelPadding - CancelButtonSize.X;
-            int dontSaveButtonX = cancelButtonX - 8 - DontSaveButtonSize.X;
-            int saveButtonX = dontSaveButtonX - 8 - SaveButtonSize.X;
-            int buttonY = footerTop + Math.Max(0, (FooterHeight - SaveButtonSize.Y) / 2);
+            int footerWidth = SaveButtonSize.X + DontSaveButtonSize.X + CancelButtonSize.X + FooterButtonSpacing * 2;
+            int footerTop = Math.Max(0, DialogHeight - PanelPadding - FooterHeight);
+            int saveButtonY = Math.Max(0, (FooterHeight - SaveButtonSize.Y) / 2);
+            int dontSaveButtonY = Math.Max(0, (FooterHeight - DontSaveButtonSize.Y) / 2);
+            int cancelButtonY = Math.Max(0, (FooterHeight - CancelButtonSize.Y) / 2);
+            int cancelButtonX = footerWidth - CancelButtonSize.X;
+            int dontSaveButtonX = cancelButtonX - FooterButtonSpacing - DontSaveButtonSize.X;
+            int saveButtonX = dontSaveButtonX - FooterButtonSpacing - SaveButtonSize.X;
 
-            SaveButtonHost.Position = new float3(saveButtonX, buttonY, 0.2f);
-            DontSaveButtonHost.Position = new float3(dontSaveButtonX, buttonY, 0.2f);
-            CancelButtonHost.Position = new float3(cancelButtonX, buttonY, 0.2f);
+            FooterBoundsSurface.Size = new int2(footerWidth, FooterHeight);
+            FooterHost.LocalPosition = new float3(DialogWidth - PanelPadding - footerWidth, footerTop, 0.2f);
+            SaveButtonHost.LocalPosition = new float3(saveButtonX, saveButtonY, 0.2f);
+            DontSaveButtonHost.LocalPosition = new float3(dontSaveButtonX, dontSaveButtonY, 0.2f);
+            CancelButtonHost.LocalPosition = new float3(cancelButtonX, cancelButtonY, 0.2f);
         }
 
         /// <summary>

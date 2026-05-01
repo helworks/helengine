@@ -112,6 +112,71 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the message block and footer buttons are anchored to the dialog shell and stay aligned after a resize.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_AnchorsMessageAndFooterButtonsToResizablePanelEdges() {
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            dialog.Show();
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity panelRoot = GetPrivateField<EditorEntity>(dialog, "PanelRoot");
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            EditorEntity messageHost = GetPrivateField<EditorEntity>(dialog, "MessageHost");
+            TextComponent messageText = GetPrivateField<TextComponent>(dialog, "MessageText");
+            EditorEntity footerHost = GetPrivateField<EditorEntity>(dialog, "FooterHost");
+            EditorEntity saveButtonHost = GetPrivateField<EditorEntity>(dialog, "SaveButtonHost");
+            EditorEntity dontSaveButtonHost = GetPrivateField<EditorEntity>(dialog, "DontSaveButtonHost");
+            EditorEntity cancelButtonHost = GetPrivateField<EditorEntity>(dialog, "CancelButtonHost");
+
+            ButtonComponent saveButton = saveButtonHost.Components.OfType<ButtonComponent>().Single();
+            ButtonComponent dontSaveButton = dontSaveButtonHost.Components.OfType<ButtonComponent>().Single();
+            ButtonComponent cancelButton = cancelButtonHost.Components.OfType<ButtonComponent>().Single();
+
+            int footerWidth = saveButton.Size.X + dontSaveButton.Size.X + cancelButton.Size.X + 16;
+            int footerTop = UnsavedChangesDialog.PanelHeight - UnsavedChangesDialog.PanelPadding - UnsavedChangesDialog.FooterHeight;
+            int saveButtonY = (UnsavedChangesDialog.FooterHeight - saveButton.Size.Y) / 2;
+            int dontSaveButtonY = (UnsavedChangesDialog.FooterHeight - dontSaveButton.Size.Y) / 2;
+            int cancelButtonY = (UnsavedChangesDialog.FooterHeight - cancelButton.Size.Y) / 2;
+            int cancelButtonX = footerWidth - cancelButton.Size.X;
+            int dontSaveButtonX = cancelButtonX - 8 - dontSaveButton.Size.X;
+            int saveButtonX = dontSaveButtonX - 8 - saveButton.Size.X;
+
+            Assert.Equal(UnsavedChangesDialog.PanelPadding, (int)Math.Round(messageHost.LocalPosition.X));
+            Assert.Equal(UnsavedChangesDialog.PanelPadding + UnsavedChangesDialog.HeaderHeight + UnsavedChangesDialog.SectionSpacing, (int)Math.Round(messageHost.LocalPosition.Y));
+            Assert.Equal(UnsavedChangesDialog.PanelWidth - UnsavedChangesDialog.PanelPadding - footerWidth, (int)Math.Round(footerHost.LocalPosition.X));
+            Assert.Equal(footerTop, (int)Math.Round(footerHost.LocalPosition.Y));
+            Assert.Equal(saveButtonX, (int)Math.Round(saveButtonHost.LocalPosition.X));
+            Assert.Equal(dontSaveButtonX, (int)Math.Round(dontSaveButtonHost.LocalPosition.X));
+            Assert.Equal(cancelButtonX, (int)Math.Round(cancelButtonHost.LocalPosition.X));
+            Assert.Equal(saveButtonY, (int)Math.Round(saveButtonHost.LocalPosition.Y));
+            Assert.Equal(dontSaveButtonY, (int)Math.Round(dontSaveButtonHost.LocalPosition.Y));
+            Assert.Equal(cancelButtonY, (int)Math.Round(cancelButtonHost.LocalPosition.Y));
+            Assert.Equal(UnsavedChangesDialog.PanelWidth - UnsavedChangesDialog.PanelPadding * 2, messageText.Size.X);
+
+            EditorEntity topLeftGrip = Assert.IsType<EditorEntity>(Assert.Single(panelRoot.Children, child => string.Equals(((EditorEntity)child).Name, "ResizeTopLeftGrip", StringComparison.Ordinal)));
+            InteractableComponent topLeftInteractable = topLeftGrip.Components.OfType<InteractableComponent>().Single();
+            topLeftInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Press);
+            topLeftInteractable.OnCursor(new int2(8, 8), new int2(40, 24), PointerInteraction.Hover);
+            topLeftInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Release);
+            dialog.UpdateLayout(1280, 720);
+
+            int resizedFooterTop = panelBackground.Size.Y - UnsavedChangesDialog.PanelPadding - UnsavedChangesDialog.FooterHeight;
+
+            Assert.Equal(UnsavedChangesDialog.PanelPadding, (int)Math.Round(messageHost.LocalPosition.X));
+            Assert.Equal(UnsavedChangesDialog.PanelPadding + UnsavedChangesDialog.HeaderHeight + UnsavedChangesDialog.SectionSpacing, (int)Math.Round(messageHost.LocalPosition.Y));
+            Assert.Equal(panelBackground.Size.X - UnsavedChangesDialog.PanelPadding - footerWidth, (int)Math.Round(footerHost.LocalPosition.X));
+            Assert.Equal(resizedFooterTop, (int)Math.Round(footerHost.LocalPosition.Y));
+            Assert.Equal(saveButtonX, (int)Math.Round(saveButtonHost.LocalPosition.X));
+            Assert.Equal(dontSaveButtonX, (int)Math.Round(dontSaveButtonHost.LocalPosition.X));
+            Assert.Equal(cancelButtonX, (int)Math.Round(cancelButtonHost.LocalPosition.X));
+            Assert.Equal(saveButtonY, (int)Math.Round(saveButtonHost.LocalPosition.Y));
+            Assert.Equal(dontSaveButtonY, (int)Math.Round(dontSaveButtonHost.LocalPosition.Y));
+            Assert.Equal(cancelButtonY, (int)Math.Round(cancelButtonHost.LocalPosition.Y));
+            Assert.Equal(panelBackground.Size.X - UnsavedChangesDialog.PanelPadding * 2, messageText.Size.X);
+        }
+
+        /// <summary>
         /// Ensures the close button fills the title-bar height and touches the right edge.
         /// </summary>
         [Fact]
@@ -218,6 +283,28 @@ namespace helengine.editor.tests {
             Assert.Equal(initialPosition.Y + 12, panelRoot.Position.Y);
             Assert.Equal(initialSize.X - 20, panelBackground.Size.X);
             Assert.Equal(initialSize.Y - 12, panelBackground.Size.Y);
+        }
+
+        /// <summary>
+        /// Ensures the unsaved-changes dialog cannot be resized below its designed starting size.
+        /// </summary>
+        [Fact]
+        public void HandleTopLeftResizeGrip_WhenDraggedSmaller_ClampsToThePanelMinimumSize() {
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            dialog.Show();
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity panelRoot = GetPrivateField<EditorEntity>(dialog, "PanelRoot");
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            EditorEntity topLeftGrip = Assert.IsType<EditorEntity>(panelRoot.Children.Single(child => string.Equals(((EditorEntity)child).Name, "ResizeTopLeftGrip", StringComparison.Ordinal)));
+            InteractableComponent topLeftInteractable = topLeftGrip.Components.OfType<InteractableComponent>().Single();
+
+            topLeftInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Press);
+            topLeftInteractable.OnCursor(new int2(8, 8), new int2(-1000, -1000), PointerInteraction.Hover);
+            topLeftInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Release);
+
+            Assert.Equal(UnsavedChangesDialog.PanelWidth, panelBackground.Size.X);
+            Assert.Equal(UnsavedChangesDialog.PanelHeight, panelBackground.Size.Y);
         }
 
         /// <summary>
