@@ -29,6 +29,10 @@ namespace helengine {
         /// </summary>
         bool UsesHoverOnlyBackground;
         /// <summary>
+        /// Tracks whether the button should keep square corners regardless of size updates.
+        /// </summary>
+        bool UsesSquareCorners;
+        /// <summary>
         /// Color used when creating or updating the button label text component.
         /// </summary>
         byte4 ButtonTextColor;
@@ -36,6 +40,10 @@ namespace helengine {
         /// Corner radius applied to the rounded rectangle background.
         /// </summary>
         float CornerRadius;
+        /// <summary>
+        /// Cursor requested while the pointer hovers the button.
+        /// </summary>
+        PointerCursorKind HoverCursorKind;
 
         // Child entities and components
         Entity textEntity;
@@ -71,6 +79,11 @@ namespace helengine {
         /// Gets a value indicating whether this button is currently keyboard-focused.
         /// </summary>
         public bool IsKeyboardFocused { get; private set; }
+
+        /// <summary>
+        /// Gets the current button size.
+        /// </summary>
+        public int2 Size => size;
 
         /// <summary>
         /// Raised when the pointer first enters the button during a hover interaction.
@@ -129,6 +142,18 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Sets the cursor displayed while the pointer hovers the button.
+        /// </summary>
+        /// <param name="cursor">Cursor shown on hover.</param>
+        public void SetHoverCursor(PointerCursorKind cursor) {
+            HoverCursorKind = cursor;
+
+            if (interactableComponent != null) {
+                interactableComponent.HoverCursor = cursor;
+            }
+        }
+
+        /// <summary>
         /// Sets the color used by the button label text.
         /// </summary>
         /// <param name="color">Label color to render.</param>
@@ -144,11 +169,43 @@ namespace helengine {
         /// Configures the button background to render with square corners.
         /// </summary>
         public void UseSquareCorners() {
+            UsesSquareCorners = true;
             CornerRadius = 0f;
 
             if (roundedRect != null) {
                 roundedRect.Radius = CornerRadius;
             }
+        }
+
+        /// <summary>
+        /// Updates the button bounds and reapplies the existing visual layout.
+        /// </summary>
+        /// <param name="newSize">New button dimensions.</param>
+        public void SetSize(int2 newSize) {
+            if (newSize.X < 1 || newSize.Y < 1) {
+                throw new ArgumentOutOfRangeException(nameof(newSize), "Button size must be positive.");
+            }
+
+            size = newSize;
+            if (!UsesSquareCorners) {
+                CornerRadius = MathF.Min(size.X, size.Y) * 0.15f;
+            }
+
+            if (roundedRect != null) {
+                roundedRect.Size = size;
+                roundedRect.Radius = CornerRadius;
+            }
+
+            if (interactableComponent != null) {
+                interactableComponent.Size = size;
+                interactableComponent.HoverCursor = HoverCursorKind;
+            }
+
+            if (textEntity == null || textComponent == null) {
+                return;
+            }
+
+            ApplyTextLayout();
         }
 
         /// <summary>
@@ -181,6 +238,7 @@ namespace helengine {
             // Create interactable component for mouse events
             interactableComponent = new InteractableComponent();
             interactableComponent.Size = size;
+            interactableComponent.HoverCursor = HoverCursorKind;
             interactableComponent.CursorEvent += OnCursorEvent;
             entity.AddComponent(interactableComponent);
 
@@ -193,26 +251,16 @@ namespace helengine {
             entity.InitChildren();
             entity.AddChild(textEntity);
 
-            // Precise centering using font-provided tight bounds for width; line height keeps vertical centering stable across glyphs with descenders
-            var tight = font.MeasureTight(text);
-            float lineHeight = MathF.Max(font.LineHeight, 1f);
-
-            float px = (size.X - tight.Width) / 2f;
-            float py = (size.Y - lineHeight) / 2f;
-            // Snap to pixel grid to avoid half-pixel shimmering
-            px = MathF.Round(px);
-            py = MathF.Round(py);
-
-            textEntity.Position = new float3(px, py, 0.1f);
-
             // Create text component
             textComponent = new TextComponent();
             textComponent.Text = text;
             textComponent.Font = font;
             textComponent.Color = ButtonTextColor;
-            textComponent.Size = new int2((int)Math.Ceiling(tight.Width), (int)Math.Ceiling(lineHeight));
+            textComponent.Size = new int2(1, 1);
             textComponent.RenderOrder2D = textOrder;
             textEntity.AddComponent(textComponent);
+
+            ApplyTextLayout();
         }
 
         /// <summary>
@@ -392,6 +440,26 @@ namespace helengine {
             if (Hovered != null) {
                 Hovered();
             }
+        }
+
+        /// <summary>
+        /// Recomputes the label size and position for the current button bounds.
+        /// </summary>
+        void ApplyTextLayout() {
+            if (textEntity == null || textComponent == null) {
+                return;
+            }
+
+            var tight = font.MeasureTight(text);
+            float lineHeight = MathF.Max(font.LineHeight, 1f);
+
+            float px = (size.X - tight.Width) / 2f;
+            float py = (size.Y - lineHeight) / 2f;
+            px = MathF.Round(px);
+            py = MathF.Round(py);
+
+            textEntity.Position = new float3(px, py, 0.1f);
+            textComponent.Size = new int2((int)Math.Ceiling(tight.Width), (int)Math.Ceiling(lineHeight));
         }
     }
 }

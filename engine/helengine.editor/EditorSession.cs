@@ -379,7 +379,7 @@ namespace helengine.editor {
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath);
             mainViewport = new EditorViewport(sceneCameraComponent, uiFont, snapModifierFont, toolbarIcons);
-            propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver);
+            propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity);
             loggerPanel = new LoggerPanel(uiFont);
             previewPanel = new PreviewPanel(uiFont);
             EditorKeyboardFocusService.RegisterGroup(sceneHierarchyPanel);
@@ -653,6 +653,7 @@ namespace helengine.editor {
             buildSettingsDialog.UpdateLayout(width, height);
             buildDialog.UpdateLayout(width, height);
             unsavedChangesDialog.UpdateLayout(width, height);
+            propertiesPanel.UpdateModalLayout(width, height);
             mainViewport.RefreshInputBlockers();
             UpdateDockInputBlockers();
         }

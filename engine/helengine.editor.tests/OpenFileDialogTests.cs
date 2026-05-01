@@ -172,6 +172,7 @@ namespace helengine.editor.tests {
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
+            Assert.True(EditorInputCaptureService.IsPointerBlocked(new int2(8, 8)));
             Input.SetMouseState(new MouseState(8, 8, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
 
             Input.EarlyUpdate();
@@ -179,6 +180,38 @@ namespace helengine.editor.tests {
 
             Assert.NotSame(behindInteractable, Input.Hovering);
             Assert.Equal(0, behindHoverCount);
+        }
+
+        /// <summary>
+        /// Ensures the modal backdrop leaves the title-bar control gap free so pointer hover reaches content behind that area.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPointerMovesAcrossTitleBarButtonGap_HoversInteractablesBehindDialog() {
+            CreateUiCamera(1280, 720);
+
+            InteractableComponent behindInteractable = CreateInteractableEntity(
+                new float3(1100f, 0f, 0f),
+                new int2(180, EditorTitleBar.HeightPixels),
+                RenderOrder2D.PanelSurface);
+            int behindHoverCount = 0;
+            behindInteractable.CursorEvent += (pos, delta, state) => {
+                if (state == PointerInteraction.Hover) {
+                    behindHoverCount++;
+                }
+            };
+
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            dialog.Show("Scenes");
+            dialog.UpdateLayout(1280, 720);
+
+            Assert.False(EditorInputCaptureService.IsPointerBlocked(new int2(1256, 10)));
+            Input.SetMouseState(new MouseState(1256, 10, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Input.EarlyUpdate();
+            Input.Update();
+
+            Assert.Same(behindInteractable, Input.Hovering);
+            Assert.Equal(1, behindHoverCount);
         }
 
         /// <summary>

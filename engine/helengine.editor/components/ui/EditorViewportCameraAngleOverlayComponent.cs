@@ -116,6 +116,10 @@ namespace helengine.editor {
         /// Render order used for the overlay text.
         /// </summary>
         readonly byte OverlayTextRenderOrder;
+        /// <summary>
+        /// Controls whether the top-left camera diagnostics text is rendered.
+        /// </summary>
+        readonly bool ShowCameraStats;
 
         /// <summary>
         /// Overlay root entity positioned in viewport-local coordinates.
@@ -156,7 +160,18 @@ namespace helengine.editor {
         /// <param name="sceneCamera">Camera to inspect for debug angle output.</param>
         /// <param name="font">Font used for overlay text.</param>
         /// <param name="viewportTopOffset">Offset in pixels from title bar top to viewport content top.</param>
-        public EditorViewportCameraAngleOverlayComponent(CameraComponent sceneCamera, FontAsset font, int viewportTopOffset) {
+        public EditorViewportCameraAngleOverlayComponent(CameraComponent sceneCamera, FontAsset font, int viewportTopOffset)
+            : this(sceneCamera, font, viewportTopOffset, true) {
+        }
+
+        /// <summary>
+        /// Initializes a viewport camera-angle overlay component.
+        /// </summary>
+        /// <param name="sceneCamera">Camera to inspect for debug angle output.</param>
+        /// <param name="font">Font used for overlay text.</param>
+        /// <param name="viewportTopOffset">Offset in pixels from title bar top to viewport content top.</param>
+        /// <param name="showCameraStats">True to render the top-left camera diagnostics text.</param>
+        public EditorViewportCameraAngleOverlayComponent(CameraComponent sceneCamera, FontAsset font, int viewportTopOffset, bool showCameraStats) {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
             Font = font ?? throw new ArgumentNullException(nameof(font));
             if (viewportTopOffset < 0) {
@@ -164,6 +179,7 @@ namespace helengine.editor {
             }
 
             ViewportTopOffset = viewportTopOffset;
+            ShowCameraStats = showCameraStats;
             OverlayBackgroundRenderOrder = RenderOrder2D.OverlayBackground;
             OverlayTextRenderOrder = RenderOrder2D.OverlayForeground;
         }
@@ -183,38 +199,40 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Viewport camera angle overlay must be attached to an EditorEntity.");
             }
 
-            OverlayRoot = new EditorEntity {
-                InternalEntity = true,
-                LayerMask = editorEntity.LayerMask,
-                Position = new float3(OverlayMarginX, DockableEntity.TitleBarHeight + ViewportTopOffset + OverlayMarginY, 0.35f)
-            };
-            editorEntity.AddChild(OverlayRoot);
+            if (ShowCameraStats) {
+                OverlayRoot = new EditorEntity {
+                    InternalEntity = true,
+                    LayerMask = editorEntity.LayerMask,
+                    Position = new float3(OverlayMarginX, DockableEntity.TitleBarHeight + ViewportTopOffset + OverlayMarginY, 0.35f)
+                };
+                editorEntity.AddChild(OverlayRoot);
 
-            OverlayBackground = new RoundedRectComponent {
-                Radius = 5f,
-                BorderThickness = 1f,
-                FillColor = new byte4(0, 0, 0, 145),
-                BorderColor = new byte4(255, 255, 255, 64),
-                Size = new int2(1, 1),
-                RenderOrder2D = OverlayBackgroundRenderOrder
-            };
-            OverlayRoot.AddComponent(OverlayBackground);
+                OverlayBackground = new RoundedRectComponent {
+                    Radius = 5f,
+                    BorderThickness = 1f,
+                    FillColor = new byte4(0, 0, 0, 145),
+                    BorderColor = new byte4(255, 255, 255, 64),
+                    Size = new int2(1, 1),
+                    RenderOrder2D = OverlayBackgroundRenderOrder
+                };
+                OverlayRoot.AddComponent(OverlayBackground);
 
-            TextHost = new EditorEntity {
-                InternalEntity = true,
-                LayerMask = editorEntity.LayerMask,
-                Position = new float3(OverlayPaddingX, OverlayPaddingY, 0.1f)
-            };
-            OverlayRoot.AddChild(TextHost);
+                TextHost = new EditorEntity {
+                    InternalEntity = true,
+                    LayerMask = editorEntity.LayerMask,
+                    Position = new float3(OverlayPaddingX, OverlayPaddingY, 0.1f)
+                };
+                OverlayRoot.AddChild(TextHost);
 
-            OverlayText = new TextComponent {
-                Font = Font,
-                Color = new byte4(235, 235, 235, 255),
-                RenderOrder2D = OverlayTextRenderOrder,
-                Size = new int2(1, 1),
-                Text = string.Empty
-            };
-            TextHost.AddComponent(OverlayText);
+                OverlayText = new TextComponent {
+                    Font = Font,
+                    Color = new byte4(235, 235, 235, 255),
+                    RenderOrder2D = OverlayTextRenderOrder,
+                    Size = new int2(1, 1),
+                    Text = string.Empty
+                };
+                TextHost.AddComponent(OverlayText);
+            }
 
             CreateAxisLabelEntities();
             Initialized = true;
@@ -233,9 +251,11 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Scene camera must belong to an entity to compute debug angles.");
             }
 
-            string text = BuildOverlayText(cameraEntity);
-            OverlayText.Text = text;
-            LayoutOverlay(text);
+            if (ShowCameraStats) {
+                string text = BuildOverlayText(cameraEntity);
+                OverlayText.Text = text;
+                LayoutOverlay(text);
+            }
             UpdateAxisLabels(cameraEntity);
         }
 
@@ -341,6 +361,10 @@ namespace helengine.editor {
         void LayoutOverlay(string text) {
             if (text == null) {
                 throw new ArgumentNullException(nameof(text));
+            }
+
+            if (OverlayBackground == null || OverlayText == null || TextHost == null) {
+                return;
             }
 
             string[] lines = text.Split('\n');

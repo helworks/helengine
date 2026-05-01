@@ -37,6 +37,10 @@ namespace helengine.editor {
         /// Render order used by the fullscreen modal backdrop behind the dialog panel.
         /// </summary>
         const byte BackdropOrder = RenderOrder2D.ModalBackground - 1;
+        /// <summary>
+        /// Width reserved on the right side of the host title bar so the window buttons stay interactive.
+        /// </summary>
+        const int HostTitleBarButtonGapWidth = EditorTitleBar.HeightPixels * 4;
 
         /// <summary>
         /// Border thickness used for the shared dialog panel chrome.
@@ -64,14 +68,34 @@ namespace helengine.editor {
         readonly EditorEntity BackdropRoot;
 
         /// <summary>
-        /// Fullscreen backdrop surface rendered behind the dialog panel to dim lower UI.
+        /// Root entity that hosts the title-bar backdrop strip.
         /// </summary>
-        readonly SpriteComponent BackdropSurface;
+        readonly EditorEntity BackdropTopRoot;
+
+        /// <summary>
+        /// Backdrop surface rendered across the title-bar area while leaving the window button gap clear.
+        /// </summary>
+        readonly SpriteComponent BackdropTopSurface;
+
+        /// <summary>
+        /// Interactable that absorbs pointer input over the title-bar backdrop strip.
+        /// </summary>
+        readonly InteractableComponent BackdropTopInteractable;
+
+        /// <summary>
+        /// Root entity that hosts the editor-content backdrop block.
+        /// </summary>
+        readonly EditorEntity BackdropBodyRoot;
+
+        /// <summary>
+        /// Backdrop surface rendered behind the dialog panel to dim lower UI.
+        /// </summary>
+        readonly SpriteComponent BackdropBodySurface;
 
         /// <summary>
         /// Fullscreen interactable that absorbs pointer input outside the dialog panel.
         /// </summary>
-        readonly InteractableComponent BackdropInteractable;
+        readonly InteractableComponent BackdropBodyInteractable;
 
         /// <summary>
         /// Root entity that owns the panel background and all dialog content.
@@ -202,18 +226,45 @@ namespace helengine.editor {
             };
             AddChild(BackdropRoot);
 
-            BackdropSurface = new SpriteComponent {
+            BackdropTopRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BackdropRoot.AddChild(BackdropTopRoot);
+
+            BackdropTopSurface = new SpriteComponent {
                 Texture = TextureUtils.PixelTexture,
                 Color = BackdropColor,
                 RenderOrder2D = BackdropOrder,
                 Size = new int2(0, 0)
             };
-            BackdropRoot.AddComponent(BackdropSurface);
+            BackdropTopRoot.AddComponent(BackdropTopSurface);
 
-            BackdropInteractable = new InteractableComponent {
+            BackdropTopInteractable = new InteractableComponent {
                 Size = new int2(0, 0)
             };
-            BackdropRoot.AddComponent(BackdropInteractable);
+            BackdropTopRoot.AddComponent(BackdropTopInteractable);
+
+            BackdropBodyRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BackdropRoot.AddChild(BackdropBodyRoot);
+
+            BackdropBodySurface = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = BackdropColor,
+                RenderOrder2D = BackdropOrder,
+                Size = new int2(0, 0)
+            };
+            BackdropBodyRoot.AddComponent(BackdropBodySurface);
+
+            BackdropBodyInteractable = new InteractableComponent {
+                Size = new int2(0, 0)
+            };
+            BackdropBodyRoot.AddComponent(BackdropBodyInteractable);
 
             PanelRoot = new EditorEntity {
                 LayerMask = LayerMask,
@@ -363,18 +414,27 @@ namespace helengine.editor {
         /// </summary>
         protected void UpdateDialogBackdrop() {
             BackdropRoot.Position = float3.Zero;
-            BackdropSurface.Size = HostSize;
-            BackdropInteractable.Size = HostSize;
-            EditorInputCaptureService.SetBlocker(this, new int2(0, 0), HostSize);
+            int topWidth = Math.Max(0, HostSize.X - HostTitleBarButtonGapWidth);
+            BackdropTopRoot.Position = float3.Zero;
+            BackdropTopSurface.Size = new int2(topWidth, EditorTitleBar.HeightPixels);
+            BackdropTopInteractable.Size = new int2(topWidth, EditorTitleBar.HeightPixels);
+            BackdropBodyRoot.Position = new float3(0f, EditorTitleBar.HeightPixels, 0f);
+            int bodyHeight = Math.Max(0, HostSize.Y - EditorTitleBar.HeightPixels);
+            BackdropBodySurface.Size = new int2(HostSize.X, bodyHeight);
+            BackdropBodyInteractable.Size = new int2(HostSize.X, bodyHeight);
+            UpdateDialogInputBlockers(topWidth, bodyHeight);
         }
 
         /// <summary>
         /// Clears the shared fullscreen backdrop blocker when the dialog is hidden.
         /// </summary>
         protected void ClearDialogBackdrop() {
-            BackdropSurface.Size = new int2(0, 0);
-            BackdropInteractable.Size = new int2(0, 0);
-            EditorInputCaptureService.ClearBlocker(this);
+            BackdropTopSurface.Size = new int2(0, 0);
+            BackdropTopInteractable.Size = new int2(0, 0);
+            BackdropBodySurface.Size = new int2(0, 0);
+            BackdropBodyInteractable.Size = new int2(0, 0);
+            EditorInputCaptureService.ClearBlocker(BackdropTopRoot);
+            EditorInputCaptureService.ClearBlocker(BackdropBodyRoot);
         }
 
         /// <summary>
@@ -396,6 +456,23 @@ namespace helengine.editor {
             UpdateDialogBackdrop();
             UpdateDialogChromeLayout();
             return true;
+        }
+
+        /// <summary>
+        /// Registers a pointer blocker that covers the modal host area while the dialog is visible.
+        /// </summary>
+        void UpdateDialogInputBlockers(int topWidth, int bodyHeight) {
+            if (topWidth > 0 && EditorTitleBar.HeightPixels > 0) {
+                EditorInputCaptureService.SetBlocker(BackdropTopRoot, int2.Zero, new int2(topWidth, EditorTitleBar.HeightPixels));
+            } else {
+                EditorInputCaptureService.ClearBlocker(BackdropTopRoot);
+            }
+
+            if (HostSize.X > 0 && bodyHeight > 0) {
+                EditorInputCaptureService.SetBlocker(BackdropBodyRoot, new int2(0, EditorTitleBar.HeightPixels), new int2(HostSize.X, bodyHeight));
+            } else {
+                EditorInputCaptureService.ClearBlocker(BackdropBodyRoot);
+            }
         }
 
         /// <summary>

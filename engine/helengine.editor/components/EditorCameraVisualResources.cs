@@ -8,15 +8,15 @@ namespace helengine {
         /// <summary>
         /// Width of the camera body.
         /// </summary>
-        const float BodyWidth = 2.4f;
+        const float BodyWidth = 1.2f;
         /// <summary>
         /// Height of the camera body.
         /// </summary>
-        const float BodyHeight = 1.2f;
+        const float BodyHeight = 0.6f;
         /// <summary>
         /// Depth of the camera body.
         /// </summary>
-        const float BodyDepth = 1.2f;
+        const float BodyDepth = 0.6f;
         /// <summary>
         /// Radius of each top cylinder.
         /// </summary>
@@ -28,11 +28,11 @@ namespace helengine {
         /// <summary>
         /// Radius of the front cone base.
         /// </summary>
-        const float FrontConeRadius = 0.75f;
+        const float FrontConeRadius = 0.375f;
         /// <summary>
         /// Length of the front cone.
         /// </summary>
-        const float FrontConeLength = 1.4f;
+        const float FrontConeLength = 0.7f;
         /// <summary>
         /// Segment count used for rounded camera details.
         /// </summary>
@@ -95,7 +95,7 @@ namespace helengine {
                 indices,
                 helengine.editor.TransformGizmoMeshFactory.CreateCylinder(TopCylinderRadius, TopCylinderLength, RoundSegments),
                 CreateTopCylinderOrientation(),
-                new float3(TopCylinderLength * 0.5f, GetBodyTopY() + TopCylinderRadius, -GetBodyHalfWidth() + TopCylinderRadius));
+                new float3(TopCylinderLength * 0.5f, GetBodyTopY() + TopCylinderRadius, -TopCylinderRadius));
             AppendMesh(
                 positions,
                 normals,
@@ -103,7 +103,7 @@ namespace helengine {
                 indices,
                 helengine.editor.TransformGizmoMeshFactory.CreateCylinder(TopCylinderRadius, TopCylinderLength, RoundSegments),
                 CreateTopCylinderOrientation(),
-                new float3(TopCylinderLength * 0.5f, GetBodyTopY() + TopCylinderRadius, GetBodyHalfWidth() - TopCylinderRadius));
+                new float3(TopCylinderLength * 0.5f, GetBodyTopY() + TopCylinderRadius, TopCylinderRadius));
             AppendMesh(
                 positions,
                 normals,

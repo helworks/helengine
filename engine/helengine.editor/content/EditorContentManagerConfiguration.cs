@@ -42,7 +42,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Ensures the processors needed for project asset importing are registered.
+        /// Ensures the project-specific processors needed for asset importing are registered.
         /// </summary>
         /// <param name="contentManager">Content manager to configure.</param>
         public static void ConfigureProjectContentManager(ContentManager contentManager) {
@@ -50,7 +50,6 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(contentManager));
             }
 
-            ConfigureSharedAssetContentManager(contentManager);
             RegisterProcessorIfMissing(
                 contentManager,
                 EditorContentProcessorIds.AssetImportSettings,
@@ -70,7 +69,7 @@ namespace helengine.editor {
             ContentManager contentManager,
             string processorId,
             IContentProcessor<T> processor,
-            IReadOnlyList<string> extensions = null) {
+            string[] extensions = null) {
             if (contentManager == null) {
                 throw new ArgumentNullException(nameof(contentManager));
             }

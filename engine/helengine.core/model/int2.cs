@@ -10,6 +10,11 @@ namespace helengine {
     /// </summary>
     public struct int2 {
         /// <summary>
+        /// Gets the zero vector with both components set to <c>0</c>.
+        /// </summary>
+        public static readonly int2 Zero = new int2(0, 0);
+
+        /// <summary>
         /// X component of the vector.
         /// </summary>
         public int X;

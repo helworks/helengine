@@ -1,3 +1,4 @@
+using System.Reflection;
 using helengine.editor.tests.testing;
 using Xunit;
 
@@ -110,6 +111,53 @@ namespace helengine.editor.tests.managers.scene {
             Assert.True(suppressionComponent.ClearSettings.ClearDepthEnabled);
             Assert.NotNull(visualComponent.Model);
             Assert.NotNull(visualComponent.Material);
+        }
+
+        /// <summary>
+        /// Ensures the top cylinders in the editor camera icon touch at the center seam on the local Z axis.
+        /// </summary>
+        [Fact]
+        public void CreateCameraVisual_WhenBuilt_PlacesTheTopCylinderSeamAtZeroOnTheZAxis() {
+            MethodInfo createModelAssetMethod = typeof(EditorCameraVisualResources).GetMethod("CreateModelAsset", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(createModelAssetMethod);
+            FieldInfo bodyHeightField = typeof(EditorCameraVisualResources).GetField("BodyHeight", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(bodyHeightField);
+
+            ModelAsset modelAsset = Assert.IsType<ModelAsset>(createModelAssetMethod.Invoke(null, null));
+            Assert.NotNull(modelAsset.Positions);
+
+            float bodyHeight = Convert.ToSingle(bodyHeightField.GetRawConstantValue());
+            float topSeamThresholdY = (bodyHeight * 0.5f) + 0.001f;
+            float leftCylinderMaxZ = float.MinValue;
+            float rightCylinderMinZ = float.MaxValue;
+            bool foundLeftCylinderVertex = false;
+            bool foundRightCylinderVertex = false;
+
+            for (int index = 0; index < modelAsset.Positions.Length; index++) {
+                float3 position = modelAsset.Positions[index];
+                if (position.Y <= topSeamThresholdY) {
+                    continue;
+                }
+
+                if (position.Z <= 0f) {
+                    foundLeftCylinderVertex = true;
+                    if (position.Z > leftCylinderMaxZ) {
+                        leftCylinderMaxZ = position.Z;
+                    }
+                }
+
+                if (position.Z >= 0f) {
+                    foundRightCylinderVertex = true;
+                    if (position.Z < rightCylinderMinZ) {
+                        rightCylinderMinZ = position.Z;
+                    }
+                }
+            }
+
+            Assert.True(foundLeftCylinderVertex);
+            Assert.True(foundRightCylinderVertex);
+            Assert.True(Math.Abs(leftCylinderMaxZ) < 0.0001f);
+            Assert.True(Math.Abs(rightCylinderMinZ) < 0.0001f);
         }
 
         /// <summary>

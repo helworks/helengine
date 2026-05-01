@@ -63,7 +63,7 @@ namespace helengine {
             ContentManager contentManager,
             string processorId,
             IContentProcessor<T> processor,
-            IReadOnlyList<string> extensions = null) {
+            string[] extensions = null) {
             if (contentManager == null) {
                 throw new ArgumentNullException(nameof(contentManager));
             }

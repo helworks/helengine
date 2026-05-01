@@ -24,7 +24,7 @@ namespace helengine.editor {
         /// <param name="importerId">Stable identifier for the importer.</param>
         /// <param name="importer">Importer implementation.</param>
         /// <param name="extensions">Supported file extensions, including leading dots.</param>
-        public TextureImporterRegistration(string importerId, ITextureImporter importer, IReadOnlyList<string> extensions) {
+        public TextureImporterRegistration(string importerId, ITextureImporter importer, string[] extensions) {
             if (string.IsNullOrWhiteSpace(importerId)) {
                 throw new ArgumentException("Importer id must be provided.", nameof(importerId));
             }
@@ -37,7 +37,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(extensions));
             }
 
-            if (extensions.Count == 0) {
+            if (extensions.Length == 0) {
                 throw new ArgumentException("At least one extension must be provided.", nameof(extensions));
             }
 
@@ -59,7 +59,7 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the supported file extensions for this importer.
         /// </summary>
-        public IReadOnlyList<string> Extensions => extensions;
+        public string[] Extensions => extensions;
 
         /// <summary>
         /// Registers the importer with an asset import manager.
@@ -78,9 +78,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="sourceExtensions">Extensions provided by the registration.</param>
         /// <returns>Normalized extension array.</returns>
-        string[] NormalizeExtensions(IReadOnlyList<string> sourceExtensions) {
-            string[] normalized = new string[sourceExtensions.Count];
-            for (int i = 0; i < sourceExtensions.Count; i++) {
+        string[] NormalizeExtensions(string[] sourceExtensions) {
+            string[] normalized = new string[sourceExtensions.Length];
+            for (int i = 0; i < sourceExtensions.Length; i++) {
                 string extension = sourceExtensions[i];
                 if (string.IsNullOrWhiteSpace(extension)) {
                     throw new ArgumentException("Extension values must be non-empty.", nameof(sourceExtensions));

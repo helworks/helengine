@@ -150,7 +150,7 @@ namespace helengine {
             }
 
             return string.Concat(
-                binding.ResourceType.ToString(),
+                ((int)binding.ResourceType).ToString(),
                 "|",
                 binding.Name);
         }

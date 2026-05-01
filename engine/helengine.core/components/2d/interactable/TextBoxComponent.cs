@@ -94,7 +94,7 @@ namespace helengine {
                 }
 
                 text = value ?? "";
-                cursorPosition = Math.Min(cursorPosition, text.Length);
+                cursorPosition = Math.Max(0, Math.Min(cursorPosition, text.Length));
                 UpdateTextDisplay();
                 TextChanged?.Invoke(this);
             }
@@ -386,8 +386,9 @@ namespace helengine {
                 default:
                     char character = KeyToChar(key, isShiftPressed);
                     if (character != '\0') {
-                        Text = text.Insert(cursorPosition, character.ToString());
-                        cursorPosition++;
+                        int insertionIndex = Math.Max(0, Math.Min(cursorPosition, text.Length));
+                        Text = text.Insert(insertionIndex, character.ToString());
+                        cursorPosition = insertionIndex + 1;
                     }
                     break;
             }
@@ -445,7 +446,8 @@ namespace helengine {
             
             // Add cursor if focused and visible
             if (isFocused && cursorVisible) {
-                displayText = displayText.Insert(cursorPosition, "|");
+                int cursorIndex = Math.Max(0, Math.Min(cursorPosition, displayText.Length));
+                displayText = displayText.Insert(cursorIndex, "|");
             }
             
             textComponent.Text = displayText;

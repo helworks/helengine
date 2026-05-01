@@ -22,7 +22,7 @@ namespace helengine {
         /// <param name="processorId">Stable identifier used to select the processor.</param>
         /// <param name="processor">Processor instance that parses the content.</param>
         /// <param name="extensions">Optional supported file extensions, including or omitting the leading dot.</param>
-        public ContentProcessorRegistration(string processorId, IContentProcessor processor, IReadOnlyList<string> extensions) {
+        public ContentProcessorRegistration(string processorId, IContentProcessor processor, string[] extensions) {
             if (string.IsNullOrWhiteSpace(processorId)) {
                 throw new ArgumentException("Processor id must be provided.", nameof(processorId));
             }
@@ -50,16 +50,16 @@ namespace helengine {
         /// <summary>
         /// Gets the normalized file extensions supported by the processor.
         /// </summary>
-        public IReadOnlyList<string> Extensions => ExtensionsValue;
+        public string[] Extensions => ExtensionsValue;
 
         /// <summary>
         /// Normalizes extensions to lowercase values with a leading dot.
         /// </summary>
         /// <param name="sourceExtensions">Extensions provided by the caller.</param>
         /// <returns>Normalized extension array.</returns>
-        string[] NormalizeExtensions(IReadOnlyList<string> sourceExtensions) {
-            string[] normalized = new string[sourceExtensions.Count];
-            for (int extensionIndex = 0; extensionIndex < sourceExtensions.Count; extensionIndex++) {
+        string[] NormalizeExtensions(string[] sourceExtensions) {
+            string[] normalized = new string[sourceExtensions.Length];
+            for (int extensionIndex = 0; extensionIndex < sourceExtensions.Length; extensionIndex++) {
                 string extension = sourceExtensions[extensionIndex];
                 if (string.IsNullOrWhiteSpace(extension)) {
                     throw new ArgumentException("Extension values must be non-empty.", nameof(sourceExtensions));

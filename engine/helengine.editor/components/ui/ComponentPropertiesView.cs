@@ -23,6 +23,10 @@ namespace helengine.editor {
         /// </summary>
         const int SectionSpacing = 10;
         /// <summary>
+        /// Horizontal padding applied inside the body of each component section.
+        /// </summary>
+        const int SectionBodyPadding = 8;
+        /// <summary>
         /// Padding applied before the title text inside one component section header.
         /// </summary>
         const int SectionHeaderPadding = 8;
@@ -911,8 +915,9 @@ namespace helengine.editor {
         /// <param name="top">Top offset for the row.</param>
         /// <param name="height">Row height.</param>
         void LayoutRow(ComponentPropertyRow row, int width, int top, int height) {
-            row.Entity.Position = new float3(0, top, 0.2f);
-            int labelWidth = Math.Min(LabelWidth, width);
+            int bodyWidth = Math.Max(0, width - SectionBodyPadding * 2);
+            row.Entity.Position = new float3(SectionBodyPadding, top, 0.2f);
+            int labelWidth = Math.Min(LabelWidth, bodyWidth);
 
             var labelMetrics = Font.MeasureTight(row.Label.Text ?? string.Empty);
             float labelY = GetTextTopOffset(height, labelMetrics);
@@ -921,22 +926,22 @@ namespace helengine.editor {
 
             switch (row.Kind) {
                 case ComponentPropertyRowKind.Header:
-                    LayoutHeaderRow(row, width, height);
+                    LayoutHeaderRow(row, bodyWidth, height);
                     break;
                 case ComponentPropertyRowKind.Vector3:
-                    LayoutVectorRow(row, width, height, labelWidth);
+                    LayoutVectorRow(row, bodyWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Material:
-                    LayoutMaterialRow(row, width, height, labelWidth);
+                    LayoutMaterialRow(row, bodyWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Model:
-                    LayoutMaterialRow(row, width, height, labelWidth);
+                    LayoutMaterialRow(row, bodyWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Scalar:
-                    LayoutScalarRow(row, width, height, labelWidth);
+                    LayoutScalarRow(row, bodyWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.ReadOnly:
-                    LayoutReadOnlyRow(row, width, height, labelWidth);
+                    LayoutReadOnlyRow(row, bodyWidth, height, labelWidth);
                     break;
                 default:
                     break;
@@ -1162,6 +1167,7 @@ namespace helengine.editor {
             section.RemoveButton.UseHoverOnlyBackground();
             section.RemoveButton.UseSquareCorners();
             section.RemoveButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
+            UpdateSectionHeaderVisual(section);
             interactable.CursorEvent += (pos, delta, state) => HandleSectionHeaderCursor(section, pos, state);
 
             return section;
@@ -1174,9 +1180,26 @@ namespace helengine.editor {
         /// <param name="pos">Pointer position relative to the header.</param>
         /// <param name="state">Current pointer state.</param>
         void HandleSectionHeaderCursor(ComponentSectionView section, int2 pos, PointerInteraction state) {
-            if (section == null || state != PointerInteraction.Press) {
+            if (section == null) {
                 return;
             }
+
+            if (state == PointerInteraction.Hover) {
+                section.IsHeaderHovered = true;
+                UpdateSectionHeaderVisual(section);
+                return;
+            }
+
+            if (state == PointerInteraction.Leave) {
+                section.IsHeaderHovered = false;
+                UpdateSectionHeaderVisual(section);
+                return;
+            }
+
+            if (state != PointerInteraction.Press) {
+                return;
+            }
+
             if (IsPointerOverSectionRemoveButton(pos, section.Background.Size.X)) {
                 return;
             }
@@ -1214,6 +1237,23 @@ namespace helengine.editor {
                    pos.X <= headerWidth &&
                    pos.Y >= 0 &&
                    pos.Y <= SectionHeaderHeight;
+        }
+
+        /// <summary>
+        /// Updates one component section header to reflect the current hover state.
+        /// </summary>
+        /// <param name="section">Section whose header chrome should be refreshed.</param>
+        void UpdateSectionHeaderVisual(ComponentSectionView section) {
+            if (section == null) {
+                throw new ArgumentNullException(nameof(section));
+            }
+
+            section.Background.Color = section.IsHeaderHovered
+                ? ThemeManager.Colors.AccentPrimary
+                : ThemeManager.Colors.AccentSecondary;
+            section.TitleText.Color = section.IsHeaderHovered
+                ? ThemeManager.Colors.TextOnAccent
+                : ThemeManager.Colors.InputForegroundPrimary;
         }
 
         /// <summary>

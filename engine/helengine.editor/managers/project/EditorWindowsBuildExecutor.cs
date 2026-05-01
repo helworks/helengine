@@ -216,7 +216,12 @@ namespace helengine.editor {
             return
                 "using cs2.cpp;\n" +
                 "\n" +
-                "CPPCodeConverter converter = new CPPCodeConverter();\n" +
+                "CPPConversionOptions options = CPPConversionOptions.CreateDefault();\n" +
+                "options.LoadNativeRuntimeMetadata = false;\n" +
+                "options.WriteConversionReport = true;\n" +
+                "\n" +
+                "CPPConversionRules rules = new CPPConversionRules();\n" +
+                "CPPCodeConverter converter = new CPPCodeConverter(rules, options);\n" +
                 "converter.AddCsproj(@\"" + EscapeForCSharpVerbatimString(helEngineCoreProjectPath) + "\");\n" +
                 "converter.WriteOutput(@\"" + EscapeForCSharpVerbatimString(generatedSourceRootPath) + "\");\n";
         }

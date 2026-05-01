@@ -76,10 +76,10 @@ namespace helengine {
                 throw new InvalidOperationException($"Content processor '{registration.ProcessorId}' is already registered.");
             }
 
-            IReadOnlyList<string> extensions = registration.Extensions;
-            if (extensions.Count > 0) {
+            string[] extensions = registration.Extensions;
+            if (extensions.Length > 0) {
                 Dictionary<string, ContentProcessorRegistration> registrationsByExtension = GetOrCreateTypeRegistrationMap(registration.OutputType);
-                for (int extensionIndex = 0; extensionIndex < extensions.Count; extensionIndex++) {
+                for (int extensionIndex = 0; extensionIndex < extensions.Length; extensionIndex++) {
                     string extension = NormalizeExtension(extensions[extensionIndex]);
                     if (registrationsByExtension.ContainsKey(extension)) {
                         throw new InvalidOperationException(
@@ -100,7 +100,7 @@ namespace helengine {
         /// <param name="processorId">Stable identifier used to select the processor explicitly.</param>
         /// <param name="processor">Processor instance that parses the content.</param>
         /// <param name="extensions">Optional supported file extensions, including or omitting the leading dot. Use <c>*</c> to match any extension.</param>
-        public void RegisterProcessor<T>(string processorId, IContentProcessor<T> processor, IReadOnlyList<string> extensions = null) {
+        public void RegisterProcessor<T>(string processorId, IContentProcessor<T> processor, string[] extensions = null) {
             if (processor == null) {
                 throw new ArgumentNullException(nameof(processor));
             }

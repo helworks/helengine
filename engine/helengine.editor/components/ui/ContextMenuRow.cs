@@ -49,6 +49,12 @@ namespace helengine.editor {
         /// Raised when the row is activated by a click.
         /// </summary>
         public event Action<ContextMenuRow> Activated;
+
+        /// <summary>
+        /// Raised when the pointer first presses on the row.
+        /// </summary>
+        public event Action<ContextMenuRow> Pressed;
+
         /// <summary>
         /// Raised when the row is hovered by the pointer.
         /// </summary>
@@ -87,6 +93,11 @@ namespace helengine.editor {
         /// Gets or sets the menu item assigned to this row.
         /// </summary>
         public ContextMenuItem Item { get; set; }
+
+        /// <summary>
+        /// Gets or sets the descriptor currently rendered by this row.
+        /// </summary>
+        public EditorComponentAddDescriptor CurrentDescriptor { get; set; }
 
         /// <summary>
         /// Gets or sets the base color used when idle.
@@ -156,6 +167,9 @@ namespace helengine.editor {
                     break;
                 case PointerInteraction.Press:
                     IsPressed = true;
+                    if (Pressed != null) {
+                        Pressed(this);
+                    }
                     break;
                 case PointerInteraction.Release:
                     bool shouldActivate = IsPressed && IsHovering;

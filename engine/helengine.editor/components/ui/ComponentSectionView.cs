@@ -80,5 +80,10 @@ namespace helengine.editor {
         /// Gets or sets a value indicating whether the section body is currently collapsed.
         /// </summary>
         public bool IsCollapsed { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the section header is currently hovered.
+        /// </summary>
+        public bool IsHeaderHovered { get; set; }
     }
 }

@@ -63,6 +63,10 @@ namespace helengine.editor {
         /// Horizontal spacing between the header text and the close button.
         /// </summary>
         const int HeaderButtonSpacing = 8;
+        /// <summary>
+        /// Width reserved on the right side of the host title bar so the window buttons stay interactive.
+        /// </summary>
+        const int HostTitleBarButtonGapWidth = EditorTitleBar.HeightPixels * 4;
 
         /// <summary>
         /// Font used for header and list labels.
@@ -73,13 +77,29 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity BackdropRoot;
         /// <summary>
+        /// Root entity hosting the title-bar backdrop strip.
+        /// </summary>
+        readonly EditorEntity BackdropTopRoot;
+        /// <summary>
+        /// Dimming surface rendered across the title-bar area while leaving the window buttons free.
+        /// </summary>
+        readonly SpriteComponent BackdropTopSurface;
+        /// <summary>
+        /// Interactable that absorbs pointer input over the title-bar backdrop strip.
+        /// </summary>
+        readonly InteractableComponent BackdropTopInteractable;
+        /// <summary>
+        /// Root entity hosting the editor-content backdrop block.
+        /// </summary>
+        readonly EditorEntity BackdropBodyRoot;
+        /// <summary>
         /// Fullscreen dimming surface rendered behind the picker panel.
         /// </summary>
-        readonly SpriteComponent BackdropSurface;
+        readonly SpriteComponent BackdropBodySurface;
         /// <summary>
         /// Fullscreen interactable that absorbs pointer input outside the panel.
         /// </summary>
-        readonly InteractableComponent BackdropInteractable;
+        readonly InteractableComponent BackdropBodyInteractable;
         /// <summary>
         /// Root entity for the picker panel.
         /// </summary>
@@ -190,18 +210,45 @@ namespace helengine.editor {
             };
             AddChild(BackdropRoot);
 
-            BackdropSurface = new SpriteComponent {
+            BackdropTopRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BackdropRoot.AddChild(BackdropTopRoot);
+
+            BackdropTopSurface = new SpriteComponent {
                 Texture = TextureUtils.PixelTexture,
                 Color = new byte4(0, 0, 0, 144),
                 RenderOrder2D = BackdropOrder,
                 Size = new int2(0, 0)
             };
-            BackdropRoot.AddComponent(BackdropSurface);
+            BackdropTopRoot.AddComponent(BackdropTopSurface);
 
-            BackdropInteractable = new InteractableComponent {
+            BackdropTopInteractable = new InteractableComponent {
                 Size = new int2(0, 0)
             };
-            BackdropRoot.AddComponent(BackdropInteractable);
+            BackdropTopRoot.AddComponent(BackdropTopInteractable);
+
+            BackdropBodyRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BackdropRoot.AddChild(BackdropBodyRoot);
+
+            BackdropBodySurface = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = new byte4(0, 0, 0, 144),
+                RenderOrder2D = BackdropOrder,
+                Size = new int2(0, 0)
+            };
+            BackdropBodyRoot.AddComponent(BackdropBodySurface);
+
+            BackdropBodyInteractable = new InteractableComponent {
+                Size = new int2(0, 0)
+            };
+            BackdropBodyRoot.AddComponent(BackdropBodyInteractable);
 
             PanelRoot = new EditorEntity {
                 LayerMask = LayerMask,
@@ -329,9 +376,7 @@ namespace helengine.editor {
             IsDragging = false;
             PickedCallback = null;
             BrowserView.ClearExtensionFilter();
-            BackdropSurface.Size = new int2(0, 0);
-            BackdropInteractable.Size = new int2(0, 0);
-            EditorInputCaptureService.ClearBlocker(this);
+            HideBackdrop();
             Enabled = false;
         }
 
@@ -346,7 +391,7 @@ namespace helengine.editor {
             }
 
             if (!Enabled) {
-                EditorInputCaptureService.ClearBlocker(this);
+                HideBackdrop();
                 return;
             }
 
@@ -363,8 +408,7 @@ namespace helengine.editor {
 
             PanelSize = new int2(panelWidth, panelHeight);
             PanelBackground.Size = PanelSize;
-            BackdropSurface.Size = HostSize;
-            BackdropInteractable.Size = HostSize;
+            UpdateBackdrop();
             if (!IsUserPositioned) {
                 int panelX = Math.Max(0, (width - panelWidth) / 2);
                 int panelY = Math.Max(0, (height - panelHeight) / 2);
@@ -372,10 +416,33 @@ namespace helengine.editor {
             }
             ClampPanelPosition();
             ApplyPanelPosition();
-            EditorInputCaptureService.SetBlocker(this, new int2(0, 0), HostSize);
 
             LayoutHeader(panelWidth);
             LayoutBrowserView(panelWidth, panelHeight);
+        }
+
+        /// <summary>
+        /// Hides the backdrop geometry when the modal is not visible.
+        /// </summary>
+        void HideBackdrop() {
+            BackdropTopSurface.Size = new int2(0, 0);
+            BackdropTopInteractable.Size = new int2(0, 0);
+            BackdropBodySurface.Size = new int2(0, 0);
+            BackdropBodyInteractable.Size = new int2(0, 0);
+        }
+
+        /// <summary>
+        /// Updates the backdrop geometry so the host title-bar buttons remain clickable.
+        /// </summary>
+        void UpdateBackdrop() {
+            int topWidth = Math.Max(0, HostSize.X - HostTitleBarButtonGapWidth);
+            BackdropTopRoot.Position = float3.Zero;
+            BackdropTopSurface.Size = new int2(topWidth, EditorTitleBar.HeightPixels);
+            BackdropTopInteractable.Size = new int2(topWidth, EditorTitleBar.HeightPixels);
+            BackdropBodyRoot.Position = new float3(0f, EditorTitleBar.HeightPixels, 0f);
+            int bodyHeight = Math.Max(0, HostSize.Y - EditorTitleBar.HeightPixels);
+            BackdropBodySurface.Size = new int2(HostSize.X, bodyHeight);
+            BackdropBodyInteractable.Size = new int2(HostSize.X, bodyHeight);
         }
 
         /// <summary>

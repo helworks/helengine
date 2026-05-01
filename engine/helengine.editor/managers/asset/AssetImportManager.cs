@@ -152,8 +152,8 @@ namespace helengine.editor {
                 registration.ImporterId,
                 new TextureImporterContentProcessor(registration.Importer),
                 registration.Extensions);
-            IReadOnlyList<string> extensions = registration.Extensions;
-            for (int i = 0; i < extensions.Count; i++) {
+            string[] extensions = registration.Extensions;
+            for (int i = 0; i < extensions.Length; i++) {
                 string extension = NormalizeExtension(extensions[i]);
                 if (defaultTextImportersByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a text importer.");
@@ -195,8 +195,8 @@ namespace helengine.editor {
                 registration.ImporterId,
                 new TextImporterContentProcessor(registration.Importer),
                 registration.Extensions);
-            IReadOnlyList<string> extensions = registration.Extensions;
-            for (int i = 0; i < extensions.Count; i++) {
+            string[] extensions = registration.Extensions;
+            for (int i = 0; i < extensions.Length; i++) {
                 string extension = NormalizeExtension(extensions[i]);
                 if (defaultTextureImportersByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a texture importer.");
@@ -238,8 +238,8 @@ namespace helengine.editor {
                 registration.ImporterId,
                 new ModelImporterContentProcessor(registration.Importer),
                 registration.Extensions);
-            IReadOnlyList<string> extensions = registration.Extensions;
-            for (int i = 0; i < extensions.Count; i++) {
+            string[] extensions = registration.Extensions;
+            for (int i = 0; i < extensions.Length; i++) {
                 string extension = NormalizeExtension(extensions[i]);
                 if (defaultTextureImportersByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a texture importer.");

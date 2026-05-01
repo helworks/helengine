@@ -350,11 +350,11 @@ namespace helengine.editor {
                 RenderOrder2D = ToolbarSurfaceOrder
             };
             ToolbarRoot.AddComponent(ToolbarBackground);
-            AddComponent(new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight));
 
             InitializeToolButtons();
             InitializeGridButton();
             InitializeSnapControls();
+            AddComponent(new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight, false));
             ToolMode = EditorViewportToolService.GetToolMode(Camera);
             RefreshRenderOrderBias();
             UpdateViewport();

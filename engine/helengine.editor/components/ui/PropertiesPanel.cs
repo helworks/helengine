@@ -35,6 +35,18 @@ namespace helengine.editor {
         /// Spacing between transform controls and component properties.
         /// </summary>
         const int ComponentSectionSpacing = 10;
+        /// <summary>
+        /// Height of the add-component button.
+        /// </summary>
+        const int AddComponentButtonHeight = 24;
+        /// <summary>
+        /// Vertical spacing inserted after the add-component button before the component list.
+        /// </summary>
+        const int AddComponentListSpacing = 8;
+        /// <summary>
+        /// Horizontal padding added to the computed add-component button width.
+        /// </summary>
+        const int AddComponentButtonPadding = 16;
 
         /// <summary>
         /// Font used for property text.
@@ -97,9 +109,25 @@ namespace helengine.editor {
         /// </summary>
         readonly ComponentPropertiesView ComponentView;
         /// <summary>
+        /// Root entity hosting the add-component button.
+        /// </summary>
+        readonly EditorEntity AddComponentButtonRoot;
+        /// <summary>
+        /// Button used to open the add-component modal.
+        /// </summary>
+        readonly ButtonComponent AddComponentButton;
+        /// <summary>
+        /// Modal picker listing the components that can currently be added.
+        /// </summary>
+        readonly ComponentAddDialog AddComponentDialog;
+        /// <summary>
         /// Confirmation dialog shown before removing one component from the selected entity.
         /// </summary>
         readonly RemoveComponentDialog RemoveComponentDialog;
+        /// <summary>
+        /// Shared root entity that keeps screen-wide dialogs outside the docked panel tree.
+        /// </summary>
+        readonly EditorEntity ModalHost;
         /// <summary>
         /// Row entity for the entity name field.
         /// </summary>
@@ -201,6 +229,18 @@ namespace helengine.editor {
         /// </summary>
         bool ApplyTransformRequested;
         /// <summary>
+        /// Cached host width used when laying out the screen-wide modal dialogs.
+        /// </summary>
+        int ModalHostWidth;
+        /// <summary>
+        /// Cached host height used when laying out the screen-wide modal dialogs.
+        /// </summary>
+        int ModalHostHeight;
+        /// <summary>
+        /// Cached width used by the add-component button.
+        /// </summary>
+        readonly int AddComponentButtonWidth;
+        /// <summary>
         /// Currently selected asset entry, if any.
         /// </summary>
         AssetBrowserEntry currentEntry;
@@ -219,7 +259,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager) : this(font, contentManager, null) { }
+        public PropertiesPanel(FontAsset font, ContentManager contentManager) : this(font, contentManager, null, new EditorEntity()) { }
 
         /// <summary>
         /// Initializes a new properties panel with the provided font.
@@ -227,15 +267,29 @@ namespace helengine.editor {
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
         /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver) : base(font) {
+        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver) : this(font, contentManager, fileSystemModelResolver, new EditorEntity()) { }
+
+        /// <summary>
+        /// Initializes a new properties panel with the provided font and modal host.
+        /// </summary>
+        /// <param name="font">Font used for the title bar.</param>
+        /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
+        /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
+        /// <param name="modalHost">Shared root entity used to host screen-wide dialogs.</param>
+        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorEntity modalHost) : base(font) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
             if (contentManager == null) {
                 throw new ArgumentNullException(nameof(contentManager));
             }
+            if (modalHost == null) {
+                throw new ArgumentNullException(nameof(modalHost));
+            }
 
             this.font = font;
+            ModalHost = modalHost;
+            AddComponentButtonWidth = Math.Max(128, (int)Math.Ceiling(font.MeasureTight("Add Component").Width) + AddComponentButtonPadding);
             Title = "Property Manager";
             MinSize = new int2(220, 160);
 
@@ -276,10 +330,30 @@ namespace helengine.editor {
             ComponentView.RemoveRequested += HandleComponentRemoveRequested;
             contentRoot.AddChild(ComponentView.Root);
 
+            AddComponentButtonRoot = new EditorEntity();
+            AddComponentButtonRoot.LayerMask = LayerMask;
+            AddComponentButtonRoot.Position = float3.Zero;
+            AddComponentButtonRoot.Enabled = true;
+            contentRoot.AddChild(AddComponentButtonRoot);
+
+            AddComponentButton = new ButtonComponent("Add Component", new int2(AddComponentButtonWidth, AddComponentButtonHeight), font, HandleAddComponentClicked, 0f);
+            AddComponentButton.UseSquareCorners();
+            AddComponentButton.SetHoverCursor(PointerCursorKind.Hand);
+            AddComponentButtonRoot.AddComponent(AddComponentButton);
+            AddComponentButtonRoot.Enabled = false;
+
+            AddComponentDialog = new ComponentAddDialog(font);
+            AddComponentDialog.ComponentSelected += HandleAddComponentSelected;
+            ModalHost.LayerMask = LayerMask;
+            ModalHost.Position = float3.Zero;
+            ModalHost.InternalEntity = true;
+            ModalHost.Enabled = true;
+            ModalHost.AddChild(AddComponentDialog);
+
             RemoveComponentDialog = new RemoveComponentDialog(font);
             RemoveComponentDialog.ConfirmRequested += HandleRemoveComponentConfirmed;
             RemoveComponentDialog.CancelRequested += HandleRemoveComponentCanceled;
-            AddChild(RemoveComponentDialog);
+            ModalHost.AddChild(RemoveComponentDialog);
 
             CreateNameRow(out NameRow, out NameLabel, out NameFieldHost, out NameField);
             CreateTransformRow("Position", out PositionRow, out PositionLabel, out PositionFieldHosts, out PositionFields);
@@ -480,6 +554,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Updates the screen-wide modal dialogs using the current host window size.
+        /// </summary>
+        /// <param name="windowWidth">Current host window width.</param>
+        /// <param name="windowHeight">Current host window height.</param>
+        public void UpdateModalLayout(int windowWidth, int windowHeight) {
+            ModalHostWidth = Math.Max(1, windowWidth);
+            ModalHostHeight = Math.Max(1, windowHeight);
+            AddComponentDialog.UpdateLayout(ModalHostWidth, ModalHostHeight);
+            RemoveComponentDialog.UpdateLayout(ModalHostWidth, ModalHostHeight);
+        }
+
+        /// <summary>
         /// Opens the remove-component confirmation dialog for the supplied component.
         /// </summary>
         /// <param name="component">Component pending removal.</param>
@@ -494,7 +580,9 @@ namespace helengine.editor {
             PendingRemovalComponent = component;
             string entityName = SelectedEntity is EditorEntity editorEntity ? editorEntity.Name : SelectedEntity.GetType().Name;
             RemoveComponentDialog.Show(entityName, FormatComponentTitle(component.GetType().Name));
-            RemoveComponentDialog.UpdateLayout(Size.X, Size.Y);
+            if (ModalHostWidth > 0 && ModalHostHeight > 0) {
+                RemoveComponentDialog.UpdateLayout(ModalHostWidth, ModalHostHeight);
+            }
         }
 
         /// <summary>
@@ -690,6 +778,7 @@ namespace helengine.editor {
             if (!visible) {
                 SelectedEntity = null;
                 ApplyTransformRequested = false;
+                AddComponentButtonRoot.Enabled = false;
             }
         }
 
@@ -1188,14 +1277,15 @@ namespace helengine.editor {
             if (ShowTransformControls) {
                 int transformTop = (int)Math.Round(offsetY);
                 UpdateTransformLayout(transformTop, maxWidth);
-                int componentTop = transformTop + GetTransformSectionHeight() + ComponentSectionSpacing;
-                ComponentView.UpdateLayout(ContentPadding, componentTop, maxWidth);
+                int addComponentTop = transformTop + GetTransformSectionHeight() + ComponentSectionSpacing;
+                LayoutAddComponentButton(addComponentTop, maxWidth);
+                int componentTop = addComponentTop + AddComponentButtonHeight + AddComponentListSpacing;
+                ComponentView.UpdateLayout(0, componentTop, rowWidth);
             } else {
                 TransformRoot.Enabled = false;
+                AddComponentButtonRoot.Enabled = false;
                 ComponentView.Hide();
             }
-
-            RemoveComponentDialog.UpdateLayout(Size.X, Size.Y);
         }
 
         /// <summary>
@@ -1213,6 +1303,52 @@ namespace helengine.editor {
         void HideRemoveComponentDialog() {
             PendingRemovalComponent = null;
             RemoveComponentDialog.Hide();
+        }
+
+        /// <summary>
+        /// Handles activation of the add-component button.
+        /// </summary>
+        void HandleAddComponentClicked() {
+            if (SelectedEntity == null || SelectedEntity is not EditorEntity) {
+                return;
+            }
+
+            AddComponentDialog.Show((EditorEntity)SelectedEntity);
+            if (ModalHostWidth > 0 && ModalHostHeight > 0) {
+                AddComponentDialog.UpdateLayout(ModalHostWidth, ModalHostHeight);
+            }
+        }
+
+        /// <summary>
+        /// Adds one selected component to the current entity and refreshes the properties view.
+        /// </summary>
+        /// <param name="descriptor">Descriptor that defines the component to add.</param>
+        void HandleAddComponentSelected(EditorComponentAddDescriptor descriptor) {
+            if (descriptor == null) {
+                throw new ArgumentNullException(nameof(descriptor));
+            }
+            if (SelectedEntity == null) {
+                return;
+            }
+
+            descriptor.AddAction(SelectedEntity);
+            EditorSceneMutationService.MarkSceneMutated();
+            ShowEntityProperties(SelectedEntity);
+        }
+
+        /// <summary>
+        /// Positions the add-component button above the component list.
+        /// </summary>
+        /// <param name="top">Top offset within the content root.</param>
+        void LayoutAddComponentButton(int top, int width) {
+            if (SelectedEntity == null || SelectedEntity is not EditorEntity) {
+                AddComponentButtonRoot.Enabled = false;
+                return;
+            }
+
+            AddComponentButtonRoot.Enabled = true;
+            AddComponentButtonRoot.Position = new float3(ContentPadding, top, 0.2f);
+            AddComponentButton.SetSize(new int2(Math.Max(0, width), AddComponentButtonHeight));
         }
 
         /// <summary>
