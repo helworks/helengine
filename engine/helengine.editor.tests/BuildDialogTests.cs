@@ -620,6 +620,72 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the build dialog adds a bottom build-log section without shifting the existing footer controls.
+        /// </summary>
+        [Fact]
+        public void Show_WhenQueueItemsProvided_RendersBuildLogsBelowExistingControls() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = [
+                        new EditorBuildQueueItemDocument {
+                            QueueItemId = "queue-1",
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows",
+                            Status = EditorBuildQueueItemStatus.Done,
+                            StatusMessage = "Windows build completed."
+                        },
+                        new EditorBuildQueueItemDocument {
+                            QueueItemId = "queue-2",
+                            PlatformId = "linux",
+                            SelectedSceneIds = [
+                                "Scenes/Menu.helen"
+                            ],
+                            OutputDirectoryPath = "/tmp/linux-build",
+                            Status = EditorBuildQueueItemStatus.Pending
+                        }
+                    ]
+                });
+
+            EditorEntity addToBuildButtonHost = GetPrivateField<EditorEntity>(dialog, "AddToBuildButtonHost");
+            EditorEntity buildQueueButtonHost = GetPrivateField<EditorEntity>(dialog, "BuildQueueButtonHost");
+            EditorEntity buildLogsRoot = GetPrivateField<EditorEntity>(dialog, "BuildLogsRoot");
+            RoundedRectComponent buildLogsBackground = GetPrivateField<RoundedRectComponent>(dialog, "BuildLogsBackground");
+            RoundedRectComponent buildLogsProgressTrack = GetPrivateField<RoundedRectComponent>(dialog, "BuildLogsProgressTrack");
+            RoundedRectComponent buildLogsProgressFill = GetPrivateField<RoundedRectComponent>(dialog, "BuildLogsProgressFill");
+            TextComponent buildLogsText = GetPrivateField<TextComponent>(dialog, "BuildLogsText");
+
+            Assert.Equal(
+                BuildDialog.LegacyContentHeight - BuildDialog.HeaderHeight - BuildDialog.PanelPadding - BuildDialog.FooterButtonHeight - 8,
+                (int)buildQueueButtonHost.LocalPosition.Y);
+            Assert.True(buildLogsRoot.LocalPosition.Y > addToBuildButtonHost.LocalPosition.Y + BuildDialog.FooterButtonHeight);
+            Assert.Equal(BuildDialog.BuildLogsSectionHeight, buildLogsBackground.Size.Y);
+            Assert.True(buildLogsProgressTrack.Size.X > 0);
+            Assert.True(buildLogsProgressFill.Size.X > 0);
+            Assert.True(buildLogsProgressFill.Size.X < buildLogsProgressTrack.Size.X);
+            Assert.Contains("Progress:", buildLogsText.Text);
+            Assert.Contains("Windows build completed.", buildLogsText.Text);
+            Assert.Contains("linux | Pending", buildLogsText.Text);
+        }
+
+        /// <summary>
         /// Ensures the queue area is enclosed by a bordered section with its own header label.
         /// </summary>
         [Fact]
@@ -819,11 +885,13 @@ namespace helengine.editor.tests {
             TextComponent outputLabelText = GetPrivateField<TextComponent>(dialog, "OutputLabelText");
             List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
             List<TextComponent> queueItemTexts = GetPrivateField<List<TextComponent>>(dialog, "QueueItemTexts");
+            TextComponent buildLogsText = GetPrivateField<TextComponent>(dialog, "BuildLogsText");
 
             Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, copySourceLabelText.Color);
             Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, outputLabelText.Color);
             Assert.All(mapLabelTexts, label => Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, label.Color));
             Assert.All(queueItemTexts, label => Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, label.Color));
+            Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, buildLogsText.Color);
         }
 
         /// <summary>

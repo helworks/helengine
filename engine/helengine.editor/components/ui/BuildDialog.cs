@@ -10,7 +10,11 @@ namespace helengine.editor {
         /// <summary>
         /// Fixed panel height used by the dialog.
         /// </summary>
-        public const int PanelHeight = 560;
+        public const int PanelHeight = 720;
+        /// <summary>
+        /// Height used by the existing build-planning controls so their positions stay unchanged when the dialog grows.
+        /// </summary>
+        public const int LegacyContentHeight = 560;
         /// <summary>
         /// Height reserved for the draggable title bar.
         /// </summary>
@@ -103,6 +107,30 @@ namespace helengine.editor {
         /// Oscillation frequency used by the invalid scene-list shake effect.
         /// </summary>
         public const float SceneListShakeFrequencyHz = 16f;
+        /// <summary>
+        /// Height reserved for the dedicated build-log section beneath the existing controls.
+        /// </summary>
+        public const int BuildLogsSectionHeight = 160;
+        /// <summary>
+        /// Internal padding used inside the build-log section.
+        /// </summary>
+        const int BuildLogsPadding = 8;
+        /// <summary>
+        /// Height reserved for the build-log title row.
+        /// </summary>
+        const int BuildLogsTitleHeight = 18;
+        /// <summary>
+        /// Height reserved for the build-log progress bar.
+        /// </summary>
+        const int BuildLogsProgressBarHeight = 12;
+        /// <summary>
+        /// Height reserved for each visible build-log line.
+        /// </summary>
+        const int BuildLogLineHeight = 18;
+        /// <summary>
+        /// Maximum number of build-log lines shown at once.
+        /// </summary>
+        const int BuildLogVisibleLineCount = 5;
         /// <summary>
         /// Root entity for all left-side build-planning controls.
         /// </summary>
@@ -259,6 +287,46 @@ namespace helengine.editor {
         /// Button used to run all pending queued builds.
         /// </summary>
         readonly ButtonComponent BuildQueueButton;
+        /// <summary>
+        /// Root entity for the dedicated build-log section at the bottom of the dialog.
+        /// </summary>
+        readonly EditorEntity BuildLogsRoot;
+        /// <summary>
+        /// Bordered background surface rendered behind the build-log section.
+        /// </summary>
+        readonly RoundedRectComponent BuildLogsBackground;
+        /// <summary>
+        /// Host entity for the build-log section title.
+        /// </summary>
+        readonly EditorEntity BuildLogsTitleHost;
+        /// <summary>
+        /// Text component used to render the build-log section title.
+        /// </summary>
+        readonly TextComponent BuildLogsTitleText;
+        /// <summary>
+        /// Host entity for the build progress bar track.
+        /// </summary>
+        readonly EditorEntity BuildLogsProgressTrackHost;
+        /// <summary>
+        /// Background used as the progress bar track.
+        /// </summary>
+        readonly RoundedRectComponent BuildLogsProgressTrack;
+        /// <summary>
+        /// Host entity for the filled progress bar segment.
+        /// </summary>
+        readonly EditorEntity BuildLogsProgressFillHost;
+        /// <summary>
+        /// Filled progress bar segment indicating queue completion.
+        /// </summary>
+        readonly RoundedRectComponent BuildLogsProgressFill;
+        /// <summary>
+        /// Host entity for the build-log text block.
+        /// </summary>
+        readonly EditorEntity BuildLogsTextHost;
+        /// <summary>
+        /// Text component used to render the build log lines.
+        /// </summary>
+        readonly TextComponent BuildLogsText;
         /// <summary>
         /// Project-relative scene ids shown by the active tab.
         /// </summary>
@@ -514,6 +582,88 @@ namespace helengine.editor {
             BuildQueueButton = new ButtonComponent("Build Queue", new int2(FooterButtonWidth, FooterButtonHeight), DialogFont, HandleBuildQueueRequested);
             BuildQueueButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             BuildQueueButtonHost.AddComponent(BuildQueueButton);
+
+            BuildLogsRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            DialogPanelRoot.AddChild(BuildLogsRoot);
+
+            BuildLogsBackground = new RoundedRectComponent {
+                FillColor = ThemeManager.Colors.SurfacePrimary,
+                BorderColor = ThemeManager.Colors.AccentTertiary,
+                BorderThickness = 2f,
+                Radius = 6f,
+                RenderOrder2D = DialogPanelOrder,
+                Size = new int2(1, 1)
+            };
+            BuildLogsRoot.AddComponent(BuildLogsBackground);
+
+            BuildLogsTitleHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BuildLogsRoot.AddChild(BuildLogsTitleHost);
+
+            BuildLogsTitleText = new TextComponent {
+                Font = DialogFont,
+                Text = "Build Logs",
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                RenderOrder2D = DialogTextOrder
+            };
+            BuildLogsTitleHost.AddComponent(BuildLogsTitleText);
+
+            BuildLogsProgressTrackHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BuildLogsRoot.AddChild(BuildLogsProgressTrackHost);
+
+            BuildLogsProgressTrack = new RoundedRectComponent {
+                FillColor = ThemeManager.Colors.SurfaceInput,
+                BorderColor = ThemeManager.Colors.AccentTertiary,
+                BorderThickness = 1f,
+                Radius = 4f,
+                RenderOrder2D = DialogPanelOrder,
+                Size = new int2(1, BuildLogsProgressBarHeight)
+            };
+            BuildLogsProgressTrackHost.AddComponent(BuildLogsProgressTrack);
+
+            BuildLogsProgressFillHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BuildLogsProgressTrackHost.AddChild(BuildLogsProgressFillHost);
+
+            BuildLogsProgressFill = new RoundedRectComponent {
+                FillColor = ThemeManager.Colors.AccentSecondary,
+                BorderColor = ThemeManager.Colors.AccentSecondary,
+                BorderThickness = 0f,
+                Radius = 4f,
+                RenderOrder2D = DialogPanelOrder,
+                Size = new int2(1, BuildLogsProgressBarHeight - 2)
+            };
+            BuildLogsProgressFillHost.AddComponent(BuildLogsProgressFill);
+
+            BuildLogsTextHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BuildLogsRoot.AddChild(BuildLogsTextHost);
+
+            BuildLogsText = new TextComponent {
+                Font = DialogFont,
+                Text = string.Empty,
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                RenderOrder2D = DialogTextOrder,
+                Size = new int2(1, 1)
+            };
+            BuildLogsTextHost.AddComponent(BuildLogsText);
         }
 
         /// <summary>
@@ -545,6 +695,7 @@ namespace helengine.editor {
             RebuildPlatformTabs();
             RebuildActivePlatformSceneRows();
             RebuildQueueRows();
+            RebuildBuildLogs();
             LayoutStaticControls();
             UpdateDialogChromeLayout();
             CenterDialogIfNeeded();
@@ -997,10 +1148,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Rebuilds the bottom build-log section using the current persisted queue state.
+        /// </summary>
+        void RebuildBuildLogs() {
+            BuildLogsText.Text = BuildBuildLogText();
+        }
+
+        /// <summary>
         /// Anchors the copy-source, output-folder, and add-to-build controls to the lower portion of the left column.
         /// </summary>
         void LayoutLowerLeftControls() {
-            int addButtonY = PanelHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8;
+            int addButtonY = LegacyContentHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8;
             int outputFieldY = addButtonY - 16 - OutputFieldHeight;
             int outputLabelY = outputFieldY - 20;
             int copyComboY = outputLabelY - 16 - OutputFieldHeight;
@@ -1061,10 +1219,39 @@ namespace helengine.editor {
         /// Applies the static layout for the queue button based on the current panel geometry.
         /// </summary>
         void LayoutStaticControls() {
-            int buildQueueButtonY = PanelHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8;
+            int buildQueueButtonY = LegacyContentHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8;
             BuildQueueButtonHost.Position = new float3(0f, buildQueueButtonY, 0.1f);
             QueueListBackground.Size = new int2(QueueColumnWidth, GetQueueSectionHeight());
             QueueHeaderBackground.Size = new int2(QueueColumnWidth, QueueHeaderHeight);
+            LayoutBuildLogsSection();
+        }
+
+        /// <summary>
+        /// Positions and sizes the build-log section beneath the existing controls.
+        /// </summary>
+        void LayoutBuildLogsSection() {
+            int buildLogsTopY = PanelHeight - HeaderHeight - PanelPadding - BuildLogsSectionHeight;
+            int buildLogsWidth = PanelWidth - (PanelPadding * 2);
+            int buildLogsInnerWidth = buildLogsWidth - (BuildLogsPadding * 2);
+            int progressTrackY = BuildLogsPadding + BuildLogsTitleHeight + 6;
+            int progressTrackWidth = buildLogsInnerWidth;
+            int progressFillWidth = GetBuildLogProgressFillWidth(Math.Max(0, progressTrackWidth - 2));
+            int logTextY = progressTrackY + BuildLogsProgressBarHeight + 10;
+            int logTextHeight = Math.Max(1, BuildLogsSectionHeight - logTextY - BuildLogsPadding);
+
+            BuildLogsRoot.Position = new float3(PanelPadding, buildLogsTopY, 0.1f);
+            BuildLogsBackground.Size = new int2(buildLogsWidth, BuildLogsSectionHeight);
+
+            BuildLogsTitleHost.Position = new float3(BuildLogsPadding, BuildLogsPadding, 0.1f);
+            BuildLogsTitleText.Size = new int2(buildLogsInnerWidth, BuildLogsTitleHeight);
+
+            BuildLogsProgressTrackHost.Position = new float3(BuildLogsPadding, progressTrackY, 0.1f);
+            BuildLogsProgressTrack.Size = new int2(progressTrackWidth, BuildLogsProgressBarHeight);
+            BuildLogsProgressFillHost.Position = new float3(1f, 1f, 0.1f);
+            BuildLogsProgressFill.Size = new int2(progressFillWidth, BuildLogsProgressBarHeight - 2);
+
+            BuildLogsTextHost.Position = new float3(BuildLogsPadding, logTextY, 0.1f);
+            BuildLogsText.Size = new int2(buildLogsInnerWidth, Math.Max(BuildLogLineHeight, logTextHeight));
         }
 
         /// <summary>
@@ -1400,7 +1587,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Height available for the queue section chrome and cards.</returns>
         int GetQueueSectionHeight() {
-            return PanelHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 20;
+            return LegacyContentHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 20;
         }
 
         /// <summary>
@@ -1409,6 +1596,124 @@ namespace helengine.editor {
         /// <returns>Width available for the output-folder text box.</returns>
         int GetOutputFieldWidth() {
             return GetBuildColumnWidth() - BrowseButtonWidth - 8;
+        }
+
+        /// <summary>
+        /// Builds the multiline log text shown in the dedicated build-log section.
+        /// </summary>
+        /// <returns>Queued-build status summary text.</returns>
+        string BuildBuildLogText() {
+            if (CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null || CurrentBuildConfig.QueueItems.Count == 0) {
+                return string.Concat(
+                    "Progress: 0%",
+                    "\nNo queued builds yet.");
+            }
+
+            double progressFraction = GetBuildProgressFraction();
+            int completedCount = GetBuildCompletedCount();
+            int totalCount = CurrentBuildConfig.QueueItems.Count;
+            List<string> lines = new List<string>(BuildLogVisibleLineCount);
+            lines.Add(string.Concat(
+                "Progress: ",
+                Math.Round(progressFraction * 100d).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "% (",
+                completedCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "/",
+                totalCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                " complete)"));
+
+            int maxQueueLines = BuildLogVisibleLineCount - 2;
+            int queueLineCount = Math.Min(CurrentBuildConfig.QueueItems.Count, maxQueueLines);
+            for (int index = 0; index < queueLineCount; index++) {
+                lines.Add(BuildQueueLogLine(CurrentBuildConfig.QueueItems[index]));
+            }
+
+            if (CurrentBuildConfig.QueueItems.Count > maxQueueLines) {
+                int remainingCount = CurrentBuildConfig.QueueItems.Count - maxQueueLines;
+                lines.Add(string.Concat(
+                    "... and ",
+                    remainingCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    " more item(s)"));
+            }
+
+            return string.Join("\n", lines);
+        }
+
+        /// <summary>
+        /// Formats one persisted queue item into a log line.
+        /// </summary>
+        /// <param name="queueItem">Queued build item to format.</param>
+        /// <returns>Human-readable log line.</returns>
+        string BuildQueueLogLine(EditorBuildQueueItemDocument queueItem) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+
+            string line = queueItem.PlatformId + " | " + queueItem.Status;
+            if (!string.IsNullOrWhiteSpace(queueItem.StatusMessage)) {
+                line += " | " + queueItem.StatusMessage;
+            }
+
+            return line;
+        }
+
+        /// <summary>
+        /// Counts how many queue items have completed or failed.
+        /// </summary>
+        /// <returns>Number of queue items that are no longer pending.</returns>
+        int GetBuildCompletedCount() {
+            if (CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null) {
+                return 0;
+            }
+
+            int completedCount = 0;
+            for (int index = 0; index < CurrentBuildConfig.QueueItems.Count; index++) {
+                EditorBuildQueueItemStatus status = CurrentBuildConfig.QueueItems[index].Status;
+                if (status == EditorBuildQueueItemStatus.Done || status == EditorBuildQueueItemStatus.Failed || status == EditorBuildQueueItemStatus.Running) {
+                    completedCount++;
+                }
+            }
+
+            return completedCount;
+        }
+
+        /// <summary>
+        /// Computes the queue completion fraction used by the progress bar.
+        /// </summary>
+        /// <returns>Progress fraction from 0 to 1.</returns>
+        double GetBuildProgressFraction() {
+            if (CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null || CurrentBuildConfig.QueueItems.Count == 0) {
+                return 0d;
+            }
+
+            return (double)GetBuildCompletedCount() / CurrentBuildConfig.QueueItems.Count;
+        }
+
+        /// <summary>
+        /// Calculates the filled width for the build-log progress bar.
+        /// </summary>
+        /// <param name="trackWidth">Full progress bar track width.</param>
+        /// <returns>Filled progress bar width in pixels.</returns>
+        int GetBuildLogProgressFillWidth(int trackWidth) {
+            if (trackWidth <= 0) {
+                return 0;
+            }
+
+            double fraction = GetBuildProgressFraction();
+            if (fraction <= 0d) {
+                return 0;
+            }
+
+            int fillWidth = (int)Math.Round(trackWidth * fraction, MidpointRounding.AwayFromZero);
+            if (fillWidth < 1) {
+                fillWidth = 1;
+            }
+
+            if (fillWidth > trackWidth) {
+                fillWidth = trackWidth;
+            }
+
+            return fillWidth;
         }
 
         /// <summary>

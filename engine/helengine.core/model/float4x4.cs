@@ -4,8 +4,6 @@
 //
 // Additional modifications and work by Helena.
 
-using System.Numerics;
-
 namespace helengine {
     /// <summary>
     /// Represents a 4x4 matrix with single-precision elements and related math helpers.
@@ -355,22 +353,120 @@ namespace helengine {
         /// <param name="matrix">Matrix to invert and transpose.</param>
         /// <param name="result">Transposed inverse matrix.</param>
         public static void InverseTranspose(ref float4x4 matrix, out float4x4 result) {
-            Matrix4x4 source = new Matrix4x4(
-                matrix.M11, matrix.M12, matrix.M13, matrix.M14,
-                matrix.M21, matrix.M22, matrix.M23, matrix.M24,
-                matrix.M31, matrix.M32, matrix.M33, matrix.M34,
-                matrix.M41, matrix.M42, matrix.M43, matrix.M44);
-
-            if (!Matrix4x4.Invert(source, out Matrix4x4 inverted)) {
+            if (!TryInvert(ref matrix, out float4x4 inverted)) {
                 throw new InvalidOperationException("Cannot invert a non-invertible transform matrix.");
             }
 
-            Matrix4x4 transposed = Matrix4x4.Transpose(inverted);
-            result = new float4x4(
-                transposed.M11, transposed.M12, transposed.M13, transposed.M14,
-                transposed.M21, transposed.M22, transposed.M23, transposed.M24,
-                transposed.M31, transposed.M32, transposed.M33, transposed.M34,
-                transposed.M41, transposed.M42, transposed.M43, transposed.M44);
+            Transpose(ref inverted, out result);
+        }
+
+        /// <summary>
+        /// Attempts to invert one matrix using Gauss-Jordan elimination with partial pivoting.
+        /// </summary>
+        /// <param name="matrix">Matrix to invert.</param>
+        /// <param name="result">Inverted matrix when the operation succeeds.</param>
+        /// <returns>True when the matrix was invertible; otherwise false.</returns>
+        static bool TryInvert(ref float4x4 matrix, out float4x4 result) {
+            double[] augmented = new double[32];
+
+            augmented[0] = matrix.M11;
+            augmented[1] = matrix.M12;
+            augmented[2] = matrix.M13;
+            augmented[3] = matrix.M14;
+            augmented[4] = 1.0;
+            augmented[5] = 0.0;
+            augmented[6] = 0.0;
+            augmented[7] = 0.0;
+
+            augmented[8] = matrix.M21;
+            augmented[9] = matrix.M22;
+            augmented[10] = matrix.M23;
+            augmented[11] = matrix.M24;
+            augmented[12] = 0.0;
+            augmented[13] = 1.0;
+            augmented[14] = 0.0;
+            augmented[15] = 0.0;
+
+            augmented[16] = matrix.M31;
+            augmented[17] = matrix.M32;
+            augmented[18] = matrix.M33;
+            augmented[19] = matrix.M34;
+            augmented[20] = 0.0;
+            augmented[21] = 0.0;
+            augmented[22] = 1.0;
+            augmented[23] = 0.0;
+
+            augmented[24] = matrix.M41;
+            augmented[25] = matrix.M42;
+            augmented[26] = matrix.M43;
+            augmented[27] = matrix.M44;
+            augmented[28] = 0.0;
+            augmented[29] = 0.0;
+            augmented[30] = 0.0;
+            augmented[31] = 1.0;
+
+            for (int pivotIndex = 0; pivotIndex < 4; pivotIndex++) {
+                int pivotRow = pivotIndex;
+                double pivotValue = Math.Abs(augmented[(pivotRow * 8) + pivotIndex]);
+                for (int row = pivotIndex + 1; row < 4; row++) {
+                    double candidateValue = Math.Abs(augmented[(row * 8) + pivotIndex]);
+                    if (candidateValue > pivotValue) {
+                        pivotValue = candidateValue;
+                        pivotRow = row;
+                    }
+                }
+
+                if (pivotValue <= 0.0) {
+                    result = new float4x4();
+                    return false;
+                }
+
+                if (pivotRow != pivotIndex) {
+                    for (int col = 0; col < 8; col++) {
+                        double swap = augmented[(pivotIndex * 8) + col];
+                        augmented[(pivotIndex * 8) + col] = augmented[(pivotRow * 8) + col];
+                        augmented[(pivotRow * 8) + col] = swap;
+                    }
+                }
+
+                double divisor = augmented[(pivotIndex * 8) + pivotIndex];
+                for (int col = 0; col < 8; col++) {
+                    augmented[(pivotIndex * 8) + col] /= divisor;
+                }
+
+                for (int row = 0; row < 4; row++) {
+                    if (row == pivotIndex) {
+                        continue;
+                    }
+
+                    double factor = augmented[(row * 8) + pivotIndex];
+                    if (factor == 0.0) {
+                        continue;
+                    }
+
+                    for (int col = 0; col < 8; col++) {
+                        augmented[(row * 8) + col] -= factor * augmented[(pivotIndex * 8) + col];
+                    }
+                }
+            }
+
+            result.M11 = (float)augmented[4];
+            result.M12 = (float)augmented[5];
+            result.M13 = (float)augmented[6];
+            result.M14 = (float)augmented[7];
+            result.M21 = (float)augmented[12];
+            result.M22 = (float)augmented[13];
+            result.M23 = (float)augmented[14];
+            result.M24 = (float)augmented[15];
+            result.M31 = (float)augmented[20];
+            result.M32 = (float)augmented[21];
+            result.M33 = (float)augmented[22];
+            result.M34 = (float)augmented[23];
+            result.M41 = (float)augmented[28];
+            result.M42 = (float)augmented[29];
+            result.M43 = (float)augmented[30];
+            result.M44 = (float)augmented[31];
+            return true;
         }
 
         /// <summary>
