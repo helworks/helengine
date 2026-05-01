@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Packages selected editor scenes and their required runtime assets into one Windows player content root.
     /// </summary>
-    public sealed class EditorWindowsBuildScenePackager {
+    public sealed class EditorPlatformBuildScenePackager {
         /// <summary>
         /// Relative packaged scene path used as the Windows startup scene.
         /// </summary>
@@ -127,7 +127,7 @@ namespace helengine.editor {
         /// Initializes one Windows scene packager for the supplied project root.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
-        public EditorWindowsBuildScenePackager(string projectRootPath)
+        public EditorPlatformBuildScenePackager(string projectRootPath)
             : this(projectRootPath, Array.Empty<IAssetImporterRegistration>()) {
         }
 
@@ -136,7 +136,17 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
         /// <param name="importers">Importer registrations supplied by the editor host.</param>
-        public EditorWindowsBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers) {
+        public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers)
+            : this(projectRootPath, importers, "windows") {
+        }
+
+        /// <summary>
+        /// Initializes one scene packager for the supplied project root, importer registrations, and target platform id.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative project root path.</param>
+        /// <param name="importers">Importer registrations supplied by the editor host.</param>
+        /// <param name="targetPlatformId">Platform id that should be reported to the asset-import pipeline.</param>
+        public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers, string targetPlatformId) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -151,7 +161,7 @@ namespace helengine.editor {
 
             ContentManager importContentManager = new ContentManager(AssetsRootPath);
             AssetImportManager = new AssetImportManager(ProjectRootPath, importContentManager);
-            AssetImportManager.CurrentPlatformId = "windows";
+            AssetImportManager.CurrentPlatformId = string.IsNullOrWhiteSpace(targetPlatformId) ? "windows" : targetPlatformId;
             Importers = importers;
             for (int index = 0; index < Importers.Count; index++) {
                 IAssetImporterRegistration registration = Importers[index];
@@ -172,7 +182,7 @@ namespace helengine.editor {
         /// <param name="sceneIds">Project-relative scene ids selected for the build.</param>
         /// <param name="buildRootPath">Absolute build root path that will host the packaged content.</param>
         /// <returns>Scene-packaging result that carries the referenced shader ids.</returns>
-        public EditorWindowsBuildScenePackagerResult Package(IReadOnlyList<string> sceneIds, string buildRootPath) {
+        public EditorPlatformBuildScenePackagerResult Package(IReadOnlyList<string> sceneIds, string buildRootPath) {
             if (sceneIds == null) {
                 throw new ArgumentNullException(nameof(sceneIds));
             }
@@ -202,7 +212,7 @@ namespace helengine.editor {
                 }
             }
 
-            return new EditorWindowsBuildScenePackagerResult(ReferencedShaderAssetIds);
+            return new EditorPlatformBuildScenePackagerResult(ReferencedShaderAssetIds);
         }
 
         /// <summary>

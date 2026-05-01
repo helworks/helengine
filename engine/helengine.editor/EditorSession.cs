@@ -459,16 +459,7 @@ namespace helengine.editor {
             profileSettingsService = new EditorProfileSettingsService(this.projectPath);
             buildQueueService = new EditorBuildQueueService(
                 buildConfigService,
-                new EditorBuildExecutorRouter(new Dictionary<string, IEditorBuildExecutor>(StringComparer.OrdinalIgnoreCase) {
-                    {
-                        "windows",
-                        new EditorWindowsBuildExecutor(this.projectPath, RequiredEngineVersion, Importers)
-                    },
-                    {
-                        "ps2",
-                        new EditorPs2BuildExecutor(this.projectPath, RequiredEngineVersion, ProjectName, ProjectVersion, Importers)
-                    }
-                }));
+                CreateBuildExecutorRouter());
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
             saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
             openFileDialog = new OpenFileDialog(uiFont, this.projectPath);
@@ -2034,6 +2025,32 @@ namespace helengine.editor {
             PlatformDiscoveryOptions options = new PlatformDiscoveryOptions(Path.Combine(helEngineRootPath, "user_settings"));
             WindowsLauncherInstallRootLocator launcherInstallRootLocator = new WindowsLauncherInstallRootLocator();
             return new AvailablePlatformProviderResolver(options, launcherInstallRootLocator);
+        }
+
+        /// <summary>
+        /// Creates the build executor router from the dynamically discovered platform catalog.
+        /// </summary>
+        /// <returns>Router keyed by platform identifier.</returns>
+        EditorBuildExecutorRouter CreateBuildExecutorRouter() {
+            IReadOnlyList<AvailablePlatformDescriptor> platforms = availablePlatformProviderResolver.LoadPlatforms(RequiredEngineVersion);
+            Dictionary<string, IEditorBuildExecutor> executorsByPlatformId = new(StringComparer.OrdinalIgnoreCase);
+
+            for (int index = 0; index < platforms.Count; index++) {
+                AvailablePlatformDescriptor platform = platforms[index];
+                if (!platform.IsInstalled || string.IsNullOrWhiteSpace(platform.BuilderAssemblyPath)) {
+                    continue;
+                }
+
+                executorsByPlatformId[platform.Id] = new EditorPlatformBuildExecutor(
+                    projectPath,
+                    RequiredEngineVersion,
+                    ProjectName,
+                    ProjectVersion,
+                    Importers,
+                    platform);
+            }
+
+            return new EditorBuildExecutorRouter(executorsByPlatformId);
         }
 
         /// <summary>

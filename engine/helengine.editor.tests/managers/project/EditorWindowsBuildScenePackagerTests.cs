@@ -4,7 +4,7 @@ namespace helengine.editor.tests {
     /// <summary>
     /// Verifies Windows scene packaging collects referenced shader ids from packaged material assets.
     /// </summary>
-    public class EditorWindowsBuildScenePackagerTests : IDisposable {
+    public class EditorPlatformBuildScenePackagerTests : IDisposable {
         /// <summary>
         /// Temporary project root used for scene-packager tests.
         /// </summary>
@@ -18,7 +18,7 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Initializes one isolated project workspace for scene packaging verification.
         /// </summary>
-        public EditorWindowsBuildScenePackagerTests() {
+        public EditorPlatformBuildScenePackagerTests() {
             string workspaceRootPath = Path.Combine(Path.GetTempPath(), "helengine-scene-packager-tests", Guid.NewGuid().ToString("N"));
             ProjectRootPath = workspaceRootPath;
             BuildRootPath = Path.Combine(workspaceRootPath, "Build");
@@ -49,8 +49,8 @@ namespace helengine.editor.tests {
             WriteMaterialAsset(materialRelativePath, shaderAssetId);
             WriteSceneAsset(sceneId, materialRelativePath);
 
-            EditorWindowsBuildScenePackager packager = new EditorWindowsBuildScenePackager(ProjectRootPath);
-            EditorWindowsBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
             Assert.Equal(new[] { shaderAssetId }, result.ReferencedShaderAssetIds);
         }

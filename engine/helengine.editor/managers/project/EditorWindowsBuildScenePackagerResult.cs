@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Captures the shader packages referenced while packaging a Windows player build.
     /// </summary>
-    public sealed class EditorWindowsBuildScenePackagerResult {
+    public sealed class EditorPlatformBuildScenePackagerResult {
         /// <summary>
         /// Stores the deduplicated shader asset ids referenced by the packaged scenes.
         /// </summary>
@@ -12,7 +12,7 @@ namespace helengine.editor {
         /// Initializes a new scene-packaging result.
         /// </summary>
         /// <param name="referencedShaderAssetIds">Deduplicated shader asset ids referenced by the packaged scenes.</param>
-        public EditorWindowsBuildScenePackagerResult(IReadOnlyList<string> referencedShaderAssetIds) {
+        public EditorPlatformBuildScenePackagerResult(IReadOnlyList<string> referencedShaderAssetIds) {
             if (referencedShaderAssetIds == null) {
                 throw new ArgumentNullException(nameof(referencedShaderAssetIds));
             }
