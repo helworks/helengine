@@ -109,6 +109,16 @@ namespace helengine.editor {
         readonly EditorFileSystemModelResolver FileSystemModelResolver;
 
         /// <summary>
+        /// Deduplicated shader asset ids referenced while packaging the current scene set.
+        /// </summary>
+        readonly List<string> ReferencedShaderAssetIds;
+
+        /// <summary>
+        /// Fast lookup used to deduplicate referenced shader asset ids while preserving discovery order.
+        /// </summary>
+        readonly HashSet<string> ReferencedShaderAssetIdsSet;
+
+        /// <summary>
         /// Initializes one Windows scene packager for the supplied project root.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
@@ -126,6 +136,8 @@ namespace helengine.editor {
             AssetImportManager = new AssetImportManager(ProjectRootPath, importContentManager);
             AssetImportManager.CurrentPlatformId = "windows";
             FileSystemModelResolver = new EditorFileSystemModelResolver(AssetImportManager);
+            ReferencedShaderAssetIds = new List<string>();
+            ReferencedShaderAssetIdsSet = new HashSet<string>(StringComparer.Ordinal);
         }
 
         /// <summary>
@@ -133,7 +145,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="sceneIds">Project-relative scene ids selected for the build.</param>
         /// <param name="buildRootPath">Absolute build root path that will host the packaged content.</param>
-        public void Package(IReadOnlyList<string> sceneIds, string buildRootPath) {
+        /// <returns>Scene-packaging result that carries the referenced shader ids.</returns>
+        public EditorWindowsBuildScenePackagerResult Package(IReadOnlyList<string> sceneIds, string buildRootPath) {
             if (sceneIds == null) {
                 throw new ArgumentNullException(nameof(sceneIds));
             }
@@ -147,6 +160,8 @@ namespace helengine.editor {
             string fullBuildRootPath = Path.GetFullPath(buildRootPath);
             Directory.CreateDirectory(fullBuildRootPath);
 
+            ReferencedShaderAssetIds.Clear();
+            ReferencedShaderAssetIdsSet.Clear();
             EnsureGeneratedStandardMaterialAssets(fullBuildRootPath);
 
             for (int index = 0; index < sceneIds.Count; index++) {
@@ -160,6 +175,8 @@ namespace helengine.editor {
                     WriteAsset(Path.Combine(fullBuildRootPath, StartupSceneRelativePath), packagedSceneAsset);
                 }
             }
+
+            return new EditorWindowsBuildScenePackagerResult(ReferencedShaderAssetIds);
         }
 
         /// <summary>
@@ -424,7 +441,7 @@ namespace helengine.editor {
         SceneAssetReference RewriteFileSystemMaterialReference(SceneAssetReference reference, string buildRootPath) {
             string fullPath = ResolveProjectAssetPath(reference.RelativePath);
             MaterialAsset materialAsset = ProjectContentManager.Load<MaterialAsset>(fullPath, EditorContentProcessorIds.MaterialAsset);
-            EnsureProjectShaderPackage(materialAsset.ShaderAssetId, buildRootPath);
+            RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
 
             string relativePath = NormalizeRelativePath(reference.RelativePath);
             CopyFile(fullPath, Path.Combine(buildRootPath, relativePath));
@@ -450,25 +467,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Ensures one authored shader package exists beneath the packaged `shaders` folder.
+        /// Tracks one referenced shader asset id if it has not already been recorded.
         /// </summary>
-        /// <param name="shaderAssetId">Authored shader asset identifier.</param>
-        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
-        void EnsureProjectShaderPackage(string shaderAssetId, string buildRootPath) {
+        /// <param name="shaderAssetId">Referenced shader asset identifier.</param>
+        void RememberReferencedShaderAssetId(string shaderAssetId) {
             if (string.IsNullOrWhiteSpace(shaderAssetId)) {
                 throw new InvalidOperationException("Material assets used by packaged scenes must include a shader asset id.");
             }
 
-            string sourcePackagePath = ShaderPackagePaths.GetPackagePath(
-                Path.Combine(ProjectRootPath, "shader-cache"),
-                shaderAssetId,
-                ShaderCompileTarget.DirectX11);
-            if (!File.Exists(sourcePackagePath)) {
-                throw new InvalidOperationException($"Required shader package '{sourcePackagePath}' was not found. Compile the project shader first.");
+            if (ReferencedShaderAssetIdsSet.Add(shaderAssetId)) {
+                ReferencedShaderAssetIds.Add(shaderAssetId);
             }
-
-            string targetRelativePath = string.Concat("shaders/", shaderAssetId, ".dx11.shader.asset");
-            CopyFile(sourcePackagePath, Path.Combine(buildRootPath, targetRelativePath));
         }
 
         /// <summary>

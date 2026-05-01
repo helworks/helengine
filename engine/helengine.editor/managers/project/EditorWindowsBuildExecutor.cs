@@ -82,7 +82,8 @@ namespace helengine.editor {
                 EditorWindowsBuildPaths buildPaths = new EditorWindowsBuildPaths(queueItem.OutputDirectoryPath);
                 ResetBuildDirectories(buildPaths);
                 GenerateCore(buildPaths);
-                PackageScenes(queueItem, buildPaths);
+                EditorWindowsBuildScenePackagerResult packageResult = PackageScenes(queueItem, buildPaths);
+                ExportReferencedShaderPackages(packageResult, buildPaths);
                 BuildWindowsHost(buildPaths);
                 CopyWindowsArtifacts(buildPaths);
 
@@ -151,9 +152,24 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="queueItem">Queued build item describing which scenes should be packaged.</param>
         /// <param name="buildPaths">Build paths describing the final build root.</param>
-        void PackageScenes(EditorBuildQueueItemDocument queueItem, EditorWindowsBuildPaths buildPaths) {
+        /// <returns>Result describing the referenced shader packages discovered during scene packaging.</returns>
+        EditorWindowsBuildScenePackagerResult PackageScenes(EditorBuildQueueItemDocument queueItem, EditorWindowsBuildPaths buildPaths) {
             EditorWindowsBuildScenePackager packager = new EditorWindowsBuildScenePackager(ProjectRootPath);
-            packager.Package(queueItem.SelectedSceneIds, buildPaths.BuildRootPath);
+            return packager.Package(queueItem.SelectedSceneIds, buildPaths.BuildRootPath);
+        }
+
+        /// <summary>
+        /// Exports the shader packages referenced by the packaged scene set into the final build root.
+        /// </summary>
+        /// <param name="packageResult">Referenced shader ids collected while packaging scenes.</param>
+        /// <param name="buildPaths">Build paths describing the final build root.</param>
+        void ExportReferencedShaderPackages(EditorWindowsBuildScenePackagerResult packageResult, EditorWindowsBuildPaths buildPaths) {
+            if (packageResult == null) {
+                throw new ArgumentNullException(nameof(packageResult));
+            }
+
+            EditorShaderPackageExportService exportService = new EditorShaderPackageExportService(Path.Combine(ProjectRootPath, "shader-cache"));
+            exportService.Export(packageResult.ReferencedShaderAssetIds, ShaderCompileTarget.DirectX11, buildPaths.BuildRootPath);
         }
 
         /// <summary>
