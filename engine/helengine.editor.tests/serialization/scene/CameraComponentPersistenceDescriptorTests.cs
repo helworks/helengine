@@ -57,6 +57,7 @@ namespace helengine.editor.tests.serialization.scene {
             entity.AddComponent(cameraComponent);
             EditorSceneCameraSuppressionService.AttachAndSuppress(entity);
 
+            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
             SceneComponentAssetRecord record = descriptor.SerializeComponent(cameraComponent, 0, null);
             CameraComponent loadedCamera = Assert.IsType<CameraComponent>(descriptor.DeserializeComponent(record, null, new TestSceneAssetReferenceResolver()));
 

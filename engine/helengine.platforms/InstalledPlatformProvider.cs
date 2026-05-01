@@ -18,16 +18,21 @@ public sealed class InstalledPlatformProvider : IAvailablePlatformProvider {
     }
 
     /// <summary>
-    /// Attempts to load the available platforms for the supplied engine version from the installed-binding manifest.
+    /// Attempts to load the available platforms for the supplied engine version from the installation manifest or installed-binding fallback.
     /// </summary>
     /// <param name="engineVersion">Exact engine version whose available platforms should be loaded.</param>
-    /// <param name="platforms">Resolved platforms when installed-binding state exists.</param>
-    /// <returns><c>true</c> when installed-binding state exists; otherwise <c>false</c>.</returns>
+    /// <param name="platforms">Resolved platforms when installation or installed-binding state exists.</param>
+    /// <returns><c>true</c> when installation or installed-binding state exists; otherwise <c>false</c>.</returns>
     public bool TryLoadPlatforms(string engineVersion, out IReadOnlyList<AvailablePlatformDescriptor> platforms) {
         platforms = Array.Empty<AvailablePlatformDescriptor>();
 
         if (string.IsNullOrWhiteSpace(SharedToolchainRootPath)) {
             return false;
+        }
+
+        PlatformInstallationResolver installationResolver = new PlatformInstallationResolver(SharedToolchainRootPath);
+        if (installationResolver.TryLoadPlatforms(engineVersion, out platforms)) {
+            return true;
         }
 
         InstalledBindingStore store = new InstalledBindingStore(SharedToolchainRootPath);

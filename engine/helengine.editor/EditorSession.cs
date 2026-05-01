@@ -987,7 +987,7 @@ namespace helengine.editor {
         void HandleBuildScriptsRequested() {
             EditorBuildExecutionResult result = scriptHotReloadService.BuildAndReload();
             if (result.Succeeded) {
-                Logger.WriteInfo(result.Message);
+                Logger.WriteLine(result.Message);
                 return;
             }
 
@@ -1882,7 +1882,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Resolver that loads platforms from development overrides, launcher state, or built-in fallback sources.</returns>
         AvailablePlatformProviderResolver CreateAvailablePlatformProviderResolver() {
-            PlatformDiscoveryOptions options = new PlatformDiscoveryOptions();
+            PlatformDiscoveryOptions options = new PlatformDiscoveryOptions(Path.Combine(this.projectPath, "user_settings"));
             WindowsLauncherInstallRootLocator launcherInstallRootLocator = new WindowsLauncherInstallRootLocator();
             return new AvailablePlatformProviderResolver(options, launcherInstallRootLocator);
         }

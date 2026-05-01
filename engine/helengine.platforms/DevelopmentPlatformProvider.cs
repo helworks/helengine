@@ -30,7 +30,11 @@ public sealed class DevelopmentPlatformProvider : IAvailablePlatformProvider {
             return false;
         }
 
-        InstalledPlatformProvider provider = new InstalledPlatformProvider(DevelopmentSharedToolchainRootPath);
-        return provider.TryLoadPlatforms(engineVersion, out platforms);
+        PlatformInstallationResolver installationResolver = new PlatformInstallationResolver(DevelopmentSharedToolchainRootPath);
+        if (installationResolver.TryLoadPlatforms(engineVersion, out platforms)) {
+            return true;
+        }
+
+        return false;
     }
 }

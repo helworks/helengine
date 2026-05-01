@@ -128,7 +128,7 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "ActiveProjectPlatform", activePlatform);
             SetPrivateField(session, "assetImportManager", assetImportManager);
             SetPrivateField(session, "buildSettingsDialog", new BuildSettingsDialog(CreateFont()));
-            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath), new WindowsLauncherInstallRootLocator()));
+            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(Path.Combine(TempProjectRootPath, "user_settings")), new WindowsLauncherInstallRootLocator()));
 
             return session;
         }
@@ -154,20 +154,21 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Writes one development-override platform manifest for the requested engine version.
+        /// Writes one development-override installation manifest and its linked platform descriptors for the requested engine version.
         /// </summary>
         /// <param name="engineVersion">Exact engine version whose available platforms should be published.</param>
         /// <param name="platforms">Available platforms that should be discoverable.</param>
         void WriteInstalledPlatforms(string engineVersion, params AvailablePlatformDescriptor[] platforms) {
-            string manifestPath = Path.Combine(TempProjectRootPath, "installed-bindings.json");
+            string sharedToolchainRootPath = Path.Combine(TempProjectRootPath, "user_settings");
+            Directory.CreateDirectory(sharedToolchainRootPath);
+            string manifestPath = Path.Combine(sharedToolchainRootPath, "platforms.json");
 
             string json = $$"""
             {
-              "bindings": [
+              "platforms": [
             {{string.Join(",\n", platforms.Select(platform => $$"""
                 {
-                  "engineVersion": "{{engineVersion}}",
-                  "platformId": "{{platform.Id}}"
+                  "platformDescriptorPath": "{{platform.Id}}/platform.json"
                 }
             """))}}
               ]
@@ -175,6 +176,20 @@ namespace helengine.editor.tests {
             """;
 
             File.WriteAllText(manifestPath, json);
+
+            foreach (AvailablePlatformDescriptor platform in platforms) {
+                string platformDirectoryPath = Path.Combine(sharedToolchainRootPath, platform.Id);
+                Directory.CreateDirectory(platformDirectoryPath);
+                File.WriteAllText(Path.Combine(platformDirectoryPath, "platform.json"), $$"""
+                {
+                  "engineVersion": "{{engineVersion}}",
+                  "platformId": "{{platform.Id}}",
+                  "displayName": "{{platform.DisplayName}}",
+                  "builderAssemblyPath": "builders/{{platform.Id}}/helengine.{{platform.Id}}.builder.dll",
+                  "playerSourceRootPath": "players/{{platform.Id}}"
+                }
+                """);
+            }
         }
 
         /// <summary>

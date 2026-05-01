@@ -9,9 +9,17 @@ public sealed class AvailablePlatformDescriptor {
     /// </summary>
     /// <param name="id">Stable platform identifier written into project files.</param>
     /// <param name="displayName">Readable platform name shown in editor UI.</param>
-    public AvailablePlatformDescriptor(string id, string displayName) {
+    /// <param name="builderAssemblyPath">Absolute or relative path to the platform builder assembly, when available.</param>
+    /// <param name="playerSourceRootPath">Absolute or relative path to the platform player source root, when available.</param>
+    public AvailablePlatformDescriptor(
+        string id,
+        string displayName,
+        string builderAssemblyPath = "",
+        string playerSourceRootPath = "") {
         Id = id;
         DisplayName = displayName;
+        BuilderAssemblyPath = builderAssemblyPath ?? string.Empty;
+        PlayerSourceRootPath = playerSourceRootPath ?? string.Empty;
     }
 
     /// <summary>
@@ -23,4 +31,14 @@ public sealed class AvailablePlatformDescriptor {
     /// Gets the readable platform name shown in editor UI.
     /// </summary>
     public string DisplayName { get; }
+
+    /// <summary>
+    /// Gets the path to the platform builder assembly when the catalog provides one.
+    /// </summary>
+    public string BuilderAssemblyPath { get; }
+
+    /// <summary>
+    /// Gets the path to the platform player source root when the catalog provides one.
+    /// </summary>
+    public string PlayerSourceRootPath { get; }
 }
