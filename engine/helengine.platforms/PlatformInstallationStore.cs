@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace helengine.platforms;
 
 /// <summary>
-/// Reads one installation manifest that points at per-platform descriptor files.
+/// Reads one engine-level platform manifest that declares known platform payload roots.
 /// </summary>
 public sealed class PlatformInstallationStore {
     /// <summary>
@@ -37,9 +37,9 @@ public sealed class PlatformInstallationStore {
     }
 
     /// <summary>
-    /// Loads the installation manifest from disk.
+    /// Loads the platform manifest from disk.
     /// </summary>
-    /// <returns>Installation manifest containing per-platform descriptor links.</returns>
+    /// <returns>Platform manifest containing platform entries.</returns>
     public PlatformInstallationManifest Load() {
         using FileStream stream = File.OpenRead(ManifestFilePath);
         using JsonDocument document = JsonDocument.Parse(stream);
@@ -49,8 +49,13 @@ public sealed class PlatformInstallationStore {
 
         List<PlatformInstallationEntry> platforms = new();
         foreach (JsonElement platformElement in platformsElement.EnumerateArray()) {
-            string platformDescriptorPath = platformElement.GetProperty("platformDescriptorPath").GetString() ?? throw new InvalidOperationException($"Installation manifest at {ManifestFilePath} contains a platform without platformDescriptorPath.");
-            platforms.Add(new PlatformInstallationEntry(platformDescriptorPath));
+            string engineVersion = platformElement.GetProperty("engineVersion").GetString() ?? throw new InvalidOperationException($"Installation manifest at {ManifestFilePath} contains a platform without engineVersion.");
+            string platformId = platformElement.GetProperty("platformId").GetString() ?? throw new InvalidOperationException($"Installation manifest at {ManifestFilePath} contains a platform without platformId.");
+            string displayName = platformElement.GetProperty("displayName").GetString() ?? throw new InvalidOperationException($"Installation manifest at {ManifestFilePath} contains a platform without displayName.");
+            string builderAssemblyPath = platformElement.TryGetProperty("builderAssemblyPath", out JsonElement builderAssemblyPathElement) ? builderAssemblyPathElement.GetString() ?? string.Empty : string.Empty;
+            string playerSourceRootPath = platformElement.GetProperty("playerSourceRootPath").GetString() ?? throw new InvalidOperationException($"Installation manifest at {ManifestFilePath} contains a platform without playerSourceRootPath.");
+
+            platforms.Add(new PlatformInstallationEntry(engineVersion, platformId, displayName, builderAssemblyPath, playerSourceRootPath));
         }
 
         return new PlatformInstallationManifest(platforms);

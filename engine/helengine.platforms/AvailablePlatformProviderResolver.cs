@@ -1,7 +1,7 @@
 namespace helengine.platforms;
 
 /// <summary>
-/// Resolves the available platform list for one engine version by applying development, launcher-managed, and built-in fallback sources in order.
+/// Resolves the available platform list for one engine version by applying engine-level, launcher-managed, and built-in fallback sources in order.
 /// </summary>
 public sealed class AvailablePlatformProviderResolver {
     /// <summary>
@@ -31,20 +31,20 @@ public sealed class AvailablePlatformProviderResolver {
     /// <returns>Available platforms merged from source overrides, launcher-managed state, and fallback defaults.</returns>
     public IReadOnlyList<AvailablePlatformDescriptor> LoadPlatforms(string engineVersion) {
         List<AvailablePlatformDescriptor> platforms = new();
-        HashSet<string> seenPlatformIds = new(StringComparer.Ordinal);
+        Dictionary<string, int> platformIndexes = new(StringComparer.Ordinal);
         bool hadAnySourceState = false;
 
         DevelopmentPlatformProvider developmentProvider = new DevelopmentPlatformProvider(Options);
         if (developmentProvider.TryLoadPlatforms(engineVersion, out IReadOnlyList<AvailablePlatformDescriptor> developmentPlatforms)) {
             hadAnySourceState = true;
-            AddDistinctPlatforms(platforms, seenPlatformIds, developmentPlatforms);
+            MergePlatforms(platforms, platformIndexes, developmentPlatforms);
         }
 
         LauncherInstallRoots launcherInstallRoots = LauncherInstallRootLocator.Load();
         InstalledPlatformProvider installedPlatformProvider = new InstalledPlatformProvider(launcherInstallRoots.SharedToolchainRoot);
         if (installedPlatformProvider.TryLoadPlatforms(engineVersion, out IReadOnlyList<AvailablePlatformDescriptor> installedPlatforms)) {
             hadAnySourceState = true;
-            AddDistinctPlatforms(platforms, seenPlatformIds, installedPlatforms);
+            MergePlatforms(platforms, platformIndexes, installedPlatforms);
         }
 
         if (platforms.Count > 0) {
@@ -64,27 +64,34 @@ public sealed class AvailablePlatformProviderResolver {
     /// <returns>Built-in source-build fallback platforms.</returns>
     static IReadOnlyList<AvailablePlatformDescriptor> CreateBuiltInFallbackPlatforms() {
         return new[] {
-            new AvailablePlatformDescriptor("windows", "windows")
+            new AvailablePlatformDescriptor("windows", "windows", string.Empty, string.Empty, true)
         };
     }
 
     /// <summary>
-    /// Adds distinct platform descriptors to the supplied collection while preserving first-seen order.
+    /// Adds or upgrades platform descriptors in the supplied collection while preserving first-seen order.
     /// </summary>
     /// <param name="platforms">Collection that accumulates merged platform descriptors.</param>
-    /// <param name="seenPlatformIds">Ids already added to the collection.</param>
+    /// <param name="platformIndexes">Indexes of platform ids already added to the collection.</param>
     /// <param name="sourcePlatforms">Source platforms to merge into the collection.</param>
-    static void AddDistinctPlatforms(
+    static void MergePlatforms(
         List<AvailablePlatformDescriptor> platforms,
-        HashSet<string> seenPlatformIds,
+        Dictionary<string, int> platformIndexes,
         IReadOnlyList<AvailablePlatformDescriptor> sourcePlatforms) {
         for (int index = 0; index < sourcePlatforms.Count; index++) {
             AvailablePlatformDescriptor platform = sourcePlatforms[index];
-            if (!seenPlatformIds.Add(platform.Id)) {
+            if (!platformIndexes.TryGetValue(platform.Id, out int existingIndex)) {
+                platformIndexes.Add(platform.Id, platforms.Count);
+                platforms.Add(platform);
                 continue;
             }
 
-            platforms.Add(platform);
+            AvailablePlatformDescriptor existingPlatform = platforms[existingIndex];
+            if (existingPlatform.IsInstalled || !platform.IsInstalled) {
+                continue;
+            }
+
+            platforms[existingIndex] = platform;
         }
     }
 }

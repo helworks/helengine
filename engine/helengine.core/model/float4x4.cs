@@ -350,6 +350,30 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Builds the transposed inverse matrix for normal-vector transformation.
+        /// </summary>
+        /// <param name="matrix">Matrix to invert and transpose.</param>
+        /// <param name="result">Transposed inverse matrix.</param>
+        public static void InverseTranspose(ref float4x4 matrix, out float4x4 result) {
+            Matrix4x4 source = new Matrix4x4(
+                matrix.M11, matrix.M12, matrix.M13, matrix.M14,
+                matrix.M21, matrix.M22, matrix.M23, matrix.M24,
+                matrix.M31, matrix.M32, matrix.M33, matrix.M34,
+                matrix.M41, matrix.M42, matrix.M43, matrix.M44);
+
+            if (!Matrix4x4.Invert(source, out Matrix4x4 inverted)) {
+                throw new InvalidOperationException("Cannot invert a non-invertible transform matrix.");
+            }
+
+            Matrix4x4 transposed = Matrix4x4.Transpose(inverted);
+            result = new float4x4(
+                transposed.M11, transposed.M12, transposed.M13, transposed.M14,
+                transposed.M21, transposed.M22, transposed.M23, transposed.M24,
+                transposed.M31, transposed.M32, transposed.M33, transposed.M34,
+                transposed.M41, transposed.M42, transposed.M43, transposed.M44);
+        }
+
+        /// <summary>
         /// Transposes the given matrix.
         /// </summary>
         /// <param name="matrix">Matrix to transpose.</param>

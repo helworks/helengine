@@ -411,7 +411,7 @@ namespace helengine.editor {
             ReparentService = new EditorEntityReparentService();
             SceneModelRefreshService = new EditorSceneModelRefreshService(fileSystemModelResolver);
             buildConfigService = new EditorBuildConfigService(this.projectPath);
-            buildQueueService = new EditorBuildQueueService(buildConfigService, new EditorWindowsBuildExecutor(this.projectPath));
+            buildQueueService = new EditorBuildQueueService(buildConfigService, new EditorWindowsBuildExecutor(this.projectPath, RequiredEngineVersion));
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
             saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
             openFileDialog = new OpenFileDialog(uiFont, this.projectPath);
@@ -645,6 +645,10 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="platformId">Supported platform identifier to persist.</param>
         public void SetActiveProjectPlatform(string platformId) {
+            if (!IsInstalledPlatform(platformId)) {
+                throw new InvalidOperationException($"Platform '{platformId}' is not installed for the current engine.");
+            }
+
             ProjectLocalSettingsService.SaveActivePlatform(platformId);
             ActiveProjectPlatform = platformId;
             assetImportManager.CurrentPlatformId = platformId;
@@ -1882,7 +1886,9 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Resolver that loads platforms from development overrides, launcher state, or built-in fallback sources.</returns>
         AvailablePlatformProviderResolver CreateAvailablePlatformProviderResolver() {
-            PlatformDiscoveryOptions options = new PlatformDiscoveryOptions(Path.Combine(this.projectPath, "user_settings"));
+            EditorSourceBuildWorkspaceLocator workspaceLocator = new EditorSourceBuildWorkspaceLocator();
+            string helEngineRootPath = workspaceLocator.ResolveHelEngineRootPath();
+            PlatformDiscoveryOptions options = new PlatformDiscoveryOptions(Path.Combine(helEngineRootPath, "user_settings"));
             WindowsLauncherInstallRootLocator launcherInstallRootLocator = new WindowsLauncherInstallRootLocator();
             return new AvailablePlatformProviderResolver(options, launcherInstallRootLocator);
         }
@@ -1938,12 +1944,41 @@ namespace helengine.editor {
             }
 
             for (int i = 0; i < supportedPlatforms.Count; i++) {
-                if (string.Equals(supportedPlatforms[i], ActiveProjectPlatform, StringComparison.OrdinalIgnoreCase)) {
+                if (string.Equals(supportedPlatforms[i], ActiveProjectPlatform, StringComparison.OrdinalIgnoreCase) && IsInstalledPlatform(supportedPlatforms[i])) {
                     return supportedPlatforms[i];
                 }
             }
 
-            return supportedPlatforms[0];
+            for (int i = 0; i < supportedPlatforms.Count; i++) {
+                if (IsInstalledPlatform(supportedPlatforms[i])) {
+                    return supportedPlatforms[i];
+                }
+            }
+
+            throw new InvalidOperationException("At least one supported platform must be installed for the current engine.");
+        }
+
+        /// <summary>
+        /// Returns true when the supplied platform exists in the current engine catalog and has an installed payload.
+        /// </summary>
+        /// <param name="platformId">Platform identifier to inspect.</param>
+        /// <returns>True when the platform is installed for the current engine; otherwise false.</returns>
+        bool IsInstalledPlatform(string platformId) {
+            if (availablePlatformProviderResolver == null) {
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                return false;
+            }
+
+            IReadOnlyList<AvailablePlatformDescriptor> availablePlatforms = availablePlatformProviderResolver.LoadPlatforms(RequiredEngineVersion);
+            for (int i = 0; i < availablePlatforms.Count; i++) {
+                if (string.Equals(availablePlatforms[i].Id, platformId, StringComparison.OrdinalIgnoreCase)) {
+                    return availablePlatforms[i].IsInstalled;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

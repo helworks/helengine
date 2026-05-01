@@ -1,7 +1,7 @@
 namespace helengine.platforms;
 
 /// <summary>
-/// Loads available platform descriptors from an installation manifest that links to per-platform descriptor files.
+/// Loads available platform descriptors from one engine-level platform manifest.
 /// </summary>
 public sealed class PlatformInstallationResolver {
     /// <summary>
@@ -18,7 +18,7 @@ public sealed class PlatformInstallationResolver {
     }
 
     /// <summary>
-    /// Attempts to load the available platforms for the supplied engine version from the installation manifest.
+    /// Attempts to load the available platforms for the supplied engine version from the platform manifest.
     /// </summary>
     /// <param name="engineVersion">Exact engine version whose available platforms should be loaded.</param>
     /// <param name="platforms">Resolved platforms when installation state exists.</param>
@@ -41,6 +41,49 @@ public sealed class PlatformInstallationResolver {
     }
 
     /// <summary>
+    /// Attempts to load one platform descriptor for the supplied engine version and platform id from the platform manifest.
+    /// </summary>
+    /// <param name="engineVersion">Exact engine version whose platform descriptor should be loaded.</param>
+    /// <param name="platformId">Stable platform identifier to select.</param>
+    /// <param name="platform">Resolved platform when installation state exists.</param>
+    /// <returns><c>true</c> when the requested platform exists in the manifest; otherwise <c>false</c>.</returns>
+    public bool TryLoadPlatform(string engineVersion, string platformId, out AvailablePlatformDescriptor platform) {
+        platform = new AvailablePlatformDescriptor(string.Empty, string.Empty, string.Empty, string.Empty, false);
+
+        if (string.IsNullOrWhiteSpace(SharedToolchainRootPath)) {
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(engineVersion)) {
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(platformId)) {
+            return false;
+        }
+
+        PlatformInstallationStore store = new PlatformInstallationStore(SharedToolchainRootPath);
+        if (!store.Exists()) {
+            return false;
+        }
+
+        PlatformInstallationManifest manifest = store.Load();
+        for (int index = 0; index < manifest.Platforms.Count; index++) {
+            PlatformInstallationEntry entry = manifest.Platforms[index];
+            if (!string.Equals(entry.PlatformId, platformId, StringComparison.Ordinal)) {
+                continue;
+            }
+
+            if (!string.Equals(entry.EngineVersion, engineVersion, StringComparison.Ordinal)) {
+                continue;
+            }
+
+            platform = BuildPlatformDescriptor(SharedToolchainRootPath, entry);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Builds the ordered distinct available-platform list for one engine version from one installation manifest.
     /// </summary>
     /// <param name="engineVersion">Exact engine version whose descriptors should be filtered.</param>
@@ -56,57 +99,71 @@ public sealed class PlatformInstallationResolver {
 
         for (int index = 0; index < entries.Count; index++) {
             PlatformInstallationEntry entry = entries[index];
-            string descriptorFilePath = ResolveDescriptorFilePath(manifestRootPath, entry.PlatformDescriptorPath);
-            PlatformDescriptorStore descriptorStore = new PlatformDescriptorStore(descriptorFilePath);
-            if (!descriptorStore.Exists()) {
-                throw new InvalidOperationException($"Platform descriptor at {descriptorStore.DescriptorFilePath} does not exist.");
-            }
-
-            PlatformDescriptorDocument descriptor = descriptorStore.Load();
-            if (!string.Equals(descriptor.EngineVersion, engineVersion, StringComparison.Ordinal)) {
+            if (!string.Equals(entry.EngineVersion, engineVersion, StringComparison.Ordinal)) {
                 continue;
             }
 
-            if (!seenPlatformIds.Add(descriptor.PlatformId)) {
+            if (!seenPlatformIds.Add(entry.PlatformId)) {
                 continue;
             }
 
-            string descriptorDirectoryPath = Path.GetDirectoryName(descriptorStore.DescriptorFilePath) ?? string.Empty;
-            platforms.Add(new AvailablePlatformDescriptor(
-                descriptor.PlatformId,
-                descriptor.DisplayName,
-                ResolvePayloadPath(descriptorDirectoryPath, descriptor.BuilderAssemblyPath),
-                ResolvePayloadPath(descriptorDirectoryPath, descriptor.PlayerSourceRootPath)));
+            platforms.Add(BuildPlatformDescriptor(manifestRootPath, entry));
         }
 
         return platforms;
     }
 
     /// <summary>
-    /// Resolves one descriptor file path relative to the manifest root when necessary.
+    /// Builds one platform descriptor from one manifest entry.
     /// </summary>
     /// <param name="manifestRootPath">Directory that owns the installation manifest.</param>
-    /// <param name="descriptorPath">Descriptor file path from the installation manifest.</param>
-    /// <returns>Absolute descriptor file path.</returns>
-    static string ResolveDescriptorFilePath(string manifestRootPath, string descriptorPath) {
-        if (Path.IsPathRooted(descriptorPath)) {
-            return Path.GetFullPath(descriptorPath);
-        }
+    /// <param name="entry">Platform entry loaded from the manifest.</param>
+    /// <returns>Resolved platform descriptor.</returns>
+    static AvailablePlatformDescriptor BuildPlatformDescriptor(string manifestRootPath, PlatformInstallationEntry entry) {
+        string resolvedBuilderAssemblyPath = ResolvePayloadPath(manifestRootPath, entry.BuilderAssemblyPath);
+        string resolvedPlayerSourceRootPath = ResolvePayloadPath(manifestRootPath, entry.PlayerSourceRootPath);
+        bool isInstalled = IsInstalled(resolvedBuilderAssemblyPath, resolvedPlayerSourceRootPath);
 
-        return Path.GetFullPath(Path.Combine(manifestRootPath, descriptorPath));
+        return new AvailablePlatformDescriptor(
+            entry.PlatformId,
+            entry.DisplayName,
+            resolvedBuilderAssemblyPath,
+            resolvedPlayerSourceRootPath,
+            isInstalled);
     }
 
     /// <summary>
-    /// Resolves one payload path relative to the descriptor file when the path is not already rooted.
+    /// Resolves one payload path relative to the manifest root when the path is not already rooted.
     /// </summary>
-    /// <param name="descriptorDirectoryPath">Directory that owns the platform descriptor file.</param>
+    /// <param name="manifestRootPath">Directory that owns the platform manifest file.</param>
     /// <param name="payloadPath">Payload path from the platform descriptor.</param>
     /// <returns>Absolute payload path.</returns>
-    static string ResolvePayloadPath(string descriptorDirectoryPath, string payloadPath) {
+    static string ResolvePayloadPath(string manifestRootPath, string payloadPath) {
+        if (string.IsNullOrWhiteSpace(payloadPath)) {
+            return string.Empty;
+        }
         if (Path.IsPathRooted(payloadPath)) {
             return Path.GetFullPath(payloadPath);
         }
 
-        return Path.GetFullPath(Path.Combine(descriptorDirectoryPath, payloadPath));
+        return Path.GetFullPath(Path.Combine(manifestRootPath, payloadPath));
+    }
+
+    /// <summary>
+    /// Returns true when the resolved platform payload exists on disk.
+    /// </summary>
+    /// <param name="builderAssemblyPath">Resolved builder assembly path.</param>
+    /// <param name="playerSourceRootPath">Resolved player source root path.</param>
+    /// <returns>True when either payload exists on disk; otherwise false.</returns>
+    static bool IsInstalled(string builderAssemblyPath, string playerSourceRootPath) {
+        if (!string.IsNullOrWhiteSpace(builderAssemblyPath) && File.Exists(builderAssemblyPath)) {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(playerSourceRootPath) && Directory.Exists(playerSourceRootPath)) {
+            return true;
+        }
+
+        return false;
     }
 }

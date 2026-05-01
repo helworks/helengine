@@ -1,0 +1,11 @@
+{
+  "platforms": [
+    {
+      "engineVersion": "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
+      "platformId": "windows",
+      "displayName": "Windows DirectX",
+      "builderAssemblyPath": "",
+      "playerSourceRootPath": "../../helengine-windows"
+    }
+  ]
+}

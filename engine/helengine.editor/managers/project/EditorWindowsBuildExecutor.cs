@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using helengine.platforms;
 
 namespace helengine.editor {
     /// <summary>
@@ -32,21 +33,37 @@ namespace helengine.editor {
         readonly string ProjectRootPath;
 
         /// <summary>
+        /// Exact engine version required by the current project build.
+        /// </summary>
+        readonly string RequiredEngineVersion;
+
+        /// <summary>
         /// Resolves sibling source-build repository roots required by the local Windows pipeline.
         /// </summary>
         readonly EditorSourceBuildWorkspaceLocator WorkspaceLocator;
 
         /// <summary>
+        /// Resolves the platform manifest stored under the engine settings root.
+        /// </summary>
+        readonly PlatformInstallationResolver PlatformInstallationResolver;
+
+        /// <summary>
         /// Initializes one Windows build executor for the supplied source project root.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative source project root path.</param>
-        public EditorWindowsBuildExecutor(string projectRootPath) {
+        /// <param name="requiredEngineVersion">Exact engine version required by the current project build.</param>
+        public EditorWindowsBuildExecutor(string projectRootPath, string requiredEngineVersion) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
+            if (string.IsNullOrWhiteSpace(requiredEngineVersion)) {
+                throw new ArgumentException("Required engine version must be provided.", nameof(requiredEngineVersion));
+            }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
+            RequiredEngineVersion = requiredEngineVersion;
             WorkspaceLocator = new EditorSourceBuildWorkspaceLocator();
+            PlatformInstallationResolver = new PlatformInstallationResolver(Path.Combine(WorkspaceLocator.ResolveHelEngineRootPath(), "user_settings"));
         }
 
         /// <summary>
@@ -144,7 +161,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="buildPaths">Build paths describing generated-source and intermediate roots.</param>
         void BuildWindowsHost(EditorWindowsBuildPaths buildPaths) {
-            string helEngineWindowsRootPath = WorkspaceLocator.ResolveHelEngineWindowsRootPath();
+            string helEngineWindowsRootPath = ResolveWindowsPlatformSourceRootPath();
             string cmakePath = ResolveCMakePath();
 
             RunProcess(
@@ -155,6 +172,26 @@ namespace helengine.editor {
                 cmakePath,
                 string.Concat("--build \"", buildPaths.CMakeBuildRootPath, "\" --config Debug"),
                 helEngineWindowsRootPath);
+        }
+
+        /// <summary>
+        /// Resolves the player source root path for the selected Windows platform from the engine-level platform manifest.
+        /// </summary>
+        /// <returns>Absolute Windows player source root path.</returns>
+        string ResolveWindowsPlatformSourceRootPath() {
+            if (PlatformInstallationResolver.TryLoadPlatform(RequiredEngineVersion, WindowsPlatformId, out AvailablePlatformDescriptor platform)) {
+                if (string.IsNullOrWhiteSpace(platform.PlayerSourceRootPath)) {
+                    throw new InvalidOperationException("Windows platform descriptor does not provide a player source root path.");
+                }
+
+                if (!Directory.Exists(platform.PlayerSourceRootPath)) {
+                    throw new InvalidOperationException($"Windows platform source root '{platform.PlayerSourceRootPath}' was not found.");
+                }
+
+                return platform.PlayerSourceRootPath;
+            }
+
+            throw new InvalidOperationException($"Windows platform descriptor for engine version '{RequiredEngineVersion}' was not found under '{Path.Combine(WorkspaceLocator.ResolveHelEngineRootPath(), "user_settings")}'.");
         }
 
         /// <summary>

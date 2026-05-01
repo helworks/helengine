@@ -11,15 +11,18 @@ public sealed class AvailablePlatformDescriptor {
     /// <param name="displayName">Readable platform name shown in editor UI.</param>
     /// <param name="builderAssemblyPath">Absolute or relative path to the platform builder assembly, when available.</param>
     /// <param name="playerSourceRootPath">Absolute or relative path to the platform player source root, when available.</param>
+    /// <param name="isInstalled">True when the platform payload exists on the current machine.</param>
     public AvailablePlatformDescriptor(
         string id,
         string displayName,
         string builderAssemblyPath = "",
-        string playerSourceRootPath = "") {
+        string playerSourceRootPath = "",
+        bool isInstalled = true) {
         Id = id;
         DisplayName = displayName;
         BuilderAssemblyPath = builderAssemblyPath ?? string.Empty;
         PlayerSourceRootPath = playerSourceRootPath ?? string.Empty;
+        IsInstalled = isInstalled;
     }
 
     /// <summary>
@@ -41,4 +44,9 @@ public sealed class AvailablePlatformDescriptor {
     /// Gets the path to the platform player source root when the catalog provides one.
     /// </summary>
     public string PlayerSourceRootPath { get; }
+
+    /// <summary>
+    /// Gets whether the platform payload exists on the current machine.
+    /// </summary>
+    public bool IsInstalled { get; }
 }

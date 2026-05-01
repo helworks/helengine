@@ -26,6 +26,31 @@ namespace helengine.editor {
         public const int SectionSpacing = 10;
 
         /// <summary>
+        /// Height reserved for the column header row above the platform entries.
+        /// </summary>
+        public const int TableHeaderHeight = 18;
+
+        /// <summary>
+        /// Width reserved for the platform-name column.
+        /// </summary>
+        public const int PlatformNameColumnWidth = 220;
+
+        /// <summary>
+        /// Width reserved for the platform-status column.
+        /// </summary>
+        public const int PlatformStatusColumnWidth = 84;
+
+        /// <summary>
+        /// Width reserved for the enabled column.
+        /// </summary>
+        public const int PlatformEnabledColumnWidth = 68;
+
+        /// <summary>
+        /// Horizontal gap used between fixed table columns.
+        /// </summary>
+        public const int TableColumnSpacing = 8;
+
+        /// <summary>
         /// Height reserved for each platform row.
         /// </summary>
         public const int PlatformRowHeight = 24;
@@ -96,6 +121,16 @@ namespace helengine.editor {
         readonly List<TextComponent> PlatformLabelTexts;
 
         /// <summary>
+        /// Hosts created for each platform-status row.
+        /// </summary>
+        readonly List<EditorEntity> PlatformStatusHosts;
+
+        /// <summary>
+        /// Text components used to render the platform installation state.
+        /// </summary>
+        readonly List<TextComponent> PlatformStatusTexts;
+
+        /// <summary>
         /// Hosts created for each platform checkbox row.
         /// </summary>
         readonly List<EditorEntity> PlatformCheckBoxHosts;
@@ -109,6 +144,16 @@ namespace helengine.editor {
         /// Platform descriptors currently shown by the dialog.
         /// </summary>
         readonly List<AvailablePlatformDescriptor> AvailablePlatforms;
+
+        /// <summary>
+        /// Hosts created for the fixed table header cells.
+        /// </summary>
+        readonly List<EditorEntity> PlatformHeaderHosts;
+
+        /// <summary>
+        /// Text components used to render the fixed table headers.
+        /// </summary>
+        readonly List<TextComponent> PlatformHeaderTexts;
 
         /// <summary>
         /// Tracks whether the dialog has completed initialization.
@@ -132,9 +177,13 @@ namespace helengine.editor {
         public BuildSettingsDialog(FontAsset font) : base("BuildSettingsDialog", "Build Platforms", font, PanelWidth, PanelHeight, HeaderHeight) {
             PlatformLabelHosts = new List<EditorEntity>(8);
             PlatformLabelTexts = new List<TextComponent>(8);
+            PlatformStatusHosts = new List<EditorEntity>(8);
+            PlatformStatusTexts = new List<TextComponent>(8);
             PlatformCheckBoxHosts = new List<EditorEntity>(8);
             PlatformCheckBoxes = new List<CheckBoxComponent>(8);
             AvailablePlatforms = new List<AvailablePlatformDescriptor>(8);
+            PlatformHeaderHosts = new List<EditorEntity>(3);
+            PlatformHeaderTexts = new List<TextComponent>(3);
 
             StatusHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -173,6 +222,8 @@ namespace helengine.editor {
             SaveButton = new ButtonComponent("Save", SaveButtonSize, DialogFont, HandleSaveClicked, 0f);
             SaveButtonHost.AddComponent(SaveButton);
             SaveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
+
+            CreateTableHeaders();
 
             Enabled = false;
             IsInitialized = true;
@@ -222,6 +273,7 @@ namespace helengine.editor {
                 return;
             }
             LayoutPlatformRows();
+            LayoutTableHeader();
             LayoutStatus();
             LayoutButtons();
         }
@@ -272,7 +324,7 @@ namespace helengine.editor {
         /// </summary>
         void ApplyEmptyPlatformMessage() {
             if (AvailablePlatforms.Count == 0) {
-                StatusText.Text = "No installed platforms are available for this engine.";
+                StatusText.Text = "No platforms are known for this engine.";
                 return;
             }
 
@@ -287,12 +339,18 @@ namespace helengine.editor {
                 DialogPanelRoot.RemoveChild(PlatformLabelHosts[index]);
             }
 
+            for (int index = 0; index < PlatformStatusHosts.Count; index++) {
+                DialogPanelRoot.RemoveChild(PlatformStatusHosts[index]);
+            }
+
             for (int index = 0; index < PlatformCheckBoxHosts.Count; index++) {
                 DialogPanelRoot.RemoveChild(PlatformCheckBoxHosts[index]);
             }
 
             PlatformLabelHosts.Clear();
             PlatformLabelTexts.Clear();
+            PlatformStatusHosts.Clear();
+            PlatformStatusTexts.Clear();
             PlatformCheckBoxHosts.Clear();
             PlatformCheckBoxes.Clear();
         }
@@ -313,13 +371,31 @@ namespace helengine.editor {
 
             TextComponent labelText = new TextComponent {
                 Font = DialogFont,
-                Text = platform.DisplayName,
-                Color = ThemeManager.Colors.InputForegroundPrimary,
+                Text = BuildPlatformLabelText(platform),
+                Color = GetPlatformLabelColor(platform),
                 Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
                 RenderOrder2D = DialogTextOrder
             };
             labelHost.AddComponent(labelText);
             PlatformLabelTexts.Add(labelText);
+
+            EditorEntity statusHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            DialogPanelRoot.AddChild(statusHost);
+            PlatformStatusHosts.Add(statusHost);
+
+            TextComponent statusText = new TextComponent {
+                Font = DialogFont,
+                Text = BuildPlatformStatusText(platform),
+                Color = GetPlatformStatusColor(platform),
+                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
+                RenderOrder2D = DialogTextOrder
+            };
+            statusHost.AddComponent(statusText);
+            PlatformStatusTexts.Add(statusText);
 
             EditorEntity checkBoxHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -352,6 +428,66 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds the label text used to render one platform row.
+        /// </summary>
+        /// <param name="platform">Platform descriptor being rendered.</param>
+        /// <returns>Platform label text with installation state suffix when needed.</returns>
+        string BuildPlatformLabelText(AvailablePlatformDescriptor platform) {
+            if (platform == null) {
+                throw new ArgumentNullException(nameof(platform));
+            }
+
+            return platform.DisplayName;
+        }
+
+        /// <summary>
+        /// Resolves the color used for the platform-name column.
+        /// </summary>
+        /// <param name="platform">Platform descriptor being rendered.</param>
+        /// <returns>Standard foreground color for the platform name.</returns>
+        byte4 GetPlatformLabelColor(AvailablePlatformDescriptor platform) {
+            if (platform == null) {
+                throw new ArgumentNullException(nameof(platform));
+            }
+
+            return ThemeManager.Colors.InputForegroundPrimary;
+        }
+
+        /// <summary>
+        /// Builds the status text used for one platform row.
+        /// </summary>
+        /// <param name="platform">Platform descriptor being rendered.</param>
+        /// <returns>Uppercase status text for the platform installation state.</returns>
+        string BuildPlatformStatusText(AvailablePlatformDescriptor platform) {
+            if (platform == null) {
+                throw new ArgumentNullException(nameof(platform));
+            }
+
+            if (platform.IsInstalled) {
+                return "INSTALLED";
+            }
+
+            return "MISSING";
+        }
+
+        /// <summary>
+        /// Resolves the status color used for one platform row.
+        /// </summary>
+        /// <param name="platform">Platform descriptor being rendered.</param>
+        /// <returns>Status color indicating whether the platform is currently installed.</returns>
+        byte4 GetPlatformStatusColor(AvailablePlatformDescriptor platform) {
+            if (platform == null) {
+                throw new ArgumentNullException(nameof(platform));
+            }
+
+            if (platform.IsInstalled) {
+                return ThemeManager.Colors.InputForegroundPrimary;
+            }
+
+            return ThemeManager.Colors.StateWarning;
+        }
+
+        /// <summary>
         /// Collects the selected platform ids using the visible row order.
         /// </summary>
         /// <returns>Selected platform ids in row order.</returns>
@@ -371,26 +507,84 @@ namespace helengine.editor {
         /// Positions each visible platform row.
         /// </summary>
         void LayoutPlatformRows() {
-            int rowsTop = PanelPadding + HeaderHeight + SectionSpacing;
-            int checkBoxX = PanelWidth - PanelPadding - CheckBoxSize.X;
+            int rowsTop = PanelPadding + HeaderHeight + SectionSpacing + TableHeaderHeight + SectionSpacing;
+            int nameColumnX = PanelPadding;
+            int statusColumnX = nameColumnX + PlatformNameColumnWidth + TableColumnSpacing;
+            int enabledColumnX = statusColumnX + PlatformStatusColumnWidth + TableColumnSpacing;
+            int checkBoxX = enabledColumnX + Math.Max(0, (PlatformEnabledColumnWidth - CheckBoxSize.X) / 2);
             int labelYAdjust = Math.Max(0, (PlatformRowHeight - GetDialogLineHeight()) / 2);
+            int statusYAdjust = Math.Max(0, (PlatformRowHeight - GetDialogLineHeight()) / 2);
             int checkBoxYAdjust = Math.Max(0, (PlatformRowHeight - CheckBoxSize.Y) / 2);
 
             for (int index = 0; index < PlatformLabelHosts.Count; index++) {
                 int rowTop = rowsTop + (PlatformRowHeight * index);
-                PlatformLabelHosts[index].Position = new float3(PanelPadding, rowTop + labelYAdjust, 0f);
+                PlatformLabelHosts[index].Position = new float3(nameColumnX, rowTop + labelYAdjust, 0f);
+                PlatformLabelTexts[index].Size = new int2(PlatformNameColumnWidth, Math.Max(1, GetDialogLineHeight()));
+                PlatformStatusHosts[index].Position = new float3(statusColumnX, rowTop + statusYAdjust, 0f);
+                PlatformStatusTexts[index].Size = new int2(PlatformStatusColumnWidth, Math.Max(1, GetDialogLineHeight()));
                 PlatformCheckBoxHosts[index].Position = new float3(checkBoxX, rowTop + checkBoxYAdjust, 0f);
             }
+        }
+
+        /// <summary>
+        /// Positions the fixed table header cells above the platform rows.
+        /// </summary>
+        void LayoutTableHeader() {
+            int headerTop = PanelPadding + HeaderHeight + SectionSpacing;
+            int nameColumnX = PanelPadding;
+            int statusColumnX = nameColumnX + PlatformNameColumnWidth + TableColumnSpacing;
+            int enabledColumnX = statusColumnX + PlatformStatusColumnWidth + TableColumnSpacing;
+            int headerTextHeight = Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)));
+
+            PlatformHeaderHosts[0].Position = new float3(nameColumnX, headerTop, 0f);
+            PlatformHeaderTexts[0].Size = new int2(PlatformNameColumnWidth, headerTextHeight);
+            PlatformHeaderHosts[1].Position = new float3(statusColumnX, headerTop, 0f);
+            PlatformHeaderTexts[1].Size = new int2(PlatformStatusColumnWidth, headerTextHeight);
+            PlatformHeaderHosts[2].Position = new float3(enabledColumnX, headerTop, 0f);
+            PlatformHeaderTexts[2].Size = new int2(PlatformEnabledColumnWidth, headerTextHeight);
         }
 
         /// <summary>
         /// Positions the validation and empty-state text.
         /// </summary>
         void LayoutStatus() {
-            int rowsTop = PanelPadding + HeaderHeight + SectionSpacing;
+            int rowsTop = PanelPadding + HeaderHeight + SectionSpacing + TableHeaderHeight + SectionSpacing;
             int rowsHeight = PlatformRowHeight * Math.Max(1, AvailablePlatforms.Count);
             int statusTop = rowsTop + rowsHeight + SectionSpacing;
             StatusHost.Position = new float3(PanelPadding, statusTop, 0f);
+        }
+
+        /// <summary>
+        /// Creates the fixed column headers for the platform table.
+        /// </summary>
+        void CreateTableHeaders() {
+            CreateTableHeaderCell("Platform Name");
+            CreateTableHeaderCell("Status");
+            CreateTableHeaderCell("Enabled");
+        }
+
+        /// <summary>
+        /// Creates one fixed table header cell and attaches it to the dialog panel.
+        /// </summary>
+        /// <param name="text">Header label text.</param>
+        void CreateTableHeaderCell(string text) {
+            EditorEntity headerHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            DialogPanelRoot.AddChild(headerHost);
+            PlatformHeaderHosts.Add(headerHost);
+
+            TextComponent headerText = new TextComponent {
+                Font = DialogFont,
+                Text = text,
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                Size = new int2(1, Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)))),
+                RenderOrder2D = DialogTextOrder
+            };
+            headerHost.AddComponent(headerText);
+            PlatformHeaderTexts.Add(headerText);
         }
 
         /// <summary>

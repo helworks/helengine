@@ -1,0 +1,59 @@
+#ifdef DrawText
+#undef DrawText
+#endif
+#include "PendingUpdateOperation.hpp"
+#include "runtime/array.hpp"
+#include "runtime/finally.hpp"
+#include "runtime/native_cast.hpp"
+#include "runtime/native_datetime.hpp"
+#include "runtime/native_dictionary.hpp"
+#include "runtime/native_disposable.hpp"
+#include "runtime/native_enum.hpp"
+#include "runtime/native_event.hpp"
+#include "runtime/native_exceptions.hpp"
+#include "runtime/native_list.hpp"
+#include "runtime/native_nullable.hpp"
+#include "runtime/native_span.hpp"
+#include "runtime/native_string.hpp"
+#include "runtime/native_tuple.hpp"
+#include "runtime/native_type.hpp"
+#include "system/app_context.hpp"
+#include "system/bit_converter.hpp"
+#include "system/diagnostics/debug.hpp"
+#include "system/io/file-stream.hpp"
+#include "system/io/file.hpp"
+#include "system/io/memory-stream.hpp"
+#include "system/io/path.hpp"
+#include "system/io/stream.hpp"
+#include "system/math.hpp"
+#include "system/number.hpp"
+#include "system/string_comparer.hpp"
+#include "system/text/encoding.hpp"
+#include "system/text/regular_expressions/regex.hpp"
+
+::IUpdateable* PendingUpdateOperation::get_Entity()
+{
+return this->Entity;
+}
+
+void PendingUpdateOperation::set_Entity(::IUpdateable* value)
+{
+this->Entity = value;
+}
+
+bool PendingUpdateOperation::get_IsAdd()
+{
+return this->IsAdd;
+}
+
+void PendingUpdateOperation::set_IsAdd(bool value)
+{
+this->IsAdd = value;
+}
+
+PendingUpdateOperation::PendingUpdateOperation(::IUpdateable* entity, bool isAdd) : Entity(), IsAdd()
+{
+this->set_Entity(entity);
+this->set_IsAdd(isAdd);
+}
+

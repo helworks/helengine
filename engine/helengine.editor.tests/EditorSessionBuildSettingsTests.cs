@@ -49,6 +49,13 @@ namespace helengine.editor.tests {
         [Fact]
         public async Task HandleBuildSettingsDialogConfirmed_WhenActivePlatformStillSupported_RewritesProjectFileAndPreservesActivePlatform() {
             await WriteProjectFileAsync(new List<string> { "windows", "linux" }, "1.0.0-custom");
+            WritePlatformManifest(
+                "1.0.0-custom",
+                new List<AvailablePlatformDescriptor> {
+                    new AvailablePlatformDescriptor("windows", "Windows DirectX", string.Empty, "platforms/windows", true),
+                    new AvailablePlatformDescriptor("linux", "Linux Vulkan", string.Empty, "platforms/linux", true)
+                },
+                new List<string> { "windows", "linux" });
             EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, new List<string> { "windows", "linux" });
             localSettingsService.SaveActivePlatform("linux");
             EditorSession session = CreateSession(new List<string> { "windows", "linux" }, localSettingsService, "linux");
@@ -70,6 +77,13 @@ namespace helengine.editor.tests {
         [Fact]
         public async Task HandleBuildSettingsDialogConfirmed_WhenActivePlatformRemoved_FallsBackToFirstSelectedPlatformAndPersistsIt() {
             await WriteProjectFileAsync(new List<string> { "windows", "linux" }, "1.0.0-custom");
+            WritePlatformManifest(
+                "1.0.0-custom",
+                new List<AvailablePlatformDescriptor> {
+                    new AvailablePlatformDescriptor("windows", "Windows DirectX", string.Empty, "platforms/windows", true),
+                    new AvailablePlatformDescriptor("linux", "Linux Vulkan", string.Empty, "platforms/linux", false)
+                },
+                new List<string> { "windows" });
             EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, new List<string> { "windows", "linux" });
             localSettingsService.SaveActivePlatform("linux");
             EditorSession session = CreateSession(new List<string> { "windows", "linux" }, localSettingsService, "linux");
@@ -91,7 +105,13 @@ namespace helengine.editor.tests {
         [Fact]
         public async Task HandleBuildSettingsRequested_WhenInvoked_ShowsDialogWithAvailablePlatformsAndCurrentSupportedPlatforms() {
             await WriteProjectFileAsync(new List<string> { "windows" }, "1.0.0-custom");
-            WriteInstalledPlatforms("1.0.0-custom", new AvailablePlatformDescriptor("windows", "windows"), new AvailablePlatformDescriptor("linux", "linux"));
+            WritePlatformManifest(
+                "1.0.0-custom",
+                new List<AvailablePlatformDescriptor> {
+                    new AvailablePlatformDescriptor("windows", "Windows DirectX", string.Empty, "platforms/windows", true),
+                    new AvailablePlatformDescriptor("linux", "Linux Vulkan", string.Empty, "platforms/linux", false)
+                },
+                new List<string> { "windows" });
             EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, new List<string> { "windows" });
             localSettingsService.SaveActivePlatform("windows");
             EditorSession session = CreateSession(new List<string> { "windows" }, localSettingsService, "windows");
@@ -103,7 +123,7 @@ namespace helengine.editor.tests {
             List<CheckBoxComponent> checkBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "PlatformCheckBoxes");
             List<TextComponent> labels = GetPrivateField<List<TextComponent>>(dialog, "PlatformLabelTexts");
             Assert.Equal(2, checkBoxes.Count);
-            Assert.Equal(new[] { "windows", "linux" }, labels.Select(label => label.Text).ToArray());
+            Assert.Equal(new[] { "Windows DirectX", "Linux Vulkan (missing)" }, labels.Select(label => label.Text).ToArray());
             Assert.True(checkBoxes[0].IsChecked);
             Assert.False(checkBoxes[1].IsChecked);
         }
@@ -128,7 +148,7 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "ActiveProjectPlatform", activePlatform);
             SetPrivateField(session, "assetImportManager", assetImportManager);
             SetPrivateField(session, "buildSettingsDialog", new BuildSettingsDialog(CreateFont()));
-            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(Path.Combine(TempProjectRootPath, "user_settings")), new WindowsLauncherInstallRootLocator()));
+            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath), new WindowsLauncherInstallRootLocator()));
 
             return session;
         }
@@ -154,42 +174,44 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Writes one development-override installation manifest and its linked platform descriptors for the requested engine version.
+        /// Writes one engine-level platform manifest for the requested engine version.
         /// </summary>
         /// <param name="engineVersion">Exact engine version whose available platforms should be published.</param>
         /// <param name="platforms">Available platforms that should be discoverable.</param>
-        void WriteInstalledPlatforms(string engineVersion, params AvailablePlatformDescriptor[] platforms) {
-            string sharedToolchainRootPath = Path.Combine(TempProjectRootPath, "user_settings");
-            Directory.CreateDirectory(sharedToolchainRootPath);
+        /// <param name="installedPlatformIds">Platform identifiers whose payload roots should exist on disk.</param>
+        void WritePlatformManifest(string engineVersion, IReadOnlyList<AvailablePlatformDescriptor> platforms, IReadOnlyList<string> installedPlatformIds) {
+            string sharedToolchainRootPath = TempProjectRootPath;
             string manifestPath = Path.Combine(sharedToolchainRootPath, "platforms.json");
+            Directory.CreateDirectory(sharedToolchainRootPath);
 
-            string json = $$"""
+            List<string> manifestEntries = new List<string>(platforms.Count);
+            for (int i = 0; i < platforms.Count; i++) {
+                AvailablePlatformDescriptor platform = platforms[i];
+                manifestEntries.Add($$"""
+                {
+                  "engineVersion": "{{engineVersion}}",
+                  "platformId": "{{platform.Id}}",
+                  "displayName": "{{platform.DisplayName}}",
+                  "builderAssemblyPath": "{{platform.BuilderAssemblyPath}}",
+                  "playerSourceRootPath": "{{platform.PlayerSourceRootPath}}"
+                }
+                """);
+
+                if (installedPlatformIds.Contains(platform.Id)) {
+                    string resolvedPlayerSourceRootPath = Path.Combine(sharedToolchainRootPath, platform.PlayerSourceRootPath);
+                    Directory.CreateDirectory(resolvedPlayerSourceRootPath);
+                }
+            }
+
+            string json = """
             {
               "platforms": [
-            {{string.Join(",\n", platforms.Select(platform => $$"""
-                {
-                  "platformDescriptorPath": "{{platform.Id}}/platform.json"
-                }
-            """))}}
+            """ + string.Join(",\n", manifestEntries) + """
               ]
             }
             """;
 
             File.WriteAllText(manifestPath, json);
-
-            foreach (AvailablePlatformDescriptor platform in platforms) {
-                string platformDirectoryPath = Path.Combine(sharedToolchainRootPath, platform.Id);
-                Directory.CreateDirectory(platformDirectoryPath);
-                File.WriteAllText(Path.Combine(platformDirectoryPath, "platform.json"), $$"""
-                {
-                  "engineVersion": "{{engineVersion}}",
-                  "platformId": "{{platform.Id}}",
-                  "displayName": "{{platform.DisplayName}}",
-                  "builderAssemblyPath": "builders/{{platform.Id}}/helengine.{{platform.Id}}.builder.dll",
-                  "playerSourceRootPath": "players/{{platform.Id}}"
-                }
-                """);
-            }
         }
 
         /// <summary>

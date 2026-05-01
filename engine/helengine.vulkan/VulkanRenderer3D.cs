@@ -1,5 +1,6 @@
 using Silk.NET.Vulkan;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using VkBuffer = Silk.NET.Vulkan.Buffer;
 
 namespace helengine.vulkan {
@@ -12,9 +13,9 @@ namespace helengine.vulkan {
         /// </summary>
         const uint MaxTransformMatricesPerFrame = 4096;
         /// <summary>
-        /// Size in bytes of a single world-view-projection matrix.
+        /// Size in bytes of the built-in default mesh transform payload.
         /// </summary>
-        const uint TransformMatrixSizeBytes = 64;
+        static readonly uint TransformBufferSizeBytes = (uint)Marshal.SizeOf<StandardMeshShaderData>();
         /// <summary>
         /// Maximum number of textured 3D materials that can allocate descriptor sets.
         /// </summary>
@@ -104,6 +105,10 @@ namespace helengine.vulkan {
         /// Cached view-projection matrix for the active camera render pass.
         /// </summary>
         float4x4 currentViewProjection;
+        /// <summary>
+        /// World-space camera position for the active 3D camera pass.
+        /// </summary>
+        float3 currentCameraPosition;
         /// <summary>
         /// Tracks whether the renderer is inside an active surface frame.
         /// </summary>
@@ -433,8 +438,8 @@ namespace helengine.vulkan {
             }
 
             uint dynamicOffset = ReserveTransformSlot();
-            float4x4 worldViewProjection = BuildWorldViewProjection(drawable.Parent);
-            UpdateTransformBuffer(worldViewProjection, dynamicOffset);
+            StandardMeshShaderData transformData = BuildStandardMeshShaderData(drawable.Parent);
+            UpdateTransformBuffer(transformData, dynamicOffset);
 
             DescriptorSet descriptorSet = EnsureMaterialDescriptorSet(material, runtimeMaterial);
             DescriptorSet* descriptorSets = stackalloc DescriptorSet[] { descriptorSet };
@@ -549,6 +554,7 @@ namespace helengine.vulkan {
 
             float4x4 view;
             float3 cameraPos = camera.Parent.Position;
+            currentCameraPosition = cameraPos;
             float4 cameraOrientation = camera.Parent.Orientation;
             float3 cameraForward = float4.RotateVector(DefaultForward, cameraOrientation);
             float3 cameraUp = float4.RotateVector(DefaultUp, cameraOrientation);
@@ -649,11 +655,11 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
-        /// Builds a transposed world-view-projection matrix for a drawable entity.
+        /// Builds the transform payload required by the built-in default mesh shader.
         /// </summary>
         /// <param name="entity">Entity to build transform data for.</param>
-        /// <returns>Transposed world-view-projection matrix.</returns>
-        float4x4 BuildWorldViewProjection(Entity entity) {
+        /// <returns>Per-draw standard mesh shader data.</returns>
+        StandardMeshShaderData BuildStandardMeshShaderData(Entity entity) {
             float4 orientation = entity.Orientation;
             float4x4 rotation;
             float4x4.CreateFromQuaternion(ref orientation, out rotation);
@@ -675,9 +681,18 @@ namespace helengine.vulkan {
             float4x4 worldViewProj;
             float4x4.Multiply(ref world, ref currentViewProjection, out worldViewProj);
 
+            float4x4 worldTransposed;
+            float4x4.Transpose(ref world, out worldTransposed);
             float4x4 transposed;
             float4x4.Transpose(ref worldViewProj, out transposed);
-            return transposed;
+            float4x4 normalMatrix;
+            float4x4.InverseTranspose(ref world, out normalMatrix);
+            return new StandardMeshShaderData {
+                World = worldTransposed,
+                WorldViewProj = transposed,
+                NormalMatrix = normalMatrix,
+                CameraPosition = new float4(currentCameraPosition.X, currentCameraPosition.Y, currentCameraPosition.Z, 0f)
+            };
         }
 
         /// <summary>
@@ -695,17 +710,17 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
-        /// Writes a transform matrix to the dynamic uniform buffer at the specified offset.
+        /// Writes a transform payload to the dynamic uniform buffer at the specified offset.
         /// </summary>
-        /// <param name="worldViewProjection">Transposed world-view-projection matrix.</param>
+        /// <param name="transformData">Built-in default mesh transform payload.</param>
         /// <param name="offset">Byte offset into the dynamic uniform buffer.</param>
-        unsafe void UpdateTransformBuffer(float4x4 worldViewProjection, uint offset) {
+        unsafe void UpdateTransformBuffer(StandardMeshShaderData transformData, uint offset) {
             void* mapped;
             Result mapResult = context.Api.MapMemory(
                 context.Device,
                 transformUniformBuffer.Memory,
                 offset,
-                TransformMatrixSizeBytes,
+                TransformBufferSizeBytes,
                 0,
                 &mapped);
             if (mapResult != Result.Success) {
@@ -713,10 +728,8 @@ namespace helengine.vulkan {
             }
 
             try {
-                float4x4[] values = new[] { worldViewProjection };
-                fixed (float4x4* source = values) {
-                    System.Buffer.MemoryCopy(source, mapped, TransformMatrixSizeBytes, TransformMatrixSizeBytes);
-                }
+                StandardMeshShaderData* source = &transformData;
+                System.Buffer.MemoryCopy(source, mapped, TransformBufferSizeBytes, TransformBufferSizeBytes);
             } finally {
                 context.Api.UnmapMemory(context.Device, transformUniformBuffer.Memory);
             }
@@ -730,10 +743,10 @@ namespace helengine.vulkan {
             context.Api.GetPhysicalDeviceProperties(context.PhysicalDevice, out properties);
             ulong alignment = properties.Limits.MinUniformBufferOffsetAlignment;
             if (alignment == 0) {
-                alignment = TransformMatrixSizeBytes;
+                alignment = TransformBufferSizeBytes;
             }
 
-            transformBufferStride = AlignUp(TransformMatrixSizeBytes, alignment);
+            transformBufferStride = AlignUp(TransformBufferSizeBytes, alignment);
             ulong transformBufferSize = transformBufferStride * MaxTransformMatricesPerFrame;
 
             transformUniformBuffer = new VulkanGpuBuffer(
@@ -925,7 +938,7 @@ namespace helengine.vulkan {
             DescriptorBufferInfo bufferInfo = new DescriptorBufferInfo {
                 Buffer = transformUniformBuffer.Handle,
                 Offset = 0,
-                Range = TransformMatrixSizeBytes
+                Range = TransformBufferSizeBytes
             };
             DescriptorImageInfo imageInfo = new DescriptorImageInfo {
                 ImageView = texture.ImageView,

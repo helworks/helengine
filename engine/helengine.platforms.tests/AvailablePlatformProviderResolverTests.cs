@@ -4,9 +4,12 @@ using Xunit;
 namespace helengine.platforms.tests;
 
 /// <summary>
-/// Verifies platform discovery prefers development overrides, reuses launcher-managed installation manifests, and falls back only when no persisted state exists.
+/// Verifies platform discovery prefers engine-level manifests, preserves missing entries, and upgrades them when installed payloads exist.
 /// </summary>
 public sealed class AvailablePlatformProviderResolverTests : IDisposable {
+    /// <summary>
+    /// Temporary root used for the resolver tests.
+    /// </summary>
     readonly string TempDirectoryPath;
 
     /// <summary>
@@ -27,34 +30,45 @@ public sealed class AvailablePlatformProviderResolverTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures the installation manifest returns the platform descriptors for the requested engine version only.
+    /// Ensures the engine manifest returns every known platform for the requested engine version and flags missing payloads.
     /// </summary>
     [Fact]
-    public void LoadPlatforms_WhenInstallationManifestLinksPlatformDescriptors_ReturnsMatchingPlatforms() {
-        string launcherToolchainRootPath = CreateSharedToolchainRoot(
-            "launcher-toolchains",
-            "platforms.json",
+    public void LoadPlatforms_WhenEngineManifestContainsInstalledAndMissingEntries_ReturnsAllKnownPlatforms() {
+        string engineUserSettingsRootPath = CreateManifestRoot(
+            "engine-user-settings",
             """
             {
               "platforms": [
                 {
-                  "platformDescriptorPath": "windows/platform.json"
+                  "engineVersion": "1.0.0",
+                  "platformId": "windows",
+                  "displayName": "Windows DirectX",
+                  "builderAssemblyPath": "",
+                  "playerSourceRootPath": "platforms/windows"
                 },
                 {
-                  "platformDescriptorPath": "linux/platform.json"
+                  "engineVersion": "1.0.0",
+                  "platformId": "linux",
+                  "displayName": "Linux Vulkan",
+                  "builderAssemblyPath": "",
+                  "playerSourceRootPath": "platforms/linux"
                 },
                 {
-                  "platformDescriptorPath": "android/platform.json"
+                  "engineVersion": "2.0.0",
+                  "platformId": "android",
+                  "displayName": "Android Vulkan",
+                  "builderAssemblyPath": "",
+                  "playerSourceRootPath": "platforms/android"
                 }
               ]
             }
             """);
-        WritePlatformDescriptor(launcherToolchainRootPath, "windows/platform.json", "1.0.0", "windows", "Windows DirectX", "builders/windows/helengine.windows.builder.dll", "players/windows");
-        WritePlatformDescriptor(launcherToolchainRootPath, "linux/platform.json", "1.0.0", "linux", "Linux Vulkan", "builders/linux/helengine.linux.builder.dll", "players/linux");
-        WritePlatformDescriptor(launcherToolchainRootPath, "android/platform.json", "2.0.0", "android", "Android", "builders/android/helengine.android.builder.dll", "players/android");
+
+        Directory.CreateDirectory(Path.Combine(engineUserSettingsRootPath, "platforms", "windows"));
+
         AvailablePlatformProviderResolver resolver = new AvailablePlatformProviderResolver(
-            new PlatformDiscoveryOptions(),
-            new TestLauncherInstallRootLocator(string.Empty, launcherToolchainRootPath));
+            new PlatformDiscoveryOptions(engineUserSettingsRootPath),
+            new TestLauncherInstallRootLocator(string.Empty, string.Empty));
 
         IReadOnlyList<AvailablePlatformDescriptor> platforms = resolver.LoadPlatforms("1.0.0");
 
@@ -62,104 +76,94 @@ public sealed class AvailablePlatformProviderResolverTests : IDisposable {
             platforms,
             platform => {
                 Assert.Equal("windows", platform.Id);
-                Assert.Equal(Path.GetFullPath(Path.Combine(launcherToolchainRootPath, "windows/builders/windows/helengine.windows.builder.dll")), platform.BuilderAssemblyPath);
-                Assert.Equal(Path.GetFullPath(Path.Combine(launcherToolchainRootPath, "windows/players/windows")), platform.PlayerSourceRootPath);
+                Assert.True(platform.IsInstalled);
+                Assert.Equal(Path.GetFullPath(Path.Combine(engineUserSettingsRootPath, "platforms/windows")), platform.PlayerSourceRootPath);
             },
             platform => {
                 Assert.Equal("linux", platform.Id);
-                Assert.Equal(Path.GetFullPath(Path.Combine(launcherToolchainRootPath, "linux/builders/linux/helengine.linux.builder.dll")), platform.BuilderAssemblyPath);
-                Assert.Equal(Path.GetFullPath(Path.Combine(launcherToolchainRootPath, "linux/players/linux")), platform.PlayerSourceRootPath);
+                Assert.False(platform.IsInstalled);
+                Assert.Equal(Path.GetFullPath(Path.Combine(engineUserSettingsRootPath, "platforms/linux")), platform.PlayerSourceRootPath);
             });
     }
 
     /// <summary>
-    /// Ensures one configured development override is merged with launcher-managed installation state without losing installed platforms.
+    /// Ensures one configured launcher catalog upgrades a missing development entry when the payload is installed there.
     /// </summary>
     [Fact]
-    public void LoadPlatforms_WhenDevelopmentOverrideIsConfigured_MergesDevelopmentAndLauncherBindings() {
-        string developmentToolchainRootPath = CreateSharedToolchainRoot(
-            "development-toolchains",
-            "platforms.json",
+    public void LoadPlatforms_WhenLauncherPayloadExists_UpgradesMissingDevelopmentEntry() {
+        string engineUserSettingsRootPath = CreateManifestRoot(
+            "engine-user-settings",
             """
             {
               "platforms": [
                 {
-                  "platformDescriptorPath": "windows/platform.json"
-                },
-                {
-                  "platformDescriptorPath": "steamdeck/platform.json"
+                  "engineVersion": "1.0.0",
+                  "platformId": "windows",
+                  "displayName": "Windows DirectX",
+                  "builderAssemblyPath": "",
+                  "playerSourceRootPath": "platforms/windows"
                 }
               ]
             }
             """);
-        WritePlatformDescriptor(developmentToolchainRootPath, "windows/platform.json", "1.0.0", "windows", "Windows DirectX", "builders/windows/helengine.windows.builder.dll", "players/windows");
-        WritePlatformDescriptor(developmentToolchainRootPath, "steamdeck/platform.json", "1.0.0", "steamdeck", "Steam Deck Vulkan", "builders/steamdeck/helengine.steamdeck.builder.dll", "players/steamdeck");
-        string launcherToolchainRootPath = CreateSharedToolchainRoot(
+
+        string launcherToolchainRootPath = CreateManifestRoot(
             "launcher-toolchains",
-            "platforms.json",
             """
             {
               "platforms": [
                 {
-                  "platformDescriptorPath": "android/platform.json"
+                  "engineVersion": "1.0.0",
+                  "platformId": "windows",
+                  "displayName": "Windows DirectX",
+                  "builderAssemblyPath": "builders/windows/helengine.windows.builder.dll",
+                  "playerSourceRootPath": "players/windows"
                 }
               ]
             }
             """);
-        WritePlatformDescriptor(launcherToolchainRootPath, "android/platform.json", "1.0.0", "android", "Android Vulkan", "builders/android/helengine.android.builder.dll", "players/android");
+
+        Directory.CreateDirectory(Path.Combine(launcherToolchainRootPath, "builders", "windows"));
+        File.WriteAllText(Path.Combine(launcherToolchainRootPath, "builders", "windows", "helengine.windows.builder.dll"), string.Empty);
+        Directory.CreateDirectory(Path.Combine(launcherToolchainRootPath, "players", "windows"));
+
         AvailablePlatformProviderResolver resolver = new AvailablePlatformProviderResolver(
-            new PlatformDiscoveryOptions(developmentToolchainRootPath),
+            new PlatformDiscoveryOptions(engineUserSettingsRootPath),
             new TestLauncherInstallRootLocator(string.Empty, launcherToolchainRootPath));
-
-        IReadOnlyList<AvailablePlatformDescriptor> platforms = resolver.LoadPlatforms("1.0.0");
-
-        Assert.Collection(
-            platforms,
-            platform => {
-                Assert.Equal("windows", platform.Id);
-                Assert.Equal(Path.GetFullPath(Path.Combine(developmentToolchainRootPath, "windows/builders/windows/helengine.windows.builder.dll")), platform.BuilderAssemblyPath);
-                Assert.Equal(Path.GetFullPath(Path.Combine(developmentToolchainRootPath, "windows/players/windows")), platform.PlayerSourceRootPath);
-            },
-            platform => Assert.Equal("steamdeck", platform.Id),
-            platform => Assert.Equal("android", platform.Id));
-    }
-
-    /// <summary>
-    /// Ensures missing launcher state falls back to the built-in source-build Windows platform.
-    /// </summary>
-    [Fact]
-    public void LoadPlatforms_WhenLauncherStateIsMissing_ReturnsBuiltInWindowsFallback() {
-        AvailablePlatformProviderResolver resolver = new AvailablePlatformProviderResolver(
-            new PlatformDiscoveryOptions(),
-            new TestLauncherInstallRootLocator(string.Empty, Path.Combine(TempDirectoryPath, "missing-toolchains")));
 
         IReadOnlyList<AvailablePlatformDescriptor> platforms = resolver.LoadPlatforms("1.0.0");
 
         Assert.Single(platforms);
         Assert.Equal("windows", platforms[0].Id);
+        Assert.True(platforms[0].IsInstalled);
+        Assert.Equal(Path.GetFullPath(Path.Combine(launcherToolchainRootPath, "players/windows")), platforms[0].PlayerSourceRootPath);
+        Assert.Equal(Path.GetFullPath(Path.Combine(launcherToolchainRootPath, "builders/windows/helengine.windows.builder.dll")), platforms[0].BuilderAssemblyPath);
     }
 
     /// <summary>
-    /// Ensures one engine version with no matching bindings returns an empty list instead of leaking bindings for other engines.
+    /// Ensures one engine version with no matching entries returns an empty list instead of leaking entries for other engines.
     /// </summary>
     [Fact]
-    public void LoadPlatforms_WhenEngineVersionHasNoMatchingBindings_ReturnsEmptyList() {
-        string launcherToolchainRootPath = CreateSharedToolchainRoot(
-            "launcher-toolchains",
-            "platforms.json",
+    public void LoadPlatforms_WhenEngineVersionHasNoMatchingEntries_ReturnsEmptyList() {
+        string engineUserSettingsRootPath = CreateManifestRoot(
+            "engine-user-settings",
             """
             {
               "platforms": [
                 {
-                  "platformDescriptorPath": "android/platform.json"
+                  "engineVersion": "2.0.0",
+                  "platformId": "android",
+                  "displayName": "Android Vulkan",
+                  "builderAssemblyPath": "",
+                  "playerSourceRootPath": "platforms/android"
                 }
               ]
             }
             """);
-        WritePlatformDescriptor(launcherToolchainRootPath, "android/platform.json", "2.0.0", "android", "Android Vulkan", "builders/android/helengine.android.builder.dll", "players/android");
+
         AvailablePlatformProviderResolver resolver = new AvailablePlatformProviderResolver(
-            new PlatformDiscoveryOptions(),
-            new TestLauncherInstallRootLocator(string.Empty, launcherToolchainRootPath));
+            new PlatformDiscoveryOptions(engineUserSettingsRootPath),
+            new TestLauncherInstallRootLocator(string.Empty, string.Empty));
 
         IReadOnlyList<AvailablePlatformDescriptor> platforms = resolver.LoadPlatforms("1.0.0");
 
@@ -167,48 +171,15 @@ public sealed class AvailablePlatformProviderResolverTests : IDisposable {
     }
 
     /// <summary>
-    /// Writes one per-platform descriptor file inside the supplied test root.
-    /// </summary>
-    /// <param name="sharedToolchainRootPath">Shared toolchain root that owns the descriptor file.</param>
-    /// <param name="descriptorRelativePath">Descriptor path relative to the shared root.</param>
-    /// <param name="engineVersion">Exact engine version that owns the descriptor.</param>
-    /// <param name="platformId">Stable platform identifier written into project files.</param>
-    /// <param name="displayName">Readable platform name shown in editor UI.</param>
-    /// <param name="builderAssemblyPath">Builder assembly path stored in the descriptor.</param>
-    /// <param name="playerSourceRootPath">Player source root path stored in the descriptor.</param>
-    void WritePlatformDescriptor(
-        string sharedToolchainRootPath,
-        string descriptorRelativePath,
-        string engineVersion,
-        string platformId,
-        string displayName,
-        string builderAssemblyPath,
-        string playerSourceRootPath) {
-        string descriptorFilePath = Path.Combine(sharedToolchainRootPath, descriptorRelativePath);
-        string descriptorDirectoryPath = Path.GetDirectoryName(descriptorFilePath) ?? string.Empty;
-        Directory.CreateDirectory(descriptorDirectoryPath);
-        File.WriteAllText(descriptorFilePath, $$"""
-        {
-          "engineVersion": "{{engineVersion}}",
-          "platformId": "{{platformId}}",
-          "displayName": "{{displayName}}",
-          "builderAssemblyPath": "{{builderAssemblyPath}}",
-          "playerSourceRootPath": "{{playerSourceRootPath}}"
-        }
-        """);
-    }
-
-    /// <summary>
-    /// Creates one temporary shared toolchain root containing the supplied manifest JSON.
+    /// Creates one manifest root containing the supplied manifest JSON.
     /// </summary>
     /// <param name="directoryName">Directory name used under the test root.</param>
-    /// <param name="manifestFileName">Manifest file name written under the root.</param>
     /// <param name="manifestJson">Manifest JSON to write.</param>
-    /// <returns>Absolute path to the created shared toolchain root.</returns>
-    string CreateSharedToolchainRoot(string directoryName, string manifestFileName, string manifestJson) {
-        string sharedToolchainRootPath = Path.Combine(TempDirectoryPath, directoryName);
-        Directory.CreateDirectory(sharedToolchainRootPath);
-        File.WriteAllText(Path.Combine(sharedToolchainRootPath, manifestFileName), manifestJson);
-        return sharedToolchainRootPath;
+    /// <returns>Absolute path to the created manifest root.</returns>
+    string CreateManifestRoot(string directoryName, string manifestJson) {
+        string manifestRootPath = Path.Combine(TempDirectoryPath, directoryName);
+        Directory.CreateDirectory(manifestRootPath);
+        File.WriteAllText(Path.Combine(manifestRootPath, "platforms.json"), manifestJson);
+        return manifestRootPath;
     }
 }

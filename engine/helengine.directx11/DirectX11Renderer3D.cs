@@ -62,7 +62,7 @@ namespace helengine.directx11 {
         /// </summary>
         Dictionary<IntPtr, DirectX11SwapChainSurface> surfacesByHandle;
         /// <summary>
-        /// Constant buffer for standard world-view-projection transforms.
+        /// Constant buffer for the built-in default mesh transform and camera data.
         /// </summary>
         Buffer constantBuffer;
         /// <summary>
@@ -109,6 +109,10 @@ namespace helengine.directx11 {
         /// Tracks the active material for the current pass.
         /// </summary>
         DirectX11MaterialResource ActiveMaterial;
+        /// <summary>
+        /// World-space camera position for the active 3D camera pass.
+        /// </summary>
+        float3 currentCameraPosition;
         /// <summary>
         /// Tracks the rasterizer state currently bound to the pipeline.
         /// </summary>
@@ -184,7 +188,7 @@ namespace helengine.directx11 {
                 FeatureLevel.Level_9_1,
             });
 
-            constantBuffer = new Buffer(Device, Utilities.SizeOf<float4x4>(), ResourceUsage.Default,
+            constantBuffer = new Buffer(Device, Utilities.SizeOf<StandardMeshShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
             customPassConstantBuffer = new Buffer(Device, Utilities.SizeOf<CustomEffectShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
@@ -590,6 +594,7 @@ namespace helengine.directx11 {
 
             float4x4 view;
             float3 cameraPos = camera.Parent.Position;
+            currentCameraPosition = cameraPos;
             float4 cameraOrientation = camera.Parent.Orientation;
             float3 cameraForward = float4.RotateVector(DefaultForward, cameraOrientation);
             float3 cameraUp = float4.RotateVector(DefaultUp, cameraOrientation);
@@ -688,7 +693,7 @@ namespace helengine.directx11 {
             context.OutputMerger.SetBlendState(null);
             ActiveBlendState = null;
             context.VertexShader.SetConstantBuffer(0, constantBuffer);
-            context.PixelShader.SetConstantBuffer(0, null);
+            context.PixelShader.SetConstantBuffer(0, constantBuffer);
 
             IRenderQueue3D renderQueue = camera.RenderQueue3D;
             renderQueue.VisitOrdered(this);
@@ -751,8 +756,12 @@ namespace helengine.directx11 {
             float4x4 worldViewProj;
             float4x4.Multiply(ref world, ref currentViewProjection, out worldViewProj);
 
+            float4x4 worldTransposed;
+            float4x4.Transpose(ref world, out worldTransposed);
             float4x4 worldViewProjTransposed;
             float4x4.Transpose(ref worldViewProj, out worldViewProjTransposed);
+            float4x4 normalMatrix;
+            float4x4.InverseTranspose(ref world, out normalMatrix);
 
             if (isCustomPassActive) {
                 if (customColorProvider == null) {
@@ -766,7 +775,13 @@ namespace helengine.directx11 {
                 };
                 context.UpdateSubresource(ref customData, customPassConstantBuffer);
             } else {
-                context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
+                var standardData = new StandardMeshShaderData {
+                    World = worldTransposed,
+                    WorldViewProj = worldViewProjTransposed,
+                    NormalMatrix = normalMatrix,
+                    CameraPosition = new float4(currentCameraPosition.X, currentCameraPosition.Y, currentCameraPosition.Z, 0f)
+                };
+                context.UpdateSubresource(ref standardData, constantBuffer);
             }
 
             if (data.IndexBuffer != null && data.IndexCount > 0) {

@@ -64,6 +64,36 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures each platform row renders a dedicated status column instead of embedding installation state in the platform name.
+        /// </summary>
+        [Fact]
+        public void Show_WhenAvailablePlatformsIncludeMissingEntries_RendersDedicatedStatusColumn() {
+            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+
+            dialog.Show(
+                new List<AvailablePlatformDescriptor> {
+                    new AvailablePlatformDescriptor("windows", "Windows", isInstalled: true),
+                    new AvailablePlatformDescriptor("linux", "Linux", isInstalled: false),
+                    new AvailablePlatformDescriptor("android", "Android", isInstalled: true)
+                },
+                new List<string> {
+                    "windows"
+                });
+
+            List<TextComponent> platformLabels = GetPrivateField<List<TextComponent>>(dialog, "PlatformLabelTexts");
+            List<TextComponent> platformStatuses = GetPrivateField<List<TextComponent>>(dialog, "PlatformStatusTexts");
+
+            Assert.Equal(3, platformLabels.Count);
+            Assert.Equal(3, platformStatuses.Count);
+            Assert.Equal("Windows", platformLabels[0].Text);
+            Assert.Equal("Linux", platformLabels[1].Text);
+            Assert.Equal("Android", platformLabels[2].Text);
+            Assert.Equal("INSTALLED", platformStatuses[0].Text);
+            Assert.Equal("MISSING", platformStatuses[1].Text);
+            Assert.Equal("INSTALLED", platformStatuses[2].Text);
+        }
+
+        /// <summary>
         /// Ensures the initial checked state matches the currently supported platforms.
         /// </summary>
         [Fact]
@@ -103,7 +133,9 @@ namespace helengine.editor.tests {
             EditorEntity statusHost = GetPrivateField<EditorEntity>(dialog, "StatusHost");
             EditorEntity cancelButtonHost = GetPrivateField<EditorEntity>(dialog, "CancelButtonHost");
             EditorEntity saveButtonHost = GetPrivateField<EditorEntity>(dialog, "SaveButtonHost");
+            List<EditorEntity> platformHeaderHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformHeaderHosts");
             List<EditorEntity> platformLabelHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformLabelHosts");
+            List<EditorEntity> platformStatusHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformStatusHosts");
             List<EditorEntity> platformCheckBoxHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformCheckBoxHosts");
 
             Assert.True(panelRoot.InternalEntity);
@@ -112,7 +144,9 @@ namespace helengine.editor.tests {
             Assert.True(statusHost.InternalEntity);
             Assert.True(cancelButtonHost.InternalEntity);
             Assert.True(saveButtonHost.InternalEntity);
+            Assert.All(platformHeaderHosts, host => Assert.True(host.InternalEntity));
             Assert.All(platformLabelHosts, host => Assert.True(host.InternalEntity));
+            Assert.All(platformStatusHosts, host => Assert.True(host.InternalEntity));
             Assert.All(platformCheckBoxHosts, host => Assert.True(host.InternalEntity));
         }
 
