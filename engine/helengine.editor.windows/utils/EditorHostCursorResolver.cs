@@ -30,6 +30,10 @@ namespace helengine.editor.windows {
                     return Cursors.Hand;
                 case PointerCursorKind.Text:
                     return Cursors.IBeam;
+                case PointerCursorKind.ResizeNorthWestSouthEast:
+                    return Cursors.SizeNWSE;
+                case PointerCursorKind.ResizeNorthEastSouthWest:
+                    return Cursors.SizeNESW;
                 default:
                     return Cursors.Default;
             }

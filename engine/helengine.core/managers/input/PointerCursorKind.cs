@@ -15,5 +15,13 @@ public enum PointerCursorKind {
     /// <summary>
     /// Uses a text-editing cursor for text entry controls.
     /// </summary>
-    Text
+    Text,
+    /// <summary>
+    /// Uses the diagonal resize cursor for top-left and bottom-right corner grips.
+    /// </summary>
+    ResizeNorthWestSouthEast,
+    /// <summary>
+    /// Uses the diagonal resize cursor for top-right and bottom-left corner grips.
+    /// </summary>
+    ResizeNorthEastSouthWest
 }

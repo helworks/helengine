@@ -128,6 +128,40 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the shared dialog shell exposes resize grips in the three configured corners.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_ExposesCornerResizeGripsByDefault() {
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            dialog.Show();
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity panelRoot = GetPrivateField<EditorEntity>(dialog, "PanelRoot");
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+
+            EditorEntity topLeftGrip = Assert.IsType<EditorEntity>(Assert.Single(panelRoot.Children, child => string.Equals(child.Name, "ResizeTopLeftGrip", StringComparison.Ordinal)));
+            EditorEntity bottomLeftGrip = Assert.IsType<EditorEntity>(Assert.Single(panelRoot.Children, child => string.Equals(child.Name, "ResizeBottomLeftGrip", StringComparison.Ordinal)));
+            EditorEntity bottomRightGrip = Assert.IsType<EditorEntity>(Assert.Single(panelRoot.Children, child => string.Equals(child.Name, "ResizeBottomRightGrip", StringComparison.Ordinal)));
+
+            InteractableComponent topLeftInteractable = topLeftGrip.Components.OfType<InteractableComponent>().Single();
+            InteractableComponent bottomLeftInteractable = bottomLeftGrip.Components.OfType<InteractableComponent>().Single();
+            InteractableComponent bottomRightInteractable = bottomRightGrip.Components.OfType<InteractableComponent>().Single();
+
+            Assert.Equal(new int2(EditorDialogBase.ResizeGripSize, EditorDialogBase.ResizeGripSize), topLeftInteractable.Size);
+            Assert.Equal(new int2(EditorDialogBase.ResizeGripSize, EditorDialogBase.ResizeGripSize), bottomLeftInteractable.Size);
+            Assert.Equal(new int2(EditorDialogBase.ResizeGripSize, EditorDialogBase.ResizeGripSize), bottomRightInteractable.Size);
+            Assert.Equal(PointerCursorKind.ResizeNorthWestSouthEast, topLeftInteractable.HoverCursor);
+            Assert.Equal(PointerCursorKind.ResizeNorthEastSouthWest, bottomLeftInteractable.HoverCursor);
+            Assert.Equal(PointerCursorKind.ResizeNorthWestSouthEast, bottomRightInteractable.HoverCursor);
+            Assert.Equal(0f, topLeftGrip.LocalPosition.X);
+            Assert.Equal(0f, topLeftGrip.LocalPosition.Y);
+            Assert.Equal(0f, bottomLeftGrip.LocalPosition.X);
+            Assert.Equal(panelBackground.Size.Y - EditorDialogBase.ResizeGripSize, bottomLeftGrip.LocalPosition.Y);
+            Assert.Equal(panelBackground.Size.X - EditorDialogBase.ResizeGripSize, bottomRightGrip.LocalPosition.X);
+            Assert.Equal(panelBackground.Size.Y - EditorDialogBase.ResizeGripSize, bottomRightGrip.LocalPosition.Y);
+        }
+
+        /// <summary>
         /// Ensures the close button owns the same left separator used by the editor window chrome.
         /// </summary>
         [Fact]
@@ -157,6 +191,33 @@ namespace helengine.editor.tests {
 
             Assert.Equal(initialPosition.X + 20, panelRoot.Position.X);
             Assert.Equal(initialPosition.Y + 12, panelRoot.Position.Y);
+        }
+
+        /// <summary>
+        /// Ensures dragging the top-left resize grip changes both the panel size and its origin.
+        /// </summary>
+        [Fact]
+        public void HandleTopLeftResizeGrip_WhenDragged_ResizesAndRepositionsThePanel() {
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            dialog.Show();
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity panelRoot = GetPrivateField<EditorEntity>(dialog, "PanelRoot");
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            EditorEntity topLeftGrip = Assert.IsType<EditorEntity>(panelRoot.Children.Single(child => string.Equals(child.Name, "ResizeTopLeftGrip", StringComparison.Ordinal)));
+            InteractableComponent topLeftInteractable = topLeftGrip.Components.OfType<InteractableComponent>().Single();
+
+            float3 initialPosition = panelRoot.Position;
+            int2 initialSize = panelBackground.Size;
+
+            topLeftInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Press);
+            topLeftInteractable.OnCursor(new int2(8, 8), new int2(20, 12), PointerInteraction.Hover);
+            topLeftInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Release);
+
+            Assert.Equal(initialPosition.X + 20, panelRoot.Position.X);
+            Assert.Equal(initialPosition.Y + 12, panelRoot.Position.Y);
+            Assert.Equal(initialSize.X - 20, panelBackground.Size.X);
+            Assert.Equal(initialSize.Y - 12, panelBackground.Size.Y);
         }
 
         /// <summary>

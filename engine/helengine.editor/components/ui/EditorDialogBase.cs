@@ -9,6 +9,11 @@ namespace helengine.editor {
         public const int CloseButtonWidth = 40;
 
         /// <summary>
+        /// Square size used for the shared corner resize grips.
+        /// </summary>
+        public const int ResizeGripSize = 16;
+
+        /// <summary>
         /// Default host width used before the first real layout pass.
         /// </summary>
         const int DefaultFallbackHostWidth = 1280;
@@ -46,6 +51,26 @@ namespace helengine.editor {
         /// Border thickness used for the shared dialog panel chrome.
         /// </summary>
         const float PanelBorderThickness = 2f;
+
+        /// <summary>
+        /// Identifies which corner a resize grip controls.
+        /// </summary>
+        enum ResizeGripKind {
+            /// <summary>
+            /// Resizes the dialog from the top-left corner.
+            /// </summary>
+            TopLeft,
+
+            /// <summary>
+            /// Resizes the dialog from the bottom-left corner.
+            /// </summary>
+            BottomLeft,
+
+            /// <summary>
+            /// Resizes the dialog from the bottom-right corner.
+            /// </summary>
+            BottomRight
+        }
 
         /// <summary>
         /// Font used by shared dialog title-bar content.
@@ -153,6 +178,51 @@ namespace helengine.editor {
         readonly ButtonComponent CloseButton;
 
         /// <summary>
+        /// Root entity for the top-left resize grip.
+        /// </summary>
+        readonly EditorEntity ResizeTopLeftHost;
+
+        /// <summary>
+        /// Drawable used to make the top-left grip participate in hit testing.
+        /// </summary>
+        readonly SpriteComponent ResizeTopLeftSurface;
+
+        /// <summary>
+        /// Interactable used for the top-left resize grip.
+        /// </summary>
+        readonly InteractableComponent ResizeTopLeftInteractable;
+
+        /// <summary>
+        /// Root entity for the bottom-left resize grip.
+        /// </summary>
+        readonly EditorEntity ResizeBottomLeftHost;
+
+        /// <summary>
+        /// Drawable used to make the bottom-left grip participate in hit testing.
+        /// </summary>
+        readonly SpriteComponent ResizeBottomLeftSurface;
+
+        /// <summary>
+        /// Interactable used for the bottom-left resize grip.
+        /// </summary>
+        readonly InteractableComponent ResizeBottomLeftInteractable;
+
+        /// <summary>
+        /// Root entity for the bottom-right resize grip.
+        /// </summary>
+        readonly EditorEntity ResizeBottomRightHost;
+
+        /// <summary>
+        /// Drawable used to make the bottom-right grip participate in hit testing.
+        /// </summary>
+        readonly SpriteComponent ResizeBottomRightSurface;
+
+        /// <summary>
+        /// Interactable used for the bottom-right resize grip.
+        /// </summary>
+        readonly InteractableComponent ResizeBottomRightInteractable;
+
+        /// <summary>
         /// Cached host size used to center and clamp dialog movement.
         /// </summary>
         int2 HostSize;
@@ -166,6 +236,11 @@ namespace helengine.editor {
         /// Tracks whether the dialog has been manually repositioned by the user.
         /// </summary>
         bool IsUserPositioned;
+
+        /// <summary>
+        /// Tracks whether a resize grip is currently being dragged.
+        /// </summary>
+        bool IsResizing;
 
         /// <summary>
         /// Tracks whether the title bar is currently being dragged.
@@ -186,6 +261,16 @@ namespace helengine.editor {
         /// Height of the dialog title bar.
         /// </summary>
         int DialogHeaderHeight { get; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the dialog exposes resize grips.
+        /// </summary>
+        protected bool DialogIsResizable { get; set; }
+
+        /// <summary>
+        /// Gets or sets the minimum size allowed while the dialog is resized.
+        /// </summary>
+        protected int2 DialogMinimumSize { get; set; }
 
         /// <summary>
         /// Initializes the shared dialog shell for one concrete editor dialog.
@@ -211,6 +296,8 @@ namespace helengine.editor {
             DialogWidth = dialogWidth;
             DialogHeight = dialogHeight;
             DialogHeaderHeight = dialogHeaderHeight;
+            DialogIsResizable = true;
+            DialogMinimumSize = new int2(240, 160);
             PanelOrder = RenderOrder2D.ModalBackground;
             TextOrder = RenderOrder2D.ModalForeground;
 
@@ -341,6 +428,75 @@ namespace helengine.editor {
             CloseButton.UseHoverOnlyBackground();
             CloseButton.UseSquareCorners();
             CloseButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
+
+            ResizeTopLeftHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true,
+                Name = "ResizeTopLeftGrip"
+            };
+            PanelRoot.AddChild(ResizeTopLeftHost);
+
+            ResizeTopLeftSurface = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = new byte4(0, 0, 0, 0),
+                RenderOrder2D = RenderOrder2D.ModalInput,
+                Size = new int2(ResizeGripSize, ResizeGripSize)
+            };
+            ResizeTopLeftHost.AddComponent(ResizeTopLeftSurface);
+
+            ResizeTopLeftInteractable = new InteractableComponent {
+                HoverCursor = PointerCursorKind.ResizeNorthWestSouthEast,
+                Size = new int2(ResizeGripSize, ResizeGripSize)
+            };
+            ResizeTopLeftInteractable.CursorEvent += HandleTopLeftResizeCursor;
+            ResizeTopLeftHost.AddComponent(ResizeTopLeftInteractable);
+
+            ResizeBottomLeftHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true,
+                Name = "ResizeBottomLeftGrip"
+            };
+            PanelRoot.AddChild(ResizeBottomLeftHost);
+
+            ResizeBottomLeftSurface = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = new byte4(0, 0, 0, 0),
+                RenderOrder2D = RenderOrder2D.ModalInput,
+                Size = new int2(ResizeGripSize, ResizeGripSize)
+            };
+            ResizeBottomLeftHost.AddComponent(ResizeBottomLeftSurface);
+
+            ResizeBottomLeftInteractable = new InteractableComponent {
+                HoverCursor = PointerCursorKind.ResizeNorthEastSouthWest,
+                Size = new int2(ResizeGripSize, ResizeGripSize)
+            };
+            ResizeBottomLeftInteractable.CursorEvent += HandleBottomLeftResizeCursor;
+            ResizeBottomLeftHost.AddComponent(ResizeBottomLeftInteractable);
+
+            ResizeBottomRightHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true,
+                Name = "ResizeBottomRightGrip"
+            };
+            PanelRoot.AddChild(ResizeBottomRightHost);
+
+            ResizeBottomRightSurface = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = new byte4(0, 0, 0, 0),
+                RenderOrder2D = RenderOrder2D.ModalInput,
+                Size = new int2(ResizeGripSize, ResizeGripSize)
+            };
+            ResizeBottomRightHost.AddComponent(ResizeBottomRightSurface);
+
+            ResizeBottomRightInteractable = new InteractableComponent {
+                HoverCursor = PointerCursorKind.ResizeNorthWestSouthEast,
+                Size = new int2(ResizeGripSize, ResizeGripSize)
+            };
+            ResizeBottomRightInteractable.CursorEvent += HandleBottomRightResizeCursor;
+            ResizeBottomRightHost.AddComponent(ResizeBottomRightInteractable);
         }
 
         /// <summary>
@@ -357,8 +513,8 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(dialogHeight));
             }
 
-            DialogWidth = dialogWidth;
-            DialogHeight = dialogHeight;
+            DialogWidth = Math.Max(Math.Max(1, DialogMinimumSize.X), dialogWidth);
+            DialogHeight = Math.Max(Math.Max(1, DialogMinimumSize.Y), dialogHeight);
         }
 
         /// <summary>
@@ -420,6 +576,7 @@ namespace helengine.editor {
         /// </summary>
         protected void ResetDialogPositioning() {
             IsDragging = false;
+            IsResizing = false;
             IsUserPositioned = false;
         }
 
@@ -563,6 +720,145 @@ namespace helengine.editor {
             TitleHost.Position = new float3(HeaderPadding, titleY, 0.2f);
             int textWidth = Math.Max(1, closeButtonX - HeaderPadding - HeaderButtonSpacing);
             TitleText.Size = new int2(textWidth, Math.Max(1, (int)Math.Ceiling(titleMetrics.Height)));
+            UpdateResizeGripLayout();
+        }
+
+        /// <summary>
+        /// Updates the corner resize grips to match the current dialog dimensions.
+        /// </summary>
+        void UpdateResizeGripLayout() {
+            if (!DialogIsResizable) {
+                ResizeTopLeftSurface.Size = new int2(0, 0);
+                ResizeTopLeftInteractable.Size = new int2(0, 0);
+                ResizeBottomLeftSurface.Size = new int2(0, 0);
+                ResizeBottomLeftInteractable.Size = new int2(0, 0);
+                ResizeBottomRightSurface.Size = new int2(0, 0);
+                ResizeBottomRightInteractable.Size = new int2(0, 0);
+                return;
+            }
+
+            int gripOffsetX = Math.Max(0, DialogWidth - ResizeGripSize);
+            int gripOffsetY = Math.Max(0, DialogHeight - ResizeGripSize);
+
+            ResizeTopLeftHost.Position = new float3(0f, 0f, 0.3f);
+            ResizeTopLeftSurface.Size = new int2(ResizeGripSize, ResizeGripSize);
+            ResizeTopLeftInteractable.Size = new int2(ResizeGripSize, ResizeGripSize);
+
+            ResizeBottomLeftHost.Position = new float3(0f, gripOffsetY, 0.3f);
+            ResizeBottomLeftSurface.Size = new int2(ResizeGripSize, ResizeGripSize);
+            ResizeBottomLeftInteractable.Size = new int2(ResizeGripSize, ResizeGripSize);
+
+            ResizeBottomRightHost.Position = new float3(gripOffsetX, gripOffsetY, 0.3f);
+            ResizeBottomRightSurface.Size = new int2(ResizeGripSize, ResizeGripSize);
+            ResizeBottomRightInteractable.Size = new int2(ResizeGripSize, ResizeGripSize);
+        }
+
+        /// <summary>
+        /// Handles pointer events for the top-left resize grip.
+        /// </summary>
+        /// <param name="pos">Pointer position relative to the grip.</param>
+        /// <param name="delta">Pointer movement delta.</param>
+        /// <param name="state">Pointer interaction state.</param>
+        void HandleTopLeftResizeCursor(int2 pos, int2 delta, PointerInteraction state) {
+            HandleResizeGripCursor(ResizeGripKind.TopLeft, delta, state);
+        }
+
+        /// <summary>
+        /// Handles pointer events for the bottom-left resize grip.
+        /// </summary>
+        /// <param name="pos">Pointer position relative to the grip.</param>
+        /// <param name="delta">Pointer movement delta.</param>
+        /// <param name="state">Pointer interaction state.</param>
+        void HandleBottomLeftResizeCursor(int2 pos, int2 delta, PointerInteraction state) {
+            HandleResizeGripCursor(ResizeGripKind.BottomLeft, delta, state);
+        }
+
+        /// <summary>
+        /// Handles pointer events for the bottom-right resize grip.
+        /// </summary>
+        /// <param name="pos">Pointer position relative to the grip.</param>
+        /// <param name="delta">Pointer movement delta.</param>
+        /// <param name="state">Pointer interaction state.</param>
+        void HandleBottomRightResizeCursor(int2 pos, int2 delta, PointerInteraction state) {
+            HandleResizeGripCursor(ResizeGripKind.BottomRight, delta, state);
+        }
+
+        /// <summary>
+        /// Applies a drag delta from one resize grip to the dialog size and position.
+        /// </summary>
+        /// <param name="gripKind">Corner grip being dragged.</param>
+        /// <param name="delta">Pointer movement delta supplied by the input manager.</param>
+        void HandleResizeGripCursor(ResizeGripKind gripKind, int2 delta, PointerInteraction state) {
+            if (!DialogIsResizable) {
+                return;
+            }
+
+            if (state == PointerInteraction.Press) {
+                IsResizing = true;
+                IsUserPositioned = true;
+                ApplyResizeDelta(gripKind, delta);
+                return;
+            }
+
+            if (state == PointerInteraction.Hover) {
+                if (IsResizing) {
+                    ApplyResizeDelta(gripKind, delta);
+                }
+
+                return;
+            }
+
+            if (state == PointerInteraction.Release || state == PointerInteraction.Leave) {
+                IsResizing = false;
+            }
+        }
+
+        /// <summary>
+        /// Updates the dialog shell using one resize delta from a corner grip.
+        /// </summary>
+        /// <param name="gripKind">Corner grip being dragged.</param>
+        /// <param name="delta">Pointer movement delta supplied by the input manager.</param>
+        void ApplyResizeDelta(ResizeGripKind gripKind, int2 delta) {
+            int minimumWidth = Math.Max(1, DialogMinimumSize.X);
+            int minimumHeight = Math.Max(1, DialogMinimumSize.Y);
+            int newX = PanelPosition.X;
+            int newY = PanelPosition.Y;
+            int newWidth = DialogWidth;
+            int newHeight = DialogHeight;
+
+            switch (gripKind) {
+                case ResizeGripKind.TopLeft: {
+                    int maxWidthShrink = Math.Max(0, DialogWidth - minimumWidth);
+                    int widthDelta = Math.Min(delta.X, maxWidthShrink);
+                    newX += widthDelta;
+                    newWidth -= widthDelta;
+
+                    int maxHeightShrink = Math.Max(0, DialogHeight - minimumHeight);
+                    int heightDelta = Math.Min(delta.Y, maxHeightShrink);
+                    newY += heightDelta;
+                    newHeight -= heightDelta;
+                    break;
+                }
+                case ResizeGripKind.BottomLeft: {
+                    int maxWidthShrink = Math.Max(0, DialogWidth - minimumWidth);
+                    int widthDelta = Math.Min(delta.X, maxWidthShrink);
+                    newX += widthDelta;
+                    newWidth -= widthDelta;
+                    newHeight = Math.Max(minimumHeight, DialogHeight + delta.Y);
+                    break;
+                }
+                case ResizeGripKind.BottomRight:
+                    newWidth = Math.Max(minimumWidth, DialogWidth + delta.X);
+                    newHeight = Math.Max(minimumHeight, DialogHeight + delta.Y);
+                    break;
+            }
+
+            DialogWidth = newWidth;
+            DialogHeight = newHeight;
+            PanelPosition = new int2(newX, newY);
+            ClampDialogPosition();
+            ApplyDialogPosition();
+            UpdateDialogChromeLayout();
         }
 
         /// <summary>

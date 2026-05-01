@@ -32,5 +32,33 @@ namespace helengine.editor.windows.tests.utils {
 
             Assert.Same(Cursors.SizeWE, cursor);
         }
+
+        /// <summary>
+        /// Ensures the top-left and bottom-right dialog grip cursor resolves to the NW-SE resize cursor.
+        /// </summary>
+        [Fact]
+        public void Resolve_WhenHoverCursorRequestsNorthWestSouthEastResize_ReturnsSizeNWSE() {
+            Cursor cursor = EditorHostCursorResolver.Resolve(
+                DockingCursorState.Default,
+                PointerCursorKind.ResizeNorthWestSouthEast,
+                false,
+                Cursors.Default);
+
+            Assert.Same(Cursors.SizeNWSE, cursor);
+        }
+
+        /// <summary>
+        /// Ensures the bottom-left dialog grip cursor resolves to the NE-SW resize cursor.
+        /// </summary>
+        [Fact]
+        public void Resolve_WhenHoverCursorRequestsNorthEastSouthWestResize_ReturnsSizeNESW() {
+            Cursor cursor = EditorHostCursorResolver.Resolve(
+                DockingCursorState.Default,
+                PointerCursorKind.ResizeNorthEastSouthWest,
+                false,
+                Cursors.Default);
+
+            Assert.Same(Cursors.SizeNESW, cursor);
+        }
     }
 }
