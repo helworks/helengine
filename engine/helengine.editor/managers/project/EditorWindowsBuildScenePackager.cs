@@ -14,6 +14,11 @@ namespace helengine.editor {
         const byte MeshComponentPayloadVersion = 1;
 
         /// <summary>
+        /// Current payload version for serialized camera component scene records.
+        /// </summary>
+        const byte CameraComponentPayloadVersion = 1;
+
+        /// <summary>
         /// Stable serialized component id for mesh components.
         /// </summary>
         const string MeshComponentTypeId = "helengine.MeshComponent";
@@ -22,6 +27,11 @@ namespace helengine.editor {
         /// Stable serialized component id for camera components.
         /// </summary>
         const string CameraComponentTypeId = "helengine.CameraComponent";
+
+        /// <summary>
+        /// Runtime scene layer used by the current Windows player loader for materialized entities.
+        /// </summary>
+        const ushort RuntimeSceneLayerMask = 0b00000001;
 
         /// <summary>
         /// Stable generated-asset provider id used by engine-generated scene references.
@@ -228,7 +238,7 @@ namespace helengine.editor {
             }
 
             if (string.Equals(record.ComponentTypeId, CameraComponentTypeId, StringComparison.Ordinal)) {
-                return record;
+                return RewriteCameraComponentRecord(record);
             }
 
             throw new InvalidOperationException($"Windows player packaging does not support serialized component type '{record.ComponentTypeId}' yet.");
@@ -258,6 +268,43 @@ namespace helengine.editor {
             WriteOptionalReference(writer, modelReference);
             WriteOptionalReference(writer, materialReference);
             writer.WriteByte(renderOrder3D);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = record.ComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = writeStream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Rewrites one serialized camera component record into the runtime layer space expected by the Windows player.
+        /// </summary>
+        /// <param name="record">Serialized camera component record to rewrite.</param>
+        /// <returns>Rewritten camera component record.</returns>
+        SceneComponentAssetRecord RewriteCameraComponentRecord(SceneComponentAssetRecord record) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != CameraComponentPayloadVersion) {
+                throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
+            }
+
+            byte cameraDrawOrder = reader.ReadByte();
+            ushort layerMask = reader.ReadUInt16();
+            float4 viewport = ReadFloat4(reader);
+            CameraClearSettings clearSettings = ReadClearSettings(reader);
+
+            using MemoryStream writeStream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(CameraComponentPayloadVersion);
+            writer.WriteByte(cameraDrawOrder);
+            writer.WriteUInt16(NormalizePackagedCameraLayerMask(layerMask));
+            WriteFloat4(writer, viewport);
+            WriteClearSettings(writer, clearSettings);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = record.ComponentTypeId,
@@ -520,6 +567,85 @@ namespace helengine.editor {
             writer.WriteString(reference.RelativePath);
             writer.WriteString(reference.ProviderId);
             writer.WriteString(reference.AssetId);
+        }
+
+        /// <summary>
+        /// Reads one <see cref="float4"/> value from the current payload position.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the vector payload.</param>
+        /// <returns>Decoded <see cref="float4"/> value.</returns>
+        float4 ReadFloat4(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            return new float4(
+                reader.ReadSingle(),
+                reader.ReadSingle(),
+                reader.ReadSingle(),
+                reader.ReadSingle());
+        }
+
+        /// <summary>
+        /// Writes one <see cref="float4"/> value into the current payload.
+        /// </summary>
+        /// <param name="writer">Writer receiving the vector payload.</param>
+        /// <param name="value">Vector value to encode.</param>
+        void WriteFloat4(EngineBinaryWriter writer, float4 value) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            }
+
+            writer.WriteSingle(value.X);
+            writer.WriteSingle(value.Y);
+            writer.WriteSingle(value.Z);
+            writer.WriteSingle(value.W);
+        }
+
+        /// <summary>
+        /// Reads one camera clear-settings payload from the current reader position.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the clear-settings payload.</param>
+        /// <returns>Decoded camera clear settings.</returns>
+        CameraClearSettings ReadClearSettings(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            return new CameraClearSettings(
+                reader.ReadByte() != 0,
+                ReadFloat4(reader),
+                reader.ReadByte() != 0,
+                reader.ReadSingle(),
+                reader.ReadByte() != 0,
+                reader.ReadByte());
+        }
+
+        /// <summary>
+        /// Writes one camera clear-settings payload into the current writer position.
+        /// </summary>
+        /// <param name="writer">Writer receiving the clear-settings payload.</param>
+        /// <param name="settings">Camera clear settings to encode.</param>
+        void WriteClearSettings(EngineBinaryWriter writer, CameraClearSettings settings) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            }
+
+            writer.WriteByte(settings.ClearColorEnabled ? (byte)1 : (byte)0);
+            WriteFloat4(writer, settings.ClearColor);
+            writer.WriteByte(settings.ClearDepthEnabled ? (byte)1 : (byte)0);
+            writer.WriteSingle(settings.ClearDepth);
+            writer.WriteByte(settings.ClearStencilEnabled ? (byte)1 : (byte)0);
+            writer.WriteByte(settings.ClearStencil);
+        }
+
+        /// <summary>
+        /// Normalizes one packaged scene-camera layer mask into the runtime scene layer used by the current Windows player loader.
+        /// </summary>
+        /// <param name="layerMask">Serialized authored camera layer mask.</param>
+        /// <returns>Runtime layer mask used by packaged Windows players.</returns>
+        ushort NormalizePackagedCameraLayerMask(ushort layerMask) {
+            return RuntimeSceneLayerMask;
         }
 
         /// <summary>
