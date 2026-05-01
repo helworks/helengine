@@ -17,6 +17,10 @@ namespace helengine.vulkan {
         /// </summary>
         static readonly uint TransformBufferSizeBytes = (uint)Marshal.SizeOf<StandardMeshShaderData>();
         /// <summary>
+        /// Size in bytes of the legacy single-matrix transform payload used by gizmo shaders and other non-standard materials.
+        /// </summary>
+        static readonly uint LegacyTransformBufferSizeBytes = (uint)Marshal.SizeOf<float4x4>();
+        /// <summary>
         /// Maximum number of textured 3D materials that can allocate descriptor sets.
         /// </summary>
         const uint MaxMaterialTextures = 2048;
@@ -282,6 +286,7 @@ namespace helengine.vulkan {
                 pixelProgram.EntryPoint,
                 vertexBinary.Bytecode,
                 pixelBinary.Bytecode);
+            material.SetId(materialAsset.Id);
             MaterialLayout layout = MaterialLayoutBuilder.Build(materialAsset, shaderAsset);
             material.SetLayout(layout);
             material.SetRenderState(materialAsset.RenderState);
@@ -438,8 +443,13 @@ namespace helengine.vulkan {
             }
 
             uint dynamicOffset = ReserveTransformSlot();
-            StandardMeshShaderData transformData = BuildStandardMeshShaderData(drawable.Parent);
-            UpdateTransformBuffer(transformData, dynamicOffset);
+            if (BuiltInMaterialIds.UsesStandardMeshTransform(rootMaterial.Id)) {
+                StandardMeshShaderData transformData = BuildStandardMeshShaderData(drawable.Parent);
+                UpdateTransformBuffer(transformData, dynamicOffset);
+            } else {
+                float4x4 transformData = BuildWorldViewProjectionMatrix(drawable.Parent);
+                UpdateTransformBuffer(transformData, dynamicOffset);
+            }
 
             DescriptorSet descriptorSet = EnsureMaterialDescriptorSet(material, runtimeMaterial);
             DescriptorSet* descriptorSets = stackalloc DescriptorSet[] { descriptorSet };
@@ -696,6 +706,38 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
+        /// Builds the legacy world-view-projection transform used by gizmo and helper shaders.
+        /// </summary>
+        /// <param name="entity">Entity to build transform data for.</param>
+        /// <returns>Transposed world-view-projection matrix ready for the shader constant buffer.</returns>
+        float4x4 BuildWorldViewProjectionMatrix(Entity entity) {
+            float4 orientation = entity.Orientation;
+            float4x4 rotation;
+            float4x4.CreateFromQuaternion(ref orientation, out rotation);
+
+            float3 scale = entity.Scale;
+            float4x4 size;
+            float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
+
+            float4x4 rotationScale;
+            float4x4.Multiply(ref rotation, ref size, out rotationScale);
+
+            float3 position = entity.Position;
+            float4x4 translation;
+            float4x4.CreateTranslation(ref position, out translation);
+
+            float4x4 world;
+            float4x4.Multiply(ref rotationScale, ref translation, out world);
+
+            float4x4 worldViewProj;
+            float4x4.Multiply(ref world, ref currentViewProjection, out worldViewProj);
+
+            float4x4 transposed;
+            float4x4.Transpose(ref worldViewProj, out transposed);
+            return transposed;
+        }
+
+        /// <summary>
         /// Reserves the next aligned transform offset in the dynamic uniform buffer.
         /// </summary>
         /// <returns>Dynamic buffer offset in bytes.</returns>
@@ -730,6 +772,32 @@ namespace helengine.vulkan {
             try {
                 StandardMeshShaderData* source = &transformData;
                 System.Buffer.MemoryCopy(source, mapped, TransformBufferSizeBytes, TransformBufferSizeBytes);
+            } finally {
+                context.Api.UnmapMemory(context.Device, transformUniformBuffer.Memory);
+            }
+        }
+
+        /// <summary>
+        /// Writes a legacy matrix payload to the dynamic uniform buffer at the specified offset.
+        /// </summary>
+        /// <param name="transformData">Legacy world-view-projection matrix payload.</param>
+        /// <param name="offset">Byte offset into the dynamic uniform buffer.</param>
+        unsafe void UpdateTransformBuffer(float4x4 transformData, uint offset) {
+            void* mapped;
+            Result mapResult = context.Api.MapMemory(
+                context.Device,
+                transformUniformBuffer.Memory,
+                offset,
+                LegacyTransformBufferSizeBytes,
+                0,
+                &mapped);
+            if (mapResult != Result.Success) {
+                throw new InvalidOperationException($"Failed to map Vulkan transform buffer: {mapResult}.");
+            }
+
+            try {
+                float4x4* source = &transformData;
+                System.Buffer.MemoryCopy(source, mapped, LegacyTransformBufferSizeBytes, LegacyTransformBufferSizeBytes);
             } finally {
                 context.Api.UnmapMemory(context.Device, transformUniformBuffer.Memory);
             }

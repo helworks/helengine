@@ -175,12 +175,12 @@ namespace helengine.editor {
         /// <summary>
         /// Width of the dialog panel owned by the shared shell.
         /// </summary>
-        int DialogWidth { get; }
+        protected int DialogWidth { get; private set; }
 
         /// <summary>
         /// Height of the dialog panel owned by the shared shell.
         /// </summary>
-        int DialogHeight { get; }
+        protected int DialogHeight { get; private set; }
 
         /// <summary>
         /// Height of the dialog title bar.
@@ -344,6 +344,24 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Updates the shared dialog shell dimensions before the next layout pass.
+        /// </summary>
+        /// <param name="dialogWidth">New panel width in pixels.</param>
+        /// <param name="dialogHeight">New panel height in pixels.</param>
+        protected void SetDialogSize(int dialogWidth, int dialogHeight) {
+            if (dialogWidth <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(dialogWidth));
+            }
+
+            if (dialogHeight <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(dialogHeight));
+            }
+
+            DialogWidth = dialogWidth;
+            DialogHeight = dialogHeight;
+        }
+
+        /// <summary>
         /// Gets the font used by the dialog shell.
         /// </summary>
         protected FontAsset DialogFont => Font;
@@ -362,6 +380,11 @@ namespace helengine.editor {
         /// Gets the root entity that owns the dialog panel content.
         /// </summary>
         protected EditorEntity DialogPanelRoot => PanelRoot;
+
+        /// <summary>
+        /// Gets the rounded panel background rendered behind the dialog content.
+        /// </summary>
+        protected RoundedRectComponent DialogPanelBackground => PanelBackground;
 
         /// <summary>
         /// Gets the mutable host size used to center and clamp the dialog.
@@ -526,6 +549,7 @@ namespace helengine.editor {
         /// Updates the shared title-bar geometry for the current panel size.
         /// </summary>
         protected void UpdateDialogChromeLayout() {
+            PanelBackground.Size = new int2(DialogWidth, DialogHeight);
             HeaderRoot.Position = new float3(0f, 0f, 0.2f);
             HeaderBackground.Size = new int2(DialogWidth, DialogHeaderHeight);
             HeaderInteractable.Size = new int2(DialogWidth, DialogHeaderHeight);

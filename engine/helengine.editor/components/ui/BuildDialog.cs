@@ -1230,7 +1230,7 @@ namespace helengine.editor {
         /// Positions and sizes the build-log section beneath the existing controls.
         /// </summary>
         void LayoutBuildLogsSection() {
-            int buildLogsTopY = PanelHeight - HeaderHeight - PanelPadding - BuildLogsSectionHeight;
+            int buildLogsTopY = LegacyContentHeight;
             int buildLogsWidth = PanelWidth - (PanelPadding * 2);
             int buildLogsInnerWidth = buildLogsWidth - (BuildLogsPadding * 2);
             int progressTrackY = BuildLogsPadding + BuildLogsTitleHeight + 6;

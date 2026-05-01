@@ -62,7 +62,7 @@ namespace helengine.directx11 {
         /// </summary>
         Dictionary<IntPtr, DirectX11SwapChainSurface> surfacesByHandle;
         /// <summary>
-        /// Constant buffer for the built-in default mesh transform and camera data.
+        /// Constant buffer for the built-in standard mesh transform data.
         /// </summary>
         Buffer constantBuffer;
         /// <summary>
@@ -433,6 +433,7 @@ namespace helengine.directx11 {
                 materialAsset.VertexProgram,
                 materialAsset.PixelProgram,
                 materialAsset.Variant);
+            material.SetId(materialAsset.Id);
             material.SetLayout(layout);
             material.SetRenderState(materialAsset.RenderState);
             material.ApplyConstantBufferDefaults(materialAsset.ConstantBuffers ?? Array.Empty<MaterialConstantBufferAsset>());
@@ -711,18 +712,18 @@ namespace helengine.directx11 {
             }
 
             var context = Device.ImmediateContext;
+            RuntimeMaterial runtimeMaterial = drawable.Material;
             if (!isCustomPassActive) {
-                RuntimeMaterial material = drawable.Material;
-                if (material == null) {
+                if (runtimeMaterial == null) {
                     DirectX11MaterialResource missingMaterial = GetMissingMaterial();
                     ApplyMaterial(missingMaterial, missingMaterial);
                 } else {
-                    RuntimeMaterial rootMaterial = material.ResolveRootMaterial();
+                    RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
                     if (rootMaterial is not DirectX11MaterialResource directX11Material) {
                         throw new InvalidOperationException("Drawable materials must resolve to DirectX11MaterialResource through their parent chain.");
                     }
 
-                    ApplyMaterial(directX11Material, material);
+                    ApplyMaterial(directX11Material, runtimeMaterial);
                 }
             }
 
@@ -760,8 +761,6 @@ namespace helengine.directx11 {
             float4x4.Transpose(ref world, out worldTransposed);
             float4x4 worldViewProjTransposed;
             float4x4.Transpose(ref worldViewProj, out worldViewProjTransposed);
-            float4x4 normalMatrix;
-            float4x4.InverseTranspose(ref world, out normalMatrix);
 
             if (isCustomPassActive) {
                 if (customColorProvider == null) {
@@ -775,13 +774,21 @@ namespace helengine.directx11 {
                 };
                 context.UpdateSubresource(ref customData, customPassConstantBuffer);
             } else {
-                var standardData = new StandardMeshShaderData {
-                    World = worldTransposed,
-                    WorldViewProj = worldViewProjTransposed,
-                    NormalMatrix = normalMatrix,
-                    CameraPosition = new float4(currentCameraPosition.X, currentCameraPosition.Y, currentCameraPosition.Z, 0f)
-                };
-                context.UpdateSubresource(ref standardData, constantBuffer);
+                    RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
+                    if (BuiltInMaterialIds.UsesStandardMeshTransform(rootMaterial.Id)) {
+                    float4x4 normalMatrix;
+                    float4x4.InverseTranspose(ref world, out normalMatrix);
+
+                    var standardData = new StandardMeshShaderData {
+                        World = worldTransposed,
+                        WorldViewProj = worldViewProjTransposed,
+                        NormalMatrix = normalMatrix,
+                        CameraPosition = new float4(currentCameraPosition.X, currentCameraPosition.Y, currentCameraPosition.Z, 0f)
+                    };
+                    context.UpdateSubresource(ref standardData, constantBuffer);
+                } else {
+                    context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
+                }
             }
 
             if (data.IndexBuffer != null && data.IndexCount > 0) {

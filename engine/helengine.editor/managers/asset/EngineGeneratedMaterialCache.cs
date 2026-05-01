@@ -6,7 +6,7 @@ namespace helengine.editor {
         /// <summary>
         /// Stable generated asset identifier for the built-in standard material.
         /// </summary>
-        public const string StandardAssetId = "engine:material:standard";
+        public const string StandardAssetId = BuiltInMaterialIds.StandardMaterialShaderAssetId;
 
         /// <summary>
         /// Built-in shader source file used by the generated standard material.

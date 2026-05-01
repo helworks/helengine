@@ -675,6 +675,7 @@ namespace helengine.editor.tests {
             Assert.Equal(
                 BuildDialog.LegacyContentHeight - BuildDialog.HeaderHeight - BuildDialog.PanelPadding - BuildDialog.FooterButtonHeight - 8,
                 (int)buildQueueButtonHost.LocalPosition.Y);
+            Assert.Equal(BuildDialog.LegacyContentHeight, (int)buildLogsRoot.LocalPosition.Y);
             Assert.True(buildLogsRoot.LocalPosition.Y > addToBuildButtonHost.LocalPosition.Y + BuildDialog.FooterButtonHeight);
             Assert.Equal(BuildDialog.BuildLogsSectionHeight, buildLogsBackground.Size.Y);
             Assert.True(buildLogsProgressTrack.Size.X > 0);

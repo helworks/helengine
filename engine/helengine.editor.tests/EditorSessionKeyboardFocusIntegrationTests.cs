@@ -38,6 +38,43 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the scene hierarchy and properties panels share the same right-side tab group after layout.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_WhenCalled_DocksSceneHierarchyAndPropertiesIntoTheSameRightSideArea() {
+            EditorSession session = CreateSessionForKeyboardFocus(
+                out DockingManager dockingManager,
+                out TestInputManager inputManager,
+                out EditorViewport mainViewport,
+                out DockableEntity firstSecondaryDock,
+                out EditorFocusTarget firstSecondaryTarget,
+                out DockableEntity secondSecondaryDock,
+                out EditorFocusTarget secondSecondaryTarget);
+
+            try {
+                session.UpdateLayout(1280, 720);
+
+                SceneHierarchyPanel sceneHierarchyPanel = GetPrivateField<SceneHierarchyPanel>(session, "sceneHierarchyPanel");
+                PropertiesPanel propertiesPanel = GetPrivateField<PropertiesPanel>(session, "propertiesPanel");
+                IReadOnlyList<DockableEntity> dockOrder = dockingManager.Layout.GetVisibleDockablesInTraversalOrder();
+
+                Assert.Equal(896, mainViewport.Size.X);
+                Assert.Equal(384, propertiesPanel.Size.X);
+                Assert.Equal(propertiesPanel.Position.X, sceneHierarchyPanel.Position.X);
+                Assert.Equal(propertiesPanel.Position.Y, sceneHierarchyPanel.Position.Y);
+                Assert.Equal(propertiesPanel.Position.Z, sceneHierarchyPanel.Position.Z);
+                Assert.Equal(propertiesPanel.Size.X, sceneHierarchyPanel.Size.X);
+                Assert.Equal(propertiesPanel.Size.Y, sceneHierarchyPanel.Size.Y);
+                Assert.True(propertiesPanel.Enabled);
+                Assert.False(sceneHierarchyPanel.Enabled);
+                Assert.Contains(propertiesPanel, dockOrder);
+                Assert.DoesNotContain(sceneHierarchyPanel, dockOrder);
+            } finally {
+                session.Dispose();
+            }
+        }
+
+        /// <summary>
         /// Ensures layout updates publish the visible dock traversal order into the keyboard-focus service.
         /// </summary>
         [Fact]

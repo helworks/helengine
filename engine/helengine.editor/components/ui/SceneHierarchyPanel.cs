@@ -61,7 +61,7 @@ namespace helengine.editor {
         /// <param name="font">Font used for row labels.</param>
         public SceneHierarchyPanel(FontAsset font) : base(font) {
             this.font = font;
-            Title = "Scene Hierarchy";
+            Title = "Scene";
             MinSize = new int2(220, 160);
 
             rowBackgroundOrder = RenderOrder2D.PanelSurface;

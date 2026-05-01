@@ -63,6 +63,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a second quick activation of the same scene entry opens it directly.
+        /// </summary>
+        [Fact]
+        public void HandleAssetActivated_WhenTheSameSceneEntryIsActivatedTwice_OpensTheScene() {
+            string scenesDirectoryPath = Path.Combine(ProjectRootPath, "assets", "Scenes");
+            string expectedPath = Path.Combine(scenesDirectoryPath, "Level01.helen");
+            File.WriteAllText(expectedPath, "scene");
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            string raisedPath = string.Empty;
+            dialog.OpenRequested += path => raisedPath = path;
+            dialog.Show("Scenes");
+            dialog.UpdateLayout(1280, 720);
+
+            AssetBrowserEntry entry = CreateFileEntry(expectedPath, "Scenes/Level01.helen");
+            InvokePrivate(dialog, "HandleAssetActivated", entry);
+            InvokePrivate(dialog, "HandleAssetActivated", entry);
+
+            Assert.Equal(expectedPath, raisedPath);
+        }
+
+        /// <summary>
         /// Ensures the open dialog hides non-scene files from selection.
         /// </summary>
         [Fact]
@@ -104,15 +125,36 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the open-scene dialog uses modal render orders above non-modal overlays.
+        /// Ensures the open-scene dialog inherits the shared modal shell and title bar.
         /// </summary>
         [Fact]
-        public void Constructor_UsesModalRenderOrdersAboveOverlayBand() {
+        public void Constructor_InheritsSharedModalShellAndTitleBar() {
             OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
 
+            TextComponent titleText = GetPrivateField<TextComponent>(dialog, "TitleText");
+            ButtonComponent closeButton = GetPrivateField<ButtonComponent>(dialog, "CloseButton");
             RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
 
-            Assert.Equal(RenderOrder2D.ModalBackground, panelBackground.RenderOrder2D);
+            Assert.IsAssignableFrom<EditorDialogBase>(dialog);
+            Assert.Equal("Open Map", titleText.Text);
+            Assert.NotNull(closeButton);
+            Assert.Equal(new byte4(100, 149, 237, 255), panelBackground.FillColor);
+        }
+
+        /// <summary>
+        /// Ensures the Open Map panel background scales with the dialog layout instead of staying at the constructor size.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_WhenCalled_ResizesThePanelBackgroundToTheDialogBounds() {
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+
+            dialog.Show("Scenes");
+            dialog.UpdateLayout(1280, 720);
+
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            int2 panelSize = GetPrivateField<int2>(dialog, "PanelSize");
+
+            Assert.Equal(panelSize, panelBackground.Size);
         }
 
         /// <summary>
@@ -284,7 +326,13 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to read.</param>
         /// <returns>Field value cast to the requested type.</returns>
         T GetPrivateField<T>(object target, string fieldName) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo field = null;
+            Type currentType = target.GetType();
+            while (currentType != null && field == null) {
+                field = currentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+                currentType = currentType.BaseType;
+            }
+
             return Assert.IsType<T>(field.GetValue(target));
         }
 

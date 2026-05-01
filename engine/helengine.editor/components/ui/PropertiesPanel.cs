@@ -305,7 +305,7 @@ namespace helengine.editor {
             ModalHost = modalHost;
             ScriptComponentCatalogProvider = scriptComponentCatalogProvider;
             AddComponentButtonWidth = Math.Max(128, (int)Math.Ceiling(font.MeasureTight("Add Component").Width) + AddComponentButtonPadding);
-            Title = "Property Manager";
+            Title = "Properties";
             MinSize = new int2(220, 160);
 
             textOrder = RenderOrder2D.PanelForeground;

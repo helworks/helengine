@@ -114,6 +114,11 @@ namespace helengine.editor {
         readonly List<string> ReferencedShaderAssetIds;
 
         /// <summary>
+        /// Importer registrations supplied by the editor host for source-backed asset loading.
+        /// </summary>
+        readonly IReadOnlyList<IAssetImporterRegistration> Importers;
+
+        /// <summary>
         /// Fast lookup used to deduplicate referenced shader asset ids while preserving discovery order.
         /// </summary>
         readonly HashSet<string> ReferencedShaderAssetIdsSet;
@@ -122,9 +127,21 @@ namespace helengine.editor {
         /// Initializes one Windows scene packager for the supplied project root.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
-        public EditorWindowsBuildScenePackager(string projectRootPath) {
+        public EditorWindowsBuildScenePackager(string projectRootPath)
+            : this(projectRootPath, Array.Empty<IAssetImporterRegistration>()) {
+        }
+
+        /// <summary>
+        /// Initializes one Windows scene packager for the supplied project root and importer registrations.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative project root path.</param>
+        /// <param name="importers">Importer registrations supplied by the editor host.</param>
+        public EditorWindowsBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+            if (importers == null) {
+                throw new ArgumentNullException(nameof(importers));
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
@@ -135,6 +152,15 @@ namespace helengine.editor {
             ContentManager importContentManager = new ContentManager(AssetsRootPath);
             AssetImportManager = new AssetImportManager(ProjectRootPath, importContentManager);
             AssetImportManager.CurrentPlatformId = "windows";
+            Importers = importers;
+            for (int index = 0; index < Importers.Count; index++) {
+                IAssetImporterRegistration registration = Importers[index];
+                if (registration == null) {
+                    throw new InvalidOperationException("Importer registrations must not contain null entries.");
+                }
+
+                registration.Register(AssetImportManager);
+            }
             FileSystemModelResolver = new EditorFileSystemModelResolver(AssetImportManager);
             ReferencedShaderAssetIds = new List<string>();
             ReferencedShaderAssetIdsSet = new HashSet<string>(StringComparer.Ordinal);

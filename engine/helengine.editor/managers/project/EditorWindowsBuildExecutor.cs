@@ -43,6 +43,11 @@ namespace helengine.editor {
         readonly EditorSourceBuildWorkspaceLocator WorkspaceLocator;
 
         /// <summary>
+        /// Importer registrations supplied by the editor host so the packager can resolve source-backed assets.
+        /// </summary>
+        readonly IReadOnlyList<IAssetImporterRegistration> Importers;
+
+        /// <summary>
         /// Resolves the platform manifest stored under the engine settings root.
         /// </summary>
         readonly PlatformInstallationResolver PlatformInstallationResolver;
@@ -52,16 +57,30 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative source project root path.</param>
         /// <param name="requiredEngineVersion">Exact engine version required by the current project build.</param>
-        public EditorWindowsBuildExecutor(string projectRootPath, string requiredEngineVersion) {
+        public EditorWindowsBuildExecutor(string projectRootPath, string requiredEngineVersion)
+            : this(projectRootPath, requiredEngineVersion, Array.Empty<IAssetImporterRegistration>()) {
+        }
+
+        /// <summary>
+        /// Initializes one Windows build executor for the supplied source project root and importer registrations.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative source project root path.</param>
+        /// <param name="requiredEngineVersion">Exact engine version required by the current project build.</param>
+        /// <param name="importers">Importer registrations supplied by the editor host.</param>
+        public EditorWindowsBuildExecutor(string projectRootPath, string requiredEngineVersion, IReadOnlyList<IAssetImporterRegistration> importers) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
             if (string.IsNullOrWhiteSpace(requiredEngineVersion)) {
                 throw new ArgumentException("Required engine version must be provided.", nameof(requiredEngineVersion));
             }
+            if (importers == null) {
+                throw new ArgumentNullException(nameof(importers));
+            }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             RequiredEngineVersion = requiredEngineVersion;
+            Importers = importers;
             WorkspaceLocator = new EditorSourceBuildWorkspaceLocator();
             PlatformInstallationResolver = new PlatformInstallationResolver(Path.Combine(WorkspaceLocator.ResolveHelEngineRootPath(), "user_settings"));
         }
@@ -154,7 +173,7 @@ namespace helengine.editor {
         /// <param name="buildPaths">Build paths describing the final build root.</param>
         /// <returns>Result describing the referenced shader packages discovered during scene packaging.</returns>
         EditorWindowsBuildScenePackagerResult PackageScenes(EditorBuildQueueItemDocument queueItem, EditorWindowsBuildPaths buildPaths) {
-            EditorWindowsBuildScenePackager packager = new EditorWindowsBuildScenePackager(ProjectRootPath);
+            EditorWindowsBuildScenePackager packager = new EditorWindowsBuildScenePackager(ProjectRootPath, Importers);
             return packager.Package(queueItem.SelectedSceneIds, buildPaths.BuildRootPath);
         }
 

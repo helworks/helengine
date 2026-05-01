@@ -78,6 +78,10 @@ namespace helengine.editor {
         /// </summary>
         IReadOnlyList<string> ProjectSupportedPlatforms;
         /// <summary>
+        /// Importer registrations supplied by the editor host.
+        /// </summary>
+        readonly IReadOnlyList<IAssetImporterRegistration> Importers;
+        /// <summary>
         /// Service used to persist editor-local active-platform state for the current project.
         /// </summary>
         EditorProjectLocalSettingsService ProjectLocalSettingsService;
@@ -310,6 +314,7 @@ namespace helengine.editor {
             this.uiFont = uiFont ?? throw new ArgumentNullException(nameof(uiFont));
             snapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
             toolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
+            Importers = importers ?? throw new ArgumentNullException(nameof(importers));
 
             EditorKeyboardFocusService.Reset();
             core.Initialize(render3D, render2D, input);
@@ -317,7 +322,7 @@ namespace helengine.editor {
 
             EditorProjectPaths.Initialize(this.projectPath);
 
-            assetImportManager = InitializeAssetImports(importers);
+            assetImportManager = InitializeAssetImports(Importers);
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
 
             uiCameraEntity = new EditorEntity();
@@ -411,7 +416,7 @@ namespace helengine.editor {
             ReparentService = new EditorEntityReparentService();
             SceneModelRefreshService = new EditorSceneModelRefreshService(fileSystemModelResolver);
             buildConfigService = new EditorBuildConfigService(this.projectPath);
-            buildQueueService = new EditorBuildQueueService(buildConfigService, new EditorWindowsBuildExecutor(this.projectPath, RequiredEngineVersion));
+            buildQueueService = new EditorBuildQueueService(buildConfigService, new EditorWindowsBuildExecutor(this.projectPath, RequiredEngineVersion, Importers));
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
             saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
             openFileDialog = new OpenFileDialog(uiFont, this.projectPath);
@@ -481,8 +486,8 @@ namespace helengine.editor {
 
             dockingManager.Layout.DockAsRoot(mainViewport);
             dockingManager.Layout.DockRelative(assetBrowserPanel, mainViewport, DockInsertDirection.Bottom, 0.7f);
-            dockingManager.Layout.DockRelative(sceneHierarchyPanel, mainViewport, DockInsertDirection.Left, 0.3f);
-            dockingManager.Layout.DockRelative(propertiesPanel, mainViewport, DockInsertDirection.Right, 0.75f);
+            dockingManager.Layout.DockRelative(sceneHierarchyPanel, mainViewport, DockInsertDirection.Right, 0.7f);
+            dockingManager.Layout.DockRelative(propertiesPanel, sceneHierarchyPanel, DockInsertDirection.Fill, 0.75f);
             dockingManager.Layout.DockRelative(loggerPanel, assetBrowserPanel, DockInsertDirection.Fill, 0.5f);
             dockingManager.Layout.DockRelative(previewPanel, assetBrowserPanel, DockInsertDirection.Right, 0.75f);
 

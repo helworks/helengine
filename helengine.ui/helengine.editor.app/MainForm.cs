@@ -250,12 +250,11 @@ namespace helengine.editor.app {
             string[] textureExtensions = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif" };
             string[] textExtensions = new[] { ".txt" };
             string[] modelExtensions = new[] { ".fbx", ".obj", ".gltf", ".glb", ".dae", ".3ds" };
-            var registrations = new IAssetImporterRegistration[] {
+            return new IAssetImporterRegistration[] {
                 new TextureImporterRegistration("gdi", new GDITextureImporter(), textureExtensions),
                 new TextImporterRegistration("text", new TextImporter(), textExtensions),
                 new ModelImporterRegistration("assimp", new HelengineAssimpImporter(), modelExtensions)
             };
-            return registrations;
         }
 
         /// <summary>
