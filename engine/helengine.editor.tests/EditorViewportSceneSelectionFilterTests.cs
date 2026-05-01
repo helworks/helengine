@@ -31,6 +31,40 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures hidden drawable children still participate in viewport selection when their owning entity is user-authored.
+        /// </summary>
+        [Fact]
+        public void ShouldIncludeDrawableForSelection_WhenDrawableBelongsToInternalChildOfSelectableEntity_ReturnsTrue() {
+            MeshComponent meshComponent = CreateMeshComponentWithInternalChild();
+
+            bool result = EditorViewportSceneSelectionFilter.ShouldIncludeDrawableForSelection(meshComponent);
+
+            Assert.True(result);
+        }
+
+        /// <summary>
+        /// Ensures viewport selection resolves one hidden drawable child back to its selectable owning entity.
+        /// </summary>
+        [Fact]
+        public void ResolveSelectableEntity_WhenEntityIsInternalChildOfSelectableEntity_ReturnsSelectableParent() {
+            InitializeCore();
+
+            EditorEntity parentEntity = new EditorEntity {
+                InternalEntity = false,
+                LayerMask = EditorLayerMasks.SceneObjects
+            };
+            EditorEntity childEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.SceneCameraVisuals
+            };
+            parentEntity.AddChild(childEntity);
+
+            Entity result = EditorViewportSceneSelectionFilter.ResolveSelectableEntity(childEntity);
+
+            Assert.Same(parentEntity, result);
+        }
+
+        /// <summary>
         /// Creates one mesh component attached to an editor entity with the desired internal flag.
         /// </summary>
         /// <param name="internalEntity">True when the owning entity should be marked internal.</param>
@@ -47,6 +81,31 @@ namespace helengine.editor.tests {
                 Material = new TestRuntimeMaterial()
             };
             entity.AddComponent(meshComponent);
+            return meshComponent;
+        }
+
+        /// <summary>
+        /// Creates one mesh component attached to an internal child entity whose parent remains selectable.
+        /// </summary>
+        /// <returns>Mesh component attached to the configured child entity.</returns>
+        MeshComponent CreateMeshComponentWithInternalChild() {
+            InitializeCore();
+
+            EditorEntity parentEntity = new EditorEntity {
+                InternalEntity = false,
+                LayerMask = EditorLayerMasks.SceneObjects
+            };
+            EditorEntity childEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.SceneCameraVisuals
+            };
+            var meshComponent = new MeshComponent {
+                Model = new TestRuntimeModel(),
+                Material = new TestRuntimeMaterial()
+            };
+
+            parentEntity.AddChild(childEntity);
+            childEntity.AddComponent(meshComponent);
             return meshComponent;
         }
 

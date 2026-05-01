@@ -382,6 +382,11 @@ namespace helengine.editor {
                     continue;
                 }
 
+                Entity selectedEntity = EditorViewportSceneSelectionFilter.ResolveSelectableEntity(drawable.Parent);
+                if (selectedEntity == null) {
+                    continue;
+                }
+
                 int id = colorIndex;
                 if (id > 0xFFFFFF) {
                     throw new InvalidOperationException("Pick id exceeded the maximum supported color range.");
@@ -391,7 +396,7 @@ namespace helengine.editor {
                 byte g = (byte)((id >> 8) & 0xFF);
                 byte b = (byte)((id >> 16) & 0xFF);
                 PickColors[drawable] = new byte4(r, g, b, 255);
-                PickEntitiesById[id] = drawable.Parent;
+                PickEntitiesById[id] = selectedEntity;
                 colorIndex++;
             }
         }
