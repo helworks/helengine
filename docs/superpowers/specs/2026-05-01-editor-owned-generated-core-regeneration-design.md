@@ -42,9 +42,10 @@ The platform builder assembly already exposes typed metadata through `PlatformDe
 
 The codegen metadata describes:
 - target endianness
+- target output language
 - any generated-core feature flags
 - any codegen-only compatibility switches
-- any platform-specific generation constraints that affect the emitted C++ tree
+- any platform-specific generation constraints that affect the emitted output tree
 
 The metadata is typed and owned by the builder assembly. The editor does not hardcode platform-specific rules for Windows, PS2, GameCube, or any future target. Instead, it asks the active builder for the generation contract and uses that to drive regeneration.
 
@@ -52,6 +53,7 @@ The builder may expose:
 - a default codegen profile
 - one or more named codegen profiles
 - a mapping from build profile to codegen profile when a target needs more than one generation shape
+- a mapping from codegen profile to output language when a target needs C, C++, or another emitted form
 
 The concrete shape can be implemented with new baseplatform definitions, but the intended behavior is:
 - platform metadata is explicit and typed
@@ -78,9 +80,13 @@ Each platform build should get its own fresh generated-core output root under th
 
 Endianness is treated as a generation contract, not a runtime guess.
 
+Output language is also part of the generation contract.
+
+Today the shared codegen pipeline emits C++ for the active targets. That does not mean the contract is permanently C++-only. Future platforms such as PS1 and N64 may require a C-oriented emit path, and the editor must be able to request that from the same typed metadata surface without changing the regeneration ownership model.
+
 If a target platform needs little-endian or big-endian generated output, the platform builder advertises that requirement in metadata. The editor then regenerates the core using that contract before any native build runs.
 
-This makes future platform support possible without duplicating the core serializer logic per target. The component model remains canonical in `helengine.core`; the platform metadata only tells the editor how to emit the shared runtime representation for that target.
+This makes future platform support possible without duplicating the core serializer logic per target. The component model remains canonical in `helengine.core`; the platform metadata only tells the editor how to emit the shared runtime representation for that target, including whether that emission is C, C++, or another supported output language.
 
 ## Component Compatibility
 
