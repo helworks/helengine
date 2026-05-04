@@ -117,6 +117,51 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures the sphere generator produces vertices at the expected pole and equator positions.
+        /// </summary>
+        [Fact]
+        public void CreateSphere_UsesRequestedRadiusAndIncludesPoleAndEquatorVertices() {
+            float radius = 2f;
+            ModelAsset model = TransformGizmoMeshFactory.CreateSphere(radius, 12);
+
+            float minY = float.MaxValue;
+            float maxY = float.MinValue;
+            float maxHorizontalRadius = float.MinValue;
+            bool foundEquatorVertex = false;
+            for (int positionIndex = 0; positionIndex < model.Positions.Length; positionIndex++) {
+                float3 position = model.Positions[positionIndex];
+                minY = Math.Min(minY, position.Y);
+                maxY = Math.Max(maxY, position.Y);
+                float horizontalRadius = (float)Math.Sqrt((position.X * position.X) + (position.Z * position.Z));
+                maxHorizontalRadius = Math.Max(maxHorizontalRadius, horizontalRadius);
+
+                if (Math.Abs(position.Y) < FloatTolerance && Math.Abs(horizontalRadius - radius) < FloatTolerance) {
+                    foundEquatorVertex = true;
+                }
+            }
+
+            Assert.NotEmpty(model.Positions);
+            Assert.Equal(model.Positions.Length, model.Normals.Length);
+            Assert.Equal(model.Positions.Length, model.TexCoords.Length);
+            Assert.NotEmpty(model.Indices16);
+            Assert.InRange(Math.Abs(minY + radius), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs(maxY - radius), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs(maxHorizontalRadius - radius), 0f, FloatTolerance);
+            Assert.True(foundEquatorVertex);
+        }
+
+        /// <summary>
+        /// Ensures the sphere generator rejects invalid radius and segment inputs.
+        /// </summary>
+        [Theory]
+        [InlineData(0f, 12)]
+        [InlineData(-1f, 12)]
+        [InlineData(1f, 2)]
+        public void CreateSphere_ThrowsWhenArgumentsAreInvalid(float radius, int segments) {
+            Assert.Throws<ArgumentOutOfRangeException>(() => TransformGizmoMeshFactory.CreateSphere(radius, segments));
+        }
+
+        /// <summary>
         /// Ensures the centered plane generator produces a plane symmetrically around the local origin.
         /// </summary>
         [Fact]

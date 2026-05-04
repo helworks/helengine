@@ -65,6 +65,39 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates a root point light entity for the scene and attaches the editor-only point-light visual.
+        /// </summary>
+        /// <returns>Configured point-light scene entity.</returns>
+        public EditorEntity CreatePointLight() {
+            EditorEntity entity = CreateBaseEntity("Point Light");
+            entity.AddComponent(new PointLightComponent());
+            EditorPointLightVisualAttachmentService.Attach(entity);
+            return entity;
+        }
+
+        /// <summary>
+        /// Creates a root directional light entity for the scene and attaches the editor-only directional-light arrow.
+        /// </summary>
+        /// <returns>Configured directional-light scene entity.</returns>
+        public EditorEntity CreateDirectionalLight() {
+            EditorEntity entity = CreateBaseEntity("Directional Light");
+            entity.AddComponent(new DirectionalLightComponent());
+            EditorDirectionalLightVisualAttachmentService.Attach(entity);
+            return entity;
+        }
+
+        /// <summary>
+        /// Creates a root spot light entity for the scene and attaches the editor-only spot-light cone.
+        /// </summary>
+        /// <returns>Configured spot-light scene entity.</returns>
+        public EditorEntity CreateSpotLight() {
+            EditorEntity entity = CreateBaseEntity("Spot Light");
+            entity.AddComponent(new SpotLightComponent());
+            EditorSpotLightVisualAttachmentService.Attach(entity);
+            return entity;
+        }
+
+        /// <summary>
         /// Creates one primitive entity backed by a generated runtime model.
         /// </summary>
         /// <param name="name">Display name assigned to the entity.</param>

@@ -90,6 +90,57 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds a sphere mesh centered at the local origin.
+        /// </summary>
+        /// <param name="radius">Sphere radius in world units.</param>
+        /// <param name="segments">Base segment count used for sphere smoothness.</param>
+        /// <returns>Generated sphere model asset.</returns>
+        public static ModelAsset CreateSphere(float radius, int segments) {
+            ValidateSphereArguments(radius, segments);
+
+            int latitudeSegments = segments;
+            int longitudeSegments = segments * 2;
+            int vertexCapacity = (latitudeSegments + 1) * (longitudeSegments + 1);
+            List<float3> positions = new List<float3>(vertexCapacity);
+            List<float3> normals = new List<float3>(vertexCapacity);
+            List<float2> texCoords = new List<float2>(vertexCapacity);
+            List<int> indices = new List<int>(latitudeSegments * longitudeSegments * 12);
+
+            for (int latitudeIndex = 0; latitudeIndex <= latitudeSegments; latitudeIndex++) {
+                double latitudeFraction = (double)latitudeIndex / latitudeSegments;
+                double latitudeAngle = latitudeFraction * Math.PI;
+                float y = (float)(Math.Cos(latitudeAngle) * radius);
+                float ringRadius = (float)(Math.Sin(latitudeAngle) * radius);
+
+                for (int longitudeIndex = 0; longitudeIndex <= longitudeSegments; longitudeIndex++) {
+                    double longitudeFraction = (double)longitudeIndex / longitudeSegments;
+                    double longitudeAngle = longitudeFraction * Math.PI * 2.0;
+                    float x = (float)(Math.Cos(longitudeAngle) * ringRadius);
+                    float z = (float)(Math.Sin(longitudeAngle) * ringRadius);
+                    float3 position = new float3(x, y, z);
+
+                    positions.Add(position);
+                    normals.Add(Normalize3(position));
+                    texCoords.Add(new float2((float)longitudeFraction, (float)latitudeFraction));
+                }
+            }
+
+            int ringVertexCount = longitudeSegments + 1;
+            for (int latitudeIndex = 0; latitudeIndex < latitudeSegments; latitudeIndex++) {
+                int ringStart = latitudeIndex * ringVertexCount;
+                int nextRingStart = ringStart + ringVertexCount;
+                for (int longitudeIndex = 0; longitudeIndex < longitudeSegments; longitudeIndex++) {
+                    int current = ringStart + longitudeIndex;
+                    int next = nextRingStart + longitudeIndex;
+                    AddDoubleSidedTriangle(indices, current, next, current + 1);
+                    AddDoubleSidedTriangle(indices, current + 1, next, next + 1);
+                }
+            }
+
+            return CreateModelAsset(positions, normals, texCoords, indices);
+        }
+
+        /// <summary>
         /// Builds a cone mesh aligned to +Y with its base at Y=0.
         /// </summary>
         /// <param name="radius">Cone base radius in world units.</param>
@@ -551,6 +602,21 @@ namespace helengine.editor {
 
             if (segments < 3) {
                 throw new ArgumentOutOfRangeException(nameof(segments), "At least three segments are required.");
+            }
+        }
+
+        /// <summary>
+        /// Validates sphere generation arguments.
+        /// </summary>
+        /// <param name="radius">Sphere radius in world units.</param>
+        /// <param name="segments">Base segment count used for sphere smoothness.</param>
+        static void ValidateSphereArguments(float radius, int segments) {
+            if (radius <= 0f) {
+                throw new ArgumentOutOfRangeException(nameof(radius), "Radius must be greater than zero.");
+            }
+
+            if (segments < 3) {
+                throw new ArgumentOutOfRangeException(nameof(segments), "At least three sphere segments are required.");
             }
         }
 

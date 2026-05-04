@@ -30,6 +30,9 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         public void Dispose() {
             EditorCameraVisualResources.ResetForTests();
+            EditorPointLightVisualResources.ResetForTests();
+            EditorDirectionalLightVisualResources.ResetForTests();
+            EditorSpotLightVisualResources.ResetForTests();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -264,6 +267,128 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.False(loadedCamera.ClearSettings.ClearColorEnabled);
             Assert.Equal(EditorLayerMasks.SceneObjects, suppressionComponent.LayerMask);
             Assert.True(suppressionComponent.ClearSettings.ClearColorEnabled);
+            Assert.True(loadedVisualEntity.InternalEntity);
+            Assert.Equal(EditorLayerMasks.SceneCameraVisuals, loadedVisualEntity.LayerMask);
+            Assert.NotNull(loadedVisual.Model);
+            Assert.NotNull(loadedVisual.Material);
+        }
+
+        /// <summary>
+        /// Ensures point light entities persist only the point-light component and rebuild the hidden editor visual when loaded.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenSceneContainsPointLightEntity_RoundTripsPointLightAndReattachesHiddenEditorVisual() {
+            EditorSceneCreationService creationService = new EditorSceneCreationService();
+            EditorEntity pointLightEntity = creationService.CreatePointLight();
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            registry.Register(new PointLightComponentPersistenceDescriptor());
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "PointLightRoundTrip.helen");
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.Single(asset.RootEntities);
+            Assert.Equal("Point Light", asset.RootEntities[0].Name);
+            Assert.Single(asset.RootEntities[0].Components);
+            Assert.Equal("helengine.PointLightComponent", asset.RootEntities[0].Components[0].ComponentTypeId);
+            Assert.Empty(asset.RootEntities[0].Children);
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
+
+            EditorEntity loadedPointLightEntity = Assert.Single(loadedRoots);
+            PointLightComponent loadedPointLight = Assert.IsType<PointLightComponent>(Assert.Single(loadedPointLightEntity.Components, component => component is PointLightComponent));
+            EditorEntity loadedVisualEntity = Assert.IsType<EditorEntity>(Assert.Single(loadedPointLightEntity.Children));
+            EditorPointLightVisualComponent loadedVisual = Assert.IsType<EditorPointLightVisualComponent>(Assert.Single(loadedVisualEntity.Components, component => component is EditorPointLightVisualComponent));
+
+            Assert.Equal(10f, loadedPointLight.Range);
+            Assert.True(loadedVisualEntity.InternalEntity);
+            Assert.Equal(EditorLayerMasks.SceneCameraVisuals, loadedVisualEntity.LayerMask);
+            Assert.NotNull(loadedVisual.Model);
+            Assert.NotNull(loadedVisual.Material);
+        }
+
+        /// <summary>
+        /// Ensures directional light entities persist only the directional-light component and rebuild the hidden editor arrow when loaded.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenSceneContainsDirectionalLightEntity_RoundTripsDirectionalLightAndReattachesHiddenEditorVisual() {
+            EditorSceneCreationService creationService = new EditorSceneCreationService();
+            EditorEntity directionalLightEntity = creationService.CreateDirectionalLight();
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            registry.Register(new DirectionalLightComponentPersistenceDescriptor());
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "DirectionalLightRoundTrip.helen");
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.Single(asset.RootEntities);
+            Assert.Equal("Directional Light", asset.RootEntities[0].Name);
+            Assert.Single(asset.RootEntities[0].Components);
+            Assert.Equal("helengine.DirectionalLightComponent", asset.RootEntities[0].Components[0].ComponentTypeId);
+            Assert.Empty(asset.RootEntities[0].Children);
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
+
+            EditorEntity loadedDirectionalLightEntity = Assert.Single(loadedRoots);
+            DirectionalLightComponent loadedDirectionalLight = Assert.IsType<DirectionalLightComponent>(Assert.Single(loadedDirectionalLightEntity.Components, component => component is DirectionalLightComponent));
+            EditorEntity loadedVisualEntity = Assert.IsType<EditorEntity>(Assert.Single(loadedDirectionalLightEntity.Children));
+            EditorDirectionalLightVisualComponent loadedVisual = Assert.IsType<EditorDirectionalLightVisualComponent>(Assert.Single(loadedVisualEntity.Components, component => component is EditorDirectionalLightVisualComponent));
+
+            Assert.True(loadedDirectionalLight.ShadowsEnabled);
+            Assert.True(loadedVisualEntity.InternalEntity);
+            Assert.Equal(EditorLayerMasks.SceneCameraVisuals, loadedVisualEntity.LayerMask);
+            Assert.NotNull(loadedVisual.Model);
+            Assert.NotNull(loadedVisual.Material);
+        }
+
+        /// <summary>
+        /// Ensures spot light entities persist only the spot-light component and rebuild the hidden editor cone when loaded.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenSceneContainsSpotLightEntity_RoundTripsSpotLightAndReattachesHiddenEditorVisual() {
+            EditorSceneCreationService creationService = new EditorSceneCreationService();
+            EditorEntity spotLightEntity = creationService.CreateSpotLight();
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            registry.Register(new SpotLightComponentPersistenceDescriptor());
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "SpotLightRoundTrip.helen");
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.Single(asset.RootEntities);
+            Assert.Equal("Spot Light", asset.RootEntities[0].Name);
+            Assert.Single(asset.RootEntities[0].Components);
+            Assert.Equal("helengine.SpotLightComponent", asset.RootEntities[0].Components[0].ComponentTypeId);
+            Assert.Empty(asset.RootEntities[0].Children);
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
+
+            EditorEntity loadedSpotLightEntity = Assert.Single(loadedRoots);
+            SpotLightComponent loadedSpotLight = Assert.IsType<SpotLightComponent>(Assert.Single(loadedSpotLightEntity.Components, component => component is SpotLightComponent));
+            EditorEntity loadedVisualEntity = Assert.IsType<EditorEntity>(Assert.Single(loadedSpotLightEntity.Children));
+            EditorSpotLightVisualComponent loadedVisual = Assert.IsType<EditorSpotLightVisualComponent>(Assert.Single(loadedVisualEntity.Components, component => component is EditorSpotLightVisualComponent));
+
+            Assert.Equal(10f, loadedSpotLight.Range);
+            Assert.Equal(25f, loadedSpotLight.InnerConeAngleDegrees);
+            Assert.Equal(45f, loadedSpotLight.OuterConeAngleDegrees);
             Assert.True(loadedVisualEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, loadedVisualEntity.LayerMask);
             Assert.NotNull(loadedVisual.Model);
