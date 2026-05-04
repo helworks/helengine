@@ -1,6 +1,7 @@
 .vs/
 obj/
 bin/
+**/TestResults/
 render-validation-output/
 **/render-validation-output/
 .nuget/
