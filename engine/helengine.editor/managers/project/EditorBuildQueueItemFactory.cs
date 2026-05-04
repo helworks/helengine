@@ -40,6 +40,7 @@ namespace helengine.editor {
             }
 
             EnsurePlatformSelectionDefaults(platformConfig, selectionModel);
+            EnsureSelectedScenes(platformConfig);
             List<string> orderedSceneIds = BuildOrderedSceneIds(platformConfig, platformConfig.SelectedSceneIds);
             if (orderedSceneIds.Count == 0) {
                 throw new InvalidOperationException($"Platform '{platformConfig.PlatformId}' does not have any selected scenes.");
@@ -116,6 +117,27 @@ namespace helengine.editor {
             platformConfig.SelectedGraphicsOptionValues ??= new Dictionary<string, string>();
             platformConfig.SelectedCodegenOptionValues ??= new Dictionary<string, string>();
             platformConfig.SelectedCodeModuleIds ??= [];
+        }
+
+        /// <summary>
+        /// Seeds a blank platform scene selection from the project scene catalog so a first build can proceed.
+        /// </summary>
+        /// <param name="platformConfig">Platform configuration whose selected scenes should be normalized.</param>
+        void EnsureSelectedScenes(EditorBuildPlatformConfigDocument platformConfig) {
+            if (platformConfig == null) {
+                throw new ArgumentNullException(nameof(platformConfig));
+            }
+
+            platformConfig.SelectedSceneIds ??= [];
+            platformConfig.SceneOrders ??= [];
+            if (platformConfig.SelectedSceneIds.Count > 0 || platformConfig.SceneOrders.Count > 0) {
+                return;
+            }
+
+            IReadOnlyList<string> sceneIds = SceneCatalogService.GetSceneIds();
+            for (int index = 0; index < sceneIds.Count; index++) {
+                platformConfig.SelectedSceneIds.Add(sceneIds[index]);
+            }
         }
 
         /// <summary>

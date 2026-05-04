@@ -81,6 +81,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures one blank platform scene selection falls back to the project scene catalog.
+        /// </summary>
+        [Fact]
+        public void Create_WhenPlatformConfigOmitsSceneSelection_SeedsProjectScenes() {
+            WriteScene("Scenes/A.helen");
+            WriteScene("Scenes/B.helen");
+
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
+            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = "ps2"
+            };
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
+            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+
+            Assert.Equal(new[] { "Scenes/A.helen", "Scenes/B.helen" }, queueItem.SelectedSceneIds);
+        }
+
+        /// <summary>
         /// Writes one empty scene file that the scene catalog can enumerate.
         /// </summary>
         /// <param name="sceneId">Project-relative scene identifier to create.</param>

@@ -295,6 +295,7 @@ public class PlatformDefinition {
     /// </summary>
     public PlatformAssetRequirementDefinition[] AssetRequirements { get; }
 
+    /// <summary>
     /// Gets the material authoring schemas exposed by the platform.
     /// </summary>
     public PlatformMaterialSchemaDefinition[] MaterialSchemas { get; }
