@@ -10,15 +10,22 @@ namespace helengine {
         /// <param name="layerMask">Authored camera layer mask.</param>
         /// <param name="viewport">Authored camera viewport.</param>
         /// <param name="clearSettings">Authored camera clear settings.</param>
+        /// <param name="renderSettings">Authored camera render settings.</param>
         public EditorSceneCameraSuppressionComponent(
             byte cameraDrawOrder,
             ushort layerMask,
             float4 viewport,
-            CameraClearSettings clearSettings) {
+            CameraClearSettings clearSettings,
+            CameraRenderSettings renderSettings) {
+            if (renderSettings == null) {
+                throw new ArgumentNullException(nameof(renderSettings));
+            }
+
             CameraDrawOrder = cameraDrawOrder;
             LayerMask = layerMask;
             Viewport = viewport;
             ClearSettings = clearSettings;
+            RenderSettings = new CameraRenderSettings(renderSettings);
         }
 
         /// <summary>
@@ -40,5 +47,10 @@ namespace helengine {
         /// Gets the authored camera clear settings captured before editor suppression was applied.
         /// </summary>
         public CameraClearSettings ClearSettings { get; }
+
+        /// <summary>
+        /// Gets the authored camera render settings captured before editor suppression was applied.
+        /// </summary>
+        public CameraRenderSettings RenderSettings { get; }
     }
 }

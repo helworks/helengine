@@ -14,6 +14,11 @@ namespace helengine {
         ushort layerMask;
 
         /// <summary>
+        /// Cached authored render intent resolved by active backends.
+        /// </summary>
+        CameraRenderSettings RenderSettingsValue;
+
+        /// <summary>
         /// 2D render list for this camera.
         /// </summary>
         RenderList2D renderList2D;
@@ -30,6 +35,7 @@ namespace helengine {
             LayerMask = 0b11111111;
             Viewport = new float4(0, 0, 1, 1);
             ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
+            RenderSettings = new CameraRenderSettings();
 
             InitializeLists();
         }
@@ -66,6 +72,14 @@ namespace helengine {
         /// Gets or sets the clear settings applied before this camera renders.
         /// </summary>
         public CameraClearSettings ClearSettings { get; set; }
+
+        /// <summary>
+        /// Gets or sets the authored render intent used by planning and backend execution.
+        /// </summary>
+        public CameraRenderSettings RenderSettings {
+            get { return RenderSettingsValue; }
+            set { RenderSettingsValue = value ?? throw new ArgumentNullException(nameof(value)); }
+        }
 
         /// <summary>
         /// Gets the 2D render queue registered for this camera.

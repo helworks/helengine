@@ -24,7 +24,8 @@ namespace helengine.editor {
                     cameraComponent.CameraDrawOrder,
                     cameraComponent.LayerMask,
                     cameraComponent.Viewport,
-                    cameraComponent.ClearSettings);
+                    cameraComponent.ClearSettings,
+                    cameraComponent.RenderSettings);
                 entity.AddComponent(suppressionComponent);
             }
 

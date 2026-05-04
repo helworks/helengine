@@ -34,6 +34,11 @@ namespace helengine {
         CameraClearSettings ClearSettings { get; set; }
 
         /// <summary>
+        /// Gets or sets the authored render intent resolved by the active backend.
+        /// </summary>
+        CameraRenderSettings RenderSettings { get; set; }
+
+        /// <summary>
         /// Gets the 2D render queue registered for this camera.
         /// </summary>
         IRenderQueue2D RenderQueue2D { get; }

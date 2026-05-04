@@ -12,6 +12,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void SerializeAndDeserialize_WhenCameraUsesCustomRenderSettings_RoundTripsTheComponent() {
+            InitializeCore();
             CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
             CameraComponent cameraComponent = new CameraComponent {
                 CameraDrawOrder = 17,
@@ -45,6 +46,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void Serialize_WhenCameraIsSuppressedInEditor_UsesAuthoredSettingsFromHiddenState() {
+            InitializeCore();
             EditorEntity entity = new EditorEntity {
                 LayerMask = EditorLayerMasks.SceneObjects
             };
@@ -66,6 +68,37 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.True(loadedCamera.ClearSettings.ClearColorEnabled);
             Assert.True(loadedCamera.ClearSettings.ClearDepthEnabled);
             Assert.Equal(new float4(0.1f, 0.2f, 0.3f, 1f), loadedCamera.ClearSettings.ClearColor);
+        }
+
+        /// <summary>
+        /// Ensures render settings are persisted together with the rest of the camera payload.
+        /// </summary>
+        [Fact]
+        public void SerializeAndDeserialize_WhenCameraUsesCustomRenderIntent_RoundTripsRenderSettings() {
+            InitializeCore();
+            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            CameraComponent cameraComponent = new CameraComponent();
+            cameraComponent.RenderSettings.DepthPrepassMode = DepthPrepassMode.Always;
+            cameraComponent.RenderSettings.ShadowDistance = 75f;
+            cameraComponent.RenderSettings.PostProcessTier = PostProcessTier.High;
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(cameraComponent, 0, null);
+            CameraComponent loadedCamera = Assert.IsType<CameraComponent>(descriptor.DeserializeComponent(record, null, new TestSceneAssetReferenceResolver()));
+
+            Assert.Equal(DepthPrepassMode.Always, loadedCamera.RenderSettings.DepthPrepassMode);
+            Assert.Equal(75f, loadedCamera.RenderSettings.ShadowDistance);
+            Assert.Equal(PostProcessTier.High, loadedCamera.RenderSettings.PostProcessTier);
+        }
+
+        /// <summary>
+        /// Initializes a core instance so camera components can allocate their render queues during the test.
+        /// </summary>
+        void InitializeCore() {
+            Core core = new Core(new CoreInitializationOptions {
+                RenderList3DInitialCapacity = 4,
+                RenderList2DInitialCapacity = 4
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
         }
     }
 }

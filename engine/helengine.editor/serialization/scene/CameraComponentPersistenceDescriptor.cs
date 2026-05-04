@@ -6,7 +6,7 @@ namespace helengine.editor {
         /// <summary>
         /// Current payload version for serialized camera component records.
         /// </summary>
-        const byte CurrentVersion = 1;
+        const byte CurrentVersion = 2;
 
         /// <summary>
         /// Gets the concrete runtime component type handled by the descriptor.
@@ -40,12 +40,14 @@ namespace helengine.editor {
             ushort layerMask = cameraComponent.LayerMask;
             float4 viewport = cameraComponent.Viewport;
             CameraClearSettings clearSettings = cameraComponent.ClearSettings;
+            CameraRenderSettings renderSettings = new CameraRenderSettings(cameraComponent.RenderSettings);
             EditorSceneCameraSuppressionComponent suppressionState = EditorSceneCameraSuppressionService.GetSuppressionState(cameraComponent);
             if (suppressionState != null) {
                 cameraDrawOrder = suppressionState.CameraDrawOrder;
                 layerMask = suppressionState.LayerMask;
                 viewport = suppressionState.Viewport;
                 clearSettings = suppressionState.ClearSettings;
+                renderSettings = new CameraRenderSettings(suppressionState.RenderSettings);
             }
 
             using MemoryStream stream = new MemoryStream();
@@ -55,6 +57,7 @@ namespace helengine.editor {
             writer.WriteUInt16(layerMask);
             WriteFloat4(writer, viewport);
             WriteClearSettings(writer, clearSettings);
+            WriteRenderSettings(writer, renderSettings);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = ComponentTypeId,
@@ -84,16 +87,21 @@ namespace helengine.editor {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != CurrentVersion) {
+            if (version != 1 && version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
             }
 
-            return new CameraComponent {
+            CameraComponent cameraComponent = new CameraComponent {
                 CameraDrawOrder = reader.ReadByte(),
                 LayerMask = reader.ReadUInt16(),
                 Viewport = ReadFloat4(reader),
                 ClearSettings = ReadClearSettings(reader)
             };
+            if (version >= 2) {
+                cameraComponent.RenderSettings = ReadRenderSettings(reader);
+            }
+
+            return cameraComponent;
         }
 
         /// <summary>
@@ -164,6 +172,41 @@ namespace helengine.editor {
                 reader.ReadSingle(),
                 reader.ReadByte() != 0,
                 reader.ReadByte());
+        }
+
+        /// <summary>
+        /// Writes one render-settings payload into the camera record.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the payload.</param>
+        /// <param name="settings">Render settings to serialize.</param>
+        static void WriteRenderSettings(EngineBinaryWriter writer, CameraRenderSettings settings) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            }
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            writer.WriteByte((byte)settings.DepthPrepassMode);
+            writer.WriteSingle(settings.ShadowDistance);
+            writer.WriteByte((byte)settings.PostProcessTier);
+        }
+
+        /// <summary>
+        /// Reads one render-settings payload from the camera record.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the render-settings payload.</param>
+        /// <returns>Decoded camera render settings.</returns>
+        static CameraRenderSettings ReadRenderSettings(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            return new CameraRenderSettings {
+                DepthPrepassMode = (DepthPrepassMode)reader.ReadByte(),
+                ShadowDistance = reader.ReadSingle(),
+                PostProcessTier = (PostProcessTier)reader.ReadByte()
+            };
         }
     }
 }
