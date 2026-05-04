@@ -40,5 +40,20 @@ namespace helengine {
         /// Gets the visible shadow-caster submissions.
         /// </summary>
         public IReadOnlyList<RenderFrameShadowCasterSubmission> ShadowCasterSubmissions { get; }
+
+        /// <summary>
+        /// Gets whether the frame contains any transparent drawables that require a transparent forward pass.
+        /// </summary>
+        public bool HasTransparentDrawables {
+            get {
+                for (int index = 0; index < DrawableSubmissions.Count; index++) {
+                    if (DrawableSubmissions[index].IsTransparent) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
     }
 }

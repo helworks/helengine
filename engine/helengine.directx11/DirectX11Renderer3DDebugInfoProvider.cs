@@ -25,9 +25,13 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="items">List to append debug entries to.</param>
         public void AppendInfo(List<(string Key, string Value)> items) {
+            RendererBackendCapabilityProfile capabilityProfile = renderer.GetCapabilityProfile();
             items.Add(("FPS", renderer.LastFps.ToString("0.0")));
             items.Add(("Draw Calls", renderer.LastDrawCalls.ToString()));
             items.Add(("Frame (ms)", renderer.LastFrameTimeMs.ToString("0.00")));
+            items.Add(("Forward", capabilityProfile.SupportsForwardRendering ? "yes" : "no"));
+            items.Add(("Light Budget", capabilityProfile.MaximumVisibleLights.ToString()));
+            items.Add(("Shadow Budget", capabilityProfile.MaximumShadowedLights.ToString()));
         }
     }
 }

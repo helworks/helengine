@@ -230,6 +230,14 @@ namespace helengine.directx11 {
         public RenderManager2D Render2D => renderer2D;
 
         /// <summary>
+        /// Gets the capability profile published by the DirectX11 backend.
+        /// </summary>
+        /// <returns>DirectX11 capability profile used by shared planning services.</returns>
+        public override RendererBackendCapabilityProfile GetCapabilityProfile() {
+            return DirectX11RenderCapabilityProfile.CreateDefault();
+        }
+
+        /// <summary>
         /// Gets the last recorded frames-per-second value.
         /// </summary>
         internal double LastFps => lastFps;
