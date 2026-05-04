@@ -1,304 +1,323 @@
-# Demo Disc Main Menu Design
+# Demo Disc Menu, Dynamic Code Modules, And Automated Script Serialization Design
 
 ## Summary
 
-Build a reusable runtime menu framework for HelEngine and use it in the `city` project to create a demo-disc style main menu scene. The first version should ship one scene with switchable panels for `Main`, `Select Scene`, and `Options`.
+Build the demo-disc main menu as a normal consumer of a broader scripted-runtime architecture:
 
-The visual direction is lilac, colorful, friendly, and slightly gritty. The first pass should support imported fonts and placeholder icons, but the core deliverable is the reusable menu behavior rather than final art production.
+- authored code is divided into modules by `code.module.json` boundaries
+- each module builds into its own dynamically loaded DLL
+- persisted scripted references keep full CLR type identity
+- scripted components can use automated editor serialization when no explicit descriptor exists
+- player builds generate lighter deserializers from the reflected schema
+
+The demo-disc menu remains a concrete deliverable in the `city` project, but the engine work must fix the underlying module, type-resolution, and serialization model instead of adding menu-only workarounds.
 
 ## Problem
 
-The demo disc needs a navigable front end that can grow to many scenes without turning scene selection into one-off project glue.
+The first menu implementation exposed a larger architecture mismatch.
 
-The current runtime already has:
+Current gaps:
 
-- `ButtonComponent`
-- `TextComponent`
-- `InputSystem`
-- runtime scene loading
+- the editor script solution generator assumes one project-wide script assembly
+- generated `*.csproj` files live under `assets`, which is not acceptable
+- menu-provider persistence assumed a guessed assembly name instead of the actual dynamically loaded module assembly
+- runtime type resolution is too narrow for dynamically loaded user code
+- user components still depend on explicit handwritten serialization infrastructure
 
-What it does not have is a reusable menu layer that:
+Those assumptions conflict with the intended scripting model:
 
-- groups buttons into navigable panels
-- supports keyboard, mouse, and gamepad together
-- switches between menu screens inside one scene
-- launches curated scenes from user-side project code
+- projects can contain multiple code modules
+- module boundaries are defined by `code.module.json`
+- scripts without a folder-scoped module manifest belong to the main project module
+- each module should build a DLL that the engine loads dynamically and can later unload
+- persisted scripted references should use full type identity
+- editor serialization can fall back to reflection
+- player packages should use generated lightweight deserializers
 
-If the first pass is built as city-only glue, later projects will need to re-solve the same focus, navigation, and panel-switching problems.
+If the menu is implemented without correcting those boundaries, later scripted menus and scripted components will continue to depend on brittle special cases.
 
 ## Goals
 
-- Add a reusable runtime menu framework in the engine.
-- Reuse existing runtime UI primitives instead of building a separate UI stack.
-- Support mouse, keyboard, and gamepad navigation in the same menu flow.
-- Build one menu scene in the `city` project with switchable `Main`, `Select Scene`, and `Options` panels.
-- Source the selectable demo scenes from a curated ordered C# config in the `city` project.
-- Keep `Options` as a polished shell in the first pass.
-- Make first-pass transitions programmatic so they can later be replaced or augmented by the animation system.
+- Keep the demo-disc menu as one reusable multi-panel menu scene.
+- Treat code-module id as the CLR assembly name for dynamically built user modules.
+- Generate one script project per module outside `assets`.
+- Continue assigning scripts without a local manifest to the main project module.
+- Load and unload user assemblies dynamically through a shared module runtime.
+- Persist menu providers and scripted component references using full CLR type identity.
+- Add automated editor serialization for scripted components that lack explicit persistence descriptors.
+- Emit a warning when the automated editor serializer path is used.
+- Generate lighter player deserializers from the reflected editor schema, using ordinal storage instead of member names.
+- Keep explicit persistence descriptors as the preferred and authoritative path.
 
 ## Non-Goals
 
-- No separate scene per menu screen.
-- No editor-only menu authoring workflow in this slice.
-- No data-driven scene-list asset format in this slice.
-- No fully functional options/settings persistence in the first pass.
-- No silent fallback behavior when menu config or target scenes are invalid.
+- No visual editor for authoring module manifests in this slice.
+- No best-effort fallback when a type, module, or scene target is invalid.
+- No hidden alias layer between module id and assembly name.
+- No reflective per-member-name lookup in packaged player runtime.
+- No requirement that the first pass auto-migrate incompatible component schema changes silently.
 
-## Proposed Architecture
+## Module Model
 
-### Runtime Menu Layer
+### Authored Module Ownership
 
-Add a small runtime menu layer above the existing 2D UI components.
+Scripts are owned by the nearest enclosing `code.module.json` boundary beneath `assets`.
 
-Recommended pieces:
+- if a script is inside a folder with `code.module.json`, it belongs to that module
+- if it is not inside any folder-scoped module boundary, it belongs to the main project module
+- nested module folders remain excluded from parent module compile globs
 
-- `MenuControllerComponent`
-- `MenuPanelComponent`
-- `MenuItemComponent` or a small adapter around `ButtonComponent`
-- menu action types or action components for `OpenPanel`, `LoadScene`, and `Back`
+This preserves the existing authored-boundary concept while making it the source of truth for runtime assembly identity.
 
-This layer should own menu behavior only. Rendering should remain the responsibility of existing components such as `ButtonComponent`, `RoundedRectComponent`, and `TextComponent`.
+### Assembly Identity
 
-### One Scene, Multiple Panels
-
-The demo disc menu should be a single scene containing multiple panel roots:
-
-- `Main`
-- `Select Scene`
-- `Options`
-
-Each panel is one root entity or one rooted subtree. The controller activates one panel at a time and hides the others. First-pass hiding can be implemented through enable state and root transforms. This keeps the transition mechanism simple while leaving room for later animation-driven motion.
-
-### Project-Specific Content
-
-The reusable engine code should not know about the `city` project's scene list.
-
-The `city` project should provide one curated ordered C# config that defines the selectable scenes. Each entry should contain:
-
-- display title
-- scene asset id
-- optional subtitle or short description
-- optional enabled flag
-
-That allows the demo disc to hide unfinished scenes later without changing the reusable menu framework.
-
-## Components
-
-### `MenuControllerComponent`
-
-`MenuControllerComponent` should:
-
-- register available panels
-- track the active panel id
-- track panel history for `Back`
-- resolve the currently selected or focused menu item
-- normalize interaction between mouse hover and keyboard/gamepad navigation
-- dispatch high-level menu actions
-
-The controller is the only part that should understand panel switching and high-level menu navigation state.
-
-### `MenuPanelComponent`
-
-`MenuPanelComponent` should represent one logical screen inside the menu scene.
-
-It should expose:
-
-- panel id
-- optional default target
-- visible or hidden state
-
-The panel owns its child visuals and buttons, but it should not own global navigation or scene-loading policy.
-
-### Menu Items
-
-Menu items should remain real buttons visually. The reusable layer should extend them with menu semantics instead of replacing them.
-
-Expected menu-item behavior:
-
-- participate in directional traversal
-- expose a confirm action
-- report hover so mouse input can update the active selection
-- support a selected or focused visual state shared across keyboard, gamepad, and mouse usage
-
-For the first pass, the most practical shape is a small component or adapter that binds existing `ButtonComponent` instances into menu navigation.
-
-### Menu Actions
-
-The framework should separate visual selection from behavior dispatch.
-
-First-pass action types:
-
-- open another panel
-- go back to the previous panel
-- load one scene
-
-This keeps the framework reusable for non-scene menus later.
-
-## Input Model
-
-### Shared Navigation Commands
-
-Keyboard and gamepad should be normalized into shared menu commands:
-
-- `Up`
-- `Down`
-- `Left`
-- `Right`
-- `Confirm`
-- `Back`
-
-Mouse should continue using existing button hover and click behavior.
-
-### Active Input Family
-
-The controller should track the last active input family:
-
-- mouse
-- keyboard
-- gamepad
-
-When the player uses the mouse, hover should update selection.
-When the player uses keyboard or gamepad, traversal should move the selected target directly.
-
-This avoids separate visual states fighting each other. There should be one authoritative selected target at a time.
-
-### Focus Rules
-
-Each panel should declare or infer a default target. When a panel opens:
-
-- the controller resolves the panel
-- the controller resolves the default target
-- the target becomes selected immediately
-
-If the panel or target configuration is invalid, setup should fail with a clear exception.
-
-## City Demo Disc Composition
-
-### Main Panel
-
-The `Main` panel should include:
-
-- `Select Scene`
-- `Options`
-
-An exit action is optional and should only be included if the runtime has a clean cross-platform way to support it. It is not required for the first pass.
-
-### Select Scene Panel
-
-The `Select Scene` panel should:
-
-- build its rows from the curated city config
-- show the entries in config order
-- allow confirm to load the selected scene
-- allow `Back` to return to `Main`
-
-The reusable framework should not enumerate scenes from the project automatically in this slice.
-
-### Options Panel
-
-The `Options` panel should be a polished shell only.
-
-It should:
-
-- use the same menu framework and styling
-- present plausible option rows or headings
-- include a back action
-
-It should not yet persist or apply real settings.
-
-## Scene Loading
-
-Scene launching should stay strict and explicit.
-
-When a scene menu item activates:
-
-1. The action resolves the configured scene id.
-2. The runtime attempts to load that scene through the existing runtime scene-loading path.
-3. Invalid scene ids should fail fast with a clear error.
-
-The framework should not silently skip bad entries or fall back to another scene.
-
-## Visual Direction
-
-The first implementation should support this design language:
-
-- lilac-forward palette
-- colorful accents
-- friendly shapes and labels
-- slightly gritty texture or presentation details
-
-The framework should not hardcode city-specific art assets, but the city menu scene can configure:
-
-- imported fonts
-- placeholder icons
-- panel-specific text
-- background decoration
-
-Programmatic panel motion is acceptable in the first pass. The design should leave panel roots easy to animate later.
-
-## Failure Handling
-
-The menu framework should fail fast when required state is invalid.
+The module id is the CLR assembly name verbatim.
 
 Examples:
 
-- missing panel id
-- duplicate panel id
-- missing default target
-- unresolved scene id
-- invalid curated config entry
-- required font or button binding missing during setup
+- module id `gameplay` builds `gameplay.dll`
+- module id `gameplay.ui` builds `gameplay.ui.dll`
+- the main project module continues using the engine's main-module id when no folder-scoped manifest is present
 
-Do not add best-effort fallback menus, empty placeholder targets, or automatic replacement config values.
+Persisted scripted references must use those real assembly names directly.
+
+There is no aliasing layer from module id to a different CLR assembly name.
+
+### Generated Script Projects
+
+The editor should generate one `*.csproj` per code module and place those generated projects outside `assets`.
+
+Required properties:
+
+- source files still come from the authored module folders under `assets`
+- generated solution files can include all generated module projects
+- module projects produce one DLL per module
+- output paths should stay outside authored asset folders
+
+This keeps authored content clean while preserving IDE support.
+
+## Dynamic Module Runtime
+
+### Shared Module Registry
+
+Introduce a shared runtime concept for user code modules that knows:
+
+- discovered module ids
+- resolved dependency order
+- currently loaded assemblies
+- load context ownership
+- which modules are safe to unload
+
+Both editor and player runtime code should ask this registry for user-code type resolution instead of assuming `Type.GetType(...)` against the default runtime context is sufficient.
+
+### Editor Behavior
+
+The editor should:
+
+1. build the generated module projects
+2. load each resulting DLL dynamically
+3. register loaded assemblies with the shared user-type resolver
+4. unload and reload modules cleanly when scripts are rebuilt
+
+This runtime path should support menu-provider resolution, scripted component discovery, and future scene/runtime systems uniformly.
+
+### Player Behavior
+
+The player should:
+
+1. load packaged module DLLs dynamically according to load scope and dependency rules
+2. resolve scripted component types and menu providers through the shared user-type resolver
+3. unload modules only when dependency and load-scope rules allow it
+
+The packaged player should not depend on editor-only reflection helpers or editor load contexts.
+
+## Type Persistence
+
+### Full CLR Type Identity
+
+Persist scripted references as full CLR type names, including assembly name.
+
+Examples:
+
+- `city.menu.DemoDiscMenuDefinitionProvider, gameplay`
+- `city.ui.InventoryPanelComponent, gameplay.ui`
+
+This applies to:
+
+- menu-definition providers
+- scripted scene components
+- any other persisted user-side type reference introduced by this architecture
+
+### Resolution Rules
+
+Type resolution should:
+
+1. check the shared dynamic module/type registry
+2. fall back to normal runtime assemblies when appropriate
+3. fail fast with a clear error when the type or assembly is unavailable
+
+Errors should include:
+
+- requested full type name
+- available loaded module ids or assemblies when helpful
+- whether the requested module was absent or the type was missing within a loaded module
+
+## Automated Script Serialization
+
+### Descriptor Priority
+
+Explicit persistence descriptors remain the preferred path.
+
+Resolution order:
+
+1. explicit descriptor exists: use it
+2. explicit descriptor does not exist and the component is eligible: use automated script serialization
+3. unsupported shape: throw
+
+The automated path is a fallback, not a replacement for the explicit descriptor system.
+
+### Editor Serialization Path
+
+When a scripted component lacks an explicit descriptor, the editor should serialize it through reflection.
+
+Requirements:
+
+- deterministic member ordering
+- strict member-type support rules
+- persisted member names in editor/authored scene data
+- schema information sufficient to detect incompatible structural changes
+
+The editor should log a warning when the automated serializer is used, naming the component type and making it clear that the fallback path serialized it.
+
+That warning is intentional and should not be suppressed silently.
+
+### Player Serialization Path
+
+Packaged players should not deserialize automated scripted components through reflective member-name lookup.
+
+Instead, the build pipeline should:
+
+1. inspect the reflected editor schema
+2. generate a compact deserializer class for the packaged player format
+3. serialize player payloads in ordinal order without member names
+
+This is valid because packaged code and schema are built together and are expected to match exactly at runtime.
+
+### Change Handling
+
+Editor scenes keep member names so structural changes remain diagnosable and mappable.
+
+Expected behavior:
+
+- editor/authored scenes can identify which stored members map to which current members
+- packaged player payloads assume code and generated deserializer are in sync
+- incompatible schema changes fail clearly during editor load or package-generation time rather than being hidden
+
+## Demo Disc Menu Integration
+
+### Runtime Menu Framework
+
+Keep the reusable menu framework introduced for the demo-disc scene:
+
+- one host scene
+- switchable panels
+- keyboard, mouse, and gamepad navigation
+- curated scene selection
+- polished shell `Options` panel
+
+This menu work remains valid, but all menu-provider resolution should now flow through the dynamic module runtime instead of narrow type lookup.
+
+### Generated City Menu Code
+
+The menu generator should place generated menu source files into a chosen authored folder under `assets`.
+
+Provider assembly identity is derived from module ownership:
+
+- if that folder is inside a module boundary, the provider uses that module id as its assembly name
+- otherwise, the provider uses the main project module assembly name
+
+The generator must not infer the assembly name from the project display name.
+
+### Generated Menu Scene
+
+The generated menu scene should persist the provider type exactly as the runtime will load it.
+
+Example:
+
+- generated code in the root fallback module: `city.menu.DemoDiscMenuDefinitionProvider, gameplay`
+- generated code in a manifest-defined module `gameplay.menu`: `city.menu.DemoDiscMenuDefinitionProvider, gameplay.menu`
+
+This keeps the menu scene compatible with the same type-resolution rules used by other scripted systems.
+
+## Validation Rules
+
+Fail fast on:
+
+- duplicate module ids
+- duplicate folder boundaries
+- unresolved module dependencies
+- module assembly names that do not match module ids
+- persisted scripted types that target unloaded or unknown assemblies
+- unsupported automated-serialization member types
+- invalid generated menu provider module ownership
+- invalid curated menu scene targets
+
+Do not add silent defaulting, guessed replacement assemblies, or best-effort schema skipping.
 
 ## Testing
 
-Add focused automated tests around the reusable engine-side behavior:
+Add focused coverage for the new architecture.
 
-1. Panel registration and switching
-- panel ids register once
-- active panel changes correctly
-- hidden panels do not remain active
+### Module Discovery And Project Generation
 
-2. Default-target resolution
-- panel open selects the declared default target
-- invalid defaults fail clearly
+- nested module boundaries are discovered correctly
+- scripts without a local manifest belong to the main project module
+- generated `*.csproj` files are written outside `assets`
+- generated project source globs point back into authored module folders
+- generated assembly names equal module ids
 
-3. Navigation behavior
-- keyboard navigation moves between registered menu items
-- gamepad navigation uses the same traversal logic
-- mouse hover updates the same selected target
+### Dynamic Loading And Type Resolution
 
-4. Back-stack behavior
-- `Back` returns to the previous panel
-- empty history behaves explicitly and predictably
+- editor module reload registers fresh assemblies
+- stale assemblies are not used after reload
+- menu providers resolve through the shared user-type resolver
+- scripted component types resolve through the same registry
+- unload behavior respects dependency rules
 
-5. Scene-launch validation
-- valid scene actions dispatch correctly
-- invalid scene ids fail fast
+### Automated Serialization
 
-6. City config validation
-- curated entries preserve declared order
-- disabled entries can be excluded cleanly
+- explicit descriptors override automated serialization
+- automated editor serialization logs the expected warning
+- supported reflected members round-trip in authored scene data
+- unsupported reflected members fail clearly
+- generated player deserializers round-trip compact ordinal payloads
 
-## Files In Scope
+### Demo Disc Menu Integration
 
-Engine-side scope:
-
-- `engine/helengine.core/components/2d/interactable/*`
-- new runtime menu components under `engine/helengine.core`
-- runtime input integration points in `engine/helengine.input`
-- runtime scene loading integration in `engine/helengine.core/scene/runtime/*`
-
-Project-side scope:
-
-- `C:\dev\helprojs\city\assets\**\*.cs`
-- curated menu scene-list config in the `city` project
-- the city demo-disc menu scene composition
+- generated city menu code lands in the intended authored folder
+- generated menu scene stores the expected full CLR provider type
+- root fallback-module generation persists the main-module assembly name
+- manifest-owned generation persists the manifest module assembly name
+- menu provider resolution succeeds after loading the owning module
 
 ## Implementation Notes
 
-- Reuse existing `ButtonComponent` and `TextComponent` primitives.
-- Keep logic in separate controller and action classes so UI entities stay focused on presentation and wiring.
-- Prefer strict setup validation over auto-healing behavior.
-- Keep the first-pass public API small so later projects can assemble their own menus without inheriting city-specific assumptions.
+- Reuse the existing module-manifest discovery model rather than inventing a parallel menu-specific config.
+- Move script-project generation toward a per-module solution model instead of a single project-wide script assembly.
+- Centralize dynamic user-type resolution so menu providers and scripted component systems share the same lookup path.
+- Keep editor and player serialization formats intentionally different where needed:
+  editor keeps names for diagnostics and structure-aware mapping
+  player keeps ordered compact payloads for runtime efficiency
+- Preserve warnings for automated serialization so teams know when they are depending on fallback behavior.
+
+## Migration Direction
+
+The prior menu-only design is superseded by this broader design.
+
+Implementation should proceed in layers:
+
+1. correct generated script project and module assembly identity
+2. add shared dynamic type resolution and module loading
+3. add automated editor serialization fallback and warning path
+4. add generated compact player deserializers
+5. rewire the demo-disc menu generator and menu-provider resolution onto that foundation
