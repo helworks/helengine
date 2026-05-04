@@ -36,6 +36,8 @@ namespace helengine.directx11 {
             Height = height;
             ColorFormat = colorFormat;
             DepthFormat = depthFormat;
+            CanSampleAsTexture = true;
+            HasDepthBuffer = true;
 
             var colorDesc = new Texture2DDescription {
                 Width = width,
