@@ -172,7 +172,7 @@ float3 EvaluateForwardLight(
         if (distanceToSurface > 0.0001f && positionAndRange.w > 0.0f)
         {
             int pointShadowTextureIndex = (int)(shadowSlotMetadata.w + 0.5f);
-            float3 sampleDirection = lightToSurface / distanceToSurface;
+            float3 sampleDirection = float3(lightToSurface.x, lightToSurface.y, -lightToSurface.z) / distanceToSurface;
             float currentDepth = saturate(distanceToSurface / positionAndRange.w);
             float sampledDepth = SamplePointShadowTexture(pointShadowTextureIndex, sampleDirection);
             float shadowBias = 0.01f;
