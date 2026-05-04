@@ -123,10 +123,20 @@ namespace helengine.editor {
                 string builderWorkingRoot = Path.Combine(executionRoot, BuilderWorkingFolderName);
                 ResetExecutionDirectories(executionRoot, stagingRoot, builderWorkingRoot, queueItem.OutputDirectoryPath);
 
-                EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, Importers, PlatformDescriptor.Id);
+                EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(builder.Definition);
+                string selectedBuildProfileId = ResolveSelectedBuildProfileId(queueItem, selectionModel);
+                string selectedGraphicsProfileId = ResolveSelectedGraphicsProfileId(queueItem, selectedBuildProfileId, selectionModel);
+
+                EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                    ProjectRootPath,
+                    Importers,
+                    PlatformDescriptor.Id,
+                    builder,
+                    selectedBuildProfileId,
+                    selectedGraphicsProfileId);
                 packager.Package(queueItem.SelectedSceneIds, stagingRoot);
 
-                PlatformBuildRequest request = BuildRequest(queueItem, stagingRoot, builderWorkingRoot, builder.Definition);
+                PlatformBuildRequest request = BuildRequest(queueItem, stagingRoot, builderWorkingRoot, selectedBuildProfileId, selectedGraphicsProfileId);
                 EditorPlatformBuildProgressReporter progressReporter = new();
                 EditorPlatformBuildDiagnosticCollector diagnosticCollector = new();
 
@@ -191,7 +201,8 @@ namespace helengine.editor {
             EditorBuildQueueItemDocument queueItem,
             string stagingRoot,
             string builderWorkingRoot,
-            PlatformDefinition builderDefinition) {
+            string selectedBuildProfileId,
+            string selectedGraphicsProfileId) {
             string[] stagedFilePaths = Directory.GetFiles(stagingRoot, "*", SearchOption.AllDirectories);
             Array.Sort(stagedFilePaths, StringComparer.OrdinalIgnoreCase);
 
@@ -201,10 +212,6 @@ namespace helengine.editor {
                 string relativePath = NormalizeRelativePath(Path.GetRelativePath(stagingRoot, stagedFilePath));
                 stagedPayloadReferences[index] = new PlatformBuildPayloadReference(relativePath, relativePath);
             }
-
-            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(builderDefinition);
-            string selectedBuildProfileId = ResolveSelectedBuildProfileId(queueItem, selectionModel);
-            string selectedGraphicsProfileId = ResolveSelectedGraphicsProfileId(queueItem, selectedBuildProfileId, selectionModel);
 
             PlatformBuildScene[] scenes = new PlatformBuildScene[queueItem.SelectedSceneIds.Count];
             for (int index = 0; index < queueItem.SelectedSceneIds.Count; index++) {

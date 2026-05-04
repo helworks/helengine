@@ -187,6 +187,10 @@ namespace helengine.editor {
         /// </summary>
         readonly AssetImportManager assetImportManager;
         /// <summary>
+        /// Service that loads and saves per-platform material settings sidecars.
+        /// </summary>
+        readonly MaterialAssetSettingsService materialAssetSettingsService;
+        /// <summary>
         /// Resolves and validates scene save destinations for the current project.
         /// </summary>
         readonly SceneSavePathResolver SceneSavePathResolver;
@@ -366,6 +370,7 @@ namespace helengine.editor {
             EditorProjectPaths.Initialize(this.projectPath);
 
             assetImportManager = InitializeAssetImports(Importers);
+            materialAssetSettingsService = new MaterialAssetSettingsService();
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             previewSourceResolver = new PreviewSourceResolver(assetImportManager, render2D, render3D);
 
@@ -1632,7 +1637,22 @@ namespace helengine.editor {
             if (IsMaterialAssetEntry(entry)) {
                 try {
                     MaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
-                    propertiesPanel.ShowMaterialSettings(entry, materialAsset);
+                    AssetImportSettings settings = materialAssetSettingsService.LoadOrCreate(
+                        entry.FullPath,
+                        materialAsset,
+                        SupportedPlatforms,
+                        ResolvePlatformSelectionModel);
+                    if (materialAssetSettingsService.ApplyPlatformCompatibilityFields(materialAsset, settings, CurrentProjectPlatform)) {
+                        SaveMaterialAsset(entry.FullPath, materialAsset);
+                    }
+
+                    propertiesPanel.ShowMaterialSettings(
+                        entry,
+                        materialAsset,
+                        settings,
+                        SupportedPlatforms,
+                        CurrentProjectPlatform,
+                        ResolvePlatformSelectionModel);
                 } catch (Exception ex) {
                     propertiesPanel.ShowImportError(entry, ex.Message);
                 }
@@ -1740,6 +1760,22 @@ namespace helengine.editor {
             }
 
             return EditorContentManager.Load<MaterialAsset>(path, EditorContentProcessorIds.MaterialAsset);
+        }
+
+        /// <summary>
+        /// Saves one material asset back to disk.
+        /// </summary>
+        /// <param name="path">Path to the material asset.</param>
+        /// <param name="materialAsset">Material asset instance to serialize.</param>
+        void SaveMaterialAsset(string path, MaterialAsset materialAsset) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                throw new ArgumentException("Material path must be provided.", nameof(path));
+            } else if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+
+            using FileStream stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, materialAsset);
         }
 
         /// <summary>

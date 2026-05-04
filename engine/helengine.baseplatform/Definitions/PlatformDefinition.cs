@@ -12,12 +12,14 @@ public class PlatformDefinition {
     /// <param name="buildProfiles">Build profiles exposed by the platform.</param>
     /// <param name="graphicsProfiles">Graphics profiles exposed by the platform.</param>
     /// <param name="assetRequirements">Asset requirements exposed by the platform.</param>
+    /// <param name="materialSchemas">Material authoring schemas exposed by the platform.</param>
     public PlatformDefinition(
         string platformId,
         string displayName,
         PlatformBuildProfileDefinition[] buildProfiles,
         PlatformGraphicsProfileDefinition[] graphicsProfiles,
-        PlatformAssetRequirementDefinition[] assetRequirements) {
+        PlatformAssetRequirementDefinition[] assetRequirements,
+        PlatformMaterialSchemaDefinition[] materialSchemas) {
         if (string.IsNullOrWhiteSpace(platformId)) {
             throw new ArgumentException("Platform id is required.", nameof(platformId));
         } else if (string.IsNullOrWhiteSpace(displayName)) {
@@ -28,12 +30,16 @@ public class PlatformDefinition {
             throw new ArgumentNullException(nameof(graphicsProfiles), "Graphics profiles are required.");
         } else if (assetRequirements == null) {
             throw new ArgumentNullException(nameof(assetRequirements), "Asset requirements are required.");
+        } else if (materialSchemas == null) {
+            throw new ArgumentNullException(nameof(materialSchemas), "Material schemas are required.");
         } else if (Array.Exists(buildProfiles, buildProfile => buildProfile == null)) {
             throw new ArgumentException("Build profiles cannot contain null entries.", nameof(buildProfiles));
         } else if (Array.Exists(graphicsProfiles, graphicsProfile => graphicsProfile == null)) {
             throw new ArgumentException("Graphics profiles cannot contain null entries.", nameof(graphicsProfiles));
         } else if (Array.Exists(assetRequirements, assetRequirement => assetRequirement == null)) {
             throw new ArgumentException("Asset requirements cannot contain null entries.", nameof(assetRequirements));
+        } else if (Array.Exists(materialSchemas, materialSchema => materialSchema == null)) {
+            throw new ArgumentException("Material schemas cannot contain null entries.", nameof(materialSchemas));
         }
 
         PlatformId = platformId;
@@ -41,6 +47,7 @@ public class PlatformDefinition {
         BuildProfiles = [.. buildProfiles];
         GraphicsProfiles = [.. graphicsProfiles];
         AssetRequirements = [.. assetRequirements];
+        MaterialSchemas = [.. materialSchemas];
     }
 
     /// <summary>
@@ -67,4 +74,9 @@ public class PlatformDefinition {
     /// Gets the asset requirements exposed by the platform.
     /// </summary>
     public PlatformAssetRequirementDefinition[] AssetRequirements { get; }
+
+    /// <summary>
+    /// Gets the material authoring schemas exposed by the platform.
+    /// </summary>
+    public PlatformMaterialSchemaDefinition[] MaterialSchemas { get; }
 }

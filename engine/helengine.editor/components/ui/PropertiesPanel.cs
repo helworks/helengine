@@ -478,19 +478,27 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entry">Selected asset entry.</param>
         /// <param name="materialAsset">Material asset to edit.</param>
-        public void ShowMaterialSettings(AssetBrowserEntry entry, MaterialAsset materialAsset) {
+        /// <param name="settings">Per-platform settings sidecar for the selected material asset.</param>
+        /// <param name="supportedPlatforms">Supported project platform identifiers.</param>
+        /// <param name="activePlatformId">Currently active project platform identifier.</param>
+        /// <param name="selectionModelResolver">Resolver that returns builder metadata for one platform.</param>
+        public void ShowMaterialSettings(
+            AssetBrowserEntry entry,
+            MaterialAsset materialAsset,
+            AssetImportSettings settings,
+            IReadOnlyList<string> supportedPlatforms,
+            string activePlatformId,
+            Func<string, EditorPlatformBuildSelectionModel> selectionModelResolver) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
-            }
-
-            if (materialAsset == null) {
+            } else if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
 
             currentEntry = entry;
             HideRemoveComponentDialog();
             importSettingsView.Hide();
-            MaterialView.Show(entry, materialAsset);
+            MaterialView.Show(entry, materialAsset, settings, supportedPlatforms, activePlatformId, selectionModelResolver);
             SetTransformVisible(false);
             ComponentView.Hide();
             ApplyLines(Array.Empty<string>());

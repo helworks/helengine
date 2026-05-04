@@ -14,13 +14,15 @@ namespace helengine.editor {
         /// <param name="buildProfiles">Build profiles exposed by the builder.</param>
         /// <param name="graphicsProfiles">Graphics profiles exposed by the builder.</param>
         /// <param name="assetRequirements">Asset requirements exposed by the builder.</param>
+        /// <param name="materialSchemas">Material schemas exposed by the builder.</param>
         public EditorPlatformBuildSelectionModel(
             PlatformDefinition definition,
             string platformId,
             string displayName,
             PlatformBuildProfileDefinition[] buildProfiles,
             PlatformGraphicsProfileDefinition[] graphicsProfiles,
-            PlatformAssetRequirementDefinition[] assetRequirements) {
+            PlatformAssetRequirementDefinition[] assetRequirements,
+            PlatformMaterialSchemaDefinition[] materialSchemas) {
             Definition = definition ?? throw new ArgumentNullException(nameof(definition));
 
             if (string.IsNullOrWhiteSpace(platformId)) {
@@ -38,12 +40,16 @@ namespace helengine.editor {
             if (assetRequirements == null) {
                 throw new ArgumentNullException(nameof(assetRequirements));
             }
+            if (materialSchemas == null) {
+                throw new ArgumentNullException(nameof(materialSchemas));
+            }
 
             PlatformId = platformId;
             DisplayName = displayName;
             BuildProfiles = buildProfiles;
             GraphicsProfiles = graphicsProfiles;
             AssetRequirements = assetRequirements;
+            MaterialSchemas = materialSchemas;
         }
 
         /// <summary>
@@ -72,6 +78,11 @@ namespace helengine.editor {
         public PlatformAssetRequirementDefinition[] AssetRequirements { get; }
 
         /// <summary>
+        /// Gets the material schemas exposed by the platform builder.
+        /// </summary>
+        public PlatformMaterialSchemaDefinition[] MaterialSchemas { get; }
+
+        /// <summary>
         /// Gets the underlying platform definition exposed by the builder.
         /// </summary>
         public PlatformDefinition Definition { get; }
@@ -92,7 +103,8 @@ namespace helengine.editor {
                 definition.DisplayName,
                 definition.BuildProfiles,
                 definition.GraphicsProfiles,
-                definition.AssetRequirements);
+                definition.AssetRequirements,
+                definition.MaterialSchemas);
         }
 
         /// <summary>
@@ -157,6 +169,32 @@ namespace helengine.editor {
         public PlatformSettingDefinition[] ResolveGraphicsProfileSettings(string profileId) {
             PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(profileId);
             return graphicsProfile?.Settings ?? Array.Empty<PlatformSettingDefinition>();
+        }
+
+        /// <summary>
+        /// Resolves the material schemas available to one graphics profile.
+        /// </summary>
+        /// <param name="graphicsProfileId">Requested graphics profile identifier.</param>
+        /// <returns>Material schemas that apply to the resolved graphics profile.</returns>
+        public PlatformMaterialSchemaDefinition[] ResolveMaterialSchemas(string graphicsProfileId) {
+            PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(graphicsProfileId);
+
+            if (graphicsProfile == null) {
+                return [.. MaterialSchemas];
+            }
+
+            List<PlatformMaterialSchemaDefinition> matchingSchemas = [];
+            for (int index = 0; index < MaterialSchemas.Length; index++) {
+                PlatformMaterialSchemaDefinition materialSchema = MaterialSchemas[index];
+                if (materialSchema.GraphicsProfileIds.Length == 0 ||
+                    Array.Exists(
+                        materialSchema.GraphicsProfileIds,
+                        profileId => string.Equals(profileId, graphicsProfile.ProfileId, StringComparison.OrdinalIgnoreCase))) {
+                    matchingSchemas.Add(materialSchema);
+                }
+            }
+
+            return [.. matchingSchemas];
         }
     }
 }

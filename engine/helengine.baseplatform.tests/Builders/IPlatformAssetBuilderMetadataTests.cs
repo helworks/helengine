@@ -1,4 +1,8 @@
 using helengine.baseplatform.Builders;
+using helengine.baseplatform.Requests;
+using helengine.baseplatform.Results;
+using helengine;
+using Xunit;
 
 namespace helengine.baseplatform.tests.Builders;
 
@@ -15,5 +19,32 @@ public class IPlatformAssetBuilderMetadataTests {
 
         Assert.Equal("windows", builder.Definition.PlatformId);
         Assert.Equal("debug", builder.Definition.BuildProfiles[0].ProfileId);
+        Assert.Equal("standard-shader", builder.Definition.MaterialSchemas[0].SchemaId);
+    }
+
+    /// <summary>
+    /// Verifies a builder implementation can cook one schema-driven material payload.
+    /// </summary>
+    [Fact]
+    public void Builder_contract_cooks_material_from_schema_data() {
+        IPlatformAssetBuilder builder = new TestPlatformAssetBuilder();
+
+        PlatformMaterialCookResult result = builder.CookMaterial(new PlatformMaterialCookRequest(
+            "Materials/Test.helmat",
+            "Materials/Test.helmat",
+            "windows",
+            "debug",
+            "directx11",
+            "standard-shader",
+            new Dictionary<string, string> {
+                ["shader-asset-id"] = "EditorDefaultMesh",
+                ["vertex-program"] = "EditorDefaultMesh.vs",
+                ["pixel-program"] = "EditorDefaultMesh.ps",
+                ["variant"] = "default"
+            }));
+
+        MaterialAsset materialAsset = Assert.IsType<MaterialAsset>(AssetSerializer.DeserializeFromBytes(result.CookedMaterialBytes));
+        Assert.Equal("EditorDefaultMesh", materialAsset.ShaderAssetId);
+        Assert.Equal(new[] { "EditorDefaultMesh" }, result.ReferencedShaderAssetIds);
     }
 }
