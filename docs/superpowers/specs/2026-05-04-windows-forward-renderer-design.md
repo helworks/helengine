@@ -403,6 +403,19 @@ These settings should be staged into runtime-facing build data in the same way o
 
 The player should not rely on editor-only settings files at runtime.
 
+## Current Foundation Alignment
+
+The first implementation slice should land these concrete foundations:
+
+- shared render-frame extraction and backend capability contracts
+- authored light components and per-camera render settings
+- platform-staged renderer defaults for Windows
+- DirectX 11 forward pass planning and light budgeting
+- compact runtime material feature flags for Windows-forward PBR
+- shadow-resource planning shells and post-process chain scaffolding
+
+This keeps the renderer useful immediately while leaving the heavier execution work, richer batching behavior, and future deferred path on top of stable contracts.
+
 ## Testing and Validation
 
 The implementation should add shared tests for:

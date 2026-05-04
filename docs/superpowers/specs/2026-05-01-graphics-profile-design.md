@@ -74,3 +74,9 @@ The implementation should add tests for:
 - loading the staged manifest in the player startup path
 
 The Windows build should continue to support separate build outputs for different graphics targets.
+
+## Renderer Settings Follow-Up
+
+The initial graphics profile only standardized width, height, fullscreen, vsync, and backend target.
+
+The Windows forward renderer expands that role. Platform graphics profiles also carry renderer-default settings such as depth prepass mode, HDR default, shadow quality tier, and post-processing tier. These values are staged into runtime-facing build data and consumed by the player startup and renderer planning path.
