@@ -78,6 +78,7 @@ namespace helengine.editor.tests {
             Assert.Equal("true", queueItem.SelectedGraphicsOptionValues["vsync-enabled"]);
             Assert.Equal("false", queueItem.SelectedGraphicsOptionValues["fullscreen-enabled"]);
             Assert.Equal("true", queueItem.SelectedCodegenOptionValues["write-conversion-report"]);
+            Assert.Equal("windows-no-shaders", queueItem.SelectedCodegenOptionValues[PlatformCodegenSettingIds.PresetId]);
         }
 
         /// <summary>
@@ -194,7 +195,14 @@ namespace helengine.editor.tests {
                                 PlatformSettingKind.Boolean,
                                 "true",
                                 true,
-                            [])
+                            []),
+                            new PlatformSettingDefinition(
+                                PlatformCodegenSettingIds.PresetId,
+                                "Preset",
+                                PlatformSettingKind.Text,
+                                "windows-no-shaders",
+                                true,
+                                [])
                         ])
                 ],
                 [

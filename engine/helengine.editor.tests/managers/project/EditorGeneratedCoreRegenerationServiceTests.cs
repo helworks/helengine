@@ -1,4 +1,5 @@
 using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Profiles;
 
 namespace helengine.editor.tests.managers.project;
 
@@ -73,5 +74,44 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             symbols,
             symbol => Assert.Equal("HELENGINE_INPUT_KEYBOARD", symbol),
             symbol => Assert.Equal("HELENGINE_INPUT_MOUSE", symbol));
+    }
+
+    /// <summary>
+    /// Verifies the generated-core regeneration service forwards a selected codegen preset through the dedicated preset argument.
+    /// </summary>
+    [Fact]
+    public void Build_arguments_includes_selected_preset_id() {
+        PlatformDefinition platformDefinition = new(
+            "windows",
+            "Windows",
+            [],
+            [],
+            [],
+            [],
+            []);
+        PlatformCodegenProfileDefinition codegenProfile = new(
+            "default",
+            "Default",
+            "Default codegen profile",
+            PlatformCodegenLanguage.Cpp,
+            PlatformSerializationEndianness.LittleEndian,
+            []);
+        Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase) {
+            [PlatformCodegenSettingIds.PresetId] = "ps2-lite"
+        };
+        string projectPath = @"C:\tmp\fixture.csproj";
+        string outputRootPath = @"C:\tmp\generated";
+
+        IReadOnlyList<string> arguments = EditorGeneratedCoreRegenerationService.BuildArguments(
+            projectPath,
+            outputRootPath,
+            platformDefinition,
+            codegenProfile,
+            values,
+            []);
+
+        Assert.Contains("--preset", arguments);
+        Assert.Contains("ps2-lite", arguments);
+        Assert.DoesNotContain($"{PlatformCodegenSettingIds.PresetId}=ps2-lite", arguments);
     }
 }
