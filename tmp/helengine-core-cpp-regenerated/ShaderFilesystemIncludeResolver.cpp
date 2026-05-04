@@ -29,11 +29,14 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/directory.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -49,17 +52,17 @@
     if (String::IsNullOrWhiteSpace(requestingFile))
     {
 throw ([&]() {
-auto __ctor_arg_de537904 = "Requesting file must be provided.";
-auto __ctor_arg_8daafa74 = "requestingFile";
-return new ArgumentException(__ctor_arg_de537904, __ctor_arg_8daafa74);
+auto __ctor_arg_000001A5 = "Requesting file must be provided.";
+auto __ctor_arg_000001A6 = "requestingFile";
+return new ArgumentException(__ctor_arg_000001A5, __ctor_arg_000001A6);
 })();
     }
     if (String::IsNullOrWhiteSpace(includePath))
     {
 throw ([&]() {
-auto __ctor_arg_add6f306 = "Include path must be provided.";
-auto __ctor_arg_120bc322 = "includePath";
-return new ArgumentException(__ctor_arg_add6f306, __ctor_arg_120bc322);
+auto __ctor_arg_000001A7 = "Include path must be provided.";
+auto __ctor_arg_000001A8 = "includePath";
+return new ArgumentException(__ctor_arg_000001A7, __ctor_arg_000001A8);
 })();
     }
 const std::string resolvedPath = this->ResolvePath(requestingFile, includePath);
@@ -71,9 +74,9 @@ ShaderFilesystemIncludeResolver::ShaderFilesystemIncludeResolver(std::string roo
     if (String::IsNullOrWhiteSpace(rootDirectory))
     {
 throw ([&]() {
-auto __ctor_arg_98f8161f = "Root directory must be provided.";
-auto __ctor_arg_f328c19c = "rootDirectory";
-return new ArgumentException(__ctor_arg_98f8161f, __ctor_arg_f328c19c);
+auto __ctor_arg_000001A9 = "Root directory must be provided.";
+auto __ctor_arg_000001AA = "rootDirectory";
+return new ArgumentException(__ctor_arg_000001A9, __ctor_arg_000001AA);
 })();
     }
     if (!Directory::Exists(rootDirectory))

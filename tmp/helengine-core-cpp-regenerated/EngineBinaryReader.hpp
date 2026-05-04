@@ -4,13 +4,25 @@
 #endif
 #include <cstdint>
 
+class int4;
+class float2;
+class float3;
+class float4;
+class SceneEntityReference;
+
 #include "runtime/native_disposable.hpp"
 #include "runtime/native_exceptions.hpp"
 #include "runtime/native_exceptions.hpp"
 #include "system/io/stream.hpp"
 #include "runtime/native_exceptions.hpp"
+#include "int2.hpp"
+#include "int4.hpp"
+#include "float2.hpp"
+#include "float3.hpp"
+#include "float4.hpp"
 #include "runtime/native_string.hpp"
 #include "runtime/array.hpp"
+#include "SceneEntityReference.hpp"
 #include "runtime/array.hpp"
 #include "runtime/native_exceptions.hpp"
 #include "EngineBinaryEndianness.hpp"
@@ -18,11 +30,19 @@
 #include "runtime/array.hpp"
 #include "system/func.hpp"
 #include "runtime/array.hpp"
+#include "float2.hpp"
+#include "float3.hpp"
+#include "float4.hpp"
+#include "int2.hpp"
+#include "int4.hpp"
+#include "SceneEntityReference.hpp"
 #include "runtime/native_span.hpp"
 
 class EngineBinaryReader : public IDisposable
 {
 public:
+    virtual ~EngineBinaryReader() = default;
+
     ::EngineBinaryEndianness Endianness;
 
     ::EngineBinaryEndianness get_Endianness();
@@ -38,9 +58,21 @@ public:
 
     Array<uint8_t>* ReadByteArray();
 
+    ::float2 ReadFloat2();
+
+    ::float3 ReadFloat3();
+
+    ::float4 ReadFloat4();
+
+    int2* ReadInt2();
+
     virtual int32_t ReadInt32() = 0;
 
+    ::int4 ReadInt4();
+
     virtual int64_t ReadInt64() = 0;
+
+    ::SceneEntityReference* ReadSceneEntityReference();
 
     float ReadSingle();
 

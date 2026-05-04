@@ -15,6 +15,8 @@
 #include "MaterialAsset.hpp"
 #include "SceneAsset.hpp"
 #include "SceneEntityAsset.hpp"
+#include "SceneAssetReference.hpp"
+#include "runtime/array.hpp"
 #include "SceneComponentAssetRecord.hpp"
 #include "MaterialRenderState.hpp"
 #include "runtime/native_string.hpp"
@@ -32,7 +34,6 @@
 #include "EditorBinaryRecordKind.hpp"
 #include "EngineBinaryEndianness.hpp"
 #include "runtime/array.hpp"
-#include "runtime/finally.hpp"
 #include "runtime/native_cast.hpp"
 #include "runtime/native_dictionary.hpp"
 #include "runtime/native_disposable.hpp"
@@ -47,16 +48,16 @@
 #include "runtime/native_type.hpp"
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
 #include "system/io/stream.hpp"
-#include "system/math.hpp"
 #include "system/string_comparer.hpp"
 #include "system/text/encoding.hpp"
 
-uint8_t EditorAssetBinarySerializer::CurrentVersion = 2;
+uint8_t EditorAssetBinarySerializer::CurrentVersion = 4;
 
 uint16_t EditorAssetBinarySerializer::FormatId = 1;
 
@@ -84,7 +85,7 @@ throw new ArgumentNullException("header");
 ValidateHeader(header);
 {
 ::EngineBinaryReader *reader = EngineBinaryReader::Create(stream, header->get_Endianness(), true);
-return ReadAssetPayload(reader, static_cast<EditorAssetBinaryValueKind>(header->get_ValueKind()));}
+return ReadAssetPayload(reader, static_cast<EditorAssetBinaryValueKind>(header->get_ValueKind()), header->get_Version());}
 }
 
 void EditorAssetBinarySerializer::Serialize(::Stream* stream, ::Asset* asset)
@@ -106,7 +107,11 @@ WriteAssetPayload(writer, asset);
 }
 }
 
+uint8_t EditorAssetBinarySerializer::LegacyVersion = 2;
+
 ::EngineBinaryEndianness EditorAssetBinarySerializer::PayloadEndianness = EngineBinaryEndianness::LittleEndian;
+
+uint8_t EditorAssetBinarySerializer::SceneEntityPayloadVersion = 1;
 
 ::EditorAssetBinaryValueKind EditorAssetBinarySerializer::GetValueKind(::Asset* asset)
 {
@@ -131,7 +136,7 @@ return EditorAssetBinaryValueKind::SceneAsset;    }
 throw new InvalidOperationException(std::string("Asset type '") + he_cpp_type_of<Asset>("Asset")->Name + std::string("' is not supported by the editor binary serializer."));
 }
 
-::Asset* EditorAssetBinarySerializer::ReadAssetPayload(::EngineBinaryReader* reader, ::EditorAssetBinaryValueKind valueKind)
+::Asset* EditorAssetBinarySerializer::ReadAssetPayload(::EngineBinaryReader* reader, ::EditorAssetBinaryValueKind valueKind, uint8_t version)
 {
 switch (valueKind) {
 case EditorAssetBinaryValueKind::TextureAsset: {
@@ -145,7 +150,7 @@ return ReadTextAsset(reader);}
 case EditorAssetBinaryValueKind::MaterialAsset: {
 return ReadMaterialAsset(reader);}
 case EditorAssetBinaryValueKind::SceneAsset: {
-return ReadSceneAsset(reader);}
+return ReadSceneAsset(reader, version);}
 default:  {
 throw new InvalidOperationException(std::string("Unsupported asset value kind '") + std::to_string(static_cast<uint16_t>(valueKind)) + std::string("'."));
 }
@@ -156,204 +161,290 @@ throw new InvalidOperationException(std::string("Unsupported asset value kind '"
 ::float2 EditorAssetBinarySerializer::ReadFloat2(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __ctor_arg_ac7ee6a2 = reader->ReadSingle();
-auto __ctor_arg_5bdbffb6 = reader->ReadSingle();
-return ::float2(__ctor_arg_ac7ee6a2, __ctor_arg_5bdbffb6);
+auto __ctor_arg_00000036 = reader->ReadSingle();
+auto __ctor_arg_00000037 = reader->ReadSingle();
+return ::float2(__ctor_arg_00000036, __ctor_arg_00000037);
 })();}
 
 ::float3 EditorAssetBinarySerializer::ReadFloat3(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __ctor_arg_fd928ebf = reader->ReadSingle();
-auto __ctor_arg_80859b3d = reader->ReadSingle();
-auto __ctor_arg_d8785a9a = reader->ReadSingle();
-return ::float3(__ctor_arg_fd928ebf, __ctor_arg_80859b3d, __ctor_arg_d8785a9a);
+auto __ctor_arg_00000038 = reader->ReadSingle();
+auto __ctor_arg_00000039 = reader->ReadSingle();
+auto __ctor_arg_0000003A = reader->ReadSingle();
+return ::float3(__ctor_arg_00000038, __ctor_arg_00000039, __ctor_arg_0000003A);
 })();}
 
 ::float4 EditorAssetBinarySerializer::ReadFloat4(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __ctor_arg_0775a2b9 = reader->ReadSingle();
-auto __ctor_arg_25db0011 = reader->ReadSingle();
-auto __ctor_arg_236e9b6e = reader->ReadSingle();
-auto __ctor_arg_efca8e56 = reader->ReadSingle();
-return ::float4(__ctor_arg_0775a2b9, __ctor_arg_25db0011, __ctor_arg_236e9b6e, __ctor_arg_efca8e56);
+auto __ctor_arg_0000003B = reader->ReadSingle();
+auto __ctor_arg_0000003C = reader->ReadSingle();
+auto __ctor_arg_0000003D = reader->ReadSingle();
+auto __ctor_arg_0000003E = reader->ReadSingle();
+return ::float4(__ctor_arg_0000003B, __ctor_arg_0000003C, __ctor_arg_0000003D, __ctor_arg_0000003E);
 })();}
+
+::SceneEntityAsset* EditorAssetBinarySerializer::ReadLegacySceneEntityAsset(::EngineBinaryReader* reader)
+{
+return ([&]() {
+auto __object_0000003F = new ::SceneEntityAsset();
+__object_0000003F->set_Id(Guid::NewGuid().ToString("N"));
+__object_0000003F->set_Name(reader->ReadString());
+__object_0000003F->set_LocalPosition(reader->ReadFloat3());
+__object_0000003F->set_LocalScale(reader->ReadFloat3());
+__object_0000003F->set_LocalOrientation(reader->ReadFloat4());
+__object_0000003F->set_Components(([&]() {
+Array<::SceneComponentAssetRecord*>* __coalesce_00000040 = reader->ReadArray<SceneComponentAssetRecord*>(new Func<EngineBinaryReader*, SceneComponentAssetRecord*>(&EditorAssetBinarySerializer::ReadSceneComponentAssetRecord));
+return __coalesce_00000040 != nullptr ? __coalesce_00000040 : Array<SceneComponentAssetRecord*>::Empty();
+})());
+__object_0000003F->set_Children(([&]() {
+Array<::SceneEntityAsset*>* __coalesce_00000041 = ReadLegacySceneEntityAssetArray(reader);
+return __coalesce_00000041 != nullptr ? __coalesce_00000041 : Array<SceneEntityAsset*>::Empty();
+})());
+return __object_0000003F;
+})();}
+
+Array<::SceneEntityAsset*>* EditorAssetBinarySerializer::ReadLegacySceneEntityAssetArray(::EngineBinaryReader* reader)
+{
+const int32_t length = reader->ReadInt32();
+    if (length == -1)
+    {
+return nullptr;    }
+else     if (length < -1)
+    {
+throw new InvalidOperationException("Array length cannot be negative.");
+    }
+else     if (length == 0)
+    {
+return Array<SceneEntityAsset*>::Empty();    }
+Array<::SceneEntityAsset*> *values = new Array<SceneEntityAsset*>(length);
+for (int32_t index = 0; index < values->Length; index++) {
+(*values)[index] = ReadLegacySceneEntityAsset(reader);
+}
+return values;}
 
 ::MaterialAsset* EditorAssetBinarySerializer::ReadMaterialAsset(::EngineBinaryReader* reader)
 {
 ::MaterialAsset *materialAsset = ([&]() {
-auto __object_7261fe0d = new ::MaterialAsset();
-__object_7261fe0d->set_Id(reader->ReadString());
-__object_7261fe0d->ShaderAssetId = reader->ReadString();
-__object_7261fe0d->VertexProgram = reader->ReadString();
-__object_7261fe0d->PixelProgram = reader->ReadString();
-__object_7261fe0d->Variant = reader->ReadString();
-__object_7261fe0d->RenderState = ReadMaterialRenderState(reader);
-__object_7261fe0d->ConstantBuffers = ([&]() {
-Array<::MaterialConstantBufferAsset*>* __coalesce_cf2b8f0d = reader->ReadArray<MaterialConstantBufferAsset*>(new Func<EngineBinaryReader*, MaterialConstantBufferAsset*>(&EditorAssetBinarySerializer::ReadMaterialConstantBufferAsset));
-return __coalesce_cf2b8f0d != nullptr ? __coalesce_cf2b8f0d : Array<MaterialConstantBufferAsset*>::Empty();
+auto __object_00000042 = new ::MaterialAsset();
+__object_00000042->set_Id(reader->ReadString());
+__object_00000042->ShaderAssetId = reader->ReadString();
+__object_00000042->VertexProgram = reader->ReadString();
+__object_00000042->PixelProgram = reader->ReadString();
+__object_00000042->Variant = reader->ReadString();
+__object_00000042->RenderState = ReadMaterialRenderState(reader);
+__object_00000042->ConstantBuffers = ([&]() {
+Array<::MaterialConstantBufferAsset*>* __coalesce_00000043 = reader->ReadArray<MaterialConstantBufferAsset*>(new Func<EngineBinaryReader*, MaterialConstantBufferAsset*>(&EditorAssetBinarySerializer::ReadMaterialConstantBufferAsset));
+return __coalesce_00000043 != nullptr ? __coalesce_00000043 : Array<MaterialConstantBufferAsset*>::Empty();
 })();
-return __object_7261fe0d;
+return __object_00000042;
 })();
 return materialAsset;}
 
 ::MaterialConstantBufferAsset* EditorAssetBinarySerializer::ReadMaterialConstantBufferAsset(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __object_b2731949 = new ::MaterialConstantBufferAsset();
-__object_b2731949->set_Name(reader->ReadString());
-__object_b2731949->set_Data(reader->ReadByteArray());
-return __object_b2731949;
+auto __object_00000044 = new ::MaterialConstantBufferAsset();
+__object_00000044->set_Name(reader->ReadString());
+__object_00000044->set_Data(reader->ReadByteArray());
+return __object_00000044;
 })();}
 
 ::MaterialRenderState* EditorAssetBinarySerializer::ReadMaterialRenderState(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __object_13d2e27c = new ::MaterialRenderState();
-__object_13d2e27c->set_BlendMode(static_cast<MaterialBlendMode>(reader->ReadInt32()));
-__object_13d2e27c->set_CullMode(static_cast<MaterialCullMode>(reader->ReadInt32()));
-__object_13d2e27c->set_DepthTestEnabled(reader->ReadByte() != 0);
-__object_13d2e27c->set_DepthWriteEnabled(reader->ReadByte() != 0);
-return __object_13d2e27c;
+auto __object_00000045 = new ::MaterialRenderState();
+__object_00000045->set_BlendMode(static_cast<MaterialBlendMode>(reader->ReadInt32()));
+__object_00000045->set_CullMode(static_cast<MaterialCullMode>(reader->ReadInt32()));
+__object_00000045->set_DepthTestEnabled(reader->ReadByte() != 0);
+__object_00000045->set_DepthWriteEnabled(reader->ReadByte() != 0);
+return __object_00000045;
 })();}
 
 ::ModelAsset* EditorAssetBinarySerializer::ReadModelAsset(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __object_9518a010 = new ::ModelAsset();
-__object_9518a010->set_Id(reader->ReadString());
-__object_9518a010->Positions = reader->ReadArray<float3>(new Func<EngineBinaryReader*, float3>(&EditorAssetBinarySerializer::ReadFloat3));
-__object_9518a010->Normals = reader->ReadArray<float3>(new Func<EngineBinaryReader*, float3>(&EditorAssetBinarySerializer::ReadFloat3));
-__object_9518a010->TexCoords = reader->ReadArray<float2>(new Func<EngineBinaryReader*, float2>(&EditorAssetBinarySerializer::ReadFloat2));
-__object_9518a010->Indices16 = reader->ReadArray<uint16_t>(new Func<EngineBinaryReader*, uint16_t>(&EditorAssetBinarySerializer::ReadUInt16Value));
-__object_9518a010->Indices32 = reader->ReadArray<uint32_t>(new Func<EngineBinaryReader*, uint32_t>(&EditorAssetBinarySerializer::ReadUInt32Value));
-return __object_9518a010;
+auto __object_00000046 = new ::ModelAsset();
+__object_00000046->set_Id(reader->ReadString());
+__object_00000046->Positions = reader->ReadArray<float3>(new Func<EngineBinaryReader*, float3>(&EditorAssetBinarySerializer::ReadFloat3));
+__object_00000046->Normals = reader->ReadArray<float3>(new Func<EngineBinaryReader*, float3>(&EditorAssetBinarySerializer::ReadFloat3));
+__object_00000046->TexCoords = reader->ReadArray<float2>(new Func<EngineBinaryReader*, float2>(&EditorAssetBinarySerializer::ReadFloat2));
+__object_00000046->Indices16 = reader->ReadArray<uint16_t>(new Func<EngineBinaryReader*, uint16_t>(&EditorAssetBinarySerializer::ReadUInt16Value));
+__object_00000046->Indices32 = reader->ReadArray<uint32_t>(new Func<EngineBinaryReader*, uint32_t>(&EditorAssetBinarySerializer::ReadUInt32Value));
+return __object_00000046;
 })();}
 
-::SceneAsset* EditorAssetBinarySerializer::ReadSceneAsset(::EngineBinaryReader* reader)
+::SceneAsset* EditorAssetBinarySerializer::ReadSceneAsset(::EngineBinaryReader* reader, uint8_t version)
 {
 return ([&]() {
-auto __object_d440cbe6 = new ::SceneAsset();
-__object_d440cbe6->set_Id(reader->ReadString());
-__object_d440cbe6->set_RootEntities(([&]() {
-Array<::SceneEntityAsset*>* __coalesce_385b90ee = reader->ReadArray<SceneEntityAsset*>(new Func<EngineBinaryReader*, SceneEntityAsset*>(&EditorAssetBinarySerializer::ReadSceneEntityAsset));
-return __coalesce_385b90ee != nullptr ? __coalesce_385b90ee : Array<SceneEntityAsset*>::Empty();
+auto __object_00000047 = new ::SceneAsset();
+__object_00000047->set_Id(reader->ReadString());
+__object_00000047->set_RootEntities(([&]() {
+Array<::SceneEntityAsset*>* __coalesce_00000048 = ReadSceneEntityAssetArray(reader, version);
+return __coalesce_00000048 != nullptr ? __coalesce_00000048 : Array<SceneEntityAsset*>::Empty();
 })());
-return __object_d440cbe6;
+__object_00000047->set_AssetReferences(version >= 4 ? ([&]() {
+Array<::SceneAssetReference*>* __coalesce_00000049 = ReadSceneAssetReferenceArray(reader);
+return __coalesce_00000049 != nullptr ? __coalesce_00000049 : Array<SceneAssetReference*>::Empty();
+})() : Array<SceneAssetReference*>::Empty());
+return __object_00000047;
 })();}
+
+::SceneAssetReference* EditorAssetBinarySerializer::ReadSceneAssetReference(::EngineBinaryReader* reader)
+{
+return ([&]() {
+auto __object_0000004A = new ::SceneAssetReference();
+__object_0000004A->set_SourceKind(static_cast<SceneAssetReferenceSourceKind>(reader->ReadInt32()));
+__object_0000004A->set_RelativePath(reader->ReadString());
+__object_0000004A->set_ProviderId(reader->ReadString());
+__object_0000004A->set_AssetId(reader->ReadString());
+return __object_0000004A;
+})();}
+
+Array<::SceneAssetReference*>* EditorAssetBinarySerializer::ReadSceneAssetReferenceArray(::EngineBinaryReader* reader)
+{
+return reader->ReadArray<SceneAssetReference*>(new Func<EngineBinaryReader*, SceneAssetReference*>(&EditorAssetBinarySerializer::ReadSceneAssetReference));}
 
 ::SceneComponentAssetRecord* EditorAssetBinarySerializer::ReadSceneComponentAssetRecord(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __object_96bbd2ea = new ::SceneComponentAssetRecord();
-__object_96bbd2ea->set_ComponentTypeId(reader->ReadString());
-__object_96bbd2ea->set_ComponentIndex(reader->ReadInt32());
-__object_96bbd2ea->set_Payload(([&]() {
-Array<uint8_t>* __coalesce_b9666d8f = reader->ReadByteArray();
-return __coalesce_b9666d8f != nullptr ? __coalesce_b9666d8f : Array<uint8_t>::Empty();
+auto __object_0000004B = new ::SceneComponentAssetRecord();
+__object_0000004B->set_ComponentTypeId(reader->ReadString());
+__object_0000004B->set_ComponentIndex(reader->ReadInt32());
+__object_0000004B->set_Payload(([&]() {
+Array<uint8_t>* __coalesce_0000004C = reader->ReadByteArray();
+return __coalesce_0000004C != nullptr ? __coalesce_0000004C : Array<uint8_t>::Empty();
 })());
-return __object_96bbd2ea;
+return __object_0000004B;
 })();}
 
-::SceneEntityAsset* EditorAssetBinarySerializer::ReadSceneEntityAsset(::EngineBinaryReader* reader)
+::SceneEntityAsset* EditorAssetBinarySerializer::ReadSceneEntityAsset(::EngineBinaryReader* reader, uint8_t version)
 {
+    if (version == LegacyVersion)
+    {
+return ReadLegacySceneEntityAsset(reader);    }
+const uint8_t payloadVersion = reader->ReadByte();
+    if (payloadVersion != SceneEntityPayloadVersion)
+    {
+throw new InvalidOperationException(std::string("Unsupported scene entity payload version '") + std::to_string(payloadVersion) + std::string("'."));
+    }
 return ([&]() {
-auto __object_f440da29 = new ::SceneEntityAsset();
-__object_f440da29->set_Name(reader->ReadString());
-__object_f440da29->set_LocalPosition(ReadFloat3(reader));
-__object_f440da29->set_LocalScale(ReadFloat3(reader));
-__object_f440da29->set_LocalOrientation(ReadFloat4(reader));
-__object_f440da29->set_Components(([&]() {
-Array<::SceneComponentAssetRecord*>* __coalesce_41424c42 = reader->ReadArray<SceneComponentAssetRecord*>(new Func<EngineBinaryReader*, SceneComponentAssetRecord*>(&EditorAssetBinarySerializer::ReadSceneComponentAssetRecord));
-return __coalesce_41424c42 != nullptr ? __coalesce_41424c42 : Array<SceneComponentAssetRecord*>::Empty();
+auto __object_0000004D = new ::SceneEntityAsset();
+__object_0000004D->set_Id(reader->ReadString());
+__object_0000004D->set_Name(reader->ReadString());
+__object_0000004D->set_LocalPosition(reader->ReadFloat3());
+__object_0000004D->set_LocalScale(reader->ReadFloat3());
+__object_0000004D->set_LocalOrientation(reader->ReadFloat4());
+__object_0000004D->set_Components(([&]() {
+Array<::SceneComponentAssetRecord*>* __coalesce_0000004E = reader->ReadArray<SceneComponentAssetRecord*>(new Func<EngineBinaryReader*, SceneComponentAssetRecord*>(&EditorAssetBinarySerializer::ReadSceneComponentAssetRecord));
+return __coalesce_0000004E != nullptr ? __coalesce_0000004E : Array<SceneComponentAssetRecord*>::Empty();
 })());
-__object_f440da29->set_Children(([&]() {
-Array<::SceneEntityAsset*>* __coalesce_1797705c = reader->ReadArray<SceneEntityAsset*>(new Func<EngineBinaryReader*, SceneEntityAsset*>(&EditorAssetBinarySerializer::ReadSceneEntityAsset));
-return __coalesce_1797705c != nullptr ? __coalesce_1797705c : Array<SceneEntityAsset*>::Empty();
+__object_0000004D->set_Children(([&]() {
+Array<::SceneEntityAsset*>* __coalesce_0000004F = ReadSceneEntityAssetArray(reader, version);
+return __coalesce_0000004F != nullptr ? __coalesce_0000004F : Array<SceneEntityAsset*>::Empty();
 })());
-return __object_f440da29;
+return __object_0000004D;
 })();}
+
+Array<::SceneEntityAsset*>* EditorAssetBinarySerializer::ReadSceneEntityAssetArray(::EngineBinaryReader* reader, uint8_t version)
+{
+const int32_t length = reader->ReadInt32();
+    if (length == -1)
+    {
+return nullptr;    }
+else     if (length < -1)
+    {
+throw new InvalidOperationException("Array length cannot be negative.");
+    }
+else     if (length == 0)
+    {
+return Array<SceneEntityAsset*>::Empty();    }
+Array<::SceneEntityAsset*> *values = new Array<SceneEntityAsset*>(length);
+for (int32_t index = 0; index < values->Length; index++) {
+(*values)[index] = ReadSceneEntityAsset(reader, version);
+}
+return values;}
 
 ::ShaderAsset* EditorAssetBinarySerializer::ReadShaderAsset(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __object_a5145cd2 = new ::ShaderAsset();
-__object_a5145cd2->set_Id(reader->ReadString());
-__object_a5145cd2->Name = reader->ReadString();
-__object_a5145cd2->TargetName = reader->ReadString();
-__object_a5145cd2->Programs = reader->ReadArray<ShaderProgramAsset*>(new Func<EngineBinaryReader*, ShaderProgramAsset*>(&EditorAssetBinarySerializer::ReadShaderProgramAsset));
-__object_a5145cd2->Binaries = reader->ReadArray<ShaderBinaryAsset*>(new Func<EngineBinaryReader*, ShaderBinaryAsset*>(&EditorAssetBinarySerializer::ReadShaderBinaryAsset));
-return __object_a5145cd2;
+auto __object_00000050 = new ::ShaderAsset();
+__object_00000050->set_Id(reader->ReadString());
+__object_00000050->Name = reader->ReadString();
+__object_00000050->TargetName = reader->ReadString();
+__object_00000050->Programs = reader->ReadArray<ShaderProgramAsset*>(new Func<EngineBinaryReader*, ShaderProgramAsset*>(&EditorAssetBinarySerializer::ReadShaderProgramAsset));
+__object_00000050->Binaries = reader->ReadArray<ShaderBinaryAsset*>(new Func<EngineBinaryReader*, ShaderBinaryAsset*>(&EditorAssetBinarySerializer::ReadShaderBinaryAsset));
+return __object_00000050;
 })();}
 
 ::ShaderBinaryAsset* EditorAssetBinarySerializer::ReadShaderBinaryAsset(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __object_f531c2bd = new ::ShaderBinaryAsset();
-__object_f531c2bd->ProgramName = reader->ReadString();
-__object_f531c2bd->Stage = static_cast<ShaderStage>(reader->ReadInt32());
-__object_f531c2bd->TargetName = reader->ReadString();
-__object_f531c2bd->Variant = reader->ReadString();
-__object_f531c2bd->Bytecode = reader->ReadByteArray();
-return __object_f531c2bd;
+auto __object_00000051 = new ::ShaderBinaryAsset();
+__object_00000051->ProgramName = reader->ReadString();
+__object_00000051->Stage = static_cast<ShaderStage>(reader->ReadInt32());
+__object_00000051->TargetName = reader->ReadString();
+__object_00000051->Variant = reader->ReadString();
+__object_00000051->Bytecode = reader->ReadByteArray();
+return __object_00000051;
 })();}
 
 ::ShaderBindingAsset* EditorAssetBinarySerializer::ReadShaderBindingAsset(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __object_a02e6d9b = new ::ShaderBindingAsset();
-__object_a02e6d9b->Name = reader->ReadString();
-__object_a02e6d9b->Type = static_cast<ShaderResourceType>(reader->ReadInt32());
-__object_a02e6d9b->Set = reader->ReadInt32();
-__object_a02e6d9b->Slot = reader->ReadInt32();
-__object_a02e6d9b->Size = reader->ReadInt32();
-__object_a02e6d9b->Members = reader->ReadArray<ShaderConstantMemberAsset*>(new Func<EngineBinaryReader*, ShaderConstantMemberAsset*>(&EditorAssetBinarySerializer::ReadShaderConstantMemberAsset));
-return __object_a02e6d9b;
+auto __object_00000052 = new ::ShaderBindingAsset();
+__object_00000052->Name = reader->ReadString();
+__object_00000052->Type = static_cast<ShaderResourceType>(reader->ReadInt32());
+__object_00000052->Set = reader->ReadInt32();
+__object_00000052->Slot = reader->ReadInt32();
+__object_00000052->Size = reader->ReadInt32();
+__object_00000052->Members = reader->ReadArray<ShaderConstantMemberAsset*>(new Func<EngineBinaryReader*, ShaderConstantMemberAsset*>(&EditorAssetBinarySerializer::ReadShaderConstantMemberAsset));
+return __object_00000052;
 })();}
 
 ::ShaderConstantMemberAsset* EditorAssetBinarySerializer::ReadShaderConstantMemberAsset(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __object_a503f4f3 = new ::ShaderConstantMemberAsset();
-__object_a503f4f3->Name = reader->ReadString();
-__object_a503f4f3->Type = reader->ReadString();
-__object_a503f4f3->Offset = reader->ReadInt32();
-__object_a503f4f3->Size = reader->ReadInt32();
-return __object_a503f4f3;
+auto __object_00000053 = new ::ShaderConstantMemberAsset();
+__object_00000053->Name = reader->ReadString();
+__object_00000053->Type = reader->ReadString();
+__object_00000053->Offset = reader->ReadInt32();
+__object_00000053->Size = reader->ReadInt32();
+return __object_00000053;
 })();}
 
 ::ShaderProgramAsset* EditorAssetBinarySerializer::ReadShaderProgramAsset(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __object_4baa460a = new ::ShaderProgramAsset();
-__object_4baa460a->Name = reader->ReadString();
-__object_4baa460a->Stage = static_cast<ShaderStage>(reader->ReadInt32());
-__object_4baa460a->EntryPoint = reader->ReadString();
-__object_4baa460a->Bindings = reader->ReadArray<ShaderBindingAsset*>(new Func<EngineBinaryReader*, ShaderBindingAsset*>(&EditorAssetBinarySerializer::ReadShaderBindingAsset));
-__object_4baa460a->Inputs = reader->ReadArray<ShaderVertexElementAsset*>(new Func<EngineBinaryReader*, ShaderVertexElementAsset*>(&EditorAssetBinarySerializer::ReadShaderVertexElementAsset));
-__object_4baa460a->Outputs = reader->ReadArray<ShaderVertexElementAsset*>(new Func<EngineBinaryReader*, ShaderVertexElementAsset*>(&EditorAssetBinarySerializer::ReadShaderVertexElementAsset));
-__object_4baa460a->Variants = reader->ReadArray<ShaderVariantAsset*>(new Func<EngineBinaryReader*, ShaderVariantAsset*>(&EditorAssetBinarySerializer::ReadShaderVariantAsset));
-return __object_4baa460a;
+auto __object_00000054 = new ::ShaderProgramAsset();
+__object_00000054->Name = reader->ReadString();
+__object_00000054->Stage = static_cast<ShaderStage>(reader->ReadInt32());
+__object_00000054->EntryPoint = reader->ReadString();
+__object_00000054->Bindings = reader->ReadArray<ShaderBindingAsset*>(new Func<EngineBinaryReader*, ShaderBindingAsset*>(&EditorAssetBinarySerializer::ReadShaderBindingAsset));
+__object_00000054->Inputs = reader->ReadArray<ShaderVertexElementAsset*>(new Func<EngineBinaryReader*, ShaderVertexElementAsset*>(&EditorAssetBinarySerializer::ReadShaderVertexElementAsset));
+__object_00000054->Outputs = reader->ReadArray<ShaderVertexElementAsset*>(new Func<EngineBinaryReader*, ShaderVertexElementAsset*>(&EditorAssetBinarySerializer::ReadShaderVertexElementAsset));
+__object_00000054->Variants = reader->ReadArray<ShaderVariantAsset*>(new Func<EngineBinaryReader*, ShaderVariantAsset*>(&EditorAssetBinarySerializer::ReadShaderVariantAsset));
+return __object_00000054;
 })();}
 
 ::ShaderVariantAsset* EditorAssetBinarySerializer::ReadShaderVariantAsset(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __object_8bc3e99c = new ::ShaderVariantAsset();
-__object_8bc3e99c->Name = reader->ReadString();
-__object_8bc3e99c->Defines = reader->ReadArray<std::string>(new Func<EngineBinaryReader*, std::string>(&EditorAssetBinarySerializer::ReadStringValue));
-return __object_8bc3e99c;
+auto __object_00000055 = new ::ShaderVariantAsset();
+__object_00000055->Name = reader->ReadString();
+__object_00000055->Defines = reader->ReadArray<std::string>(new Func<EngineBinaryReader*, std::string>(&EditorAssetBinarySerializer::ReadStringValue));
+return __object_00000055;
 })();}
 
 ::ShaderVertexElementAsset* EditorAssetBinarySerializer::ReadShaderVertexElementAsset(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __object_42006717 = new ::ShaderVertexElementAsset();
-__object_42006717->Semantic = reader->ReadString();
-__object_42006717->Index = reader->ReadInt32();
-__object_42006717->Format = reader->ReadString();
-return __object_42006717;
+auto __object_00000056 = new ::ShaderVertexElementAsset();
+__object_00000056->Semantic = reader->ReadString();
+__object_00000056->Index = reader->ReadInt32();
+__object_00000056->Format = reader->ReadString();
+return __object_00000056;
 })();}
 
 std::string EditorAssetBinarySerializer::ReadStringValue(::EngineBinaryReader* reader)
@@ -363,21 +454,21 @@ return reader->ReadString();}
 ::TextAsset* EditorAssetBinarySerializer::ReadTextAsset(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __object_99212a5b = new ::TextAsset();
-__object_99212a5b->set_Id(reader->ReadString());
-__object_99212a5b->Text = reader->ReadString();
-return __object_99212a5b;
+auto __object_00000057 = new ::TextAsset();
+__object_00000057->set_Id(reader->ReadString());
+__object_00000057->Text = reader->ReadString();
+return __object_00000057;
 })();}
 
 ::TextureAsset* EditorAssetBinarySerializer::ReadTextureAsset(::EngineBinaryReader* reader)
 {
 return ([&]() {
-auto __object_e6fa428f = new ::TextureAsset();
-__object_e6fa428f->set_Id(reader->ReadString());
-__object_e6fa428f->Width = reader->ReadUInt16();
-__object_e6fa428f->Height = reader->ReadUInt16();
-__object_e6fa428f->Colors = reader->ReadByteArray();
-return __object_e6fa428f;
+auto __object_00000058 = new ::TextureAsset();
+__object_00000058->set_Id(reader->ReadString());
+__object_00000058->Width = reader->ReadUInt16();
+__object_00000058->Height = reader->ReadUInt16();
+__object_00000058->Colors = reader->ReadByteArray();
+return __object_00000058;
 })();}
 
 uint16_t EditorAssetBinarySerializer::ReadUInt16Value(::EngineBinaryReader* reader)
@@ -398,7 +489,7 @@ else     if (header->get_RecordKind() != static_cast<uint16_t>(RecordKind))
     {
 throw new InvalidOperationException(std::string("Unexpected asset record kind '") + std::to_string(header->get_RecordKind()) + std::string("'."));
     }
-else     if (header->get_Version() != CurrentVersion)
+else     if (header->get_Version() < LegacyVersion || header->get_Version() > CurrentVersion)
     {
 throw new InvalidOperationException(std::string("Unsupported asset binary version '") + std::to_string(header->get_Version()) + std::string("'."));
     }
@@ -525,6 +616,15 @@ void EditorAssetBinarySerializer::WriteSceneAsset(::EngineBinaryWriter* writer, 
 {
 writer->WriteString(asset->Id);
 writer->WriteArray<SceneEntityAsset*>(asset->get_RootEntities(), new Action<EngineBinaryWriter*, SceneEntityAsset*>(&EditorAssetBinarySerializer::WriteSceneEntityAsset));
+writer->WriteArray<SceneAssetReference*>(asset->get_AssetReferences(), new Action<EngineBinaryWriter*, SceneAssetReference*>(&EditorAssetBinarySerializer::WriteSceneAssetReference));
+}
+
+void EditorAssetBinarySerializer::WriteSceneAssetReference(::EngineBinaryWriter* writer, ::SceneAssetReference* reference)
+{
+writer->WriteInt32(static_cast<int32_t>(reference->get_SourceKind()));
+writer->WriteString(reference->get_RelativePath());
+writer->WriteString(reference->get_ProviderId());
+writer->WriteString(reference->get_AssetId());
 }
 
 void EditorAssetBinarySerializer::WriteSceneComponentAssetRecord(::EngineBinaryWriter* writer, ::SceneComponentAssetRecord* record)
@@ -536,10 +636,12 @@ writer->WriteByteArray(record->get_Payload());
 
 void EditorAssetBinarySerializer::WriteSceneEntityAsset(::EngineBinaryWriter* writer, ::SceneEntityAsset* asset)
 {
+writer->WriteByte(SceneEntityPayloadVersion);
+writer->WriteString(asset->get_Id());
 writer->WriteString(asset->get_Name());
-WriteFloat3(writer, asset->get_LocalPosition());
-WriteFloat3(writer, asset->get_LocalScale());
-WriteFloat4(writer, asset->get_LocalOrientation());
+writer->WriteFloat3(asset->get_LocalPosition());
+writer->WriteFloat3(asset->get_LocalScale());
+writer->WriteFloat4(asset->get_LocalOrientation());
 writer->WriteArray<SceneComponentAssetRecord*>(asset->get_Components(), new Action<EngineBinaryWriter*, SceneComponentAssetRecord*>(&EditorAssetBinarySerializer::WriteSceneComponentAssetRecord));
 writer->WriteArray<SceneEntityAsset*>(asset->get_Children(), new Action<EngineBinaryWriter*, SceneEntityAsset*>(&EditorAssetBinarySerializer::WriteSceneEntityAsset));
 }

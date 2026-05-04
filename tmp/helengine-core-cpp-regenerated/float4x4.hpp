@@ -10,12 +10,16 @@ class float4;
 #include "float3.hpp"
 #include "float3.hpp"
 #include "runtime/native_exceptions.hpp"
+#include "runtime/native_exceptions.hpp"
+#include "runtime/array.hpp"
 #include "float4.hpp"
 #include "float4.hpp"
 
 class float4x4
 {
 public:
+    virtual ~float4x4() = default;
+
     float4x4();
 
     static ::float4x4 get_Identity();
@@ -70,6 +74,8 @@ public:
 
     static void CreateTranslation(::float3& position, ::float4x4& result);
 
+    static void InverseTranspose(::float4x4& matrix, ::float4x4& result);
+
     static void Multiply(::float4x4& matrix1, ::float4x4& matrix2, ::float4x4& result);
 
     static void Transpose(::float4x4& matrix, ::float4x4& result);
@@ -77,4 +83,6 @@ public:
     float4x4(float m11, float m12, float m13, float m14, float m21, float m22, float m23, float m24, float m31, float m32, float m33, float m34, float m41, float m42, float m43, float m44);
 private:
     static ::float4x4 identity;
+
+    static bool TryInvert(::float4x4& matrix, ::float4x4& result);
 };

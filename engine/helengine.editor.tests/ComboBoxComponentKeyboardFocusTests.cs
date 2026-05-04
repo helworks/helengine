@@ -15,7 +15,7 @@ namespace helengine.editor.tests {
             TestFocusGroup focusGroup = new TestFocusGroup(null, 0, 0, 0, 240, 40);
             EditorEntity entity = new EditorEntity();
             ComboBoxComponent comboBox = new ComboBoxComponent(new int2(180, 28), CreateFont(), new[] { "One", "Two" }, 0);
-            comboBox.FocusGroup = focusGroup;
+            comboBox.FocusGroup = focusGroup.FocusGroup;
             entity.AddComponent(comboBox);
             IFocusTarget focusTarget = comboBox;
 
@@ -37,7 +37,7 @@ namespace helengine.editor.tests {
             TestFocusGroup focusGroup = new TestFocusGroup(null, 0, 0, 0, 240, 40);
             EditorEntity entity = new EditorEntity();
             ComboBoxComponent comboBox = new ComboBoxComponent(new int2(180, 28), CreateFont(), new[] { "One", "Two" }, 0);
-            comboBox.FocusGroup = focusGroup;
+            comboBox.FocusGroup = focusGroup.FocusGroup;
             entity.AddComponent(comboBox);
             IFocusTarget focusTarget = comboBox;
 
@@ -54,7 +54,7 @@ namespace helengine.editor.tests {
         /// </summary>
         void InitializeCore() {
             Core core = new Core();
-            core.Initialize(null, new TestRenderManager2D(), new TestInputManager());
+            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend());
         }
 
         /// <summary>
@@ -84,3 +84,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

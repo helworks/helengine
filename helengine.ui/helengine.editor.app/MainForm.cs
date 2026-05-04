@@ -1,5 +1,4 @@
 using helengine.editor;
-using helengine.editor.assimp;
 using helengine.editor.windows;
 using helengine.directx11;
 using helengine.projectfile;
@@ -139,11 +138,11 @@ namespace helengine.editor.app {
                 renderer3D = directX11Renderer;
                 renderer2D = directX11Renderer.Render2D;
             }
-            InputManager inputManager = new InputManagerWindows(this.Handle);
+            IInputBackend inputBackend = new InputBackendWindows(this.Handle);
             CoreInitializationOptions initOptions = new CoreInitializationOptions {
                 ContentRootPath = projectAssetsRootPath
             };
-            core.Initialize(renderer3D, renderer2D, inputManager, initOptions);
+            core.Initialize(renderer3D, renderer2D, inputBackend, initOptions);
 
             int renderWidth = Math.Max(1, ClientSize.Width);
             int renderHeight = Math.Max(1, ClientSize.Height);
@@ -154,7 +153,7 @@ namespace helengine.editor.app {
             ContentManager contentManager = core.ContentManager;
             EditorViewportToolbarIconSet toolbarIcons = EditorToolbarIconLoader.LoadDefaultToolbarIcons(contentManager, AppContext.BaseDirectory);
             RuntimeTexture titleBarIcon = EditorToolbarIconLoader.LoadTitleBarIcon(contentManager, AppContext.BaseDirectory);
-            IReadOnlyList<IAssetImporterRegistration> importers = BuildImporters();
+            IReadOnlyList<IAssetImporterRegistration> importers = EditorHostImporterFactory.CreateDefault();
             editorSession = new EditorSession(
                 core,
                 projectPath,
@@ -162,7 +161,7 @@ namespace helengine.editor.app {
                 snapModifierFont,
                 renderer3D,
                 renderer2D,
-                inputManager,
+                inputBackend,
                 renderWidth,
                 renderHeight,
                 toolbarIcons,
@@ -247,21 +246,6 @@ namespace helengine.editor.app {
                 File.AppendAllText(LoopErrorLogPath, message);
             } catch {
             }
-        }
-
-        /// <summary>
-        /// Builds the default asset importer registrations for the editor.
-        /// </summary>
-        /// <returns>Importer registrations used for asset import settings.</returns>
-        IReadOnlyList<IAssetImporterRegistration> BuildImporters() {
-            string[] textureExtensions = new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff", ".tif" };
-            string[] textExtensions = new[] { ".txt" };
-            string[] modelExtensions = new[] { ".fbx", ".obj", ".gltf", ".glb", ".dae", ".3ds" };
-            return new IAssetImporterRegistration[] {
-                new TextureImporterRegistration("gdi", new GDITextureImporter(), textureExtensions),
-                new TextImporterRegistration("text", new TextImporter(), textExtensions),
-                new ModelImporterRegistration("assimp", new HelengineAssimpImporter(), modelExtensions)
-            };
         }
 
         /// <summary>
@@ -464,3 +448,4 @@ namespace helengine.editor.app {
         }
     }
 }
+

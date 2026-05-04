@@ -15,6 +15,8 @@ class EngineBinaryReader;
 class BinaryReaderLE : public EngineBinaryReader
 {
 public:
+    virtual ~BinaryReaderLE() = default;
+
     ::EngineBinaryEndianness get_Endianness();
 
     BinaryReaderLE(::Stream* stream, bool leaveOpen);

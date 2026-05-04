@@ -6,12 +6,17 @@ namespace helengine {
         /// <summary>
         /// Folder name used for packaged shader assets.
         /// </summary>
-        const string ShaderDirectoryName = "shaders";
+        const string ShaderDirectoryName = "cooked/shaders";
+
+        /// <summary>
+        /// Folder name used for packaged font assets.
+        /// </summary>
+        const string FontDirectoryName = "fonts";
 
         /// <summary>
         /// Shared shader package file extension.
         /// </summary>
-        const string ShaderPackageExtension = ".shader.asset";
+        const string ShaderPackageExtension = ".hasset";
 
         /// <summary>
         /// Absolute packaged content root used to resolve file-backed scene references.
@@ -78,6 +83,20 @@ namespace helengine {
                 ResolveShaderPackagePath(materialAsset.ShaderAssetId),
                 RuntimeContentProcessorIds.ShaderAsset);
             return Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+        }
+
+        /// <summary>
+        /// Resolves one packaged font reference into a runtime font asset instance.
+        /// </summary>
+        /// <param name="reference">Packaged scene asset reference to resolve.</param>
+        /// <returns>Runtime font asset instance rebuilt from packaged data.</returns>
+        public FontAsset ResolveFont(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            string fullPath = ResolveFileBackedAssetPath(reference);
+            return AssetContentManager.Load<FontAsset>(fullPath, RuntimeContentProcessorIds.FontAsset);
         }
 
         /// <summary>

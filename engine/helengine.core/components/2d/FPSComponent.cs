@@ -142,10 +142,13 @@ namespace helengine {
         byte renderOrder2D = 250;
 
         /// <summary>
-        /// Creates a new FPS overlay using the default font configured on the active core.
+        /// Creates a new FPS overlay using the default font configured on the active core when one is available.
         /// </summary>
         public FPSComponent() {
-            Font = ResolveDefaultFont();
+            FontAsset defaultFont = ResolveDefaultFont();
+            if (defaultFont != null) {
+                Font = defaultFont;
+            }
         }
 
         /// <summary>
@@ -155,6 +158,9 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
+            }
+            if (Font == null) {
+                throw new InvalidOperationException("FPSComponent requires a font asset before it can be attached.");
             }
 
             base.ComponentAdded(entity);
@@ -366,10 +372,7 @@ namespace helengine {
         /// <returns>Default font used for new FPS overlays.</returns>
         static FontAsset ResolveDefaultFont() {
             if (Core.Instance == null) {
-                throw new InvalidOperationException("FPSComponent requires an active core before it can resolve the default font.");
-            }
-            if (Core.Instance.DefaultFontAsset == null) {
-                throw new InvalidOperationException("FPSComponent requires Core.DefaultFontAsset to be configured before construction.");
+                return null;
             }
 
             return Core.Instance.DefaultFontAsset;

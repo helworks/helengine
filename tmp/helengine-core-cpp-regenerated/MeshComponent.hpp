@@ -26,6 +26,8 @@ class RuntimeModel;
 class MeshComponent : public Component, public IDrawable3D
 {
 public:
+    virtual ~MeshComponent() = default;
+
     ::RuntimeMaterial* Material;
 
     ::RuntimeMaterial* get_Material();

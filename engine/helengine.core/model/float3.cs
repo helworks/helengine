@@ -12,11 +12,11 @@ namespace helengine {
         /// <summary>
         /// Zero vector (0, 0, 0).
         /// </summary>
-        private static readonly float3 zero = new(0f, 0f, 0f);
+        private static readonly float3 zero = new float3(0f, 0f, 0f);
         /// <summary>
         /// Unit vector with all components set to one.
         /// </summary>
-        private static readonly float3 one = new(1f, 1f, 1f);
+        private static readonly float3 one = new float3(1f, 1f, 1f);
 
         /// <summary>
         /// X component of the vector.

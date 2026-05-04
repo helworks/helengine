@@ -16,5 +16,12 @@ namespace helengine.editor {
         /// <param name="reference">Stable scene asset reference to resolve.</param>
         /// <returns>Runtime material resolved from the reference.</returns>
         RuntimeMaterial ResolveMaterial(SceneAssetReference reference);
+
+        /// <summary>
+        /// Resolves one stable scene asset reference into a runtime font.
+        /// </summary>
+        /// <param name="reference">Stable scene asset reference to resolve.</param>
+        /// <returns>Runtime font resolved from the reference.</returns>
+        FontAsset ResolveFont(SceneAssetReference reference);
     }
 }

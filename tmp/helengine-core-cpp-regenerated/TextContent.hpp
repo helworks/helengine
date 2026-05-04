@@ -9,6 +9,8 @@
 class TextContent
 {
 public:
+    virtual ~TextContent() = default;
+
     TextContent();
 
     std::string Text;

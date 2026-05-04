@@ -5,4 +5,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="model\int2.cs" />
+    <Compile Remove="managers\input\KeyState.cs" />
+    <ProjectReference Include="..\helengine.input\helengine.input.csproj" SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
 </Project>

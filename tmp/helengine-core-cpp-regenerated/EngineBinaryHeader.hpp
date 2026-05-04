@@ -9,6 +9,8 @@
 class EngineBinaryHeader
 {
 public:
+    virtual ~EngineBinaryHeader() = default;
+
     ::EngineBinaryEndianness Endianness;
 
     ::EngineBinaryEndianness get_Endianness();

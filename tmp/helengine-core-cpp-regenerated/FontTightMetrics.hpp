@@ -7,6 +7,8 @@
 class FontTightMetrics
 {
 public:
+    virtual ~FontTightMetrics() = default;
+
     FontTightMetrics();
 
     float get_Height();

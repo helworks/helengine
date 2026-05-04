@@ -12,6 +12,8 @@
 class ShaderCompiledBinary
 {
 public:
+    virtual ~ShaderCompiledBinary() = default;
+
     Array<uint8_t>* Bytecode;
 
     Array<uint8_t>* get_Bytecode();

@@ -10,6 +10,8 @@
 class SceneComponentAssetRecord
 {
 public:
+    virtual ~SceneComponentAssetRecord() = default;
+
     SceneComponentAssetRecord();
 
     int32_t ComponentIndex;

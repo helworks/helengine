@@ -11,6 +11,8 @@ class float4;
 class CameraClearSettings
 {
 public:
+    virtual ~CameraClearSettings() = default;
+
     CameraClearSettings();
 
     ::float4 ClearColor;

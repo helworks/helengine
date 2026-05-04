@@ -47,16 +47,16 @@ namespace helengine.editor.tests {
                 3,
                 4,
                 true,
-                focusGroup);
+                focusGroup.FocusGroup);
 
             browserView.UpdateLayout(320, 240);
 
             ButtonComponent upButton = GetPrivateField<ButtonComponent>(browserView, "UpButton");
             List<AssetBrowserRow> rows = GetPrivateField<List<AssetBrowserRow>>(browserView, "Rows");
 
-            Assert.Same(focusGroup, upButton.FocusGroup);
+            Assert.Same(focusGroup.FocusGroup, upButton.FocusGroup);
             Assert.Equal(0, upButton.TabIndex);
-            Assert.Same(focusGroup, rows[0].FocusTarget.FocusGroup);
+            Assert.Same(focusGroup.FocusGroup, rows[0].FocusTarget.FocusGroup);
             Assert.Equal(1, rows[0].FocusTarget.TabIndex);
             Assert.True(rows[0].Entity.Enabled);
             Assert.Equal(3, GetRegisteredTargetCount());
@@ -114,7 +114,7 @@ namespace helengine.editor.tests {
                 3,
                 4,
                 true,
-                focusGroup);
+                focusGroup.FocusGroup);
 
             browserView.UpdateLayout(320, 240);
 

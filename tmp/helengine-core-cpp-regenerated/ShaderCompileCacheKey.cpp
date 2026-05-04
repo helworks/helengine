@@ -21,16 +21,20 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/math.hpp"
 #include "system/number.hpp"
 #include "system/string_comparer.hpp"
 #include "system/text/encoding.hpp"
 #include "system/text/regular_expressions/regex.hpp"
+#include "system/text/string-builder.hpp"
 
 std::string ShaderCompileCacheKey::get_BindingPolicySignature()
 {
@@ -82,25 +86,25 @@ ShaderCompileCacheKey::ShaderCompileCacheKey(std::string sourceHash, std::string
     if (String::IsNullOrWhiteSpace(sourceHash))
     {
 throw ([&]() {
-auto __ctor_arg_1cfc1271 = "Source hash must be provided.";
-auto __ctor_arg_51fc60ee = "sourceHash";
-return new ArgumentException(__ctor_arg_1cfc1271, __ctor_arg_51fc60ee);
+auto __ctor_arg_000000F2 = "Source hash must be provided.";
+auto __ctor_arg_000000F3 = "sourceHash";
+return new ArgumentException(__ctor_arg_000000F2, __ctor_arg_000000F3);
 })();
     }
     if (String::IsNullOrWhiteSpace(programName))
     {
 throw ([&]() {
-auto __ctor_arg_9c4f710f = "Program name must be provided.";
-auto __ctor_arg_b13cd5cf = "programName";
-return new ArgumentException(__ctor_arg_9c4f710f, __ctor_arg_b13cd5cf);
+auto __ctor_arg_000000F4 = "Program name must be provided.";
+auto __ctor_arg_000000F5 = "programName";
+return new ArgumentException(__ctor_arg_000000F4, __ctor_arg_000000F5);
 })();
     }
     if (String::IsNullOrWhiteSpace(entryPoint))
     {
 throw ([&]() {
-auto __ctor_arg_a985cfe4 = "Entry point must be provided.";
-auto __ctor_arg_42919de8 = "entryPoint";
-return new ArgumentException(__ctor_arg_a985cfe4, __ctor_arg_42919de8);
+auto __ctor_arg_000000F6 = "Entry point must be provided.";
+auto __ctor_arg_000000F7 = "entryPoint";
+return new ArgumentException(__ctor_arg_000000F6, __ctor_arg_000000F7);
 })();
     }
     if (shaderModel == nullptr)
@@ -110,9 +114,9 @@ throw new ArgumentNullException("shaderModel");
     if (String::IsNullOrWhiteSpace(variant))
     {
 throw ([&]() {
-auto __ctor_arg_a5a6d7e6 = "Variant name must be provided.";
-auto __ctor_arg_9c8b0e5f = "variant";
-return new ArgumentException(__ctor_arg_a5a6d7e6, __ctor_arg_9c8b0e5f);
+auto __ctor_arg_000000F8 = "Variant name must be provided.";
+auto __ctor_arg_000000F9 = "variant";
+return new ArgumentException(__ctor_arg_000000F8, __ctor_arg_000000F9);
 })();
     }
     if (String::IsNullOrEmpty(definesSignature))

@@ -9,6 +9,8 @@
 class int4
 {
 public:
+    virtual ~int4() = default;
+
     int4();
 
     static ::int4 get_Identity();

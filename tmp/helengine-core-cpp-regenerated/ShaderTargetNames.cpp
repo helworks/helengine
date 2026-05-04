@@ -24,11 +24,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -54,9 +56,9 @@ case ShaderCompileTarget::Metal: {
 return "metal";}
 default:  {
 throw ([&]() {
-auto __ctor_arg_ef95f9fe = "target";
-auto __ctor_arg_1728e21b = "Unsupported compile target.";
-return new ArgumentOutOfRangeException(__ctor_arg_ef95f9fe, __ctor_arg_1728e21b);
+auto __ctor_arg_00000169 = "target";
+auto __ctor_arg_0000016A = "Unsupported compile target.";
+return new ArgumentOutOfRangeException(__ctor_arg_00000169, __ctor_arg_0000016A);
 })();
 }
 }
@@ -69,9 +71,9 @@ return new ArgumentOutOfRangeException(__ctor_arg_ef95f9fe, __ctor_arg_1728e21b)
     if (!TryParseTarget(name, target))
     {
 throw ([&]() {
-auto __ctor_arg_65c2653c = "Target name was not recognized.";
-auto __ctor_arg_9d7d50f1 = "name";
-return new ArgumentException(__ctor_arg_65c2653c, __ctor_arg_9d7d50f1);
+auto __ctor_arg_0000016B = "Target name was not recognized.";
+auto __ctor_arg_0000016C = "name";
+return new ArgumentException(__ctor_arg_0000016B, __ctor_arg_0000016C);
 })();
     }
 return target;}

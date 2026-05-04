@@ -6,7 +6,6 @@
 #include "MaterialBlendMode.hpp"
 #include "MaterialCullMode.hpp"
 #include "runtime/array.hpp"
-#include "runtime/finally.hpp"
 #include "runtime/native_cast.hpp"
 #include "runtime/native_datetime.hpp"
 #include "runtime/native_dictionary.hpp"
@@ -23,6 +22,7 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
@@ -77,12 +77,12 @@ this->DepthWriteEnabled = value;
 ::MaterialRenderState* MaterialRenderState::Clone()
 {
 return ([&]() {
-auto __object_87d4c669 = new ::MaterialRenderState();
-__object_87d4c669->set_BlendMode(this->BlendMode);
-__object_87d4c669->set_CullMode(this->CullMode);
-__object_87d4c669->set_DepthTestEnabled(this->DepthTestEnabled);
-__object_87d4c669->set_DepthWriteEnabled(this->DepthWriteEnabled);
-return __object_87d4c669;
+auto __object_000000B3 = new ::MaterialRenderState();
+__object_000000B3->set_BlendMode(this->BlendMode);
+__object_000000B3->set_CullMode(this->CullMode);
+__object_000000B3->set_DepthTestEnabled(this->DepthTestEnabled);
+__object_000000B3->set_DepthWriteEnabled(this->DepthWriteEnabled);
+return __object_000000B3;
 })();}
 
 MaterialRenderState::MaterialRenderState() : BlendMode(), CullMode(), DepthTestEnabled(), DepthWriteEnabled()

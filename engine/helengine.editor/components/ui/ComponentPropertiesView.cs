@@ -74,6 +74,10 @@ namespace helengine.editor {
         /// Extension used for material assets.
         /// </summary>
         const string MaterialExtension = ".helmat";
+        /// <summary>
+        /// Extension used for font assets.
+        /// </summary>
+        const string FontExtension = ".hefont";
 
         /// <summary>
         /// Font used for labels and values.
@@ -127,6 +131,10 @@ namespace helengine.editor {
         /// Tracks display labels for runtime materials assigned via the picker.
         /// </summary>
         readonly Dictionary<RuntimeMaterial, string> MaterialLabels;
+        /// <summary>
+        /// Tracks display labels for font assets assigned via the picker.
+        /// </summary>
+        readonly Dictionary<FontAsset, string> FontLabels;
         /// <summary>
         /// Render order used for label text.
         /// </summary>
@@ -183,6 +191,7 @@ namespace helengine.editor {
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ModelLabels = new Dictionary<RuntimeModel, string>();
             MaterialLabels = new Dictionary<RuntimeMaterial, string>();
+            FontLabels = new Dictionary<FontAsset, string>();
             CollapsedStates = new Dictionary<Component, bool>();
             TextOrder = RenderOrder2D.PanelForeground;
         }
@@ -343,6 +352,15 @@ namespace helengine.editor {
                     continue;
                 }
 
+                if (propertyType == typeof(FontAsset) && isEditable) {
+                    ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Font);
+                    BindPropertyRow(row, component, property);
+                    UpdateFontRow(row);
+                    section.Rows.Add(row);
+                    ActiveRows.Add(row);
+                    continue;
+                }
+
                 if (propertyType == typeof(RuntimeModel) && isEditable) {
                     ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Model);
                     BindPropertyRow(row, component, property);
@@ -428,6 +446,24 @@ namespace helengine.editor {
                 }
 
                 row.ValueText.Text = string.IsNullOrWhiteSpace(material.Id) ? EmptyAssetLabel : material.Id;
+            } else {
+                row.ValueText.Text = EmptyAssetLabel;
+            }
+        }
+
+        /// <summary>
+        /// Updates a font row with the component property value.
+        /// </summary>
+        /// <param name="row">Row to update.</param>
+        void UpdateFontRow(ComponentPropertyRow row) {
+            object rawValue = GetPropertyValue(row);
+            if (rawValue is FontAsset font) {
+                if (FontLabels.TryGetValue(font, out string label) && !string.IsNullOrWhiteSpace(label)) {
+                    row.ValueText.Text = label;
+                    return;
+                }
+
+                row.ValueText.Text = string.IsNullOrWhiteSpace(font.FontInfo?.Name) ? EmptyAssetLabel : font.FontInfo.Name;
             } else {
                 row.ValueText.Text = EmptyAssetLabel;
             }
@@ -805,6 +841,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Requests the asset picker for a font field.
+        /// </summary>
+        /// <param name="row">Font row to update.</param>
+        void RequestFontPick(ComponentPropertyRow row) {
+            EditorAssetPickerService.RequestPick(entry => HandleFontPicked(row, entry), FontExtension);
+        }
+
+        /// <summary>
         /// Applies a picked material asset to the row property.
         /// </summary>
         /// <param name="row">Row to update.</param>
@@ -825,6 +869,30 @@ namespace helengine.editor {
                 EditorSceneMutationService.MarkSceneMutated();
             } catch (Exception ex) {
                 Logger.WriteError($"Material pick failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Applies a picked font asset to the row property.
+        /// </summary>
+        /// <param name="row">Row to update.</param>
+        /// <param name="entry">Picked asset entry.</param>
+        void HandleFontPicked(ComponentPropertyRow row, AssetBrowserEntry entry) {
+            if (row.TargetComponent == null || row.Property == null) {
+                return;
+            }
+
+            try {
+                FontAsset font = LoadFont(entry);
+                row.Property.SetValue(row.TargetComponent, font);
+                if (entry != null && font != null) {
+                    FontLabels[font] = entry.Name ?? string.Empty;
+                }
+                StorePickedAssetReference(row, entry);
+                UpdateFontRow(row);
+                EditorSceneMutationService.MarkSceneMutated();
+            } catch (Exception ex) {
+                Logger.WriteError($"Font pick failed: {ex.Message}");
             }
         }
 
@@ -854,6 +922,23 @@ namespace helengine.editor {
 
             ShaderAsset shaderAsset = LoadShaderAsset(materialAsset.ShaderAssetId);
             return Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+        }
+
+        /// <summary>
+        /// Loads a font asset from the selected asset entry.
+        /// </summary>
+        /// <param name="entry">Asset entry to load.</param>
+        /// <returns>Font asset instance.</returns>
+        FontAsset LoadFont(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            if (!IsFontExtension(entry.Extension)) {
+                throw new InvalidOperationException("Selected asset is not a font.");
+            }
+
+            return AssetContentManager.Load<FontAsset>(entry.FullPath, RuntimeContentProcessorIds.FontAsset);
         }
 
         /// <summary>
@@ -896,6 +981,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Determines whether an extension represents a font asset.
+        /// </summary>
+        /// <param name="extension">Extension to test.</param>
+        /// <returns>True when the extension is font-like.</returns>
+        bool IsFontExtension(string extension) {
+            if (string.IsNullOrWhiteSpace(extension)) {
+                return false;
+            }
+
+            return string.Equals(extension, FontExtension, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Gets the vertical offset needed to center text using tight font metrics.
         /// </summary>
         /// <param name="containerHeight">Height of the container.</param>
@@ -932,6 +1030,9 @@ namespace helengine.editor {
                     LayoutVectorRow(row, bodyWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Material:
+                    LayoutMaterialRow(row, bodyWidth, height, labelWidth);
+                    break;
+                case ComponentPropertyRowKind.Font:
                     LayoutMaterialRow(row, bodyWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Model:
@@ -1328,6 +1429,9 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Material:
                     BuildMaterialRow(row, rowEntity);
                     break;
+                case ComponentPropertyRowKind.Font:
+                    BuildFontRow(row, rowEntity);
+                    break;
                 case ComponentPropertyRowKind.Model:
                     BuildModelRow(row, rowEntity);
                     break;
@@ -1396,6 +1500,39 @@ namespace helengine.editor {
             rowEntity.AddChild(buttonHost);
 
             var button = new ButtonComponent("Pick", new int2(PickButtonWidth, PickButtonHeight), Font, () => RequestMaterialPick(row), 0f);
+            buttonHost.AddComponent(button);
+
+            row.ValueHost = valueHost;
+            row.ValueText = valueText;
+            row.ActionButtonHost = buttonHost;
+            row.ActionButton = button;
+        }
+
+        /// <summary>
+        /// Builds the font field controls for a row.
+        /// </summary>
+        /// <param name="row">Row to populate.</param>
+        /// <param name="rowEntity">Row root entity.</param>
+        void BuildFontRow(ComponentPropertyRow row, EditorEntity rowEntity) {
+            var valueHost = new EditorEntity();
+            valueHost.LayerMask = RootEntity.LayerMask;
+            valueHost.Position = float3.Zero;
+            rowEntity.AddChild(valueHost);
+
+            var valueText = new TextComponent();
+            valueText.Font = Font;
+            valueText.Text = EmptyAssetLabel;
+            valueText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            valueText.Size = new int2(1, 1);
+            valueText.RenderOrder2D = TextOrder;
+            valueHost.AddComponent(valueText);
+
+            var buttonHost = new EditorEntity();
+            buttonHost.LayerMask = RootEntity.LayerMask;
+            buttonHost.Position = float3.Zero;
+            rowEntity.AddChild(buttonHost);
+
+            var button = new ButtonComponent("Pick", new int2(PickButtonWidth, PickButtonHeight), Font, () => RequestFontPick(row), 0f);
             buttonHost.AddComponent(button);
 
             row.ValueHost = valueHost;

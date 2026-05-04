@@ -15,7 +15,6 @@
 #include "ShaderResourceType.hpp"
 #include "ShaderBindingAsset.hpp"
 #include "runtime/array.hpp"
-#include "runtime/finally.hpp"
 #include "runtime/native_cast.hpp"
 #include "runtime/native_datetime.hpp"
 #include "runtime/native_dictionary.hpp"
@@ -32,6 +31,7 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
@@ -63,15 +63,15 @@ AddBindings(vertexProgram, textureBindings, constantBufferBindings, samplerBindi
 AddBindings(pixelProgram, textureBindings, constantBufferBindings, samplerBindings, bindingByKey);
 ::MaterialRenderState *renderState = (materialAsset->RenderState != nullptr ? materialAsset->RenderState : throw new InvalidOperationException("Material render state must be provided."));
 return ([&]() {
-auto __ctor_arg_4f5e5ee5 = materialAsset->ShaderAssetId;
-auto __ctor_arg_c97bd707 = materialAsset->VertexProgram;
-auto __ctor_arg_b032ab82 = materialAsset->PixelProgram;
-auto __ctor_arg_1b3390de = materialAsset->Variant;
-auto __ctor_arg_bd0d4bf7 = renderState->Clone();
-auto __ctor_arg_f828b1b9 = textureBindings->ToArray();
-auto __ctor_arg_ff623637 = constantBufferBindings->ToArray();
-auto __ctor_arg_454b8ee6 = samplerBindings->ToArray();
-return new ::MaterialLayout(__ctor_arg_4f5e5ee5, __ctor_arg_c97bd707, __ctor_arg_b032ab82, __ctor_arg_1b3390de, __ctor_arg_bd0d4bf7, __ctor_arg_f828b1b9, __ctor_arg_ff623637, __ctor_arg_454b8ee6);
+auto __ctor_arg_000000A7 = materialAsset->ShaderAssetId;
+auto __ctor_arg_000000A8 = materialAsset->VertexProgram;
+auto __ctor_arg_000000A9 = materialAsset->PixelProgram;
+auto __ctor_arg_000000AA = materialAsset->Variant;
+auto __ctor_arg_000000AB = renderState->Clone();
+auto __ctor_arg_000000AC = textureBindings->ToArray();
+auto __ctor_arg_000000AD = constantBufferBindings->ToArray();
+auto __ctor_arg_000000AE = samplerBindings->ToArray();
+return new ::MaterialLayout(__ctor_arg_000000A7, __ctor_arg_000000A8, __ctor_arg_000000A9, __ctor_arg_000000AA, __ctor_arg_000000AB, __ctor_arg_000000AC, __ctor_arg_000000AD, __ctor_arg_000000AE);
 })();}
 
 std::string MaterialLayoutBuilder::TransformBufferName = "TransformBuffer";

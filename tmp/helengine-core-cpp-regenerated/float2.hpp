@@ -11,6 +11,8 @@ class float3;
 class float2
 {
 public:
+    virtual ~float2() = default;
+
     float2();
 
     float X;

@@ -27,7 +27,7 @@ namespace helengine {
         public override void Initialize(
             RenderManager3D render3D,
             RenderManager2D render2D,
-            InputManager input,
+            IInputBackend input,
             CoreInitializationOptions options) {
             base.Initialize(render3D, render2D, input, options);
 

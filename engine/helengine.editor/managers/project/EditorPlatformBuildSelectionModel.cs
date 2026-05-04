@@ -14,13 +14,21 @@ namespace helengine.editor {
         /// <param name="buildProfiles">Build profiles exposed by the builder.</param>
         /// <param name="graphicsProfiles">Graphics profiles exposed by the builder.</param>
         /// <param name="assetRequirements">Asset requirements exposed by the builder.</param>
+        /// <param name="componentCompatibilities">Component compatibility rules exposed by the builder.</param>
+        /// <param name="codegenProfiles">Codegen profiles exposed by the builder.</param>
+        /// <param name="storageProfiles">Storage/runtime profiles exposed by the builder.</param>
+        /// <param name="mediaProfiles">Media profiles exposed by the builder.</param>
         public EditorPlatformBuildSelectionModel(
             PlatformDefinition definition,
             string platformId,
             string displayName,
             PlatformBuildProfileDefinition[] buildProfiles,
             PlatformGraphicsProfileDefinition[] graphicsProfiles,
-            PlatformAssetRequirementDefinition[] assetRequirements) {
+            PlatformAssetRequirementDefinition[] assetRequirements,
+            PlatformComponentCompatibilityDefinition[] componentCompatibilities,
+            PlatformCodegenProfileDefinition[] codegenProfiles,
+            PlatformStorageProfileDefinition[] storageProfiles,
+            PlatformMediaProfileDefinition[] mediaProfiles) {
             Definition = definition ?? throw new ArgumentNullException(nameof(definition));
 
             if (string.IsNullOrWhiteSpace(platformId)) {
@@ -38,12 +46,28 @@ namespace helengine.editor {
             if (assetRequirements == null) {
                 throw new ArgumentNullException(nameof(assetRequirements));
             }
+            if (componentCompatibilities == null) {
+                throw new ArgumentNullException(nameof(componentCompatibilities));
+            }
+            if (codegenProfiles == null) {
+                throw new ArgumentNullException(nameof(codegenProfiles));
+            }
+            if (storageProfiles == null) {
+                throw new ArgumentNullException(nameof(storageProfiles));
+            }
+            if (mediaProfiles == null) {
+                throw new ArgumentNullException(nameof(mediaProfiles));
+            }
 
             PlatformId = platformId;
             DisplayName = displayName;
             BuildProfiles = buildProfiles;
             GraphicsProfiles = graphicsProfiles;
             AssetRequirements = assetRequirements;
+            ComponentCompatibilities = componentCompatibilities;
+            CodegenProfiles = codegenProfiles;
+            StorageProfiles = storageProfiles;
+            MediaProfiles = mediaProfiles;
         }
 
         /// <summary>
@@ -72,6 +96,26 @@ namespace helengine.editor {
         public PlatformAssetRequirementDefinition[] AssetRequirements { get; }
 
         /// <summary>
+        /// Gets the component compatibility rules exposed by the platform builder.
+        /// </summary>
+        public PlatformComponentCompatibilityDefinition[] ComponentCompatibilities { get; }
+
+        /// <summary>
+        /// Gets the codegen profiles exposed by the platform builder.
+        /// </summary>
+        public PlatformCodegenProfileDefinition[] CodegenProfiles { get; }
+
+        /// <summary>
+        /// Gets the storage/runtime profiles exposed by the platform builder.
+        /// </summary>
+        public PlatformStorageProfileDefinition[] StorageProfiles { get; }
+
+        /// <summary>
+        /// Gets the media profiles exposed by the platform builder.
+        /// </summary>
+        public PlatformMediaProfileDefinition[] MediaProfiles { get; }
+
+        /// <summary>
         /// Gets the underlying platform definition exposed by the builder.
         /// </summary>
         public PlatformDefinition Definition { get; }
@@ -92,7 +136,11 @@ namespace helengine.editor {
                 definition.DisplayName,
                 definition.BuildProfiles,
                 definition.GraphicsProfiles,
-                definition.AssetRequirements);
+                definition.AssetRequirements,
+                definition.ComponentCompatibilities,
+                definition.CodegenProfiles,
+                definition.StorageProfiles,
+                definition.MediaProfiles);
         }
 
         /// <summary>
@@ -157,6 +205,91 @@ namespace helengine.editor {
         public PlatformSettingDefinition[] ResolveGraphicsProfileSettings(string profileId) {
             PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(profileId);
             return graphicsProfile?.Settings ?? Array.Empty<PlatformSettingDefinition>();
+        }
+
+        /// <summary>
+        /// Resolves one codegen profile by id, falling back to the first available codegen profile when needed.
+        /// </summary>
+        /// <param name="profileId">Requested codegen profile identifier.</param>
+        /// <returns>Matching codegen profile or the first available codegen profile.</returns>
+        public PlatformCodegenProfileDefinition ResolveCodegenProfile(string profileId) {
+            if (CodegenProfiles.Length == 0) {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(profileId)) {
+                for (int index = 0; index < CodegenProfiles.Length; index++) {
+                    PlatformCodegenProfileDefinition codegenProfile = CodegenProfiles[index];
+                    if (string.Equals(codegenProfile.ProfileId, profileId, StringComparison.OrdinalIgnoreCase)) {
+                        return codegenProfile;
+                    }
+                }
+            }
+
+            return CodegenProfiles[0];
+        }
+
+        /// <summary>
+        /// Resolves one media profile by id, falling back to the first available media profile when needed.
+        /// </summary>
+        /// <param name="profileId">Requested media profile identifier.</param>
+        /// <returns>Matching media profile or the first available media profile.</returns>
+        public PlatformMediaProfileDefinition ResolveMediaProfile(string profileId) {
+            if (MediaProfiles.Length == 0) {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(profileId)) {
+                for (int index = 0; index < MediaProfiles.Length; index++) {
+                    PlatformMediaProfileDefinition mediaProfile = MediaProfiles[index];
+                    if (string.Equals(mediaProfile.ProfileId, profileId, StringComparison.OrdinalIgnoreCase)) {
+                        return mediaProfile;
+                    }
+                }
+            }
+
+            return MediaProfiles[0];
+        }
+
+        /// <summary>
+        /// Resolves one codegen profile's setting collection.
+        /// </summary>
+        /// <param name="profileId">Requested codegen profile identifier.</param>
+        /// <returns>Codegen profile settings or an empty array when unavailable.</returns>
+        public PlatformSettingDefinition[] ResolveCodegenProfileSettings(string profileId) {
+            PlatformCodegenProfileDefinition codegenProfile = ResolveCodegenProfile(profileId);
+            return codegenProfile?.Settings ?? Array.Empty<PlatformSettingDefinition>();
+        }
+
+        /// <summary>
+        /// Resolves one storage profile by id, falling back to the first available storage profile when needed.
+        /// </summary>
+        /// <param name="profileId">Requested storage profile identifier.</param>
+        /// <returns>Matching storage profile or the first available storage profile.</returns>
+        public PlatformStorageProfileDefinition ResolveStorageProfile(string profileId) {
+            if (StorageProfiles.Length == 0) {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(profileId)) {
+                for (int index = 0; index < StorageProfiles.Length; index++) {
+                    PlatformStorageProfileDefinition storageProfile = StorageProfiles[index];
+                    if (string.Equals(storageProfile.ProfileId, profileId, StringComparison.OrdinalIgnoreCase)) {
+                        return storageProfile;
+                    }
+                }
+            }
+
+            return StorageProfiles[0];
+        }
+
+        /// <summary>
+        /// Resolves one storage profile's setting collection.
+        /// </summary>
+        /// <param name="profileId">Requested storage profile identifier.</param>
+        /// <returns>Storage profile settings or an empty array when unavailable.</returns>
+        public PlatformSettingDefinition[] ResolveStorageProfileSettings(string profileId) {
+            return Array.Empty<PlatformSettingDefinition>();
         }
     }
 }

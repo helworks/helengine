@@ -4,7 +4,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Provides a minimal 2D render manager that can materialize runtime textures for UI-oriented tests.
     /// </summary>
-    public class TestRenderManager2D : RenderManager2D {
+    internal class TestRenderManager2D : RenderManager2D {
         /// <summary>
         /// Creates a runtime texture that mirrors the supplied raw texture dimensions.
         /// </summary>

@@ -1,0 +1,673 @@
+namespace helengine.editor {
+    /// <summary>
+    /// Rewrites shared scene component payloads into packaged runtime forms.
+    /// </summary>
+    public sealed class SceneComponentPackagingTransformService {
+        /// <summary>
+        /// Current payload version for serialized mesh component scene records.
+        /// </summary>
+        const byte MeshComponentPayloadVersion = 1;
+
+        /// <summary>
+        /// Current payload version for serialized camera component scene records.
+        /// </summary>
+        const byte CameraComponentPayloadVersion = 1;
+
+        /// <summary>
+        /// Current payload version for serialized FPS component scene records.
+        /// </summary>
+        const byte FPSComponentPayloadVersion = 2;
+
+        /// <summary>
+        /// Current payload version for serialized text component scene records.
+        /// </summary>
+        const byte TextComponentPayloadVersion = 1;
+
+        /// <summary>
+        /// Stable serialized component id for mesh components.
+        /// </summary>
+        const string MeshComponentTypeId = "helengine.MeshComponent";
+
+        /// <summary>
+        /// Stable serialized component id for camera components.
+        /// </summary>
+        const string CameraComponentTypeId = "helengine.CameraComponent";
+
+        /// <summary>
+        /// Stable serialized component id for FPS overlay components.
+        /// </summary>
+        const string FPSComponentTypeId = "helengine.FPSComponent";
+
+        /// <summary>
+        /// Stable serialized component id for text components.
+        /// </summary>
+        const string TextComponentTypeId = "helengine.TextComponent";
+
+        /// <summary>
+        /// Generated provider id reserved for the editor's built-in font asset.
+        /// </summary>
+        const string EditorGeneratedProviderId = "editor";
+
+        /// <summary>
+        /// Stable asset id used for the editor's built-in font asset.
+        /// </summary>
+        const string EditorFontAssetId = "ui-font";
+
+        /// <summary>
+        /// Relative packaged font path used by the editor's built-in font asset.
+        /// </summary>
+        const string EditorFontRelativePath = "cooked/fonts/default.hefont";
+
+        /// <summary>
+        /// Runtime scene layer used by the current Windows player loader for materialized entities.
+        /// </summary>
+        const ushort RuntimeSceneLayerMask = 0b00000001;
+
+        /// <summary>
+        /// Stable generated-asset provider id used by engine-generated scene references.
+        /// </summary>
+        const string EngineGeneratedProviderId = "engine";
+
+        /// <summary>
+        /// Stable generated model asset id for the built-in cube primitive.
+        /// </summary>
+        const string CubeGeneratedAssetId = "engine:model:cube";
+
+        /// <summary>
+        /// Stable generated model asset id for the built-in plane primitive.
+        /// </summary>
+        const string PlaneGeneratedAssetId = "engine:model:plane";
+
+        /// <summary>
+        /// Stable generated material asset id for the built-in standard material.
+        /// </summary>
+        const string StandardGeneratedMaterialAssetId = "engine:material:standard";
+
+        /// <summary>
+        /// Shader source file used by the packaged generated standard material.
+        /// </summary>
+        const string StandardShaderFileName = "EditorDefaultMesh.hlsl";
+
+        /// <summary>
+        /// Vertex program name used by the packaged generated standard material.
+        /// </summary>
+        const string StandardVertexProgramName = "EditorDefaultMesh.vs";
+
+        /// <summary>
+        /// Pixel program name used by the packaged generated standard material.
+        /// </summary>
+        const string StandardPixelProgramName = "EditorDefaultMesh.ps";
+
+        /// <summary>
+        /// Shader variant name used by the packaged generated standard material.
+        /// </summary>
+        const string StandardShaderVariantName = "default";
+
+        /// <summary>
+        /// Relative packaged material path used by generated primitive scenes.
+        /// </summary>
+        const string StandardGeneratedMaterialRelativePath = "cooked/engine/materials/standard.hasset";
+
+        /// <summary>
+        /// Relative packaged shader path used by generated primitive scenes.
+        /// </summary>
+        const string StandardGeneratedShaderRelativePath = "cooked/shaders/EditorDefaultMesh.dx11.hasset";
+
+        /// <summary>
+        /// Absolute source assets root used to resolve project-relative scene ids and file-backed asset references.
+        /// </summary>
+        readonly string AssetsRootPath;
+
+        /// <summary>
+        /// Content manager used to load serialized scene and material assets from the project.
+        /// </summary>
+        readonly ContentManager ProjectContentManager;
+
+        /// <summary>
+        /// Asset import manager used to resolve file-backed source models into processed `ModelAsset` payloads.
+        /// </summary>
+        readonly AssetImportManager AssetImportManager;
+
+        /// <summary>
+        /// Resolver used to obtain processed `ModelAsset` payloads for file-backed source models.
+        /// </summary>
+        readonly EditorFileSystemModelResolver FileSystemModelResolver;
+
+        /// <summary>
+        /// Deduplicated shader asset ids referenced while packaging the current scene set.
+        /// </summary>
+        readonly List<string> ReferencedShaderAssetIds;
+
+        /// <summary>
+        /// Fast lookup used to deduplicate referenced shader asset ids while preserving discovery order.
+        /// </summary>
+        readonly HashSet<string> ReferencedShaderAssetIdsSet;
+
+        /// <summary>
+        /// Initializes one shared scene-component transform service.
+        /// </summary>
+        /// <param name="assetsRootPath">Absolute source assets root path.</param>
+        /// <param name="projectContentManager">Project content manager used to load serialized assets.</param>
+        /// <param name="assetImportManager">Asset import manager used for file-backed model assets.</param>
+        /// <param name="fileSystemModelResolver">Resolver used to obtain processed model assets for file-backed source references.</param>
+        /// <param name="referencedShaderAssetIds">Deduplicated shader ids collected during packaging.</param>
+        /// <param name="referencedShaderAssetIdsSet">Fast lookup set used to deduplicate shader ids.</param>
+        public SceneComponentPackagingTransformService(
+            string assetsRootPath,
+            ContentManager projectContentManager,
+            AssetImportManager assetImportManager,
+            EditorFileSystemModelResolver fileSystemModelResolver,
+            List<string> referencedShaderAssetIds,
+            HashSet<string> referencedShaderAssetIdsSet) {
+            AssetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
+                ? throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath))
+                : Path.GetFullPath(assetsRootPath);
+            ProjectContentManager = projectContentManager ?? throw new ArgumentNullException(nameof(projectContentManager));
+            AssetImportManager = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
+            FileSystemModelResolver = fileSystemModelResolver ?? throw new ArgumentNullException(nameof(fileSystemModelResolver));
+            ReferencedShaderAssetIds = referencedShaderAssetIds ?? throw new ArgumentNullException(nameof(referencedShaderAssetIds));
+            ReferencedShaderAssetIdsSet = referencedShaderAssetIdsSet ?? throw new ArgumentNullException(nameof(referencedShaderAssetIdsSet));
+        }
+
+        /// <summary>
+        /// Attempts to rewrite one shared component record into its packaged runtime form.
+        /// </summary>
+        /// <param name="record">Component record to transform.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <param name="transformedRecord">Rewritten component record when successful.</param>
+        /// <returns>True when a transformation was applied; otherwise false.</returns>
+        public bool TryTransform(SceneComponentAssetRecord record, string buildRootPath, out SceneComponentAssetRecord transformedRecord) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+
+            if (string.Equals(record.ComponentTypeId, MeshComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteMeshComponentRecord(record, buildRootPath);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, CameraComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteCameraComponentRecord(record);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, FPSComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteFPSComponentRecord(record);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, TextComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteTextComponentRecord(record);
+                return true;
+            }
+
+            transformedRecord = null;
+            return false;
+        }
+
+        SceneComponentAssetRecord RewriteMeshComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != MeshComponentPayloadVersion) {
+                throw new InvalidOperationException($"Unsupported mesh component payload version '{version}'.");
+            }
+
+            SceneAssetReference modelReference = RewriteModelReference(ReadOptionalReference(reader), buildRootPath);
+            SceneAssetReference materialReference = RewriteMaterialReference(ReadOptionalReference(reader), buildRootPath);
+            byte renderOrder3D = reader.ReadByte();
+
+            using MemoryStream writeStream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(MeshComponentPayloadVersion);
+            WriteOptionalReference(writer, modelReference);
+            WriteOptionalReference(writer, materialReference);
+            writer.WriteByte(renderOrder3D);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = record.ComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = writeStream.ToArray()
+            };
+        }
+
+        SceneComponentAssetRecord RewriteCameraComponentRecord(SceneComponentAssetRecord record) {
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != CameraComponentPayloadVersion) {
+                throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
+            }
+
+            byte cameraDrawOrder = reader.ReadByte();
+            ushort layerMask = reader.ReadUInt16();
+            float4 viewport = ReadFloat4(reader);
+            CameraClearSettings clearSettings = ReadClearSettings(reader);
+
+            using MemoryStream writeStream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(CameraComponentPayloadVersion);
+            writer.WriteByte(cameraDrawOrder);
+            writer.WriteUInt16(NormalizePackagedCameraLayerMask(layerMask));
+            WriteFloat4(writer, viewport);
+            WriteClearSettings(writer, clearSettings);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = record.ComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = writeStream.ToArray()
+            };
+        }
+
+        SceneComponentAssetRecord RewriteFPSComponentRecord(SceneComponentAssetRecord record) {
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != FPSComponentPayloadVersion && version != 1) {
+                throw new InvalidOperationException($"Unsupported FPS component payload version '{version}'.");
+            }
+
+            SceneAssetReference fontReference = version >= 2 ? ReadOptionalReference(reader) : BuildEditorFontReference();
+            SceneAssetReference rewrittenFontReference = RewriteFontReference(fontReference);
+            double refreshIntervalSeconds = BitConverter.Int64BitsToDouble(reader.ReadInt64());
+            int2 padding = reader.ReadInt2();
+            byte renderOrder2D = reader.ReadByte();
+
+            using MemoryStream writeStream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(FPSComponentPayloadVersion);
+            WriteOptionalReference(writer, rewrittenFontReference);
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(refreshIntervalSeconds));
+            writer.WriteInt2(padding);
+            writer.WriteByte(renderOrder2D);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = FPSComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = writeStream.ToArray()
+            };
+        }
+
+        SceneComponentAssetRecord RewriteTextComponentRecord(SceneComponentAssetRecord record) {
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != TextComponentPayloadVersion) {
+                throw new InvalidOperationException($"Unsupported text component payload version '{version}'.");
+            }
+
+            SceneAssetReference fontReference = ReadOptionalReference(reader);
+            SceneAssetReference rewrittenFontReference = RewriteFontReference(fontReference);
+            string text = reader.ReadString();
+            bool wrapText = reader.ReadByte() != 0;
+            int2 size = reader.ReadInt2();
+            byte4 color = FontAssetScenePersistenceSupport.ReadByte4(reader);
+            float4 sourceRect = ReadFloat4(reader);
+            float rotation = reader.ReadSingle();
+            byte renderOrder2D = reader.ReadByte();
+            byte layerMask = reader.ReadByte();
+            bool selectionEnabled = reader.ReadByte() != 0;
+
+            using MemoryStream writeStream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(TextComponentPayloadVersion);
+            WriteOptionalReference(writer, rewrittenFontReference);
+            writer.WriteString(text);
+            writer.WriteByte(wrapText ? (byte)1 : (byte)0);
+            writer.WriteInt2(size);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, color);
+            WriteFloat4(writer, sourceRect);
+            writer.WriteSingle(rotation);
+            writer.WriteByte(renderOrder2D);
+            writer.WriteByte(layerMask);
+            writer.WriteByte(selectionEnabled ? (byte)1 : (byte)0);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = TextComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = writeStream.ToArray()
+            };
+        }
+
+        SceneAssetReference RewriteFontReference(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new InvalidOperationException("FPSComponent requires a font reference before packaging.");
+            }
+
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                if (!string.Equals(reference.ProviderId, EditorGeneratedProviderId, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException($"Unsupported generated font provider '{reference.ProviderId}'.");
+                }
+                if (!string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException($"Unsupported generated font asset id '{reference.AssetId}'.");
+                }
+
+                return CreateFontFileReference(EditorFontRelativePath);
+            }
+
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
+                string relativePath = NormalizeRelativePath(reference.RelativePath);
+                return CreateFontFileReference(relativePath);
+            }
+
+            throw new InvalidOperationException($"Unsupported font reference source kind '{reference.SourceKind}'.");
+        }
+
+        /// <summary>
+        /// Builds the stable generated reference used for the editor's built-in font asset.
+        /// </summary>
+        /// <returns>Generated editor-font scene reference.</returns>
+        SceneAssetReference BuildEditorFontReference() {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "generated/editor/fonts/ui.hasset",
+                ProviderId = EditorGeneratedProviderId,
+                AssetId = EditorFontAssetId
+            };
+        }
+
+        SceneAssetReference CreateFontFileReference(string relativePath) {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = NormalizeRelativePath(relativePath),
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            };
+        }
+
+        SceneAssetReference RewriteModelReference(SceneAssetReference reference, string buildRootPath) {
+            if (reference == null) {
+                return null;
+            }
+
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                return RewriteGeneratedModelReference(reference, buildRootPath);
+            }
+
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
+                return RewriteFileSystemModelReference(reference, buildRootPath);
+            }
+
+            throw new InvalidOperationException($"Unsupported model reference source kind '{reference.SourceKind}'.");
+        }
+
+        SceneAssetReference RewriteMaterialReference(SceneAssetReference reference, string buildRootPath) {
+            if (reference == null) {
+                return null;
+            }
+
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                return RewriteGeneratedMaterialReference(reference, buildRootPath);
+            }
+
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
+                return RewriteFileSystemMaterialReference(reference, buildRootPath);
+            }
+
+            throw new InvalidOperationException($"Unsupported material reference source kind '{reference.SourceKind}'.");
+        }
+
+        SceneAssetReference RewriteGeneratedModelReference(SceneAssetReference reference, string buildRootPath) {
+            if (!string.Equals(reference.ProviderId, EngineGeneratedProviderId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Unsupported generated model provider '{reference.ProviderId}'.");
+            }
+
+            if (string.Equals(reference.AssetId, CubeGeneratedAssetId, StringComparison.Ordinal)) {
+                string relativePath = "cooked/engine/models/cube.hasset";
+                WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GenerateCubeMesh(float3.Zero, float3.One));
+                return CreateFileSystemReference(relativePath);
+            }
+
+            if (string.Equals(reference.AssetId, PlaneGeneratedAssetId, StringComparison.Ordinal)) {
+                string relativePath = "cooked/engine/models/plane.hasset";
+                WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One));
+                return CreateFileSystemReference(relativePath);
+            }
+
+            throw new InvalidOperationException($"Unsupported generated model asset id '{reference.AssetId}'.");
+        }
+
+        SceneAssetReference RewriteFileSystemModelReference(SceneAssetReference reference, string buildRootPath) {
+            string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
+            ModelAsset modelAsset = FileSystemModelResolver.ResolveModelAsset(sourcePath);
+            string relativePath = BuildImportedModelRelativePath(reference.RelativePath);
+            WriteAsset(Path.Combine(buildRootPath, relativePath), modelAsset);
+            return CreateFileSystemReference(relativePath);
+        }
+
+        SceneAssetReference RewriteGeneratedMaterialReference(SceneAssetReference reference, string buildRootPath) {
+            if (!string.Equals(reference.ProviderId, EngineGeneratedProviderId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Unsupported generated material provider '{reference.ProviderId}'.");
+            }
+            if (!string.Equals(reference.AssetId, StandardGeneratedMaterialAssetId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Unsupported generated material asset id '{reference.AssetId}'.");
+            }
+
+            EnsureGeneratedStandardMaterialAssets(buildRootPath);
+            return CreateFileSystemReference(StandardGeneratedMaterialRelativePath);
+        }
+
+        SceneAssetReference RewriteFileSystemMaterialReference(SceneAssetReference reference, string buildRootPath) {
+            string fullPath = ResolveProjectAssetPath(reference.RelativePath);
+            MaterialAsset materialAsset = ProjectContentManager.Load<MaterialAsset>(fullPath, EditorContentProcessorIds.MaterialAsset);
+            RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
+
+            string relativePath = NormalizeRelativePath(reference.RelativePath);
+            CopyFile(fullPath, Path.Combine(buildRootPath, relativePath));
+            return CreateFileSystemReference(relativePath);
+        }
+
+        void EnsureGeneratedStandardMaterialAssets(string buildRootPath) {
+            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
+            WriteAsset(Path.Combine(buildRootPath, StandardGeneratedShaderRelativePath), shaderAsset);
+
+            MaterialAsset materialAsset = new MaterialAsset {
+                Id = "Engine.Materials.Standard.material",
+                ShaderAssetId = shaderAsset.Id,
+                VertexProgram = StandardVertexProgramName,
+                PixelProgram = StandardPixelProgramName,
+                Variant = StandardShaderVariantName
+            };
+            WriteAsset(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), materialAsset);
+        }
+
+        void RememberReferencedShaderAssetId(string shaderAssetId) {
+            if (string.IsNullOrWhiteSpace(shaderAssetId)) {
+                throw new InvalidOperationException("Material assets used by packaged scenes must include a shader asset id.");
+            }
+
+            if (ReferencedShaderAssetIdsSet.Add(shaderAssetId)) {
+                ReferencedShaderAssetIds.Add(shaderAssetId);
+            }
+        }
+
+        SceneAssetReference CreateFileSystemReference(string relativePath) {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = NormalizeRelativePath(relativePath),
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            };
+        }
+
+        string ResolveProjectAssetPath(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+
+            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            string fullPath = Path.GetFullPath(Path.Combine(AssetsRootPath, normalizedRelativePath));
+            string assetsRootPrefix = EnsureTrailingDirectorySeparator(AssetsRootPath);
+            if (!fullPath.StartsWith(assetsRootPrefix, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException("Project asset paths must stay inside the source assets folder.");
+            }
+
+            return fullPath;
+        }
+
+        string BuildImportedModelRelativePath(string relativePath) {
+            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hasset");
+            return NormalizeRelativePath(Path.Combine("cooked", "imported", changedExtensionPath));
+        }
+
+        SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            if (reader.ReadByte() == 0) {
+                return null;
+            }
+
+            return new SceneAssetReference {
+                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
+                RelativePath = reader.ReadString(),
+                ProviderId = reader.ReadString(),
+                AssetId = reader.ReadString()
+            };
+        }
+
+        void WriteOptionalReference(EngineBinaryWriter writer, SceneAssetReference reference) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            }
+
+            writer.WriteByte(reference == null ? (byte)0 : (byte)1);
+            if (reference == null) {
+                return;
+            }
+
+            writer.WriteInt32((int)reference.SourceKind);
+            writer.WriteString(reference.RelativePath);
+            writer.WriteString(reference.ProviderId);
+            writer.WriteString(reference.AssetId);
+        }
+
+        float4 ReadFloat4(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            return new float4(
+                reader.ReadSingle(),
+                reader.ReadSingle(),
+                reader.ReadSingle(),
+                reader.ReadSingle());
+        }
+
+        void WriteFloat4(EngineBinaryWriter writer, float4 value) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            }
+
+            writer.WriteSingle(value.X);
+            writer.WriteSingle(value.Y);
+            writer.WriteSingle(value.Z);
+            writer.WriteSingle(value.W);
+        }
+
+        CameraClearSettings ReadClearSettings(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            return new CameraClearSettings(
+                reader.ReadByte() != 0,
+                ReadFloat4(reader),
+                reader.ReadByte() != 0,
+                reader.ReadSingle(),
+                reader.ReadByte() != 0,
+                reader.ReadByte());
+        }
+
+        void WriteClearSettings(EngineBinaryWriter writer, CameraClearSettings settings) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            }
+
+            writer.WriteByte(settings.ClearColorEnabled ? (byte)1 : (byte)0);
+            WriteFloat4(writer, settings.ClearColor);
+            writer.WriteByte(settings.ClearDepthEnabled ? (byte)1 : (byte)0);
+            writer.WriteSingle(settings.ClearDepth);
+            writer.WriteByte(settings.ClearStencilEnabled ? (byte)1 : (byte)0);
+            writer.WriteByte(settings.ClearStencil);
+        }
+
+        ushort NormalizePackagedCameraLayerMask(ushort layerMask) {
+            return RuntimeSceneLayerMask;
+        }
+
+        void WriteAsset(string fullPath, Asset asset) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Output path must be provided.", nameof(fullPath));
+            }
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+
+            string directoryPath = Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException("Output directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, asset);
+        }
+
+        void WriteFontAsset(string fullPath, FontAsset fontAsset) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Output path must be provided.", nameof(fullPath));
+            }
+            if (fontAsset == null) {
+                throw new ArgumentNullException(nameof(fontAsset));
+            }
+
+            string directoryPath = Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException("Output directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            FontAssetBinarySerializer.Serialize(stream, fontAsset);
+        }
+
+        void CopyFile(string sourcePath, string targetPath) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+            if (string.IsNullOrWhiteSpace(targetPath)) {
+                throw new ArgumentException("Target path must be provided.", nameof(targetPath));
+            }
+
+            string directoryPath = Path.GetDirectoryName(targetPath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException("Copy target directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
+            File.Copy(sourcePath, targetPath, true);
+        }
+
+        string NormalizeRelativePath(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+
+            return relativePath.Replace('\\', '/');
+        }
+
+        string EnsureTrailingDirectorySeparator(string path) {
+            if (path.EndsWith(Path.DirectorySeparatorChar) || path.EndsWith(Path.AltDirectorySeparatorChar)) {
+                return path;
+            }
+
+            return path + Path.DirectorySeparatorChar;
+        }
+    }
+}

@@ -1107,7 +1107,7 @@ namespace helengine.editor {
         /// <param name="key">Activation key to evaluate.</param>
         /// <returns>True when the content target should activate for the key.</returns>
         bool CanActivateViewportContentKey(Keys key) {
-            InputManager inputManager = Core.Instance.InputManager;
+            InputSystem inputManager = Core.Instance.Input;
             if (inputManager != null && inputManager.GetMouseRightButtonState() == ButtonState.Pressed) {
                 return false;
             }
@@ -1628,3 +1628,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

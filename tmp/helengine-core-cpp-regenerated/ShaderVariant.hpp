@@ -11,6 +11,8 @@
 class ShaderVariant
 {
 public:
+    virtual ~ShaderVariant() = default;
+
     List<std::string>* get_Defines();
 
     std::string Name;

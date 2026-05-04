@@ -9,7 +9,6 @@
 #include "NineSliceAtlas.hpp"
 #include "float4.hpp"
 #include "runtime/array.hpp"
-#include "runtime/finally.hpp"
 #include "runtime/native_cast.hpp"
 #include "runtime/native_datetime.hpp"
 #include "runtime/native_dictionary.hpp"
@@ -26,6 +25,7 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
@@ -176,11 +176,11 @@ Blit(refBorder, refW, refH, srcBot, rgba, atlasW, atlasH, Dst(5, 1, tileW1, tile
 Blit(refBorder, refW, refH, srcBotRight, rgba, atlasW, atlasH, Dst(5, 2, tileW0, tileH0));
     }
 ::TextureAsset *tex = ([&]() {
-auto __object_952f0360 = new ::TextureAsset();
-__object_952f0360->Colors = rgba;
-__object_952f0360->Width = static_cast<uint16_t>(atlasW);
-__object_952f0360->Height = static_cast<uint16_t>(atlasH);
-return __object_952f0360;
+auto __object_000000B4 = new ::TextureAsset();
+__object_000000B4->Colors = rgba;
+__object_000000B4->Width = static_cast<uint16_t>(atlasW);
+__object_000000B4->Height = static_cast<uint16_t>(atlasH);
+return __object_000000B4;
 })();
 ::NineSliceAtlas *atlas = new ::NineSliceAtlas();
 atlas->set_Texture(tex);

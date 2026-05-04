@@ -1,0 +1,28 @@
+{
+  "platforms": [
+    {
+      "platformId": "windows",
+      "selectedSceneIds": [
+        "Scenes/Bootstrap.helen"
+      ],
+      "sceneOrders": [
+        {
+          "sceneId": "Scenes/Bootstrap.helen",
+          "orderNumber": 1
+        }
+      ],
+      "outputDirectoryPath": "C:/dev/helprojs/output/windows",
+      "debugBuild": true,
+      "selectedBuildProfileId": "debug",
+      "selectedGraphicsProfileId": "directx11",
+      "selectedBuildOptionValues": { },
+      "selectedGraphicsOptionValues": { },
+      "selectedCodegenProfileId": "default",
+      "selectedStorageProfileId": "loose-files",
+      "selectedMediaProfileId": "windows-install-tree",
+      "selectedCodegenOptionValues": { },
+      "selectedCodeModuleIds": [ ]
+    }
+  ],
+  "queueItems": [ ]
+}

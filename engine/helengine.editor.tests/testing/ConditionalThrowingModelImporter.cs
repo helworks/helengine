@@ -2,7 +2,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Test model importer that throws when source content contains a configured marker and otherwise returns a deterministic triangle mesh.
     /// </summary>
-    public class ConditionalThrowingModelImporter : IModelImporter {
+    internal class ConditionalThrowingModelImporter : IModelImporter {
         /// <summary>
         /// Marker text that triggers an import failure.
         /// </summary>

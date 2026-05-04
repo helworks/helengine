@@ -32,6 +32,8 @@ template <typename T> class IContentProcessor_1;
 class ContentManager
 {
 public:
+    virtual ~ContentManager() = default;
+
     std::string get_RootDirectory();
 
     ContentManager(std::string rootDirectory);

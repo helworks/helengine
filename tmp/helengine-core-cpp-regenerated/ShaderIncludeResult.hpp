@@ -9,6 +9,8 @@
 class ShaderIncludeResult
 {
 public:
+    virtual ~ShaderIncludeResult() = default;
+
     std::string Path;
 
     std::string get_Path();

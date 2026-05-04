@@ -16,7 +16,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             int activationCount = 0;
             ButtonComponent button = new ButtonComponent("Run", new int2(96, 28), CreateFont(), () => activationCount++);
-            button.FocusGroup = focusGroup;
+            button.FocusGroup = focusGroup.FocusGroup;
             entity.AddComponent(button);
             IFocusTarget focusTarget = button;
 
@@ -37,7 +37,7 @@ namespace helengine.editor.tests {
             TestFocusGroup focusGroup = new TestFocusGroup(null, 0, 0, 0, 200, 60);
             EditorEntity entity = new EditorEntity();
             ButtonComponent button = new ButtonComponent("Run", new int2(96, 28), CreateFont(), null);
-            button.FocusGroup = focusGroup;
+            button.FocusGroup = focusGroup.FocusGroup;
             entity.AddComponent(button);
             IFocusTarget focusTarget = button;
 

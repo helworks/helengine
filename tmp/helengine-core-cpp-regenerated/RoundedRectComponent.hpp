@@ -12,7 +12,6 @@ class Core;
 class ObjectManager;
 class RenderManager2D;
 class byte4;
-class int2;
 class float4;
 
 #include "Component.hpp"
@@ -25,6 +24,7 @@ class float4;
 #include "ObjectManager.hpp"
 #include "RenderManager2D.hpp"
 #include "byte4.hpp"
+#include "RoundedRectCorners.hpp"
 #include "int2.hpp"
 #include "float4.hpp"
 #include "Entity.hpp"
@@ -32,6 +32,8 @@ class float4;
 class RoundedRectComponent : public Component, public IRoundedRectDrawable2D
 {
 public:
+    virtual ~RoundedRectComponent() = default;
+
     ::byte4 BorderColor;
 
     ::byte4 get_BorderColor();
@@ -46,6 +48,11 @@ public:
 
     ::byte4 get_Color();
     void set_Color(::byte4 value);
+
+    ::RoundedRectCorners Corners;
+
+    ::RoundedRectCorners get_Corners();
+    void set_Corners(::RoundedRectCorners value);
 
     ::byte4 FillColor;
 
@@ -71,10 +78,10 @@ public:
     float get_Rotation();
     void set_Rotation(float value);
 
-    ::int2 Size;
+    int2* Size;
 
-    ::int2 get_Size();
-    void set_Size(::int2 value);
+    int2* get_Size();
+    void set_Size(int2* value);
 
     ::float4 SourceRect;
 

@@ -17,6 +17,8 @@ class MaterialRenderState;
 class MaterialLayout
 {
 public:
+    virtual ~MaterialLayout() = default;
+
     static ::MaterialLayout* get_Empty();
 
     Array<::MaterialLayoutBinding*>* ConstantBufferBindings;
@@ -60,6 +62,8 @@ public:
     MaterialLayout(std::string shaderAssetId, std::string vertexProgram, std::string pixelProgram, std::string variant, ::MaterialRenderState* renderState, Array<::MaterialLayoutBinding*>* textureBindings, Array<::MaterialLayoutBinding*>* constantBufferBindings, Array<::MaterialLayoutBinding*>* samplerBindings);
 private:
     static ::MaterialLayout* EmptyValue;
+
+    static ::MaterialLayout* CreateEmptyValue();
 
     static int32_t FindBindingIndex(Array<::MaterialLayoutBinding*>* bindings, std::string bindingName);
 };

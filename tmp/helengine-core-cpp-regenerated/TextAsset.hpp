@@ -12,6 +12,8 @@ class Asset;
 class TextAsset : public Asset
 {
 public:
+    virtual ~TextAsset() = default;
+
     TextAsset();
 
     std::string Text;

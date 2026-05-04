@@ -195,10 +195,10 @@ namespace helengine.editor {
             rawTex.Width = (ushort)atlasImg.Width;
             rawTex.Height = (ushort)atlasImg.Height;
 
-            RuntimeTexture asset = Core.Instance.RenderManager2D.BuildTextureFromRaw(rawTex);
+            RuntimeTexture asset = CreateRuntimeTexture(rawTex);
 
             // Populate font asset with measured line height and space width
-            return new FontAsset(
+            FontAsset fontAsset = new FontAsset(
                 new FontInfo(font.Name, (int)Math.Ceiling(lineHeightPx), spaceWidth),
                 asset,
                 packedChars,
@@ -206,6 +206,28 @@ namespace helengine.editor {
                 atlasImg.Width,
                 atlasImg.Height
             );
+            fontAsset.SourceTextureAsset = rawTex;
+            return fontAsset;
+        }
+
+        /// <summary>
+        /// Creates one runtime texture for the generated atlas, using the active renderer when available and a lightweight managed texture otherwise.
+        /// </summary>
+        /// <param name="rawTex">Raw atlas texture data.</param>
+        /// <returns>Runtime texture that carries the atlas dimensions.</returns>
+        static RuntimeTexture CreateRuntimeTexture(TextureAsset rawTex) {
+            if (rawTex == null) {
+                throw new ArgumentNullException(nameof(rawTex));
+            }
+
+            if (Core.Instance != null && Core.Instance.RenderManager2D != null) {
+                return Core.Instance.RenderManager2D.BuildTextureFromRaw(rawTex);
+            }
+
+            return new ManagedRuntimeTexture {
+                Width = rawTex.Width,
+                Height = rawTex.Height
+            };
         }
 
         /// <summary>

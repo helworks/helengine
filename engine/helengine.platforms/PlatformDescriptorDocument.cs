@@ -12,13 +12,15 @@ public sealed class PlatformDescriptorDocument {
     /// <param name="displayName">Readable platform name shown in editor UI.</param>
     /// <param name="builderAssemblyPath">Path to the platform builder assembly.</param>
     /// <param name="playerSourceRootPath">Path to the platform player source root.</param>
+    /// <param name="generatedCoreCppRootPath">Path to the generated core C++ root.</param>
     /// <exception cref="ArgumentException">Thrown when any required string value is missing.</exception>
     public PlatformDescriptorDocument(
         string engineVersion,
         string platformId,
         string displayName,
         string builderAssemblyPath,
-        string playerSourceRootPath) {
+        string playerSourceRootPath,
+        string generatedCoreCppRootPath = "") {
         if (string.IsNullOrWhiteSpace(engineVersion)) {
             throw new ArgumentException("Engine version is required.", nameof(engineVersion));
         } else if (string.IsNullOrWhiteSpace(platformId)) {
@@ -36,6 +38,7 @@ public sealed class PlatformDescriptorDocument {
         DisplayName = displayName;
         BuilderAssemblyPath = builderAssemblyPath;
         PlayerSourceRootPath = playerSourceRootPath;
+        GeneratedCoreCppRootPath = generatedCoreCppRootPath ?? string.Empty;
     }
 
     /// <summary>
@@ -62,4 +65,9 @@ public sealed class PlatformDescriptorDocument {
     /// Gets the path to the platform player source root.
     /// </summary>
     public string PlayerSourceRootPath { get; }
+
+    /// <summary>
+    /// Gets the path to the generated core C++ root.
+    /// </summary>
+    public string GeneratedCoreCppRootPath { get; }
 }

@@ -4,6 +4,11 @@ namespace helengine {
     /// </summary>
     public interface IRoundedRectDrawable2D : IDrawable2D {
         /// <summary>
+        /// Gets or sets the corners that should remain rounded.
+        /// </summary>
+        RoundedRectCorners Corners { get; set; }
+
+        /// <summary>
         /// Gets or sets the fill color applied to the rounded rectangle.
         /// </summary>
         byte4 FillColor { get; set; }

@@ -70,6 +70,8 @@ namespace helengine.editor {
         SceneAsset BuildSceneAsset(string fullPath) {
             string sceneId = BuildSceneId(fullPath);
             List<SceneEntityAsset> rootEntities = new List<SceneEntityAsset>();
+            List<SceneAssetReference> assetReferences = new List<SceneAssetReference>();
+            HashSet<string> assetReferenceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             List<Entity> entities = Core.Instance.ObjectManager.Entities;
             for (int i = 0; i < entities.Count; i++) {
                 if (entities[i] is not EditorEntity editorEntity) {
@@ -85,12 +87,13 @@ namespace helengine.editor {
                     continue;
                 }
 
-                rootEntities.Add(SerializeEntity(editorEntity));
+                rootEntities.Add(SerializeEntity(editorEntity, assetReferences, assetReferenceKeys));
             }
 
             return new SceneAsset {
                 Id = sceneId,
-                RootEntities = rootEntities.ToArray()
+                RootEntities = rootEntities.ToArray(),
+                AssetReferences = assetReferences.ToArray()
             };
         }
 
@@ -99,9 +102,18 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entity">Editor entity to serialize.</param>
         /// <returns>Serialized scene entity asset.</returns>
-        SceneEntityAsset SerializeEntity(EditorEntity entity) {
+        SceneEntityAsset SerializeEntity(
+            EditorEntity entity,
+            List<SceneAssetReference> assetReferences,
+            HashSet<string> assetReferenceKeys) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
+            }
+            if (assetReferences == null) {
+                throw new ArgumentNullException(nameof(assetReferences));
+            }
+            if (assetReferenceKeys == null) {
+                throw new ArgumentNullException(nameof(assetReferenceKeys));
             }
 
             List<SceneComponentAssetRecord> componentRecords = new List<SceneComponentAssetRecord>();
@@ -122,6 +134,7 @@ namespace helengine.editor {
 
                     IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(component);
                     componentRecords.Add(descriptor.SerializeComponent(component, persistedComponentIndex, saveState));
+                    AppendAssetReferences(saveState, assetReferences, assetReferenceKeys);
                     persistedComponentIndex++;
                 }
             }
@@ -139,7 +152,7 @@ namespace helengine.editor {
                         continue;
                     }
 
-                    childEntities.Add(SerializeEntity(childEntity));
+                    childEntities.Add(SerializeEntity(childEntity, assetReferences, assetReferenceKeys));
                 }
             }
 
@@ -152,6 +165,32 @@ namespace helengine.editor {
                 Components = componentRecords.ToArray(),
                 Children = childEntities.ToArray()
             };
+        }
+
+        /// <summary>
+        /// Appends one component save-state's asset references to the scene dependency list.
+        /// </summary>
+        /// <param name="saveState">Component save-state containing asset references.</param>
+        /// <param name="assetReferences">Scene-level dependency list being populated.</param>
+        /// <param name="assetReferenceKeys">Deduplication keys for already-queued references.</param>
+        void AppendAssetReferences(
+            EntityComponentSaveState saveState,
+            List<SceneAssetReference> assetReferences,
+            HashSet<string> assetReferenceKeys) {
+            if (saveState == null) {
+                return;
+            }
+
+            foreach (SceneAssetReference reference in saveState.EnumerateAssetReferences()) {
+                if (reference == null) {
+                    continue;
+                }
+
+                string referenceKey = BuildAssetReferenceKey(reference);
+                if (assetReferenceKeys.Add(referenceKey)) {
+                    assetReferences.Add(reference);
+                }
+            }
         }
 
         /// <summary>
@@ -205,6 +244,22 @@ namespace helengine.editor {
                 ? AssetsRootPath
                 : AssetsRootPath + Path.DirectorySeparatorChar;
             return fullPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Builds a stable deduplication key for one scene asset reference.
+        /// </summary>
+        /// <param name="reference">Scene asset reference to key.</param>
+        /// <returns>Stable deduplication key.</returns>
+        static string BuildAssetReferenceKey(SceneAssetReference reference) {
+            return string.Concat(
+                reference.SourceKind.ToString(),
+                "|",
+                reference.RelativePath ?? string.Empty,
+                "|",
+                reference.ProviderId ?? string.Empty,
+                "|",
+                reference.AssetId ?? string.Empty);
         }
     }
 }

@@ -15,6 +15,8 @@ class ShaderConstantMember;
 class ShaderBinding
 {
 public:
+    virtual ~ShaderBinding() = default;
+
     List<::ShaderConstantMember*>* get_Members();
 
     std::string Name;

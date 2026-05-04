@@ -12,13 +12,17 @@ public sealed class PlatformInstallationEntry {
     /// <param name="displayName">Readable platform name shown in editor UI.</param>
     /// <param name="builderAssemblyPath">Absolute or relative path to the platform builder assembly.</param>
     /// <param name="playerSourceRootPath">Absolute or relative path to the platform player source root.</param>
+    /// <param name="generatedCoreCppRootPath">Absolute or relative path to the generated core C++ root.</param>
+    /// <param name="codegenToolPath">Absolute or relative path to the bundled csharpcodegen executable.</param>
     /// <exception cref="ArgumentException">Thrown when a required string value is missing.</exception>
     public PlatformInstallationEntry(
         string engineVersion,
         string platformId,
         string displayName,
         string builderAssemblyPath,
-        string playerSourceRootPath) {
+        string playerSourceRootPath,
+        string generatedCoreCppRootPath = "",
+        string codegenToolPath = "") {
         if (string.IsNullOrWhiteSpace(engineVersion)) {
             throw new ArgumentException("Engine version is required.", nameof(engineVersion));
         } else if (string.IsNullOrWhiteSpace(platformId)) {
@@ -34,6 +38,8 @@ public sealed class PlatformInstallationEntry {
         DisplayName = displayName;
         BuilderAssemblyPath = builderAssemblyPath ?? string.Empty;
         PlayerSourceRootPath = playerSourceRootPath;
+        GeneratedCoreCppRootPath = generatedCoreCppRootPath ?? string.Empty;
+        CodegenToolPath = codegenToolPath ?? string.Empty;
     }
 
     /// <summary>
@@ -60,4 +66,14 @@ public sealed class PlatformInstallationEntry {
     /// Gets the path to the platform player source root.
     /// </summary>
     public string PlayerSourceRootPath { get; }
+
+    /// <summary>
+    /// Gets the path to the generated core C++ root.
+    /// </summary>
+    public string GeneratedCoreCppRootPath { get; }
+
+    /// <summary>
+    /// Gets the path to the bundled csharpcodegen executable.
+    /// </summary>
+    public string CodegenToolPath { get; }
 }

@@ -20,11 +20,11 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void EditorViewport_WhenContentTargetIsFocused_WAndRAndSChangeToolMode() {
-            TestInputManager inputManager = InitializeCore();
+            TestInputBackend inputManager = InitializeCore();
             EditorViewport viewport = CreateViewport();
             EditorFocusTarget contentTarget = GetPrivateField<EditorFocusTarget>(viewport, "ViewportContentFocusTarget");
             inputManager.SetMouseState(CreateMouseState(ButtonState.Released));
-            Core.Instance.InputManager.EarlyUpdate();
+            Core.Instance.InputSystem.EarlyUpdate();
 
             viewport.ToolMode = EditorViewportToolMode.Scale;
             EditorKeyboardFocusService.SetFocusedTarget(contentTarget);
@@ -44,11 +44,11 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void EditorViewport_WhenRightMouseButtonIsPressed_SIsIgnored() {
-            TestInputManager inputManager = InitializeCore();
+            TestInputBackend inputManager = InitializeCore();
             EditorViewport viewport = CreateViewport();
             EditorFocusTarget contentTarget = GetPrivateField<EditorFocusTarget>(viewport, "ViewportContentFocusTarget");
             inputManager.SetMouseState(CreateMouseState(ButtonState.Pressed));
-            Core.Instance.InputManager.EarlyUpdate();
+            Core.Instance.InputSystem.EarlyUpdate();
 
             viewport.ToolMode = EditorViewportToolMode.Rotate;
             EditorKeyboardFocusService.SetFocusedTarget(contentTarget);
@@ -130,9 +130,9 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Initializes the core services required by viewport keyboard-focus tests.
         /// </summary>
-        /// <returns>Configurable input manager used by the test.</returns>
-        TestInputManager InitializeCore() {
-            TestInputManager inputManager = new TestInputManager();
+        /// <returns>Configurable input system used by the test.</returns>
+        TestInputBackend InitializeCore() {
+            TestInputBackend inputManager = new TestInputBackend();
             Core core = new Core();
             core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager);
             EditorKeyboardFocusService.Reset();
@@ -271,3 +271,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

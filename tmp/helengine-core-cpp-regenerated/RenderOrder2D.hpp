@@ -7,6 +7,8 @@
 class RenderOrder2D
 {
 public:
+    virtual ~RenderOrder2D() = default;
+
     static uint8_t FloatingPanelBias;
 
     static uint8_t ModalBackground;

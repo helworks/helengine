@@ -44,5 +44,13 @@ namespace helengine {
 
             return AssetReferencesByName.TryGetValue(referenceName, out reference);
         }
+
+        /// <summary>
+        /// Enumerates every asset reference stored in this component save-state.
+        /// </summary>
+        /// <returns>Stable asset references stored for the component.</returns>
+        public IEnumerable<SceneAssetReference> EnumerateAssetReferences() {
+            return AssetReferencesByName.Values;
+        }
     }
 }

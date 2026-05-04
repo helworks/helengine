@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\helengine.core\helengine.core.csproj" />
+    <ProjectReference Include="..\helengine.input\helengine.input.csproj" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
 </Project>

@@ -106,6 +106,11 @@ namespace helengine.editor {
         readonly EditorPlatformSettingsSection GraphicsSettingsSection;
 
         /// <summary>
+        /// Builder-defined codegen settings rendered for the active platform.
+        /// </summary>
+        readonly EditorPlatformSettingsSection CodegenSettingsSection;
+
+        /// <summary>
         /// Host entity for the status text.
         /// </summary>
         readonly EditorEntity StatusHost;
@@ -209,6 +214,14 @@ namespace helengine.editor {
                 LabelColumnWidth,
                 settingValueWidth);
             GraphicsSettingsSection = new EditorPlatformSettingsSection(
+                DialogPanelRoot,
+                LayerMask,
+                DialogFontValue,
+                DialogPanelOrder,
+                DialogTextOrder,
+                LabelColumnWidth,
+                settingValueWidth);
+            CodegenSettingsSection = new EditorPlatformSettingsSection(
                 DialogPanelRoot,
                 LayerMask,
                 DialogFontValue,
@@ -387,12 +400,15 @@ namespace helengine.editor {
             EditorPlatformProfileSettingsDocument platform = GetPlatformDocument(platformId);
             platform.Build.SelectedOptionValues ??= [];
             platform.Graphics.SelectedOptionValues ??= [];
+            platform.Codegen.SelectedOptionValues ??= [];
 
             PlatformBuildProfileDefinition buildProfile = ResolveBuildProfile(platform);
             PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(platform, buildProfile);
+            PlatformCodegenProfileDefinition codegenProfile = ResolveCodegenProfile(platform, buildProfile);
 
             platform.Build.SelectedBuildProfileId = buildProfile?.ProfileId ?? platform.Build.SelectedBuildProfileId;
             platform.Graphics.SelectedGraphicsProfileId = graphicsProfile?.ProfileId ?? platform.Graphics.SelectedGraphicsProfileId;
+            platform.Codegen.SelectedCodegenProfileId = codegenProfile?.ProfileId ?? platform.Codegen.SelectedCodegenProfileId;
 
             BuildSettingsSection.Rebuild(
                 buildProfile != null ? $"Build Profile: {buildProfile.DisplayName}" : "Build Profiles",
@@ -402,6 +418,10 @@ namespace helengine.editor {
                 graphicsProfile != null ? $"Graphics Profile: {graphicsProfile.DisplayName}" : "Graphics Profiles",
                 graphicsProfile?.Settings,
                 platform.Graphics.SelectedOptionValues);
+            CodegenSettingsSection.Rebuild(
+                codegenProfile != null ? $"Codegen Profile: {codegenProfile.DisplayName}" : "Codegen Profiles",
+                codegenProfile?.Settings,
+                platform.Codegen.SelectedOptionValues);
             LayoutSettingsSections();
         }
 
@@ -436,6 +456,10 @@ namespace helengine.editor {
                 return false;
             }
 
+            if (!CodegenSettingsSection.TryValidate(out errorMessage)) {
+                return false;
+            }
+
             return true;
         }
 
@@ -458,10 +482,15 @@ namespace helengine.editor {
                     if (platform.Graphics == null) {
                         platform.Graphics = new EditorGraphicsProfileSettingsDocument();
                     }
+                    if (platform.Codegen == null) {
+                        platform.Codegen = new EditorCodegenProfileSettingsDocument();
+                    }
                     platform.Build.SelectedOptionValues ??= [];
                     platform.Graphics.SelectedOptionValues ??= [];
+                    platform.Codegen.SelectedOptionValues ??= [];
                     platform.Build.SelectedBuildProfileId ??= string.Empty;
                     platform.Graphics.SelectedGraphicsProfileId ??= string.Empty;
+                    platform.Codegen.SelectedCodegenProfileId ??= string.Empty;
 
                     return platform;
                 }
@@ -470,10 +499,12 @@ namespace helengine.editor {
             EditorPlatformProfileSettingsDocument createdPlatform = new EditorPlatformProfileSettingsDocument {
                 PlatformId = platformId,
                 Build = new EditorBuildProfileSettingsDocument(),
-                Graphics = new EditorGraphicsProfileSettingsDocument()
+                Graphics = new EditorGraphicsProfileSettingsDocument(),
+                Codegen = new EditorCodegenProfileSettingsDocument()
             };
             createdPlatform.Build.SelectedOptionValues ??= [];
             createdPlatform.Graphics.SelectedOptionValues ??= [];
+            createdPlatform.Codegen.SelectedOptionValues ??= [];
             CurrentDocument.Platforms.Add(createdPlatform);
             return createdPlatform;
         }
@@ -509,6 +540,25 @@ namespace helengine.editor {
             }
 
             return ActivePlatformSelectionModel.ResolveGraphicsProfile(graphicsProfileId);
+        }
+
+        /// <summary>
+        /// Resolves the current builder-provided codegen profile for one platform record.
+        /// </summary>
+        /// <param name="platform">Persisted platform profile record.</param>
+        /// <param name="buildProfile">Currently selected build profile metadata.</param>
+        /// <returns>Resolved codegen profile metadata, or null when no builder metadata is available.</returns>
+        PlatformCodegenProfileDefinition ResolveCodegenProfile(EditorPlatformProfileSettingsDocument platform, PlatformBuildProfileDefinition buildProfile) {
+            if (ActivePlatformSelectionModel == null || platform == null) {
+                return null;
+            }
+
+            string codegenProfileId = platform.Codegen?.SelectedCodegenProfileId;
+            if (string.IsNullOrWhiteSpace(codegenProfileId) && buildProfile != null) {
+                codegenProfileId = buildProfile.CodegenProfileId;
+            }
+
+            return ActivePlatformSelectionModel.ResolveCodegenProfile(codegenProfileId);
         }
 
         /// <summary>
@@ -574,13 +624,17 @@ namespace helengine.editor {
             float graphicsTopY = buildTopY + BuildSettingsSection.ContentHeight + SectionSpacing;
             GraphicsSettingsSection.Root.Position = new float3(PanelPadding, graphicsTopY, 0.1f);
             GraphicsSettingsSection.Layout();
+
+            float codegenTopY = graphicsTopY + GraphicsSettingsSection.ContentHeight + SectionSpacing;
+            CodegenSettingsSection.Root.Position = new float3(PanelPadding, codegenTopY, 0.1f);
+            CodegenSettingsSection.Layout();
         }
 
         /// <summary>
         /// Positions the status text above the footer.
         /// </summary>
         void LayoutStatus() {
-            float statusY = HeaderHeight + PanelPadding + FieldRowHeight + SectionSpacing + BuildSettingsSection.ContentHeight + SectionSpacing + GraphicsSettingsSection.ContentHeight + 8f;
+            float statusY = HeaderHeight + PanelPadding + FieldRowHeight + SectionSpacing + BuildSettingsSection.ContentHeight + SectionSpacing + GraphicsSettingsSection.ContentHeight + SectionSpacing + CodegenSettingsSection.ContentHeight + 8f;
             float footerLimitY = PanelHeight - FooterHeight - 38f;
             if (statusY > footerLimitY) {
                 statusY = footerLimitY;

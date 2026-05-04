@@ -24,6 +24,8 @@ class float3;
 class Entity : public IDisposable
 {
 public:
+    virtual ~Entity() = default;
+
     List<::Entity*>* Children;
 
     List<::Entity*>* get_Children();

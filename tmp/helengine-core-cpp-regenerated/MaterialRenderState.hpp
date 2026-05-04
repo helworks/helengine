@@ -10,6 +10,8 @@
 class MaterialRenderState
 {
 public:
+    virtual ~MaterialRenderState() = default;
+
     ::MaterialBlendMode BlendMode;
 
     ::MaterialBlendMode get_BlendMode();

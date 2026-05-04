@@ -38,7 +38,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         void InitializeCore() {
             Core core = new Core();
-            core.Initialize(null, null, new TestInputManager());
+            core.Initialize(null, null, new TestInputBackend());
         }
 
         /// <summary>
@@ -61,3 +61,4 @@ namespace helengine.editor.tests.managers.gizmo {
         }
     }
 }
+

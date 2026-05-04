@@ -1,6 +1,7 @@
 using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Descriptors;
+using helengine.baseplatform.Profiles;
 using helengine.baseplatform.Reporting;
 using helengine.baseplatform.Requests;
 
@@ -40,7 +41,23 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
                     "Default Windows renderer",
                     [])
             ],
-            []);
+            [],
+            [
+                new PlatformComponentCompatibilityDefinition(
+                    "helengine.FPSComponent",
+                    PlatformComponentCompatibilityKind.PassThrough,
+                    "FPS overlay is canonical on this platform.",
+                    string.Empty)
+            ],
+            [
+                new PlatformCodegenProfileDefinition(
+                    "default",
+                    "Default",
+                    "Default codegen profile",
+                    PlatformCodegenLanguage.Cpp,
+                    PlatformSerializationEndianness.LittleEndian,
+                    [])
+            ]);
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using System.Reflection;
 using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Profiles;
 using helengine.editor;
 using helengine.editor.tests.testing;
 using Xunit;
@@ -50,9 +51,11 @@ namespace helengine.editor.tests {
 
             EditorPlatformSettingsSection buildSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "BuildSettingsSection");
             EditorPlatformSettingsSection graphicsSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "GraphicsSettingsSection");
+            EditorPlatformSettingsSection codegenSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "CodegenSettingsSection");
 
             Assert.Equal(2, buildSection.Items.Count);
             Assert.Equal(4, graphicsSection.Items.Count);
+            Assert.Equal(3, codegenSection.Items.Count);
             Assert.Equal("Texture scale %", buildSection.Items[0].LabelText.Text);
             Assert.Equal("50", buildSection.Items[0].TextBox.Text);
             Assert.False(buildSection.Items[1].CheckBox.IsChecked);
@@ -61,6 +64,10 @@ namespace helengine.editor.tests {
             Assert.Equal("1080", graphicsSection.Items[1].TextBox.Text);
             Assert.False(graphicsSection.Items[2].CheckBox.IsChecked);
             Assert.True(graphicsSection.Items[3].CheckBox.IsChecked);
+            Assert.Equal("Write Conversion Report", codegenSection.Items[0].LabelText.Text);
+            Assert.True(codegenSection.Items[0].CheckBox.IsChecked);
+            Assert.False(codegenSection.Items[1].CheckBox.IsChecked);
+            Assert.True(codegenSection.Items[2].CheckBox.IsChecked);
         }
 
         /// <summary>
@@ -78,6 +85,7 @@ namespace helengine.editor.tests {
 
             EditorPlatformSettingsSection buildSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "BuildSettingsSection");
             EditorPlatformSettingsSection graphicsSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "GraphicsSettingsSection");
+            EditorPlatformSettingsSection codegenSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "CodegenSettingsSection");
 
             Assert.Equal("75", buildSection.Items[0].TextBox.Text);
             Assert.True(buildSection.Items[1].CheckBox.IsChecked);
@@ -85,6 +93,9 @@ namespace helengine.editor.tests {
             Assert.Equal("720", graphicsSection.Items[1].TextBox.Text);
             Assert.True(graphicsSection.Items[2].CheckBox.IsChecked);
             Assert.False(graphicsSection.Items[3].CheckBox.IsChecked);
+            Assert.True(codegenSection.Items[0].CheckBox.IsChecked);
+            Assert.True(codegenSection.Items[1].CheckBox.IsChecked);
+            Assert.False(codegenSection.Items[2].CheckBox.IsChecked);
             Assert.Equal("ps2", platformComboBox.SelectedItem);
         }
 
@@ -118,6 +129,7 @@ namespace helengine.editor.tests {
 
             EditorPlatformSettingsSection buildSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "BuildSettingsSection");
             EditorPlatformSettingsSection graphicsSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "GraphicsSettingsSection");
+            EditorPlatformSettingsSection codegenSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "CodegenSettingsSection");
 
             buildSection.Items[0].TextBox.Text = "75";
             buildSection.Items[1].CheckBox.IsChecked = false;
@@ -125,6 +137,9 @@ namespace helengine.editor.tests {
             graphicsSection.Items[1].TextBox.Text = "900";
             graphicsSection.Items[2].CheckBox.IsChecked = false;
             graphicsSection.Items[3].CheckBox.IsChecked = true;
+            codegenSection.Items[0].CheckBox.IsChecked = false;
+            codegenSection.Items[1].CheckBox.IsChecked = true;
+            codegenSection.Items[2].CheckBox.IsChecked = false;
 
             ProfilesDialogSelection selection = null;
             dialog.ConfirmRequested += value => selection = value;
@@ -139,6 +154,9 @@ namespace helengine.editor.tests {
             Assert.Equal("900", document.Platforms[0].Graphics.SelectedOptionValues["default-height"]);
             Assert.Equal("False", document.Platforms[0].Graphics.SelectedOptionValues["vsync-enabled"]);
             Assert.Equal("True", document.Platforms[0].Graphics.SelectedOptionValues["fullscreen-enabled"]);
+            Assert.Equal("False", document.Platforms[0].Codegen.SelectedOptionValues["write-conversion-report"]);
+            Assert.Equal("True", document.Platforms[0].Codegen.SelectedOptionValues["include-project-defined-preprocessor-symbols"]);
+            Assert.Equal("False", document.Platforms[0].Codegen.SelectedOptionValues["load-native-runtime-metadata"]);
         }
 
         /// <summary>
@@ -187,6 +205,14 @@ namespace helengine.editor.tests {
                                 ["vsync-enabled"] = "false",
                                 ["fullscreen-enabled"] = "true"
                             }
+                        },
+                        Codegen = new EditorCodegenProfileSettingsDocument {
+                            SelectedCodegenProfileId = "default",
+                            SelectedOptionValues = new Dictionary<string, string> {
+                                ["write-conversion-report"] = "true",
+                                ["include-project-defined-preprocessor-symbols"] = "false",
+                                ["load-native-runtime-metadata"] = "true"
+                            }
                         }
                     },
                     new EditorPlatformProfileSettingsDocument {
@@ -206,9 +232,17 @@ namespace helengine.editor.tests {
                                 ["vsync-enabled"] = "true",
                                 ["fullscreen-enabled"] = "false"
                             }
+                        },
+                        Codegen = new EditorCodegenProfileSettingsDocument {
+                            SelectedCodegenProfileId = "default",
+                            SelectedOptionValues = new Dictionary<string, string> {
+                                ["write-conversion-report"] = "true",
+                                ["include-project-defined-preprocessor-symbols"] = "true",
+                                ["load-native-runtime-metadata"] = "false"
+                            }
                         }
                     }
-                ]
+                }
             };
         }
 
@@ -292,6 +326,37 @@ namespace helengine.editor.tests {
                         PlatformComponentCompatibilityKind.PassThrough,
                         "FPS overlay is canonical on this platform.",
                         string.Empty)
+                ],
+                [
+                    new PlatformCodegenProfileDefinition(
+                        "default",
+                        "Default",
+                        "Default codegen profile",
+                        PlatformCodegenLanguage.Cpp,
+                        PlatformSerializationEndianness.LittleEndian,
+                        [
+                            new PlatformSettingDefinition(
+                                "write-conversion-report",
+                                "Write Conversion Report",
+                                PlatformSettingKind.Boolean,
+                                "true",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "include-project-defined-preprocessor-symbols",
+                                "Include Project Symbols",
+                                PlatformSettingKind.Boolean,
+                                "false",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "load-native-runtime-metadata",
+                                "Load Native Runtime Metadata",
+                                PlatformSettingKind.Boolean,
+                                "true",
+                                true,
+                                [])
+                        ])
                 ]);
 
             return EditorPlatformBuildSelectionModel.From(definition);
@@ -302,46 +367,33 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Font asset with basic glyph metrics for the current test.</returns>
         FontAsset CreateFont() {
-            Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
-                ['0'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['1'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['2'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['5'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['7'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['8'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['9'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['B'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
-                ['C'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
-                ['D'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
-                ['F'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
-                ['S'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
-                ['V'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
-                ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['b'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['d'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['e'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['g'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['h'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['i'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['l'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['n'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['o'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['p'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['r'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['s'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['t'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['u'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['x'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['y'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['%'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                [' '] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f)
-            };
+            Dictionary<char, FontChar> characters = new Dictionary<char, FontChar>();
+            string glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789% ";
+            for (int i = 0; i < glyphs.Length; i++) {
+                char glyph = glyphs[i];
+                if (characters.ContainsKey(glyph)) {
+                    continue;
+                }
 
-            return new FontAsset {
-                FontTexture = new RuntimeTexture(),
-                FontCharacters = characters,
-                LineHeight = 12f
-            };
+                double advance = glyph == 'M' || glyph == 'W' || glyph == 'm' || glyph == 'w' ? 11d :
+                    glyph == 'I' || glyph == 'i' || glyph == 'l' ? 4d : 8d;
+                if (glyph == ' ') {
+                    advance = 4d;
+                }
+
+                characters[glyph] = new FontChar(new float4(0f, 0f, (float)advance, 12f), 0f, (float)advance, 0f, 0f);
+            }
+
+            return new FontAsset(
+                new FontInfo("Test", 12, 4f),
+                new TestRuntimeTexture {
+                    Width = 64,
+                    Height = 64
+                },
+                characters,
+                12f,
+                64,
+                64);
         }
     }
 }

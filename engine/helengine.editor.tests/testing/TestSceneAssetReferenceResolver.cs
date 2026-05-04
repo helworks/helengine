@@ -4,7 +4,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Resolves pre-registered scene asset references for deterministic serialization tests.
     /// </summary>
-    public class TestSceneAssetReferenceResolver : ISceneAssetReferenceResolver {
+    internal class TestSceneAssetReferenceResolver : ISceneAssetReferenceResolver {
         /// <summary>
         /// Runtime models keyed by their stable scene asset reference.
         /// </summary>
@@ -16,11 +16,17 @@ namespace helengine.editor.tests.testing {
         readonly Dictionary<string, RuntimeMaterial> MaterialsByReferenceKey;
 
         /// <summary>
+        /// Runtime fonts keyed by their stable scene asset reference.
+        /// </summary>
+        readonly Dictionary<string, FontAsset> FontsByReferenceKey;
+
+        /// <summary>
         /// Initializes empty runtime lookup tables.
         /// </summary>
         public TestSceneAssetReferenceResolver() {
             ModelsByReferenceKey = new Dictionary<string, RuntimeModel>(StringComparer.Ordinal);
             MaterialsByReferenceKey = new Dictionary<string, RuntimeMaterial>(StringComparer.Ordinal);
+            FontsByReferenceKey = new Dictionary<string, FontAsset>(StringComparer.Ordinal);
         }
 
         /// <summary>
@@ -53,6 +59,22 @@ namespace helengine.editor.tests.testing {
             }
 
             MaterialsByReferenceKey[BuildReferenceKey(reference)] = runtimeMaterial;
+        }
+
+        /// <summary>
+        /// Registers one runtime font for a stable scene asset reference.
+        /// </summary>
+        /// <param name="reference">Stable reference to register.</param>
+        /// <param name="runtimeFont">Runtime font resolved for the reference.</param>
+        public void RegisterFont(SceneAssetReference reference, FontAsset runtimeFont) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+            if (runtimeFont == null) {
+                throw new ArgumentNullException(nameof(runtimeFont));
+            }
+
+            FontsByReferenceKey[BuildReferenceKey(reference)] = runtimeFont;
         }
 
         /// <summary>
@@ -89,6 +111,24 @@ namespace helengine.editor.tests.testing {
             }
 
             return runtimeMaterial;
+        }
+
+        /// <summary>
+        /// Resolves one runtime font from the registered lookup table.
+        /// </summary>
+        /// <param name="reference">Stable reference to resolve.</param>
+        /// <returns>Registered runtime font.</returns>
+        public FontAsset ResolveFont(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            string key = BuildReferenceKey(reference);
+            if (!FontsByReferenceKey.TryGetValue(key, out FontAsset runtimeFont)) {
+                throw new InvalidOperationException($"Runtime font was not registered for '{key}'.");
+            }
+
+            return runtimeFont;
         }
 
         /// <summary>

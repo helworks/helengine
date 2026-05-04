@@ -32,5 +32,10 @@ namespace helengine {
         /// Processor id used for serialized scene assets.
         /// </summary>
         public const string SceneAsset = "runtime.scene-asset";
+
+        /// <summary>
+        /// Processor id used for packaged font assets.
+        /// </summary>
+        public const string FontAsset = "runtime.font-asset";
     }
 }

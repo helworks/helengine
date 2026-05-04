@@ -29,6 +29,11 @@ namespace helengine {
         public byte LayerMask { get; set; }
 
         /// <summary>
+        /// Gets or sets the corners that remain rounded on this shape.
+        /// </summary>
+        public RoundedRectCorners Corners { get; set; }
+
+        /// <summary>
         /// Gets or sets the rotation applied to the shape.
         /// </summary>
         public float Rotation { get; set; }
@@ -79,6 +84,7 @@ namespace helengine {
             BorderThickness = 0f;
             FillColor = new byte4(255, 255, 255, 255);
             BorderColor = new byte4(0, 0, 0, 255);
+            Corners = RoundedRectCorners.All;
         }
 
         /// <summary>

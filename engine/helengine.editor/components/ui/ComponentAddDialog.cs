@@ -84,6 +84,11 @@ namespace helengine.editor {
         readonly EditorEntity ListHost;
 
         /// <summary>
+        /// Wheel-scrolling controller for the filtered component list.
+        /// </summary>
+        readonly ScrollComponent ListScrollComponent;
+
+        /// <summary>
         /// Host entity for the footer action button.
         /// </summary>
         readonly EditorEntity FooterHost;
@@ -154,16 +159,6 @@ namespace helengine.editor {
         long LastActivatedTicks;
 
         /// <summary>
-        /// Current scroll offset into the filtered descriptor list.
-        /// </summary>
-        int ScrollOffset;
-
-        /// <summary>
-        /// Number of rows that fit in the current list area.
-        /// </summary>
-        int VisibleRowCount;
-
-        /// <summary>
         /// Tracks whether the modal has finished initialization.
         /// </summary>
         bool IsInitialized;
@@ -188,8 +183,6 @@ namespace helengine.editor {
             AvailableDescriptors = new List<EditorComponentAddDescriptor>(16);
             FilteredDescriptors = new List<EditorComponentAddDescriptor>(16);
             ScriptDescriptors = new List<EditorComponentAddDescriptor>(16);
-            ScrollOffset = 0;
-            VisibleRowCount = 1;
             LastActivatedTicks = 0;
 
             SearchFieldHost = new EditorEntity {
@@ -210,6 +203,11 @@ namespace helengine.editor {
                 InternalEntity = true
             };
             DialogPanelRoot.AddChild(ListHost);
+
+            ListScrollComponent = new ScrollComponent();
+            ListScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
+            ListScrollComponent.ScrollOffsetChanged += HandleScrollOffsetChanged;
+            ListHost.AddComponent(ListScrollComponent);
 
             EmptyStateHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -239,8 +237,6 @@ namespace helengine.editor {
                 RenderOrder2D = DialogTextOrder
             };
             EmptyStateHost.AddComponent(EmptyStateText);
-
-            AddComponent(new ComponentAddDialogUpdater(this));
             Enabled = false;
             IsInitialized = true;
         }
@@ -279,7 +275,7 @@ namespace helengine.editor {
                 }
             }
             ResetDialogPositioning();
-            ScrollOffset = 0;
+            ListScrollComponent.ResetScrollOffset();
             ResetActivationTracking();
             Enabled = true;
             SearchField.Text = string.Empty;
@@ -293,7 +289,7 @@ namespace helengine.editor {
         /// </summary>
         public void Hide() {
             TargetEntity = null;
-            ScrollOffset = 0;
+            ListScrollComponent.ResetScrollOffset();
             SearchField.Text = string.Empty;
             SearchField.IsFocused = false;
             ResetDialogPositioning();
@@ -324,45 +320,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Advances wheel-based list scrolling while the modal is visible.
-        /// </summary>
-        public void Update() {
-            if (!Enabled || TargetEntity == null || FilteredDescriptors.Count == 0 || VisibleRowCount <= 0) {
-                return;
-            }
-
-            int wheelDelta = Core.Instance.InputManager.GetMouseScrollWheelDelta();
-            if (wheelDelta == 0) {
-                return;
-            }
-
-            int2 mousePosition = Core.Instance.InputManager.GetMousePosition();
-            if (!IsPointerOverList(mousePosition)) {
-                return;
-            }
-
-            int scrollSteps = wheelDelta / 120;
-            if (scrollSteps == 0) {
-                scrollSteps = wheelDelta > 0 ? 1 : -1;
-            }
-
-            int maxScrollOffset = Math.Max(0, FilteredDescriptors.Count - VisibleRowCount);
-            int nextScrollOffset = ScrollOffset - scrollSteps;
-            if (nextScrollOffset < 0) {
-                nextScrollOffset = 0;
-            } else if (nextScrollOffset > maxScrollOffset) {
-                nextScrollOffset = maxScrollOffset;
-            }
-
-            if (nextScrollOffset == ScrollOffset) {
-                return;
-            }
-
-            ScrollOffset = nextScrollOffset;
-            UpdateListLayout();
-        }
-
-        /// <summary>
         /// Handles search text changes by rebuilding the filtered component list.
         /// </summary>
         /// <param name="textBox">Search field that changed.</param>
@@ -371,8 +328,21 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(textBox));
             }
 
-            ScrollOffset = 0;
+            ListScrollComponent.ResetScrollOffset();
             RefreshAvailableComponents();
+        }
+
+        /// <summary>
+        /// Refreshes the list layout after the scroll offset changes.
+        /// </summary>
+        /// <param name="scrollComponent">Scroll controller that triggered the update.</param>
+        /// <param name="scrollOffset">Current scroll offset.</param>
+        void HandleScrollOffsetChanged(ScrollComponent scrollComponent, int scrollOffset) {
+            if (!IsInitialized || scrollComponent == null) {
+                return;
+            }
+
+            UpdateListLayout();
         }
 
         /// <summary>
@@ -427,10 +397,8 @@ namespace helengine.editor {
                 FilteredDescriptors.Add(descriptor);
             }
 
-            int maxScrollOffset = Math.Max(0, FilteredDescriptors.Count - VisibleRowCount);
-            if (ScrollOffset > maxScrollOffset) {
-                ScrollOffset = maxScrollOffset;
-            }
+            ListScrollComponent.ItemCount = FilteredDescriptors.Count;
+            ListScrollComponent.ClampScrollOffset();
 
             if (SelectedDescriptor != null && !IsFilteredDescriptorVisible(SelectedDescriptor)) {
                 ClearSelection();
@@ -476,25 +444,23 @@ namespace helengine.editor {
             int listHeight = Math.Max(0, footerTop - listTop - SectionSpacing);
             int rowStride = RowHeight + RowSpacing;
 
-            VisibleRowCount = Math.Max(1, rowStride == 0 ? 1 : (listHeight / rowStride));
+            int visibleRowCount = Math.Max(1, rowStride == 0 ? 1 : (listHeight / rowStride));
+            ListScrollComponent.VisibleItemCount = visibleRowCount;
+            ListScrollComponent.Size = new int2(contentWidth, listHeight);
             RebuildFilteredDescriptors();
-
-            int maxScrollOffset = Math.Max(0, FilteredDescriptors.Count - VisibleRowCount);
-            if (ScrollOffset > maxScrollOffset) {
-                ScrollOffset = maxScrollOffset;
-            }
 
             ListHost.Position = new float3(PanelPadding, listTop, 0.2f);
             EmptyStateHost.Position = new float3(PanelPadding, listTop + SectionSpacing, 0.2f);
             EmptyStateHost.Enabled = FilteredDescriptors.Count == 0;
             EmptyStateText.Size = new int2(contentWidth, RowHeight);
 
-            EnsureRowCount(VisibleRowCount);
+            EnsureRowCount(visibleRowCount);
             ContextMenuRow visibleSelectedRow = null;
+            int scrollOffset = ListScrollComponent.ScrollOffset;
 
             for (int rowIndex = 0; rowIndex < Rows.Count; rowIndex++) {
                 ContextMenuRow row = Rows[rowIndex];
-                int descriptorIndex = ScrollOffset + rowIndex;
+                int descriptorIndex = scrollOffset + rowIndex;
                 if (descriptorIndex >= FilteredDescriptors.Count) {
                     DisableRow(row);
                     continue;
@@ -619,12 +585,13 @@ namespace helengine.editor {
                 return;
             }
 
+            int scrollOffset = ListScrollComponent.ScrollOffset;
             for (int i = 0; i < Rows.Count; i++) {
                 if (Rows[i] != row) {
                     continue;
                 }
 
-                int descriptorIndex = ScrollOffset + i;
+                int descriptorIndex = scrollOffset + i;
                 if (descriptorIndex < 0 || descriptorIndex >= FilteredDescriptors.Count) {
                     return;
                 }
@@ -646,12 +613,13 @@ namespace helengine.editor {
                 return;
             }
 
+            int scrollOffset = ListScrollComponent.ScrollOffset;
             for (int i = 0; i < Rows.Count; i++) {
                 if (Rows[i] != row) {
                     continue;
                 }
 
-                int descriptorIndex = ScrollOffset + i;
+                int descriptorIndex = scrollOffset + i;
                 if (descriptorIndex < 0 || descriptorIndex >= FilteredDescriptors.Count) {
                     return;
                 }
@@ -803,24 +771,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns true when the mouse position is currently over the component list region.
-        /// </summary>
-        /// <param name="mousePosition">Mouse position in window coordinates.</param>
-        /// <returns>True when the pointer is over the list area.</returns>
-        bool IsPointerOverList(int2 mousePosition) {
-            int listTop = DialogPanelPosition.Y + PanelPadding + HeaderHeight + SectionSpacing + SearchFieldHeight + SectionSpacing;
-            int footerTop = PanelHeight - PanelPadding - FooterButtonHeight;
-            int listHeight = Math.Max(0, footerTop - listTop - SectionSpacing);
-            int listLeft = DialogPanelPosition.X + PanelPadding;
-            int listRight = listLeft + Math.Max(0, PanelWidth - (PanelPadding * 2));
-
-            return mousePosition.X >= listLeft &&
-                   mousePosition.X < listRight &&
-                   mousePosition.Y >= listTop &&
-                   mousePosition.Y < listTop + listHeight;
-        }
-
-        /// <summary>
         /// Closes the dialog when the shared title-bar close button is pressed.
         /// </summary>
         protected override void OnCloseRequested() {
@@ -828,3 +778,4 @@ namespace helengine.editor {
         }
     }
 }
+

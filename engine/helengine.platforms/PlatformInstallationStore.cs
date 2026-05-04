@@ -54,8 +54,10 @@ public sealed class PlatformInstallationStore {
             string displayName = platformElement.GetProperty("displayName").GetString() ?? throw new InvalidOperationException($"Installation manifest at {ManifestFilePath} contains a platform without displayName.");
             string builderAssemblyPath = platformElement.TryGetProperty("builderAssemblyPath", out JsonElement builderAssemblyPathElement) ? builderAssemblyPathElement.GetString() ?? string.Empty : string.Empty;
             string playerSourceRootPath = platformElement.GetProperty("playerSourceRootPath").GetString() ?? throw new InvalidOperationException($"Installation manifest at {ManifestFilePath} contains a platform without playerSourceRootPath.");
+            string generatedCoreCppRootPath = platformElement.TryGetProperty("generatedCoreCppRootPath", out JsonElement generatedCoreCppRootPathElement) ? generatedCoreCppRootPathElement.GetString() ?? string.Empty : string.Empty;
+            string codegenToolPath = platformElement.TryGetProperty("codegenToolPath", out JsonElement codegenToolPathElement) ? codegenToolPathElement.GetString() ?? string.Empty : string.Empty;
 
-            platforms.Add(new PlatformInstallationEntry(engineVersion, platformId, displayName, builderAssemblyPath, playerSourceRootPath));
+            platforms.Add(new PlatformInstallationEntry(engineVersion, platformId, displayName, builderAssemblyPath, playerSourceRootPath, generatedCoreCppRootPath, codegenToolPath));
         }
 
         return new PlatformInstallationManifest(platforms);

@@ -2,7 +2,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Provides one deterministic build executor for queue-service and session tests.
     /// </summary>
-    public sealed class TestEditorBuildExecutor : IEditorBuildExecutor {
+    internal sealed class TestEditorBuildExecutor : IEditorBuildExecutor {
         /// <summary>
         /// Gets the queued build results returned to the caller in execution order.
         /// </summary>

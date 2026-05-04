@@ -22,6 +22,8 @@ class ObjectManager;
 class UpdateComponent : public Component, public IUpdateable
 {
 public:
+    virtual ~UpdateComponent() = default;
+
     UpdateComponent();
 
     uint8_t get_UpdateOrder();

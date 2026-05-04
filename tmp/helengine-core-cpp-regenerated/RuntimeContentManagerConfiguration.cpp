@@ -13,6 +13,9 @@
 #include "TextAsset.hpp"
 #include "ShaderAsset.hpp"
 #include "SceneAsset.hpp"
+#include "BinaryContentProcessor.hpp"
+#include "FontAsset.hpp"
+#include "FontAssetBinarySerializer.hpp"
 #include "runtime/array.hpp"
 #include "runtime/finally.hpp"
 #include "runtime/native_cast.hpp"
@@ -31,10 +34,12 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/math.hpp"
 #include "system/number.hpp"
@@ -54,7 +59,10 @@ RegisterProcessorIfMissing<TextureAsset*>(contentManager, RuntimeContentProcesso
 RegisterProcessorIfMissing<TextAsset*>(contentManager, RuntimeContentProcessorIds::TextAsset, new ::AssetContentProcessor_1<::TextAsset*>(), nullptr);
 RegisterProcessorIfMissing<ShaderAsset*>(contentManager, RuntimeContentProcessorIds::ShaderAsset, new ::AssetContentProcessor_1<::ShaderAsset*>(), new Array<std::string>({ ShaderPackageExtension }));
 RegisterProcessorIfMissing<SceneAsset*>(contentManager, RuntimeContentProcessorIds::SceneAsset, new ::AssetContentProcessor_1<::SceneAsset*>(), new Array<std::string>({ SceneAsset::FileExtension }));
+RegisterProcessorIfMissing<FontAsset*>(contentManager, RuntimeContentProcessorIds::FontAsset, new ::BinaryContentProcessor_1<::FontAsset*>(new Func<Stream*, FontAsset*>(FontAssetBinarySerializer::Deserialize)), new Array<std::string>({ FontAssetExtension }));
 }
+
+std::string RuntimeContentManagerConfiguration::FontAssetExtension = ".hefont";
 
 std::string RuntimeContentManagerConfiguration::MaterialAssetExtension = ".helmat";
 
@@ -70,9 +78,9 @@ throw new ArgumentNullException("contentManager");
     if (String::IsNullOrWhiteSpace(processorId))
     {
 throw ([&]() {
-auto __ctor_arg_5c9bc77c = "Processor id must be provided.";
-auto __ctor_arg_f71fc2d1 = "processorId";
-return new ArgumentException(__ctor_arg_5c9bc77c, __ctor_arg_f71fc2d1);
+auto __ctor_arg_000000C2 = "Processor id must be provided.";
+auto __ctor_arg_000000C3 = "processorId";
+return new ArgumentException(__ctor_arg_000000C2, __ctor_arg_000000C3);
 })();
     }
     if (processor == nullptr)

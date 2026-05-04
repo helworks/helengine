@@ -2,7 +2,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Focus-target test double that records focus and activation requests.
     /// </summary>
-    public sealed class TestFocusTarget : IFocusTarget {
+    internal sealed class TestFocusTarget : IFocusTarget {
         /// <summary>
         /// Initializes one focus-target test double with fixed hit-test bounds.
         /// </summary>

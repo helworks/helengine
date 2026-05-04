@@ -16,6 +16,8 @@ class ThemePalette;
 class ThemeManager
 {
 public:
+    virtual ~ThemeManager() = default;
+
     static ::ThemeColors* get_Colors();
 
     static ::ThemePalette* Current;

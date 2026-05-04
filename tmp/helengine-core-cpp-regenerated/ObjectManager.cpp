@@ -31,6 +31,7 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
@@ -318,7 +319,7 @@ this->Updateables->SetCapacity(desired);
 void ObjectManager::Update()
 {
 {
-auto __finallyGuard_882531ec = he_cpp_make_scope_exit([&]() {
+auto __finallyGuard_000000B5 = he_cpp_make_scope_exit([&]() {
 this->updateLoopActive = false;
 });
 this->updateLoopActive = true;

@@ -22,16 +22,20 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/math.hpp"
 #include "system/number.hpp"
 #include "system/string_comparer.hpp"
 #include "system/text/encoding.hpp"
 #include "system/text/regular_expressions/regex.hpp"
+#include "system/text/string-builder.hpp"
 
 int32_t ShaderBindingPolicy::get_ConstantBufferShift()
 {
@@ -63,9 +67,9 @@ int32_t ShaderBindingPolicy::GetSlot(::ShaderResourceType type, int32_t register
     if (registerIndex < 0)
     {
 throw ([&]() {
-auto __ctor_arg_0f0ad929 = "registerIndex";
-auto __ctor_arg_b8e6b790 = "Register index cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_0f0ad929, __ctor_arg_b8e6b790);
+auto __ctor_arg_000000E4 = "registerIndex";
+auto __ctor_arg_000000E5 = "Register index cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000E4, __ctor_arg_000000E5);
 })();
     }
 const int32_t shift = this->GetShift(type);
@@ -76,41 +80,41 @@ ShaderBindingPolicy::ShaderBindingPolicy(int32_t defaultSpace, int32_t constantB
     if (defaultSpace < 0)
     {
 throw ([&]() {
-auto __ctor_arg_7a91f8dc = "defaultSpace";
-auto __ctor_arg_fac90fa6 = "Default space cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_7a91f8dc, __ctor_arg_fac90fa6);
+auto __ctor_arg_000000E6 = "defaultSpace";
+auto __ctor_arg_000000E7 = "Default space cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000E6, __ctor_arg_000000E7);
 })();
     }
     if (constantBufferShift < 0)
     {
 throw ([&]() {
-auto __ctor_arg_336ff1f1 = "constantBufferShift";
-auto __ctor_arg_f3058466 = "Constant buffer shift cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_336ff1f1, __ctor_arg_f3058466);
+auto __ctor_arg_000000E8 = "constantBufferShift";
+auto __ctor_arg_000000E9 = "Constant buffer shift cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000E8, __ctor_arg_000000E9);
 })();
     }
     if (textureShift < 0)
     {
 throw ([&]() {
-auto __ctor_arg_5bc42468 = "textureShift";
-auto __ctor_arg_02e00134 = "Texture shift cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_5bc42468, __ctor_arg_02e00134);
+auto __ctor_arg_000000EA = "textureShift";
+auto __ctor_arg_000000EB = "Texture shift cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000EA, __ctor_arg_000000EB);
 })();
     }
     if (samplerShift < 0)
     {
 throw ([&]() {
-auto __ctor_arg_a7c4ed24 = "samplerShift";
-auto __ctor_arg_1dff23ab = "Sampler shift cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_a7c4ed24, __ctor_arg_1dff23ab);
+auto __ctor_arg_000000EC = "samplerShift";
+auto __ctor_arg_000000ED = "Sampler shift cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000EC, __ctor_arg_000000ED);
 })();
     }
     if (storageShift < 0)
     {
 throw ([&]() {
-auto __ctor_arg_bb81396b = "storageShift";
-auto __ctor_arg_037ce656 = "Storage shift cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_bb81396b, __ctor_arg_037ce656);
+auto __ctor_arg_000000EE = "storageShift";
+auto __ctor_arg_000000EF = "Storage shift cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000EE, __ctor_arg_000000EF);
 })();
     }
 this->DefaultSpace = defaultSpace;
@@ -133,9 +137,9 @@ case ShaderResourceType::Buffer:case ShaderResourceType::StorageBuffer:case Shad
 return this->StorageShift;}
 default:  {
 throw ([&]() {
-auto __ctor_arg_c2d860d1 = "type";
-auto __ctor_arg_b7ef3acf = "Unsupported resource type.";
-return new ArgumentOutOfRangeException(__ctor_arg_c2d860d1, __ctor_arg_b7ef3acf);
+auto __ctor_arg_000000F0 = "type";
+auto __ctor_arg_000000F1 = "Unsupported resource type.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000F0, __ctor_arg_000000F1);
 })();
 }
 }

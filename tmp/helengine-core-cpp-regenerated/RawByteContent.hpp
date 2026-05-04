@@ -9,6 +9,8 @@
 class RawByteContent
 {
 public:
+    virtual ~RawByteContent() = default;
+
     RawByteContent();
 
     Array<uint8_t>* Bytes;

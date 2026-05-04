@@ -22,11 +22,13 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -37,11 +39,21 @@
 #include "system/text/regular_expressions/regex.hpp"
 #include "system/text/string-builder.hpp"
 
-SceneAsset::SceneAsset() : RootEntities(Array<SceneEntityAsset*>::Empty())
+SceneAsset::SceneAsset() : AssetReferences(Array<SceneAssetReference*>::Empty()), RootEntities(Array<SceneEntityAsset*>::Empty())
 {
 }
 
 std::string SceneAsset::FileExtension = ".helen";
+
+Array<::SceneAssetReference*>* SceneAsset::get_AssetReferences()
+{
+return this->AssetReferences;
+}
+
+void SceneAsset::set_AssetReferences(Array<::SceneAssetReference*>* value)
+{
+this->AssetReferences = value;
+}
 
 Array<::SceneEntityAsset*>* SceneAsset::get_RootEntities()
 {

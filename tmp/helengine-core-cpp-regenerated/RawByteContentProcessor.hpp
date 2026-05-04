@@ -21,6 +21,8 @@ class RawByteContent;
 class RawByteContentProcessor : public IContentProcessor_1<::RawByteContent*>
 {
 public:
+    virtual ~RawByteContentProcessor() = default;
+
     Type* get_OutputType();
 
     ::RawByteContent* Read(::Stream* stream);

@@ -11,5 +11,7 @@ class ShaderBindingPolicy;
 class ShaderBindingPolicies
 {
 public:
+    virtual ~ShaderBindingPolicies() = default;
+
     static ::ShaderBindingPolicy* get_Default();
 };

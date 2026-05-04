@@ -49,6 +49,8 @@ class ShaderVariant;
 class ShaderProgramAsset
 {
 public:
+    virtual ~ShaderProgramAsset() = default;
+
     Array<::ShaderBindingAsset*>* Bindings;
 
     std::string EntryPoint;

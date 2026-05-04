@@ -2,7 +2,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Minimal render-target implementation used by preview camera tests.
     /// </summary>
-    public class TestRenderTarget : RenderTarget, IDisposable {
+    internal class TestRenderTarget : RenderTarget, IDisposable {
         /// <summary>
         /// Gets a value indicating whether the test target was disposed.
         /// </summary>

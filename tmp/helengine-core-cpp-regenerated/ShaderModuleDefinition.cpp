@@ -25,10 +25,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -65,9 +68,9 @@ throw new InvalidOperationException("No compiled shader binary was found for the
     if (String::IsNullOrWhiteSpace(programName))
     {
 throw ([&]() {
-auto __ctor_arg_730b9e80 = "Program name must be provided.";
-auto __ctor_arg_638617f5 = "programName";
-return new ArgumentException(__ctor_arg_730b9e80, __ctor_arg_638617f5);
+auto __ctor_arg_00000136 = "Program name must be provided.";
+auto __ctor_arg_00000137 = "programName";
+return new ArgumentException(__ctor_arg_00000136, __ctor_arg_00000137);
 })();
     }
 for (int32_t i = 0; i < this->programs->Length; i++) {
@@ -84,9 +87,9 @@ ShaderModuleDefinition::ShaderModuleDefinition(std::string name, Array<::ShaderP
     if (String::IsNullOrWhiteSpace(name))
     {
 throw ([&]() {
-auto __ctor_arg_7690ed63 = "Module name must be provided.";
-auto __ctor_arg_fa914f5f = "name";
-return new ArgumentException(__ctor_arg_7690ed63, __ctor_arg_fa914f5f);
+auto __ctor_arg_00000138 = "Module name must be provided.";
+auto __ctor_arg_00000139 = "name";
+return new ArgumentException(__ctor_arg_00000138, __ctor_arg_00000139);
 })();
     }
     if (programs == nullptr)
@@ -96,9 +99,9 @@ throw new ArgumentNullException("programs");
     if (programs->Length == 0)
     {
 throw ([&]() {
-auto __ctor_arg_be2a6d9d = "At least one program definition is required.";
-auto __ctor_arg_62e09efa = "programs";
-return new ArgumentException(__ctor_arg_be2a6d9d, __ctor_arg_62e09efa);
+auto __ctor_arg_0000013A = "At least one program definition is required.";
+auto __ctor_arg_0000013B = "programs";
+return new ArgumentException(__ctor_arg_0000013A, __ctor_arg_0000013B);
 })();
     }
     if (binaries == nullptr)
@@ -115,25 +118,25 @@ bool ShaderModuleDefinition::TryGetBinary(std::string programName, std::string t
     if (String::IsNullOrWhiteSpace(programName))
     {
 throw ([&]() {
-auto __ctor_arg_4b0af47d = "Program name must be provided.";
-auto __ctor_arg_9d6620b8 = "programName";
-return new ArgumentException(__ctor_arg_4b0af47d, __ctor_arg_9d6620b8);
+auto __ctor_arg_0000013C = "Program name must be provided.";
+auto __ctor_arg_0000013D = "programName";
+return new ArgumentException(__ctor_arg_0000013C, __ctor_arg_0000013D);
 })();
     }
     if (String::IsNullOrWhiteSpace(target))
     {
 throw ([&]() {
-auto __ctor_arg_18068244 = "Target must be provided.";
-auto __ctor_arg_d06166d8 = "target";
-return new ArgumentException(__ctor_arg_18068244, __ctor_arg_d06166d8);
+auto __ctor_arg_0000013E = "Target must be provided.";
+auto __ctor_arg_0000013F = "target";
+return new ArgumentException(__ctor_arg_0000013E, __ctor_arg_0000013F);
 })();
     }
     if (String::IsNullOrWhiteSpace(variant))
     {
 throw ([&]() {
-auto __ctor_arg_72a359fd = "Variant must be provided.";
-auto __ctor_arg_5b338352 = "variant";
-return new ArgumentException(__ctor_arg_72a359fd, __ctor_arg_5b338352);
+auto __ctor_arg_00000140 = "Variant must be provided.";
+auto __ctor_arg_00000141 = "variant";
+return new ArgumentException(__ctor_arg_00000140, __ctor_arg_00000141);
 })();
     }
 for (int32_t i = 0; i < this->binaries->Length; i++) {
@@ -159,9 +162,9 @@ bool ShaderModuleDefinition::TryGetProgram(std::string programName, ::ShaderProg
     if (String::IsNullOrWhiteSpace(programName))
     {
 throw ([&]() {
-auto __ctor_arg_1477ed60 = "Program name must be provided.";
-auto __ctor_arg_29b553c3 = "programName";
-return new ArgumentException(__ctor_arg_1477ed60, __ctor_arg_29b553c3);
+auto __ctor_arg_00000142 = "Program name must be provided.";
+auto __ctor_arg_00000143 = "programName";
+return new ArgumentException(__ctor_arg_00000142, __ctor_arg_00000143);
 })();
     }
 for (int32_t i = 0; i < this->programs->Length; i++) {

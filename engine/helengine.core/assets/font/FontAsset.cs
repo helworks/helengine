@@ -53,6 +53,11 @@ namespace helengine {
         public int AtlasHeight { get; protected set; }
 
         /// <summary>
+        /// Gets or sets the raw atlas texture data used to build this font asset.
+        /// </summary>
+        public TextureAsset SourceTextureAsset { get; set; }
+
+        /// <summary>
         /// Disposes of managed resources if needed.
         /// </summary>
         public void Dispose() {

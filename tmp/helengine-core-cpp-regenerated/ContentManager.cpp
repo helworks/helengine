@@ -15,7 +15,6 @@
 #include "TextContentProcessor.hpp"
 #include "RawByteContentProcessor.hpp"
 #include "runtime/array.hpp"
-#include "runtime/finally.hpp"
 #include "runtime/native_cast.hpp"
 #include "runtime/native_dictionary.hpp"
 #include "runtime/native_disposable.hpp"
@@ -34,7 +33,6 @@
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
 #include "system/io/stream.hpp"
-#include "system/math.hpp"
 #include "system/string_comparer.hpp"
 #include "system/text/encoding.hpp"
 
@@ -48,9 +46,9 @@ ContentManager::ContentManager(std::string rootDirectory) : DefaultProcessorsByT
     if (String::IsNullOrWhiteSpace(rootDirectory))
     {
 throw ([&]() {
-auto __ctor_arg_41eb7c63 = "Root directory must be provided.";
-auto __ctor_arg_ec8d0e51 = "rootDirectory";
-return new ArgumentException(__ctor_arg_41eb7c63, __ctor_arg_ec8d0e51);
+auto __ctor_arg_00000022 = "Root directory must be provided.";
+auto __ctor_arg_00000023 = "rootDirectory";
+return new ArgumentException(__ctor_arg_00000022, __ctor_arg_00000023);
 })();
     }
 this->RootDirectoryPath = Path::GetFullPath(rootDirectory);
@@ -64,9 +62,9 @@ bool ContentManager::IsProcessorRegistered(std::string processorId)
     if (String::IsNullOrWhiteSpace(processorId))
     {
 throw ([&]() {
-auto __ctor_arg_a7c998d7 = "Processor id must be provided.";
-auto __ctor_arg_ef7cfa3b = "processorId";
-return new ArgumentException(__ctor_arg_a7c998d7, __ctor_arg_ef7cfa3b);
+auto __ctor_arg_00000024 = "Processor id must be provided.";
+auto __ctor_arg_00000025 = "processorId";
+return new ArgumentException(__ctor_arg_00000024, __ctor_arg_00000025);
 })();
     }
 return this->ProcessorRegistrationsById->ContainsKey(processorId);}
@@ -150,9 +148,9 @@ T ContentManager::LoadProcessedContent(std::string fullPath, ::IContentProcessor
     if (String::IsNullOrWhiteSpace(fullPath))
     {
 throw ([&]() {
-auto __ctor_arg_09695d57 = "Content path must be provided.";
-auto __ctor_arg_590f011d = "fullPath";
-return new ArgumentException(__ctor_arg_09695d57, __ctor_arg_590f011d);
+auto __ctor_arg_00000026 = "Content path must be provided.";
+auto __ctor_arg_00000027 = "fullPath";
+return new ArgumentException(__ctor_arg_00000026, __ctor_arg_00000027);
 })();
     }
     if (processor == nullptr)
@@ -160,7 +158,7 @@ return new ArgumentException(__ctor_arg_09695d57, __ctor_arg_590f011d);
 throw new ArgumentNullException("processor");
     }
 {
-FileStream *stream = File::OpenRead(fullPath);
+::FileStream *stream = File::OpenRead(fullPath);
 return processor->Read(stream);}
 }
 
@@ -169,9 +167,9 @@ std::string ContentManager::NormalizeExtension(std::string extension)
     if (String::IsNullOrWhiteSpace(extension))
     {
 throw ([&]() {
-auto __ctor_arg_7a2d6ac3 = "Extension must be provided.";
-auto __ctor_arg_2e9cacec = "extension";
-return new ArgumentException(__ctor_arg_7a2d6ac3, __ctor_arg_2e9cacec);
+auto __ctor_arg_00000028 = "Extension must be provided.";
+auto __ctor_arg_00000029 = "extension";
+return new ArgumentException(__ctor_arg_00000028, __ctor_arg_00000029);
 })();
     }
     if (String::Equals(extension, WildcardExtension, StringComparison::Ordinal))
@@ -194,9 +192,9 @@ std::string ContentManager::ResolveContentPath(std::string assetPath)
     if (String::IsNullOrWhiteSpace(assetPath))
     {
 throw ([&]() {
-auto __ctor_arg_9c50d2a5 = "Asset path must be provided.";
-auto __ctor_arg_aadf02c8 = "assetPath";
-return new ArgumentException(__ctor_arg_9c50d2a5, __ctor_arg_aadf02c8);
+auto __ctor_arg_0000002A = "Asset path must be provided.";
+auto __ctor_arg_0000002B = "assetPath";
+return new ArgumentException(__ctor_arg_0000002A, __ctor_arg_0000002B);
 })();
     }
     if (Path::IsPathRooted(assetPath))
@@ -213,9 +211,9 @@ throw new ArgumentNullException("requestedType");
     if (String::IsNullOrWhiteSpace(fullPath))
     {
 throw ([&]() {
-auto __ctor_arg_a165655d = "Content path must be provided.";
-auto __ctor_arg_fa2465c7 = "fullPath";
-return new ArgumentException(__ctor_arg_a165655d, __ctor_arg_fa2465c7);
+auto __ctor_arg_0000002C = "Content path must be provided.";
+auto __ctor_arg_0000002D = "fullPath";
+return new ArgumentException(__ctor_arg_0000002C, __ctor_arg_0000002D);
 })();
     }
 Dictionary<std::string, ::ContentProcessorRegistration*>* registrationsByExtension;
@@ -249,9 +247,9 @@ throw new ArgumentNullException("requestedType");
     if (String::IsNullOrWhiteSpace(processorId))
     {
 throw ([&]() {
-auto __ctor_arg_53fc5e3f = "Processor id must be provided.";
-auto __ctor_arg_b7bb7ff9 = "processorId";
-return new ArgumentException(__ctor_arg_53fc5e3f, __ctor_arg_b7bb7ff9);
+auto __ctor_arg_0000002E = "Processor id must be provided.";
+auto __ctor_arg_0000002F = "processorId";
+return new ArgumentException(__ctor_arg_0000002E, __ctor_arg_0000002F);
 })();
     }
 ::ContentProcessorRegistration* registration;
@@ -281,9 +279,9 @@ bool ContentManager::TryResolveRegisteredExtension(std::string fileName, Diction
     if (String::IsNullOrWhiteSpace(fileName))
     {
 throw ([&]() {
-auto __ctor_arg_4cb18966 = "File name must be provided.";
-auto __ctor_arg_6653ad3e = "fileName";
-return new ArgumentException(__ctor_arg_4cb18966, __ctor_arg_6653ad3e);
+auto __ctor_arg_00000030 = "File name must be provided.";
+auto __ctor_arg_00000031 = "fileName";
+return new ArgumentException(__ctor_arg_00000030, __ctor_arg_00000031);
 })();
     }
     if (registrationsByExtension == nullptr)

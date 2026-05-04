@@ -18,6 +18,8 @@ class ShaderCompileRequest;
 class ShaderCompileResult
 {
 public:
+    virtual ~ShaderCompileResult() = default;
+
     ::ShaderCompiledBinary* Binary;
 
     ::ShaderCompiledBinary* get_Binary();

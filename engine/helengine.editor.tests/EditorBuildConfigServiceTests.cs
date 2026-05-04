@@ -56,6 +56,7 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
                 new EditorBuildPlatformConfigDocument {
                     PlatformId = "windows",
                     SelectedSceneIds = ["Scenes/City.helen", "Scenes/Menu.helen"],
+                    SelectedCodeModuleIds = ["gameplay", "ui"],
                     SceneOrders = [
                         new EditorBuildSceneOrderDocument {
                             SceneId = "Scenes/City.helen",
@@ -99,6 +100,7 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
         Assert.Equal(2, loadedDocument.Platforms[0].SceneOrders[0].OrderNumber);
         Assert.Equal("Scenes/Menu.helen", loadedDocument.Platforms[0].SceneOrders[1].SceneId);
         Assert.Equal(1, loadedDocument.Platforms[0].SceneOrders[1].OrderNumber);
+        Assert.Equal(["gameplay", "ui"], loadedDocument.Platforms[0].SelectedCodeModuleIds);
         Assert.Equal(2, loadedDocument.QueueItems.Count);
         Assert.Equal(EditorBuildQueueItemStatus.Pending, loadedDocument.QueueItems[0].Status);
         Assert.Equal(EditorBuildQueueItemStatus.Failed, loadedDocument.QueueItems[1].Status);
@@ -118,7 +120,8 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
                     SelectedSceneIds = ["Scenes/City.helen"],
                     SceneOrders = [],
                     OutputDirectoryPath = @"C:\builds\windows",
-                    DebugBuild = true
+                    DebugBuild = true,
+                    SelectedCodeModuleIds = ["gameplay"]
                 }
             ]
         };
@@ -127,6 +130,7 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
         EditorBuildConfigDocument loadedDocument = service.Load(["windows"], "Scenes/Other.helen");
 
         Assert.True(loadedDocument.Platforms[0].DebugBuild);
+        Assert.Equal(["gameplay"], loadedDocument.Platforms[0].SelectedCodeModuleIds);
     }
 
     /// <summary>
@@ -143,6 +147,10 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
                   "platformId": "windows",
                   "selectedSceneIds": [
                     "Scenes/City.helen"
+                  ],
+                  "selectedCodeModuleIds": [
+                    "gameplay",
+                    "ui"
                   ],
                   "sceneOrders": [],
                   "outputDirectoryPath": "C:\\builds\\windows"
@@ -172,6 +180,10 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
                   "selectedSceneIds": [
                     "Scenes/City.helen"
                   ],
+                  "selectedCodeModuleIds": [
+                    "gameplay",
+                    "ui"
+                  ],
                   "outputDirectoryPath": "C:\\builds\\windows"
                 }
               ],
@@ -184,6 +196,7 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
         Assert.Equal(2, document.Platforms.Count);
         AssertPlatform(document.Platforms[0], "windows", ["Scenes/City.helen"], @"C:\builds\windows");
         AssertPlatform(document.Platforms[1], "linux", ["Scenes/Menu.helen"], string.Empty);
+        Assert.Equal(["gameplay", "ui"], document.Platforms[0].SelectedCodeModuleIds);
     }
 
     /// <summary>

@@ -11,6 +11,8 @@ class float4;
 class FontChar
 {
 public:
+    virtual ~FontChar() = default;
+
     FontChar();
 
     float AdvanceWidth;

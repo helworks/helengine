@@ -44,7 +44,7 @@ namespace helengine.editor.tests {
         public void UpdateLayout_WhenCalled_DocksSceneHierarchyAndPropertiesIntoTheSameRightSideArea() {
             EditorSession session = CreateSessionForKeyboardFocus(
                 out DockingManager dockingManager,
-                out TestInputManager inputManager,
+                out TestInputBackend inputManager,
                 out EditorViewport mainViewport,
                 out DockableEntity firstSecondaryDock,
                 out EditorFocusTarget firstSecondaryTarget,
@@ -81,7 +81,7 @@ namespace helengine.editor.tests {
         public void UpdateLayout_WhenCalled_PublishesVisibleDockOrderToTheFocusService() {
             EditorSession session = CreateSessionForKeyboardFocus(
                 out DockingManager dockingManager,
-                out TestInputManager inputManager,
+                out TestInputBackend inputManager,
                 out EditorViewport mainViewport,
                 out DockableEntity firstSecondaryDock,
                 out EditorFocusTarget firstSecondaryTarget,
@@ -110,7 +110,7 @@ namespace helengine.editor.tests {
         public void Update_WhenCtrlTabIsPressed_MovesActivationToTheNextVisibleDock() {
             EditorSession session = CreateSessionForKeyboardFocus(
                 out DockingManager dockingManager,
-                out TestInputManager inputManager,
+                out TestInputBackend inputManager,
                 out EditorViewport mainViewport,
                 out DockableEntity firstSecondaryDock,
                 out EditorFocusTarget firstSecondaryTarget,
@@ -159,7 +159,7 @@ namespace helengine.editor.tests {
         public void Dispose_WhenCalled_ResetsStaticKeyboardFocusState() {
             EditorSession session = CreateSessionForKeyboardFocus(
                 out DockingManager dockingManager,
-                out TestInputManager inputManager,
+                out TestInputBackend inputManager,
                 out EditorViewport mainViewport,
                 out DockableEntity firstSecondaryDock,
                 out EditorFocusTarget firstSecondaryTarget,
@@ -193,7 +193,7 @@ namespace helengine.editor.tests {
         /// <returns>Editor session configured for keyboard-focus integration tests.</returns>
         EditorSession CreateSessionForKeyboardFocus(
             out DockingManager dockingManager,
-            out TestInputManager inputManager,
+            out TestInputBackend inputManager,
             out EditorViewport mainViewport,
             out DockableEntity firstSecondaryDock,
             out EditorFocusTarget firstSecondaryTarget,
@@ -204,7 +204,7 @@ namespace helengine.editor.tests {
             EditorSceneMutationService.Reset();
             TransformGizmoSnapSettingsService.ResetDefaults();
 
-            inputManager = new TestInputManager();
+            inputManager = new TestInputBackend();
             inputManager.SetKeyboardState(new KeyboardState());
             inputManager.SetMouseState(CreateMouseState());
 
@@ -213,7 +213,7 @@ namespace helengine.editor.tests {
                 Path = TempProjectRootPath
             });
             core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager);
-            core.InputManager.SetKeyboardActive(true);
+            core.InputSystem.SetKeyboardActive(true);
 
             FontAsset font = CreateFont();
             EditorEntity uiCameraEntity = new EditorEntity {
@@ -532,3 +532,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

@@ -4,7 +4,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Provides a minimal preview source used by panel lifecycle tests.
     /// </summary>
-    public class TestPreviewSource : IPreviewSource {
+    internal class TestPreviewSource : IPreviewSource {
         /// <summary>
         /// Initializes a new test preview source with the supplied texture.
         /// </summary>

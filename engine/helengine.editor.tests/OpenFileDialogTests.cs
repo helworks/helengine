@@ -14,9 +14,9 @@ namespace helengine.editor.tests {
         /// </summary>
         readonly string ProjectRootPath;
         /// <summary>
-        /// Configurable input manager used to drive pointer-routing assertions.
+        /// Configurable input system used to drive pointer-routing assertions.
         /// </summary>
-        readonly TestInputManager Input;
+        readonly TestInputBackend Input;
 
         /// <summary>
         /// Initializes an isolated project root and the core services required by the dialog.
@@ -29,7 +29,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = ProjectRootPath
             });
-            Input = new TestInputManager();
+            Input = new TestInputBackend();
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input);
         }
 
@@ -261,7 +261,7 @@ namespace helengine.editor.tests {
             Input.EarlyUpdate();
             Input.Update();
 
-            Assert.NotSame(behindInteractable, Input.Hovering);
+            Assert.NotSame(behindInteractable, Core.Instance.PointerInteractionSystem.Hovering);
             Assert.Equal(0, behindHoverCount);
         }
 
@@ -293,7 +293,7 @@ namespace helengine.editor.tests {
             Input.EarlyUpdate();
             Input.Update();
 
-            Assert.NotSame(behindInteractable, Input.Hovering);
+            Assert.NotSame(behindInteractable, Core.Instance.PointerInteractionSystem.Hovering);
             Assert.Equal(0, behindHoverCount);
         }
 
@@ -325,7 +325,7 @@ namespace helengine.editor.tests {
             Input.EarlyUpdate();
             Input.Update();
 
-            Assert.Same(behindInteractable, Input.Hovering);
+            Assert.Same(behindInteractable, Core.Instance.PointerInteractionSystem.Hovering);
             Assert.Equal(1, behindHoverCount);
         }
 
@@ -500,3 +500,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

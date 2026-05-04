@@ -17,6 +17,8 @@
 class ShaderSourceHasher
 {
 public:
+    virtual ~ShaderSourceHasher() = default;
+
     std::string ComputeHash(std::string source);
 private:
     std::string ConvertToHex(Array<uint8_t>* data);

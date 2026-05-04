@@ -4,12 +4,12 @@ namespace helengine.editor {
     /// </summary>
     public static class TransformGizmoActiveSnapValueResolver {
         /// <summary>
-        /// Reads the active snap value for a specific gizmo tool mode from the input manager.
+        /// Reads the active snap value for a specific gizmo tool mode from the input system.
         /// </summary>
         /// <param name="input">Input manager that provides keyboard modifier state.</param>
         /// <param name="toolMode">Tool mode whose active snap value should be resolved.</param>
         /// <returns>Configured snap value for the active modifier slot, or zero when no snap modifier is held.</returns>
-        public static double ResolveActiveSnapValue(InputManager input, EditorViewportToolMode toolMode) {
+        public static double ResolveActiveSnapValue(InputSystem input, EditorViewportToolMode toolMode) {
             if (input == null) {
                 throw new ArgumentNullException(nameof(input));
             }
@@ -20,3 +20,4 @@ namespace helengine.editor {
         }
     }
 }
+

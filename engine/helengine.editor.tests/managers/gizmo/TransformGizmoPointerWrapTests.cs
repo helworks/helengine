@@ -33,7 +33,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         [Fact]
         public void Update_WhenTranslationDragIsActive_EnablesPointerWrapUntilRelease() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera();
             EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
             EditorEntity selectedEntity = CreateSelectedEntity();
@@ -44,10 +44,10 @@ namespace helengine.editor.tests.managers.gizmo {
             InitializeActiveTranslationDrag(component, selectedEntity, handleEntity);
 
             CompleteDragFrame(input, component, CreateMouseState(250, 200, ButtonState.Pressed));
-            Assert.True(input.IsPointerWrapEnabled);
+            Assert.True(Core.Instance.InputSystem.IsPointerWrapEnabled);
 
             CompleteDragFrame(input, component, CreateMouseState(250, 200, ButtonState.Released));
-            Assert.False(input.IsPointerWrapEnabled);
+            Assert.False(Core.Instance.InputSystem.IsPointerWrapEnabled);
         }
 
         /// <summary>
@@ -55,7 +55,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         [Fact]
         public void Update_WhenRotationDragIsActive_EnablesPointerWrapUntilRelease() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera();
             EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Rotate);
             EditorEntity selectedEntity = CreateSelectedEntity();
@@ -66,10 +66,10 @@ namespace helengine.editor.tests.managers.gizmo {
             InitializeActiveRotationDrag(component, selectedEntity, handleEntity);
 
             CompleteDragFrame(input, component, CreateMouseState(250, 200, ButtonState.Pressed));
-            Assert.True(input.IsPointerWrapEnabled);
+            Assert.True(Core.Instance.InputSystem.IsPointerWrapEnabled);
 
             CompleteDragFrame(input, component, CreateMouseState(250, 200, ButtonState.Released));
-            Assert.False(input.IsPointerWrapEnabled);
+            Assert.False(Core.Instance.InputSystem.IsPointerWrapEnabled);
         }
 
         /// <summary>
@@ -77,7 +77,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         [Fact]
         public void Update_WhenScaleDragIsActive_EnablesPointerWrapUntilRelease() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera();
             EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
             EditorEntity selectedEntity = CreateSelectedEntity();
@@ -88,20 +88,20 @@ namespace helengine.editor.tests.managers.gizmo {
             InitializeActiveScaleDrag(component, selectedEntity, handleEntity);
 
             CompleteDragFrame(input, component, CreateMouseState(250, 200, ButtonState.Pressed));
-            Assert.True(input.IsPointerWrapEnabled);
+            Assert.True(Core.Instance.InputSystem.IsPointerWrapEnabled);
 
             CompleteDragFrame(input, component, CreateMouseState(250, 200, ButtonState.Released));
-            Assert.False(input.IsPointerWrapEnabled);
+            Assert.False(Core.Instance.InputSystem.IsPointerWrapEnabled);
         }
 
         /// <summary>
         /// Initializes a fresh core with deterministic client bounds for pointer-wrap tests.
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
-        TestInputManager InitializeCore() {
+        TestInputBackend InitializeCore() {
             Core core = new Core();
-            TestInputManager input = new TestInputManager();
-            input.SetMouseClientBounds(new int2(500, 400));
+            TestInputBackend input = new TestInputBackend();
+            core.InputSystem.SetMouseClientBounds(new int2(500, 400));
             core.Initialize(null, null, input);
             return input;
         }
@@ -216,7 +216,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="input">Input manager supplying the current mouse state.</param>
         /// <param name="component">Drag component being exercised.</param>
         /// <param name="mouseState">Mouse state exposed for the current frame.</param>
-        void CompleteDragFrame(TestInputManager input, UpdateComponent component, MouseState mouseState) {
+        void CompleteDragFrame(TestInputBackend input, UpdateComponent component, MouseState mouseState) {
             input.SetMouseState(mouseState);
             input.EarlyUpdate();
             component.Update();
@@ -255,3 +255,4 @@ namespace helengine.editor.tests.managers.gizmo {
         }
     }
 }
+

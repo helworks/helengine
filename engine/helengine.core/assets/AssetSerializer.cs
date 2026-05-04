@@ -1,24 +1,8 @@
 namespace helengine {
     /// <summary>
-    /// Provides HELE binary serialization helpers for asset instances.
+    /// Provides HELE binary deserialization helpers for asset instances.
     /// </summary>
     public static class AssetSerializer {
-        /// <summary>
-        /// Serializes an asset into the provided stream using the editor asset binary format.
-        /// </summary>
-        /// <param name="stream">Destination stream for the encoded asset.</param>
-        /// <param name="asset">Asset instance to serialize.</param>
-        /// <exception cref="ArgumentNullException">Thrown when the stream or asset is null.</exception>
-        public static void Serialize(Stream stream, Asset asset) {
-            if (stream == null) {
-                throw new ArgumentNullException(nameof(stream));
-            } else if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
-            }
-
-            EditorAssetBinarySerializer.Serialize(stream, asset);
-        }
-
         /// <summary>
         /// Deserializes an asset from the provided stream using the HELE header and registered format readers.
         /// </summary>
@@ -36,22 +20,6 @@ namespace helengine {
             }
 
             throw new InvalidOperationException($"Unsupported asset binary format id '{header.FormatId}'.");
-        }
-
-        /// <summary>
-        /// Serializes an asset into a new byte array using the editor asset binary format.
-        /// </summary>
-        /// <param name="asset">Asset instance to serialize.</param>
-        /// <returns>Encoded byte array.</returns>
-        /// <exception cref="ArgumentNullException">Thrown when the asset is null.</exception>
-        public static byte[] SerializeToBytes(Asset asset) {
-            if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
-            }
-
-            using var stream = new MemoryStream();
-            Serialize(stream, asset);
-            return stream.ToArray();
         }
 
         /// <summary>

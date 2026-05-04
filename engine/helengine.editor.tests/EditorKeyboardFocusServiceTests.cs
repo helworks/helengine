@@ -15,14 +15,14 @@ namespace helengine.editor.tests {
             DockableEntity viewportDock = CreateDock("Viewport", 0, 0, 400, 300);
             TestFocusGroup toolbarGroup = new TestFocusGroup(viewportDock, 1, 0, 0, 400, 20);
             TestFocusGroup contentGroup = new TestFocusGroup(viewportDock, 0, 0, 20, 400, 280);
-            TestFocusTarget contentTarget = new TestFocusTarget(contentGroup, 0, false, 10, 40, 100, 100);
-            TestFocusTarget translateTarget = new TestFocusTarget(toolbarGroup, 0, false, 10, 2, 20, 16);
-            TestFocusTarget rotateTarget = new TestFocusTarget(toolbarGroup, 1, false, 34, 2, 20, 16);
+            TestFocusTarget contentTarget = new TestFocusTarget(contentGroup.FocusGroup, 0, false, 10, 40, 100, 100);
+            TestFocusTarget translateTarget = new TestFocusTarget(toolbarGroup.FocusGroup, 0, false, 10, 2, 20, 16);
+            TestFocusTarget rotateTarget = new TestFocusTarget(toolbarGroup.FocusGroup, 1, false, 34, 2, 20, 16);
 
             EditorKeyboardFocusService.Reset();
             EditorKeyboardFocusService.RegisterGroup(viewportDock);
-            EditorKeyboardFocusService.RegisterGroup(toolbarGroup);
-            EditorKeyboardFocusService.RegisterGroup(contentGroup);
+            EditorKeyboardFocusService.RegisterGroup(toolbarGroup.FocusGroup);
+            EditorKeyboardFocusService.RegisterGroup(contentGroup.FocusGroup);
             EditorKeyboardFocusService.RegisterTarget(contentTarget);
             EditorKeyboardFocusService.RegisterTarget(translateTarget);
             EditorKeyboardFocusService.RegisterTarget(rotateTarget);

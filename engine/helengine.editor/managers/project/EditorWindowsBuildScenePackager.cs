@@ -1,12 +1,14 @@
+using helengine.baseplatform.Definitions;
+
 namespace helengine.editor {
     /// <summary>
     /// Packages selected editor scenes and their required runtime assets into one Windows player content root.
     /// </summary>
     public sealed class EditorPlatformBuildScenePackager {
         /// <summary>
-        /// Relative packaged scene path used as the Windows startup scene.
+        /// Relative packaged scene path used as the Windows main scene.
         /// </summary>
-        public const string StartupSceneRelativePath = "scenes/startup.helen";
+        public const string MainSceneRelativePath = "cooked/scenes/main.hasset";
 
         /// <summary>
         /// Current payload version for serialized mesh component scene records.
@@ -19,6 +21,11 @@ namespace helengine.editor {
         const byte CameraComponentPayloadVersion = 1;
 
         /// <summary>
+        /// Current payload version for serialized FPS component scene records.
+        /// </summary>
+        const byte FPSComponentPayloadVersion = 2;
+
+        /// <summary>
         /// Stable serialized component id for mesh components.
         /// </summary>
         const string MeshComponentTypeId = "helengine.MeshComponent";
@@ -29,6 +36,16 @@ namespace helengine.editor {
         const string CameraComponentTypeId = "helengine.CameraComponent";
 
         /// <summary>
+        /// Stable serialized component id for FPS overlay components.
+        /// </summary>
+        const string FPSComponentTypeId = "helengine.FPSComponent";
+
+        /// <summary>
+        /// Stable serialized component id for text components.
+        /// </summary>
+        const string TextComponentTypeId = "helengine.TextComponent";
+
+        /// <summary>
         /// Runtime scene layer used by the current Windows player loader for materialized entities.
         /// </summary>
         const ushort RuntimeSceneLayerMask = 0b00000001;
@@ -37,6 +54,21 @@ namespace helengine.editor {
         /// Stable generated-asset provider id used by engine-generated scene references.
         /// </summary>
         const string EngineGeneratedProviderId = "engine";
+
+        /// <summary>
+        /// Generated provider id reserved for the editor's built-in font asset.
+        /// </summary>
+        const string EditorGeneratedProviderId = "editor";
+
+        /// <summary>
+        /// Stable asset id used for the editor's built-in font asset.
+        /// </summary>
+        const string EditorFontAssetId = "ui-font";
+
+        /// <summary>
+        /// Packaged relative path used for the editor's built-in font asset.
+        /// </summary>
+        const string EditorFontRelativePath = "cooked/fonts/default.hefont";
 
         /// <summary>
         /// Stable generated model asset id for the built-in cube primitive.
@@ -76,12 +108,12 @@ namespace helengine.editor {
         /// <summary>
         /// Relative packaged material path used by generated primitive scenes.
         /// </summary>
-        const string StandardGeneratedMaterialRelativePath = "generated/engine/materials/standard.helmat";
+        const string StandardGeneratedMaterialRelativePath = "cooked/engine/materials/standard.hasset";
 
         /// <summary>
         /// Relative packaged shader path used by generated primitive scenes.
         /// </summary>
-        const string StandardGeneratedShaderRelativePath = "shaders/EditorDefaultMesh.dx11.shader.asset";
+        const string StandardGeneratedShaderRelativePath = "cooked/shaders/EditorDefaultMesh.dx11.hasset";
 
         /// <summary>
         /// Absolute project root that owns the source `assets` folder.
@@ -124,11 +156,31 @@ namespace helengine.editor {
         readonly HashSet<string> ReferencedShaderAssetIdsSet;
 
         /// <summary>
+        /// Builder-provided component compatibility metadata keyed by serialized type id.
+        /// </summary>
+        readonly Dictionary<string, PlatformComponentCompatibilityDefinition> ComponentCompatibilitiesByTypeId;
+
+        /// <summary>
+        /// Platform identifier used for diagnostics.
+        /// </summary>
+        readonly string PlatformId;
+
+        /// <summary>
+        /// Shared transform service used when platform compatibility marks a component as transformable.
+        /// </summary>
+        readonly SceneComponentPackagingTransformService TransformService;
+
+        /// <summary>
+        /// Packaged editor font asset used when scenes reference the built-in editor font.
+        /// </summary>
+        readonly FontAsset DefaultFontAsset;
+
+        /// <summary>
         /// Initializes one Windows scene packager for the supplied project root.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
         public EditorPlatformBuildScenePackager(string projectRootPath)
-            : this(projectRootPath, Array.Empty<IAssetImporterRegistration>()) {
+            : this(projectRootPath, Array.Empty<IAssetImporterRegistration>(), (PlatformDefinition)null, null) {
         }
 
         /// <summary>
@@ -137,7 +189,17 @@ namespace helengine.editor {
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
         /// <param name="importers">Importer registrations supplied by the editor host.</param>
         public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers)
-            : this(projectRootPath, importers, "windows") {
+            : this(projectRootPath, importers, (PlatformDefinition)null, null) {
+        }
+
+        /// <summary>
+        /// Initializes one scene packager for the supplied project root, importer registrations, and default font asset.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative project root path.</param>
+        /// <param name="importers">Importer registrations supplied by the editor host.</param>
+        /// <param name="defaultFontAsset">Packaged default font asset used by player builds.</param>
+        public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers, FontAsset defaultFontAsset)
+            : this(projectRootPath, importers, (PlatformDefinition)null, defaultFontAsset) {
         }
 
         /// <summary>
@@ -146,7 +208,48 @@ namespace helengine.editor {
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
         /// <param name="importers">Importer registrations supplied by the editor host.</param>
         /// <param name="targetPlatformId">Platform id that should be reported to the asset-import pipeline.</param>
-        public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers, string targetPlatformId) {
+        public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers, string targetPlatformId)
+            : this(projectRootPath, importers, targetPlatformId, null, null) {
+        }
+
+        /// <summary>
+        /// Initializes one scene packager for the supplied project root, importer registrations, and platform definition.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative project root path.</param>
+        /// <param name="importers">Importer registrations supplied by the editor host.</param>
+        /// <param name="platformDefinition">Builder-provided platform definition that carries compatibility metadata.</param>
+        public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers, PlatformDefinition platformDefinition)
+            : this(projectRootPath, importers, platformDefinition?.PlatformId, platformDefinition, null) {
+        }
+
+        /// <summary>
+        /// Initializes one scene packager for the supplied project root, importer registrations, platform definition, and default font asset.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative project root path.</param>
+        /// <param name="importers">Importer registrations supplied by the editor host.</param>
+        /// <param name="platformDefinition">Builder-provided platform definition that carries compatibility metadata.</param>
+        /// <param name="defaultFontAsset">Packaged default font asset used by player builds.</param>
+        public EditorPlatformBuildScenePackager(
+            string projectRootPath,
+            IReadOnlyList<IAssetImporterRegistration> importers,
+            PlatformDefinition platformDefinition,
+            FontAsset defaultFontAsset)
+            : this(projectRootPath, importers, platformDefinition?.PlatformId, platformDefinition, defaultFontAsset) {
+        }
+
+        /// <summary>
+        /// Initializes one scene packager for the supplied project root, importer registrations, platform id, and optional platform definition.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative project root path.</param>
+        /// <param name="importers">Importer registrations supplied by the editor host.</param>
+        /// <param name="targetPlatformId">Platform id that should be reported to the asset-import pipeline.</param>
+        /// <param name="platformDefinition">Optional builder-provided platform definition that carries compatibility metadata.</param>
+        EditorPlatformBuildScenePackager(
+            string projectRootPath,
+            IReadOnlyList<IAssetImporterRegistration> importers,
+            string targetPlatformId,
+            PlatformDefinition platformDefinition,
+            FontAsset defaultFontAsset) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -158,6 +261,7 @@ namespace helengine.editor {
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             ProjectContentManager = new ContentManager(AssetsRootPath);
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(ProjectContentManager);
+            DefaultFontAsset = defaultFontAsset;
 
             ContentManager importContentManager = new ContentManager(AssetsRootPath);
             AssetImportManager = new AssetImportManager(ProjectRootPath, importContentManager);
@@ -174,6 +278,15 @@ namespace helengine.editor {
             FileSystemModelResolver = new EditorFileSystemModelResolver(AssetImportManager);
             ReferencedShaderAssetIds = new List<string>();
             ReferencedShaderAssetIdsSet = new HashSet<string>(StringComparer.Ordinal);
+            PlatformId = string.IsNullOrWhiteSpace(targetPlatformId) ? "windows" : targetPlatformId;
+            ComponentCompatibilitiesByTypeId = BuildCompatibilityLookup(platformDefinition?.ComponentCompatibilities ?? CreateDefaultComponentCompatibilities());
+            TransformService = new SceneComponentPackagingTransformService(
+                AssetsRootPath,
+                ProjectContentManager,
+                AssetImportManager,
+                FileSystemModelResolver,
+                ReferencedShaderAssetIds,
+                ReferencedShaderAssetIdsSet);
         }
 
         /// <summary>
@@ -187,7 +300,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(sceneIds));
             }
             if (sceneIds.Count == 0) {
-                throw new InvalidOperationException("At least one scene must be selected for the Windows build.");
+                throw new InvalidOperationException($"At least one scene must be selected for platform '{PlatformId}'.");
             }
             if (string.IsNullOrWhiteSpace(buildRootPath)) {
                 throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
@@ -205,11 +318,8 @@ namespace helengine.editor {
                 SceneAsset packagedSceneAsset = LoadSceneAsset(sceneId);
                 RewriteSceneAsset(packagedSceneAsset, fullBuildRootPath);
 
-                string packagedSceneRelativePath = BuildPackagedSceneRelativePath(sceneId);
+                string packagedSceneRelativePath = BuildPackagedSceneRelativePath(sceneId, index);
                 WriteAsset(Path.Combine(fullBuildRootPath, packagedSceneRelativePath), packagedSceneAsset);
-                if (index == 0) {
-                    WriteAsset(Path.Combine(fullBuildRootPath, StartupSceneRelativePath), packagedSceneAsset);
-                }
             }
 
             return new EditorPlatformBuildScenePackagerResult(ReferencedShaderAssetIds);
@@ -252,6 +362,14 @@ namespace helengine.editor {
             for (int index = 0; index < rootEntityAssets.Length; index++) {
                 RewriteEntityAsset(rootEntityAssets[index], buildRootPath);
             }
+
+            SceneAssetReference[] assetReferences = sceneAsset.AssetReferences ?? Array.Empty<SceneAssetReference>();
+            List<SceneAssetReference> rewrittenAssetReferences = new List<SceneAssetReference>(assetReferences.Length);
+            for (int index = 0; index < assetReferences.Length; index++) {
+                rewrittenAssetReferences.Add(RewriteSceneAssetReference(assetReferences[index], buildRootPath));
+            }
+
+            sceneAsset.AssetReferences = rewrittenAssetReferences.ToArray();
         }
 
         /// <summary>
@@ -276,6 +394,62 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Ensures one scene-level asset reference is exported into the packaged build root.
+        /// </summary>
+        /// <param name="reference">Scene-level asset reference to rewrite.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        SceneAssetReference RewriteSceneAssetReference(SceneAssetReference reference, string buildRootPath) {
+            if (reference == null) {
+                return null;
+            }
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
+                string fullPath = ResolveProjectAssetPath(reference.RelativePath);
+                string fullExtension = Path.GetExtension(fullPath);
+                if (AssetImportManager.IsModelExtension(fullExtension)) {
+                    if (!AssetImportManager.TryLoadModelAsset(fullPath, out ModelAsset modelAsset) || modelAsset == null) {
+                        throw new InvalidOperationException($"Model reference '{reference.RelativePath}' could not be imported into a packaged model asset.");
+                    }
+
+                    string importedModelRelativePath = BuildImportedModelRelativePath(reference.RelativePath);
+                    WriteAsset(Path.Combine(buildRootPath, importedModelRelativePath), modelAsset);
+                    return CreateFileSystemReference(importedModelRelativePath);
+                }
+
+                string copiedRelativePath = NormalizeRelativePath(reference.RelativePath);
+                CopyFile(fullPath, Path.Combine(buildRootPath, copiedRelativePath));
+                return CreateFileSystemReference(copiedRelativePath);
+            }
+
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                if (string.Equals(reference.ProviderId, EditorGeneratedProviderId, StringComparison.Ordinal) &&
+                    string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
+                    WriteFontAsset(Path.Combine(buildRootPath, EditorFontRelativePath), DefaultFontAsset);
+                    return CreateFileSystemReference(EditorFontRelativePath);
+                }
+
+                if (string.Equals(reference.ProviderId, EngineGeneratedProviderId, StringComparison.Ordinal) &&
+                    string.Equals(reference.AssetId, StandardGeneratedMaterialAssetId, StringComparison.Ordinal)) {
+                    EnsureGeneratedStandardMaterialAssets(buildRootPath);
+                    return CreateFileSystemReference(StandardGeneratedMaterialRelativePath);
+                }
+
+                if (string.Equals(reference.ProviderId, EngineGeneratedProviderId, StringComparison.Ordinal) &&
+                    (string.Equals(reference.AssetId, CubeGeneratedAssetId, StringComparison.Ordinal) ||
+                     string.Equals(reference.AssetId, PlaneGeneratedAssetId, StringComparison.Ordinal))) {
+                    return RewriteGeneratedModelReference(reference, buildRootPath);
+                }
+
+                throw new InvalidOperationException($"Unsupported generated scene asset reference '{reference.ProviderId}:{reference.AssetId}'.");
+            }
+
+            throw new InvalidOperationException($"Unsupported scene asset reference source kind '{reference.SourceKind}'.");
+        }
+
+        /// <summary>
         /// Rewrites one serialized component record into its packaged runtime form.
         /// </summary>
         /// <param name="record">Component record to rewrite.</param>
@@ -286,15 +460,125 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(record));
             }
 
-            if (string.Equals(record.ComponentTypeId, MeshComponentTypeId, StringComparison.Ordinal)) {
-                return RewriteMeshComponentRecord(record, buildRootPath);
+            PlatformComponentCompatibilityDefinition compatibility = GetComponentCompatibility(record.ComponentTypeId);
+            if (compatibility.CompatibilityKind == PlatformComponentCompatibilityKind.PassThrough) {
+                return record;
             }
 
-            if (string.Equals(record.ComponentTypeId, CameraComponentTypeId, StringComparison.Ordinal)) {
-                return RewriteCameraComponentRecord(record);
+            if (compatibility.CompatibilityKind == PlatformComponentCompatibilityKind.Transform) {
+                if (TransformService.TryTransform(record, buildRootPath, out SceneComponentAssetRecord transformedRecord)) {
+                    return transformedRecord;
+                }
+
+                throw new InvalidOperationException(BuildUnsupportedTransformMessage(record.ComponentTypeId));
             }
 
-            throw new InvalidOperationException($"Windows player packaging does not support serialized component type '{record.ComponentTypeId}' yet.");
+            throw new InvalidOperationException(BuildUnsupportedComponentMessage(record.ComponentTypeId, compatibility));
+        }
+
+        /// <summary>
+        /// Resolves the compatibility definition for one serialized component type id.
+        /// </summary>
+        /// <param name="componentTypeId">Serialized component type id.</param>
+        /// <returns>Matching compatibility definition.</returns>
+        PlatformComponentCompatibilityDefinition GetComponentCompatibility(string componentTypeId) {
+            if (string.IsNullOrWhiteSpace(componentTypeId)) {
+                throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
+            }
+
+            if (!ComponentCompatibilitiesByTypeId.TryGetValue(componentTypeId, out PlatformComponentCompatibilityDefinition compatibility)) {
+                throw new InvalidOperationException($"Platform '{PlatformId}' does not declare compatibility for component '{componentTypeId}'.");
+            }
+
+            return compatibility;
+        }
+
+        /// <summary>
+        /// Builds a lookup table from the builder-provided compatibility metadata.
+        /// </summary>
+        /// <param name="componentCompatibilities">Builder-provided compatibility entries.</param>
+        /// <returns>Case-insensitive compatibility lookup.</returns>
+        static Dictionary<string, PlatformComponentCompatibilityDefinition> BuildCompatibilityLookup(
+            IReadOnlyList<PlatformComponentCompatibilityDefinition> componentCompatibilities) {
+            Dictionary<string, PlatformComponentCompatibilityDefinition> lookup =
+                new Dictionary<string, PlatformComponentCompatibilityDefinition>(StringComparer.OrdinalIgnoreCase);
+            if (componentCompatibilities == null) {
+                throw new ArgumentNullException(nameof(componentCompatibilities));
+            }
+
+            for (int index = 0; index < componentCompatibilities.Count; index++) {
+                PlatformComponentCompatibilityDefinition compatibility = componentCompatibilities[index];
+                if (compatibility == null) {
+                    throw new InvalidOperationException("Platform compatibility metadata must not contain null entries.");
+                }
+                if (lookup.ContainsKey(compatibility.ComponentTypeId)) {
+                    throw new InvalidOperationException($"Platform compatibility metadata already contains an entry for '{compatibility.ComponentTypeId}'.");
+                }
+
+                lookup.Add(compatibility.ComponentTypeId, compatibility);
+            }
+
+            return lookup;
+        }
+
+        /// <summary>
+        /// Builds the built-in component compatibility defaults used by legacy constructor paths.
+        /// </summary>
+        /// <returns>Default shared component compatibility entries.</returns>
+        static PlatformComponentCompatibilityDefinition[] CreateDefaultComponentCompatibilities() {
+            return [
+                new PlatformComponentCompatibilityDefinition(
+                    MeshComponentTypeId,
+                    PlatformComponentCompatibilityKind.Transform,
+                    "Mesh components are normalized during packaging.",
+                    string.Empty),
+                new PlatformComponentCompatibilityDefinition(
+                    CameraComponentTypeId,
+                    PlatformComponentCompatibilityKind.Transform,
+                    "Camera components are normalized during packaging.",
+                    string.Empty),
+                new PlatformComponentCompatibilityDefinition(
+                    FPSComponentTypeId,
+                    PlatformComponentCompatibilityKind.Transform,
+                    "FPS overlay font references are rewritten during packaging.",
+                    string.Empty),
+                new PlatformComponentCompatibilityDefinition(
+                    TextComponentTypeId,
+                    PlatformComponentCompatibilityKind.Transform,
+                    "Text component font references are rewritten during packaging.",
+                    string.Empty)
+            ];
+        }
+
+        /// <summary>
+        /// Builds the diagnostic message used when a component is explicitly unsupported.
+        /// </summary>
+        /// <param name="componentTypeId">Serialized component type id.</param>
+        /// <param name="compatibility">Compatibility metadata supplied by the builder.</param>
+        /// <returns>Formatted diagnostic message.</returns>
+        static string BuildUnsupportedComponentMessage(string componentTypeId, PlatformComponentCompatibilityDefinition compatibility) {
+            if (compatibility == null) {
+                throw new ArgumentNullException(nameof(compatibility));
+            }
+
+            string message = string.IsNullOrWhiteSpace(compatibility.Reason)
+                ? $"Platform does not support serialized component type '{componentTypeId}'."
+                : compatibility.Reason;
+
+            if (!string.IsNullOrWhiteSpace(compatibility.Remediation)) {
+                message = string.Concat(message, " ", compatibility.Remediation);
+            }
+
+            return message;
+        }
+
+        /// <summary>
+        /// Builds the diagnostic message used when a transform was requested but not implemented.
+        /// </summary>
+        /// <param name="componentTypeId">Serialized component type id.</param>
+        /// <returns>Formatted diagnostic message.</returns>
+        static string BuildUnsupportedTransformMessage(string componentTypeId) {
+            return $"No shared packaging transform is available for component '{componentTypeId}'.";
         }
 
         /// <summary>
@@ -367,6 +651,85 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Rewrites one serialized FPS component record into its packaged runtime form.
+        /// </summary>
+        /// <param name="record">Serialized FPS component record to rewrite.</param>
+        /// <returns>Rewritten FPS component record.</returns>
+        SceneComponentAssetRecord RewriteFPSComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != FPSComponentPayloadVersion && version != 1) {
+                throw new InvalidOperationException($"Unsupported FPS component payload version '{version}'.");
+            }
+
+            SceneAssetReference fontReference = version >= 2 ? ReadOptionalReference(reader) : BuildEditorFontReference();
+            SceneAssetReference rewrittenFontReference = RewriteFontReference(fontReference, buildRootPath);
+            double refreshIntervalSeconds = BitConverter.Int64BitsToDouble(reader.ReadInt64());
+            int2 padding = reader.ReadInt2();
+            byte renderOrder2D = reader.ReadByte();
+
+            using MemoryStream writeStream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(FPSComponentPayloadVersion);
+            WriteOptionalReference(writer, rewrittenFontReference);
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(refreshIntervalSeconds));
+            writer.WriteInt2(padding);
+            writer.WriteByte(renderOrder2D);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = FPSComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = writeStream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Converts one font reference to its packaged runtime form.
+        /// </summary>
+        /// <param name="reference">Font reference to rewrite.</param>
+        /// <returns>Packaged runtime font reference.</returns>
+        SceneAssetReference RewriteFontReference(SceneAssetReference reference, string buildRootPath) {
+            if (reference == null) {
+                throw new InvalidOperationException("FPSComponent requires a font reference before packaging.");
+            }
+
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                if (string.Equals(reference.ProviderId, EditorGeneratedProviderId, StringComparison.Ordinal) &&
+                    string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
+                    WriteFontAsset(Path.Combine(buildRootPath, EditorFontRelativePath), DefaultFontAsset);
+                    return CreateFileSystemReference(EditorFontRelativePath);
+                }
+
+                throw new InvalidOperationException($"Unsupported generated font provider '{reference.ProviderId}:{reference.AssetId}'.");
+            }
+
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
+                string relativePath = NormalizeRelativePath(reference.RelativePath);
+                return CreateFileSystemReference(relativePath);
+            }
+
+            throw new InvalidOperationException($"Unsupported font reference source kind '{reference.SourceKind}'.");
+        }
+
+        /// <summary>
+        /// Builds the stable generated reference used for the editor's built-in font asset.
+        /// </summary>
+        /// <returns>Generated editor-font scene reference.</returns>
+        SceneAssetReference BuildEditorFontReference() {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "generated/editor/fonts/ui.hasset",
+                ProviderId = EditorGeneratedProviderId,
+                AssetId = EditorFontAssetId
+            };
+        }
+
+        /// <summary>
         /// Rewrites one serialized model reference into a packaged file-backed scene reference.
         /// </summary>
         /// <param name="reference">Serialized model reference to rewrite.</param>
@@ -422,13 +785,13 @@ namespace helengine.editor {
             }
 
             if (string.Equals(reference.AssetId, CubeGeneratedAssetId, StringComparison.Ordinal)) {
-                string relativePath = "generated/engine/models/cube.model.asset";
+                string relativePath = "cooked/engine/models/cube.hasset";
                 WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GenerateCubeMesh(float3.Zero, float3.One));
                 return CreateFileSystemReference(relativePath);
             }
 
             if (string.Equals(reference.AssetId, PlaneGeneratedAssetId, StringComparison.Ordinal)) {
-                string relativePath = "generated/engine/models/plane.model.asset";
+                string relativePath = "cooked/engine/models/plane.hasset";
                 WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One));
                 return CreateFileSystemReference(relativePath);
             }
@@ -531,6 +894,29 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Writes one packaged font asset to disk.
+        /// </summary>
+        /// <param name="fullPath">Absolute output path.</param>
+        /// <param name="fontAsset">Font asset to serialize.</param>
+        void WriteFontAsset(string fullPath, FontAsset fontAsset) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Output path must be provided.", nameof(fullPath));
+            }
+            if (fontAsset == null) {
+                throw new ArgumentNullException(nameof(fontAsset));
+            }
+
+            string directoryPath = Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException("Output directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            FontAssetBinarySerializer.Serialize(stream, fontAsset);
+        }
+
+        /// <summary>
         /// Resolves one project-relative asset path beneath the source `assets` folder.
         /// </summary>
         /// <param name="relativePath">Project-relative asset path.</param>
@@ -554,10 +940,16 @@ namespace helengine.editor {
         /// Builds one packaged scene relative path for an authored scene id.
         /// </summary>
         /// <param name="sceneId">Project-relative scene id.</param>
+        /// <param name="sceneIndex">Zero-based selection index used to reserve the canonical main-scene path.</param>
         /// <returns>Packaged scene relative path beneath the `scenes` folder.</returns>
-        string BuildPackagedSceneRelativePath(string sceneId) {
+        string BuildPackagedSceneRelativePath(string sceneId, int sceneIndex) {
+            if (sceneIndex == 0) {
+                return MainSceneRelativePath;
+            }
+
             string normalizedSceneId = NormalizeRelativePath(sceneId);
-            return NormalizeRelativePath(Path.Combine("scenes", normalizedSceneId));
+            string changedExtensionPath = Path.ChangeExtension(normalizedSceneId, ".hasset");
+            return NormalizeRelativePath(Path.Combine("scenes", changedExtensionPath));
         }
 
         /// <summary>
@@ -567,8 +959,8 @@ namespace helengine.editor {
         /// <returns>Packaged processed-model relative path.</returns>
         string BuildImportedModelRelativePath(string relativePath) {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
-            string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".model.asset");
-            return NormalizeRelativePath(Path.Combine("generated", "imported", changedExtensionPath));
+            string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hasset");
+            return NormalizeRelativePath(Path.Combine("cooked", "imported", changedExtensionPath));
         }
 
         /// <summary>

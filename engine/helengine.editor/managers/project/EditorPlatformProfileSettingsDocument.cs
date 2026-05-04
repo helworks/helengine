@@ -21,6 +21,11 @@ namespace helengine.editor {
         public EditorGraphicsProfileSettingsDocument Graphics { get; set; } = new EditorGraphicsProfileSettingsDocument();
 
         /// <summary>
+        /// Gets or sets the codegen-profile values used when regenerating source for this platform.
+        /// </summary>
+        public EditorCodegenProfileSettingsDocument Codegen { get; set; } = new EditorCodegenProfileSettingsDocument();
+
+        /// <summary>
         /// Gets or sets the cached builder metadata for the selected platform.
         /// </summary>
         [JsonIgnore]

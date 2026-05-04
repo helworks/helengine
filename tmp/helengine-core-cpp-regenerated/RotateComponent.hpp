@@ -21,6 +21,8 @@ class Entity;
 class RotateComponent : public UpdateComponent
 {
 public:
+    virtual ~RotateComponent() = default;
+
     void Update();
 
     uint8_t get_UpdateOrder();

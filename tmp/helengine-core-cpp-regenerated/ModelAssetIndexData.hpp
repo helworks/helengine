@@ -15,6 +15,8 @@ class ModelAsset;
 class ModelAssetIndexData
 {
 public:
+    virtual ~ModelAssetIndexData() = default;
+
     int32_t IndexCount;
 
     int32_t get_IndexCount();

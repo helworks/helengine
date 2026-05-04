@@ -20,16 +20,20 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/math.hpp"
 #include "system/number.hpp"
 #include "system/string_comparer.hpp"
 #include "system/text/encoding.hpp"
 #include "system/text/regular_expressions/regex.hpp"
+#include "system/text/string-builder.hpp"
 
 List<::ShaderDefine*>* ShaderCompileRequest::get_Defines()
 {
@@ -85,17 +89,17 @@ throw new ArgumentNullException("source");
     if (String::IsNullOrWhiteSpace(programName))
     {
 throw ([&]() {
-auto __ctor_arg_0138f715 = "Program name must be provided.";
-auto __ctor_arg_8e0e6ccd = "programName";
-return new ArgumentException(__ctor_arg_0138f715, __ctor_arg_8e0e6ccd);
+auto __ctor_arg_00000100 = "Program name must be provided.";
+auto __ctor_arg_00000101 = "programName";
+return new ArgumentException(__ctor_arg_00000100, __ctor_arg_00000101);
 })();
     }
     if (String::IsNullOrWhiteSpace(entryPoint))
     {
 throw ([&]() {
-auto __ctor_arg_18048b2a = "Entry point must be provided.";
-auto __ctor_arg_d71b55fd = "entryPoint";
-return new ArgumentException(__ctor_arg_18048b2a, __ctor_arg_d71b55fd);
+auto __ctor_arg_00000102 = "Entry point must be provided.";
+auto __ctor_arg_00000103 = "entryPoint";
+return new ArgumentException(__ctor_arg_00000102, __ctor_arg_00000103);
 })();
     }
     if (shaderModel == nullptr)
@@ -105,9 +109,9 @@ throw new ArgumentNullException("shaderModel");
     if (String::IsNullOrWhiteSpace(variant))
     {
 throw ([&]() {
-auto __ctor_arg_19df7053 = "Variant name must be provided.";
-auto __ctor_arg_23d0cf43 = "variant";
-return new ArgumentException(__ctor_arg_19df7053, __ctor_arg_23d0cf43);
+auto __ctor_arg_00000104 = "Variant name must be provided.";
+auto __ctor_arg_00000105 = "variant";
+return new ArgumentException(__ctor_arg_00000104, __ctor_arg_00000105);
 })();
     }
     if (defines == nullptr)

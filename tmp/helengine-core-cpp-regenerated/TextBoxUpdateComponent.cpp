@@ -3,9 +3,8 @@
 #endif
 #include "TextBoxUpdateComponent.hpp"
 #include "TextBoxComponent.hpp"
-#include "InputManager.hpp"
+#include "InputSystem.hpp"
 #include "Core.hpp"
-#include "int2.hpp"
 #include "runtime/array.hpp"
 #include "runtime/finally.hpp"
 #include "runtime/native_cast.hpp"
@@ -26,11 +25,14 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/directory.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -52,12 +54,13 @@ this->textBox->Update();
     if (!this->textBox->get_IsFocused())
     {
 return;    }
-::InputManager *input = Core::get_Instance()->get_InputManager();
+InputSystem *input = Core::get_Instance()->get_Input();
     if (!input->WasMouseLeftButtonPressed())
     {
 return;    }
-::int2 pointer = input->GetMousePosition();
-    if (!this->textBox->ContainsScreenPoint(pointer))
+const int32_t pointerX = input->GetMouseX();
+const int32_t pointerY = input->GetMouseY();
+    if (!this->textBox->ContainsScreenPoint(pointerX, pointerY))
     {
 this->textBox->set_IsFocused(false);
     }

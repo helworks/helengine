@@ -12,7 +12,6 @@
 #include "ThemeManager.hpp"
 #include "PointerInteraction.hpp"
 #include "float3.hpp"
-#include "int2.hpp"
 #include "runtime/array.hpp"
 #include "runtime/finally.hpp"
 #include "runtime/native_cast.hpp"
@@ -33,11 +32,13 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -57,11 +58,11 @@ void CheckBoxComponent::set_IsChecked(bool value)
 this->SetCheckedState(value, false);
 }
 
-::int2 CheckBoxComponent::get_Size()
+int2* CheckBoxComponent::get_Size()
 {
 return this->SizeValue;}
 
-void CheckBoxComponent::set_Size(::int2 value)
+void CheckBoxComponent::set_Size(int2* value)
 {
 this->SizeValue = value;
     if (this->Background != nullptr)
@@ -75,7 +76,7 @@ this->Interactable->set_Size(value);
 this->UpdateCheckMarkLayout();
 }
 
-CheckBoxComponent::CheckBoxComponent(::int2 size, ::FontAsset* font, bool isChecked) : CheckedChanged(), Background(), BackgroundRenderOrder(), CheckMark(), CheckMarkEntity(), CheckMarkRenderOrder(), Font(), HasRenderOrderOverrides(), Interactable(), IsCheckedValue(), IsHovering(), IsPressed(), SizeValue()
+CheckBoxComponent::CheckBoxComponent(int2* size, ::FontAsset* font, bool isChecked) : CheckedChanged(), Background(), BackgroundRenderOrder(), CheckMark(), CheckMarkEntity(), CheckMarkRenderOrder(), Font(), HasRenderOrderOverrides(), Interactable(), IsCheckedValue(), IsHovering(), IsPressed(), SizeValue()
 {
     if (font == nullptr)
     {
@@ -98,7 +99,7 @@ textOrder = this->CheckMarkRenderOrder;
     }
 this->Background = new ::RoundedRectComponent();
 this->Background->set_Size(this->SizeValue);
-this->Background->set_Radius(static_cast<float>((Math::Min(this->SizeValue.X, this->SizeValue.Y) * 0.15)));
+this->Background->set_Radius(static_cast<float>((Math::Min(this->SizeValue->X, this->SizeValue->Y) * 0.15)));
 this->Background->set_BorderThickness(2.0f);
 this->Background->set_RenderOrder2D(backgroundOrder);
 entity->AddComponent(this->Background);
@@ -172,7 +173,7 @@ void CheckBoxComponent::set_Parent(::Entity* value)
 this->Component::set_Parent(value);
 }
 
-void CheckBoxComponent::HandleCursorEvent(::int2 relPos, ::int2 delta, ::PointerInteraction state)
+void CheckBoxComponent::HandleCursorEvent(int2* relPos, int2* delta, ::PointerInteraction state)
 {
 switch (state) {
 case PointerInteraction::Hover: {
@@ -234,9 +235,9 @@ void CheckBoxComponent::UpdateCheckMarkLayout()
 return;    }
 this->CheckMarkEntity->set_Position(::float3(0.0f, 0.0f, 0.1f));
 this->CheckMark->set_Size(([&]() {
-auto __ctor_arg_0f3dba85 = 1;
-auto __ctor_arg_17532482 = Math::Max(1, static_cast<int32_t>(Math::Ceiling(Math::Max(static_cast<double>(this->Font->get_LineHeight()), 1.0))));
-return ::int2(__ctor_arg_0f3dba85, __ctor_arg_17532482);
+auto __ctor_arg_0000017B = 1;
+auto __ctor_arg_0000017C = Math::Max(1, static_cast<int32_t>(Math::Ceiling(Math::Max(static_cast<double>(this->Font->get_LineHeight()), 1.0))));
+return new int2(__ctor_arg_0000017B, __ctor_arg_0000017C);
 })());
 }
 

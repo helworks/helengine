@@ -53,9 +53,24 @@ namespace helengine.editor {
         readonly AvailablePlatformDescriptor PlatformDescriptor;
 
         /// <summary>
+        /// Default font asset packaged for player builds.
+        /// </summary>
+        readonly FontAsset DefaultFontAsset;
+
+        /// <summary>
         /// Loads platform builders from their resolved assembly path.
         /// </summary>
         readonly EditorPlatformAssetBuilderLoader BuilderLoader;
+
+        /// <summary>
+        /// Regenerates shared generated-core output before the native builder runs.
+        /// </summary>
+        readonly EditorGeneratedCoreRegenerationService GeneratedCoreRegenerationService;
+
+        /// <summary>
+        /// Executes the shared platform build graph for this platform.
+        /// </summary>
+        readonly EditorPlatformBuildGraphRunner BuildGraphRunner;
 
         /// <summary>
         /// Initializes one platform build executor for the supplied platform descriptor.
@@ -72,7 +87,9 @@ namespace helengine.editor {
             string projectId,
             string projectVersion,
             IReadOnlyList<IAssetImporterRegistration> importers,
-            AvailablePlatformDescriptor platformDescriptor) {
+            AvailablePlatformDescriptor platformDescriptor,
+            FontAsset defaultFontAsset = null,
+            EditorPlatformBuildGraphRunner buildGraphRunner = null) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -94,6 +111,9 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(platformDescriptor.BuilderAssemblyPath)) {
                 throw new ArgumentException("Platform descriptor must provide a builder assembly path.", nameof(platformDescriptor));
             }
+            if (string.IsNullOrWhiteSpace(platformDescriptor.CodegenToolPath)) {
+                throw new ArgumentException("Platform descriptor must provide a csharpcodegen tool path.", nameof(platformDescriptor));
+            }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             RequiredEngineVersion = requiredEngineVersion;
@@ -101,7 +121,19 @@ namespace helengine.editor {
             ProjectVersion = projectVersion;
             Importers = importers;
             PlatformDescriptor = platformDescriptor;
+            DefaultFontAsset = defaultFontAsset;
             BuilderLoader = new EditorPlatformAssetBuilderLoader();
+            GeneratedCoreRegenerationService = new EditorGeneratedCoreRegenerationService();
+            BuildGraphRunner = buildGraphRunner ?? new EditorPlatformBuildGraphRunner(
+                ProjectRootPath,
+                RequiredEngineVersion,
+                ProjectId,
+                ProjectVersion,
+                Importers,
+                PlatformDescriptor,
+                DefaultFontAsset,
+                BuilderLoader,
+                GeneratedCoreRegenerationService);
         }
 
         /// <summary>
@@ -116,32 +148,7 @@ namespace helengine.editor {
 
             try {
                 ValidateQueueItem(queueItem);
-
-                IPlatformAssetBuilder builder = BuilderLoader.Load(PlatformDescriptor.BuilderAssemblyPath);
-                string executionRoot = Path.Combine(Path.GetTempPath(), "helengine-platform-build", PlatformDescriptor.Id, queueItem.QueueItemId);
-                string stagingRoot = Path.Combine(executionRoot, StagingRootFolderName);
-                string builderWorkingRoot = Path.Combine(executionRoot, BuilderWorkingFolderName);
-                ResetExecutionDirectories(executionRoot, stagingRoot, builderWorkingRoot, queueItem.OutputDirectoryPath);
-
-                EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, Importers, PlatformDescriptor.Id);
-                packager.Package(queueItem.SelectedSceneIds, stagingRoot);
-
-                PlatformBuildRequest request = BuildRequest(queueItem, stagingRoot, builderWorkingRoot, builder.Definition);
-                EditorPlatformBuildProgressReporter progressReporter = new();
-                EditorPlatformBuildDiagnosticCollector diagnosticCollector = new();
-
-                string previousWorkingDirectory = Directory.GetCurrentDirectory();
-                try {
-                    Directory.SetCurrentDirectory(stagingRoot);
-                    PlatformBuildReport report = builder.BuildAsync(request, progressReporter, diagnosticCollector, CancellationToken.None).GetAwaiter().GetResult();
-                    if (!report.Succeeded) {
-                        return EditorBuildExecutionResult.Failure(BuildFailureMessage(report));
-                    }
-
-                    return EditorBuildExecutionResult.Success($"Build completed for platform '{PlatformDescriptor.Id}': {queueItem.OutputDirectoryPath}");
-                } finally {
-                    Directory.SetCurrentDirectory(previousWorkingDirectory);
-                }
+                return BuildGraphRunner.Execute(queueItem);
             } catch (Exception ex) {
                 return EditorBuildExecutionResult.Failure($"Build for platform '{PlatformDescriptor.Id}' failed: {ex.Message}");
             }
@@ -205,6 +212,7 @@ namespace helengine.editor {
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(builderDefinition);
             string selectedBuildProfileId = ResolveSelectedBuildProfileId(queueItem, selectionModel);
             string selectedGraphicsProfileId = ResolveSelectedGraphicsProfileId(queueItem, selectedBuildProfileId, selectionModel);
+            string selectedCodegenProfileId = ResolveSelectedCodegenProfileId(queueItem, selectedBuildProfileId, selectionModel);
 
             PlatformBuildScene[] scenes = new PlatformBuildScene[queueItem.SelectedSceneIds.Count];
             for (int index = 0; index < queueItem.SelectedSceneIds.Count; index++) {
@@ -256,8 +264,13 @@ namespace helengine.editor {
                 builderWorkingRoot,
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
+                selectedCodegenProfileId,
                 queueItem.SelectedBuildOptionValues,
-                queueItem.SelectedGraphicsOptionValues);
+                queueItem.SelectedGraphicsOptionValues,
+                queueItem.SelectedCodegenOptionValues,
+                PlatformDescriptor.GeneratedCoreCppRootPath,
+                queueItem.SelectedMediaProfileId,
+                queueItem.SelectedStorageProfileId);
         }
 
         /// <summary>
@@ -334,6 +347,44 @@ namespace helengine.editor {
             PlatformGraphicsProfileDefinition defaultGraphicsProfile = selectionModel.ResolveGraphicsProfile(string.Empty);
             if (defaultGraphicsProfile != null) {
                 return defaultGraphicsProfile.ProfileId;
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Chooses one codegen profile id from the builder metadata.
+        /// </summary>
+        /// <param name="queueItem">Queued build item containing the requested metadata snapshot.</param>
+        /// <param name="selectedBuildProfileId">Build profile id chosen for this queue item.</param>
+        /// <param name="selectionModel">Typed builder metadata exposed by the loaded platform.</param>
+        /// <returns>Selected codegen profile id.</returns>
+        static string ResolveSelectedCodegenProfileId(
+            EditorBuildQueueItemDocument queueItem,
+            string selectedBuildProfileId,
+            EditorPlatformBuildSelectionModel selectionModel) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+            if (selectionModel == null) {
+                throw new ArgumentNullException(nameof(selectionModel));
+            }
+
+            PlatformBuildProfileDefinition resolvedBuildProfile = selectionModel.ResolveBuildProfile(selectedBuildProfileId);
+            if (resolvedBuildProfile != null && !string.IsNullOrWhiteSpace(resolvedBuildProfile.CodegenProfileId)) {
+                return resolvedBuildProfile.CodegenProfileId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedCodegenProfileId)) {
+                PlatformCodegenProfileDefinition selectedCodegenProfile = selectionModel.ResolveCodegenProfile(queueItem.SelectedCodegenProfileId);
+                if (selectedCodegenProfile != null) {
+                    return selectedCodegenProfile.ProfileId;
+                }
+            }
+
+            PlatformCodegenProfileDefinition defaultCodegenProfile = selectionModel.ResolveCodegenProfile(string.Empty);
+            if (defaultCodegenProfile != null) {
+                return defaultCodegenProfile.ProfileId;
             }
 
             return string.Empty;

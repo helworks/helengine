@@ -13,7 +13,7 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Input manager used to simulate pointer interaction during the test.
         /// </summary>
-        readonly TestInputManager Input;
+        readonly TestInputBackend Input;
         /// <summary>
         /// Tracks how many times the current menu item action has been invoked.
         /// </summary>
@@ -29,7 +29,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-            Input = new TestInputManager();
+            Input = new TestInputBackend();
             core.Initialize(null, new TestRenderManager2D(), Input);
 
             CreateUiCamera(320, 240, 0b0000000000000010);
@@ -102,7 +102,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Advances the input manager by one frame using the supplied mouse state.
+        /// Advances the input system by one frame using the supplied mouse state.
         /// </summary>
         /// <param name="mouseState">Mouse state to expose for the next frame.</param>
         void AdvanceInput(MouseState mouseState) {
@@ -172,3 +172,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

@@ -8,6 +8,8 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
 		<EnableWindowsFormsHighDpiAutoResizing>false</EnableWindowsFormsHighDpiAutoResizing>
+		<AddSyntheticProjectReferencesForSolutionDependencies>false</AddSyntheticProjectReferencesForSolutionDependencies>
+		<RestoreBuildInParallel>false</RestoreBuildInParallel>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -41,11 +43,16 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\engine\helengine.core.windows\helengine.core.windows.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.baseplatform\helengine.baseplatform.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.core\helengine.core.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.files\helengine.files.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.input\helengine.input.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.editor.fbximporter\helengine.editor.assimp.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.editor.windows\helengine.editor.windows.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.editor\helengine.editor.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.directx11\helengine.directx11.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.platforms\helengine.platforms.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\..\engine\helengine.projectfile\helengine.projectfile.csproj" SkipGetTargetFrameworkProperties="true" />
 		<ProjectReference Include="..\..\engine\helengine.vulkan\helengine.vulkan.csproj" SkipGetTargetFrameworkProperties="true" />
 	</ItemGroup>
 

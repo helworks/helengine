@@ -27,6 +27,8 @@ class ShaderConstantMember;
 class ShaderBindingAsset
 {
 public:
+    virtual ~ShaderBindingAsset() = default;
+
     ShaderBindingAsset();
 
     Array<::ShaderConstantMemberAsset*>* Members;

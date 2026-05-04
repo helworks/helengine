@@ -2,11 +2,14 @@
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
+    <Using Include="Xunit" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="xunit" Version="2.9.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
@@ -15,8 +18,40 @@
 
   <ItemGroup>
     <ProjectReference Include="..\helengine.editor.fbximporter\helengine.editor.assimp.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.input\helengine.input.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.editor\helengine.editor.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.files\helengine.files.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.platforms\helengine.platforms.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.projectfile\helengine.projectfile.csproj" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
+
+  <Target Name="CopyHelengineRuntimeAssemblies" AfterTargets="Build">
+    <ItemGroup>
+      <HelengineRuntimeAssembly Include="..\helengine.baseplatform\bin\$(Configuration)\net9.0\helengine.baseplatform.dll" />
+      <HelengineRuntimeAssembly Include="..\helengine.baseplatform\bin\$(Configuration)\net9.0\helengine.baseplatform.pdb" />
+      <HelengineRuntimeAssembly Include="..\helengine.core\bin\$(Configuration)\net9.0\helengine.core.dll" />
+      <HelengineRuntimeAssembly Include="..\helengine.core\bin\$(Configuration)\net9.0\helengine.core.pdb" />
+      <HelengineRuntimeAssembly Include="..\helengine.directx11\bin\$(Configuration)\net9.0\helengine.directx11.dll" />
+      <HelengineRuntimeAssembly Include="..\helengine.directx11\bin\$(Configuration)\net9.0\helengine.directx11.pdb" />
+      <HelengineRuntimeAssembly Include="..\helengine.editor\bin\$(Configuration)\net9.0\helengine.editor.dll" />
+      <HelengineRuntimeAssembly Include="..\helengine.editor\bin\$(Configuration)\net9.0\helengine.editor.pdb" />
+      <HelengineRuntimeAssembly Include="..\helengine.editor.fbximporter\bin\$(Configuration)\net9.0\helengine.editor.assimp.dll" />
+      <HelengineRuntimeAssembly Include="..\helengine.editor.fbximporter\bin\$(Configuration)\net9.0\helengine.editor.assimp.pdb" />
+      <HelengineRuntimeAssembly Include="..\helengine.files\bin\$(Configuration)\net9.0\helengine.files.dll" />
+      <HelengineRuntimeAssembly Include="..\helengine.files\bin\$(Configuration)\net9.0\helengine.files.pdb" />
+      <HelengineRuntimeAssembly Include="..\helengine.input\bin\$(Configuration)\net9.0\helengine.input.dll" />
+      <HelengineRuntimeAssembly Include="..\helengine.input\bin\$(Configuration)\net9.0\helengine.input.pdb" />
+      <HelengineRuntimeAssembly Include="..\helengine.platforms\bin\$(Configuration)\net9.0\helengine.platforms.dll" />
+      <HelengineRuntimeAssembly Include="..\helengine.platforms\bin\$(Configuration)\net9.0\helengine.platforms.pdb" />
+      <HelengineRuntimeAssembly Include="..\helengine.projectfile\bin\$(Configuration)\net9.0\helengine.projectfile.dll" />
+      <HelengineRuntimeAssembly Include="..\helengine.projectfile\bin\$(Configuration)\net9.0\helengine.projectfile.pdb" />
+      <HelengineRuntimeAssembly Include="..\helengine.vulkan\bin\$(Configuration)\net9.0\helengine.vulkan.dll" />
+      <HelengineRuntimeAssembly Include="..\helengine.vulkan\bin\$(Configuration)\net9.0\helengine.vulkan.pdb" />
+    </ItemGroup>
+
+    <Copy
+      SourceFiles="@(HelengineRuntimeAssembly)"
+      DestinationFolder="$(OutDir)"
+      Condition="Exists('%(HelengineRuntimeAssembly.Identity)')" />
+  </Target>
 </Project>

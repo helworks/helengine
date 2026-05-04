@@ -27,6 +27,8 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/directory.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
@@ -57,12 +59,12 @@ void InteractableComponent::set_HoverCursor(::PointerCursorKind value)
 this->HoverCursor = value;
 }
 
-::int2 InteractableComponent::get_Size()
+int2* InteractableComponent::get_Size()
 {
 return this->Size;
 }
 
-void InteractableComponent::set_Size(::int2 value)
+void InteractableComponent::set_Size(int2* value)
 {
 this->Size = value;
 }
@@ -76,7 +78,7 @@ Core::get_Instance()->get_ObjectManager()->RegisterInteractable(this);
     }
 }
 
-void InteractableComponent::OnCursor(::int2 relPos, ::int2 delta, ::PointerInteraction state)
+void InteractableComponent::OnCursor(int2* relPos, int2* delta, ::PointerInteraction state)
 {
 this->CursorEvent.Invoke(relPos, delta, state);
 }

@@ -342,7 +342,7 @@ namespace helengine {
             }
 
             // Handle keyboard input
-            var inputManager = Core.Instance.InputManager;
+            var inputManager = Core.Instance.Input;
             bool isShiftPressed = inputManager.IsKeyDown(Keys.LeftShift) || inputManager.IsKeyDown(Keys.RightShift);
             
             // Process newly pressed keys
@@ -560,7 +560,8 @@ namespace helengine {
                 return Math.Max((double)Font.FontInfo.SpaceWidth, 1.0);
             }
 
-            if (Font.Characters != null && Font.Characters.TryGetValue(character, out FontChar glyph)) {
+            FontChar glyph;
+            if (Font.Characters != null && Font.Characters.TryGetValue(character, out glyph)) {
                 if (glyph.AdvanceWidth > 0f) {
                     return glyph.AdvanceWidth;
                 }
@@ -620,18 +621,19 @@ namespace helengine {
         /// <summary>
         /// Returns true when the provided screen point lies inside the text box bounds.
         /// </summary>
-        /// <param name="point">Pointer position in window coordinates.</param>
+        /// <param name="x">Pointer X coordinate in window coordinates.</param>
+        /// <param name="y">Pointer Y coordinate in window coordinates.</param>
         /// <returns>True when the point is inside the text box.</returns>
-        public bool ContainsScreenPoint(int2 point) {
+        public bool ContainsScreenPoint(int x, int y) {
             if (Parent == null) {
                 return false;
             }
 
             float3 worldPosition = Parent.Position;
-            return point.X >= worldPosition.X &&
-                   point.X < worldPosition.X + size.X &&
-                   point.Y >= worldPosition.Y &&
-                   point.Y < worldPosition.Y + size.Y;
+            return x >= worldPosition.X &&
+                   x < worldPosition.X + size.X &&
+                   y >= worldPosition.Y &&
+                   y < worldPosition.Y + size.Y;
         }
 
         /// <summary>
@@ -813,15 +815,18 @@ namespace helengine {
                 return;
             }
 
-            InputManager input = Core.Instance.InputManager;
+            InputSystem input = Core.Instance.Input;
             if (!input.WasMouseLeftButtonPressed()) {
                 return;
             }
 
-            int2 pointer = input.GetMousePosition();
-            if (!textBox.ContainsScreenPoint(pointer)) {
+            int pointerX = input.GetMouseX();
+            int pointerY = input.GetMouseY();
+            if (!textBox.ContainsScreenPoint(pointerX, pointerY)) {
                 textBox.IsFocused = false;
             }
         }
     }
 }
+
+

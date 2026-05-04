@@ -11,6 +11,8 @@ class ThemeColors;
 class ThemePalette
 {
 public:
+    virtual ~ThemePalette() = default;
+
     ::ThemeColors* Colors;
 
     ::ThemeColors* get_Colors();

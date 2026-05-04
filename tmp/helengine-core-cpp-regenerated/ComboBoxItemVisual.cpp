@@ -7,7 +7,6 @@
 #include "InteractableComponent.hpp"
 #include "TextComponent.hpp"
 #include "runtime/array.hpp"
-#include "runtime/finally.hpp"
 #include "runtime/native_dictionary.hpp"
 #include "runtime/native_disposable.hpp"
 #include "runtime/native_enum.hpp"
@@ -22,7 +21,6 @@
 #include "system/bit_converter.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/stream.hpp"
-#include "system/math.hpp"
 #include "system/text/encoding.hpp"
 
 ::RoundedRectComponent* ComboBoxItemVisual::get_Background()
@@ -109,7 +107,7 @@ this->Label->set_RenderOrder2D(textOrder);
 this->LabelHost->AddComponent(this->Label);
 }
 
-void ComboBoxItemVisual::HandleCursorEvent(::int2 relPos, ::int2 delta, ::PointerInteraction state)
+void ComboBoxItemVisual::HandleCursorEvent(int2* relPos, int2* delta, ::PointerInteraction state)
 {
     if (true)
     {

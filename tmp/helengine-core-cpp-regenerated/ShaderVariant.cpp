@@ -21,11 +21,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -50,9 +52,9 @@ ShaderVariant::ShaderVariant(std::string name, Array<std::string>* defines) : Na
     if (String::IsNullOrWhiteSpace(name))
     {
 throw ([&]() {
-auto __ctor_arg_e8a3ed76 = "Variant name must be provided.";
-auto __ctor_arg_1c81841a = "name";
-return new ArgumentException(__ctor_arg_e8a3ed76, __ctor_arg_1c81841a);
+auto __ctor_arg_0000016D = "Variant name must be provided.";
+auto __ctor_arg_0000016E = "name";
+return new ArgumentException(__ctor_arg_0000016D, __ctor_arg_0000016E);
 })();
     }
     if (defines == nullptr)

@@ -9,6 +9,8 @@
 class int2
 {
 public:
+    virtual ~int2() = default;
+
     int2();
 
     static ::int2 Zero;

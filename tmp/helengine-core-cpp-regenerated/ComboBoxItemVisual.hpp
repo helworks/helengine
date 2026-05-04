@@ -9,7 +9,6 @@ class InteractableComponent;
 class TextComponent;
 class Entity;
 class FontAsset;
-class int2;
 
 #include "RoundedRectComponent.hpp"
 #include "runtime/native_event.hpp"
@@ -23,6 +22,8 @@ class int2;
 class ComboBoxItemVisual
 {
 public:
+    virtual ~ComboBoxItemVisual() = default;
+
     ::RoundedRectComponent* Background;
 
     ::RoundedRectComponent* get_Background();
@@ -62,5 +63,5 @@ public:
 
     ComboBoxItemVisual(::FontAsset* font, uint16_t layerMask, uint8_t backgroundOrder, uint8_t textOrder);
 private:
-    void HandleCursorEvent(::int2 relPos, ::int2 delta, ::PointerInteraction state);
+    void HandleCursorEvent(int2* relPos, int2* delta, ::PointerInteraction state);
 };

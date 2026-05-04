@@ -23,6 +23,8 @@ template <typename TAsset>
 class AssetContentProcessor_1 : public IContentProcessor_1<TAsset>
 {
 public:
+    virtual ~AssetContentProcessor_1() = default;
+
     Type* get_OutputType();
 
     TAsset Read(::Stream* stream);

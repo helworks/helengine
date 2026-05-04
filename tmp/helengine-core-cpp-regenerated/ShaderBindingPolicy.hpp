@@ -10,6 +10,8 @@
 class ShaderBindingPolicy
 {
 public:
+    virtual ~ShaderBindingPolicy() = default;
+
     int32_t ConstantBufferShift;
 
     int32_t get_ConstantBufferShift();

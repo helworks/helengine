@@ -15,6 +15,8 @@ class ShaderVertexElement;
 class ShaderVertexElementAsset
 {
 public:
+    virtual ~ShaderVertexElementAsset() = default;
+
     ShaderVertexElementAsset();
 
     std::string Format;

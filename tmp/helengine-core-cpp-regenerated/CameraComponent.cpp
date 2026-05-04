@@ -33,6 +33,8 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/directory.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
@@ -132,13 +134,13 @@ CameraComponent::CameraComponent() : ClearSettings(), RenderTarget(), Viewport()
 this->set_LayerMask(0b11111111);
 this->set_Viewport(::float4(0, 0, 1, 1));
 this->set_ClearSettings(([&]() {
-auto __ctor_arg_37b34d70 = true;
-auto __ctor_arg_fb3b46ec = ::float4(0.0f, 0.0f, 0.0f, 0.0f);
-auto __ctor_arg_3546587c = true;
-auto __ctor_arg_fc1a16cd = 1.0f;
-auto __ctor_arg_1b2ec795 = false;
-auto __ctor_arg_7d067aed = 0;
-return ::CameraClearSettings(__ctor_arg_37b34d70, __ctor_arg_fb3b46ec, __ctor_arg_3546587c, __ctor_arg_fc1a16cd, __ctor_arg_1b2ec795, __ctor_arg_7d067aed);
+auto __ctor_arg_000001AC = true;
+auto __ctor_arg_000001AD = ::float4(0.0f, 0.0f, 0.0f, 0.0f);
+auto __ctor_arg_000001AE = true;
+auto __ctor_arg_000001AF = 1.0f;
+auto __ctor_arg_000001B0 = false;
+auto __ctor_arg_000001B1 = 0;
+return ::CameraClearSettings(__ctor_arg_000001AC, __ctor_arg_000001AD, __ctor_arg_000001AE, __ctor_arg_000001AF, __ctor_arg_000001B0, __ctor_arg_000001B1);
 })());
 this->InitializeLists();
 }

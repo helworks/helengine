@@ -21,6 +21,8 @@ class ShaderModel;
 class ShaderPlatformDefines
 {
 public:
+    virtual ~ShaderPlatformDefines() = default;
+
     static Array<::ShaderDefine*>* BuildDefines(::ShaderCompileTarget target, ::ShaderModel* shaderModel, List<::ShaderDefine*>* additionalDefines);
 private:
     static void AddTargetDefine(::ShaderCompileTarget target, List<::ShaderDefine*>* defines);

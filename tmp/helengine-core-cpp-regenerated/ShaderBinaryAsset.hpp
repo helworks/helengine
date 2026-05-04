@@ -17,6 +17,8 @@ class ShaderProgramBinary;
 class ShaderBinaryAsset
 {
 public:
+    virtual ~ShaderBinaryAsset() = default;
+
     ShaderBinaryAsset();
 
     Array<uint8_t>* Bytecode;

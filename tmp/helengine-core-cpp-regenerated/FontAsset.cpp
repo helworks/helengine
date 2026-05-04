@@ -26,11 +26,13 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -91,6 +93,16 @@ void FontAsset::set_LineHeight(float value)
 this->LineHeight = value;
 }
 
+::TextureAsset* FontAsset::get_SourceTextureAsset()
+{
+return this->SourceTextureAsset;
+}
+
+void FontAsset::set_SourceTextureAsset(::TextureAsset* value)
+{
+this->SourceTextureAsset = value;
+}
+
 ::RuntimeTexture* FontAsset::get_Texture()
 {
 return this->Texture;
@@ -105,7 +117,7 @@ void FontAsset::Dispose()
 {
 }
 
-FontAsset::FontAsset(::FontInfo* fontInfo, ::RuntimeTexture* tex, Dictionary<char, ::FontChar>* chars, float lineHeight, int32_t atlasWidth, int32_t atlasHeight) : AtlasHeight(0), AtlasWidth(0), Characters(), FontInfo(), LineHeight(), Texture()
+FontAsset::FontAsset(::FontInfo* fontInfo, ::RuntimeTexture* tex, Dictionary<char, ::FontChar>* chars, float lineHeight, int32_t atlasWidth, int32_t atlasHeight) : AtlasHeight(0), AtlasWidth(0), Characters(), FontInfo(), LineHeight(), SourceTextureAsset(), Texture()
 {
 this->set_LineHeight(lineHeight);
 this->set_FontInfo(fontInfo);

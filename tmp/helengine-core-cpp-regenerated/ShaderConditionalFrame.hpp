@@ -7,6 +7,8 @@
 class ShaderConditionalFrame
 {
 public:
+    virtual ~ShaderConditionalFrame() = default;
+
     bool BranchMatched;
 
     bool get_BranchMatched();

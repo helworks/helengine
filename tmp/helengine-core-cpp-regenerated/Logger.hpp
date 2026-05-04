@@ -19,6 +19,8 @@ class LogEntry;
 class Logger
 {
 public:
+    virtual ~Logger() = default;
+
     static ::Event ErrorLogged;
 
     static ::Event MessageLogged;

@@ -62,6 +62,33 @@ public:
 };
 
 /// <summary>
+/// Provides a stable group-access proxy that supports both value-style and pointer-style member access in generated code.
+/// </summary>
+class GroupAccessor {
+    const Group* group;
+
+public:
+    std::string Value;
+
+    /// <summary>
+    /// Initializes the proxy from one resolved group instance.
+    /// </summary>
+    /// <param name="sourceGroup">Resolved group instance backing the proxy.</param>
+    explicit GroupAccessor(const Group* sourceGroup)
+        : group(sourceGroup)
+        , Value(sourceGroup != nullptr ? sourceGroup->Value : std::string()) {
+    }
+
+    /// <summary>
+    /// Exposes pointer-style access for generated code that uses <c>-></c>.
+    /// </summary>
+    /// <returns>The resolved backing group.</returns>
+    const Group* operator->() const {
+        return group;
+    }
+};
+
+/// <summary>
 /// Provides named lookup for captured regex groups.
 /// </summary>
 class GroupCollection {
@@ -89,14 +116,14 @@ public:
     /// Resolves one named group capture.
     /// </summary>
     /// <param name="name">Group name to resolve.</param>
-    /// <returns>A stable reference to the matching group when present; otherwise, the shared empty group.</returns>
-    const Group& operator[](const std::string& name) const {
+    /// <returns>A stable access proxy for the matching group when present; otherwise, the shared empty group.</returns>
+    GroupAccessor operator[](const std::string& name) const {
         std::unordered_map<std::string, Group>::const_iterator iterator = groups.find(name);
         if (iterator == groups.end()) {
-            return emptyGroup;
+            return GroupAccessor(&emptyGroup);
         }
 
-        return iterator->second;
+        return GroupAccessor(&iterator->second);
     }
 };
 

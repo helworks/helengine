@@ -23,9 +23,9 @@ namespace helengine.editor.tests {
         /// </summary>
         readonly string AssetsRootPath;
         /// <summary>
-        /// Configurable input manager used by input-driven picker tests.
+        /// Configurable input system used by input-driven picker tests.
         /// </summary>
-        readonly TestInputManager Input;
+        readonly TestInputBackend Input;
 
         /// <summary>
         /// Initializes isolated editor services required by the model-selection tests.
@@ -38,7 +38,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
-            Input = new TestInputManager();
+            Input = new TestInputBackend();
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input);
         }
 
@@ -161,9 +161,9 @@ namespace helengine.editor.tests {
 
                 AdvanceInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
                 AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
-                Assert.Same(row.Interactable, Input.Hovering);
+                Assert.Same(row.Interactable, Core.Instance.PointerInteractionSystem.Hovering);
                 AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
-                Assert.Same(row.Interactable, Input.Highlighted);
+                Assert.Same(row.Interactable, Core.Instance.PointerInteractionSystem.Highlighted);
                 AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
 
                 Assert.False(modal.IsVisible);
@@ -275,7 +275,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Clicks one visible asset-browser row through the input manager using its display label.
+        /// Clicks one visible asset-browser row through the input system using its display label.
         /// </summary>
         /// <param name="modal">Modal whose browser row should be clicked.</param>
         /// <param name="label">Visible row label to activate.</param>
@@ -291,9 +291,9 @@ namespace helengine.editor.tests {
             int2 rowPointer = GetRowPointer(row);
 
             AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
-            Assert.Same(row.Interactable, Input.Hovering);
+            Assert.Same(row.Interactable, Core.Instance.PointerInteractionSystem.Hovering);
             AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
-            Assert.Same(row.Interactable, Input.Highlighted);
+            Assert.Same(row.Interactable, Core.Instance.PointerInteractionSystem.Highlighted);
             AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
         }
 
@@ -672,3 +672,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

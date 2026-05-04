@@ -9,6 +9,8 @@
 class AnchorData
 {
 public:
+    virtual ~AnchorData() = default;
+
     AnchorData();
 
     Nullable<float> BottomDistance;

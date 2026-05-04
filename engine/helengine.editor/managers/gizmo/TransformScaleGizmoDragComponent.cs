@@ -92,7 +92,7 @@ namespace helengine.editor {
                 return;
             }
 
-            InputManager input = Core.Instance.InputManager;
+            InputSystem input = Core.Instance.Input;
             if (IsDragging) {
                 UpdateActiveDrag(input);
                 if (IsDragging) {
@@ -120,7 +120,7 @@ namespace helengine.editor {
         /// Attempts to begin a drag from the current pointer and hover state.
         /// </summary>
         /// <param name="input">Input manager used to query pointer and button state.</param>
-        void TryBeginDrag(InputManager input) {
+        void TryBeginDrag(InputSystem input) {
             if (input == null) {
                 throw new ArgumentNullException(nameof(input));
             }
@@ -193,7 +193,7 @@ namespace helengine.editor {
         /// Updates the active drag and applies the scaled size to the selected entity.
         /// </summary>
         /// <param name="input">Input manager used to query pointer and button state.</param>
-        void UpdateActiveDrag(InputManager input) {
+        void UpdateActiveDrag(InputSystem input) {
             if (input == null) {
                 throw new ArgumentNullException(nameof(input));
             }
@@ -486,7 +486,7 @@ namespace helengine.editor {
         /// <param name="deltaParameter">Signed drag delta along the active axis.</param>
         /// <param name="input">Input manager used to read snap modifiers.</param>
         /// <returns>Resolved scale vector for the selected entity.</returns>
-        float3 ResolveAxisDragScale(double deltaParameter, InputManager input) {
+        float3 ResolveAxisDragScale(double deltaParameter, InputSystem input) {
             double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Scale);
             if (activeSnapValue <= 0.0) {
                 return TransformScaleGizmoScaleResolver.ResolveAxisScale(
@@ -510,7 +510,7 @@ namespace helengine.editor {
         /// <param name="planeDelta">World-space pointer delta measured on the drag plane.</param>
         /// <param name="input">Input manager used to read snap modifiers.</param>
         /// <returns>Resolved scale vector for the selected entity.</returns>
-        float3 ResolvePlaneDragScale(float3 planeDelta, InputManager input) {
+        float3 ResolvePlaneDragScale(float3 planeDelta, InputSystem input) {
             double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Scale);
             if (activeSnapValue <= 0.0) {
                 return TransformScaleGizmoScaleResolver.ResolvePlaneScale(
@@ -561,3 +561,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

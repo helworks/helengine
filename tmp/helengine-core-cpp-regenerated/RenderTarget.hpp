@@ -11,6 +11,8 @@ class RuntimeTexture;
 class RenderTarget : public RuntimeTexture
 {
 public:
+    virtual ~RenderTarget() = default;
+
     int32_t get_Height();
 
     void set_Height(int32_t value);

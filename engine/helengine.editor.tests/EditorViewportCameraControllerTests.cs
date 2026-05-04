@@ -20,7 +20,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenWheelScrollsUpInsideViewport_MovesCameraForward() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
             controller.WheelZoomSpeed = 2.0;
@@ -40,7 +40,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenWheelScrollsDownInsideViewport_MovesCameraBackward() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
             controller.WheelZoomSpeed = 2.0;
@@ -60,7 +60,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenWheelScrollsOutsideViewport_DoesNotMoveCamera() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
             controller.WheelZoomSpeed = 2.0;
@@ -78,7 +78,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenWheelScrollsInsideBlockedViewportRegion_DoesNotMoveCamera() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
             object blockerOwner = new object();
@@ -102,7 +102,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenAltMiddleMouseOrbitsSelectedEntity_PreservesSelectedPivotDistance() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             cameraEntity.Position = new float3(0f, 0f, 10f);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
@@ -125,7 +125,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenAltMiddleMouseOrbitsWithoutSelection_UsesStoredVirtualTarget() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             cameraEntity.Position = new float3(0f, 0f, 8f);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
@@ -145,7 +145,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenAltMiddleMouseLeavesViewportAfterStartingInside_KeepsOrbiting() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             cameraEntity.Position = new float3(0f, 0f, 10f);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
@@ -168,7 +168,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenRightMouseLookLeavesClientEdgeAfterStartingInside_KeepsRotating() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
 
@@ -187,7 +187,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenMiddleMousePanLeavesClientEdgeAfterStartingInside_KeepsPanning() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
 
@@ -206,18 +206,18 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenRightMouseLookBeginsAndEndsInsideViewport_TogglesPointerWrapForTheDragLifetime() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
 
             CompleteInputFrame(input, CreateMouseState(150, 150, 0, ButtonState.Released, ButtonState.Released));
             AdvanceInput(input, CreateMouseState(150, 150, 0, ButtonState.Pressed, ButtonState.Released));
             CompleteControllerFrame(input, controller);
-            Assert.True(input.IsPointerWrapEnabled);
+            Assert.True(Core.Instance.InputSystem.IsPointerWrapEnabled);
 
             AdvanceInput(input, CreateMouseState(150, 150, 0, ButtonState.Released, ButtonState.Released));
             CompleteControllerFrame(input, controller);
-            Assert.False(input.IsPointerWrapEnabled);
+            Assert.False(Core.Instance.InputSystem.IsPointerWrapEnabled);
         }
 
         /// <summary>
@@ -225,7 +225,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenWheelZoomChangesDistance_OrbitKeepsTheUpdatedSelectedTargetDistance() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             cameraEntity.Position = new float3(0f, 0f, 10f);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
@@ -249,11 +249,11 @@ namespace helengine.editor.tests {
         /// Initializes core services with configurable input for camera-controller tests.
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
-        TestInputManager InitializeCore() {
+        TestInputBackend InitializeCore() {
             EditorInputCaptureService.Reset();
             Core core = new Core();
-            TestInputManager input = new TestInputManager();
-            input.SetMouseClientBounds(new int2(500, 400));
+            TestInputBackend input = new TestInputBackend();
+            core.InputSystem.SetMouseClientBounds(new int2(500, 400));
             core.Initialize(null, new TestRenderManager2D(), input);
             return input;
         }
@@ -289,7 +289,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="input">Input manager receiving the mouse state.</param>
         /// <param name="mouseState">Mouse state to expose for the next frame.</param>
-        void AdvanceInput(TestInputManager input, MouseState mouseState) {
+        void AdvanceInput(TestInputBackend input, MouseState mouseState) {
             AdvanceInput(input, mouseState, new KeyboardState());
         }
 
@@ -299,7 +299,7 @@ namespace helengine.editor.tests {
         /// <param name="input">Input manager receiving the current frame state.</param>
         /// <param name="mouseState">Mouse state to expose for the next frame.</param>
         /// <param name="keyboardState">Keyboard state to expose for the next frame.</param>
-        void AdvanceInput(TestInputManager input, MouseState mouseState, KeyboardState keyboardState) {
+        void AdvanceInput(TestInputBackend input, MouseState mouseState, KeyboardState keyboardState) {
             input.SetKeyboardState(keyboardState);
             input.SetMouseState(mouseState);
             input.EarlyUpdate();
@@ -310,7 +310,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="input">Input manager receiving the mouse state.</param>
         /// <param name="mouseState">Mouse state to capture as the previous frame.</param>
-        void CompleteInputFrame(TestInputManager input, MouseState mouseState) {
+        void CompleteInputFrame(TestInputBackend input, MouseState mouseState) {
             input.SetMouseState(mouseState);
             input.EarlyUpdate();
             input.Update();
@@ -321,7 +321,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="input">Input manager supplying the current frame state.</param>
         /// <param name="controller">Viewport camera controller under test.</param>
-        void CompleteControllerFrame(TestInputManager input, EditorViewportCameraController controller) {
+        void CompleteControllerFrame(TestInputBackend input, EditorViewportCameraController controller) {
             controller.Update();
             input.Update();
         }
@@ -392,3 +392,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

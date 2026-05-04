@@ -17,6 +17,8 @@ class MaterialRenderState;
 class MaterialAsset : public Asset
 {
 public:
+    virtual ~MaterialAsset() = default;
+
     Array<::MaterialConstantBufferAsset*>* ConstantBuffers;
 
     std::string PixelProgram;

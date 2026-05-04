@@ -6,7 +6,6 @@
 
 class IDrawable2D;
 class byte4;
-class int2;
 class float4;
 class RuntimeTexture;
 
@@ -27,9 +26,9 @@ public:
 
     virtual void set_Rotation(float value) = 0;
 
-    virtual ::int2 get_Size() = 0;
+    virtual int2* get_Size() = 0;
 
-    virtual void set_Size(::int2 value) = 0;
+    virtual void set_Size(int2* value) = 0;
 
     virtual ::float4 get_SourceRect() = 0;
 

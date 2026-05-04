@@ -10,6 +10,8 @@
 class CoreInitializationOptions
 {
 public:
+    virtual ~CoreInitializationOptions() = default;
+
     CoreInitializationOptions();
 
     std::string ContentRootPath;

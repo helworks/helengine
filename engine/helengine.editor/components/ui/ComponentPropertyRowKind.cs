@@ -16,6 +16,10 @@ namespace helengine.editor {
         /// </summary>
         Material,
         /// <summary>
+        /// Editable row for a font asset selection.
+        /// </summary>
+        Font,
+        /// <summary>
         /// Editable row for a model asset selection.
         /// </summary>
         Model,

@@ -16,6 +16,11 @@ namespace helengine {
         /// <summary>
         /// The payload stores shader cache metadata.
         /// </summary>
-        ShaderCacheMetadata = 3
+        ShaderCacheMetadata = 3,
+
+        /// <summary>
+        /// The payload stores a packaged font asset.
+        /// </summary>
+        FontAsset = 4
     }
 }

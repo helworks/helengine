@@ -136,7 +136,7 @@ namespace helengine.editor {
         /// Updates hierarchy context-menu input each frame.
         /// </summary>
         internal void UpdateContextMenuInput() {
-            InputManager input = Core.Instance.InputManager;
+            InputSystem input = Core.Instance.Input;
             if (!input.WasMouseRightButtonPressed()) {
                 return;
             }
@@ -767,3 +767,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

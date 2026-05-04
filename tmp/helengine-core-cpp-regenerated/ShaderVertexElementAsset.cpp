@@ -25,11 +25,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -51,11 +53,11 @@ ShaderVertexElementAsset::ShaderVertexElementAsset() : Format(), Index(0), Seman
 throw new ArgumentNullException("element");
     }
 ::ShaderVertexElementAsset *asset = ([&]() {
-auto __object_98b5882b = new ::ShaderVertexElementAsset();
-__object_98b5882b->Semantic = element->get_Semantic();
-__object_98b5882b->Index = element->get_Index();
-__object_98b5882b->Format = element->get_Format();
-return __object_98b5882b;
+auto __object_00000176 = new ::ShaderVertexElementAsset();
+__object_00000176->Semantic = element->get_Semantic();
+__object_00000176->Index = element->get_Index();
+__object_00000176->Format = element->get_Format();
+return __object_00000176;
 })();
 return asset;}
 

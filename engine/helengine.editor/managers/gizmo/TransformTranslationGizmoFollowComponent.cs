@@ -573,7 +573,7 @@ namespace helengine.editor {
         /// <param name="selectedPosition">World-space gizmo origin at the selected entity.</param>
         /// <param name="cameraPosition">World-space camera position used for axis-plane orientation.</param>
         void UpdateSnapPreview(float3 selectedPosition, float3 cameraPosition) {
-            InputManager input = Core.Instance.InputManager;
+            InputSystem input = Core.Instance.Input;
             if (input == null) {
                 SetSnapPreviewVisible(false);
                 return;
@@ -719,3 +719,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

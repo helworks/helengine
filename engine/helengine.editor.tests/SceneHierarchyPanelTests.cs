@@ -16,7 +16,7 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Input manager used to simulate pointer interaction for context-menu tests.
         /// </summary>
-        readonly TestInputManager Input;
+        readonly TestInputBackend Input;
 
         /// <summary>
         /// Initializes the core services required by scene-hierarchy tests.
@@ -28,7 +28,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-            Input = new TestInputManager();
+            Input = new TestInputBackend();
             core.Initialize(null, new TestRenderManager2D(), Input);
 
             CreateUiCamera(640, 480, 0b1000000000000000);
@@ -301,3 +301,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

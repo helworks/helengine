@@ -12,6 +12,8 @@
 class ShaderTargetNames
 {
 public:
+    virtual ~ShaderTargetNames() = default;
+
     static std::string GetTargetName(::ShaderCompileTarget target);
 
     static ::ShaderCompileTarget ParseTarget(std::string name);

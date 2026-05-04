@@ -29,6 +29,8 @@ class ContentManager;
 class ShaderModulePackageReader
 {
 public:
+    virtual ~ShaderModulePackageReader() = default;
+
     ::ShaderModulePackage* Read(std::string packagePath);
 
     ShaderModulePackageReader(std::string rootDirectory);

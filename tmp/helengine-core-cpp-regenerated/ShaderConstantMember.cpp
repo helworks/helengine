@@ -21,10 +21,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -59,33 +62,33 @@ ShaderConstantMember::ShaderConstantMember(std::string name, std::string type, i
     if (String::IsNullOrWhiteSpace(name))
     {
 throw ([&]() {
-auto __ctor_arg_cc3d75f1 = "Member name must be provided.";
-auto __ctor_arg_41b2d644 = "name";
-return new ArgumentException(__ctor_arg_cc3d75f1, __ctor_arg_41b2d644);
+auto __ctor_arg_00000121 = "Member name must be provided.";
+auto __ctor_arg_00000122 = "name";
+return new ArgumentException(__ctor_arg_00000121, __ctor_arg_00000122);
 })();
     }
     if (String::IsNullOrWhiteSpace(type))
     {
 throw ([&]() {
-auto __ctor_arg_77ec2a85 = "Member type must be provided.";
-auto __ctor_arg_84432fb6 = "type";
-return new ArgumentException(__ctor_arg_77ec2a85, __ctor_arg_84432fb6);
+auto __ctor_arg_00000123 = "Member type must be provided.";
+auto __ctor_arg_00000124 = "type";
+return new ArgumentException(__ctor_arg_00000123, __ctor_arg_00000124);
 })();
     }
     if (offset < 0)
     {
 throw ([&]() {
-auto __ctor_arg_a54c29d2 = "offset";
-auto __ctor_arg_1b50e9c4 = "Offset cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_a54c29d2, __ctor_arg_1b50e9c4);
+auto __ctor_arg_00000125 = "offset";
+auto __ctor_arg_00000126 = "Offset cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_00000125, __ctor_arg_00000126);
 })();
     }
     if (size < 0)
     {
 throw ([&]() {
-auto __ctor_arg_41a94475 = "size";
-auto __ctor_arg_c7a34977 = "Size cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_41a94475, __ctor_arg_c7a34977);
+auto __ctor_arg_00000127 = "size";
+auto __ctor_arg_00000128 = "Size cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_00000127, __ctor_arg_00000128);
 })();
     }
 this->Name = name;

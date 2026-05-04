@@ -21,6 +21,8 @@ class ShaderSourceInfo;
 class ShaderCompileRequest
 {
 public:
+    virtual ~ShaderCompileRequest() = default;
+
     List<::ShaderDefine*>* Defines;
 
     List<::ShaderDefine*>* get_Defines();

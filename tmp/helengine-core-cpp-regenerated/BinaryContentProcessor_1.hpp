@@ -18,6 +18,8 @@ template <typename T>
 class BinaryContentProcessor_1 : public IContentProcessor_1<T>
 {
 public:
+    virtual ~BinaryContentProcessor_1() = default;
+
     Type* get_OutputType();
 
     BinaryContentProcessor_1(Func<Stream*, T>* reader);

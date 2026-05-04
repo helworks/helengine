@@ -129,7 +129,7 @@ namespace helengine.editor {
         /// Checks pointer state and queues picker renders for click selection and gizmo hover detection.
         /// </summary>
         public override void Update() {
-            InputManager input = Core.Instance.InputManager;
+            InputSystem input = Core.Instance.Input;
             if (PickReadbackPending) {
                 ResolvePick();
             }
@@ -186,7 +186,7 @@ namespace helengine.editor {
         /// <param name="input">Input manager providing pointer data.</param>
         /// <param name="layerMask">Layer mask rendered by the picker camera for the request.</param>
         /// <param name="pickMode">Pick mode used to resolve readback results.</param>
-        void QueuePick(InputManager input, ushort layerMask, int pickMode) {
+        void QueuePick(InputSystem input, ushort layerMask, int pickMode) {
             if (input == null) {
                 throw new ArgumentNullException(nameof(input));
             }
@@ -606,7 +606,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="input">Input manager providing cursor state.</param>
         /// <returns>True when the cursor is inside the viewport.</returns>
-        bool IsPointerInsideViewport(InputManager input) {
+        bool IsPointerInsideViewport(InputSystem input) {
             int2 pointer = input.GetMousePosition();
             float4 viewport = SceneCamera.Viewport;
             return pointer.X >= viewport.X &&
@@ -728,3 +728,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

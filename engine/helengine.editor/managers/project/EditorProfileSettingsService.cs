@@ -105,10 +105,13 @@ namespace helengine.editor {
 
                     platform.Build ??= new EditorBuildProfileSettingsDocument();
                     platform.Graphics ??= new EditorGraphicsProfileSettingsDocument();
+                    platform.Codegen ??= new EditorCodegenProfileSettingsDocument();
                     platform.Build.SelectedBuildProfileId ??= string.Empty;
                     platform.Graphics.SelectedGraphicsProfileId ??= string.Empty;
                     platform.Build.SelectedOptionValues ??= [];
                     platform.Graphics.SelectedOptionValues ??= [];
+                    platform.Codegen.SelectedCodegenProfileId ??= string.Empty;
+                    platform.Codegen.SelectedOptionValues ??= [];
                 }
 
                 return document;
@@ -163,12 +166,24 @@ namespace helengine.editor {
                     platform.Graphics = new EditorGraphicsProfileSettingsDocument();
                     changed = true;
                 }
+                if (platform.Codegen == null) {
+                    platform.Codegen = new EditorCodegenProfileSettingsDocument();
+                    changed = true;
+                }
                 if (string.IsNullOrWhiteSpace(platform.Graphics.SelectedGraphicsProfileId)) {
                     platform.Graphics.SelectedGraphicsProfileId = string.Empty;
                     changed = true;
                 }
                 if (platform.Graphics.SelectedOptionValues == null) {
                     platform.Graphics.SelectedOptionValues = [];
+                    changed = true;
+                }
+                if (string.IsNullOrWhiteSpace(platform.Codegen.SelectedCodegenProfileId)) {
+                    platform.Codegen.SelectedCodegenProfileId = string.Empty;
+                    changed = true;
+                }
+                if (platform.Codegen.SelectedOptionValues == null) {
+                    platform.Codegen.SelectedOptionValues = [];
                     changed = true;
                 }
 
@@ -216,7 +231,8 @@ namespace helengine.editor {
             return new EditorPlatformProfileSettingsDocument {
                 PlatformId = platformId,
                 Build = new EditorBuildProfileSettingsDocument(),
-                Graphics = new EditorGraphicsProfileSettingsDocument()
+                Graphics = new EditorGraphicsProfileSettingsDocument(),
+                Codegen = new EditorCodegenProfileSettingsDocument()
             };
         }
     }

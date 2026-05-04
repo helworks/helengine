@@ -18,6 +18,8 @@ class IDebugInfoProvider;
 class DebugInfoRegistry
 {
 public:
+    virtual ~DebugInfoRegistry() = default;
+
     static void Register(::IDebugInfoProvider* provider);
 
     static List<ValueTuple<std::string, std::string, std::string>*>* Snapshot();

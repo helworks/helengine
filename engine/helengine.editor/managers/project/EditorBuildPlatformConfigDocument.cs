@@ -47,5 +47,30 @@ namespace helengine.editor {
         /// Gets or sets the selected builder-provided graphics option values.
         /// </summary>
         public Dictionary<string, string> SelectedGraphicsOptionValues { get; set; } = [];
+
+        /// <summary>
+        /// Gets or sets the selected builder-provided codegen profile id.
+        /// </summary>
+        public string SelectedCodegenProfileId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the selected builder-provided storage profile id.
+        /// </summary>
+        public string SelectedStorageProfileId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the selected builder-provided media profile id.
+        /// </summary>
+        public string SelectedMediaProfileId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the selected builder-provided codegen option values.
+        /// </summary>
+        public Dictionary<string, string> SelectedCodegenOptionValues { get; set; } = [];
+
+        /// <summary>
+        /// Gets or sets the project-authored code-module identifiers enabled for this platform build.
+        /// </summary>
+        public List<string> SelectedCodeModuleIds { get; set; } = [];
     }
 }

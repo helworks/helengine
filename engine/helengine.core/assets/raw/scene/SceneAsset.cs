@@ -12,5 +12,10 @@ namespace helengine {
         /// Gets or sets the serialized root entities stored in the scene.
         /// </summary>
         public SceneEntityAsset[] RootEntities { get; set; } = Array.Empty<SceneEntityAsset>();
+
+        /// <summary>
+        /// Gets or sets the stable asset references required by the scene.
+        /// </summary>
+        public SceneAssetReference[] AssetReferences { get; set; } = Array.Empty<SceneAssetReference>();
     }
 }

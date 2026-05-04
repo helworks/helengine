@@ -23,6 +23,8 @@ class ShaderVariant;
 class ShaderProgramDefinition
 {
 public:
+    virtual ~ShaderProgramDefinition() = default;
+
     List<::ShaderBinding*>* get_Bindings();
 
     std::string EntryPoint;

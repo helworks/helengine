@@ -9,6 +9,10 @@
 class RuntimeContentProcessorIds
 {
 public:
+    virtual ~RuntimeContentProcessorIds() = default;
+
+    static std::string FontAsset;
+
     static std::string MaterialAsset;
 
     static std::string ModelAsset;

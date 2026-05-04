@@ -33,6 +33,8 @@ class ShaderBindingAsset;
 class MaterialLayoutBuilder
 {
 public:
+    virtual ~MaterialLayoutBuilder() = default;
+
     static ::MaterialLayout* Build(::MaterialAsset* materialAsset, ::ShaderAsset* shaderAsset);
 private:
     static std::string TransformBufferName;

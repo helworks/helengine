@@ -22,6 +22,8 @@ class TextContent;
 class TextContentProcessor : public IContentProcessor_1<::TextContent*>
 {
 public:
+    virtual ~TextContentProcessor() = default;
+
     Type* get_OutputType();
 
     ::TextContent* Read(::Stream* stream);

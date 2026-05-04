@@ -20,6 +20,8 @@ class ITextDrawable2D;
 class RenderManager2D : public IDisposable
 {
 public:
+    virtual ~RenderManager2D() = default;
+
     virtual ::RuntimeTexture* BuildTextureFromRaw(::TextureAsset* data) = 0;
 
     virtual void Dispose();

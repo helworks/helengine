@@ -11,6 +11,8 @@ class ShaderBindingPolicy;
 class ShaderCompileOptions
 {
 public:
+    virtual ~ShaderCompileOptions() = default;
+
     ::ShaderBindingPolicy* BindingPolicy;
 
     ::ShaderBindingPolicy* get_BindingPolicy();

@@ -1,4 +1,5 @@
 using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Profiles;
 
 namespace helengine.baseplatform.tests.Definitions;
 
@@ -43,6 +44,38 @@ public class PlatformDefinitionTests {
                     "Texture",
                     true,
                     ["png", "tga"])
+            ],
+            [
+                new PlatformComponentCompatibilityDefinition(
+                    "helengine.FPSComponent",
+                    PlatformComponentCompatibilityKind.PassThrough,
+                    "FPS overlay is canonical on this platform.",
+                    string.Empty)
+            ],
+            [
+                new PlatformCodegenProfileDefinition(
+                    "default",
+                    "Default",
+                    "Default codegen profile",
+                    PlatformCodegenLanguage.Cpp,
+                    PlatformSerializationEndianness.LittleEndian,
+                    [])
+            ],
+            [
+                new PlatformStorageProfileDefinition(
+                    "install-tree",
+                    "Install Tree",
+                    PlatformStorageProfileKind.LooseFiles,
+                    "windows-loose-files",
+                    false)
+            ],
+            [
+                new PlatformMediaProfileDefinition(
+                    "install-tree",
+                    "Install Tree",
+                    PlatformMediaLayoutKind.InstallTree,
+                    false,
+                    false)
             ]);
 
         Assert.Equal("windows", definition.PlatformId);
@@ -50,5 +83,9 @@ public class PlatformDefinitionTests {
         Assert.Equal("debug", definition.BuildProfiles[0].ProfileId);
         Assert.Equal("directx11", definition.GraphicsProfiles[0].ProfileId);
         Assert.Equal("texture", definition.AssetRequirements[0].RequirementId);
+        Assert.Equal("helengine.FPSComponent", definition.ComponentCompatibilities[0].ComponentTypeId);
+        Assert.Equal("default", definition.CodegenProfiles[0].ProfileId);
+        Assert.Equal("install-tree", definition.StorageProfiles[0].ProfileId);
+        Assert.Equal("install-tree", definition.MediaProfiles[0].ProfileId);
     }
 }

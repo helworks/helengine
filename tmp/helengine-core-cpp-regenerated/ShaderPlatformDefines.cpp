@@ -27,11 +27,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -54,14 +56,14 @@ throw new ArgumentNullException("additionalDefines");
 List<::ShaderDefine*> *defines = new List<::ShaderDefine*>(additionalDefines->get_Count() + 3);
 AddTargetDefine(target, defines);
 defines->Add(([&]() {
-auto __ctor_arg_88ae15ee = "HEL_SM_MAJOR";
-auto __ctor_arg_1c0cc623 = std::to_string(shaderModel->get_Major());
-return new ::ShaderDefine(__ctor_arg_88ae15ee, __ctor_arg_1c0cc623);
+auto __ctor_arg_0000014A = "HEL_SM_MAJOR";
+auto __ctor_arg_0000014B = std::to_string(shaderModel->get_Major());
+return new ::ShaderDefine(__ctor_arg_0000014A, __ctor_arg_0000014B);
 })());
 defines->Add(([&]() {
-auto __ctor_arg_c6254b5a = "HEL_SM_MINOR";
-auto __ctor_arg_5c38682f = std::to_string(shaderModel->get_Minor());
-return new ::ShaderDefine(__ctor_arg_c6254b5a, __ctor_arg_5c38682f);
+auto __ctor_arg_0000014C = "HEL_SM_MINOR";
+auto __ctor_arg_0000014D = std::to_string(shaderModel->get_Minor());
+return new ::ShaderDefine(__ctor_arg_0000014C, __ctor_arg_0000014D);
 })());
 for (int32_t i = 0; i < additionalDefines->get_Count(); i++) {
 defines->Add((*additionalDefines)[i]);
@@ -89,9 +91,9 @@ case ShaderCompileTarget::Metal: {
 return "HEL_API_METAL";}
 default:  {
 throw ([&]() {
-auto __ctor_arg_3c0be096 = "target";
-auto __ctor_arg_cdda3505 = "Unsupported compile target.";
-return new ArgumentOutOfRangeException(__ctor_arg_3c0be096, __ctor_arg_cdda3505);
+auto __ctor_arg_0000014E = "target";
+auto __ctor_arg_0000014F = "Unsupported compile target.";
+return new ArgumentOutOfRangeException(__ctor_arg_0000014E, __ctor_arg_0000014F);
 })();
 }
 }

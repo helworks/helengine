@@ -13,6 +13,8 @@ class int2;
 class MouseState
 {
 public:
+    virtual ~MouseState() = default;
+
     MouseState();
 
     int32_t get_HorizontalScrollWheelValue();

@@ -35,7 +35,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         [Fact]
         public void Update_WhenControlSnapIsActive_ShowsSnapPreviewWithSnapSizedWorldScale() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
             EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
@@ -66,7 +66,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         [Fact]
         public void Update_WhenNoSnapModifierIsActive_HidesSnapPreview() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
             EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
@@ -168,12 +168,12 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
-        /// Initializes a fresh core with a configurable input manager for entity-based tests.
+        /// Initializes a fresh core with a configurable input system for entity-based tests.
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
-        TestInputManager InitializeCore() {
+        TestInputBackend InitializeCore() {
             Core core = new Core();
-            var input = new TestInputManager();
+            var input = new TestInputBackend();
             core.Initialize(null, null, input);
             return input;
         }
@@ -406,3 +406,4 @@ namespace helengine.editor.tests.managers.gizmo {
         }
     }
 }
+

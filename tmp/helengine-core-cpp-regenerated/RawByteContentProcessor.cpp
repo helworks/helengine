@@ -26,11 +26,13 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -53,12 +55,12 @@ return he_cpp_type_of<RawByteContent>("RawByteContent");
 throw new ArgumentNullException("stream");
     }
 {
-MemoryStream *memoryStream = new MemoryStream();
+::MemoryStream *memoryStream = new ::MemoryStream();
 stream->CopyTo(memoryStream);
 return ([&]() {
-auto __object_7931a50e = new ::RawByteContent();
-__object_7931a50e->set_Bytes(memoryStream->ToArray());
-return __object_7931a50e;
+auto __object_00000181 = new ::RawByteContent();
+__object_00000181->set_Bytes(memoryStream->ToArray());
+return __object_00000181;
 })();}
 }
 

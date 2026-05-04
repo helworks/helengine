@@ -21,16 +21,20 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/math.hpp"
 #include "system/number.hpp"
 #include "system/string_comparer.hpp"
 #include "system/text/encoding.hpp"
 #include "system/text/regular_expressions/regex.hpp"
+#include "system/text/string-builder.hpp"
 
 ::ShaderBindingPolicy* ShaderBindingPolicies::get_Default()
 {

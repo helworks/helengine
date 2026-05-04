@@ -7,7 +7,7 @@ namespace helengine.editor {
         /// Routes per-frame input into the shared keyboard-focus service.
         /// </summary>
         public override void Update() {
-            InputManager input = Core.Instance.InputManager;
+            InputSystem input = Core.Instance.Input;
             if (input == null) {
                 return;
             }
@@ -50,3 +50,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

@@ -4,7 +4,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Records model-build requests for editor gizmo factory tests.
     /// </summary>
-    public class TestRenderManager3D : RenderManager3D, IShaderCompileTargetProvider {
+    internal class TestRenderManager3D : RenderManager3D, IShaderCompileTargetProvider {
         /// <summary>
         /// Captured raw model assets passed through the build API.
         /// </summary>

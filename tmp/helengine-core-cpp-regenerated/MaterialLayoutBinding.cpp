@@ -3,7 +3,6 @@
 #endif
 #include "MaterialLayoutBinding.hpp"
 #include "runtime/array.hpp"
-#include "runtime/finally.hpp"
 #include "runtime/native_cast.hpp"
 #include "runtime/native_datetime.hpp"
 #include "runtime/native_dictionary.hpp"
@@ -20,6 +19,7 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
@@ -61,33 +61,33 @@ MaterialLayoutBinding::MaterialLayoutBinding(std::string name, ::ShaderResourceT
     if (String::IsNullOrWhiteSpace(name))
     {
 throw ([&]() {
-auto __ctor_arg_12c00dc1 = "Binding name must be provided.";
-auto __ctor_arg_07889ecc = "name";
-return new ArgumentException(__ctor_arg_12c00dc1, __ctor_arg_07889ecc);
+auto __ctor_arg_0000009F = "Binding name must be provided.";
+auto __ctor_arg_000000A0 = "name";
+return new ArgumentException(__ctor_arg_0000009F, __ctor_arg_000000A0);
 })();
     }
     if (set < 0)
     {
 throw ([&]() {
-auto __ctor_arg_ad1ed5bc = "set";
-auto __ctor_arg_5787e0fa = "Binding set cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_ad1ed5bc, __ctor_arg_5787e0fa);
+auto __ctor_arg_000000A1 = "set";
+auto __ctor_arg_000000A2 = "Binding set cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000A1, __ctor_arg_000000A2);
 })();
     }
     if (slot < 0)
     {
 throw ([&]() {
-auto __ctor_arg_11e750e1 = "slot";
-auto __ctor_arg_e74cee2e = "Binding slot cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_11e750e1, __ctor_arg_e74cee2e);
+auto __ctor_arg_000000A3 = "slot";
+auto __ctor_arg_000000A4 = "Binding slot cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000A3, __ctor_arg_000000A4);
 })();
     }
     if (size < 0)
     {
 throw ([&]() {
-auto __ctor_arg_0ebb5198 = "size";
-auto __ctor_arg_20394a77 = "Binding size cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_0ebb5198, __ctor_arg_20394a77);
+auto __ctor_arg_000000A5 = "size";
+auto __ctor_arg_000000A6 = "Binding size cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000A5, __ctor_arg_000000A6);
 })();
     }
 this->Name = name;

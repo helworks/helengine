@@ -16,6 +16,8 @@ class ComboBoxComponent;
 class ComboBoxUpdateComponent : public UpdateComponent
 {
 public:
+    virtual ~ComboBoxUpdateComponent() = default;
+
     ComboBoxUpdateComponent(::ComboBoxComponent* comboBox);
 
     void Update();

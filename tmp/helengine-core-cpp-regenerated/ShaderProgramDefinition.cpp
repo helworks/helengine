@@ -21,11 +21,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -71,17 +73,17 @@ ShaderProgramDefinition::ShaderProgramDefinition(std::string name, ::ShaderStage
     if (String::IsNullOrWhiteSpace(name))
     {
 throw ([&]() {
-auto __ctor_arg_05466484 = "Program name must be provided.";
-auto __ctor_arg_781e92a9 = "name";
-return new ArgumentException(__ctor_arg_05466484, __ctor_arg_781e92a9);
+auto __ctor_arg_00000161 = "Program name must be provided.";
+auto __ctor_arg_00000162 = "name";
+return new ArgumentException(__ctor_arg_00000161, __ctor_arg_00000162);
 })();
     }
     if (String::IsNullOrWhiteSpace(entryPoint))
     {
 throw ([&]() {
-auto __ctor_arg_d7963a04 = "Entry point must be provided.";
-auto __ctor_arg_b69a2902 = "entryPoint";
-return new ArgumentException(__ctor_arg_d7963a04, __ctor_arg_b69a2902);
+auto __ctor_arg_00000163 = "Entry point must be provided.";
+auto __ctor_arg_00000164 = "entryPoint";
+return new ArgumentException(__ctor_arg_00000163, __ctor_arg_00000164);
 })();
     }
     if (bindings == nullptr)

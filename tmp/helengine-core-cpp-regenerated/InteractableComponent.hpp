@@ -9,7 +9,6 @@ class IInteractable2D;
 class Entity;
 class Core;
 class ObjectManager;
-class int2;
 
 #include "Component.hpp"
 #include "IInteractable2D.hpp"
@@ -27,6 +26,8 @@ class int2;
 class InteractableComponent : public Component, public IInteractable2D
 {
 public:
+    virtual ~InteractableComponent() = default;
+
     InteractableComponent();
 
     ::Event CursorEvent;
@@ -36,14 +37,14 @@ public:
     ::PointerCursorKind get_HoverCursor();
     void set_HoverCursor(::PointerCursorKind value);
 
-    ::int2 Size;
+    int2* Size;
 
-    ::int2 get_Size();
-    void set_Size(::int2 value);
+    int2* get_Size();
+    void set_Size(int2* value);
 
     void ComponentAdded(::Entity* entity);
 
-    virtual void OnCursor(::int2 relPos, ::int2 delta, ::PointerInteraction state);
+    virtual void OnCursor(int2* relPos, int2* delta, ::PointerInteraction state);
 
     void ParentEnabledChange(bool newEnabled);
 

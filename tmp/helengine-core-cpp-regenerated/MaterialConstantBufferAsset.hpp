@@ -10,6 +10,8 @@
 class MaterialConstantBufferAsset
 {
 public:
+    virtual ~MaterialConstantBufferAsset() = default;
+
     Array<uint8_t>* Data;
 
     Array<uint8_t>* get_Data();

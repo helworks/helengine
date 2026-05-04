@@ -20,10 +20,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/math.hpp"
 #include "system/number.hpp"
@@ -62,17 +65,17 @@ ShaderCompiledBinary::ShaderCompiledBinary(::ShaderCompileTarget target, ::Shade
     if (String::IsNullOrWhiteSpace(entryPoint))
     {
 throw ([&]() {
-auto __ctor_arg_2082ad11 = "Entry point must be provided.";
-auto __ctor_arg_e8a8906b = "entryPoint";
-return new ArgumentException(__ctor_arg_2082ad11, __ctor_arg_e8a8906b);
+auto __ctor_arg_00000108 = "Entry point must be provided.";
+auto __ctor_arg_00000109 = "entryPoint";
+return new ArgumentException(__ctor_arg_00000108, __ctor_arg_00000109);
 })();
     }
     if (String::IsNullOrWhiteSpace(variant))
     {
 throw ([&]() {
-auto __ctor_arg_7e626ebc = "Variant name must be provided.";
-auto __ctor_arg_eece8dfc = "variant";
-return new ArgumentException(__ctor_arg_7e626ebc, __ctor_arg_eece8dfc);
+auto __ctor_arg_0000010A = "Variant name must be provided.";
+auto __ctor_arg_0000010B = "variant";
+return new ArgumentException(__ctor_arg_0000010A, __ctor_arg_0000010B);
 })();
     }
     if (bytecode == nullptr)
@@ -82,9 +85,9 @@ throw new ArgumentNullException("bytecode");
     if (bytecode->Length == 0)
     {
 throw ([&]() {
-auto __ctor_arg_89f82c57 = "Bytecode payload must be provided.";
-auto __ctor_arg_193d24c4 = "bytecode";
-return new ArgumentException(__ctor_arg_89f82c57, __ctor_arg_193d24c4);
+auto __ctor_arg_0000010C = "Bytecode payload must be provided.";
+auto __ctor_arg_0000010D = "bytecode";
+return new ArgumentException(__ctor_arg_0000010C, __ctor_arg_0000010D);
 })();
     }
 this->Target = target;

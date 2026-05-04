@@ -29,10 +29,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -89,9 +92,9 @@ ShaderModulePackage::ShaderModulePackage(::ShaderCompileTarget target, std::stri
     if (String::IsNullOrWhiteSpace(rootPath))
     {
 throw ([&]() {
-auto __ctor_arg_069546fa = "Package root path must be provided.";
-auto __ctor_arg_ca3cee4e = "rootPath";
-return new ArgumentException(__ctor_arg_069546fa, __ctor_arg_ca3cee4e);
+auto __ctor_arg_00000144 = "Package root path must be provided.";
+auto __ctor_arg_00000145 = "rootPath";
+return new ArgumentException(__ctor_arg_00000144, __ctor_arg_00000145);
 })();
     }
     if (definition == nullptr)

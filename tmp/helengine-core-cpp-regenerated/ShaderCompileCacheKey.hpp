@@ -14,6 +14,8 @@ class ShaderModel;
 class ShaderCompileCacheKey
 {
 public:
+    virtual ~ShaderCompileCacheKey() = default;
+
     std::string BindingPolicySignature;
 
     std::string get_BindingPolicySignature();

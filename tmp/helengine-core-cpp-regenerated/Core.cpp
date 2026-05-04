@@ -2,14 +2,17 @@
 #undef DrawText
 #endif
 #include "Core.hpp"
+#include "InputSystem.hpp"
 #include "runtime/native_exceptions.hpp"
 #include "CoreInitializationOptions.hpp"
 #include "ContentManager.hpp"
 #include "RuntimeContentManagerConfiguration.hpp"
+#include "RuntimeComponentRegistry.hpp"
 #include "runtime/native_string.hpp"
 #include "system/io/path.hpp"
-#include "InputManager.hpp"
+#include "FPSComponent.hpp"
 #include "ObjectManager.hpp"
+#include "PointerInteractionSystem.hpp"
 #include "RenderManager3D.hpp"
 #include "RenderManager2D.hpp"
 #include "RuntimeSceneAssetReferenceResolver.hpp"
@@ -35,11 +38,13 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -67,6 +72,19 @@ Core::Instance = value;
 return this->GetContentManager();
 }
 
+::FontAsset* Core::get_DefaultFontAsset()
+{
+return this->DefaultFontAssetValue;}
+
+void Core::set_DefaultFontAsset(::FontAsset* value)
+{
+    if (value == nullptr)
+    {
+throw new ArgumentNullException("value");
+    }
+this->DefaultFontAssetValue = value;
+}
+
 ::CoreInitializationOptions* Core::get_InitializationOptions()
 {
 return this->InitializationOptions;
@@ -77,14 +95,14 @@ void Core::set_InitializationOptions(::CoreInitializationOptions* value)
 this->InitializationOptions = value;
 }
 
-::InputManager* Core::get_InputManager()
+InputSystem* Core::get_Input()
 {
-return this->InputManager;
+return this->Input;
 }
 
-void Core::set_InputManager(::InputManager* value)
+void Core::set_Input(InputSystem* value)
 {
-this->InputManager = value;
+this->Input = value;
 }
 
 ::ObjectManager* Core::get_ObjectManager()
@@ -95,6 +113,16 @@ return this->ObjectManager;
 void Core::set_ObjectManager(::ObjectManager* value)
 {
 this->ObjectManager = value;
+}
+
+::PointerInteractionSystem* Core::get_PointerInteractionSystem()
+{
+return this->PointerInteractionSystem;
+}
+
+void Core::set_PointerInteractionSystem(::PointerInteractionSystem* value)
+{
+this->PointerInteractionSystem = value;
 }
 
 ::RenderManager2D* Core::get_RenderManager2D()
@@ -146,6 +174,7 @@ this->RenderManager2D->Dispose();
 void Core::Draw()
 {
 this->RenderManager3D->Draw();
+FPSComponent::RecordRenderFrame();
 }
 
 ::ContentManager* Core::GetContentManager()
@@ -157,9 +186,9 @@ return this->GetContentManager(this->InitializationOptions->get_ContentRootPath(
     if (String::IsNullOrWhiteSpace(rootDirectory))
     {
 throw ([&]() {
-auto __ctor_arg_eb1be47a = "Root directory must be provided.";
-auto __ctor_arg_fa442531 = "rootDirectory";
-return new ArgumentException(__ctor_arg_eb1be47a, __ctor_arg_fa442531);
+auto __ctor_arg_0000017D = "Root directory must be provided.";
+auto __ctor_arg_0000017E = "rootDirectory";
+return new ArgumentException(__ctor_arg_0000017D, __ctor_arg_0000017E);
 })();
     }
 const std::string normalizedRootDirectory = Path::GetFullPath(rootDirectory);
@@ -172,16 +201,16 @@ contentManager = new ::ContentManager(normalizedRootDirectory);
 this->ContentManagersByRootPath->Add(normalizedRootDirectory, contentManager);
 return contentManager;}
 
-void Core::Initialize(::RenderManager3D* render3D, ::RenderManager2D* render2D, ::InputManager* input)
+void Core::Initialize(::RenderManager3D* render3D, ::RenderManager2D* render2D, IInputBackend* input)
 {
 this->Initialize(render3D, render2D, input, this->InitializationOptions);
 }
 
-void Core::Initialize(::RenderManager3D* render3D, ::RenderManager2D* render2D, ::InputManager* input, ::CoreInitializationOptions* options)
+void Core::Initialize(::RenderManager3D* render3D, ::RenderManager2D* render2D, IInputBackend* input, ::CoreInitializationOptions* options)
 {
 this->set_RenderManager3D(render3D);
 this->set_RenderManager2D(render2D);
-this->set_InputManager(input);
+this->Input->SetBackend(input);
     if (options == nullptr)
     {
 throw new ArgumentNullException("options");
@@ -192,14 +221,15 @@ this->set_ObjectManager(new ::ObjectManager(options));
 ::ContentManager *contentManager = this->GetContentManager();
 RuntimeContentManagerConfiguration::ConfigureSharedAssetContentManager(contentManager);
 this->set_SceneAssetReferenceResolver(new ::RuntimeSceneAssetReferenceResolver(contentManager, this->InitializationOptions->get_ContentRootPath(), ShaderCompileTarget::DirectX11));
-this->set_SceneLoadService(new ::RuntimeSceneLoadService(this->SceneAssetReferenceResolver));
+::RuntimeComponentRegistry *runtimeComponentRegistry = RuntimeComponentRegistry::CreateDefault();
+this->set_SceneLoadService(new ::RuntimeSceneLoadService(this->SceneAssetReferenceResolver, runtimeComponentRegistry));
 }
 
 Core::Core() : Core(new CoreInitializationOptions())
 {
 }
 
-Core::Core(::CoreInitializationOptions* options) : InitializationOptions(), InputManager(), ObjectManager(), RenderManager2D(), RenderManager3D(), SceneAssetReferenceResolver(), SceneLoadService(), ContentManagerLock(), ContentManagersByRootPath()
+Core::Core(::CoreInitializationOptions* options) : InitializationOptions(), Input(), ObjectManager(), PointerInteractionSystem(), RenderManager2D(), RenderManager3D(), SceneAssetReferenceResolver(), SceneLoadService(), ContentManagerLock(), ContentManagersByRootPath(), DefaultFontAssetValue()
 {
     if (options == nullptr)
     {
@@ -210,12 +240,16 @@ this->ContentManagerLock = new char[1];
 Core::set_Instance(this);
 this->set_InitializationOptions(options);
 this->InitializationOptions->Normalize();
+this->set_Input(new InputSystem());
+this->set_PointerInteractionSystem(new ::PointerInteractionSystem(this, this->Input));
 }
 
 void Core::Update()
 {
-this->InputManager->EarlyUpdate();
+this->Input->EarlyUpdate();
+FPSComponent::RecordUpdateFrame();
 this->ObjectManager->Update();
-this->InputManager->Update();
+this->Input->Update();
+this->PointerInteractionSystem->Update();
 }
 

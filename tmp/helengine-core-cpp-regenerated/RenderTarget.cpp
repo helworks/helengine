@@ -3,7 +3,6 @@
 #endif
 #include "RenderTarget.hpp"
 #include "runtime/array.hpp"
-#include "runtime/finally.hpp"
 #include "runtime/native_dictionary.hpp"
 #include "runtime/native_disposable.hpp"
 #include "runtime/native_enum.hpp"
@@ -16,7 +15,6 @@
 #include "runtime/native_type.hpp"
 #include "system/bit_converter.hpp"
 #include "system/io/stream.hpp"
-#include "system/math.hpp"
 #include "system/text/encoding.hpp"
 
 int32_t RenderTarget::get_Height()

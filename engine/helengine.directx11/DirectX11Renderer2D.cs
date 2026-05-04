@@ -216,20 +216,24 @@ namespace helengine.directx11 {
                 color = new float4(color.X / 255.0f, color.Y / 255.0f, color.Z / 255.0f, color.W / 255.0f)
             };
 
-            string text = drawable.Text;
-            float offsetX = 0f;
-            float offsetY = 0f;
-            float lineHeight = Math.Max(font.LineHeight, 1f);
+            string text = drawable.Text ?? string.Empty;
+            if (drawable.WrapText) {
+                text = TextLayoutUtils.WrapText(text, font, drawable.Size.X);
+            }
+
+            double offsetX = 0d;
+            double offsetY = 0d;
+            double lineHeight = Math.Max((double)font.LineHeight, 1d);
             // Snap the baseline to whole pixels to avoid clipped glyph edges at fractional offsets.
-            float baseX = MathF.Round(pos.X);
-            float baseY = MathF.Round(pos.Y);
+            double baseX = Math.Round(pos.X);
+            double baseY = Math.Round(pos.Y);
 
             for (int i = 0; i < text.Length; i++) {
                 char c = text[i];
 
                 if (c == (char)10) {
                     offsetY += lineHeight;
-                    offsetX = 0f;
+                    offsetX = 0d;
                     continue;
                 }
 
@@ -243,18 +247,18 @@ namespace helengine.directx11 {
                 }
 
                 shaderData.sourceRect = info.SourceRect;
-                float pixelW = shaderData.sourceRect.Z * data.Width;
-                float pixelH = shaderData.sourceRect.W * data.Height;
+                double pixelW = shaderData.sourceRect.Z * data.Width;
+                double pixelH = shaderData.sourceRect.W * data.Height;
 
-                float snappedLineOffsetY = MathF.Round(offsetY);
+                double snappedLineOffsetY = Math.Round(offsetY);
                 shaderData.destRect = new float4(
-                    baseX + offsetX,
-                    baseY + snappedLineOffsetY + info.OffsetY,
-                    pixelW,
-                    pixelH
+                    (float)(baseX + offsetX),
+                    (float)(baseY + snappedLineOffsetY + info.OffsetY),
+                    (float)pixelW,
+                    (float)pixelH
                 );
 
-                float advance = info.AdvanceWidth > 0 ? info.AdvanceWidth : pixelW;
+                double advance = info.AdvanceWidth > 0 ? info.AdvanceWidth : pixelW;
                 offsetX += advance;
 
                 context.UpdateSubresource(ref shaderData, spriteConstantBuffer);
@@ -268,6 +272,11 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="shape">Rounded rectangle drawable.</param>
         public override void DrawRoundedRect(IRoundedRectDrawable2D shape) {
+            if (roundedRectBackend != RoundedRectBackend.Sdf && shape.Corners != RoundedRectCorners.All) {
+                DrawRoundedRectSdf(shape);
+                return;
+            }
+
             switch (roundedRectBackend) {
                 case RoundedRectBackend.Sdf:
                     DrawRoundedRectSdf(shape);
@@ -526,7 +535,7 @@ namespace helengine.directx11 {
             var shaderData = new UIShapeShaderData {
                 worldViewProj = transposedWorld,
                 destRect = new float4(pos.X, pos.Y, shape.Size.X, shape.Size.Y),
-                params1 = new float4(shape.Radius, shape.BorderThickness, 1.0f, 0.0f),
+                params1 = new float4(shape.Radius, shape.BorderThickness, 1.0f, (float)shape.Corners),
                 fillColor = new float4(
                     shape.FillColor.X / 255.0f,
                     shape.FillColor.Y / 255.0f,
@@ -827,4 +836,3 @@ namespace helengine.directx11 {
         }
     }
 }
-

@@ -21,6 +21,8 @@ class ShaderProgramDefinition;
 class ShaderModuleDefinition
 {
 public:
+    virtual ~ShaderModuleDefinition() = default;
+
     List<::ShaderProgramBinary*>* get_Binaries();
 
     std::string Name;

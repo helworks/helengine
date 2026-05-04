@@ -1,4 +1,7 @@
 using helengine.editor;
+using Font = System.Drawing.Font;
+using FontStyle = System.Drawing.FontStyle;
+using GraphicsUnit = System.Drawing.GraphicsUnit;
 
 namespace helengine.editor.app {
     /// <summary>
@@ -6,17 +9,60 @@ namespace helengine.editor.app {
     /// </summary>
     internal static class Program {
         /// <summary>
-        /// Starts the editor application when one valid project argument is supplied.
+        /// Starts the editor application or headless build mode depending on the provided arguments.
         /// </summary>
         /// <param name="args">Command-line arguments provided by the operating system shell.</param>
         [STAThread]
-        static void Main(string[] args) {
+        static int Main(string[] args) {
+            if (TryRunBuildMode(args, out int buildExitCode)) {
+                return buildExitCode;
+            }
+
             if (!TryGetProjectPath(args, out var projectPath)) {
-                return;
+                return 1;
             }
 
             ApplicationConfiguration.Initialize();
             Application.Run(new MainForm(projectPath));
+            return 0;
+        }
+
+        /// <summary>
+        /// Runs the editor's headless build mode when the requested arguments include `--build`.
+        /// </summary>
+        /// <param name="args">Command-line arguments provided by the operating system shell.</param>
+        /// <param name="exitCode">Process exit code produced by the headless build mode.</param>
+        /// <returns>True when the arguments requested headless build mode.</returns>
+        static bool TryRunBuildMode(string[] args, out int exitCode) {
+            exitCode = 0;
+            if (!EditorCliArgumentParser.IsBuildModeRequested(args)) {
+                return false;
+            }
+
+            if (!EditorCliArgumentParser.TryParseBuildOptions(args, out EditorCliBuildOptions options, out string errorMessage)) {
+                Console.Error.WriteLine(errorMessage);
+                exitCode = 1;
+                return true;
+            }
+
+            try {
+                IReadOnlyList<IAssetImporterRegistration> importers = EditorHostImporterFactory.CreateDefault();
+                FontAsset defaultFontAsset = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
+                EditorCliBuildRunner runner = new EditorCliBuildRunner(importers, defaultFontAsset);
+                EditorBuildExecutionResult result = runner.Run(options);
+                if (result.Succeeded) {
+                    Console.WriteLine(result.Message);
+                    exitCode = 0;
+                } else {
+                    Console.Error.WriteLine(result.Message);
+                    exitCode = 1;
+                }
+            } catch (Exception exception) {
+                Console.Error.WriteLine(exception.ToString());
+                exitCode = 1;
+            }
+
+            return true;
         }
 
         /// <summary>

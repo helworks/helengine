@@ -9,6 +9,8 @@
 class FontInfo
 {
 public:
+    virtual ~FontInfo() = default;
+
     int32_t LineSpacing;
 
     int32_t get_LineSpacing();

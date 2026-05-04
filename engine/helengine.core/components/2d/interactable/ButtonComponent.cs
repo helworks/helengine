@@ -29,9 +29,9 @@ namespace helengine {
         /// </summary>
         bool UsesHoverOnlyBackground;
         /// <summary>
-        /// Tracks whether the button should keep square corners regardless of size updates.
+        /// Tracks the rounded corners that should remain active on the backing shape.
         /// </summary>
-        bool UsesSquareCorners;
+        public RoundedRectCorners Corners { get; private set; }
         /// <summary>
         /// Color used when creating or updating the button label text component.
         /// </summary>
@@ -116,7 +116,8 @@ namespace helengine {
             this.onClickAction = onClickAction;
             this.borderThickness = borderThickness;
             ButtonTextColor = ThemeManager.Colors.TextOnAccent;
-            CornerRadius = MathF.Min(size.X, size.Y) * 0.15f;
+            Corners = RoundedRectCorners.All;
+            UpdateCornerRadius();
         }
 
         /// <summary>
@@ -174,10 +175,24 @@ namespace helengine {
         /// Configures the button background to render with square corners.
         /// </summary>
         public void UseSquareCorners() {
-            UsesSquareCorners = true;
+            Corners = RoundedRectCorners.None;
             CornerRadius = 0f;
 
             if (roundedRect != null) {
+                roundedRect.Corners = Corners;
+                roundedRect.Radius = CornerRadius;
+            }
+        }
+
+        /// <summary>
+        /// Configures the button background to round only the top corners.
+        /// </summary>
+        public void UseTopCorners() {
+            Corners = (RoundedRectCorners)((int)RoundedRectCorners.TopLeft + (int)RoundedRectCorners.TopRight);
+            UpdateCornerRadius();
+
+            if (roundedRect != null) {
+                roundedRect.Corners = Corners;
                 roundedRect.Radius = CornerRadius;
             }
         }
@@ -192,12 +207,13 @@ namespace helengine {
             }
 
             size = newSize;
-            if (!UsesSquareCorners) {
-                CornerRadius = MathF.Min(size.X, size.Y) * 0.15f;
+            if (Corners != RoundedRectCorners.None) {
+                UpdateCornerRadius();
             }
 
             if (roundedRect != null) {
                 roundedRect.Size = size;
+                roundedRect.Corners = Corners;
                 roundedRect.Radius = CornerRadius;
             }
 
@@ -232,6 +248,7 @@ namespace helengine {
             // Create rounded rectangle background
             roundedRect = new RoundedRectComponent();
             roundedRect.Size = size;
+            roundedRect.Corners = Corners;
             roundedRect.Radius = CornerRadius;
             roundedRect.BorderThickness = borderThickness;
             roundedRect.FillColor = ThemeManager.Colors.AccentSecondary;
@@ -301,18 +318,19 @@ namespace helengine {
         /// <summary>
         /// Returns true when the provided screen point lies inside the button bounds.
         /// </summary>
-        /// <param name="point">Screen point to evaluate.</param>
+        /// <param name="x">Screen-space X coordinate to evaluate.</param>
+        /// <param name="y">Screen-space Y coordinate to evaluate.</param>
         /// <returns>True when the point is inside the button.</returns>
-        public bool ContainsScreenPoint(int2 point) {
+        public bool ContainsScreenPoint(int x, int y) {
             if (Parent == null) {
                 return false;
             }
 
             float3 position = Parent.Position;
-            return point.X >= position.X &&
-                   point.X < position.X + size.X &&
-                   point.Y >= position.Y &&
-                   point.Y < position.Y + size.Y;
+            return x >= position.X &&
+                   x < position.X + size.X &&
+                   y >= position.Y &&
+                   y < position.Y + size.Y;
         }
 
         /// <summary>
@@ -439,6 +457,13 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Recomputes the shared corner radius from the current button size.
+        /// </summary>
+        void UpdateCornerRadius() {
+            CornerRadius = (float)(Math.Min((double)size.X, (double)size.Y) * 0.15d);
+        }
+
+        /// <summary>
         /// Raises the hover event when a listener is interested in pointer entry.
         /// </summary>
         void RaiseHovered() {
@@ -456,14 +481,14 @@ namespace helengine {
             }
 
             var tight = font.MeasureTight(text);
-            float lineHeight = MathF.Max(font.LineHeight, 1f);
+            double lineHeight = Math.Max((double)font.LineHeight, 1d);
 
-            float px = (size.X - tight.Width) / 2f;
-            float py = (size.Y - lineHeight) / 2f;
-            px = MathF.Round(px);
-            py = MathF.Round(py);
+            double px = ((double)size.X - tight.Width) / 2d;
+            double py = ((double)size.Y - lineHeight) / 2d;
+            px = Math.Round(px);
+            py = Math.Round(py);
 
-            textEntity.Position = new float3(px, py, 0.1f);
+            textEntity.Position = new float3((float)px, (float)py, 0.1f);
             textComponent.Size = new int2((int)Math.Ceiling(tight.Width), (int)Math.Ceiling(lineHeight));
         }
     }

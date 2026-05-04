@@ -2,7 +2,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Test model importer that returns a deterministic triangle mesh for importer-manager scenarios.
     /// </summary>
-    public class TestModelImporter : IModelImporter {
+    internal class TestModelImporter : IModelImporter {
         /// <summary>
         /// Tracks how many times model import was requested.
         /// </summary>

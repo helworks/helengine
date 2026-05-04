@@ -11,6 +11,8 @@ class byte4;
 class ThemeColors
 {
 public:
+    virtual ~ThemeColors() = default;
+
     ThemeColors();
 
     ::byte4 AccentPrimary;

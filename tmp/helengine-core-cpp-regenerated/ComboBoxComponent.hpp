@@ -8,9 +8,7 @@ class Component;
 class IFocusTarget;
 class Entity;
 class ComboBoxUpdateComponent;
-class InputManager;
 class Core;
-class int2;
 class float3;
 class FontTightMetrics;
 class FontAsset;
@@ -34,11 +32,10 @@ class InteractableComponent;
 #include "ComboBoxUpdateComponent.hpp"
 #include "runtime/native_exceptions.hpp"
 #include "runtime/native_string.hpp"
-#include "InputManager.hpp"
+#include "InputSystem.hpp"
 #include "Core.hpp"
 #include "Core.hpp"
-#include "int2.hpp"
-#include "InputManager.hpp"
+#include "InputSystem.hpp"
 #include "float3.hpp"
 #include "system/math.hpp"
 #include "system/math.hpp"
@@ -57,6 +54,7 @@ class InteractableComponent;
 #include "FontAsset.hpp"
 #include "runtime/native_list.hpp"
 #include "runtime/native_event.hpp"
+#include "int2.hpp"
 #include "Entity.hpp"
 #include "TextComponent.hpp"
 #include "RoundedRectComponent.hpp"
@@ -69,6 +67,8 @@ class InteractableComponent;
 class ComboBoxComponent : public Component, public IFocusTarget
 {
 public:
+    virtual ~ComboBoxComponent() = default;
+
     bool get_CanReceiveFocus();
 
     ::IFocusGroup* FocusGroup;
@@ -106,26 +106,26 @@ public:
 
     ::Event SelectionChanged;
 
-    ::int2 get_Size();
+    int2* get_Size();
 
-    void set_Size(::int2 value);
+    void set_Size(int2* value);
 
     int32_t TabIndex;
 
     int32_t get_TabIndex();
     void set_TabIndex(int32_t value);
 
-    void ActivateFromKey(::Keys key);
+    void ActivateFromKey(Keys key);
 
-    bool CanActivateWithKey(::Keys key);
+    bool CanActivateWithKey(Keys key);
 
-    ComboBoxComponent(::int2 size, ::FontAsset* font, List<std::string>* items, int32_t selectedIndex);
+    ComboBoxComponent(int2* size, ::FontAsset* font, List<std::string>* items, int32_t selectedIndex);
 
     void ComponentAdded(::Entity* entity);
 
     void ComponentRemoved(::Entity* entity);
 
-    bool ContainsScreenPoint(::int2 point);
+    bool ContainsScreenPoint(int32_t x, int32_t y);
 
     void ParentEnabledChange(bool newEnabled);
 
@@ -189,7 +189,7 @@ private:
 
     int32_t selectedIndex;
 
-    ::int2 size;
+    int2* size;
 
     uint8_t textOrder;
 
@@ -203,15 +203,15 @@ private:
 
     ::ICamera* FindTopmostCameraAt(int32_t x, int32_t y, uint16_t layerMask);
 
-    float GetCornerRadius(::int2 size);
+    float GetCornerRadius(int2* size);
 
-    void HandleItemCursorEvent(::ComboBoxItemVisual* entry, ::int2 relPos, ::int2 delta, ::PointerInteraction state);
+    void HandleItemCursorEvent(::ComboBoxItemVisual* entry, int2* relPos, int2* delta, ::PointerInteraction state);
 
-    void HandleMainCursorEvent(::int2 relPos, ::int2 delta, ::PointerInteraction state);
+    void HandleMainCursorEvent(int2* relPos, int2* delta, ::PointerInteraction state);
 
     void HideItemVisuals();
 
-    bool IsPointerInsideCombo(::int2 mousePosition);
+    bool IsPointerInsideCombo(int32_t mouseX, int32_t mouseY);
 
     void ResetItemStates();
 

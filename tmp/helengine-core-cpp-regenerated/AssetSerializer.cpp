@@ -3,14 +3,12 @@
 #endif
 #include "AssetSerializer.hpp"
 #include "runtime/native_exceptions.hpp"
-#include "EditorAssetBinarySerializer.hpp"
 #include "EngineBinaryHeader.hpp"
 #include "EngineBinaryHeaderSerializer.hpp"
 #include "Asset.hpp"
 #include "system/io/memory-stream.hpp"
+#include "EditorAssetBinarySerializer.hpp"
 #include "runtime/array.hpp"
-#include "runtime/array.hpp"
-#include "runtime/finally.hpp"
 #include "runtime/native_dictionary.hpp"
 #include "runtime/native_disposable.hpp"
 #include "runtime/native_enum.hpp"
@@ -25,7 +23,6 @@
 #include "system/bit_converter.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/stream.hpp"
-#include "system/math.hpp"
 #include "system/text/encoding.hpp"
 
 ::Asset* AssetSerializer::Deserialize(::Stream* stream)
@@ -48,32 +45,7 @@ throw new InvalidOperationException(std::string("Unsupported asset binary format
 throw new ArgumentNullException("data");
     }
 {
-MemoryStream *stream = new MemoryStream(data, false);
+::MemoryStream *stream = new ::MemoryStream(data, false);
 return Deserialize(stream);}
-}
-
-void AssetSerializer::Serialize(::Stream* stream, ::Asset* asset)
-{
-    if (stream == nullptr)
-    {
-throw new ArgumentNullException("stream");
-    }
-else     if (asset == nullptr)
-    {
-throw new ArgumentNullException("asset");
-    }
-EditorAssetBinarySerializer::Serialize(stream, asset);
-}
-
-Array<uint8_t>* AssetSerializer::SerializeToBytes(::Asset* asset)
-{
-    if (asset == nullptr)
-    {
-throw new ArgumentNullException("asset");
-    }
-{
-MemoryStream *stream = new MemoryStream();
-Serialize(stream, asset);
-return stream->ToArray();}
 }
 

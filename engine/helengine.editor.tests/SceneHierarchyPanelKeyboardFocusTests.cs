@@ -98,7 +98,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SceneHierarchyPanel_WhenRightKeyIsPressedOnCollapsedParent_ExpandsTheFocusedBranch() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             SceneHierarchyPanel panel = CreateRegisteredPanel();
             EditorEntity parent = new EditorEntity {
                 Name = "Parent"
@@ -131,7 +131,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SceneHierarchyPanel_WhenLeftKeyIsPressedOnExpandedParent_CollapsesTheFocusedBranch() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             SceneHierarchyPanel panel = CreateRegisteredPanel();
             EditorEntity parent = new EditorEntity {
                 Name = "Parent"
@@ -160,7 +160,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SceneHierarchyPanel_WhenDownKeyIsPressed_MovesFocusToTheNextVisibleRow() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             SceneHierarchyPanel panel = CreateRegisteredPanel();
             EditorEntity parent = new EditorEntity {
                 Name = "Parent"
@@ -193,7 +193,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SceneHierarchyPanel_WhenUpKeyIsPressed_MovesFocusToThePreviousVisibleRow() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             SceneHierarchyPanel panel = CreateRegisteredPanel();
             EditorEntity parent = new EditorEntity {
                 Name = "Parent"
@@ -223,11 +223,11 @@ namespace helengine.editor.tests {
         /// Initializes the core services required by hierarchy keyboard-focus tests.
         /// </summary>
         /// <returns>Input manager bound to the created core.</returns>
-        TestInputManager InitializeCore() {
+        TestInputBackend InitializeCore() {
             Core core = new Core();
-            TestInputManager input = new TestInputManager();
+            TestInputBackend input = new TestInputBackend();
             core.Initialize(null, new TestRenderManager2D(), input);
-            core.InputManager.SetKeyboardActive(true);
+            core.InputSystem.SetKeyboardActive(true);
             EditorKeyboardFocusService.Reset();
             EditorSelectionService.ClearSelection();
 
@@ -357,7 +357,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="input">Input manager used by the active core.</param>
         /// <param name="key">Key to press.</param>
-        void PressKey(TestInputManager input, Keys key) {
+        void PressKey(TestInputBackend input, Keys key) {
             input.SetKeyboardState(new KeyboardState(key));
             Core.Instance.Update();
             input.SetKeyboardState(new KeyboardState());
@@ -365,3 +365,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

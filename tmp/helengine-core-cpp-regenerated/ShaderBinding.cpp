@@ -20,16 +20,20 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/math.hpp"
 #include "system/number.hpp"
 #include "system/string_comparer.hpp"
 #include "system/text/encoding.hpp"
 #include "system/text/regular_expressions/regex.hpp"
+#include "system/text/string-builder.hpp"
 
 List<::ShaderConstantMember*>* ShaderBinding::get_Members()
 {
@@ -65,33 +69,33 @@ ShaderBinding::ShaderBinding(std::string name, ::ShaderResourceType type, int32_
     if (String::IsNullOrWhiteSpace(name))
     {
 throw ([&]() {
-auto __ctor_arg_e7555d3a = "Binding name must be provided.";
-auto __ctor_arg_3db72f4d = "name";
-return new ArgumentException(__ctor_arg_e7555d3a, __ctor_arg_3db72f4d);
+auto __ctor_arg_000000DB = "Binding name must be provided.";
+auto __ctor_arg_000000DC = "name";
+return new ArgumentException(__ctor_arg_000000DB, __ctor_arg_000000DC);
 })();
     }
     if (set < 0)
     {
 throw ([&]() {
-auto __ctor_arg_3bbe983a = "set";
-auto __ctor_arg_1cb5ce70 = "Set cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_3bbe983a, __ctor_arg_1cb5ce70);
+auto __ctor_arg_000000DD = "set";
+auto __ctor_arg_000000DE = "Set cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000DD, __ctor_arg_000000DE);
 })();
     }
     if (slot < 0)
     {
 throw ([&]() {
-auto __ctor_arg_b595234a = "slot";
-auto __ctor_arg_4e890d6f = "Slot cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_b595234a, __ctor_arg_4e890d6f);
+auto __ctor_arg_000000DF = "slot";
+auto __ctor_arg_000000E0 = "Slot cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000DF, __ctor_arg_000000E0);
 })();
     }
     if (size < 0)
     {
 throw ([&]() {
-auto __ctor_arg_af599f8e = "size";
-auto __ctor_arg_f1d0c538 = "Size cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_af599f8e, __ctor_arg_f1d0c538);
+auto __ctor_arg_000000E1 = "size";
+auto __ctor_arg_000000E2 = "Size cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000E1, __ctor_arg_000000E2);
 })();
     }
     if (members == nullptr)

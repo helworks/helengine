@@ -2,10 +2,10 @@
 
 static const HEFeatureEntry kFeatureEntries[] = {
     { HEFeature::DebugOverlay, false, HEFeatureDecisionOrigin::NotIncluded, "DebugOverlay" },
-    { HEFeature::Render2D, true, HEFeatureDecisionOrigin::AutoDetected, "Render2D" },
-    { HEFeature::Shaders, true, HEFeatureDecisionOrigin::AutoDetected, "Shaders" },
-    { HEFeature::Sprites, true, HEFeatureDecisionOrigin::AutoDetected, "Sprites" },
-    { HEFeature::Text2D, true, HEFeatureDecisionOrigin::AutoDetected, "Text2D" },
+    { HEFeature::Render2D, false, HEFeatureDecisionOrigin::NotIncluded, "Render2D" },
+    { HEFeature::Shaders, false, HEFeatureDecisionOrigin::NotIncluded, "Shaders" },
+    { HEFeature::Sprites, false, HEFeatureDecisionOrigin::NotIncluded, "Sprites" },
+    { HEFeature::Text2D, false, HEFeatureDecisionOrigin::NotIncluded, "Text2D" },
 };
 
 bool he_feature_enabled(HEFeature feature) {

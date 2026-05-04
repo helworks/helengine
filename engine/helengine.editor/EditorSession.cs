@@ -231,6 +231,10 @@ namespace helengine.editor {
         /// </summary>
         readonly BuildDialog buildDialog;
         /// <summary>
+        /// Modal dialog used to choose a source platform before copying build settings.
+        /// </summary>
+        readonly BuildDialogCopySettingsDialog buildDialogCopySettingsDialog;
+        /// <summary>
         /// Service that generates and opens the game solution for scripting.
         /// </summary>
         readonly EditorGameSolutionService gameSolutionService;
@@ -316,7 +320,7 @@ namespace helengine.editor {
         /// <param name="snapModifierFont">Font used for the viewport snap modifier labels.</param>
         /// <param name="render3D">3D renderer instance.</param>
         /// <param name="render2D">2D renderer instance.</param>
-        /// <param name="input">Input manager instance.</param>
+        /// <param name="input">Platform-specific input backend instance.</param>
         /// <param name="renderWidth">Initial render width in pixels.</param>
         /// <param name="renderHeight">Initial render height in pixels.</param>
         /// <param name="toolbarIcons">Toolbar icon textures used by the main viewport tool buttons.</param>
@@ -330,7 +334,7 @@ namespace helengine.editor {
             FontAsset snapModifierFont,
             RenderManager3D render3D,
             RenderManager2D render2D,
-            InputManager input,
+            IInputBackend input,
             int renderWidth,
             int renderHeight,
             EditorViewportToolbarIconSet toolbarIcons,
@@ -361,7 +365,7 @@ namespace helengine.editor {
             EditorKeyboardFocusService.Reset();
             core.Initialize(render3D, render2D, input);
             EditorComponentAddCatalog.Initialize();
-            core.InputManager.SetKeyboardActive(true);
+            core.Input.SetKeyboardActive(true);
 
             EditorProjectPaths.Initialize(this.projectPath);
 
@@ -454,6 +458,7 @@ namespace helengine.editor {
             ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
             persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
             persistenceRegistry.Register(new CameraComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new TextComponentPersistenceDescriptor());
             persistenceRegistry.Register(new FPSComponentPersistenceDescriptor());
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
@@ -472,6 +477,7 @@ namespace helengine.editor {
             buildSettingsDialog = new BuildSettingsDialog(uiFont);
             profilesDialog = new ProfilesDialog(uiFont);
             buildDialog = new BuildDialog(uiFont);
+            buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont);
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
             scriptHotReloadService = new EditorGameScriptHotReloadService(
                 gameSolutionService,
@@ -516,10 +522,13 @@ namespace helengine.editor {
             profilesDialog.ConfirmRequested += HandleProfilesDialogConfirmed;
             profilesDialog.CancelRequested += HandleProfilesDialogCancelRequested;
             buildDialog.AddRequested += HandleBuildDialogAddRequested;
+            buildDialog.CopySettingsRequested += HandleBuildDialogCopySettingsRequested;
             buildDialog.BrowseOutputFolderRequested += HandleBuildDialogBrowseOutputFolderRequested;
             buildDialog.BuildQueueRequested += HandleBuildDialogBuildQueueRequested;
             buildDialog.RemoveQueueItemRequested += HandleBuildDialogRemoveQueueItemRequested;
             buildDialog.CancelRequested += HandleBuildDialogCancelRequested;
+            buildDialogCopySettingsDialog.ConfirmRequested += HandleBuildDialogCopySettingsConfirmed;
+            buildDialogCopySettingsDialog.CancelRequested += HandleBuildDialogCopySettingsCanceled;
             unsavedChangesDialog.SaveRequested += HandleUnsavedChangesSaveRequested;
             unsavedChangesDialog.DontSaveRequested += HandleUnsavedChangesDontSaveRequested;
             unsavedChangesDialog.CancelRequested += HandleUnsavedChangesCancelRequested;
@@ -633,12 +642,12 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the latest pointer position in window coordinates.
         /// </summary>
-        public int2 PointerPosition => core.InputManager.GetMousePosition();
+        public int2 PointerPosition => core.Input.GetMousePosition();
 
         /// <summary>
         /// Gets the cursor requested by the interactable currently hovered inside the editor.
         /// </summary>
-        public PointerCursorKind HoverCursor => core.InputManager.HoverCursor;
+        public PointerCursorKind HoverCursor => core.PointerInteractionSystem.HoverCursor;
 
         /// <summary>
         /// Gets the supported platform identifiers declared by the current project's `.heproj` file.
@@ -734,6 +743,7 @@ namespace helengine.editor {
             buildSettingsDialog.UpdateLayout(width, height);
             profilesDialog.UpdateLayout(width, height);
             buildDialog.UpdateLayout(width, height);
+            buildDialogCopySettingsDialog.UpdateLayout(width, height);
             unsavedChangesDialog.UpdateLayout(width, height);
             propertiesPanel.UpdateModalLayout(width, height);
             mainViewport.RefreshInputBlockers();
@@ -768,8 +778,8 @@ namespace helengine.editor {
             int2 hostSize = new int2(width, availableHeight);
             float3 origin = new float3(0, titleBar.Height, 0);
 
-            int2 pointer = core.InputManager.GetMousePosition();
-            return dockingManager.Update(pointer, core.InputManager.GetMouseLeftButtonState(), hostSize, origin);
+            int2 pointer = core.Input.GetMousePosition();
+            return dockingManager.Update(pointer, core.Input.GetMouseLeftButtonState(), hostSize, origin);
         }
 
         /// <summary>
@@ -801,7 +811,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="isActive">True to capture keyboard input; false to stop capture.</param>
         public void SetKeyboardActive(bool isActive) {
-            core.InputManager.SetKeyboardActive(isActive);
+            core.Input.SetKeyboardActive(isActive);
         }
 
         /// <summary>
@@ -840,7 +850,10 @@ namespace helengine.editor {
             buildDialog.BrowseOutputFolderRequested -= HandleBuildDialogBrowseOutputFolderRequested;
             buildDialog.BuildQueueRequested -= HandleBuildDialogBuildQueueRequested;
             buildDialog.RemoveQueueItemRequested -= HandleBuildDialogRemoveQueueItemRequested;
+            buildDialog.CopySettingsRequested -= HandleBuildDialogCopySettingsRequested;
             buildDialog.CancelRequested -= HandleBuildDialogCancelRequested;
+            buildDialogCopySettingsDialog.ConfirmRequested -= HandleBuildDialogCopySettingsConfirmed;
+            buildDialogCopySettingsDialog.CancelRequested -= HandleBuildDialogCopySettingsCanceled;
             unsavedChangesDialog.SaveRequested -= HandleUnsavedChangesSaveRequested;
             unsavedChangesDialog.DontSaveRequested -= HandleUnsavedChangesDontSaveRequested;
             unsavedChangesDialog.CancelRequested -= HandleUnsavedChangesCancelRequested;
@@ -853,6 +866,7 @@ namespace helengine.editor {
             reparentEntityDialog.Hide();
             buildSettingsDialog.Hide();
             buildDialog.Hide();
+            buildDialogCopySettingsDialog.Hide();
             unsavedChangesDialog.Hide();
             shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
             shaderModuleManager.Dispose();
@@ -1036,6 +1050,7 @@ namespace helengine.editor {
         /// </summary>
         void HandleBuildSettingsRequested() {
             IReadOnlyList<AvailablePlatformDescriptor> availablePlatforms = availablePlatformProviderResolver.LoadPlatforms(RequiredEngineVersion);
+            buildDialogCopySettingsDialog.Hide();
             buildSettingsDialog.Show(availablePlatforms, SupportedPlatforms);
         }
 
@@ -1065,6 +1080,7 @@ namespace helengine.editor {
         /// </summary>
         void HandleProfilesRequested() {
             EditorProfileSettingsDocument profileSettings = profileSettingsService.Load(SupportedPlatforms);
+            buildDialogCopySettingsDialog.Hide();
             profilesDialog.Show(profileSettings, SupportedPlatforms, ActiveProjectPlatform, ResolvePlatformSelectionModel(ActiveProjectPlatform));
         }
 
@@ -1099,6 +1115,7 @@ namespace helengine.editor {
             IReadOnlyList<string> sceneIds = sceneCatalogService.GetSceneIds();
             string currentSceneId = sceneCatalogService.ResolveSceneId(CurrentScenePath);
             EditorBuildConfigDocument buildConfig = buildConfigService.Load(SupportedPlatforms, currentSceneId);
+            buildDialogCopySettingsDialog.Hide();
             buildDialog.Show(SupportedPlatforms, sceneIds, ActiveProjectPlatform, buildConfig, ResolvePlatformSelectionModel(ActiveProjectPlatform));
         }
 
@@ -1176,10 +1193,16 @@ namespace helengine.editor {
                 SelectedGraphicsProfileId = request.SelectedGraphicsProfileId,
                 SelectedBuildOptionValues = new Dictionary<string, string>(request.SelectedBuildOptionValues),
                 SelectedGraphicsOptionValues = new Dictionary<string, string>(request.SelectedGraphicsOptionValues),
+                SelectedCodegenProfileId = request.SelectedCodegenProfileId,
+                SelectedStorageProfileId = request.SelectedStorageProfileId,
+                SelectedMediaProfileId = request.SelectedMediaProfileId,
+                SelectedCodegenOptionValues = new Dictionary<string, string>(request.SelectedCodegenOptionValues),
+                SelectedCodeModuleIds = new List<string>(request.SelectedCodeModuleIds),
                 Status = EditorBuildQueueItemStatus.Pending,
                 StatusMessage = string.Empty
             });
             buildConfigService.Save(buildConfig);
+            buildDialogCopySettingsDialog.Hide();
             buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), request.PlatformId, buildConfig, ResolvePlatformSelectionModel(request.PlatformId));
         }
 
@@ -1201,6 +1224,7 @@ namespace helengine.editor {
             }
 
             buildConfigService.Save(buildConfig);
+            buildDialogCopySettingsDialog.Hide();
             buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), ActiveProjectPlatform, buildConfig, ResolvePlatformSelectionModel(ActiveProjectPlatform));
         }
 
@@ -1227,6 +1251,7 @@ namespace helengine.editor {
             EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
             buildConfigService.Save(buildConfig);
             buildQueueService.RunPending(buildConfig, SupportedPlatforms);
+            buildDialogCopySettingsDialog.Hide();
             buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), ActiveProjectPlatform, buildConfig, ResolvePlatformSelectionModel(ActiveProjectPlatform));
         }
 
@@ -1234,7 +1259,43 @@ namespace helengine.editor {
         /// Cancels the Build dialog without changing project-shared platform state.
         /// </summary>
         void HandleBuildDialogCancelRequested() {
+            buildDialogCopySettingsDialog.Hide();
             buildDialog.Hide();
+        }
+
+        /// <summary>
+        /// Opens the compact chooser used to copy settings from another platform into the active build tab.
+        /// </summary>
+        void HandleBuildDialogCopySettingsRequested() {
+            List<string> copySourcePlatformIds = new List<string>(SupportedPlatforms.Count);
+            for (int index = 0; index < SupportedPlatforms.Count; index++) {
+                string platformId = SupportedPlatforms[index];
+                if (!string.Equals(platformId, ActiveProjectPlatform, StringComparison.OrdinalIgnoreCase)) {
+                    copySourcePlatformIds.Add(platformId);
+                }
+            }
+
+            buildDialogCopySettingsDialog.Show(copySourcePlatformIds);
+        }
+
+        /// <summary>
+        /// Applies one confirmed source platform to the active build tab and hides the chooser modal.
+        /// </summary>
+        /// <param name="sourcePlatformId">Source platform id chosen by the chooser dialog.</param>
+        void HandleBuildDialogCopySettingsConfirmed(string sourcePlatformId) {
+            if (string.IsNullOrWhiteSpace(sourcePlatformId)) {
+                throw new ArgumentException("Source platform id is required.", nameof(sourcePlatformId));
+            }
+
+            buildDialog.CopyMapListFrom(sourcePlatformId);
+            buildDialogCopySettingsDialog.Hide();
+        }
+
+        /// <summary>
+        /// Cancels the build-copy chooser without changing the active build configuration.
+        /// </summary>
+        void HandleBuildDialogCopySettingsCanceled() {
+            buildDialogCopySettingsDialog.Hide();
         }
 
         /// <summary>
@@ -2078,7 +2139,8 @@ namespace helengine.editor {
                     ProjectName,
                     ProjectVersion,
                     Importers,
-                    platform);
+                    platform,
+                    uiFont);
             }
 
             return new EditorBuildExecutorRouter(executorsByPlatformId);
@@ -2252,3 +2314,4 @@ namespace helengine.editor {
         }
     }
 }
+

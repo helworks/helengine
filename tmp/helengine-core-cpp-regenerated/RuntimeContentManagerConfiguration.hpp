@@ -18,8 +18,12 @@ template <typename T> class IContentProcessor_1;
 class RuntimeContentManagerConfiguration
 {
 public:
+    virtual ~RuntimeContentManagerConfiguration() = default;
+
     static void ConfigureSharedAssetContentManager(::ContentManager* contentManager);
 private:
+    static std::string FontAssetExtension;
+
     static std::string MaterialAssetExtension;
 
     static std::string ShaderPackageExtension;

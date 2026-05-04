@@ -18,6 +18,8 @@ class ShaderCompileCacheKey;
 class ShaderMemoryCompileCache : public IShaderCompileCache
 {
 public:
+    virtual ~ShaderMemoryCompileCache() = default;
+
     ShaderMemoryCompileCache();
 
     void Store(::ShaderCompileCacheKey* key, ::ShaderCompileResult* result);

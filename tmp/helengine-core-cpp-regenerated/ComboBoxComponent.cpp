@@ -9,9 +9,8 @@
 #include "Entity.hpp"
 #include "ComboBoxUpdateComponent.hpp"
 #include "runtime/native_string.hpp"
-#include "InputManager.hpp"
+#include "InputSystem.hpp"
 #include "Core.hpp"
-#include "int2.hpp"
 #include "float3.hpp"
 #include "system/math.hpp"
 #include "FontTightMetrics.hpp"
@@ -21,7 +20,6 @@
 #include "float4.hpp"
 #include "GeometryUtils.hpp"
 #include "ObjectManager.hpp"
-#include "Keys.hpp"
 #include "RenderOrder2D.hpp"
 #include "RoundedRectComponent.hpp"
 #include "ThemeManager.hpp"
@@ -49,6 +47,8 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/directory.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
@@ -160,22 +160,22 @@ throw new InvalidOperationException("ComboBox has no selected item.");
     }
 return (*this->items)[this->selectedIndex];}
 
-::int2 ComboBoxComponent::get_Size()
+int2* ComboBoxComponent::get_Size()
 {
 return this->size;}
 
-void ComboBoxComponent::set_Size(::int2 value)
+void ComboBoxComponent::set_Size(int2* value)
 {
-    if (value.X <= 0 || value.Y <= 0)
+    if (value->X <= 0 || value->Y <= 0)
     {
 throw ([&]() {
-auto __ctor_arg_f66eb3c7 = "value";
-auto __ctor_arg_6dab3d7d = "ComboBox size must be positive.";
-return new ArgumentOutOfRangeException(__ctor_arg_f66eb3c7, __ctor_arg_6dab3d7d);
+auto __ctor_arg_000001B2 = "value";
+auto __ctor_arg_000001B3 = "ComboBox size must be positive.";
+return new ArgumentOutOfRangeException(__ctor_arg_000001B2, __ctor_arg_000001B3);
 })();
     }
 this->size = value;
-this->itemHeight = this->size.Y;
+this->itemHeight = this->size->Y;
 this->UpdateLayout();
 }
 
@@ -189,7 +189,7 @@ void ComboBoxComponent::set_TabIndex(int32_t value)
 this->TabIndex = value;
 }
 
-void ComboBoxComponent::ActivateFromKey(::Keys key)
+void ComboBoxComponent::ActivateFromKey(Keys key)
 {
     if (!this->CanActivateWithKey(key) || this->items->Count() == 0)
     {
@@ -197,18 +197,18 @@ return;    }
 this->set_IsOpen(!this->isOpen);
 }
 
-bool ComboBoxComponent::CanActivateWithKey(::Keys key)
+bool ComboBoxComponent::CanActivateWithKey(Keys key)
 {
 return key == Keys::Enter || key == Keys::Space;}
 
-ComboBoxComponent::ComboBoxComponent(::int2 size, ::FontAsset* font, List<std::string>* items, int32_t selectedIndex) : FocusGroup(), IsDefaultTarget(), IsKeyboardFocused(), SelectionChanged(), TabIndex(0), arrowEntity(), arrowText(), background(), backgroundOrder(), font(), hasRenderOrderOverrides(), interactable(), isHovering(), isOpen(), isPressed(), itemHeight(0), itemVisuals(), items(), labelEntity(), labelText(), listBackground(), listBackgroundOrder(), listRoot(), listTextOrder(), selectedIndex(0), size(), textOrder()
+ComboBoxComponent::ComboBoxComponent(int2* size, ::FontAsset* font, List<std::string>* items, int32_t selectedIndex) : FocusGroup(), IsDefaultTarget(), IsKeyboardFocused(), SelectionChanged(), TabIndex(0), arrowEntity(), arrowText(), background(), backgroundOrder(), font(), hasRenderOrderOverrides(), interactable(), isHovering(), isOpen(), isPressed(), itemHeight(0), itemVisuals(), items(), labelEntity(), labelText(), listBackground(), listBackgroundOrder(), listRoot(), listTextOrder(), selectedIndex(0), size(), textOrder()
 {
-    if (size.X <= 0 || size.Y <= 0)
+    if (size->X <= 0 || size->Y <= 0)
     {
 throw ([&]() {
-auto __ctor_arg_db72eac7 = "size";
-auto __ctor_arg_20d03dae = "ComboBox size must be positive.";
-return new ArgumentOutOfRangeException(__ctor_arg_db72eac7, __ctor_arg_20d03dae);
+auto __ctor_arg_000001B4 = "size";
+auto __ctor_arg_000001B5 = "ComboBox size must be positive.";
+return new ArgumentOutOfRangeException(__ctor_arg_000001B4, __ctor_arg_000001B5);
 })();
     }
 else     if (font == nullptr)
@@ -223,7 +223,7 @@ this->size = size;
 this->font = font;
 this->items = new List<std::string>(items->get_Count());
 this->itemVisuals = new List<::ComboBoxItemVisual*>(items->get_Count());
-this->itemHeight = size.Y;
+this->itemHeight = size->Y;
 this->CopyItems(items);
 this->selectedIndex = this->ValidateSelectedIndex(this->items->Count(), selectedIndex);
 }
@@ -303,13 +303,13 @@ this->ResetItemStates();
 this->SetTargetFocused(false);
 }
 
-bool ComboBoxComponent::ContainsScreenPoint(::int2 point)
+bool ComboBoxComponent::ContainsScreenPoint(int32_t x, int32_t y)
 {
     if (Parent == nullptr)
     {
 return false;    }
 ::float3 origin = Parent->get_Position();
-return point.X >= origin.X && point.X < origin.X + this->size.X && point.Y >= origin.Y && point.Y < origin.Y + this->size.Y;}
+return x >= origin.X && x < origin.X + this->size->X && y >= origin.Y && y < origin.Y + this->size->Y;}
 
 void ComboBoxComponent::ParentEnabledChange(bool newEnabled)
 {
@@ -375,12 +375,13 @@ void ComboBoxComponent::Update()
     if (!this->isOpen || Parent == nullptr || this->listRoot == nullptr)
     {
 return;    }
-::InputManager *inputManager = Core::get_Instance()->get_InputManager();
+InputSystem *inputManager = Core::get_Instance()->get_Input();
     if (!inputManager->WasMouseLeftButtonPressed())
     {
 return;    }
-::int2 mousePosition = inputManager->GetMousePosition();
-    if (this->IsPointerInsideCombo(mousePosition))
+const int32_t mouseX = inputManager->GetMouseX();
+const int32_t mouseY = inputManager->GetMouseY();
+    if (this->IsPointerInsideCombo(mouseX, mouseY))
     {
 return;    }
 this->set_IsOpen(false);
@@ -474,12 +475,12 @@ return camera;    }
 }
 return nullptr;}
 
-float ComboBoxComponent::GetCornerRadius(::int2 size)
+float ComboBoxComponent::GetCornerRadius(int2* size)
 {
-const double minAxis = Math::Min(size.X, size.Y);
+const double minAxis = Math::Min(size->X, size->Y);
 return static_cast<float>((minAxis * 0.15));}
 
-void ComboBoxComponent::HandleItemCursorEvent(::ComboBoxItemVisual* entry, ::int2 relPos, ::int2 delta, ::PointerInteraction state)
+void ComboBoxComponent::HandleItemCursorEvent(::ComboBoxItemVisual* entry, int2* relPos, int2* delta, ::PointerInteraction state)
 {
 switch (state) {
 case PointerInteraction::Hover: {
@@ -516,7 +517,7 @@ break;
 
 }
 
-void ComboBoxComponent::HandleMainCursorEvent(::int2 relPos, ::int2 delta, ::PointerInteraction state)
+void ComboBoxComponent::HandleMainCursorEvent(int2* relPos, int2* delta, ::PointerInteraction state)
 {
 switch (state) {
 case PointerInteraction::Hover: {
@@ -565,21 +566,21 @@ for (int32_t i = 0; i < this->itemVisuals->Count(); i++) {
 entry->get_Root()->set_Enabled(false);
 entry->get_LabelHost()->set_Enabled(false);
 entry->get_Label()->set_Text(String::Empty);
-entry->get_Label()->set_Size(::int2(0, 0));
+entry->get_Label()->set_Size(new int2(0, 0));
 }
 }
 
-bool ComboBoxComponent::IsPointerInsideCombo(::int2 mousePosition)
+bool ComboBoxComponent::IsPointerInsideCombo(int32_t mouseX, int32_t mouseY)
 {
-::ICamera *camera = this->FindTopmostCameraAt(mousePosition.X, mousePosition.Y, Parent->get_LayerMask());
+::ICamera *camera = this->FindTopmostCameraAt(mouseX, mouseY, Parent->get_LayerMask());
     if (camera == nullptr)
     {
 return false;    }
 ::float4 viewport = camera->get_Viewport();
-const double localX = mousePosition.X - viewport.X;
-const double localY = mousePosition.Y - viewport.Y;
+const double localX = mouseX - viewport.X;
+const double localY = mouseY - viewport.Y;
 ::float3 origin = Parent->get_Position();
-    if (GeometryUtils::IsPointInsideRect(localX, localY, origin, this->size.X, this->size.Y))
+    if (GeometryUtils::IsPointInsideRect(localX, localY, origin, this->size->X, this->size->Y))
     {
 return true;    }
     if (!this->isOpen)
@@ -590,7 +591,7 @@ const int32_t listHeight = this->itemHeight * this->items->Count();
     {
 return false;    }
 ::float3 listPosition = this->listRoot->get_Position();
-return GeometryUtils::IsPointInsideRect(localX, localY, listPosition, this->size.X, listHeight);}
+return GeometryUtils::IsPointInsideRect(localX, localY, listPosition, this->size->X, listHeight);}
 
 void ComboBoxComponent::ResetItemStates()
 {
@@ -665,17 +666,17 @@ void ComboBoxComponent::UpdateLabelLayout()
     {
 return;    }
 const double lineHeight = Math::Max(static_cast<double>(this->font->get_LineHeight()), 1.0);
-const double labelY = Math::Round((this->size.Y - lineHeight) / 2.0, MidpointRounding::AwayFromZero);
+const double labelY = Math::Round((this->size->Y - lineHeight) / 2.0, MidpointRounding::AwayFromZero);
 ::FontTightMetrics labelMetrics = this->font->MeasureTight(this->labelText->get_Text());
 const int32_t labelWidth = static_cast<int32_t>(Math::Ceiling(labelMetrics.Width));
 const int32_t labelHeight = static_cast<int32_t>(Math::Ceiling(Math::Max(static_cast<double>(labelMetrics.get_Height()), 1.0)));
-this->labelText->set_Size(::int2(labelWidth, labelHeight));
+this->labelText->set_Size(new int2(labelWidth, labelHeight));
 this->labelEntity->set_Position(::float3(TextPaddingX, static_cast<float>(labelY), 0.1f));
 ::FontTightMetrics arrowMetrics = this->font->MeasureTight(ArrowGlyph);
 const int32_t arrowWidth = static_cast<int32_t>(Math::Ceiling(arrowMetrics.Width));
 const int32_t arrowHeight = static_cast<int32_t>(Math::Ceiling(Math::Max(static_cast<double>(arrowMetrics.get_Height()), 1.0)));
-this->arrowText->set_Size(::int2(arrowWidth, arrowHeight));
-double arrowX = this->size.X - ArrowPaddingX - arrowMetrics.Width;
+this->arrowText->set_Size(new int2(arrowWidth, arrowHeight));
+double arrowX = this->size->X - ArrowPaddingX - arrowMetrics.Width;
     if (arrowX < TextPaddingX)
     {
 arrowX = TextPaddingX;
@@ -708,13 +709,13 @@ void ComboBoxComponent::UpdateListLayout()
     if (this->listRoot == nullptr || this->listBackground == nullptr)
     {
 return;    }
-this->listRoot->set_Position(::float3(0.0f, this->size.Y + ListGap, 0.2f));
+this->listRoot->set_Position(::float3(0.0f, this->size->Y + ListGap, 0.2f));
 int32_t listHeight = this->itemHeight * this->items->Count();
     if (listHeight <= 0)
     {
 listHeight = 1;
     }
-this->listBackground->set_Size(::int2(this->size.X, listHeight));
+this->listBackground->set_Size(new int2(this->size->X, listHeight));
     if (this->background != nullptr)
     {
 this->listBackground->set_Radius(this->background->get_Radius());
@@ -731,30 +732,30 @@ entry->get_LabelHost()->set_Enabled(isVisible);
     if (!isActive)
     {
 entry->get_Label()->set_Text(String::Empty);
-entry->get_Label()->set_Size(::int2(0, 0));
+entry->get_Label()->set_Size(new int2(0, 0));
 continue;
     }
     if (!shouldShow)
     {
 entry->get_Label()->set_Text(String::Empty);
-entry->get_Label()->set_Size(::int2(0, 0));
+entry->get_Label()->set_Size(new int2(0, 0));
 continue;
     }
 entry->set_Index(i);
 entry->get_Root()->set_Position(::float3(0.0f, this->itemHeight * i, 0.1f));
-entry->get_Background()->set_Size(::int2(this->size.X, this->itemHeight));
+entry->get_Background()->set_Size(new int2(this->size->X, this->itemHeight));
 entry->get_Background()->set_Radius(0.0f);
 entry->get_Background()->set_BorderColor(ThemeManager::get_Colors()->get_AccentTertiary());
-entry->get_Interactable()->set_Size(::int2(this->size.X, this->itemHeight));
+entry->get_Interactable()->set_Size(new int2(this->size->X, this->itemHeight));
 const std::string itemText = (*this->items)[i];
 entry->get_Label()->set_Text(itemText);
 entry->get_Label()->set_Font(this->font);
 entry->get_Label()->set_Color(ThemeManager::get_Colors()->get_InputForegroundPrimary());
 ::FontTightMetrics itemMetrics = this->font->MeasureTight(itemText);
 entry->get_Label()->set_Size(([&]() {
-auto __ctor_arg_c36d9a48 = static_cast<int32_t>(Math::Ceiling(itemMetrics.Width));
-auto __ctor_arg_97801900 = static_cast<int32_t>(Math::Ceiling(Math::Max(static_cast<double>(itemMetrics.get_Height()), 1.0)));
-return ::int2(__ctor_arg_c36d9a48, __ctor_arg_97801900);
+auto __ctor_arg_000001B6 = static_cast<int32_t>(Math::Ceiling(itemMetrics.Width));
+auto __ctor_arg_000001B7 = static_cast<int32_t>(Math::Ceiling(Math::Max(static_cast<double>(itemMetrics.get_Height()), 1.0)));
+return new int2(__ctor_arg_000001B6, __ctor_arg_000001B7);
 })());
 const double textY = Math::Round((this->itemHeight - lineHeight) / 2.0, MidpointRounding::AwayFromZero);
 entry->get_LabelHost()->set_Position(::float3(TextPaddingX, static_cast<float>(textY), 0.1f));
@@ -802,9 +803,9 @@ for (int32_t i = 0; i < items->get_Count(); i++) {
     if (String::IsNullOrEmpty((*items)[i]))
     {
 throw ([&]() {
-auto __ctor_arg_b832fc58 = "ComboBox items must not contain null entries.";
-auto __ctor_arg_e968f397 = "items";
-return new ArgumentException(__ctor_arg_b832fc58, __ctor_arg_e968f397);
+auto __ctor_arg_000001B8 = "ComboBox items must not contain null entries.";
+auto __ctor_arg_000001B9 = "items";
+return new ArgumentException(__ctor_arg_000001B8, __ctor_arg_000001B9);
 })();
     }
 }
@@ -815,9 +816,9 @@ int32_t ComboBoxComponent::ValidateSelectedIndex(int32_t itemCount, int32_t inde
     if (index < -1 || index >= itemCount)
     {
 throw ([&]() {
-auto __ctor_arg_68a9d704 = "index";
-auto __ctor_arg_0145672b = "SelectedIndex must be -1 or within the item range.";
-return new ArgumentOutOfRangeException(__ctor_arg_68a9d704, __ctor_arg_0145672b);
+auto __ctor_arg_000001BA = "index";
+auto __ctor_arg_000001BB = "SelectedIndex must be -1 or within the item range.";
+return new ArgumentOutOfRangeException(__ctor_arg_000001BA, __ctor_arg_000001BB);
 })();
     }
 return index;}

@@ -134,10 +134,6 @@ namespace helengine.editor {
         /// </summary>
         const int BuildLogLineHeight = 18;
         /// <summary>
-        /// Maximum number of build-log lines shown at once.
-        /// </summary>
-        const int BuildLogVisibleLineCount = 5;
-        /// <summary>
         /// Root entity for all left-side build-planning controls.
         /// </summary>
         readonly EditorEntity BuildColumnRoot;
@@ -178,13 +174,17 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity QueueItemsRoot;
         /// <summary>
+        /// Scroll controller used to page through the queued build rows.
+        /// </summary>
+        readonly ScrollComponent QueueScrollComponent;
+        /// <summary>
         /// Host entities created for the currently rendered platform tabs.
         /// </summary>
         readonly List<EditorEntity> PlatformTabHosts;
         /// <summary>
         /// Platform tab buttons rendered for each enabled platform.
         /// </summary>
-        readonly List<ButtonComponent> PlatformTabs;
+        readonly List<TabComponent> PlatformTabs;
         /// <summary>
         /// Host entities created for the currently rendered map labels.
         /// </summary>
@@ -230,6 +230,10 @@ namespace helengine.editor {
         /// </summary>
         readonly List<RoundedRectComponent> QueueItemCardBackgrounds;
         /// <summary>
+        /// Reusable queue-row bundles virtualized against the current scroll offset.
+        /// </summary>
+        readonly List<BuildDialogQueueRow> QueueRows;
+        /// <summary>
         /// Host entity for the output-directory label.
         /// </summary>
         readonly EditorEntity OutputLabelHost;
@@ -238,33 +242,25 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity DebugBuildLabelHost;
         /// <summary>
-        /// Host entity for the copy-source label.
+        /// Host entity for the copy-settings button.
         /// </summary>
-        readonly EditorEntity CopySourceLabelHost;
+        readonly EditorEntity CopySettingsButtonHost;
         /// <summary>
-        /// Host entity for the copy-source combo box.
+        /// Button used to open the copy-settings chooser modal.
         /// </summary>
-        readonly EditorEntity CopySourcePlatformComboBoxHost;
-        /// <summary>
-        /// Host entity for the copy-map-list button.
-        /// </summary>
-        readonly EditorEntity CopyMapListButtonHost;
-        /// <summary>
-        /// Label text describing the source-platform combo box.
-        /// </summary>
-        readonly TextComponent CopySourceLabelText;
-        /// <summary>
-        /// Combo box used to pick the source platform for map-list copying.
-        /// </summary>
-        readonly ComboBoxComponent CopySourcePlatformComboBox;
-        /// <summary>
-        /// Button used to copy one platform's selected map list into the active platform.
-        /// </summary>
-        readonly ButtonComponent CopyMapListButton;
+        readonly ButtonComponent CopySettingsButton;
         /// <summary>
         /// Output-directory label text.
         /// </summary>
         readonly TextComponent OutputLabelText;
+        /// <summary>
+        /// Host entity for the code-module label.
+        /// </summary>
+        readonly EditorEntity CodeModuleLabelHost;
+        /// <summary>
+        /// Code-module label text.
+        /// </summary>
+        readonly TextComponent CodeModuleLabelText;
         /// <summary>
         /// Debug-build label text.
         /// </summary>
@@ -274,9 +270,17 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity OutputFieldHost;
         /// <summary>
+        /// Host entity for the code-module textbox.
+        /// </summary>
+        readonly EditorEntity CodeModuleFieldHost;
+        /// <summary>
         /// Text box used to edit the active platform's output directory.
         /// </summary>
         readonly TextBoxComponent OutputDirectoryField;
+        /// <summary>
+        /// Text box used to edit the active platform's selected code-module ids.
+        /// </summary>
+        readonly TextBoxComponent CodeModuleField;
         /// <summary>
         /// Host entity for the debug-build checkbox.
         /// </summary>
@@ -346,6 +350,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity BuildLogsTextHost;
         /// <summary>
+        /// Scroll controller used to page through the build-log lines.
+        /// </summary>
+        readonly ScrollComponent BuildLogsScrollComponent;
+        /// <summary>
         /// Text component used to render the build log lines.
         /// </summary>
         readonly TextComponent BuildLogsText;
@@ -398,6 +406,10 @@ namespace helengine.editor {
         /// </summary>
         public event Action BuildQueueRequested;
         /// <summary>
+        /// Raised when the user wants to open the copy-settings chooser modal.
+        /// </summary>
+        public event Action CopySettingsRequested;
+        /// <summary>
         /// Raised when the user wants to remove one queued build item from the current queue.
         /// </summary>
         public event Action<string> RemoveQueueItemRequested;
@@ -416,7 +428,7 @@ namespace helengine.editor {
         /// <param name="font">Font used for dialog labels and controls.</param>
         public BuildDialog(FontAsset font) : base("BuildDialog", "Build", font, PanelWidth, PanelHeight, HeaderHeight) {
             PlatformTabHosts = new List<EditorEntity>(8);
-            PlatformTabs = new List<ButtonComponent>(8);
+            PlatformTabs = new List<TabComponent>(8);
             MapLabelHosts = new List<EditorEntity>(16);
             MapLabelTexts = new List<TextComponent>(16);
             MapCheckBoxHosts = new List<EditorEntity>(16);
@@ -428,6 +440,7 @@ namespace helengine.editor {
             QueueItemRemoveButtonHosts = new List<EditorEntity>(16);
             QueueItemRemoveButtons = new List<ButtonComponent>(16);
             QueueItemCardBackgrounds = new List<RoundedRectComponent>(16);
+            QueueRows = new List<BuildDialogQueueRow>(16);
             SceneIds = new List<string>(32);
             SupportedPlatformIds = new List<string>(8);
 
@@ -474,7 +487,7 @@ namespace helengine.editor {
                 FillColor = ThemeManager.Colors.SurfacePrimary,
                 BorderColor = ThemeManager.Colors.AccentTertiary,
                 BorderThickness = 2f,
-                Radius = 6f,
+                Radius = 0f,
                 RenderOrder2D = DialogPanelOrder,
                 Size = new int2(QueueColumnWidth, 1)
             };
@@ -512,6 +525,11 @@ namespace helengine.editor {
             };
             QueueSectionRoot.AddChild(QueueItemsRoot);
 
+            QueueScrollComponent = new ScrollComponent();
+            QueueScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
+            QueueScrollComponent.ScrollOffsetChanged += HandleQueueScrollOffsetChanged;
+            QueueItemsRoot.AddComponent(QueueScrollComponent);
+
             OutputLabelHost = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
@@ -519,42 +537,23 @@ namespace helengine.editor {
             };
             BuildColumnRoot.AddChild(OutputLabelHost);
 
-            CopySourceLabelHost = new EditorEntity {
+            CodeModuleLabelHost = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            BuildColumnRoot.AddChild(CopySourceLabelHost);
+            BuildColumnRoot.AddChild(CodeModuleLabelHost);
 
-            CopySourceLabelText = new TextComponent {
-                Font = DialogFont,
-                Text = "Copy Map List From",
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                RenderOrder2D = DialogTextOrder
-            };
-            CopySourceLabelHost.AddComponent(CopySourceLabelText);
-
-            CopySourcePlatformComboBoxHost = new EditorEntity {
+            CopySettingsButtonHost = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            BuildColumnRoot.AddChild(CopySourcePlatformComboBoxHost);
+            BuildColumnRoot.AddChild(CopySettingsButtonHost);
 
-            CopySourcePlatformComboBox = new ComboBoxComponent(new int2(200, OutputFieldHeight), DialogFont, Array.Empty<string>(), -1);
-            CopySourcePlatformComboBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder, RenderOrder2D.ModalBackground, RenderOrder2D.ModalForeground);
-            CopySourcePlatformComboBoxHost.AddComponent(CopySourcePlatformComboBox);
-
-            CopyMapListButtonHost = new EditorEntity {
-                LayerMask = LayerMask,
-                Position = float3.Zero,
-                InternalEntity = true
-            };
-            BuildColumnRoot.AddChild(CopyMapListButtonHost);
-
-            CopyMapListButton = new ButtonComponent("Copy", new int2(84, FooterButtonHeight), DialogFont, HandleCopyMapListClicked);
-            CopyMapListButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-            CopyMapListButtonHost.AddComponent(CopyMapListButton);
+            CopySettingsButton = new ButtonComponent("Copy settings from...", new int2(GetBuildColumnWidth(), FooterButtonHeight), DialogFont, HandleCopySettingsButtonClicked);
+            CopySettingsButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
+            CopySettingsButtonHost.AddComponent(CopySettingsButton);
 
             OutputLabelText = new TextComponent {
                 Font = DialogFont,
@@ -563,6 +562,14 @@ namespace helengine.editor {
                 RenderOrder2D = DialogTextOrder
             };
             OutputLabelHost.AddComponent(OutputLabelText);
+
+            CodeModuleLabelText = new TextComponent {
+                Font = DialogFont,
+                Text = "Code Modules",
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                RenderOrder2D = DialogTextOrder
+            };
+            CodeModuleLabelHost.AddComponent(CodeModuleLabelText);
 
             DebugBuildLabelHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -586,10 +593,22 @@ namespace helengine.editor {
             };
             BuildColumnRoot.AddChild(OutputFieldHost);
 
+            CodeModuleFieldHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BuildColumnRoot.AddChild(CodeModuleFieldHost);
+
             OutputDirectoryField = new TextBoxComponent(new int2(GetOutputFieldWidth(), OutputFieldHeight), DialogFont, "Select an output folder");
             OutputDirectoryField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             OutputDirectoryField.TextChanged += HandleOutputDirectoryFieldTextChanged;
             OutputFieldHost.AddComponent(OutputDirectoryField);
+
+            CodeModuleField = new TextBoxComponent(new int2(GetOutputFieldWidth(), OutputFieldHeight), DialogFont, "Comma-separated code modules");
+            CodeModuleField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
+            CodeModuleField.TextChanged += HandleCodeModuleFieldTextChanged;
+            CodeModuleFieldHost.AddComponent(CodeModuleField);
 
             DebugBuildCheckBoxHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -646,7 +665,7 @@ namespace helengine.editor {
                 FillColor = ThemeManager.Colors.SurfacePrimary,
                 BorderColor = ThemeManager.Colors.AccentTertiary,
                 BorderThickness = 2f,
-                Radius = 6f,
+                Radius = 0f,
                 RenderOrder2D = DialogPanelOrder,
                 Size = new int2(1, 1)
             };
@@ -712,10 +731,17 @@ namespace helengine.editor {
                 Font = DialogFont,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
+                SelectionEnabled = true,
+                WrapText = true,
                 RenderOrder2D = DialogTextOrder,
                 Size = new int2(1, 1)
             };
             BuildLogsTextHost.AddComponent(BuildLogsText);
+
+            BuildLogsScrollComponent = new ScrollComponent();
+            BuildLogsScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
+            BuildLogsScrollComponent.ScrollOffsetChanged += HandleBuildLogsScrollOffsetChanged;
+            BuildLogsTextHost.AddComponent(BuildLogsScrollComponent);
         }
 
         /// <summary>
@@ -764,6 +790,8 @@ namespace helengine.editor {
             CopyScenes(sceneIds);
             CurrentBuildConfig = buildConfig;
             ActivePlatformSelectionModel = selectionModel;
+            QueueScrollComponent.ResetScrollOffset();
+            BuildLogsScrollComponent.ResetScrollOffset();
             EnsurePlatformConfigs();
             SetActivePlatform(activePlatformId);
             RebuildPlatformTabs();
@@ -795,6 +823,8 @@ namespace helengine.editor {
         /// </summary>
         public void Hide() {
             ClearDialogBackdrop();
+            QueueScrollComponent.ResetScrollOffset();
+            BuildLogsScrollComponent.ResetScrollOffset();
             ResetDialogPositioning();
             Enabled = false;
         }
@@ -836,8 +866,13 @@ namespace helengine.editor {
                 platformConfig.DebugBuild,
                 platformConfig.SelectedBuildProfileId,
                 platformConfig.SelectedGraphicsProfileId,
+                platformConfig.SelectedCodegenProfileId,
+                platformConfig.SelectedStorageProfileId,
+                platformConfig.SelectedMediaProfileId,
                 platformConfig.SelectedBuildOptionValues,
-                platformConfig.SelectedGraphicsOptionValues));
+                platformConfig.SelectedGraphicsOptionValues,
+                platformConfig.SelectedCodegenOptionValues,
+                platformConfig.SelectedCodeModuleIds));
         }
 
         /// <summary>
@@ -845,6 +880,20 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="textBox">Output-folder text box that changed.</param>
         void HandleOutputDirectoryFieldTextChanged(TextBoxComponent textBox) {
+            if (textBox == null) {
+                throw new ArgumentNullException(nameof(textBox));
+            }
+
+            if (!string.IsNullOrWhiteSpace(textBox.Text)) {
+                textBox.SetInvalidState(false);
+            }
+        }
+
+        /// <summary>
+        /// Clears the code-module field invalid state as soon as the current text becomes non-blank.
+        /// </summary>
+        /// <param name="textBox">Code-module textbox that changed.</param>
+        void HandleCodeModuleFieldTextChanged(TextBoxComponent textBox) {
             if (textBox == null) {
                 throw new ArgumentNullException(nameof(textBox));
             }
@@ -899,16 +948,49 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Copies the selected map list from the chosen source platform into the current active platform.
+        /// Refreshes the visible queue rows when the queue scroll offset changes.
         /// </summary>
-        void HandleCopyMapListClicked() {
-            if (!CopySourcePlatformComboBox.HasSelection) {
-                return;
+        /// <param name="scrollComponent">Queue scroll controller that triggered the update.</param>
+        /// <param name="scrollOffset">Current queue scroll offset.</param>
+        void HandleQueueScrollOffsetChanged(ScrollComponent scrollComponent, int scrollOffset) {
+            if (scrollComponent == null) {
+                throw new ArgumentNullException(nameof(scrollComponent));
+            }
+
+            UpdateQueueRowsLayout();
+        }
+
+        /// <summary>
+        /// Refreshes the build-log text when the log scroll offset changes.
+        /// </summary>
+        /// <param name="scrollComponent">Build-log scroll controller that triggered the update.</param>
+        /// <param name="scrollOffset">Current build-log scroll offset.</param>
+        void HandleBuildLogsScrollOffsetChanged(ScrollComponent scrollComponent, int scrollOffset) {
+            if (scrollComponent == null) {
+                throw new ArgumentNullException(nameof(scrollComponent));
+            }
+
+            UpdateBuildLogsText(null);
+        }
+
+        /// <summary>
+        /// Raises the request to open the copy-settings chooser modal.
+        /// </summary>
+        void HandleCopySettingsButtonClicked() {
+            CopySettingsRequested?.Invoke();
+        }
+
+        /// <summary>
+        /// Copies the active build-tab scene selection from one source platform into the current platform.
+        /// </summary>
+        /// <param name="sourcePlatformId">Source platform whose scene list should be copied.</param>
+        public void CopyMapListFrom(string sourcePlatformId) {
+            if (string.IsNullOrWhiteSpace(sourcePlatformId)) {
+                throw new ArgumentException("Source platform id is required.", nameof(sourcePlatformId));
             }
 
             SyncActivePlatformConfig();
 
-            string sourcePlatformId = CopySourcePlatformComboBox.SelectedItem;
             EditorBuildPlatformConfigDocument sourcePlatformConfig = FindPlatformConfig(sourcePlatformId);
             EditorBuildPlatformConfigDocument activePlatformConfig = FindPlatformConfig(ActivePlatformId);
 
@@ -918,7 +1000,6 @@ namespace helengine.editor {
             }
 
             CopySceneOrders(sourcePlatformConfig, activePlatformConfig);
-
             RebuildActivePlatformSceneRows();
         }
 
@@ -1037,18 +1118,15 @@ namespace helengine.editor {
                 string platformId = SupportedPlatformIds[index];
                 EditorEntity tabHost = new EditorEntity {
                     LayerMask = LayerMask,
-                    Position = new float3(index * (PlatformTabWidth + 8), 0f, 0.1f),
+                    Position = new float3(index * PlatformTabWidth, 0f, 0.1f),
                     InternalEntity = true
                 };
                 BuildColumnRoot.AddChild(tabHost);
                 PlatformTabHosts.Add(tabHost);
 
-                ButtonComponent tabButton = new ButtonComponent(platformId, new int2(PlatformTabWidth, PlatformTabHeight), DialogFont, () => HandlePlatformTabClicked(platformId));
+                TabComponent tabButton = new TabComponent(platformId, new int2(PlatformTabWidth, PlatformTabHeight), DialogFont, () => HandlePlatformTabClicked(platformId));
                 tabButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-                if (platformId != ActivePlatformId) {
-                    tabButton.UseHoverOnlyBackground();
-                    tabButton.SetTextColor(ThemeManager.Colors.InputForegroundPrimary);
-                }
+                tabButton.SetSelected(platformId == ActivePlatformId);
 
                 tabHost.AddComponent(tabButton);
                 PlatformTabs.Add(tabButton);
@@ -1144,9 +1222,10 @@ namespace helengine.editor {
             }
 
             LayoutLowerLeftControls();
-            RebuildCopySourcePlatformItems();
             OutputDirectoryField.Text = platformConfig.OutputDirectoryPath ?? "";
             OutputDirectoryField.SetInvalidState(false);
+            CodeModuleField.Text = string.Join(", ", platformConfig.SelectedCodeModuleIds ?? []);
+            CodeModuleField.SetInvalidState(false);
             DebugBuildCheckBox.IsChecked = platformConfig.DebugBuild;
             SetSceneListInvalidState(false);
         }
@@ -1174,108 +1253,167 @@ namespace helengine.editor {
         /// Rebuilds the queue summary rows shown on the right side of the dialog.
         /// </summary>
         void RebuildQueueRows() {
-            ClearEntities(QueueItemHosts);
-            QueueItemTexts.Clear();
-            ClearEntities(QueueItemRemoveButtonHosts);
-            QueueItemRemoveButtons.Clear();
-            QueueItemCardBackgrounds.Clear();
-
-            for (int index = 0; index < CurrentBuildConfig.QueueItems.Count; index++) {
-                EditorBuildQueueItemDocument queueItem = CurrentBuildConfig.QueueItems[index];
-                EditorEntity queueItemHost = new EditorEntity {
-                    LayerMask = LayerMask,
-                    Position = new float3(2f, index * QueueRowHeight, 0.1f),
-                    InternalEntity = true
-                };
-                QueueItemsRoot.AddChild(queueItemHost);
-                QueueItemHosts.Add(queueItemHost);
-
-                RoundedRectComponent queueCardBackground = new RoundedRectComponent {
-                    FillColor = ThemeManager.Colors.SurfacePrimary,
-                    BorderColor = ThemeManager.Colors.SurfacePrimary,
-                    BorderThickness = 0f,
-                    Radius = 0f,
-                    RenderOrder2D = DialogPanelOrder,
-                    Size = new int2(GetQueueCardWidth(), GetQueueCardHeight())
-                };
-                queueItemHost.AddComponent(queueCardBackground);
-                QueueItemCardBackgrounds.Add(queueCardBackground);
-
-                EditorEntity queueSeparatorHost = new EditorEntity {
-                    LayerMask = LayerMask,
-                    Position = new float3(0f, QueueRowHeight - 1, 0.2f),
-                    InternalEntity = true
-                };
-                queueItemHost.AddChild(queueSeparatorHost);
-
-                SpriteComponent queueSeparator = new SpriteComponent {
-                    Texture = TextureUtils.PixelTexture,
-                    Color = ThemeManager.Colors.AccentTertiary,
-                    RenderOrder2D = DialogPanelOrder,
-                    Size = new int2(GetQueueCardWidth(), 1)
-                };
-                queueSeparatorHost.AddComponent(queueSeparator);
-
-                EditorEntity removeButtonHost = new EditorEntity {
-                    LayerMask = LayerMask,
-                    Position = new float3(GetQueueCardWidth() - QueueCardRemoveButtonWidth - QueueCardTextPadding, 8f, 0.2f),
-                    InternalEntity = true
-                };
-                queueItemHost.AddChild(removeButtonHost);
-                QueueItemRemoveButtonHosts.Add(removeButtonHost);
-
-                ButtonComponent removeButton = new ButtonComponent("X", new int2(QueueCardRemoveButtonWidth, 24), DialogFont, () => HandleQueueItemRemoveClicked(queueItem.QueueItemId));
-                removeButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-                removeButtonHost.AddComponent(removeButton);
-                QueueItemRemoveButtons.Add(removeButton);
-
-                int queueTextWidth = GetQueueCardTextWidth();
-                int queueTextHeight = Math.Max(GetDialogLineHeight() * 2, GetQueueCardHeight() - 12);
-                TextComponent queueText = new TextComponent {
-                    Font = DialogFont,
-                    Text = BuildQueueItemText(queueItem),
-                    Color = ThemeManager.Colors.InputForegroundPrimary,
-                    RenderOrder2D = DialogTextOrder,
-                    Size = new int2(queueTextWidth, queueTextHeight)
-                };
-                EditorEntity queueTextHost = new EditorEntity {
-                    LayerMask = LayerMask,
-                    Position = new float3(QueueCardTextPadding, 8f, 0.2f),
-                    InternalEntity = true
-                };
-                queueItemHost.AddChild(queueTextHost);
-                queueTextHost.AddComponent(queueText);
-                QueueItemTexts.Add(queueText);
-            }
+            int queueItemCount = CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null ? 0 : CurrentBuildConfig.QueueItems.Count;
+            QueueScrollComponent.ItemCount = queueItemCount;
+            QueueScrollComponent.VisibleItemCount = GetQueueVisibleRowCount();
+            QueueScrollComponent.Size = new int2(GetQueueRowsViewportWidth(), GetQueueRowsViewportHeight());
+            QueueScrollComponent.ClampScrollOffset();
+            EnsureQueueRowCount(QueueScrollComponent.VisibleItemCount);
+            UpdateQueueRowsLayout();
         }
 
         /// <summary>
         /// Rebuilds the bottom build-log section using the current persisted queue state.
         /// </summary>
         void RebuildBuildLogs() {
-            BuildLogsText.Text = BuildBuildLogText();
+            List<string> buildLogLines = BuildBuildLogLines();
+            BuildLogsScrollComponent.ItemCount = buildLogLines.Count;
+            BuildLogsScrollComponent.VisibleItemCount = GetBuildLogVisibleLineCount();
+            BuildLogsScrollComponent.Size = new int2(GetBuildLogsTextViewportWidth(), GetBuildLogsTextViewportHeight());
+            BuildLogsScrollComponent.ClampScrollOffset();
+            UpdateBuildLogsText(buildLogLines);
         }
 
         /// <summary>
-        /// Anchors the copy-source, output-folder, and add-to-build controls to the lower portion of the left column.
+        /// Refreshes the visible queue rows after the scroll offset or active queue contents change.
+        /// </summary>
+        void UpdateQueueRowsLayout() {
+            int queueItemCount = CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null ? 0 : CurrentBuildConfig.QueueItems.Count;
+            int visibleRowCount = QueueScrollComponent.VisibleItemCount;
+            if (visibleRowCount < 1) {
+                visibleRowCount = GetQueueVisibleRowCount();
+            }
+
+            QueueScrollComponent.VisibleItemCount = visibleRowCount;
+            QueueScrollComponent.Size = new int2(GetQueueRowsViewportWidth(), GetQueueRowsViewportHeight());
+            EnsureQueueRowCount(visibleRowCount);
+
+            QueueItemHosts.Clear();
+            QueueItemTexts.Clear();
+            QueueItemRemoveButtonHosts.Clear();
+            QueueItemRemoveButtons.Clear();
+            QueueItemCardBackgrounds.Clear();
+
+            int scrollOffset = QueueScrollComponent.ScrollOffset;
+            for (int rowIndex = 0; rowIndex < QueueRows.Count; rowIndex++) {
+                BuildDialogQueueRow row = QueueRows[rowIndex];
+                int queueIndex = scrollOffset + rowIndex;
+                if (queueIndex < 0 || queueIndex >= queueItemCount) {
+                    DisableQueueRow(row);
+                    continue;
+                }
+
+                EditorBuildQueueItemDocument queueItem = CurrentBuildConfig.QueueItems[queueIndex];
+                row.QueueItemId = queueItem.QueueItemId;
+                row.Root.Enabled = true;
+                row.Root.Position = new float3(2f, rowIndex * QueueRowHeight, 0.1f);
+                row.Background.Size = new int2(GetQueueCardWidth(), GetQueueCardHeight());
+                row.SeparatorHost.Position = new float3(0f, QueueRowHeight - 1, 0.2f);
+                row.Separator.Size = new int2(GetQueueCardWidth(), 1);
+                row.RemoveButtonHost.Position = new float3(GetQueueCardWidth() - QueueCardRemoveButtonWidth - QueueCardTextPadding, 8f, 0.2f);
+                row.TextHost.Position = new float3(QueueCardTextPadding, 8f, 0.2f);
+                row.Text.Size = new int2(GetQueueCardTextWidth(), Math.Max(GetDialogLineHeight() * 2, GetQueueCardHeight() - 12));
+                row.Text.Text = BuildQueueItemText(queueItem);
+
+                QueueItemHosts.Add(row.Root);
+                QueueItemTexts.Add(row.Text);
+                QueueItemRemoveButtonHosts.Add(row.RemoveButtonHost);
+                QueueItemRemoveButtons.Add(row.RemoveButton);
+                QueueItemCardBackgrounds.Add(row.Background);
+            }
+        }
+
+        /// <summary>
+        /// Refreshes the build-log text after the scroll offset or queue contents change.
+        /// </summary>
+        /// <param name="buildLogLines">Optional prebuilt set of build-log lines to render.</param>
+        void UpdateBuildLogsText(List<string> buildLogLines) {
+            if (buildLogLines == null) {
+                buildLogLines = BuildBuildLogLines();
+            }
+
+            int visibleLineCount = BuildLogsScrollComponent.VisibleItemCount;
+            if (visibleLineCount < 1) {
+                visibleLineCount = GetBuildLogVisibleLineCount();
+            }
+
+            BuildLogsScrollComponent.VisibleItemCount = visibleLineCount;
+            BuildLogsScrollComponent.Size = new int2(GetBuildLogsTextViewportWidth(), GetBuildLogsTextViewportHeight());
+            BuildLogsText.Size = new int2(GetBuildLogsTextViewportWidth(), Math.Max(BuildLogLineHeight, GetBuildLogsTextViewportHeight()));
+            BuildLogsText.Text = BuildBuildLogText(buildLogLines, BuildLogsScrollComponent.ScrollOffset, visibleLineCount);
+        }
+
+        /// <summary>
+        /// Enables enough pooled queue rows for the current viewport.
+        /// </summary>
+        /// <param name="count">Number of pooled rows required.</param>
+        void EnsureQueueRowCount(int count) {
+            for (int index = QueueRows.Count; index < count; index++) {
+                BuildDialogQueueRow row = CreateQueueRow();
+                QueueRows.Add(row);
+            }
+        }
+
+        /// <summary>
+        /// Creates one reusable queue row and attaches it to the queue list container.
+        /// </summary>
+        /// <returns>New queue row bundle.</returns>
+        BuildDialogQueueRow CreateQueueRow() {
+            BuildDialogQueueRow row = new BuildDialogQueueRow(DialogFont, LayerMask, DialogPanelOrder, DialogTextOrder);
+            row.RemoveRequested += HandleQueueRowRemoveRequested;
+            QueueItemsRoot.AddChild(row.Root);
+            return row;
+        }
+
+        /// <summary>
+        /// Clears one pooled queue row when it no longer maps to a visible queue item.
+        /// </summary>
+        /// <param name="row">Row bundle to disable.</param>
+        void DisableQueueRow(BuildDialogQueueRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            row.QueueItemId = string.Empty;
+            row.Root.Enabled = false;
+            row.Text.Text = string.Empty;
+            row.Text.Size = new int2(0, 0);
+        }
+
+        /// <summary>
+        /// Handles the remove request raised by one visible queue row.
+        /// </summary>
+        /// <param name="row">Queue row that requested removal.</param>
+        void HandleQueueRowRemoveRequested(BuildDialogQueueRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            HandleQueueItemRemoveClicked(row.QueueItemId);
+        }
+
+        /// <summary>
+        /// Anchors the copy-settings button, output-folder, and add-to-build controls to the lower portion of the left column.
         /// </summary>
         void LayoutLowerLeftControls() {
             int outputFieldY = LegacyContentHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8 - 16 - OutputFieldHeight;
             int addButtonY = outputFieldY + OutputFieldHeight + 16 + 18 + 16;
             int outputLabelY = outputFieldY - 20;
-            int copyComboY = outputLabelY - 16 - OutputFieldHeight;
-            int copyLabelY = copyComboY - 20;
+            int codeModuleFieldY = outputLabelY - 16 - OutputFieldHeight;
+            int codeModuleLabelY = codeModuleFieldY - 20;
+            int copySettingsButtonY = codeModuleLabelY - 16 - FooterButtonHeight;
             int debugBuildY = outputFieldY + OutputFieldHeight + 16;
             int sceneListTop = PlatformTabHeight + SceneListTopMargin;
-            int sceneListHeight = Math.Max(1, copyLabelY - 12 - sceneListTop);
+            int sceneListHeight = Math.Max(1, copySettingsButtonY - 12 - sceneListTop);
 
             SceneListRoot.Position = new float3(SceneListShakeOffsetX, sceneListTop, 0.1f);
             SceneListBackground.Size = new int2(GetBuildColumnWidth(), sceneListHeight);
-            CopySourceLabelHost.Position = new float3(0f, copyLabelY, 0.1f);
-            CopySourcePlatformComboBoxHost.Position = new float3(0f, copyComboY, 0.1f);
-            CopyMapListButtonHost.Position = new float3(CopySourcePlatformComboBox.Size.X + 8f, copyComboY, 0.1f);
+            CopySettingsButtonHost.Position = new float3(0f, copySettingsButtonY, 0.1f);
+            CopySettingsButton.SetSize(new int2(GetBuildColumnWidth(), FooterButtonHeight));
             OutputLabelHost.Position = new float3(0f, outputLabelY, 0.1f);
             OutputFieldHost.Position = new float3(OutputDirectoryField.CurrentShakeOffsetX, outputFieldY, 0.1f);
+            CodeModuleLabelHost.Position = new float3(0f, codeModuleLabelY, 0.1f);
+            CodeModuleFieldHost.Position = new float3(CodeModuleField.CurrentShakeOffsetX, codeModuleFieldY, 0.1f);
             BrowseOutputFolderButtonHost.Position = new float3(GetOutputFieldWidth() + 8f, outputFieldY, 0.1f);
             DebugBuildLabelHost.Position = new float3(24f, debugBuildY, 0.1f);
             DebugBuildCheckBoxHost.Position = new float3(0f, debugBuildY - 2, 0.1f);
@@ -1319,6 +1457,12 @@ namespace helengine.editor {
             if (!string.IsNullOrWhiteSpace(queueItem.SelectedGraphicsProfileId)) {
                 summaryText += " | gfx " + queueItem.SelectedGraphicsProfileId;
             }
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedCodegenProfileId)) {
+                summaryText += " | codegen " + queueItem.SelectedCodegenProfileId;
+            }
+            if (queueItem.SelectedCodeModuleIds != null && queueItem.SelectedCodeModuleIds.Count > 0) {
+                summaryText += " | modules " + queueItem.SelectedCodeModuleIds.Count;
+            }
 
             string statusMessage = BuildQueueItemStatusMessage(queueItem.StatusMessage);
             return summaryText + "\n" + statusMessage;
@@ -1333,7 +1477,20 @@ namespace helengine.editor {
             BuildQueueButtonHost.Position = new float3(FooterButtonWidth + 8f, buildQueueButtonY, 0.1f);
             QueueListBackground.Size = new int2(QueueColumnWidth, GetQueueSectionHeight());
             QueueHeaderBackground.Size = new int2(QueueColumnWidth, QueueHeaderHeight);
+            LayoutQueueSection();
             LayoutBuildLogsSection();
+        }
+
+        /// <summary>
+        /// Positions and sizes the queue viewport and its pooled rows.
+        /// </summary>
+        void LayoutQueueSection() {
+            int queueRowsTopY = QueueHeaderHeight + QueueListPadding;
+
+            QueueItemsRoot.Position = new float3(0f, queueRowsTopY, 0.1f);
+            QueueScrollComponent.Size = new int2(GetQueueRowsViewportWidth(), GetQueueRowsViewportHeight());
+            QueueScrollComponent.VisibleItemCount = GetQueueVisibleRowCount();
+            UpdateQueueRowsLayout();
         }
 
         /// <summary>
@@ -1361,7 +1518,9 @@ namespace helengine.editor {
             BuildLogsProgressFill.Size = new int2(progressFillWidth, BuildLogsProgressBarHeight - 2);
 
             BuildLogsTextHost.Position = new float3(BuildLogsPadding, logTextY, 0.1f);
-            BuildLogsText.Size = new int2(buildLogsInnerWidth, Math.Max(BuildLogLineHeight, logTextHeight));
+            BuildLogsScrollComponent.Size = new int2(GetBuildLogsTextViewportWidth(), logTextHeight);
+            BuildLogsScrollComponent.VisibleItemCount = GetBuildLogVisibleLineCount();
+            UpdateBuildLogsText(null);
         }
 
         /// <summary>
@@ -1382,8 +1541,35 @@ namespace helengine.editor {
             }
 
             platformConfig.OutputDirectoryPath = OutputDirectoryField.Text ?? string.Empty;
+            platformConfig.SelectedCodeModuleIds = ParseCodeModuleIds(CodeModuleField.Text);
             platformConfig.DebugBuild = DebugBuildCheckBox.IsChecked;
             EnsurePlatformSelectionDefaults(platformConfig);
+        }
+
+        /// <summary>
+        /// Parses one comma-separated code-module field into an ordered unique list of module ids.
+        /// </summary>
+        static List<string> ParseCodeModuleIds(string text) {
+            if (string.IsNullOrWhiteSpace(text)) {
+                return [];
+            }
+
+            HashSet<string> seenModuleIds = new(StringComparer.OrdinalIgnoreCase);
+            List<string> parsedModuleIds = [];
+            string[] tokens = text.Split(new[] { ',', ';', '\n', '\r', '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            for (int index = 0; index < tokens.Length; index++) {
+                string moduleId = tokens[index].Trim();
+                if (string.IsNullOrWhiteSpace(moduleId)) {
+                    continue;
+                }
+                if (!seenModuleIds.Add(moduleId)) {
+                    continue;
+                }
+
+                parsedModuleIds.Add(moduleId);
+            }
+
+            return parsedModuleIds;
         }
 
         /// <summary>
@@ -1401,6 +1587,9 @@ namespace helengine.editor {
                 if (string.IsNullOrWhiteSpace(platformConfig.SelectedGraphicsProfileId)) {
                     platformConfig.SelectedGraphicsProfileId = buildProfile.GraphicsProfileId;
                 }
+                if (string.IsNullOrWhiteSpace(platformConfig.SelectedCodegenProfileId)) {
+                    platformConfig.SelectedCodegenProfileId = buildProfile.CodegenProfileId;
+                }
                 EnsureSettingDefaults(platformConfig.SelectedBuildOptionValues, buildProfile.Settings);
             }
 
@@ -1410,8 +1599,25 @@ namespace helengine.editor {
                 EnsureSettingDefaults(platformConfig.SelectedGraphicsOptionValues, graphicsProfile.Settings);
             }
 
+            PlatformCodegenProfileDefinition codegenProfile = ResolveCodegenProfile(platformConfig, buildProfile);
+            if (codegenProfile != null) {
+                platformConfig.SelectedCodegenProfileId = codegenProfile.ProfileId;
+                EnsureSettingDefaults(platformConfig.SelectedCodegenOptionValues, codegenProfile.Settings);
+            }
+
+            PlatformStorageProfileDefinition storageProfile = ResolveStorageProfile(platformConfig);
+            if (storageProfile != null) {
+                platformConfig.SelectedStorageProfileId = storageProfile.ProfileId;
+            }
+
+            PlatformMediaProfileDefinition mediaProfile = ResolveMediaProfile(platformConfig);
+            if (mediaProfile != null) {
+                platformConfig.SelectedMediaProfileId = mediaProfile.ProfileId;
+            }
+
             platformConfig.SelectedBuildOptionValues ??= new Dictionary<string, string>();
             platformConfig.SelectedGraphicsOptionValues ??= new Dictionary<string, string>();
+            platformConfig.SelectedCodegenOptionValues ??= new Dictionary<string, string>();
         }
 
         /// <summary>
@@ -1444,6 +1650,51 @@ namespace helengine.editor {
             }
 
             return ActivePlatformSelectionModel.ResolveGraphicsProfile(graphicsProfileId);
+        }
+
+        /// <summary>
+        /// Resolves the selected codegen profile metadata for one platform configuration.
+        /// </summary>
+        /// <param name="platformConfig">Platform configuration to inspect.</param>
+        /// <param name="buildProfile">Resolved build profile metadata.</param>
+        /// <returns>Resolved codegen profile metadata, or null when unavailable.</returns>
+        PlatformCodegenProfileDefinition ResolveCodegenProfile(EditorBuildPlatformConfigDocument platformConfig, PlatformBuildProfileDefinition buildProfile) {
+            if (platformConfig == null || ActivePlatformSelectionModel == null) {
+                return null;
+            }
+
+            string codegenProfileId = platformConfig.SelectedCodegenProfileId;
+            if (string.IsNullOrWhiteSpace(codegenProfileId) && buildProfile != null) {
+                codegenProfileId = buildProfile.CodegenProfileId;
+            }
+
+            return ActivePlatformSelectionModel.ResolveCodegenProfile(codegenProfileId);
+        }
+
+        /// <summary>
+        /// Resolves the selected storage profile metadata for one platform configuration.
+        /// </summary>
+        /// <param name="platformConfig">Platform configuration to inspect.</param>
+        /// <returns>Resolved storage profile metadata, or null when unavailable.</returns>
+        PlatformStorageProfileDefinition ResolveStorageProfile(EditorBuildPlatformConfigDocument platformConfig) {
+            if (platformConfig == null || ActivePlatformSelectionModel == null) {
+                return null;
+            }
+
+            return ActivePlatformSelectionModel.ResolveStorageProfile(platformConfig.SelectedStorageProfileId);
+        }
+
+        /// <summary>
+        /// Resolves the selected media profile metadata for one platform configuration.
+        /// </summary>
+        /// <param name="platformConfig">Platform configuration to inspect.</param>
+        /// <returns>Resolved media profile metadata, or null when unavailable.</returns>
+        PlatformMediaProfileDefinition ResolveMediaProfile(EditorBuildPlatformConfigDocument platformConfig) {
+            if (platformConfig == null || ActivePlatformSelectionModel == null) {
+                return null;
+            }
+
+            return ActivePlatformSelectionModel.ResolveMediaProfile(platformConfig.SelectedMediaProfileId);
         }
 
         /// <summary>
@@ -1701,26 +1952,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rebuilds the source-platform combo-box items for the active platform.
-        /// </summary>
-        void RebuildCopySourcePlatformItems() {
-            List<string> copySourcePlatformIds = new List<string>(SupportedPlatformIds.Count);
-            for (int index = 0; index < SupportedPlatformIds.Count; index++) {
-                string platformId = SupportedPlatformIds[index];
-                if (platformId != ActivePlatformId) {
-                    copySourcePlatformIds.Add(platformId);
-                }
-            }
-
-            int selectedIndex = -1;
-            if (copySourcePlatformIds.Count > 0) {
-                selectedIndex = 0;
-            }
-
-            CopySourcePlatformComboBox.SetItems(copySourcePlatformIds, selectedIndex);
-        }
-
-        /// <summary>
         /// Finds one platform-specific build configuration entry by platform id.
         /// </summary>
         /// <param name="platformId">Platform id to find.</param>
@@ -1855,20 +2086,70 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the multiline log text shown in the dedicated build-log section.
+        /// Gets the width available for the queued-build rows inside the queue viewport.
         /// </summary>
-        /// <returns>Queued-build status summary text.</returns>
-        string BuildBuildLogText() {
+        /// <returns>Width available for visible queue rows.</returns>
+        int GetQueueRowsViewportWidth() {
+            return GetQueueCardWidth();
+        }
+
+        /// <summary>
+        /// Gets the height available for the queued-build rows inside the queue viewport.
+        /// </summary>
+        /// <returns>Height available for visible queue rows.</returns>
+        int GetQueueRowsViewportHeight() {
+            return Math.Max(1, GetQueueSectionHeight() - QueueHeaderHeight - QueueListPadding);
+        }
+
+        /// <summary>
+        /// Gets the number of visible queue rows that fit within the current queue viewport.
+        /// </summary>
+        /// <returns>Visible queue row count.</returns>
+        int GetQueueVisibleRowCount() {
+            return Math.Max(1, GetQueueRowsViewportHeight() / QueueRowHeight);
+        }
+
+        /// <summary>
+        /// Gets the width available for the build-log text viewport.
+        /// </summary>
+        /// <returns>Width available for visible build-log lines.</returns>
+        int GetBuildLogsTextViewportWidth() {
+            return PanelWidth - (PanelPadding * 2) - (BuildLogsPadding * 2);
+        }
+
+        /// <summary>
+        /// Gets the height available for the build-log text viewport.
+        /// </summary>
+        /// <returns>Height available for visible build-log lines.</returns>
+        int GetBuildLogsTextViewportHeight() {
+            int progressTrackY = BuildLogsPadding + BuildLogsTitleHeight + 6;
+            int logTextY = progressTrackY + BuildLogsProgressBarHeight + 10;
+            return Math.Max(1, BuildLogsSectionHeight - logTextY - BuildLogsPadding);
+        }
+
+        /// <summary>
+        /// Gets the number of visible build-log lines that fit within the current build-log viewport.
+        /// </summary>
+        /// <returns>Visible build-log line count.</returns>
+        int GetBuildLogVisibleLineCount() {
+            return Math.Max(1, GetBuildLogsTextViewportHeight() / BuildLogLineHeight);
+        }
+
+        /// <summary>
+        /// Builds the logical build-log lines shown in the dedicated build-log section.
+        /// </summary>
+        /// <returns>Complete set of build-log lines before scrolling is applied.</returns>
+        List<string> BuildBuildLogLines() {
+            List<string> lines = new List<string>();
             if (CurrentBuildConfig == null || CurrentBuildConfig.QueueItems == null || CurrentBuildConfig.QueueItems.Count == 0) {
-                return string.Concat(
-                    "Progress: 0%",
-                    "\nNo queued builds yet.");
+                lines.Add("Progress: 0%");
+                lines.Add("No queued builds yet.");
+                return lines;
             }
 
             double progressFraction = GetBuildProgressFraction();
             int completedCount = GetBuildCompletedCount();
             int totalCount = CurrentBuildConfig.QueueItems.Count;
-            List<string> lines = new List<string>(BuildLogVisibleLineCount);
             lines.Add(string.Concat(
                 "Progress: ",
                 Math.Round(progressFraction * 100d).ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -1878,21 +2159,52 @@ namespace helengine.editor {
                 totalCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 " complete)"));
 
-            int maxQueueLines = BuildLogVisibleLineCount - 2;
-            int queueLineCount = Math.Min(CurrentBuildConfig.QueueItems.Count, maxQueueLines);
-            for (int index = 0; index < queueLineCount; index++) {
+            for (int index = 0; index < CurrentBuildConfig.QueueItems.Count; index++) {
                 lines.Add(BuildQueueLogLine(CurrentBuildConfig.QueueItems[index]));
             }
 
-            if (CurrentBuildConfig.QueueItems.Count > maxQueueLines) {
-                int remainingCount = CurrentBuildConfig.QueueItems.Count - maxQueueLines;
-                lines.Add(string.Concat(
-                    "... and ",
-                    remainingCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    " more item(s)"));
+            return lines;
+        }
+
+        /// <summary>
+        /// Builds the multiline build-log text for the currently visible scroll window.
+        /// </summary>
+        /// <param name="lines">Full build-log line set before scrolling is applied.</param>
+        /// <param name="scrollOffset">Current scroll offset in line units.</param>
+        /// <param name="visibleLineCount">Number of lines visible in the viewport.</param>
+        /// <returns>Visible build-log text for the current scroll offset.</returns>
+        string BuildBuildLogText(List<string> lines, int scrollOffset, int visibleLineCount) {
+            if (lines == null) {
+                throw new ArgumentNullException(nameof(lines));
             }
 
-            return string.Join("\n", lines);
+            if (visibleLineCount < 1) {
+                visibleLineCount = 1;
+            }
+
+            int maxOffset = Math.Max(0, lines.Count - visibleLineCount);
+            if (scrollOffset < 0) {
+                scrollOffset = 0;
+            } else if (scrollOffset > maxOffset) {
+                scrollOffset = maxOffset;
+            }
+
+            int endIndex = Math.Min(lines.Count, scrollOffset + visibleLineCount);
+            List<string> visibleLines = new List<string>(Math.Max(0, endIndex - scrollOffset));
+            for (int index = scrollOffset; index < endIndex; index++) {
+                visibleLines.Add(lines[index]);
+            }
+
+            return string.Join("\n", visibleLines);
+        }
+
+        /// <summary>
+        /// Builds the multiline log text shown in the dedicated build-log section.
+        /// </summary>
+        /// <returns>Queued-build status summary text.</returns>
+        string BuildBuildLogText() {
+            List<string> lines = BuildBuildLogLines();
+            return BuildBuildLogText(lines, 0, GetBuildLogVisibleLineCount());
         }
 
         /// <summary>

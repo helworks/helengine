@@ -5,7 +5,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Provides a DirectX11-shaped render-manager test double without constructing the real graphics backend.
     /// </summary>
-    public sealed class TestDirectX11RenderManager3D : DirectX11Renderer3D {
+    internal sealed class TestDirectX11RenderManager3D : DirectX11Renderer3D {
         /// <summary>
         /// Creates one uninitialized DirectX11-shaped renderer for tests that only need backend type identity.
         /// </summary>

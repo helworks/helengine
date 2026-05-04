@@ -18,6 +18,8 @@ class EngineBinaryWriter;
 class BinaryWriterLE : public EngineBinaryWriter
 {
 public:
+    virtual ~BinaryWriterLE() = default;
+
     ::EngineBinaryEndianness get_Endianness();
 
     BinaryWriterLE(::Stream* stream, bool leaveOpen);

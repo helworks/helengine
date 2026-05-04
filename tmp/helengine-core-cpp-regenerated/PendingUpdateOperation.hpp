@@ -11,6 +11,8 @@ class IUpdateable;
 class PendingUpdateOperation
 {
 public:
+    virtual ~PendingUpdateOperation() = default;
+
     ::IUpdateable* Entity;
 
     ::IUpdateable* get_Entity();

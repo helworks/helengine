@@ -4,7 +4,6 @@
 #endif
 #include <cstdint>
 
-class int2;
 class RuntimeMaterial;
 class MaterialAsset;
 class ShaderAsset;
@@ -27,12 +26,14 @@ class RenderTarget;
 class RenderManager3D : public IDisposable
 {
 public:
+    virtual ~RenderManager3D() = default;
+
     RenderManager3D();
 
-    ::int2 MainWindowSize;
+    int2* MainWindowSize;
 
-    ::int2 get_MainWindowSize();
-    void set_MainWindowSize(::int2 value);
+    int2* get_MainWindowSize();
+    void set_MainWindowSize(int2* value);
 
     ::Event WindowResized;
 

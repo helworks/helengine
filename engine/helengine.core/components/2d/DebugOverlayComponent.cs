@@ -92,7 +92,7 @@ namespace helengine {
             }
 
             // Edge-triggered toggle on key press (not hold)
-            var inputManager = Core.Instance.InputManager;
+            var inputManager = Core.Instance.Input;
             bool pressed = inputManager.WasKeyPressed(ToggleKey);
             if (pressed) {
                 Visible = !Visible;
@@ -137,3 +137,5 @@ namespace helengine {
         }
     }
 }
+
+

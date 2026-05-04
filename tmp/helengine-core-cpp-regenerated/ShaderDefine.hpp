@@ -9,6 +9,8 @@
 class ShaderDefine
 {
 public:
+    virtual ~ShaderDefine() = default;
+
     std::string Name;
 
     std::string get_Name();

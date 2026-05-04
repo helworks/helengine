@@ -12,5 +12,7 @@ class float3;
 class GeometryUtils
 {
 public:
+    virtual ~GeometryUtils() = default;
+
     static bool IsPointInsideRect(double x, double y, ::float3 origin, int32_t width, int32_t height);
 };

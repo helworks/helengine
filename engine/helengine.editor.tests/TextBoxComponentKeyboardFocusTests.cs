@@ -17,7 +17,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity();
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             int submitCount = 0;
-            textBox.FocusGroup = focusGroup;
+            textBox.FocusGroup = focusGroup.FocusGroup;
             textBox.Submitted += submitted => submitCount++;
             entity.AddComponent(textBox);
             IFocusTarget focusTarget = textBox;
@@ -42,7 +42,7 @@ namespace helengine.editor.tests {
             TestFocusGroup focusGroup = new TestFocusGroup(null, 0, 0, 0, 240, 40);
             EditorEntity entity = new EditorEntity();
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
-            textBox.FocusGroup = focusGroup;
+            textBox.FocusGroup = focusGroup.FocusGroup;
             entity.AddComponent(textBox);
             IFocusTarget focusTarget = textBox;
 
@@ -120,15 +120,15 @@ namespace helengine.editor.tests {
 
             textBox.IsFocused = true;
 
-            Core.Instance.InputManager.SetKeyboardState(new KeyboardState(Keys.A));
+            ((TestInputBackend)Core.Instance.InputSystem.Backend).SetKeyboardState(new KeyboardState(Keys.A));
             Core.Instance.Update();
             Assert.Equal("a", textBox.Text);
 
-            Core.Instance.InputManager.SetKeyboardState(new KeyboardState(Keys.B));
+            ((TestInputBackend)Core.Instance.InputSystem.Backend).SetKeyboardState(new KeyboardState(Keys.B));
             Core.Instance.Update();
             Assert.Equal("ab", textBox.Text);
 
-            Core.Instance.InputManager.SetKeyboardState(new KeyboardState(Keys.Back));
+            ((TestInputBackend)Core.Instance.InputSystem.Backend).SetKeyboardState(new KeyboardState(Keys.Back));
             Core.Instance.Update();
             Assert.Equal("a", textBox.Text);
         }
@@ -188,7 +188,7 @@ namespace helengine.editor.tests {
             InvokePrivate(textBox, "OnCursorEvent", new int2(18, 10), new int2(0, 0), PointerInteraction.Press);
             InvokePrivate(textBox, "OnCursorEvent", new int2(42, 10), new int2(24, 0), PointerInteraction.Hover);
 
-            Core.Instance.InputManager.SetKeyboardState(new KeyboardState(Keys.B));
+            ((TestInputBackend)Core.Instance.InputSystem.Backend).SetKeyboardState(new KeyboardState(Keys.B));
             Core.Instance.Update();
 
             Assert.Equal("Nb", textBox.Text);
@@ -199,7 +199,7 @@ namespace helengine.editor.tests {
         /// </summary>
         void InitializeCore() {
             Core core = new Core();
-            core.Initialize(null, new TestRenderManager2D(), new TestInputManager());
+            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend());
         }
 
         /// <summary>
@@ -296,3 +296,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

@@ -5,7 +5,6 @@
 #include <cstdint>
 
 class Entity;
-class int2;
 
 #include "runtime/native_event.hpp"
 #include "PointerCursorKind.hpp"
@@ -22,9 +21,9 @@ public:
 
     virtual ::Entity* get_Parent() = 0;
 
-    virtual ::int2 get_Size() = 0;
+    virtual int2* get_Size() = 0;
 
-    virtual void set_Size(::int2 value) = 0;
+    virtual void set_Size(int2* value) = 0;
 
-    virtual void OnCursor(::int2 relPos, ::int2 delta, ::PointerInteraction state) = 0;
+    virtual void OnCursor(int2* relPos, int2* delta, ::PointerInteraction state) = 0;
 };

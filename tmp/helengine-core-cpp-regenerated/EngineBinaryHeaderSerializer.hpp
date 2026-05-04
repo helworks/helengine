@@ -22,6 +22,8 @@ class EngineBinaryHeader;
 class EngineBinaryHeaderSerializer
 {
 public:
+    virtual ~EngineBinaryHeaderSerializer() = default;
+
     static ::EngineBinaryHeader* Read(::Stream* stream);
 
     static void Write(::Stream* stream, ::EngineBinaryHeader* header);

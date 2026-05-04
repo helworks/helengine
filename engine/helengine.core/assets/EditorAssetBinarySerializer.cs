@@ -16,7 +16,7 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 3;
+        public const byte CurrentVersion = 4;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -99,7 +99,7 @@ namespace helengine {
                 throw new InvalidOperationException($"Unsupported asset binary format id '{header.FormatId}'.");
             } else if (header.RecordKind != (ushort)RecordKind) {
                 throw new InvalidOperationException($"Unexpected asset record kind '{header.RecordKind}'.");
-            } else if (header.Version != CurrentVersion && header.Version != LegacyVersion) {
+            } else if (header.Version < LegacyVersion || header.Version > CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported asset binary version '{header.Version}'.");
             }
         }
@@ -301,6 +301,7 @@ namespace helengine {
         static void WriteSceneAsset(EngineBinaryWriter writer, SceneAsset asset) {
             writer.WriteString(asset.Id);
             writer.WriteArray(asset.RootEntities, WriteSceneEntityAsset);
+            writer.WriteArray(asset.AssetReferences, WriteSceneAssetReference);
         }
 
         /// <summary>
@@ -311,7 +312,10 @@ namespace helengine {
         static SceneAsset ReadSceneAsset(EngineBinaryReader reader, byte version) {
             return new SceneAsset {
                 Id = reader.ReadString(),
-                RootEntities = reader.ReadArray(r => ReadSceneEntityAsset(r, version)) ?? Array.Empty<SceneEntityAsset>()
+                RootEntities = ReadSceneEntityAssetArray(reader, version) ?? Array.Empty<SceneEntityAsset>(),
+                AssetReferences = version >= 4
+                    ? ReadSceneAssetReferenceArray(reader) ?? Array.Empty<SceneAssetReference>()
+                    : Array.Empty<SceneAssetReference>()
             };
         }
 
@@ -353,8 +357,43 @@ namespace helengine {
                 LocalScale = reader.ReadFloat3(),
                 LocalOrientation = reader.ReadFloat4(),
                 Components = reader.ReadArray(ReadSceneComponentAssetRecord) ?? Array.Empty<SceneComponentAssetRecord>(),
-                Children = reader.ReadArray(r => ReadSceneEntityAsset(r, version)) ?? Array.Empty<SceneEntityAsset>()
+                Children = ReadSceneEntityAssetArray(reader, version) ?? Array.Empty<SceneEntityAsset>()
             };
+        }
+
+        /// <summary>
+        /// Writes one serialized scene asset reference payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="reference">Scene asset reference to serialize.</param>
+        static void WriteSceneAssetReference(EngineBinaryWriter writer, SceneAssetReference reference) {
+            writer.WriteInt32((int)reference.SourceKind);
+            writer.WriteString(reference.RelativePath);
+            writer.WriteString(reference.ProviderId);
+            writer.WriteString(reference.AssetId);
+        }
+
+        /// <summary>
+        /// Reads one serialized scene asset reference payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized scene asset reference.</returns>
+        static SceneAssetReference ReadSceneAssetReference(EngineBinaryReader reader) {
+            return new SceneAssetReference {
+                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
+                RelativePath = reader.ReadString(),
+                ProviderId = reader.ReadString(),
+                AssetId = reader.ReadString()
+            };
+        }
+
+        /// <summary>
+        /// Reads an array of scene asset references from the payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized scene asset references.</returns>
+        static SceneAssetReference[] ReadSceneAssetReferenceArray(EngineBinaryReader reader) {
+            return reader.ReadArray(ReadSceneAssetReference);
         }
 
         /// <summary>
@@ -370,7 +409,7 @@ namespace helengine {
                 LocalScale = reader.ReadFloat3(),
                 LocalOrientation = reader.ReadFloat4(),
                 Components = reader.ReadArray(ReadSceneComponentAssetRecord) ?? Array.Empty<SceneComponentAssetRecord>(),
-                Children = reader.ReadArray(r => ReadLegacySceneEntityAsset(r)) ?? Array.Empty<SceneEntityAsset>()
+                Children = ReadLegacySceneEntityAssetArray(reader) ?? Array.Empty<SceneEntityAsset>()
             };
         }
 
@@ -396,6 +435,53 @@ namespace helengine {
                 ComponentIndex = reader.ReadInt32(),
                 Payload = reader.ReadByteArray() ?? Array.Empty<byte>()
             };
+        }
+
+        /// <summary>
+        /// Reads a scene entity array using the active scene-entity version.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the array payload.</param>
+        /// <param name="version">Scene entity payload version.</param>
+        /// <returns>Decoded scene entity array or null when the source payload was null.</returns>
+        static SceneEntityAsset[] ReadSceneEntityAssetArray(EngineBinaryReader reader, byte version) {
+            int length = reader.ReadInt32();
+            if (length == -1) {
+                return null;
+            } else if (length < -1) {
+                throw new InvalidOperationException("Array length cannot be negative.");
+            } else if (length == 0) {
+                return Array.Empty<SceneEntityAsset>();
+            }
+
+            SceneEntityAsset[] values = new SceneEntityAsset[length];
+            for (int index = 0; index < values.Length; index++) {
+                values[index] = ReadSceneEntityAsset(reader, version);
+            }
+
+            return values;
+        }
+
+        /// <summary>
+        /// Reads a legacy scene entity array.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the array payload.</param>
+        /// <returns>Decoded legacy scene entity array or null when the source payload was null.</returns>
+        static SceneEntityAsset[] ReadLegacySceneEntityAssetArray(EngineBinaryReader reader) {
+            int length = reader.ReadInt32();
+            if (length == -1) {
+                return null;
+            } else if (length < -1) {
+                throw new InvalidOperationException("Array length cannot be negative.");
+            } else if (length == 0) {
+                return Array.Empty<SceneEntityAsset>();
+            }
+
+            SceneEntityAsset[] values = new SceneEntityAsset[length];
+            for (int index = 0; index < values.Length; index++) {
+                values[index] = ReadLegacySceneEntityAsset(reader);
+            }
+
+            return values;
         }
 
         /// <summary>

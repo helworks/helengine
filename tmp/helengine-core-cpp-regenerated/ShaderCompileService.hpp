@@ -57,6 +57,8 @@ class ShaderBindingPolicy;
 class ShaderCompileService
 {
 public:
+    virtual ~ShaderCompileService() = default;
+
     ::ShaderCompileResult* Compile(::ShaderCompileRequest* request);
 
     ::ShaderCompileResult* CompileFromFile(std::string path, std::string programName, std::string entryPoint, ::ShaderStage stage, ::ShaderCompileTarget target, ::ShaderModel* shaderModel, std::string variant, List<::ShaderDefine*>* defines, ::ShaderCompileOptions* options);

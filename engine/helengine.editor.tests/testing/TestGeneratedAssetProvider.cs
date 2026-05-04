@@ -4,7 +4,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Provides deterministic generated entries and one runtime model for editor tests.
     /// </summary>
-    public class TestGeneratedAssetProvider : IGeneratedAssetProvider {
+    internal class TestGeneratedAssetProvider : IGeneratedAssetProvider {
         /// <summary>
         /// Generated entries exposed by the provider.
         /// </summary>

@@ -7,7 +7,6 @@
 class Component;
 class RenderOrder2D;
 class Entity;
-class int2;
 class RoundedRectComponent;
 class TextComponent;
 class FontAsset;
@@ -30,17 +29,19 @@ class InteractableComponent;
 class CheckBoxComponent : public Component
 {
 public:
+    virtual ~CheckBoxComponent() = default;
+
     ::Event CheckedChanged;
 
     bool get_IsChecked();
 
     void set_IsChecked(bool value);
 
-    ::int2 get_Size();
+    int2* get_Size();
 
-    void set_Size(::int2 value);
+    void set_Size(int2* value);
 
-    CheckBoxComponent(::int2 size, ::FontAsset* font, bool isChecked);
+    CheckBoxComponent(int2* size, ::FontAsset* font, bool isChecked);
 
     void ComponentAdded(::Entity* entity);
 
@@ -76,9 +77,9 @@ private:
 
     bool IsPressed;
 
-    ::int2 SizeValue;
+    int2* SizeValue;
 
-    void HandleCursorEvent(::int2 relPos, ::int2 delta, ::PointerInteraction state);
+    void HandleCursorEvent(int2* relPos, int2* delta, ::PointerInteraction state);
 
     void SetCheckedState(bool isChecked, bool raiseEvent);
 

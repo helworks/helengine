@@ -4,6 +4,7 @@
 #include "float4x4.hpp"
 #include "float3.hpp"
 #include "runtime/native_exceptions.hpp"
+#include "runtime/array.hpp"
 #include "float4x4.hpp"
 #include "float4.hpp"
 #include "runtime/array.hpp"
@@ -25,11 +26,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -224,6 +227,16 @@ result.M43 = position.Z;
 result.M44 = 1;
 }
 
+void float4x4::InverseTranspose(::float4x4& matrix, ::float4x4& result)
+{
+::float4x4 inverted;
+    if (!TryInvert(matrix, inverted))
+    {
+throw new InvalidOperationException("Cannot invert a non-invertible transform matrix.");
+    }
+Transpose(inverted, result);
+}
+
 void float4x4::Multiply(::float4x4& matrix1, ::float4x4& matrix2, ::float4x4& result)
 {
 float m11 = (((matrix1.M11 * matrix2.M11) + (matrix1.M12 * matrix2.M21)) + (matrix1.M13 * matrix2.M31)) + (matrix1.M14 * matrix2.M41);
@@ -303,4 +316,99 @@ float4x4::float4x4(float m11, float m12, float m13, float m14, float m21, float 
 }
 
 ::float4x4 float4x4::identity = ::float4x4(1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+
+bool float4x4::TryInvert(::float4x4& matrix, ::float4x4& result)
+{
+Array<double> *augmented = new Array<double>(32);
+(*augmented)[0] = matrix.M11;
+(*augmented)[1] = matrix.M12;
+(*augmented)[2] = matrix.M13;
+(*augmented)[3] = matrix.M14;
+(*augmented)[4] = 1.0;
+(*augmented)[5] = 0.0;
+(*augmented)[6] = 0.0;
+(*augmented)[7] = 0.0;
+(*augmented)[8] = matrix.M21;
+(*augmented)[9] = matrix.M22;
+(*augmented)[10] = matrix.M23;
+(*augmented)[11] = matrix.M24;
+(*augmented)[12] = 0.0;
+(*augmented)[13] = 1.0;
+(*augmented)[14] = 0.0;
+(*augmented)[15] = 0.0;
+(*augmented)[16] = matrix.M31;
+(*augmented)[17] = matrix.M32;
+(*augmented)[18] = matrix.M33;
+(*augmented)[19] = matrix.M34;
+(*augmented)[20] = 0.0;
+(*augmented)[21] = 0.0;
+(*augmented)[22] = 1.0;
+(*augmented)[23] = 0.0;
+(*augmented)[24] = matrix.M41;
+(*augmented)[25] = matrix.M42;
+(*augmented)[26] = matrix.M43;
+(*augmented)[27] = matrix.M44;
+(*augmented)[28] = 0.0;
+(*augmented)[29] = 0.0;
+(*augmented)[30] = 0.0;
+(*augmented)[31] = 1.0;
+for (int32_t pivotIndex = 0; pivotIndex < 4; pivotIndex++) {
+int32_t pivotRow = pivotIndex;
+double pivotValue = Math::Abs((*augmented)[(pivotRow * 8) + pivotIndex]);
+for (int32_t row = pivotIndex + 1; row < 4; row++) {
+const double candidateValue = Math::Abs((*augmented)[(row * 8) + pivotIndex]);
+    if (candidateValue > pivotValue)
+    {
+pivotValue = candidateValue;
+pivotRow = row;
+    }
+}
+    if (pivotValue <= 0.0)
+    {
+result = ::float4x4();
+return false;    }
+    if (pivotRow != pivotIndex)
+    {
+for (int32_t col = 0; col < 8; col++) {
+const double swap = (*augmented)[(pivotIndex * 8) + col];
+(*augmented)[(pivotIndex * 8) + col] = (*augmented)[(pivotRow * 8) + col];
+(*augmented)[(pivotRow * 8) + col] = swap;
+}
+    }
+const double divisor = (*augmented)[(pivotIndex * 8) + pivotIndex];
+for (int32_t col = 0; col < 8; col++) {
+(*augmented)[(pivotIndex * 8) + col] /= divisor;
+}
+for (int32_t row = 0; row < 4; row++) {
+    if (row == pivotIndex)
+    {
+continue;
+    }
+const double factor = (*augmented)[(row * 8) + pivotIndex];
+    if (factor == 0.0)
+    {
+continue;
+    }
+for (int32_t col = 0; col < 8; col++) {
+(*augmented)[(row * 8) + col] -= factor * (*augmented)[(pivotIndex * 8) + col];
+}
+}
+}
+result.M11 = static_cast<float>((*augmented)[4]);
+result.M12 = static_cast<float>((*augmented)[5]);
+result.M13 = static_cast<float>((*augmented)[6]);
+result.M14 = static_cast<float>((*augmented)[7]);
+result.M21 = static_cast<float>((*augmented)[12]);
+result.M22 = static_cast<float>((*augmented)[13]);
+result.M23 = static_cast<float>((*augmented)[14]);
+result.M24 = static_cast<float>((*augmented)[15]);
+result.M31 = static_cast<float>((*augmented)[20]);
+result.M32 = static_cast<float>((*augmented)[21]);
+result.M33 = static_cast<float>((*augmented)[22]);
+result.M34 = static_cast<float>((*augmented)[23]);
+result.M41 = static_cast<float>((*augmented)[28]);
+result.M42 = static_cast<float>((*augmented)[29]);
+result.M43 = static_cast<float>((*augmented)[30]);
+result.M44 = static_cast<float>((*augmented)[31]);
+return true;}
 

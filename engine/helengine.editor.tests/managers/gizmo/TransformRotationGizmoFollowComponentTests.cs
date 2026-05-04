@@ -35,7 +35,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         [Fact]
         public void Update_WhenRotateToolIsActive_ShowsAndHighlightsRotationRings() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
             EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Rotate);
 
@@ -107,7 +107,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         [Fact]
         public void Update_WhileDragging_PreservesExistingScaleUntilDragEnds() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
             EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Rotate);
 
@@ -144,7 +144,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         [Fact]
         public void Update_WhenControlSnapIsActive_ShowsPreviewAndBuildsOneCachedModel() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
             EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Rotate);
 
@@ -185,7 +185,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         [Fact]
         public void Update_WhenNoSnapModifierIsActive_HidesPreview() {
-            TestInputManager input = InitializeCore();
+            TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
             EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Rotate);
 
@@ -208,12 +208,12 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
-        /// Initializes a fresh core with a configurable input manager for entity-based tests.
+        /// Initializes a fresh core with a configurable input system for entity-based tests.
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
-        TestInputManager InitializeCore() {
+        TestInputBackend InitializeCore() {
             Core core = new Core();
-            var input = new TestInputManager();
+            var input = new TestInputBackend();
             core.Initialize(null, null, input);
             return input;
         }
@@ -358,3 +358,4 @@ namespace helengine.editor.tests.managers.gizmo {
         }
     }
 }
+

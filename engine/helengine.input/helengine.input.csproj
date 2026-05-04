@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\helengine.core\model\int2.cs" Link="int2.cs" />
+    <Compile Include="..\helengine.core\managers\input\KeyState.cs" Link="KeyState.cs" />
+  </ItemGroup>
+
+</Project>

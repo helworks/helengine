@@ -21,7 +21,7 @@ namespace helengine.editor.tests.serialization.scene {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputManager());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
             Core.Instance.DefaultFontAsset = CreateFont();
         }
 
@@ -40,6 +40,8 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void SerializeAndDeserialize_WhenFpsOverlayUsesCustomSettings_RoundTripsTheComponent() {
             FPSComponentPersistenceDescriptor descriptor = new FPSComponentPersistenceDescriptor();
+            TestSceneAssetReferenceResolver referenceResolver = new TestSceneAssetReferenceResolver();
+            referenceResolver.RegisterFont(BuildEditorFontReference(), Core.Instance.DefaultFontAsset);
             FPSComponent fpsComponent = new FPSComponent {
                 RefreshIntervalSeconds = 1.25d,
                 Padding = new int2(13, 21),
@@ -47,7 +49,7 @@ namespace helengine.editor.tests.serialization.scene {
             };
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(fpsComponent, 0, null);
-            FPSComponent loadedComponent = Assert.IsType<FPSComponent>(descriptor.DeserializeComponent(record, null, new TestSceneAssetReferenceResolver()));
+            FPSComponent loadedComponent = Assert.IsType<FPSComponent>(descriptor.DeserializeComponent(record, null, referenceResolver));
 
             Assert.Equal(1.25d, loadedComponent.RefreshIntervalSeconds);
             Assert.Equal(new int2(13, 21), loadedComponent.Padding);
@@ -71,5 +73,19 @@ namespace helengine.editor.tests.serialization.scene {
                 1,
                 1);
         }
+
+        /// <summary>
+        /// Builds the stable editor-font reference used by FPS component serialization.
+        /// </summary>
+        /// <returns>Stable scene asset reference.</returns>
+        SceneAssetReference BuildEditorFontReference() {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "generated/editor/fonts/ui.hefont",
+                ProviderId = "editor",
+                AssetId = "ui-font"
+            };
+        }
     }
 }
+

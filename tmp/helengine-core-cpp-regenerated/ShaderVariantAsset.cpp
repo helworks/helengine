@@ -27,11 +27,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -54,10 +56,10 @@ throw new ArgumentNullException("variant");
     }
 Array<std::string> *defines = BuildDefines(variant);
 ::ShaderVariantAsset *asset = ([&]() {
-auto __object_b9fa0c12 = new ::ShaderVariantAsset();
-__object_b9fa0c12->Name = variant->get_Name();
-__object_b9fa0c12->Defines = defines;
-return __object_b9fa0c12;
+auto __object_0000016F = new ::ShaderVariantAsset();
+__object_0000016F->Name = variant->get_Name();
+__object_0000016F->Defines = defines;
+return __object_0000016F;
 })();
 return asset;}
 

@@ -40,7 +40,7 @@ namespace helengine.editor.tests.managers.gizmo {
             TransformGizmoSnapSettingsService.ResetDefaults();
             TransformGizmoSnapSettingsService.DecreaseSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1);
 
-            TestInputManager input = new TestInputManager();
+            TestInputBackend input = new TestInputBackend();
             input.SetKeyboardState(new KeyboardState(Keys.LeftControl));
 
             CameraComponent sceneCamera = new CameraComponent();
@@ -82,3 +82,4 @@ namespace helengine.editor.tests.managers.gizmo {
         }
     }
 }
+

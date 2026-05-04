@@ -317,6 +317,9 @@ namespace helengine.vulkan {
             float3 position = text.Parent.Position;
             byte4 color = text.Color;
             string content = text.Text ?? string.Empty;
+            if (text.WrapText) {
+                content = TextLayoutUtils.WrapText(content, font, text.Size.X);
+            }
 
             double offsetX = 0.0;
             double offsetY = 0.0;

@@ -15,6 +15,8 @@
 class KeyboardState
 {
 public:
+    virtual ~KeyboardState() = default;
+
     KeyboardState();
 
     bool get_CapsLock();

@@ -19,6 +19,8 @@ class float2;
 class ModelAsset : public Asset
 {
 public:
+    virtual ~ModelAsset() = default;
+
     ModelAsset();
 
     Array<uint16_t>* Indices16;

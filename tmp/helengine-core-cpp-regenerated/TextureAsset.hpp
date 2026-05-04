@@ -12,6 +12,8 @@ class Asset;
 class TextureAsset : public Asset
 {
 public:
+    virtual ~TextureAsset() = default;
+
     TextureAsset();
 
     Array<uint8_t>* Colors;

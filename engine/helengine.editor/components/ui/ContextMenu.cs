@@ -250,7 +250,7 @@ namespace helengine.editor {
 
             UpdateInputBlocker();
 
-            InputManager input = Core.Instance.InputManager;
+            InputSystem input = Core.Instance.Input;
             bool leftPressed = input.WasMouseLeftButtonPressed();
             bool rightPressed = input.WasMouseRightButtonPressed();
             if (!leftPressed && !rightPressed) {
@@ -538,3 +538,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

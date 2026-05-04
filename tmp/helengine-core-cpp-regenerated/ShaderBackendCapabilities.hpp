@@ -13,6 +13,8 @@ class ShaderModel;
 class ShaderBackendCapabilities
 {
 public:
+    virtual ~ShaderBackendCapabilities() = default;
+
     ::ShaderModel* MaximumShaderModel;
 
     ::ShaderModel* get_MaximumShaderModel();

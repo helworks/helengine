@@ -15,6 +15,8 @@ class IContentProcessor;
 class ContentProcessorRegistration
 {
 public:
+    virtual ~ContentProcessorRegistration() = default;
+
     Array<std::string>* get_Extensions();
 
     Type* get_OutputType();

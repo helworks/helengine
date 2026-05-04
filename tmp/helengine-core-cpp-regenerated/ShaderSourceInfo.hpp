@@ -9,6 +9,8 @@
 class ShaderSourceInfo
 {
 public:
+    virtual ~ShaderSourceInfo() = default;
+
     std::string Path;
 
     std::string get_Path();

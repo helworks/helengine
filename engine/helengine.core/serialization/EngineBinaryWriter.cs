@@ -86,6 +86,56 @@ namespace helengine {
         public abstract void WriteInt64(long value);
 
         /// <summary>
+        /// Writes a two-component integer vector using the writer's endianness.
+        /// </summary>
+        /// <param name="value">Value to write.</param>
+        public void WriteInt2(int2 value) {
+            WriteInt32(value.X);
+            WriteInt32(value.Y);
+        }
+
+        /// <summary>
+        /// Writes a four-component integer vector using the writer's endianness.
+        /// </summary>
+        /// <param name="value">Value to write.</param>
+        public void WriteInt4(int4 value) {
+            WriteInt32(value.X);
+            WriteInt32(value.Y);
+            WriteInt32(value.Z);
+            WriteInt32(value.W);
+        }
+
+        /// <summary>
+        /// Writes a two-component floating point vector using the writer's endianness.
+        /// </summary>
+        /// <param name="value">Value to write.</param>
+        public void WriteFloat2(float2 value) {
+            WriteSingle(value.X);
+            WriteSingle(value.Y);
+        }
+
+        /// <summary>
+        /// Writes a three-component floating point vector using the writer's endianness.
+        /// </summary>
+        /// <param name="value">Value to write.</param>
+        public void WriteFloat3(float3 value) {
+            WriteSingle(value.X);
+            WriteSingle(value.Y);
+            WriteSingle(value.Z);
+        }
+
+        /// <summary>
+        /// Writes a four-component floating point vector using the writer's endianness.
+        /// </summary>
+        /// <param name="value">Value to write.</param>
+        public void WriteFloat4(float4 value) {
+            WriteSingle(value.X);
+            WriteSingle(value.Y);
+            WriteSingle(value.Z);
+            WriteSingle(value.W);
+        }
+
+        /// <summary>
         /// Writes a single-precision floating point value using the writer's endianness.
         /// </summary>
         /// <param name="value">Value to write.</param>
@@ -120,6 +170,23 @@ namespace helengine {
 
             WriteInt32(value.Length);
             BaseStream.Write(value, 0, value.Length);
+        }
+
+        /// <summary>
+        /// Writes one optional scene entity reference value using the writer's endianness.
+        /// </summary>
+        /// <param name="reference">Scene entity reference to write.</param>
+        public void WriteSceneEntityReference(SceneEntityReference reference) {
+            WriteByte(reference == null ? (byte)0 : (byte)1);
+            if (reference == null) {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(reference.EntityId)) {
+                throw new InvalidOperationException("Scene entity references must define an entity id.");
+            }
+
+            WriteString(reference.EntityId);
         }
 
         /// <summary>

@@ -28,6 +28,8 @@ class MaterialConstantBufferAsset;
 class RuntimeMaterial : public RuntimeData
 {
 public:
+    virtual ~RuntimeMaterial() = default;
+
     ::MaterialLayout* Layout;
 
     ::MaterialLayout* get_Layout();

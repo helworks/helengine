@@ -3,9 +3,7 @@
 #endif
 #include "RenderManager3D.hpp"
 #include "runtime/native_exceptions.hpp"
-#include "int2.hpp"
 #include "runtime/array.hpp"
-#include "runtime/finally.hpp"
 #include "runtime/native_dictionary.hpp"
 #include "runtime/native_disposable.hpp"
 #include "runtime/native_enum.hpp"
@@ -18,19 +16,18 @@
 #include "runtime/native_type.hpp"
 #include "system/bit_converter.hpp"
 #include "system/io/stream.hpp"
-#include "system/math.hpp"
 #include "system/text/encoding.hpp"
 
 RenderManager3D::RenderManager3D() : MainWindowSize(), WindowResized(), setOneWindow()
 {
 }
 
-::int2 RenderManager3D::get_MainWindowSize()
+int2* RenderManager3D::get_MainWindowSize()
 {
 return this->MainWindowSize;
 }
 
-void RenderManager3D::set_MainWindowSize(::int2 value)
+void RenderManager3D::set_MainWindowSize(int2* value)
 {
 this->MainWindowSize = value;
 }
@@ -39,7 +36,7 @@ void RenderManager3D::AddWindow(intptr_t handle, int32_t width, int32_t height)
 {
     if (!this->setOneWindow)
     {
-this->set_MainWindowSize(::int2(width, height));
+this->set_MainWindowSize(new int2(width, height));
     }
 this->setOneWindow = true;
 }
@@ -68,9 +65,9 @@ void RenderManager3D::InvalidateShaderResources(std::string shaderAssetId, ::Sha
 
 void RenderManager3D::OnWindowResize(intptr_t handle, int32_t newWidth, int32_t newHeight)
 {
-    if (!this->setOneWindow || (this->MainWindowSize.X == 0 && this->MainWindowSize.Y == 0))
+    if (!this->setOneWindow || (this->MainWindowSize->X == 0 && this->MainWindowSize->Y == 0))
     {
-this->set_MainWindowSize(::int2(newWidth, newHeight));
+this->set_MainWindowSize(new int2(newWidth, newHeight));
     }
 this->WindowResized.Invoke(handle, newWidth, newHeight);
 }

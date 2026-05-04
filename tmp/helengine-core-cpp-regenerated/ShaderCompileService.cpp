@@ -36,10 +36,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/math.hpp"
 #include "system/number.hpp"
@@ -69,9 +72,9 @@ return result;}
     if (String::IsNullOrWhiteSpace(path))
     {
 throw ([&]() {
-auto __ctor_arg_9da3e8d0 = "Shader path must be provided.";
-auto __ctor_arg_34ecb885 = "path";
-return new ArgumentException(__ctor_arg_9da3e8d0, __ctor_arg_34ecb885);
+auto __ctor_arg_00000106 = "Shader path must be provided.";
+auto __ctor_arg_00000107 = "path";
+return new ArgumentException(__ctor_arg_00000106, __ctor_arg_00000107);
 })();
     }
     if (!File::Exists(path))

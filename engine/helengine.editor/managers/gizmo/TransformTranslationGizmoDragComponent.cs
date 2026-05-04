@@ -84,7 +84,7 @@ namespace helengine.editor {
                 return;
             }
 
-            InputManager input = Core.Instance.InputManager;
+            InputSystem input = Core.Instance.Input;
             if (IsDragging) {
                 UpdateActiveDrag(input);
                 if (IsDragging) {
@@ -112,7 +112,7 @@ namespace helengine.editor {
         /// Attempts to begin a drag from the current pointer and hover state.
         /// </summary>
         /// <param name="input">Input manager used to query pointer and button state.</param>
-        void TryBeginDrag(InputManager input) {
+        void TryBeginDrag(InputSystem input) {
             if (input == null) {
                 throw new ArgumentNullException(nameof(input));
             }
@@ -184,7 +184,7 @@ namespace helengine.editor {
         /// Updates the active drag and applies the translated position to the selected entity.
         /// </summary>
         /// <param name="input">Input manager used to query pointer and button state.</param>
-        void UpdateActiveDrag(InputManager input) {
+        void UpdateActiveDrag(InputSystem input) {
             if (input == null) {
                 throw new ArgumentNullException(nameof(input));
             }
@@ -478,7 +478,7 @@ namespace helengine.editor {
         /// <param name="deltaParameter">Signed drag delta along the active axis.</param>
         /// <param name="input">Input manager used to read snap modifiers.</param>
         /// <returns>Resolved world-space axis offset.</returns>
-        float3 ResolveAxisTranslationOffset(double deltaParameter, InputManager input) {
+        float3 ResolveAxisTranslationOffset(double deltaParameter, InputSystem input) {
             double activeSnapValue = ResolveActiveTranslationSnapValue(input);
             if (activeSnapValue <= 0.0) {
                 return DragPrimaryDirection * (float)deltaParameter;
@@ -493,7 +493,7 @@ namespace helengine.editor {
         /// <param name="planeDelta">World-space pointer delta measured on the drag plane.</param>
         /// <param name="input">Input manager used to read snap modifiers.</param>
         /// <returns>Resolved world-space plane offset.</returns>
-        float3 ResolvePlaneTranslationOffset(float3 planeDelta, InputManager input) {
+        float3 ResolvePlaneTranslationOffset(float3 planeDelta, InputSystem input) {
             float3 projectedPlaneDelta = ProjectVectorOntoPlane(planeDelta, DragPlaneNormal);
             double activeSnapValue = ResolveActiveTranslationSnapValue(input);
             if (activeSnapValue <= 0.0) {
@@ -513,7 +513,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="input">Input manager used to read keyboard state.</param>
         /// <returns>Active translation snap value, or zero when no snap modifier is held.</returns>
-        double ResolveActiveTranslationSnapValue(InputManager input) {
+        double ResolveActiveTranslationSnapValue(InputSystem input) {
             return TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Translate);
         }
 
@@ -548,3 +548,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

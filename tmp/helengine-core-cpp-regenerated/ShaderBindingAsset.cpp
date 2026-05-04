@@ -28,16 +28,20 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/math.hpp"
 #include "system/number.hpp"
 #include "system/string_comparer.hpp"
 #include "system/text/encoding.hpp"
 #include "system/text/regular_expressions/regex.hpp"
+#include "system/text/string-builder.hpp"
 
 ShaderBindingAsset::ShaderBindingAsset() : Members(), Name(), Set(0), Size(0), Slot(0), Type()
 {
@@ -50,14 +54,14 @@ ShaderBindingAsset::ShaderBindingAsset() : Members(), Name(), Set(0), Size(0), S
 throw new ArgumentNullException("binding");
     }
 ::ShaderBindingAsset *asset = ([&]() {
-auto __object_090771ba = new ::ShaderBindingAsset();
-__object_090771ba->Name = binding->get_Name();
-__object_090771ba->Type = binding->get_Type();
-__object_090771ba->Set = binding->get_Set();
-__object_090771ba->Slot = binding->get_Slot();
-__object_090771ba->Size = binding->get_Size();
-__object_090771ba->Members = BuildMemberAssets(binding);
-return __object_090771ba;
+auto __object_000000E3 = new ::ShaderBindingAsset();
+__object_000000E3->Name = binding->get_Name();
+__object_000000E3->Type = binding->get_Type();
+__object_000000E3->Set = binding->get_Set();
+__object_000000E3->Slot = binding->get_Slot();
+__object_000000E3->Size = binding->get_Size();
+__object_000000E3->Members = BuildMemberAssets(binding);
+return __object_000000E3;
 })();
 return asset;}
 

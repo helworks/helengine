@@ -24,16 +24,20 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/math.hpp"
 #include "system/number.hpp"
 #include "system/string_comparer.hpp"
 #include "system/text/encoding.hpp"
 #include "system/text/regular_expressions/regex.hpp"
+#include "system/text/string-builder.hpp"
 
 ShaderBinaryAsset::ShaderBinaryAsset() : Bytecode(), ProgramName(), Stage(), TargetName(), Variant()
 {
@@ -50,13 +54,13 @@ throw new ArgumentNullException("binary");
 throw new InvalidOperationException("Shader binary must include embedded bytecode for packaging.");
     }
 ::ShaderBinaryAsset *asset = ([&]() {
-auto __object_bbb79718 = new ::ShaderBinaryAsset();
-__object_bbb79718->ProgramName = binary->get_ProgramName();
-__object_bbb79718->Stage = binary->get_Stage();
-__object_bbb79718->TargetName = binary->get_Target();
-__object_bbb79718->Variant = binary->get_Variant();
-__object_bbb79718->Bytecode = binary->get_Bytecode();
-return __object_bbb79718;
+auto __object_000000DA = new ::ShaderBinaryAsset();
+__object_000000DA->ProgramName = binary->get_ProgramName();
+__object_000000DA->Stage = binary->get_Stage();
+__object_000000DA->TargetName = binary->get_Target();
+__object_000000DA->Variant = binary->get_Variant();
+__object_000000DA->Bytecode = binary->get_Bytecode();
+return __object_000000DA;
 })();
 return asset;}
 

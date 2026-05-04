@@ -23,6 +23,8 @@ class float4;
 class NineSliceAtlas
 {
 public:
+    virtual ~NineSliceAtlas() = default;
+
     Array<::float4>* BorderUV;
 
     Array<::float4>* get_BorderUV();

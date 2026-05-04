@@ -19,9 +19,9 @@ namespace helengine.editor.tests {
         /// </summary>
         readonly string TempProjectRootPath;
         /// <summary>
-        /// Configurable input manager used to drive pointer-routing assertions.
+        /// Configurable input system used to drive pointer-routing assertions.
         /// </summary>
-        readonly TestInputManager Input;
+        readonly TestInputBackend Input;
 
         /// <summary>
         /// Initializes an isolated project root and core services for session reparent tests.
@@ -33,7 +33,7 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
             });
-            Input = new TestInputManager();
+            Input = new TestInputBackend();
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input);
             EditorSelectionService.ClearSelection();
             EditorSceneMutationService.Reset();
@@ -110,7 +110,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures pointer input routed through the runtime input manager can activate one valid reparent row.
+        /// Ensures pointer input routed through the runtime input system can activate one valid reparent row.
         /// </summary>
         [Fact]
         public void ReparentEntityDialog_WhenVisible_RoutesPointerClicksToSelectableRows() {
@@ -462,3 +462,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

@@ -11,6 +11,8 @@
 class LogEntry
 {
 public:
+    virtual ~LogEntry() = default;
+
     LogEntry();
 
     ::LogLevel Level;

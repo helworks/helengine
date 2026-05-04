@@ -76,7 +76,7 @@ namespace helengine.editor {
                 return;
             }
 
-            InputManager input = Core.Instance.InputManager;
+            InputSystem input = Core.Instance.Input;
             if (IsDragging) {
                 UpdateActiveDrag(input);
                 if (IsDragging) {
@@ -104,7 +104,7 @@ namespace helengine.editor {
         /// Attempts to begin a drag from the current pointer and hover state.
         /// </summary>
         /// <param name="input">Input manager used to query pointer and button state.</param>
-        void TryBeginDrag(InputManager input) {
+        void TryBeginDrag(InputSystem input) {
             if (input == null) {
                 throw new ArgumentNullException(nameof(input));
             }
@@ -163,7 +163,7 @@ namespace helengine.editor {
         /// Updates the active drag and applies snapped or unsnapped rotation to the selected entity.
         /// </summary>
         /// <param name="input">Input manager used to query pointer and button state.</param>
-        void UpdateActiveDrag(InputManager input) {
+        void UpdateActiveDrag(InputSystem input) {
             if (input == null) {
                 throw new ArgumentNullException(nameof(input));
             }
@@ -377,7 +377,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="input">Input manager used to read snap modifiers.</param>
         /// <returns>Signed rotation angle in radians after optional snapping.</returns>
-        double ResolveActiveRotationAngle(InputManager input) {
+        double ResolveActiveRotationAngle(InputSystem input) {
             double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Rotate);
             if (activeSnapValue <= 0.0) {
                 return DragAccumulatedAngle;
@@ -441,3 +441,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

@@ -2,7 +2,12 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Focus-group test double that records active-state changes and screen bounds.
     /// </summary>
-    public sealed class TestFocusGroup : IFocusGroup {
+    internal sealed class TestFocusGroup {
+        /// <summary>
+        /// Adapter that exposes this test double through the focus-group interface.
+        /// </summary>
+        public IFocusGroup FocusGroup { get; }
+
         /// <summary>
         /// Initializes one focus-group test double with fixed hit-test bounds.
         /// </summary>
@@ -13,7 +18,8 @@ namespace helengine.editor.tests.testing {
         /// <param name="width">Width of the group's screen bounds.</param>
         /// <param name="height">Height of the group's screen bounds.</param>
         public TestFocusGroup(IFocusGroup rootGroup, int groupOrder, int left, int top, int width, int height) {
-            RootGroup = rootGroup ?? this;
+            FocusGroup = new TestFocusGroupAdapter(this);
+            RootGroup = rootGroup ?? FocusGroup;
             GroupOrder = groupOrder;
             Bounds = new int4(left, top, width, height);
             CanReceiveFocusValue = true;

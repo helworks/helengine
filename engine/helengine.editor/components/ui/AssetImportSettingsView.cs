@@ -91,7 +91,7 @@ namespace helengine.editor {
         /// <summary>
         /// Platform tab buttons used to change the active processor platform.
         /// </summary>
-        readonly List<ButtonComponent> PlatformTabButtons;
+        readonly List<TabComponent> PlatformTabButtons;
         /// <summary>
         /// Supported platform identifiers shown in the current tab row.
         /// </summary>
@@ -185,7 +185,7 @@ namespace helengine.editor {
             ImporterIds = new List<string>(8);
             SupportedPlatformIds = new List<string>(4);
             PlatformTabButtonHosts = new List<EditorEntity>(4);
-            PlatformTabButtons = new List<ButtonComponent>(4);
+            PlatformTabButtons = new List<TabComponent>(4);
             TextOrder = RenderOrder2D.PanelForeground;
 
             RootEntity = new EditorEntity();
@@ -628,7 +628,7 @@ namespace helengine.editor {
                 tabHost.InternalEntity = true;
                 PlatformTabsHost.AddChild(tabHost);
 
-                ButtonComponent tabButton = new ButtonComponent(
+                TabComponent tabButton = new TabComponent(
                     platformId,
                     new int2(PlatformTabWidth, ControlHeight),
                     Font,
@@ -694,7 +694,7 @@ namespace helengine.editor {
         void UpdatePlatformTabVisualState() {
             for (int i = 0; i < PlatformTabButtons.Count; i++) {
                 bool isSelected = string.Equals(SupportedPlatformIds[i], CurrentPlatformId, StringComparison.OrdinalIgnoreCase);
-                PlatformTabButtons[i].SetTargetFocused(isSelected);
+                PlatformTabButtons[i].SetSelected(isSelected);
             }
         }
 

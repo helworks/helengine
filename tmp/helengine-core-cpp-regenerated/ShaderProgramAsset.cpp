@@ -33,11 +33,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -54,15 +56,15 @@
 throw new ArgumentNullException("definition");
     }
 ::ShaderProgramAsset *asset = ([&]() {
-auto __object_d54733d4 = new ::ShaderProgramAsset();
-__object_d54733d4->Name = definition->get_Name();
-__object_d54733d4->Stage = definition->get_Stage();
-__object_d54733d4->EntryPoint = definition->get_EntryPoint();
-__object_d54733d4->Bindings = BuildBindingAssets(definition);
-__object_d54733d4->Inputs = BuildInputAssets(definition);
-__object_d54733d4->Outputs = BuildOutputAssets(definition);
-__object_d54733d4->Variants = BuildVariantAssets(definition);
-return __object_d54733d4;
+auto __object_00000150 = new ::ShaderProgramAsset();
+__object_00000150->Name = definition->get_Name();
+__object_00000150->Stage = definition->get_Stage();
+__object_00000150->EntryPoint = definition->get_EntryPoint();
+__object_00000150->Bindings = BuildBindingAssets(definition);
+__object_00000150->Inputs = BuildInputAssets(definition);
+__object_00000150->Outputs = BuildOutputAssets(definition);
+__object_00000150->Variants = BuildVariantAssets(definition);
+return __object_00000150;
 })();
 return asset;}
 

@@ -8,6 +8,7 @@ class float2;
 class FontTightMetrics;
 class FontChar;
 class FontInfo;
+class TextureAsset;
 class RuntimeTexture;
 
 #include "runtime/native_disposable.hpp"
@@ -18,6 +19,7 @@ class RuntimeTexture;
 #include "runtime/native_dictionary.hpp"
 #include "FontChar.hpp"
 #include "FontInfo.hpp"
+#include "TextureAsset.hpp"
 #include "RuntimeTexture.hpp"
 #include "float2.hpp"
 #include "runtime/native_string.hpp"
@@ -26,6 +28,8 @@ class RuntimeTexture;
 class FontAsset : public IDisposable
 {
 public:
+    virtual ~FontAsset() = default;
+
     int32_t AtlasHeight;
 
     int32_t get_AtlasHeight();
@@ -50,6 +54,11 @@ public:
 
     float get_LineHeight();
     void set_LineHeight(float value);
+
+    ::TextureAsset* SourceTextureAsset;
+
+    ::TextureAsset* get_SourceTextureAsset();
+    void set_SourceTextureAsset(::TextureAsset* value);
 
     ::RuntimeTexture* Texture;
 

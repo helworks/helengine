@@ -26,6 +26,8 @@ class ShaderModuleDefinition;
 class ShaderModulePackage
 {
 public:
+    virtual ~ShaderModulePackage() = default;
+
     ::ShaderModuleDefinition* Definition;
 
     ::ShaderModuleDefinition* get_Definition();

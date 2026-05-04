@@ -9,6 +9,8 @@
 class Asset
 {
 public:
+    virtual ~Asset() = default;
+
     Asset();
 
     std::string Id;

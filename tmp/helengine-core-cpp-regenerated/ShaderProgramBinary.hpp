@@ -11,6 +11,8 @@
 class ShaderProgramBinary
 {
 public:
+    virtual ~ShaderProgramBinary() = default;
+
     Array<uint8_t>* get_Bytecode();
 
     std::string Path;

@@ -4,6 +4,16 @@ namespace helengine.editor {
     /// </summary>
     public class EditorSceneAssetReferenceResolver : ISceneAssetReferenceResolver {
         /// <summary>
+        /// Generated provider id reserved for the editor's built-in font asset.
+        /// </summary>
+        const string EditorGeneratedProviderId = "editor";
+
+        /// <summary>
+        /// Stable asset id used for the editor's built-in font asset.
+        /// </summary>
+        const string EditorFontAssetId = "ui-font";
+
+        /// <summary>
         /// Absolute path to the project assets folder.
         /// </summary>
         readonly string AssetsRootPath;
@@ -97,6 +107,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves one persisted font reference into a runtime font asset instance.
+        /// </summary>
+        /// <param name="reference">Persisted asset reference to resolve.</param>
+        /// <returns>Runtime font asset instance rebuilt for the editor session.</returns>
+        public FontAsset ResolveFont(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                return ResolveGeneratedFont(reference);
+            } else if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
+                return ResolveFileSystemFont(reference);
+            } else {
+                throw new InvalidOperationException($"Unsupported font reference source kind '{reference.SourceKind}'.");
+            }
+        }
+
+        /// <summary>
         /// Resolves one generated model reference through the generated-asset registry.
         /// </summary>
         /// <param name="reference">Generated model reference to resolve.</param>
@@ -145,6 +174,35 @@ namespace helengine.editor {
 
             ShaderAsset shaderAsset = EditorShaderPackageService.LoadShaderAsset(materialAsset.ShaderAssetId);
             return Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+        }
+
+        /// <summary>
+        /// Resolves one generated font reference through the editor's built-in font.
+        /// </summary>
+        /// <param name="reference">Generated font reference to resolve.</param>
+        /// <returns>Runtime font asset published by the editor host.</returns>
+        FontAsset ResolveGeneratedFont(SceneAssetReference reference) {
+            if (!string.Equals(reference.ProviderId, EditorGeneratedProviderId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Unsupported generated font provider '{reference.ProviderId}'.");
+            }
+            if (!string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Unsupported generated font asset id '{reference.AssetId}'.");
+            }
+            if (Core.Instance == null || Core.Instance.DefaultFontAsset == null) {
+                throw new InvalidOperationException("The editor font is not available in the active core.");
+            }
+
+            return Core.Instance.DefaultFontAsset;
+        }
+
+        /// <summary>
+        /// Resolves one file-backed font reference by loading the packaged font asset.
+        /// </summary>
+        /// <param name="reference">File-backed font reference to resolve.</param>
+        /// <returns>Runtime font asset built from the packaged font asset.</returns>
+        FontAsset ResolveFileSystemFont(SceneAssetReference reference) {
+            string fullPath = ResolveFileSystemAssetPath(reference);
+            return AssetContentManager.Load<FontAsset>(fullPath, RuntimeContentProcessorIds.FontAsset);
         }
 
         /// <summary>

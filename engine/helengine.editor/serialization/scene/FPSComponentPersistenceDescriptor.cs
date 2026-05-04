@@ -6,7 +6,7 @@ namespace helengine.editor {
         /// <summary>
         /// Current payload version for serialized FPS component records.
         /// </summary>
-        const byte CurrentVersion = 1;
+        const byte CurrentVersion = 2;
 
         /// <summary>
         /// Gets the concrete runtime component type handled by the descriptor.
@@ -18,6 +18,12 @@ namespace helengine.editor {
         /// </summary>
         public string ComponentTypeId => "helengine.FPSComponent";
 
+        /// <summary>
+        /// Attempts to resolve the serialized font reference for the component.
+        /// </summary>
+        /// <param name="component">FPS component being serialized.</param>
+        /// <param name="saveState">Editor-time save metadata associated with the component.</param>
+        /// <returns>Stable font reference for the component.</returns>
         /// <summary>
         /// Serializes one live FPS component into a scene component record.
         /// </summary>
@@ -36,9 +42,11 @@ namespace helengine.editor {
                 throw new InvalidOperationException("FPS component descriptor received an unsupported component type.");
             }
 
+            SceneAssetReference fontReference = FontAssetScenePersistenceSupport.ResolveFontReference(nameof(FPSComponent), fpsComponent.Font, saveState);
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(CurrentVersion);
+            FontAssetScenePersistenceSupport.WriteOptionalReference(writer, fontReference);
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(fpsComponent.RefreshIntervalSeconds));
             writer.WriteInt2(fpsComponent.Padding);
             writer.WriteByte(fpsComponent.RenderOrder2D);
@@ -71,15 +79,34 @@ namespace helengine.editor {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != CurrentVersion) {
+            if (version != CurrentVersion && version != 1) {
                 throw new InvalidOperationException($"Unsupported FPS component payload version '{version}'.");
             }
+
+            SceneAssetReference fontReference = version >= 2 ? FontAssetScenePersistenceSupport.ReadOptionalReference(reader) : null;
 
             FPSComponent fpsComponent = new FPSComponent {
                 RefreshIntervalSeconds = BitConverter.Int64BitsToDouble(reader.ReadInt64()),
                 Padding = reader.ReadInt2(),
                 RenderOrder2D = reader.ReadByte()
             };
+
+            if (fontReference != null) {
+                fpsComponent.Font = FontAssetScenePersistenceSupport.ResolveFont(referenceResolver, fontReference);
+                if (saveComponent != null) {
+                    saveComponent.SetAssetReference(fpsComponent, FontAssetScenePersistenceSupport.FontReferenceName, fontReference);
+                }
+            } else if (Core.Instance != null && Core.Instance.DefaultFontAsset != null) {
+                fpsComponent.Font = Core.Instance.DefaultFontAsset;
+                if (saveComponent != null) {
+                    saveComponent.SetAssetReference(
+                        fpsComponent,
+                        FontAssetScenePersistenceSupport.FontReferenceName,
+                        FontAssetScenePersistenceSupport.BuildEditorFontReference());
+                }
+            } else {
+                throw new InvalidOperationException("FPSComponent requires a font asset reference before deserialization.");
+            }
 
             return fpsComponent;
         }

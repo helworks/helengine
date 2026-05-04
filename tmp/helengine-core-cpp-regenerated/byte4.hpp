@@ -9,6 +9,8 @@
 class byte4
 {
 public:
+    virtual ~byte4() = default;
+
     byte4();
 
     uint8_t W;

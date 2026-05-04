@@ -2,13 +2,12 @@
 #undef DrawText
 #endif
 #include "MaterialLayout.hpp"
+#include "MaterialLayout.hpp"
 #include "runtime/native_exceptions.hpp"
 #include "runtime/native_string.hpp"
-#include "MaterialLayout.hpp"
 #include "MaterialRenderState.hpp"
 #include "MaterialLayoutBinding.hpp"
 #include "runtime/array.hpp"
-#include "runtime/finally.hpp"
 #include "runtime/native_cast.hpp"
 #include "runtime/native_datetime.hpp"
 #include "runtime/native_dictionary.hpp"
@@ -25,6 +24,7 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
@@ -105,17 +105,21 @@ this->ConstantBufferBindings = (constantBufferBindings != nullptr ? constantBuff
 this->SamplerBindings = (samplerBindings != nullptr ? samplerBindings : throw new ArgumentNullException("samplerBindings"));
 }
 
-::MaterialLayout* MaterialLayout::EmptyValue = ([]() {
-auto __ctor_arg_44fdbd33 = String::Empty;
-auto __ctor_arg_e4f34a4a = String::Empty;
-auto __ctor_arg_41ec80c4 = String::Empty;
-auto __ctor_arg_8435ff56 = String::Empty;
-auto __ctor_arg_78772687 = new ::MaterialRenderState();
-auto __ctor_arg_aa7e2cce = Array<MaterialLayoutBinding*>::Empty();
-auto __ctor_arg_3cebaca1 = Array<MaterialLayoutBinding*>::Empty();
-auto __ctor_arg_866ce621 = Array<MaterialLayoutBinding*>::Empty();
-return new ::MaterialLayout(__ctor_arg_44fdbd33, __ctor_arg_e4f34a4a, __ctor_arg_41ec80c4, __ctor_arg_8435ff56, __ctor_arg_78772687, __ctor_arg_aa7e2cce, __ctor_arg_3cebaca1, __ctor_arg_866ce621);
-})();
+::MaterialLayout* MaterialLayout::EmptyValue = CreateEmptyValue();
+
+::MaterialLayout* MaterialLayout::CreateEmptyValue()
+{
+return ([&]() {
+auto __ctor_arg_00000095 = String::Empty;
+auto __ctor_arg_00000096 = String::Empty;
+auto __ctor_arg_00000097 = String::Empty;
+auto __ctor_arg_00000098 = String::Empty;
+auto __ctor_arg_00000099 = new ::MaterialRenderState();
+auto __ctor_arg_0000009A = Array<MaterialLayoutBinding*>::Empty();
+auto __ctor_arg_0000009B = Array<MaterialLayoutBinding*>::Empty();
+auto __ctor_arg_0000009C = Array<MaterialLayoutBinding*>::Empty();
+return new ::MaterialLayout(__ctor_arg_00000095, __ctor_arg_00000096, __ctor_arg_00000097, __ctor_arg_00000098, __ctor_arg_00000099, __ctor_arg_0000009A, __ctor_arg_0000009B, __ctor_arg_0000009C);
+})();}
 
 int32_t MaterialLayout::FindBindingIndex(Array<::MaterialLayoutBinding*>* bindings, std::string bindingName)
 {
@@ -126,9 +130,9 @@ throw new ArgumentNullException("bindings");
     if (String::IsNullOrWhiteSpace(bindingName))
     {
 throw ([&]() {
-auto __ctor_arg_ae411c05 = "Binding name must be provided.";
-auto __ctor_arg_f24d9b41 = "bindingName";
-return new ArgumentException(__ctor_arg_ae411c05, __ctor_arg_f24d9b41);
+auto __ctor_arg_0000009D = "Binding name must be provided.";
+auto __ctor_arg_0000009E = "bindingName";
+return new ArgumentException(__ctor_arg_0000009D, __ctor_arg_0000009E);
 })();
     }
 for (int32_t bindingIndex = 0; bindingIndex < bindings->Length; bindingIndex++) {

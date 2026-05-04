@@ -2,7 +2,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Test processor that reads UTF-8 text and returns an uppercased text asset.
     /// </summary>
-    public class TestUppercaseTextAssetContentProcessor : IContentProcessor<TextAsset> {
+    internal class TestUppercaseTextAssetContentProcessor : IContentProcessor<TextAsset> {
         /// <summary>
         /// Gets the output type produced by this processor.
         /// </summary>

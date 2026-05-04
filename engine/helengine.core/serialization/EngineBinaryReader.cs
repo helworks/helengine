@@ -91,6 +91,46 @@ namespace helengine {
         public abstract long ReadInt64();
 
         /// <summary>
+        /// Reads a two-component integer vector using the reader's endianness.
+        /// </summary>
+        /// <returns>Decoded integer vector.</returns>
+        public int2 ReadInt2() {
+            return new int2(ReadInt32(), ReadInt32());
+        }
+
+        /// <summary>
+        /// Reads a four-component integer vector using the reader's endianness.
+        /// </summary>
+        /// <returns>Decoded integer vector.</returns>
+        public int4 ReadInt4() {
+            return new int4(ReadInt32(), ReadInt32(), ReadInt32(), ReadInt32());
+        }
+
+        /// <summary>
+        /// Reads a two-component floating point vector using the reader's endianness.
+        /// </summary>
+        /// <returns>Decoded floating point vector.</returns>
+        public float2 ReadFloat2() {
+            return new float2(ReadSingle(), ReadSingle());
+        }
+
+        /// <summary>
+        /// Reads a three-component floating point vector using the reader's endianness.
+        /// </summary>
+        /// <returns>Decoded floating point vector.</returns>
+        public float3 ReadFloat3() {
+            return new float3(ReadSingle(), ReadSingle(), ReadSingle());
+        }
+
+        /// <summary>
+        /// Reads a four-component floating point vector using the reader's endianness.
+        /// </summary>
+        /// <returns>Decoded floating point vector.</returns>
+        public float4 ReadFloat4() {
+            return new float4(ReadSingle(), ReadSingle(), ReadSingle(), ReadSingle());
+        }
+
+        /// <summary>
         /// Reads a single-precision floating point value using the reader's endianness.
         /// </summary>
         /// <returns>Decoded floating point value.</returns>
@@ -131,6 +171,20 @@ namespace helengine {
             }
 
             return ReadBytes(length);
+        }
+
+        /// <summary>
+        /// Reads one optional scene entity reference value using the reader's endianness.
+        /// </summary>
+        /// <returns>Decoded scene entity reference or null when the value was not present.</returns>
+        public SceneEntityReference ReadSceneEntityReference() {
+            if (ReadByte() == 0) {
+                return null;
+            }
+
+            return new SceneEntityReference {
+                EntityId = ReadString()
+            };
         }
 
         /// <summary>

@@ -40,6 +40,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Attempts to load an existing local build configuration document without seeding new platform entries.
+        /// </summary>
+        /// <returns>Loaded build configuration document, or null when the file is missing or malformed.</returns>
+        public EditorBuildConfigDocument TryLoadExisting() {
+            return TryLoadDocument();
+        }
+
+        /// <summary>
         /// Loads the local build configuration, silently regenerating missing or invalid data and seeding newly enabled platforms.
         /// </summary>
         /// <param name="supportedPlatforms">Supported platform identifiers declared by the current project.</param>
@@ -110,6 +118,11 @@ namespace helengine.editor {
                     platform.SelectedGraphicsProfileId ??= string.Empty;
                     platform.SelectedBuildOptionValues ??= [];
                     platform.SelectedGraphicsOptionValues ??= [];
+                    platform.SelectedCodegenProfileId ??= string.Empty;
+                    platform.SelectedStorageProfileId ??= string.Empty;
+                    platform.SelectedMediaProfileId ??= string.Empty;
+                    platform.SelectedCodegenOptionValues ??= [];
+                    platform.SelectedCodeModuleIds ??= [];
                 }
 
                 for (int index = 0; index < document.QueueItems.Count; index++) {
@@ -124,6 +137,11 @@ namespace helengine.editor {
                     queueItem.SelectedGraphicsProfileId ??= string.Empty;
                     queueItem.SelectedBuildOptionValues ??= [];
                     queueItem.SelectedGraphicsOptionValues ??= [];
+                    queueItem.SelectedCodegenProfileId ??= string.Empty;
+                    queueItem.SelectedStorageProfileId ??= string.Empty;
+                    queueItem.SelectedMediaProfileId ??= string.Empty;
+                    queueItem.SelectedCodegenOptionValues ??= [];
+                    queueItem.SelectedCodeModuleIds ??= [];
                 }
                 return document;
             } catch {
@@ -194,7 +212,12 @@ namespace helengine.editor {
                 SelectedBuildProfileId = string.Empty,
                 SelectedGraphicsProfileId = string.Empty,
                 SelectedBuildOptionValues = [],
-                SelectedGraphicsOptionValues = []
+                SelectedGraphicsOptionValues = [],
+                SelectedCodegenProfileId = string.Empty,
+                SelectedStorageProfileId = string.Empty,
+                SelectedMediaProfileId = string.Empty,
+                SelectedCodegenOptionValues = [],
+                SelectedCodeModuleIds = []
             };
 
             if (!string.IsNullOrWhiteSpace(currentSceneId)) {

@@ -1,0 +1,93 @@
+using System.Collections.Generic;
+using helengine.baseplatform.Manifest;
+
+namespace helengine.editor.tests.managers.project;
+
+/// <summary>
+/// Verifies the generated runtime native manifest writer emits C++ source for the startup scene and code modules.
+/// </summary>
+public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
+    /// <summary>
+    /// Temporary workspace used by the manifest writer test.
+    /// </summary>
+    readonly string RootPath;
+
+    /// <summary>
+    /// Initializes the test workspace.
+    /// </summary>
+    public EditorRuntimeNativeManifestWriterTests() {
+        RootPath = Path.Combine(Path.GetTempPath(), "helengine-runtime-native-manifest-writer-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(RootPath);
+    }
+
+    /// <summary>
+    /// Releases the temporary workspace used by the test.
+    /// </summary>
+    public void Dispose() {
+        if (Directory.Exists(RootPath)) {
+            Directory.Delete(RootPath, true);
+        }
+    }
+
+    /// <summary>
+    /// Ensures the writer emits native startup and code-module source files with the resolved cooked scene path.
+    /// </summary>
+    [Fact]
+    public void Write_emits_startup_scene_and_code_module_cpp_sources() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-core");
+        Directory.CreateDirectory(generatedCoreRootPath);
+
+        PlatformBuildScene startupScene = new(
+            "Scenes/NewScene.helen",
+            "NewScene",
+            "Scenes/NewScene.helen",
+            Array.Empty<PlatformBuildPayloadReference>(),
+            [
+                new KeyValuePair<string, string>("cooked-relative-path", "cooked/scenes/main.hasset")
+            ]);
+
+        PlatformBuildCodeModule[] codeModules = [
+            new PlatformBuildCodeModule("core", "core-artifact", "default", ["always-loaded"], []),
+            new PlatformBuildCodeModule("ui", "ui-artifact", "default", ["scene-loaded"], ["core"])
+        ];
+
+        PlatformBuildManifest manifest = new(
+            1,
+            "project",
+            "1.0.0",
+            "1.0.0",
+            "Scenes/NewScene.helen",
+            [startupScene],
+            Array.Empty<PlatformBuildAsset>(),
+            Array.Empty<PlatformBuildArtifact>(),
+            codeModules,
+            Array.Empty<PlatformArtifactPlacement>(),
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+
+        EditorRuntimeNativeManifestWriter writer = new();
+        writer.Write(generatedCoreRootPath, manifest);
+
+        string runtimeRootPath = Path.Combine(generatedCoreRootPath, "runtime");
+        string startupHeaderPath = Path.Combine(runtimeRootPath, "runtime_startup_manifest.hpp");
+        string startupSourcePath = Path.Combine(runtimeRootPath, "runtime_startup_manifest.cpp");
+        string codeModuleHeaderPath = Path.Combine(runtimeRootPath, "runtime_code_module_manifest.hpp");
+        string codeModuleSourcePath = Path.Combine(runtimeRootPath, "runtime_code_module_manifest.cpp");
+
+        Assert.True(File.Exists(startupHeaderPath));
+        Assert.True(File.Exists(startupSourcePath));
+        Assert.True(File.Exists(codeModuleHeaderPath));
+        Assert.True(File.Exists(codeModuleSourcePath));
+        Assert.False(File.Exists(Path.Combine(runtimeRootPath, "runtime-startup.json")));
+        Assert.False(File.Exists(Path.Combine(runtimeRootPath, "runtime-code-modules.json")));
+
+        string startupSource = File.ReadAllText(startupSourcePath);
+        string codeModuleSource = File.ReadAllText(codeModuleSourcePath);
+
+        Assert.Contains("he_get_runtime_startup_scene_relative_path", startupSource);
+        Assert.Contains("cooked/scenes/main.hasset", startupSource);
+        Assert.Contains("kRuntimeCodeModuleDependencies_1", codeModuleSource);
+        Assert.Contains("HERuntimeCodeModuleLoadState::ResidentAtStartup", codeModuleSource);
+        Assert.Contains("HERuntimeCodeModuleLoadState::SceneResident", codeModuleSource);
+        Assert.Contains("he_runtime_code_module_can_unload", codeModuleSource);
+    }
+}

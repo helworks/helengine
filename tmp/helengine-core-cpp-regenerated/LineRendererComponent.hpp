@@ -11,6 +11,8 @@ class Component;
 class LineRendererComponent : public Component
 {
 public:
+    virtual ~LineRendererComponent() = default;
+
     ::Entity* get_Parent();
 
     void set_Parent(::Entity* value);

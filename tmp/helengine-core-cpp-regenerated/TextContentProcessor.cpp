@@ -26,6 +26,8 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/directory.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
@@ -56,9 +58,9 @@ throw new ArgumentNullException("stream");
 {
 StreamReader *reader = new StreamReader(stream, Encoding::UTF8, true, 1024, true);
 return ([&]() {
-auto __object_b80182e6 = new ::TextContent();
-__object_b80182e6->set_Text(reader->ReadToEnd());
-return __object_b80182e6;
+auto __object_000001AB = new ::TextContent();
+__object_000001AB->set_Text(reader->ReadToEnd());
+return __object_000001AB;
 })();}
 }
 

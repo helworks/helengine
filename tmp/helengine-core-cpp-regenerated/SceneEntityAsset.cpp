@@ -20,18 +20,22 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/math.hpp"
 #include "system/number.hpp"
 #include "system/string_comparer.hpp"
 #include "system/text/encoding.hpp"
 #include "system/text/regular_expressions/regex.hpp"
+#include "system/text/string-builder.hpp"
 
-SceneEntityAsset::SceneEntityAsset() : Children(Array<SceneEntityAsset*>::Empty()), Components(Array<SceneComponentAssetRecord*>::Empty()), LocalOrientation(), LocalPosition(), LocalScale(), Name()
+SceneEntityAsset::SceneEntityAsset() : Children(Array<SceneEntityAsset*>::Empty()), Components(Array<SceneComponentAssetRecord*>::Empty()), Id(), LocalOrientation(), LocalPosition(), LocalScale(), Name()
 {
 }
 
@@ -53,6 +57,16 @@ return this->Components;
 void SceneEntityAsset::set_Components(Array<::SceneComponentAssetRecord*>* value)
 {
 this->Components = value;
+}
+
+std::string SceneEntityAsset::get_Id()
+{
+return this->Id;
+}
+
+void SceneEntityAsset::set_Id(std::string value)
+{
+this->Id = value;
 }
 
 ::float4 SceneEntityAsset::get_LocalOrientation()

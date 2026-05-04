@@ -33,11 +33,13 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -69,13 +71,13 @@ const std::string targetName = ShaderTargetNames::GetTargetName(target);
 Array<::ShaderProgramAsset*> *programs = BuildProgramAssets(definition);
 Array<::ShaderBinaryAsset*> *binaries = BuildBinaryAssets(definition, targetName);
 ::ShaderAsset *asset = ([&]() {
-auto __object_c14f6bb9 = new ::ShaderAsset();
-__object_c14f6bb9->set_Id(definition->get_Name());
-__object_c14f6bb9->Name = definition->get_Name();
-__object_c14f6bb9->TargetName = targetName;
-__object_c14f6bb9->Programs = programs;
-__object_c14f6bb9->Binaries = binaries;
-return __object_c14f6bb9;
+auto __object_000001A4 = new ::ShaderAsset();
+__object_000001A4->set_Id(definition->get_Name());
+__object_000001A4->Name = definition->get_Name();
+__object_000001A4->TargetName = targetName;
+__object_000001A4->Programs = programs;
+__object_000001A4->Binaries = binaries;
+return __object_000001A4;
 })();
 return asset;}
 

@@ -15,6 +15,8 @@ class ShaderConstantMember;
 class ShaderConstantMemberAsset
 {
 public:
+    virtual ~ShaderConstantMemberAsset() = default;
+
     ShaderConstantMemberAsset();
 
     std::string Name;

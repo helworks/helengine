@@ -25,6 +25,8 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/directory.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
@@ -132,9 +134,9 @@ std::string float3::ToString()
 {
 return std::to_string(this->X) + std::string(", ") + std::to_string(Y) + std::string(", ") + std::to_string(Z);}
 
-::float3 float3::one;
+::float3 float3::one = ::float3(1.0f, 1.0f, 1.0f);
 
-::float3 float3::zero;
+::float3 float3::zero = ::float3(0.0f, 0.0f, 0.0f);
 
 bool operator!=(::float3 a, ::float3 b)
 {

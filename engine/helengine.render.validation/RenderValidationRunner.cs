@@ -149,7 +149,7 @@ namespace helengine.render.validation {
                 CreateRenderManagers(backend, out renderer3D, out renderer2D);
 
                 core = new Core(new CoreInitializationOptions());
-                var inputManager = new InputManagerWindows(window.Handle);
+                var inputManager = new InputBackendWindows(window.Handle);
                 core.Initialize(renderer3D, renderer2D, inputManager, new CoreInitializationOptions());
                 renderer3D.AddWindow(window.Handle, Options.FrameWidth, Options.FrameHeight);
 
@@ -1331,3 +1331,4 @@ namespace helengine.render.validation {
         }
     }
 }
+

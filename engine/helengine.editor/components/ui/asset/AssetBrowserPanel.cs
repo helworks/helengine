@@ -139,7 +139,7 @@ namespace helengine.editor {
         /// Updates context menu input each frame.
         /// </summary>
         internal void UpdateContextMenuInput() {
-            InputManager input = Core.Instance.InputManager;
+            InputSystem input = Core.Instance.Input;
             if (!AssetContextMenu.IsVisible && FileTemplateMenu.IsVisible) {
                 FileTemplateMenu.Hide();
             }
@@ -313,3 +313,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

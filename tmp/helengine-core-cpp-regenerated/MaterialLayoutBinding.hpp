@@ -10,6 +10,8 @@
 class MaterialLayoutBinding
 {
 public:
+    virtual ~MaterialLayoutBinding() = default;
+
     std::string Name;
 
     std::string get_Name();

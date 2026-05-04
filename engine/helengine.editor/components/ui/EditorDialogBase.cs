@@ -813,7 +813,7 @@ namespace helengine.editor {
         /// Applies a drag delta from one resize grip to the dialog size and position.
         /// </summary>
         /// <param name="gripKind">Corner grip being dragged.</param>
-        /// <param name="delta">Pointer movement delta supplied by the input manager.</param>
+        /// <param name="delta">Pointer movement delta supplied by the input system.</param>
         void HandleResizeGripCursor(ResizeGripKind gripKind, int2 delta, PointerInteraction state) {
             if (!DialogIsResizable) {
                 return;
@@ -843,7 +843,7 @@ namespace helengine.editor {
         /// Updates the dialog shell using one resize delta from a corner grip.
         /// </summary>
         /// <param name="gripKind">Corner grip being dragged.</param>
-        /// <param name="delta">Pointer movement delta supplied by the input manager.</param>
+        /// <param name="delta">Pointer movement delta supplied by the input system.</param>
         void ApplyResizeDelta(ResizeGripKind gripKind, int2 delta) {
             int minimumWidth = Math.Max(1, DialogMinimumSize.X);
             int minimumHeight = Math.Max(1, DialogMinimumSize.Y);

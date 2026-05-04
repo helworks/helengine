@@ -1,11 +1,11 @@
-﻿#if WINDOWS
+#if WINDOWS
 using System;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 
 namespace Nucleus.Windows.DirectInput {
-    public static class DInputManager {
+    public static class DInputSystem {
         private static readonly DInputLibrary[] libraries = new DInputLibrary[]
             {
                 new DInputLibrary()
@@ -42,7 +42,7 @@ namespace Nucleus.Windows.DirectInput {
         private static readonly DInputLibrary library;
         public static DInputLibrary Library { get { return library; } }
 
-        static DInputManager() {
+        static DInputSystem() {
             bool is64OS = Environment.Is64BitOperatingSystem;
             string path;
             if (is64OS) {

@@ -3,5 +3,10 @@ obj/
 bin/
 render-validation-output/
 **/render-validation-output/
+.nuget/
+.dotnet-home/
 .codex-build
+.codex-out/
+.tmp/
+rtk/
 .worktrees/

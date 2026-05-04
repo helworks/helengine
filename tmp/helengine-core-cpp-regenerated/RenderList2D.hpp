@@ -21,6 +21,8 @@ class IRenderVisitor2D;
 class RenderList2D : public IRenderQueue2D
 {
 public:
+    virtual ~RenderList2D() = default;
+
     int32_t get_Count();
 
     void Add(::IDrawable2D* drawable);

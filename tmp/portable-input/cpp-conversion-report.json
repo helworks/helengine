@@ -1,0 +1,119 @@
+{
+  "assemblyName": "helengine.input",
+  "assemblyVersion": "",
+  "targetFramework": "net9.0",
+  "processedTypeCount": 0,
+  "emittedTypeCount": 21,
+  "emittedFileCount": 50,
+  "hasErrors": false,
+  "errorCount": 0,
+  "warningCount": 0,
+  "infoCount": 0,
+  "activeProfiles": {
+    "compiler": "msvc",
+    "platform": "windows-headless",
+    "runtime": "stl-lite"
+  },
+  "buildFeatures": {
+    "decisions": [
+      {
+        "feature": "DebugOverlay",
+        "enabled": false,
+        "origin": "NotIncluded"
+      },
+      {
+        "feature": "Render2D",
+        "enabled": false,
+        "origin": "NotIncluded"
+      },
+      {
+        "feature": "Shaders",
+        "enabled": false,
+        "origin": "NotIncluded"
+      },
+      {
+        "feature": "Sprites",
+        "enabled": false,
+        "origin": "NotIncluded"
+      },
+      {
+        "feature": "Text2D",
+        "enabled": false,
+        "origin": "NotIncluded"
+      }
+    ],
+    "detectedRoots": [],
+    "conflicts": []
+  },
+  "registeredRuntimeRequirements": [
+    "Math",
+    "NativeArray",
+    "NativeDictionary",
+    "NativeEnum",
+    "NativeEquatable",
+    "NativeExceptions",
+    "NativeFinally",
+    "NativeList",
+    "NativeString"
+  ],
+  "emittedFiles": [
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\ButtonState.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\ButtonState.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputControlKind.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputControlKind.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputDeviceKind.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputDeviceKind.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputGamepadButton.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputGamepadButton.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputPointerButton.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputPointerButton.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\KeyState.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\KeyState.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\Keys.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\Keys.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\IInputBackend.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\IInputBackend.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputActionState.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputActionState.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputBinding.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputBinding.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputFrameState.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputFrameState.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputGamepadState.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputGamepadState.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputPointerState.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputPointerState.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputSystem.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputSystem.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputTextState.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputTextState.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\KeyboardState.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\KeyboardState.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\MouseState.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\MouseState.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\int2.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\int2.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputActionId.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputActionId.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputContextId.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputContextId.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputControlId.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\InputControlId.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\helcpp_config.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\runtime\\feature_manifest.hpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\runtime\\feature_manifest.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\helengine_core_unity.cpp",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\build_gcc.sh",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\build_msvc.bat",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\helengine_windows_handoff.cmake",
+    "C:\\dev\\helworks\\helengine\\tmp\\portable-input\\cpp-conversion-report.json"
+  ],
+  "diagnostics": [],
+  "diagnosticsByTypeMember": [],
+  "unsupportedSyntaxSummary": [],
+  "unsupportedConstructCount": 0,
+  "unsupportedMemberCount": 0,
+  "generatedAtUtc": "0001-01-01T00:00:00.0000000Z",
+  "diagnosticsVersion": 1,
+  "diagnosticsSchema": "cpp-conversion-report.v1"
+}

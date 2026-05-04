@@ -30,6 +30,8 @@
 #include "system/binary_primitives.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/directory.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
@@ -45,6 +47,11 @@
 #include "system/text/encoding.hpp"
 #include "system/text/regular_expressions/regex.hpp"
 #include "system/text/string-builder.hpp"
+
+int2* SpriteComponent::get_AnchorSize()
+{
+return this->Size;
+}
 
 ::byte4 SpriteComponent::get_Color()
 {
@@ -96,12 +103,12 @@ void SpriteComponent::set_Rotation(float value)
 this->Rotation = value;
 }
 
-::int2 SpriteComponent::get_Size()
+int2* SpriteComponent::get_Size()
 {
 return this->Size;
 }
 
-void SpriteComponent::set_Size(::int2 value)
+void SpriteComponent::set_Size(int2* value)
 {
 this->Size = value;
 }

@@ -14,7 +14,7 @@ cbuffer ShapeBuffer : register(b0)
 {
     matrix world;
     float4 destRect;   // x,y,w,h (pixels)
-    float4 params1;    // radius, border, aa, _
+    float4 params1;    // radius, border, aa, cornerMaskBits
     float4 fillColor;
     float4 borderColor;
 };
@@ -45,21 +45,66 @@ float sdRoundRect(float2 p, float2 b, float r)
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
 }
 
+float sdRoundRectMasked(float2 p, float2 halfSize, float radius, uint cornerMask)
+{
+    radius = min(radius, min(halfSize.x, halfSize.y));
+    float2 ap = abs(p);
+    float2 d = ap - halfSize;
+    float baseDist = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+
+    if (radius <= 0.0)
+    {
+        return baseDist;
+    }
+
+    float2 inner = halfSize - radius;
+    if (ap.x <= inner.x || ap.y <= inner.y)
+    {
+        return baseDist;
+    }
+
+    uint cornerBit;
+    if (p.x < 0.0 && p.y >= 0.0)
+    {
+        cornerBit = 1u;
+    }
+    else if (p.x >= 0.0 && p.y >= 0.0)
+    {
+        cornerBit = 2u;
+    }
+    else if (p.x < 0.0 && p.y < 0.0)
+    {
+        cornerBit = 4u;
+    }
+    else
+    {
+        cornerBit = 8u;
+    }
+
+    if ((cornerMask & cornerBit) == 0u)
+    {
+        return baseDist;
+    }
+
+    return length(ap - inner) - radius;
+}
+
 float4 PS(PS_INPUT input) : SV_TARGET
 {
     float radius = params1.x;
     float border = max(params1.y, 0.0);
     float aa = max(params1.z, 0.5);
+    uint cornerMask = (uint)round(params1.w);
 
     float2 halfSize = 0.5 * destRect.zw;
 
-    float dOuter = sdRoundRect(input.localPos, halfSize, radius);
+    float dOuter = sdRoundRectMasked(input.localPos, halfSize, radius, cornerMask);
     float alphaFill = 1.0 - smoothstep(-aa, aa, dOuter); // inside outer shape
 
     // Border: difference between outer and inner shapes
     float innerRadius = max(radius - border, 0.0);
     float2 innerHalf = float2(max(halfSize.x - border, 0.0), max(halfSize.y - border, 0.0));
-    float dInner = sdRoundRect(input.localPos, innerHalf, innerRadius);
+    float dInner = sdRoundRectMasked(input.localPos, innerHalf, innerRadius, cornerMask);
     float alphaInner = 1.0 - smoothstep(-aa, aa, dInner);
     float alphaBorder = saturate(alphaFill - alphaInner);
 
@@ -76,4 +121,3 @@ float4 PS(PS_INPUT input) : SV_TARGET
 
     return float4(rgb, a);
 }
-

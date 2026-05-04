@@ -10,6 +10,8 @@
 class ShaderModel
 {
 public:
+    virtual ~ShaderModel() = default;
+
     int32_t Major;
 
     int32_t get_Major();

@@ -7,6 +7,8 @@
 class Rect
 {
 public:
+    virtual ~Rect() = default;
+
     Rect();
 
     int32_t H;

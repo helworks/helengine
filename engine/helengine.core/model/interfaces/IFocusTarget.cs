@@ -26,9 +26,10 @@ namespace helengine {
         /// <summary>
         /// Returns true when the provided screen point is inside this target.
         /// </summary>
-        /// <param name="point">Screen point to evaluate.</param>
+        /// <param name="x">Screen-space X coordinate to evaluate.</param>
+        /// <param name="y">Screen-space Y coordinate to evaluate.</param>
         /// <returns>True when the point lies inside the target bounds.</returns>
-        bool ContainsScreenPoint(int2 point);
+        bool ContainsScreenPoint(int x, int y);
 
         /// <summary>
         /// Applies the focused-state visual for this target.

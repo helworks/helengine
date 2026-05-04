@@ -11,6 +11,8 @@ class RuntimeData;
 class RuntimeTexture : public RuntimeData
 {
 public:
+    virtual ~RuntimeTexture() = default;
+
     RuntimeTexture();
 
     int32_t Height;

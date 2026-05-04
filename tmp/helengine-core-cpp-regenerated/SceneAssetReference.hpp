@@ -10,6 +10,8 @@
 class SceneAssetReference
 {
 public:
+    virtual ~SceneAssetReference() = default;
+
     SceneAssetReference();
 
     std::string AssetId;

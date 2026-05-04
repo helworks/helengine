@@ -144,7 +144,7 @@ namespace helengine.editor {
         /// Updates camera position based on right-click state and keyboard input.
         /// </summary>
         public override void Update() {
-            InputManager input = Core.Instance.InputManager;
+            InputSystem input = Core.Instance.Input;
             bool isPointerBlocked = EditorInputCaptureService.IsPointerBlocked(input.GetMousePosition());
 
             if (!hasOrientationState) {
@@ -266,7 +266,7 @@ namespace helengine.editor {
         /// <param name="input">Input manager providing scroll-wheel delta and pointer position.</param>
         /// <param name="isPointerBlocked">True when UI is currently blocking viewport input.</param>
         /// <param name="forward">Current camera forward axis.</param>
-        void ApplyWheelZoom(InputManager input, bool isPointerBlocked, float3 forward) {
+        void ApplyWheelZoom(InputSystem input, bool isPointerBlocked, float3 forward) {
             int wheelDelta = input.GetMouseScrollWheelDelta();
             if (wheelDelta == 0) {
                 return;
@@ -288,7 +288,7 @@ namespace helengine.editor {
         /// Applies mouse delta to camera yaw and pitch while right click is held.
         /// </summary>
         /// <param name="input">Input manager providing mouse delta.</param>
-        void ApplyMouseLook(InputManager input) {
+        void ApplyMouseLook(InputSystem input) {
             if (ignoreNextLookDelta) {
                 ignoreNextLookDelta = false;
                 return;
@@ -314,7 +314,7 @@ namespace helengine.editor {
         /// Enables client-edge pointer wrapping while camera navigation is active.
         /// </summary>
         /// <param name="input">Input manager receiving the desired pointer-wrap state.</param>
-        void UpdatePointerWrapState(InputManager input) {
+        void UpdatePointerWrapState(InputSystem input) {
             if (isActive || isPanning || isOrbiting) {
                 input.RequestPointerWrapEnabled();
             }
@@ -334,7 +334,7 @@ namespace helengine.editor {
         /// Applies orbit deltas to the camera while keeping the orbit pivot fixed.
         /// </summary>
         /// <param name="input">Input manager providing mouse delta.</param>
-        void ApplyOrbit(InputManager input) {
+        void ApplyOrbit(InputSystem input) {
             if (ignoreNextOrbitDelta) {
                 ignoreNextOrbitDelta = false;
                 return;
@@ -364,7 +364,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="input">Input manager used to query modifier keys.</param>
         /// <returns>True when either Alt key is pressed.</returns>
-        bool IsOrbitModifierDown(InputManager input) {
+        bool IsOrbitModifierDown(InputSystem input) {
             return input.IsKeyDown(Keys.LeftAlt) || input.IsKeyDown(Keys.RightAlt);
         }
 
@@ -424,7 +424,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="input">Input manager used for cursor position.</param>
         /// <returns>True when the cursor is inside the viewport rectangle.</returns>
-        bool IsPointerInsideViewport(InputManager input) {
+        bool IsPointerInsideViewport(InputSystem input) {
             int2 mouse = input.GetMousePosition();
             float4 vp = camera.Viewport;
 
@@ -472,7 +472,7 @@ namespace helengine.editor {
         /// <param name="forward">Forward axis.</param>
         /// <param name="right">Right axis.</param>
         /// <returns>Combined movement direction.</returns>
-        float3 BuildMovement(InputManager input, float3 forward, float3 right) {
+        float3 BuildMovement(InputSystem input, float3 forward, float3 right) {
             float3 move = float3.Zero;
 
             if (input.IsKeyDown(Keys.W)) {
@@ -498,3 +498,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

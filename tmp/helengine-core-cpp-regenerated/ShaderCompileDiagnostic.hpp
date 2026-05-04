@@ -10,6 +10,8 @@
 class ShaderCompileDiagnostic
 {
 public:
+    virtual ~ShaderCompileDiagnostic() = default;
+
     int32_t Column;
 
     int32_t get_Column();

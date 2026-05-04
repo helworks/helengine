@@ -11,6 +11,8 @@ class RuntimeTexture;
 class TextureUtils
 {
 public:
+    virtual ~TextureUtils() = default;
+
     static ::RuntimeTexture* get_PixelTexture();
 private:
     static ::RuntimeTexture* pixelTexture;

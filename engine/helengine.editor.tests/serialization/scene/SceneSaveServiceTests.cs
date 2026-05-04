@@ -80,6 +80,15 @@ namespace helengine.editor.tests.serialization.scene {
             }
 
             Assert.Equal("Scenes/RoundTrip.helen", asset.Id);
+            Assert.Equal(2, asset.AssetReferences.Length);
+            Assert.Contains(asset.AssetReferences, reference =>
+                reference.SourceKind == modelReference.SourceKind &&
+                reference.RelativePath == modelReference.RelativePath &&
+                reference.ProviderId == modelReference.ProviderId &&
+                reference.AssetId == modelReference.AssetId);
+            Assert.Contains(asset.AssetReferences, reference =>
+                reference.SourceKind == materialReference.SourceKind &&
+                reference.RelativePath == materialReference.RelativePath);
             Assert.Single(asset.RootEntities);
             Assert.False(string.IsNullOrWhiteSpace(asset.RootEntities[0].Id));
             Assert.Equal("Root", asset.RootEntities[0].Name);
@@ -111,6 +120,97 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.True(GetSaveComponent(loadedRoot).TryGetComponentState(loadedMesh, out EntityComponentSaveState loadedSaveState));
             Assert.True(loadedSaveState.TryGetAssetReference("Model", out SceneAssetReference loadedModelReference));
             Assert.Equal(modelReference.AssetId, loadedModelReference.AssetId);
+        }
+
+        /// <summary>
+        /// Ensures scene save collects multiple text font references into the generic scene dependency manifest.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenSceneContainsMultipleTextComponents_CollectsAllFontReferences() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            registry.Register(new TextComponentPersistenceDescriptor());
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "TextRoundTrip.helen");
+
+            SceneAssetReference titleFontReference = new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "Fonts/Title",
+                ProviderId = "fonts",
+                AssetId = "title"
+            };
+            SceneAssetReference bodyFontReference = new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "Fonts/Body",
+                ProviderId = "fonts",
+                AssetId = "body"
+            };
+
+            EditorEntity root = CreateUserEntity("Root", float3.Zero, float3.One, float4.Identity);
+            TextComponent titleText = new TextComponent {
+                Font = CreateFont("Title"),
+                Text = "Title",
+                WrapText = false,
+                Size = new int2(240, 48),
+                Color = new byte4(255, 255, 255, 255),
+                SourceRect = new float4(0f, 0f, 1f, 1f),
+                Rotation = 0f,
+                RenderOrder2D = 11,
+                LayerMask = 3
+            };
+            root.AddComponent(titleText);
+            GetSaveComponent(root).SetAssetReference(titleText, "Font", titleFontReference);
+
+            EditorEntity child = CreateUserEntity("Child", new float3(0f, 32f, 0f), float3.One, float4.Identity);
+            TextComponent bodyText = new TextComponent {
+                Font = CreateFont("Body"),
+                Text = "Body",
+                WrapText = true,
+                Size = new int2(320, 96),
+                Color = new byte4(12, 34, 56, 255),
+                SourceRect = new float4(0f, 0f, 1f, 1f),
+                Rotation = 0f,
+                RenderOrder2D = 12,
+                LayerMask = 5
+            };
+            child.AddComponent(bodyText);
+            root.AddChild(child);
+            GetSaveComponent(child).SetAssetReference(bodyText, "Font", bodyFontReference);
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.Equal(2, asset.AssetReferences.Length);
+            Assert.Contains(asset.AssetReferences, reference =>
+                reference.RelativePath == titleFontReference.RelativePath &&
+                reference.ProviderId == titleFontReference.ProviderId &&
+                reference.AssetId == titleFontReference.AssetId);
+            Assert.Contains(asset.AssetReferences, reference =>
+                reference.RelativePath == bodyFontReference.RelativePath &&
+                reference.ProviderId == bodyFontReference.ProviderId &&
+                reference.AssetId == bodyFontReference.AssetId);
+
+            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
+            FontAsset loadedTitleFont = CreateFont("LoadedTitle");
+            FontAsset loadedBodyFont = CreateFont("LoadedBody");
+            resolver.RegisterFont(titleFontReference, loadedTitleFont);
+            resolver.RegisterFont(bodyFontReference, loadedBodyFont);
+
+            SceneLoadService loadService = new SceneLoadService(registry, resolver);
+            IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
+
+            EditorEntity loadedRoot = Assert.Single(loadedRoots);
+            TextComponent loadedTitleText = Assert.IsType<TextComponent>(Assert.Single(loadedRoot.Components, component => component is TextComponent));
+            Assert.Same(loadedTitleFont, loadedTitleText.Font);
+            Assert.Equal("Title", loadedTitleText.Text);
+
+            EditorEntity loadedChild = Assert.IsType<EditorEntity>(Assert.Single(loadedRoot.Children));
+            TextComponent loadedBodyText = Assert.IsType<TextComponent>(Assert.Single(loadedChild.Components, component => component is TextComponent));
+            Assert.Same(loadedBodyFont, loadedBodyText.Font);
+            Assert.Equal("Body", loadedBodyText.Text);
         }
 
         /// <summary>
@@ -205,6 +305,24 @@ namespace helengine.editor.tests.serialization.scene {
         /// <returns>Attached mesh component.</returns>
         MeshComponent FindMeshComponent(EditorEntity entity) {
             return Assert.IsType<MeshComponent>(Assert.Single(entity.Components, component => component is MeshComponent));
+        }
+
+        /// <summary>
+        /// Creates a stable runtime font asset used by scene persistence tests.
+        /// </summary>
+        /// <param name="name">Friendly font name.</param>
+        /// <returns>Runtime font asset with deterministic metrics.</returns>
+        FontAsset CreateFont(string name) {
+            return new FontAsset(
+                new FontInfo(name, 16, 4f),
+                new TestRuntimeTexture {
+                    Width = 1,
+                    Height = 1
+                },
+                new Dictionary<char, FontChar>(),
+                16f,
+                1,
+                1);
         }
     }
 }

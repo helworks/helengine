@@ -30,6 +30,8 @@ class ShaderDefine;
 class ShaderConditionalPreprocessor
 {
 public:
+    virtual ~ShaderConditionalPreprocessor() = default;
+
     static std::string Preprocess(std::string source, List<::ShaderDefine*>* defines);
 private:
     static void AppendSourceLine(StringBuilder* builder, std::string line, bool includeLine);

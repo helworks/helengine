@@ -11,8 +11,13 @@ public class PlatformBuildManifest {
     /// <param name="projectId">The stable project identity for the build.</param>
     /// <param name="projectVersion">The project version being built.</param>
     /// <param name="requiredEngineVersion">The exact engine version the cooked output targets.</param>
+    /// <param name="startupSceneId">The startup scene chosen by build order.</param>
     /// <param name="scenes">The fully resolved scenes the builder must cook.</param>
     /// <param name="looseAssets">The fully resolved loose assets the builder must cook.</param>
+    /// <param name="cookedArtifacts">The cooked runtime artifacts prepared by the build graph.</param>
+    /// <param name="codeModules">The authored code modules prepared by the build graph.</param>
+    /// <param name="artifactPlacements">The planned physical placements for the cooked artifacts.</param>
+    /// <param name="containerWritePlan">The planned container layout for the cooked artifacts.</param>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the manifest version is less than one.</exception>
     /// <exception cref="ArgumentException">Thrown when any required string value is missing.</exception>
     /// <exception cref="ArgumentNullException">Thrown when the scene or loose-asset collections are missing.</exception>
@@ -22,8 +27,13 @@ public class PlatformBuildManifest {
         string projectId,
         string projectVersion,
         string requiredEngineVersion,
+        string startupSceneId,
         PlatformBuildScene[] scenes,
-        PlatformBuildAsset[] looseAssets) {
+        PlatformBuildAsset[] looseAssets,
+        PlatformBuildArtifact[] cookedArtifacts,
+        PlatformBuildCodeModule[] codeModules,
+        PlatformArtifactPlacement[] artifactPlacements,
+        PlatformContainerWritePlan containerWritePlan) {
         if (manifestVersion < 1) {
             throw new ArgumentOutOfRangeException(nameof(manifestVersion), "Manifest version must be at least 1.");
         } else if (string.IsNullOrWhiteSpace(projectId)) {
@@ -32,6 +42,8 @@ public class PlatformBuildManifest {
             throw new ArgumentException("Project version is required.", nameof(projectVersion));
         } else if (string.IsNullOrWhiteSpace(requiredEngineVersion)) {
             throw new ArgumentException("Required engine version is required.", nameof(requiredEngineVersion));
+        } else if (startupSceneId == null) {
+            throw new ArgumentNullException(nameof(startupSceneId), "Startup scene id is required.");
         } else if (scenes == null) {
             throw new ArgumentNullException(nameof(scenes), "Scene collection is required.");
         } else if (Array.Exists(scenes, scene => scene == null)) {
@@ -40,14 +52,57 @@ public class PlatformBuildManifest {
             throw new ArgumentNullException(nameof(looseAssets), "Loose asset collection is required.");
         } else if (Array.Exists(looseAssets, asset => asset == null)) {
             throw new ArgumentException("Loose asset collection cannot contain null entries.", nameof(looseAssets));
+        } else if (cookedArtifacts == null) {
+            throw new ArgumentNullException(nameof(cookedArtifacts), "Cooked artifact collection is required.");
+        } else if (Array.Exists(cookedArtifacts, artifact => artifact == null)) {
+            throw new ArgumentException("Cooked artifact collection cannot contain null entries.", nameof(cookedArtifacts));
+        } else if (codeModules == null) {
+            throw new ArgumentNullException(nameof(codeModules), "Code module collection is required.");
+        } else if (Array.Exists(codeModules, codeModule => codeModule == null)) {
+            throw new ArgumentException("Code module collection cannot contain null entries.", nameof(codeModules));
+        } else if (artifactPlacements == null) {
+            throw new ArgumentNullException(nameof(artifactPlacements), "Artifact placement collection is required.");
+        } else if (Array.Exists(artifactPlacements, artifactPlacement => artifactPlacement == null)) {
+            throw new ArgumentException("Artifact placement collection cannot contain null entries.", nameof(artifactPlacements));
+        } else if (containerWritePlan == null) {
+            throw new ArgumentNullException(nameof(containerWritePlan), "Container write plan is required.");
         }
 
         ManifestVersion = manifestVersion;
         ProjectId = projectId;
         ProjectVersion = projectVersion;
         RequiredEngineVersion = requiredEngineVersion;
+        StartupSceneId = startupSceneId;
         Scenes = [.. scenes];
         LooseAssets = [.. looseAssets];
+        CookedArtifacts = [.. cookedArtifacts];
+        CodeModules = [.. codeModules];
+        ArtifactPlacements = [.. artifactPlacements];
+        ContainerWritePlan = containerWritePlan;
+    }
+
+    /// <summary>
+    /// Initializes a fully resolved build manifest without startup-scene, artifact, or code-module metadata.
+    /// </summary>
+    public PlatformBuildManifest(
+        int manifestVersion,
+        string projectId,
+        string projectVersion,
+        string requiredEngineVersion,
+        PlatformBuildScene[] scenes,
+        PlatformBuildAsset[] looseAssets)
+        : this(
+            manifestVersion,
+            projectId,
+            projectVersion,
+            requiredEngineVersion,
+            string.Empty,
+            scenes,
+            looseAssets,
+            Array.Empty<PlatformBuildArtifact>(),
+            Array.Empty<PlatformBuildCodeModule>(),
+            Array.Empty<PlatformArtifactPlacement>(),
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>())) {
     }
 
     /// <summary>
@@ -71,6 +126,11 @@ public class PlatformBuildManifest {
     public string RequiredEngineVersion { get; }
 
     /// <summary>
+    /// Gets the startup scene chosen by build order.
+    /// </summary>
+    public string StartupSceneId { get; }
+
+    /// <summary>
     /// Gets the fully resolved scenes the builder must cook.
     /// </summary>
     public PlatformBuildScene[] Scenes { get; }
@@ -79,4 +139,24 @@ public class PlatformBuildManifest {
     /// Gets the fully resolved loose assets the builder must cook.
     /// </summary>
     public PlatformBuildAsset[] LooseAssets { get; }
+
+    /// <summary>
+    /// Gets the cooked runtime artifacts prepared by the build graph.
+    /// </summary>
+    public PlatformBuildArtifact[] CookedArtifacts { get; }
+
+    /// <summary>
+    /// Gets the authored code modules prepared by the build graph.
+    /// </summary>
+    public PlatformBuildCodeModule[] CodeModules { get; }
+
+    /// <summary>
+    /// Gets the planned physical placements for the cooked artifacts.
+    /// </summary>
+    public PlatformArtifactPlacement[] ArtifactPlacements { get; }
+
+    /// <summary>
+    /// Gets the planned container layout for the cooked artifacts.
+    /// </summary>
+    public PlatformContainerWritePlan ContainerWritePlan { get; }
 }

@@ -1,6 +1,7 @@
 using helengine.baseplatform.Manifest;
 using helengine.baseplatform.Profiles;
 using helengine.baseplatform.Targets;
+using helengine.baseplatform.Definitions;
 
 namespace helengine.baseplatform.Requests;
 
@@ -18,8 +19,13 @@ public class PlatformBuildRequest {
     /// <param name="workingRoot">The temporary working directory the builder may use during execution.</param>
     /// <param name="selectedBuildProfileId">The builder-selected build profile identifier.</param>
     /// <param name="selectedGraphicsProfileId">The builder-selected graphics profile identifier.</param>
+    /// <param name="selectedCodegenProfileId">The builder-selected codegen profile identifier.</param>
     /// <param name="selectedBuildOptionValues">The selected build-profile option values.</param>
     /// <param name="selectedGraphicsOptionValues">The selected graphics-profile option values.</param>
+    /// <param name="selectedCodegenOptionValues">The selected codegen-profile option values.</param>
+    /// <param name="generatedCoreCppRootPath">The generated core C++ root supplied by the platform installation.</param>
+    /// <param name="selectedMediaProfileId">The selected media-profile identifier.</param>
+    /// <param name="selectedStorageProfileId">The selected storage-profile identifier.</param>
     /// <exception cref="ArgumentNullException">Thrown when the manifest, target variants, cook profiles, or filesystem roots are missing.</exception>
     /// <exception cref="ArgumentException">Thrown when any required string value is missing or a referenced cook profile is unavailable.</exception>
     public PlatformBuildRequest(
@@ -28,7 +34,7 @@ public class PlatformBuildRequest {
         PlatformCookProfile[] cookProfiles,
         string outputRoot,
         string workingRoot)
-        : this(manifest, targetVariants, cookProfiles, outputRoot, workingRoot, string.Empty, string.Empty, null, null) {
+        : this(manifest, targetVariants, cookProfiles, outputRoot, workingRoot, string.Empty, string.Empty, string.Empty, null, null, null, string.Empty, string.Empty, string.Empty) {
     }
 
     /// <summary>
@@ -41,8 +47,13 @@ public class PlatformBuildRequest {
     /// <param name="workingRoot">The temporary working directory the builder may use during execution.</param>
     /// <param name="selectedBuildProfileId">The builder-selected build profile identifier.</param>
     /// <param name="selectedGraphicsProfileId">The builder-selected graphics profile identifier.</param>
+    /// <param name="selectedCodegenProfileId">The builder-selected codegen profile identifier.</param>
     /// <param name="selectedBuildOptionValues">The selected build-profile option values.</param>
     /// <param name="selectedGraphicsOptionValues">The selected graphics-profile option values.</param>
+    /// <param name="selectedCodegenOptionValues">The selected codegen-profile option values.</param>
+    /// <param name="generatedCoreCppRootPath">The generated core C++ root supplied by the platform installation.</param>
+    /// <param name="selectedMediaProfileId">The selected media-profile identifier.</param>
+    /// <param name="selectedStorageProfileId">The selected storage-profile identifier.</param>
     /// <exception cref="ArgumentNullException">Thrown when the manifest, target variants, cook profiles, or filesystem roots are missing.</exception>
     /// <exception cref="ArgumentException">Thrown when any required string value is missing or a referenced cook profile is unavailable.</exception>
     public PlatformBuildRequest(
@@ -53,8 +64,13 @@ public class PlatformBuildRequest {
         string workingRoot,
         string selectedBuildProfileId,
         string selectedGraphicsProfileId,
+        string selectedCodegenProfileId,
         IReadOnlyDictionary<string, string> selectedBuildOptionValues,
-        IReadOnlyDictionary<string, string> selectedGraphicsOptionValues) {
+        IReadOnlyDictionary<string, string> selectedGraphicsOptionValues,
+        IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
+        string generatedCoreCppRootPath = "",
+        string selectedMediaProfileId = "",
+        string selectedStorageProfileId = "") {
         if (manifest == null) {
             throw new ArgumentNullException(nameof(manifest));
         } else if (targetVariants == null) {
@@ -104,12 +120,19 @@ public class PlatformBuildRequest {
         WorkingRoot = workingRoot;
         SelectedBuildProfileId = selectedBuildProfileId ?? string.Empty;
         SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
+        SelectedCodegenProfileId = selectedCodegenProfileId ?? string.Empty;
         SelectedBuildOptionValues = selectedBuildOptionValues != null
             ? new Dictionary<string, string>(selectedBuildOptionValues)
             : [];
         SelectedGraphicsOptionValues = selectedGraphicsOptionValues != null
             ? new Dictionary<string, string>(selectedGraphicsOptionValues)
             : [];
+        SelectedCodegenOptionValues = selectedCodegenOptionValues != null
+            ? new Dictionary<string, string>(selectedCodegenOptionValues)
+            : [];
+        GeneratedCoreCppRootPath = generatedCoreCppRootPath ?? string.Empty;
+        SelectedMediaProfileId = selectedMediaProfileId ?? string.Empty;
+        SelectedStorageProfileId = selectedStorageProfileId ?? string.Empty;
     }
 
     /// <summary>
@@ -148,6 +171,11 @@ public class PlatformBuildRequest {
     public string SelectedGraphicsProfileId { get; }
 
     /// <summary>
+    /// Gets the selected builder-provided codegen profile identifier.
+    /// </summary>
+    public string SelectedCodegenProfileId { get; }
+
+    /// <summary>
     /// Gets the selected builder-provided build option values.
     /// </summary>
     public IReadOnlyDictionary<string, string> SelectedBuildOptionValues { get; }
@@ -156,4 +184,24 @@ public class PlatformBuildRequest {
     /// Gets the selected builder-provided graphics option values.
     /// </summary>
     public IReadOnlyDictionary<string, string> SelectedGraphicsOptionValues { get; }
+
+    /// <summary>
+    /// Gets the selected builder-provided codegen option values.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> SelectedCodegenOptionValues { get; }
+
+    /// <summary>
+    /// Gets the generated core C++ root path supplied by the platform installation.
+    /// </summary>
+    public string GeneratedCoreCppRootPath { get; }
+
+    /// <summary>
+    /// Gets the selected builder-provided media profile identifier.
+    /// </summary>
+    public string SelectedMediaProfileId { get; }
+
+    /// <summary>
+    /// Gets the selected builder-provided storage profile identifier.
+    /// </summary>
+    public string SelectedStorageProfileId { get; }
 }

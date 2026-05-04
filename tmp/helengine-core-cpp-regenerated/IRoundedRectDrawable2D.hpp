@@ -6,11 +6,11 @@
 
 class IDrawable2D;
 class byte4;
-class int2;
 class float4;
 
 #include "IDrawable2D.hpp"
 #include "byte4.hpp"
+#include "RoundedRectCorners.hpp"
 #include "int2.hpp"
 #include "float4.hpp"
 
@@ -29,6 +29,10 @@ public:
 
     virtual void set_Color(::byte4 value) = 0;
 
+    virtual ::RoundedRectCorners get_Corners() = 0;
+
+    virtual void set_Corners(::RoundedRectCorners value) = 0;
+
     virtual ::byte4 get_FillColor() = 0;
 
     virtual void set_FillColor(::byte4 value) = 0;
@@ -41,9 +45,9 @@ public:
 
     virtual void set_Rotation(float value) = 0;
 
-    virtual ::int2 get_Size() = 0;
+    virtual int2* get_Size() = 0;
 
-    virtual void set_Size(::int2 value) = 0;
+    virtual void set_Size(int2* value) = 0;
 
     virtual ::float4 get_SourceRect() = 0;
 

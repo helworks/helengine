@@ -7,6 +7,15 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <AnalysisMode>None</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="
+    $([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('\engine\'))
+    Or $([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('/engine/'))">
+    <UseCommonOutputDirectory>true</UseCommonOutputDirectory>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
 
 </Project>

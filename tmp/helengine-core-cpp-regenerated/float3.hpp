@@ -13,6 +13,8 @@ class float2;
 class float3 : public IEquatable<::float3>
 {
 public:
+    virtual ~float3() = default;
+
     float3();
 
     static ::float3 get_One();

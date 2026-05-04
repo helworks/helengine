@@ -22,7 +22,7 @@ namespace helengine.editor.tests {
                 ContentRootPath = TempRootPath
             });
 
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputManager());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
         }
 
         /// <summary>
@@ -226,3 +226,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+

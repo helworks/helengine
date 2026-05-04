@@ -31,10 +31,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -49,9 +52,9 @@
     if (String::IsNullOrWhiteSpace(packagePath))
     {
 throw ([&]() {
-auto __ctor_arg_f70798d3 = "Package path must be provided.";
-auto __ctor_arg_e8822243 = "packagePath";
-return new ArgumentException(__ctor_arg_f70798d3, __ctor_arg_e8822243);
+auto __ctor_arg_00000146 = "Package path must be provided.";
+auto __ctor_arg_00000147 = "packagePath";
+return new ArgumentException(__ctor_arg_00000146, __ctor_arg_00000147);
 })();
     }
     if (!File::Exists(packagePath))
@@ -73,9 +76,9 @@ ShaderModulePackageReader::ShaderModulePackageReader(std::string rootDirectory) 
     if (String::IsNullOrWhiteSpace(rootDirectory))
     {
 throw ([&]() {
-auto __ctor_arg_4eabeca7 = "Root directory must be provided.";
-auto __ctor_arg_4d9bb497 = "rootDirectory";
-return new ArgumentException(__ctor_arg_4eabeca7, __ctor_arg_4d9bb497);
+auto __ctor_arg_00000148 = "Root directory must be provided.";
+auto __ctor_arg_00000149 = "rootDirectory";
+return new ArgumentException(__ctor_arg_00000148, __ctor_arg_00000149);
 })();
     }
 this->PackageContentManager = new ::ContentManager(rootDirectory);

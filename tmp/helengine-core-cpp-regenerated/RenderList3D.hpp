@@ -21,6 +21,8 @@ class IRenderVisitor3D;
 class RenderList3D : public IRenderQueue3D
 {
 public:
+    virtual ~RenderList3D() = default;
+
     int32_t get_Count();
 
     void Add(::IDrawable3D* drawable);

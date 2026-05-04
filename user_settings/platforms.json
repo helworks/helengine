@@ -5,14 +5,18 @@
       "platformId": "windows",
       "displayName": "Windows DirectX",
       "builderAssemblyPath": "../../helengine-windows/builder/bin/Debug/net9.0/helengine.windows.builder.dll",
-      "playerSourceRootPath": "../../helengine-windows"
+      "playerSourceRootPath": "../../helengine-windows",
+      "generatedCoreCppRootPath": "../tmp/helengine-core-cpp-regenerated",
+      "codegenToolPath": "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
     },
     {
       "engineVersion": "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
       "platformId": "ps2",
       "displayName": "PS2",
       "builderAssemblyPath": "../../helengine-ps2/builder/bin/Debug/net9.0/helengine.ps2.builder.dll",
-      "playerSourceRootPath": "../../helengine-ps2"
+      "playerSourceRootPath": "../../helengine-ps2",
+      "generatedCoreCppRootPath": "../tmp/helengine-core-cpp-regenerated",
+      "codegenToolPath": "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
     }
   ]
 }

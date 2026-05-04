@@ -14,6 +14,8 @@ class float3;
 class float4
 {
 public:
+    virtual ~float4() = default;
+
     float4();
 
     static ::float4 get_Identity();

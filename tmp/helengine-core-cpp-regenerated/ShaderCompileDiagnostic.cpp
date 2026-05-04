@@ -20,16 +20,20 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/math.hpp"
 #include "system/number.hpp"
 #include "system/string_comparer.hpp"
 #include "system/text/encoding.hpp"
 #include "system/text/regular_expressions/regex.hpp"
+#include "system/text/string-builder.hpp"
 
 int32_t ShaderCompileDiagnostic::get_Column()
 {
@@ -61,9 +65,9 @@ ShaderCompileDiagnostic::ShaderCompileDiagnostic(::ShaderDiagnosticSeverity seve
     if (String::IsNullOrWhiteSpace(message))
     {
 throw ([&]() {
-auto __ctor_arg_fe04aa1f = "Diagnostic message must be provided.";
-auto __ctor_arg_2224a04b = "message";
-return new ArgumentException(__ctor_arg_fe04aa1f, __ctor_arg_2224a04b);
+auto __ctor_arg_000000FA = "Diagnostic message must be provided.";
+auto __ctor_arg_000000FB = "message";
+return new ArgumentException(__ctor_arg_000000FA, __ctor_arg_000000FB);
 })();
     }
     if (String::IsNullOrEmpty(filePath))
@@ -73,17 +77,17 @@ throw new ArgumentNullException("filePath");
     if (line < 0)
     {
 throw ([&]() {
-auto __ctor_arg_10ad73c7 = "line";
-auto __ctor_arg_6a251f6c = "Line cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_10ad73c7, __ctor_arg_6a251f6c);
+auto __ctor_arg_000000FC = "line";
+auto __ctor_arg_000000FD = "Line cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000FC, __ctor_arg_000000FD);
 })();
     }
     if (column < 0)
     {
 throw ([&]() {
-auto __ctor_arg_570e4fe0 = "column";
-auto __ctor_arg_8edc104a = "Column cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_570e4fe0, __ctor_arg_8edc104a);
+auto __ctor_arg_000000FE = "column";
+auto __ctor_arg_000000FF = "Column cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_000000FE, __ctor_arg_000000FF);
 })();
     }
 this->Severity = severity;

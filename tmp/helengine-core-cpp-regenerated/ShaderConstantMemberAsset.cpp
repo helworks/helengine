@@ -25,10 +25,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -49,12 +52,12 @@ ShaderConstantMemberAsset::ShaderConstantMemberAsset() : Name(), Offset(0), Size
 throw new ArgumentNullException("member");
     }
 ::ShaderConstantMemberAsset *asset = ([&]() {
-auto __object_45c9dab3 = new ::ShaderConstantMemberAsset();
-__object_45c9dab3->Name = member->get_Name();
-__object_45c9dab3->Type = member->get_Type();
-__object_45c9dab3->Offset = member->get_Offset();
-__object_45c9dab3->Size = member->get_Size();
-return __object_45c9dab3;
+auto __object_00000129 = new ::ShaderConstantMemberAsset();
+__object_00000129->Name = member->get_Name();
+__object_00000129->Type = member->get_Type();
+__object_00000129->Offset = member->get_Offset();
+__object_00000129->Size = member->get_Size();
+return __object_00000129;
 })();
 return asset;}
 

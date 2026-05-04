@@ -27,6 +27,8 @@ class ShaderIncludeResult;
 class ShaderFilesystemIncludeResolver : public IShaderIncludeResolver
 {
 public:
+    virtual ~ShaderFilesystemIncludeResolver() = default;
+
     ::ShaderIncludeResult* Resolve(std::string requestingFile, std::string includePath);
 
     ShaderFilesystemIncludeResolver(std::string rootDirectory);

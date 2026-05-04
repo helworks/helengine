@@ -9,6 +9,8 @@
 class ShaderVertexElement
 {
 public:
+    virtual ~ShaderVertexElement() = default;
+
     std::string Format;
 
     std::string get_Format();

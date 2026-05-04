@@ -48,6 +48,8 @@ class CoreInitializationOptions;
 class ObjectManager
 {
 public:
+    virtual ~ObjectManager() = default;
+
     List<::ICamera*>* Cameras;
 
     List<::ICamera*>* get_Cameras();

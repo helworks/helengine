@@ -44,6 +44,8 @@ class ShaderProgramDefinition;
 class ShaderAsset : public Asset
 {
 public:
+    virtual ~ShaderAsset() = default;
+
     ShaderAsset();
 
     Array<::ShaderBinaryAsset*>* Binaries;

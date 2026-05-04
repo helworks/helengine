@@ -11,6 +11,8 @@ class RuntimeData;
 class RuntimeModel : public RuntimeData
 {
 public:
+    virtual ~RuntimeModel() = default;
+
     std::string get_Id();
 
     void set_Id(std::string value);

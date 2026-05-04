@@ -40,6 +40,8 @@ class RenderList3D;
 class CameraComponent : public Component, public ICamera
 {
 public:
+    virtual ~CameraComponent() = default;
+
     uint8_t get_CameraDrawOrder();
 
     void set_CameraDrawOrder(uint8_t value);

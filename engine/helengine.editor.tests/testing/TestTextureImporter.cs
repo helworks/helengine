@@ -2,7 +2,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Test texture importer that returns a fixed 1x1 texture for importer-manager scenarios.
     /// </summary>
-    public class TestTextureImporter : ITextureImporter {
+    internal class TestTextureImporter : ITextureImporter {
         /// <summary>
         /// Imports a fixed texture asset from the supplied stream.
         /// </summary>

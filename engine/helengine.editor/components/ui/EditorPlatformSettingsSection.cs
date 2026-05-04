@@ -18,12 +18,12 @@ namespace helengine.editor {
         /// <summary>
         /// Fixed row height used by text fields and combo boxes.
         /// </summary>
-        const int RowHeight = 24;
+        internal const int RowHeight = 24;
 
         /// <summary>
         /// Fixed checkbox size used for boolean settings.
         /// </summary>
-        static readonly int2 CheckBoxSize = new int2(18, 18);
+        internal static readonly int2 CheckBoxSize = new int2(18, 18);
 
         /// <summary>
         /// Root entity that owns the title and setting rows.
@@ -149,7 +149,7 @@ namespace helengine.editor {
                 Font = Font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(LabelColumnWidth + ValueColumnWidth + 12, RowHeight),
+                Size = new int2(LabelColumnWidth + ValueColumnWidth + 12, EditorPlatformSettingsSection.RowHeight),
                 RenderOrder2D = TextOrder
             };
             TitleHost.AddComponent(TitleText);
@@ -199,13 +199,13 @@ namespace helengine.editor {
         /// </summary>
         public void Layout() {
             TitleHost.Position = new float3(0f, 0f, 0.1f);
-            TitleText.Size = new int2(LabelColumnWidth + ValueColumnWidth + 12, RowHeight);
+            TitleText.Size = new int2(LabelColumnWidth + ValueColumnWidth + 12, EditorPlatformSettingsSection.RowHeight);
 
-            float rowY = RowHeight + TitleRowSpacing;
+            float rowY = EditorPlatformSettingsSection.RowHeight + TitleRowSpacing;
             for (int index = 0; index < Rows.Count; index++) {
                 EditorPlatformSettingBinding row = Rows[index];
                 row.Layout(rowY, LabelColumnWidth, ValueColumnWidth);
-                rowY += RowHeight + RowSpacing;
+                rowY += EditorPlatformSettingsSection.RowHeight + RowSpacing;
             }
 
             ContentHeight = rowY;
@@ -347,7 +347,7 @@ namespace helengine.editor {
                 Font = font,
                 Text = setting.DisplayName,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(labelColumnWidth, RowHeight),
+                Size = new int2(labelColumnWidth, EditorPlatformSettingsSection.RowHeight),
                 RenderOrder2D = textOrder
             };
             LabelHost.AddComponent(LabelText);
@@ -362,20 +362,20 @@ namespace helengine.editor {
 
             switch (setting.SettingKind) {
                 case PlatformSettingKind.Boolean:
-                    CheckBox = new CheckBoxComponent(CheckBoxSize, font, ParseBoolean(value, ParseBoolean(setting.DefaultValue, false)));
+                    CheckBox = new CheckBoxComponent(EditorPlatformSettingsSection.CheckBoxSize, font, ParseBoolean(value, ParseBoolean(setting.DefaultValue, false)));
                     CheckBox.SetRenderOrders(panelOrder, textOrder);
                     CheckBox.CheckedChanged += HandleCheckBoxChanged;
                     ControlHost.AddComponent(CheckBox);
                     break;
                 case PlatformSettingKind.Choice:
-                    ComboBox = new ComboBoxComponent(new int2(valueColumnWidth, RowHeight), font, setting.AllowedValues ?? Array.Empty<string>(), ResolveChoiceIndex(setting.AllowedValues, value, setting.DefaultValue));
+                    ComboBox = new ComboBoxComponent(new int2(valueColumnWidth, EditorPlatformSettingsSection.RowHeight), font, setting.AllowedValues ?? Array.Empty<string>(), ResolveChoiceIndex(setting.AllowedValues, value, setting.DefaultValue));
                     ComboBox.SetRenderOrders(panelOrder, textOrder, RenderOrder2D.ModalBackground, RenderOrder2D.ModalForeground);
                     ComboBox.SelectionChanged += HandleComboBoxSelectionChanged;
                     ControlHost.AddComponent(ComboBox);
                     break;
                 case PlatformSettingKind.Text:
                 default:
-                    TextBox = new TextBoxComponent(new int2(valueColumnWidth, RowHeight), font, value);
+                    TextBox = new TextBoxComponent(new int2(valueColumnWidth, EditorPlatformSettingsSection.RowHeight), font, value);
                     TextBox.SetRenderOrders(panelOrder, textOrder);
                     TextBox.TextChanged += HandleTextBoxChanged;
                     ControlHost.AddComponent(TextBox);
@@ -392,16 +392,16 @@ namespace helengine.editor {
         public void Layout(float rowTopY, int labelColumnWidth, int valueColumnWidth) {
             RowHost.Position = new float3(0f, rowTopY, 0.1f);
             LabelHost.Position = new float3(0f, 2f, 0.1f);
-            LabelText.Size = new int2(labelColumnWidth, RowHeight);
+            LabelText.Size = new int2(labelColumnWidth, EditorPlatformSettingsSection.RowHeight);
 
             ControlHost.Position = new float3(labelColumnWidth + 12f, 0f, 0.1f);
             if (TextBox != null) {
-                TextBox.Size = new int2(valueColumnWidth, RowHeight);
+                TextBox.Size = new int2(valueColumnWidth, EditorPlatformSettingsSection.RowHeight);
                 return;
             }
 
             if (ComboBox != null) {
-                ComboBox.Size = new int2(valueColumnWidth, RowHeight);
+                ComboBox.Size = new int2(valueColumnWidth, EditorPlatformSettingsSection.RowHeight);
                 return;
             }
 

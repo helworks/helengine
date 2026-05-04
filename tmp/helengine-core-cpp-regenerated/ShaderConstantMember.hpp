@@ -9,6 +9,8 @@
 class ShaderConstantMember
 {
 public:
+    virtual ~ShaderConstantMember() = default;
+
     std::string Name;
 
     std::string get_Name();

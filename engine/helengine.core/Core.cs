@@ -37,6 +37,8 @@ namespace helengine {
             Instance = this;
             InitializationOptions = options;
             InitializationOptions.Normalize();
+            Input = new InputSystem();
+            PointerInteractionSystem = new PointerInteractionSystem(this, Input);
         }
 
         /// <summary>
@@ -70,9 +72,14 @@ namespace helengine {
         public RenderManager2D RenderManager2D { get; private set; }
 
         /// <summary>
-        /// Gets the input manager handling keyboard and mouse.
+        /// Gets the portable input system that resolves logical actions from raw frame data.
         /// </summary>
-        public InputManager InputManager { get; private set; }
+        public InputSystem Input { get; private set; }
+
+        /// <summary>
+        /// Gets the pointer interaction router used to translate raw pointer state into hover and press events.
+        /// </summary>
+        public PointerInteractionSystem PointerInteractionSystem { get; private set; }
 
         /// <summary>
         /// Gets or sets the default font asset used by components that need a text font without being configured explicitly.
@@ -99,12 +106,12 @@ namespace helengine {
         public RuntimeSceneLoadService SceneLoadService { get; private set; }
 
         /// <summary>
-        /// Initializes core systems with rendering and input managers.
+        /// Initializes core systems with rendering and input capture.
         /// </summary>
         /// <param name="render3D">3D renderer instance.</param>
         /// <param name="render2D">2D renderer instance.</param>
-        /// <param name="input">Input manager instance.</param>
-        public virtual void Initialize(RenderManager3D render3D, RenderManager2D render2D, InputManager input) {
+        /// <param name="input">Platform-specific input backend instance.</param>
+        public virtual void Initialize(RenderManager3D render3D, RenderManager2D render2D, IInputBackend input) {
             Initialize(render3D, render2D, input, InitializationOptions);
         }
 
@@ -113,16 +120,16 @@ namespace helengine {
         /// </summary>
         /// <param name="render3D">3D renderer instance.</param>
         /// <param name="render2D">2D renderer instance.</param>
-        /// <param name="input">Input manager instance.</param>
+        /// <param name="input">Platform-specific input backend instance.</param>
         /// <param name="options">Initialization options that control ordering and list sizing.</param>
         public virtual void Initialize(
             RenderManager3D render3D,
             RenderManager2D render2D,
-            InputManager input,
+            IInputBackend input,
             CoreInitializationOptions options) {
             RenderManager3D = render3D;
             RenderManager2D = render2D;
-            InputManager = input;
+            Input.SetBackend(input);
 
             if (options == null) {
                 throw new ArgumentNullException(nameof(options));
@@ -138,7 +145,8 @@ namespace helengine {
                 contentManager,
                 InitializationOptions.ContentRootPath,
                 ShaderCompileTarget.DirectX11);
-            SceneLoadService = new RuntimeSceneLoadService(SceneAssetReferenceResolver);
+            RuntimeComponentRegistry runtimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
+            SceneLoadService = new RuntimeSceneLoadService(SceneAssetReferenceResolver, runtimeComponentRegistry);
         }
 
         /// <summary>
@@ -175,12 +183,13 @@ namespace helengine {
         /// Advances the engine update loop for objects and input.
         /// </summary>
         public virtual void Update() {
-            InputManager.EarlyUpdate();
+            Input.EarlyUpdate();
             FPSComponent.RecordUpdateFrame();
 
             ObjectManager.Update();
 
-            InputManager.Update();
+            Input.Update();
+            PointerInteractionSystem.Update();
         }
 
         /// <summary>

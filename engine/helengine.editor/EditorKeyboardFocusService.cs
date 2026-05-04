@@ -467,7 +467,7 @@ namespace helengine.editor {
                 if (!IsTargetValid(target)) {
                     continue;
                 }
-                if (!target.ContainsScreenPoint(point)) {
+                if (!target.ContainsScreenPoint(point.X, point.Y)) {
                     continue;
                 }
 

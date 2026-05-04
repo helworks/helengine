@@ -270,7 +270,7 @@ namespace helengine.editor {
         /// Updates the reusable snap-preview entity from the active modifier keys and hovered rotation ring.
         /// </summary>
         void UpdateSnapPreview() {
-            InputManager input = Core.Instance.InputManager;
+            InputSystem input = Core.Instance.Input;
             if (input == null) {
                 SetSnapPreviewVisible(false);
                 return;
@@ -398,3 +398,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

@@ -18,6 +18,8 @@ class ShaderVariant;
 class ShaderVariantAsset
 {
 public:
+    virtual ~ShaderVariantAsset() = default;
+
     ShaderVariantAsset();
 
     Array<std::string>* Defines;

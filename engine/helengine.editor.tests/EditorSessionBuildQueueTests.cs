@@ -72,6 +72,69 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the Build dialog copy-settings request opens the chooser modal and applies the selected source platform.
+        /// </summary>
+        [Fact]
+        public void HandleBuildDialogCopySettingsRequested_WhenInvoked_ShowsChooserAndCopiesSelectedPlatform() {
+            EditorBuildConfigService buildConfigService = new EditorBuildConfigService(TempProjectRootPath);
+            EditorBuildQueueService buildQueueService = new EditorBuildQueueService(buildConfigService, new TestEditorBuildExecutor([]));
+            EditorSession session = CreateSession(buildConfigService, buildQueueService, "linux");
+            SetPrivateField(session, "ProjectSupportedPlatforms", new List<string> {
+                "windows",
+                "linux"
+            });
+
+            EditorBuildConfigDocument buildConfig = new EditorBuildConfigDocument {
+                Platforms = [
+                    new EditorBuildPlatformConfigDocument {
+                        PlatformId = "windows",
+                        SelectedSceneIds = [
+                            "Scenes/City.helen"
+                        ]
+                    },
+                    new EditorBuildPlatformConfigDocument {
+                        PlatformId = "linux",
+                        SelectedSceneIds = [
+                            "Scenes/Menu.helen"
+                        ]
+                    }
+                ]
+            };
+            buildConfigService.Save(buildConfig);
+
+            BuildDialog dialog = GetPrivateField<BuildDialog>(session, "buildDialog");
+            dialog.Show([
+                    "windows",
+                    "linux"
+                ],
+                [
+                    "Scenes/City.helen",
+                    "Scenes/Menu.helen"
+                ],
+                "linux",
+                buildConfig);
+
+            InvokePrivate(session, "HandleBuildDialogCopySettingsRequested");
+
+            BuildDialogCopySettingsDialog copySettingsDialog = GetPrivateField<BuildDialogCopySettingsDialog>(session, "buildDialogCopySettingsDialog");
+            ComboBoxComponent sourcePlatformComboBox = GetPrivateField<ComboBoxComponent>(copySettingsDialog, "SourceComboBox");
+
+            Assert.True(copySettingsDialog.IsVisible);
+            Assert.Equal("windows", sourcePlatformComboBox.SelectedItem);
+
+            InvokePrivate(session, "HandleBuildDialogCopySettingsConfirmed", "windows");
+
+            List<CheckBoxComponent> mapCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "MapCheckBoxes");
+            EditorBuildPlatformConfigDocument linuxConfig = Assert.Single(buildConfig.Platforms.Where(platform => platform.PlatformId == "linux"));
+
+            Assert.True(mapCheckBoxes[0].IsChecked);
+            Assert.False(mapCheckBoxes[1].IsChecked);
+            Assert.Equal([
+                "Scenes/City.helen"
+            ], linuxConfig.SelectedSceneIds);
+        }
+
+        /// <summary>
         /// Ensures adding a build appends one pending queue item and persists it to the local build config.
         /// </summary>
         [Fact]
@@ -80,9 +143,22 @@ namespace helengine.editor.tests {
             EditorBuildQueueService buildQueueService = new EditorBuildQueueService(buildConfigService, new TestEditorBuildExecutor([]));
             EditorSession session = CreateSession(buildConfigService, buildQueueService, "windows");
 
-            InvokePrivate(session, "HandleBuildDialogAddRequested", new BuildDialogAddRequest("windows", [
-                CurrentSceneId
-            ], @"C:\builds\windows"));
+            InvokePrivate(session, "HandleBuildDialogAddRequested", new BuildDialogAddRequest(
+                "windows",
+                [
+                    CurrentSceneId
+                ],
+                @"C:\builds\windows",
+                false,
+                "release",
+                "default",
+                "default",
+                "loose-files",
+                "windows-install-tree",
+                new Dictionary<string, string>(),
+                new Dictionary<string, string>(),
+                new Dictionary<string, string>(),
+                ["gameplay", "ui"]));
 
             EditorBuildConfigDocument persistedDocument = buildConfigService.Load([
                 "windows"
@@ -96,6 +172,9 @@ namespace helengine.editor.tests {
                 },
                 queueItem.SelectedSceneIds);
             Assert.Equal(@"C:\builds\windows", queueItem.OutputDirectoryPath);
+            Assert.Equal("loose-files", queueItem.SelectedStorageProfileId);
+            Assert.Equal("windows-install-tree", queueItem.SelectedMediaProfileId);
+            Assert.Equal(["gameplay", "ui"], queueItem.SelectedCodeModuleIds);
         }
 
         /// <summary>

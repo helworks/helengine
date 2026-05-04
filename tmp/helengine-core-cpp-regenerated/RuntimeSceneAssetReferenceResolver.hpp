@@ -10,6 +10,7 @@ class RuntimeModel;
 class MaterialAsset;
 class ShaderAsset;
 class RuntimeMaterial;
+class FontAsset;
 class SceneAssetReference;
 
 #include "runtime/native_exceptions.hpp"
@@ -20,24 +21,32 @@ class SceneAssetReference;
 #include "MaterialAsset.hpp"
 #include "ShaderAsset.hpp"
 #include "RuntimeMaterial.hpp"
+#include "FontAsset.hpp"
 #include "runtime/native_exceptions.hpp"
 #include "system/io/path.hpp"
 #include "system/io/path.hpp"
 #include "ContentManager.hpp"
 #include "ShaderCompileTarget.hpp"
-#include "RuntimeMaterial.hpp"
+#include "FontAsset.hpp"
 #include "SceneAssetReference.hpp"
+#include "RuntimeMaterial.hpp"
 #include "RuntimeModel.hpp"
 
 class RuntimeSceneAssetReferenceResolver
 {
 public:
+    virtual ~RuntimeSceneAssetReferenceResolver() = default;
+
+    ::FontAsset* ResolveFont(::SceneAssetReference* reference);
+
     ::RuntimeMaterial* ResolveMaterial(::SceneAssetReference* reference);
 
     ::RuntimeModel* ResolveModel(::SceneAssetReference* reference);
 
     RuntimeSceneAssetReferenceResolver(::ContentManager* assetContentManager, std::string contentRootPath, ::ShaderCompileTarget shaderTarget);
 private:
+    static std::string FontDirectoryName;
+
     static std::string ShaderDirectoryName;
 
     static std::string ShaderPackageExtension;

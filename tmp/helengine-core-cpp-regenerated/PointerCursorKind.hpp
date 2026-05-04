@@ -14,5 +14,7 @@ enum class PointerCursorKind
 {
     Default,
     Hand,
-    Text
+    Text,
+    ResizeNorthWestSouthEast,
+    ResizeNorthEastSouthWest
 };

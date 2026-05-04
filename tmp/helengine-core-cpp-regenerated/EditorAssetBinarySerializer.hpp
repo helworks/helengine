@@ -15,6 +15,7 @@ class TextAsset;
 class MaterialAsset;
 class SceneAsset;
 class SceneEntityAsset;
+class SceneAssetReference;
 class SceneComponentAssetRecord;
 class MaterialRenderState;
 class MaterialConstantBufferAsset;
@@ -48,7 +49,11 @@ class float4;
 #include "MaterialAsset.hpp"
 #include "SceneAsset.hpp"
 #include "SceneEntityAsset.hpp"
+#include "SceneAssetReference.hpp"
+#include "runtime/array.hpp"
 #include "SceneComponentAssetRecord.hpp"
+#include "runtime/array.hpp"
+#include "runtime/array.hpp"
 #include "MaterialRenderState.hpp"
 #include "runtime/native_string.hpp"
 #include "MaterialConstantBufferAsset.hpp"
@@ -69,12 +74,15 @@ class float4;
 #include "float2.hpp"
 #include "float3.hpp"
 #include "float4.hpp"
+#include "SceneEntityAsset.hpp"
+#include "runtime/array.hpp"
 #include "MaterialConstantBufferAsset.hpp"
 #include "MaterialRenderState.hpp"
 #include "ModelAsset.hpp"
 #include "SceneAsset.hpp"
+#include "SceneAssetReference.hpp"
+#include "runtime/array.hpp"
 #include "SceneComponentAssetRecord.hpp"
-#include "SceneEntityAsset.hpp"
 #include "ShaderAsset.hpp"
 #include "ShaderBinaryAsset.hpp"
 #include "ShaderBindingAsset.hpp"
@@ -88,6 +96,8 @@ class float4;
 class EditorAssetBinarySerializer
 {
 public:
+    virtual ~EditorAssetBinarySerializer() = default;
+
     static uint8_t CurrentVersion;
 
     static uint16_t FormatId;
@@ -100,17 +110,25 @@ public:
 
     static void Serialize(::Stream* stream, ::Asset* asset);
 private:
+    static uint8_t LegacyVersion;
+
     static ::EngineBinaryEndianness PayloadEndianness;
+
+    static uint8_t SceneEntityPayloadVersion;
 
     static ::EditorAssetBinaryValueKind GetValueKind(::Asset* asset);
 
-    static ::Asset* ReadAssetPayload(::EngineBinaryReader* reader, ::EditorAssetBinaryValueKind valueKind);
+    static ::Asset* ReadAssetPayload(::EngineBinaryReader* reader, ::EditorAssetBinaryValueKind valueKind, uint8_t version);
 
     static ::float2 ReadFloat2(::EngineBinaryReader* reader);
 
     static ::float3 ReadFloat3(::EngineBinaryReader* reader);
 
     static ::float4 ReadFloat4(::EngineBinaryReader* reader);
+
+    static ::SceneEntityAsset* ReadLegacySceneEntityAsset(::EngineBinaryReader* reader);
+
+    static Array<::SceneEntityAsset*>* ReadLegacySceneEntityAssetArray(::EngineBinaryReader* reader);
 
     static ::MaterialAsset* ReadMaterialAsset(::EngineBinaryReader* reader);
 
@@ -120,11 +138,17 @@ private:
 
     static ::ModelAsset* ReadModelAsset(::EngineBinaryReader* reader);
 
-    static ::SceneAsset* ReadSceneAsset(::EngineBinaryReader* reader);
+    static ::SceneAsset* ReadSceneAsset(::EngineBinaryReader* reader, uint8_t version);
+
+    static ::SceneAssetReference* ReadSceneAssetReference(::EngineBinaryReader* reader);
+
+    static Array<::SceneAssetReference*>* ReadSceneAssetReferenceArray(::EngineBinaryReader* reader);
 
     static ::SceneComponentAssetRecord* ReadSceneComponentAssetRecord(::EngineBinaryReader* reader);
 
-    static ::SceneEntityAsset* ReadSceneEntityAsset(::EngineBinaryReader* reader);
+    static ::SceneEntityAsset* ReadSceneEntityAsset(::EngineBinaryReader* reader, uint8_t version);
+
+    static Array<::SceneEntityAsset*>* ReadSceneEntityAssetArray(::EngineBinaryReader* reader, uint8_t version);
 
     static ::ShaderAsset* ReadShaderAsset(::EngineBinaryReader* reader);
 
@@ -169,6 +193,8 @@ private:
     static void WriteModelAsset(::EngineBinaryWriter* writer, ::ModelAsset* asset);
 
     static void WriteSceneAsset(::EngineBinaryWriter* writer, ::SceneAsset* asset);
+
+    static void WriteSceneAssetReference(::EngineBinaryWriter* writer, ::SceneAssetReference* reference);
 
     static void WriteSceneComponentAssetRecord(::EngineBinaryWriter* writer, ::SceneComponentAssetRecord* record);
 

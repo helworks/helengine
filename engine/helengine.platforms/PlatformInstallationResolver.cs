@@ -48,7 +48,7 @@ public sealed class PlatformInstallationResolver {
     /// <param name="platform">Resolved platform when installation state exists.</param>
     /// <returns><c>true</c> when the requested platform exists in the manifest; otherwise <c>false</c>.</returns>
     public bool TryLoadPlatform(string engineVersion, string platformId, out AvailablePlatformDescriptor platform) {
-        platform = new AvailablePlatformDescriptor(string.Empty, string.Empty, string.Empty, string.Empty, false);
+        platform = new AvailablePlatformDescriptor(string.Empty, string.Empty, string.Empty, string.Empty, false, string.Empty, string.Empty);
 
         if (string.IsNullOrWhiteSpace(SharedToolchainRootPath)) {
             return false;
@@ -122,14 +122,18 @@ public sealed class PlatformInstallationResolver {
     static AvailablePlatformDescriptor BuildPlatformDescriptor(string manifestRootPath, PlatformInstallationEntry entry) {
         string resolvedBuilderAssemblyPath = ResolvePayloadPath(manifestRootPath, entry.BuilderAssemblyPath);
         string resolvedPlayerSourceRootPath = ResolvePayloadPath(manifestRootPath, entry.PlayerSourceRootPath);
-        bool isInstalled = IsInstalled(resolvedBuilderAssemblyPath, resolvedPlayerSourceRootPath);
+        string resolvedGeneratedCoreCppRootPath = ResolvePayloadPath(manifestRootPath, entry.GeneratedCoreCppRootPath);
+        string resolvedCodegenToolPath = ResolvePayloadPath(manifestRootPath, entry.CodegenToolPath);
+        bool isInstalled = IsInstalled(resolvedBuilderAssemblyPath, resolvedPlayerSourceRootPath, resolvedGeneratedCoreCppRootPath, resolvedCodegenToolPath);
 
         return new AvailablePlatformDescriptor(
             entry.PlatformId,
             entry.DisplayName,
             resolvedBuilderAssemblyPath,
             resolvedPlayerSourceRootPath,
-            isInstalled);
+            isInstalled,
+            resolvedGeneratedCoreCppRootPath,
+            resolvedCodegenToolPath);
     }
 
     /// <summary>
@@ -155,15 +159,16 @@ public sealed class PlatformInstallationResolver {
     /// <param name="builderAssemblyPath">Resolved builder assembly path.</param>
     /// <param name="playerSourceRootPath">Resolved player source root path.</param>
     /// <returns>True when either payload exists on disk; otherwise false.</returns>
-    static bool IsInstalled(string builderAssemblyPath, string playerSourceRootPath) {
+    static bool IsInstalled(string builderAssemblyPath, string playerSourceRootPath, string generatedCoreCppRootPath, string codegenToolPath) {
         if (!string.IsNullOrWhiteSpace(builderAssemblyPath) && File.Exists(builderAssemblyPath)) {
-            return true;
+            return !string.IsNullOrWhiteSpace(playerSourceRootPath) && Directory.Exists(playerSourceRootPath)
+                && (string.IsNullOrWhiteSpace(generatedCoreCppRootPath) || Directory.Exists(generatedCoreCppRootPath))
+                && (string.IsNullOrWhiteSpace(codegenToolPath) || File.Exists(codegenToolPath));
         }
 
-        if (!string.IsNullOrWhiteSpace(playerSourceRootPath) && Directory.Exists(playerSourceRootPath)) {
-            return true;
-        }
-
-        return false;
+        return !string.IsNullOrWhiteSpace(playerSourceRootPath)
+            && Directory.Exists(playerSourceRootPath)
+            && (string.IsNullOrWhiteSpace(generatedCoreCppRootPath) || Directory.Exists(generatedCoreCppRootPath))
+            && (string.IsNullOrWhiteSpace(codegenToolPath) || File.Exists(codegenToolPath));
     }
 }

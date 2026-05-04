@@ -21,11 +21,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -51,17 +53,17 @@ ShaderSourceInfo::ShaderSourceInfo(std::string path, std::string source) : Path(
     if (String::IsNullOrWhiteSpace(path))
     {
 throw ([&]() {
-auto __ctor_arg_91686ba2 = "Shader path must be provided.";
-auto __ctor_arg_70228e7e = "path";
-return new ArgumentException(__ctor_arg_91686ba2, __ctor_arg_70228e7e);
+auto __ctor_arg_00000165 = "Shader path must be provided.";
+auto __ctor_arg_00000166 = "path";
+return new ArgumentException(__ctor_arg_00000165, __ctor_arg_00000166);
 })();
     }
     if (String::IsNullOrWhiteSpace(source))
     {
 throw ([&]() {
-auto __ctor_arg_413d5604 = "Shader source must be provided.";
-auto __ctor_arg_9a3ec549 = "source";
-return new ArgumentException(__ctor_arg_413d5604, __ctor_arg_9a3ec549);
+auto __ctor_arg_00000167 = "Shader source must be provided.";
+auto __ctor_arg_00000168 = "source";
+return new ArgumentException(__ctor_arg_00000167, __ctor_arg_00000168);
 })();
     }
 this->Path = path;

@@ -24,6 +24,11 @@ namespace helengine {
         string Text { get; set; }
 
         /// <summary>
+        /// Gets or sets whether text should wrap within the drawable's layout width.
+        /// </summary>
+        bool WrapText { get; set; }
+
+        /// <summary>
         /// Gets or sets the font used to render the text.
         /// </summary>
         FontAsset Font { get; set; }

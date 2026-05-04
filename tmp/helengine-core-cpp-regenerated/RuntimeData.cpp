@@ -2,6 +2,8 @@
 #undef DrawText
 #endif
 #include "RuntimeData.hpp"
+#include "runtime/native_string.hpp"
+#include "runtime/native_exceptions.hpp"
 #include "runtime/array.hpp"
 #include "runtime/finally.hpp"
 #include "runtime/native_cast.hpp"
@@ -20,10 +22,12 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/math.hpp"
 #include "system/number.hpp"
@@ -43,5 +47,18 @@ return this->Id;
 void RuntimeData::set_Id(std::string value)
 {
 this->Id = value;
+}
+
+void RuntimeData::SetId(std::string id)
+{
+    if (String::IsNullOrWhiteSpace(id))
+    {
+throw ([&]() {
+auto __ctor_arg_000000C4 = "Runtime asset id must be provided.";
+auto __ctor_arg_000000C5 = "id";
+return new ArgumentException(__ctor_arg_000000C4, __ctor_arg_000000C5);
+})();
+    }
+this->set_Id(id);
 }
 

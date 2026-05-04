@@ -5,7 +5,6 @@
 #include "runtime/array.hpp"
 #include "runtime/native_string.hpp"
 #include "runtime/array.hpp"
-#include "runtime/finally.hpp"
 #include "runtime/native_cast.hpp"
 #include "runtime/native_dictionary.hpp"
 #include "runtime/native_disposable.hpp"
@@ -24,7 +23,6 @@
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
 #include "system/io/stream.hpp"
-#include "system/math.hpp"
 #include "system/string_comparer.hpp"
 #include "system/text/encoding.hpp"
 
@@ -53,9 +51,9 @@ ContentProcessorRegistration::ContentProcessorRegistration(std::string processor
     if (String::IsNullOrWhiteSpace(processorId))
     {
 throw ([&]() {
-auto __ctor_arg_4f54f902 = "Processor id must be provided.";
-auto __ctor_arg_545fc779 = "processorId";
-return new ArgumentException(__ctor_arg_4f54f902, __ctor_arg_545fc779);
+auto __ctor_arg_00000032 = "Processor id must be provided.";
+auto __ctor_arg_00000033 = "processorId";
+return new ArgumentException(__ctor_arg_00000032, __ctor_arg_00000033);
 })();
     }
     if (processor == nullptr)
@@ -86,9 +84,9 @@ const std::string extension = (*sourceExtensions)[extensionIndex];
     if (String::IsNullOrWhiteSpace(extension))
     {
 throw ([&]() {
-auto __ctor_arg_33607f82 = "Extension values must be non-empty.";
-auto __ctor_arg_f681837a = "sourceExtensions";
-return new ArgumentException(__ctor_arg_33607f82, __ctor_arg_f681837a);
+auto __ctor_arg_00000034 = "Extension values must be non-empty.";
+auto __ctor_arg_00000035 = "sourceExtensions";
+return new ArgumentException(__ctor_arg_00000034, __ctor_arg_00000035);
 })();
     }
 (*normalized)[extensionIndex] = this->NormalizeExtension(extension);

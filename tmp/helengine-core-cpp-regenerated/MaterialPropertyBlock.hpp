@@ -27,6 +27,8 @@ class MaterialLayoutBinding;
 class MaterialPropertyBlock
 {
 public:
+    virtual ~MaterialPropertyBlock() = default;
+
     ::MaterialLayout* get_Layout();
 
     void CopyMatchingValuesFrom(::MaterialPropertyBlock* source);

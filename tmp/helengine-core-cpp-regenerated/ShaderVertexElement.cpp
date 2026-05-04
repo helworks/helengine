@@ -21,11 +21,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -56,25 +58,25 @@ ShaderVertexElement::ShaderVertexElement(std::string semantic, int32_t index, st
     if (String::IsNullOrWhiteSpace(semantic))
     {
 throw ([&]() {
-auto __ctor_arg_ec1aecc5 = "Semantic must be provided.";
-auto __ctor_arg_061fc974 = "semantic";
-return new ArgumentException(__ctor_arg_ec1aecc5, __ctor_arg_061fc974);
+auto __ctor_arg_00000170 = "Semantic must be provided.";
+auto __ctor_arg_00000171 = "semantic";
+return new ArgumentException(__ctor_arg_00000170, __ctor_arg_00000171);
 })();
     }
     if (String::IsNullOrWhiteSpace(format))
     {
 throw ([&]() {
-auto __ctor_arg_f0018ce4 = "Format must be provided.";
-auto __ctor_arg_aba4101c = "format";
-return new ArgumentException(__ctor_arg_f0018ce4, __ctor_arg_aba4101c);
+auto __ctor_arg_00000172 = "Format must be provided.";
+auto __ctor_arg_00000173 = "format";
+return new ArgumentException(__ctor_arg_00000172, __ctor_arg_00000173);
 })();
     }
     if (index < 0)
     {
 throw ([&]() {
-auto __ctor_arg_bf52cd0f = "index";
-auto __ctor_arg_3f158800 = "Index cannot be negative.";
-return new ArgumentOutOfRangeException(__ctor_arg_bf52cd0f, __ctor_arg_3f158800);
+auto __ctor_arg_00000174 = "index";
+auto __ctor_arg_00000175 = "Index cannot be negative.";
+return new ArgumentOutOfRangeException(__ctor_arg_00000174, __ctor_arg_00000175);
 })();
     }
 this->Semantic = semantic;

@@ -11,13 +11,15 @@ class float3;
 #include "runtime/array.hpp"
 #include "runtime/array.hpp"
 #include "SceneComponentAssetRecord.hpp"
+#include "runtime/native_string.hpp"
 #include "float4.hpp"
 #include "float3.hpp"
-#include "runtime/native_string.hpp"
 
 class SceneEntityAsset
 {
 public:
+    virtual ~SceneEntityAsset() = default;
+
     SceneEntityAsset();
 
     Array<::SceneEntityAsset*>* Children;
@@ -29,6 +31,11 @@ public:
 
     Array<::SceneComponentAssetRecord*>* get_Components();
     void set_Components(Array<::SceneComponentAssetRecord*>* value);
+
+    std::string Id;
+
+    std::string get_Id();
+    void set_Id(std::string value);
 
     ::float4 LocalOrientation;
 

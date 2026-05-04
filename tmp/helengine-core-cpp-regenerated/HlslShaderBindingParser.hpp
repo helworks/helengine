@@ -40,6 +40,8 @@ class ShaderDefine;
 class HlslShaderBindingParser
 {
 public:
+    virtual ~HlslShaderBindingParser() = default;
+
     static Array<::ShaderBinding*>* ParseBindings(std::string source, ::ShaderBindingPolicy* bindingPolicy);
 
     static Array<::ShaderBinding*>* ParseBindings(std::string source, ::ShaderBindingPolicy* bindingPolicy, List<::ShaderDefine*>* defines);

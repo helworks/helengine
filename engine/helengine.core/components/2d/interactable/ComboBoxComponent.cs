@@ -521,13 +521,14 @@ namespace helengine {
                 return;
             }
 
-            InputManager inputManager = Core.Instance.InputManager;
+            InputSystem inputManager = Core.Instance.Input;
             if (!inputManager.WasMouseLeftButtonPressed()) {
                 return;
             }
 
-            int2 mousePosition = inputManager.GetMousePosition();
-            if (IsPointerInsideCombo(mousePosition)) {
+            int mouseX = inputManager.GetMouseX();
+            int mouseY = inputManager.GetMouseY();
+            if (IsPointerInsideCombo(mouseX, mouseY)) {
                 return;
             }
 
@@ -537,18 +538,19 @@ namespace helengine {
         /// <summary>
         /// Returns true when the provided screen point lies inside the main combo-box control.
         /// </summary>
-        /// <param name="point">Screen point to evaluate.</param>
+        /// <param name="x">Screen-space X coordinate to evaluate.</param>
+        /// <param name="y">Screen-space Y coordinate to evaluate.</param>
         /// <returns>True when the point is inside the main control.</returns>
-        public bool ContainsScreenPoint(int2 point) {
+        public bool ContainsScreenPoint(int x, int y) {
             if (Parent == null) {
                 return false;
             }
 
             float3 origin = Parent.Position;
-            return point.X >= origin.X &&
-                   point.X < origin.X + size.X &&
-                   point.Y >= origin.Y &&
-                   point.Y < origin.Y + size.Y;
+            return x >= origin.X &&
+                   x < origin.X + size.X &&
+                   y >= origin.Y &&
+                   y < origin.Y + size.Y;
         }
 
         /// <summary>
@@ -911,17 +913,18 @@ namespace helengine {
         /// <summary>
         /// Determines whether the pointer is inside the combo box or its drop-down list.
         /// </summary>
-        /// <param name="mousePosition">Pointer position in window coordinates.</param>
+        /// <param name="mouseX">Pointer X coordinate in window space.</param>
+        /// <param name="mouseY">Pointer Y coordinate in window space.</param>
         /// <returns>True when the pointer is inside the combo box bounds.</returns>
-        bool IsPointerInsideCombo(int2 mousePosition) {
-            ICamera camera = FindTopmostCameraAt(mousePosition.X, mousePosition.Y, Parent.LayerMask);
+        bool IsPointerInsideCombo(int mouseX, int mouseY) {
+            ICamera camera = FindTopmostCameraAt(mouseX, mouseY, Parent.LayerMask);
             if (camera == null) {
                 return false;
             }
 
             float4 viewport = camera.Viewport;
-            double localX = mousePosition.X - viewport.X;
-            double localY = mousePosition.Y - viewport.Y;
+            double localX = mouseX - viewport.X;
+            double localY = mouseY - viewport.Y;
 
             float3 origin = Parent.Position;
             if (GeometryUtils.IsPointInsideRect(localX, localY, origin, size.X, size.Y)) {
@@ -967,3 +970,5 @@ namespace helengine {
 
     }
 }
+
+

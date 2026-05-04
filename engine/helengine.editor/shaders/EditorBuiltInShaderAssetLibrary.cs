@@ -86,13 +86,33 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Application base directory could not be resolved.");
             }
 
-            string shaderPath = Path.Combine(baseDirectory, "shaders", BuiltInShaderDirectoryName, shaderFileName);
-            string fullShaderPath = Path.GetFullPath(shaderPath);
-            if (!File.Exists(fullShaderPath)) {
-                throw new FileNotFoundException("Built-in shader source file was not found.", fullShaderPath);
+            string packagedShaderPath = Path.GetFullPath(Path.Combine(baseDirectory, "shaders", BuiltInShaderDirectoryName, shaderFileName));
+            if (File.Exists(packagedShaderPath)) {
+                return packagedShaderPath;
             }
 
-            return fullShaderPath;
+            string sourceBuildShaderPath = TryResolveSourceBuildShaderPath(shaderFileName);
+            if (!string.IsNullOrWhiteSpace(sourceBuildShaderPath)) {
+                return sourceBuildShaderPath;
+            }
+
+            throw new FileNotFoundException("Built-in shader source file was not found.", packagedShaderPath);
+        }
+
+        /// <summary>
+        /// Attempts to resolve one built-in shader path from the source-tree editor checkout.
+        /// </summary>
+        /// <param name="shaderFileName">Built-in shader source file name.</param>
+        /// <returns>Absolute source-build shader path when available; otherwise <c>null</c>.</returns>
+        static string TryResolveSourceBuildShaderPath(string shaderFileName) {
+            try {
+                string sourceRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+                string shaderPath = Path.Combine(sourceRootPath, "engine", "helengine.editor", "shaders", BuiltInShaderDirectoryName, shaderFileName);
+                string fullShaderPath = Path.GetFullPath(shaderPath);
+                return File.Exists(fullShaderPath) ? fullShaderPath : null;
+            } catch (InvalidOperationException) {
+                return null;
+            }
         }
 
         /// <summary>

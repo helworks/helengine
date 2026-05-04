@@ -1,4 +1,5 @@
 using System.Reflection;
+using helengine;
 using helengine.editor;
 using helengine.editor.tests.testing;
 using Xunit;
@@ -68,7 +69,7 @@ namespace helengine.editor.tests {
                     ]
                 });
 
-            List<ButtonComponent> platformTabs = GetPrivateField<List<ButtonComponent>>(dialog, "PlatformTabs");
+            List<TabComponent> platformTabs = GetPrivateField<List<TabComponent>>(dialog, "PlatformTabs");
             List<TextBoxComponent> mapOrderFields = GetPrivateField<List<TextBoxComponent>>(dialog, "MapOrderFields");
             List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
             List<CheckBoxComponent> mapCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "MapCheckBoxes");
@@ -86,6 +87,45 @@ namespace helengine.editor.tests {
                 label => Assert.Equal("Scenes/Menu.helen", label.Text));
             Assert.False(mapCheckBoxes[0].IsChecked);
             Assert.True(mapCheckBoxes[1].IsChecked);
+        }
+
+        /// <summary>
+        /// Ensures inactive platform tabs use the shared tab component defaults and the active tab stays selected.
+        /// </summary>
+        [Fact]
+        public void Show_WhenPs2TabIsInactive_UsesTabComponentDefaults() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+
+            dialog.Show(
+                ["windows", "ps2"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        },
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "ps2",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ]
+                });
+
+            List<TabComponent> platformTabs = GetPrivateField<List<TabComponent>>(dialog, "PlatformTabs");
+            List<EditorEntity> platformTabHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformTabHosts");
+
+            Assert.Equal(BuildDialog.PlatformTabWidth, (int)platformTabHosts[1].LocalPosition.X);
+            Assert.All(platformTabs, tab => Assert.Equal(RoundedRectCorners.TopLeft | RoundedRectCorners.TopRight, tab.Corners));
+            Assert.True(platformTabs[0].IsSelected);
+            Assert.False(platformTabs[1].IsSelected);
         }
 
         /// <summary>
@@ -217,6 +257,41 @@ namespace helengine.editor.tests {
 
             Assert.NotNull(raisedRequest);
             Assert.True(raisedRequest.DebugBuild);
+        }
+
+        /// <summary>
+        /// Ensures Add to Build snapshots the active platform's code-module selection into the queued build request.
+        /// </summary>
+        [Fact]
+        public void HandleAddToBuildClicked_WhenCodeModuleFieldIsEdited_SnapshotsTheSelectedCodeModules() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialogAddRequest raisedRequest = null;
+            dialog.AddRequested += request => raisedRequest = request;
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows"
+                        }
+                    ]
+                });
+
+            TextBoxComponent codeModuleField = GetPrivateField<TextBoxComponent>(dialog, "CodeModuleField");
+            codeModuleField.Text = "gameplay, ui, gameplay, ai";
+
+            InvokePrivate(dialog, "HandleAddToBuildClicked");
+
+            Assert.NotNull(raisedRequest);
+            Assert.Equal(["gameplay", "ui", "ai"], raisedRequest.SelectedCodeModuleIds);
         }
 
         /// <summary>
@@ -590,7 +665,7 @@ namespace helengine.editor.tests {
         /// Ensures copying a map list from another platform replaces only the current platform's selected scenes.
         /// </summary>
         [Fact]
-        public void HandleCopyMapListClicked_WhenSourcePlatformSelected_CopiesSceneSelectionIntoActivePlatform() {
+        public void CopyMapListFrom_WhenSourcePlatformSelected_CopiesSceneSelectionIntoActivePlatform() {
             BuildDialog dialog = new BuildDialog(CreateFont());
             EditorBuildConfigDocument buildConfig = new EditorBuildConfigDocument {
                 Platforms = [
@@ -619,10 +694,7 @@ namespace helengine.editor.tests {
                 "linux",
                 buildConfig);
 
-            ComboBoxComponent copySourcePlatformComboBox = GetPrivateField<ComboBoxComponent>(dialog, "CopySourcePlatformComboBox");
-            copySourcePlatformComboBox.SelectedIndex = 0;
-
-            InvokePrivate(dialog, "HandleCopyMapListClicked");
+            dialog.CopyMapListFrom("windows");
 
             List<CheckBoxComponent> mapCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "MapCheckBoxes");
             List<TextBoxComponent> mapOrderFields = GetPrivateField<List<TextBoxComponent>>(dialog, "MapOrderFields");
@@ -640,6 +712,42 @@ namespace helengine.editor.tests {
             Assert.Equal(2, linuxConfig.SceneOrders[0].OrderNumber);
             Assert.Equal(1, linuxConfig.SceneOrders[1].OrderNumber);
             Assert.Equal("/tmp/linux-build", linuxConfig.OutputDirectoryPath);
+        }
+
+        /// <summary>
+        /// Ensures the copy-settings button raises the request that opens the chooser modal.
+        /// </summary>
+        [Fact]
+        public void HandleCopySettingsButtonClicked_WhenInvoked_RaisesCopySettingsRequested() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            bool raised = false;
+            dialog.CopySettingsRequested += () => raised = true;
+            dialog.Show(
+                ["windows", "linux"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        },
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "linux",
+                            SelectedSceneIds = [
+                                "Scenes/Menu.helen"
+                            ]
+                        }
+                    ]
+                });
+
+            InvokePrivate(dialog, "HandleCopySettingsButtonClicked");
+
+            Assert.True(raised);
         }
 
         /// <summary>
@@ -754,6 +862,7 @@ namespace helengine.editor.tests {
                 (int)buildQueueButtonHost.LocalPosition.Y);
             Assert.Equal(BuildDialog.LegacyContentHeight, (int)buildLogsRoot.LocalPosition.Y);
             Assert.True(buildLogsRoot.LocalPosition.Y > addToBuildButtonHost.LocalPosition.Y + BuildDialog.FooterButtonHeight);
+            Assert.Equal(0f, buildLogsBackground.Radius);
             Assert.Equal(BuildDialog.BuildLogsSectionHeight, buildLogsBackground.Size.Y);
             Assert.True(buildLogsProgressTrack.Size.X > 0);
             Assert.True(buildLogsProgressFill.Size.X > 0);
@@ -761,6 +870,92 @@ namespace helengine.editor.tests {
             Assert.Contains("Progress:", buildLogsText.Text);
             Assert.Contains("Windows build completed.", buildLogsText.Text);
             Assert.Contains("linux | Pending", buildLogsText.Text);
+        }
+
+        /// <summary>
+        /// Ensures the build-log text component opts into shared text wrapping.
+        /// </summary>
+        [Fact]
+        public void Show_WhenQueueItemsProvided_EnablesWrappingForBuildLogsText() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = [
+                        new EditorBuildQueueItemDocument {
+                            QueueItemId = "queue-1",
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows",
+                            Status = EditorBuildQueueItemStatus.Done,
+                            StatusMessage = "This status message is intentionally long so wrapping matters."
+                        }
+                    ]
+                });
+
+            TextComponent buildLogsText = GetPrivateField<TextComponent>(dialog, "BuildLogsText");
+            PropertyInfo wrapTextProperty = buildLogsText.GetType().GetProperty("WrapText");
+
+            Assert.NotNull(wrapTextProperty);
+            Assert.True((bool)wrapTextProperty.GetValue(buildLogsText));
+        }
+
+        /// <summary>
+        /// Ensures only the build-log body opts into text selection so labels remain passive.
+        /// </summary>
+        [Fact]
+        public void Show_WhenQueueItemsProvided_EnablesSelectionOnlyForBuildLogsText() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = [
+                        new EditorBuildQueueItemDocument {
+                            QueueItemId = "queue-1",
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows",
+                            Status = EditorBuildQueueItemStatus.Done,
+                            StatusMessage = "This status message is intentionally long so selection matters."
+                        }
+                    ]
+                });
+
+            TextComponent buildLogsText = GetPrivateField<TextComponent>(dialog, "BuildLogsText");
+            TextComponent buildLogsTitleText = GetPrivateField<TextComponent>(dialog, "BuildLogsTitleText");
+
+            Assert.True(buildLogsText.SelectionEnabled);
+            Assert.False(buildLogsTitleText.SelectionEnabled);
         }
 
         /// <summary>
@@ -790,8 +985,10 @@ namespace helengine.editor.tests {
             RoundedRectComponent queueHeaderBackground = GetPrivateField<RoundedRectComponent>(dialog, "QueueHeaderBackground");
             TextComponent queueHeaderText = GetPrivateField<TextComponent>(dialog, "QueueHeaderText");
 
+            Assert.Equal(0f, queueListBackground.Radius);
             Assert.Equal(ThemeManager.Colors.AccentTertiary, queueListBackground.BorderColor);
             Assert.Equal(2f, queueListBackground.BorderThickness);
+            Assert.Equal(6f, queueHeaderBackground.Radius);
             Assert.Equal(ThemeManager.Colors.AccentSecondary, queueHeaderBackground.FillColor);
             Assert.Equal("Queue", queueHeaderText.Text);
             Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, queueHeaderText.Color);
@@ -959,6 +1156,153 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the queued-build list uses a scroll viewport when the queue exceeds the visible row count.
+        /// </summary>
+        [Fact]
+        public void Show_WhenQueueItemsExceedViewport_VirtualizesRowsAndRespondsToScrollOffset() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            List<EditorBuildQueueItemDocument> queueItems = [];
+
+            for (int index = 0; index < 9; index++) {
+                queueItems.Add(new EditorBuildQueueItemDocument {
+                    QueueItemId = "queue-" + (index + 1).ToString(),
+                    PlatformId = "windows",
+                    SelectedSceneIds = [
+                        "Scenes/City.helen"
+                    ],
+                    OutputDirectoryPath = @"C:\builds\windows",
+                    Status = EditorBuildQueueItemStatus.Pending,
+                    StatusMessage = "queue item " + (index + 1).ToString()
+                });
+            }
+
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = queueItems
+                });
+
+            ScrollComponent queueScrollComponent = GetPrivateField<ScrollComponent>(dialog, "QueueScrollComponent");
+            List<TextComponent> queueItemTexts = GetPrivateField<List<TextComponent>>(dialog, "QueueItemTexts");
+
+            Assert.True(queueScrollComponent.MaximumScrollOffset > 0);
+            Assert.Equal(queueScrollComponent.VisibleItemCount, queueItemTexts.Count);
+            Assert.Contains("queue item 1", queueItemTexts[0].Text);
+
+            Assert.True(queueScrollComponent.ScrollTo(1));
+
+            Assert.Contains("queue item 2", queueItemTexts[0].Text);
+            Assert.DoesNotContain("queue item 1", queueItemTexts[0].Text);
+
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = queueItems
+                });
+
+            Assert.Equal(0, queueScrollComponent.ScrollOffset);
+            Assert.Contains("queue item 1", queueItemTexts[0].Text);
+        }
+
+        /// <summary>
+        /// Ensures the build-log section also pages through content with its own scroll viewport.
+        /// </summary>
+        [Fact]
+        public void Show_WhenBuildLogLinesExceedViewport_VirtualizesLogsAndRespondsToScrollOffset() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            List<EditorBuildQueueItemDocument> queueItems = [];
+
+            for (int index = 0; index < 8; index++) {
+                queueItems.Add(new EditorBuildQueueItemDocument {
+                    QueueItemId = "queue-" + (index + 1).ToString(),
+                    PlatformId = "platform-" + (index + 1).ToString(),
+                    SelectedSceneIds = [
+                        "Scenes/City.helen"
+                    ],
+                    OutputDirectoryPath = @"C:\builds\windows",
+                    Status = EditorBuildQueueItemStatus.Pending,
+                    StatusMessage = "log line " + (index + 1).ToString()
+                });
+            }
+
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = queueItems
+                });
+
+            ScrollComponent buildLogsScrollComponent = GetPrivateField<ScrollComponent>(dialog, "BuildLogsScrollComponent");
+            TextComponent buildLogsText = GetPrivateField<TextComponent>(dialog, "BuildLogsText");
+
+            Assert.True(buildLogsScrollComponent.MaximumScrollOffset > 0);
+            Assert.StartsWith("Progress:", buildLogsText.Text);
+            Assert.Contains("platform-1 | Pending | log line 1", buildLogsText.Text);
+
+            Assert.True(buildLogsScrollComponent.ScrollTo(1));
+
+            Assert.DoesNotContain("Progress:", buildLogsText.Text);
+            Assert.StartsWith("platform-1 | Pending | log line 1", buildLogsText.Text);
+            Assert.DoesNotContain("platform-6 | Pending | log line 6", buildLogsText.Text);
+
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = queueItems
+                });
+
+            Assert.Equal(0, buildLogsScrollComponent.ScrollOffset);
+            Assert.StartsWith("Progress:", buildLogsText.Text);
+        }
+
+        /// <summary>
         /// Ensures the build dialog close button uses the lighter modal chrome text color.
         /// </summary>
         [Fact]
@@ -1016,13 +1360,11 @@ namespace helengine.editor.tests {
                     ]
                 });
 
-            TextComponent copySourceLabelText = GetPrivateField<TextComponent>(dialog, "CopySourceLabelText");
             TextComponent outputLabelText = GetPrivateField<TextComponent>(dialog, "OutputLabelText");
             List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
             List<TextComponent> queueItemTexts = GetPrivateField<List<TextComponent>>(dialog, "QueueItemTexts");
             TextComponent buildLogsText = GetPrivateField<TextComponent>(dialog, "BuildLogsText");
 
-            Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, copySourceLabelText.Color);
             Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, outputLabelText.Color);
             Assert.All(mapLabelTexts, label => Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, label.Color));
             Assert.All(queueItemTexts, label => Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, label.Color));
@@ -1101,7 +1443,7 @@ namespace helengine.editor.tests {
         /// Ensures the lower-left controls stay within the dialog bounds even when many scenes are available.
         /// </summary>
         [Fact]
-        public void Show_WhenManyScenesAreAvailable_KeepsCopyControlsInsideDialogBounds() {
+        public void Show_WhenManyScenesAreAvailable_KeepsCopySettingsButtonInsideDialogBounds() {
             BuildDialog dialog = new BuildDialog(CreateFont());
             dialog.Show(
                 ["windows", "linux"],
@@ -1124,14 +1466,16 @@ namespace helengine.editor.tests {
                     ]
                 });
 
-            EditorEntity copySourcePlatformComboBoxHost = GetPrivateField<EditorEntity>(dialog, "CopySourcePlatformComboBoxHost");
-            ComboBoxComponent copySourcePlatformComboBox = GetPrivateField<ComboBoxComponent>(dialog, "CopySourcePlatformComboBox");
+            EditorEntity copySettingsButtonHost = GetPrivateField<EditorEntity>(dialog, "CopySettingsButtonHost");
+            ButtonComponent copySettingsButton = GetPrivateField<ButtonComponent>(dialog, "CopySettingsButton");
             EditorEntity outputFieldHost = GetPrivateField<EditorEntity>(dialog, "OutputFieldHost");
             TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
             EditorEntity addToBuildButtonHost = GetPrivateField<EditorEntity>(dialog, "AddToBuildButtonHost");
 
-            Assert.InRange(copySourcePlatformComboBoxHost.LocalPosition.Y, 0f, BuildDialog.PanelHeight - BuildDialog.HeaderHeight - BuildDialog.PanelPadding);
-            Assert.True(copySourcePlatformComboBoxHost.LocalPosition.Y + copySourcePlatformComboBox.Size.Y <= BuildDialog.PanelHeight - BuildDialog.HeaderHeight);
+            Assert.InRange(copySettingsButtonHost.LocalPosition.Y, 0f, BuildDialog.PanelHeight - BuildDialog.HeaderHeight - BuildDialog.PanelPadding);
+            Assert.True(copySettingsButtonHost.LocalPosition.Y + copySettingsButton.Size.Y <= BuildDialog.PanelHeight - BuildDialog.HeaderHeight);
+            Assert.Equal("Copy settings from...", GetPrivateField<string>(copySettingsButton, "text"));
+            Assert.Equal(BuildDialog.FooterButtonHeight, copySettingsButton.Size.Y);
             Assert.True(outputFieldHost.LocalPosition.Y + outputDirectoryField.Size.Y <= BuildDialog.PanelHeight - BuildDialog.HeaderHeight);
             Assert.True(addToBuildButtonHost.LocalPosition.Y + BuildDialog.FooterButtonHeight <= BuildDialog.PanelHeight - BuildDialog.HeaderHeight);
         }

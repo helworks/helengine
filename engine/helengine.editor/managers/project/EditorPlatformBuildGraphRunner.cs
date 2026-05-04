@@ -1,0 +1,638 @@
+using helengine;
+using helengine.baseplatform.Builders;
+using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Manifest;
+using helengine.baseplatform.Profiles;
+using helengine.baseplatform.Reporting;
+using helengine.baseplatform.Requests;
+using helengine.baseplatform.Targets;
+using helengine.files;
+using helengine.platforms;
+
+namespace helengine.editor {
+    /// <summary>
+    /// Executes the shared editor-owned build graph for one queued platform build item.
+    /// </summary>
+    public class EditorPlatformBuildGraphRunner {
+        readonly string ProjectRootPath;
+        readonly string RequiredEngineVersion;
+        readonly string ProjectId;
+        readonly string ProjectVersion;
+        readonly IReadOnlyList<IAssetImporterRegistration> Importers;
+        readonly AvailablePlatformDescriptor PlatformDescriptor;
+        readonly FontAsset DefaultFontAsset;
+        readonly EditorPlatformAssetBuilderLoader BuilderLoader;
+        readonly EditorGeneratedCoreRegenerationService GeneratedCoreRegenerationService;
+        readonly EditorPlatformBuildGraphWorkspaceFactory WorkspaceFactory;
+        readonly EditorPlatformAssetCookService AssetCookService;
+        readonly EditorCodeModuleManifestService CodeModuleManifestService;
+        readonly EditorPlatformCodeCookService CodeCookService;
+        readonly EditorPlatformLayoutPlanService LayoutPlanService;
+        readonly EditorPlatformContainerWriter ContainerWriter;
+        readonly EditorPlatformArtifactVariantResolver ArtifactVariantResolver;
+
+        public EditorPlatformBuildGraphRunner(
+            string projectRootPath,
+            string requiredEngineVersion,
+            string projectId,
+            string projectVersion,
+            IReadOnlyList<IAssetImporterRegistration> importers,
+            AvailablePlatformDescriptor platformDescriptor,
+            FontAsset defaultFontAsset,
+            EditorPlatformAssetBuilderLoader builderLoader,
+            EditorGeneratedCoreRegenerationService generatedCoreRegenerationService)
+            : this(
+                projectRootPath,
+                requiredEngineVersion,
+                projectId,
+                projectVersion,
+                importers,
+                platformDescriptor,
+                defaultFontAsset,
+                builderLoader,
+                generatedCoreRegenerationService,
+                null) {
+        }
+
+        internal EditorPlatformBuildGraphRunner(
+            string projectRootPath,
+            string requiredEngineVersion,
+            string projectId,
+            string projectVersion,
+            IReadOnlyList<IAssetImporterRegistration> importers,
+            AvailablePlatformDescriptor platformDescriptor,
+            FontAsset defaultFontAsset,
+            EditorPlatformAssetBuilderLoader builderLoader,
+            EditorGeneratedCoreRegenerationService generatedCoreRegenerationService,
+            EditorPlatformBuildGraphWorkspaceFactory workspaceFactory) {
+            ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
+            RequiredEngineVersion = requiredEngineVersion ?? throw new ArgumentNullException(nameof(requiredEngineVersion));
+            ProjectId = projectId ?? throw new ArgumentNullException(nameof(projectId));
+            ProjectVersion = projectVersion ?? throw new ArgumentNullException(nameof(projectVersion));
+            Importers = importers ?? throw new ArgumentNullException(nameof(importers));
+            PlatformDescriptor = platformDescriptor ?? throw new ArgumentNullException(nameof(platformDescriptor));
+            DefaultFontAsset = defaultFontAsset;
+            BuilderLoader = builderLoader ?? throw new ArgumentNullException(nameof(builderLoader));
+            GeneratedCoreRegenerationService = generatedCoreRegenerationService ?? throw new ArgumentNullException(nameof(generatedCoreRegenerationService));
+            WorkspaceFactory = workspaceFactory ?? new EditorPlatformBuildGraphWorkspaceFactory();
+            AssetCookService = new EditorPlatformAssetCookService(
+                ProjectRootPath,
+                RequiredEngineVersion,
+                ProjectId,
+                ProjectVersion,
+                Importers,
+                DefaultFontAsset);
+            CodeModuleManifestService = new EditorCodeModuleManifestService(ProjectRootPath);
+            CodeCookService = new EditorPlatformCodeCookService(ProjectRootPath);
+            LayoutPlanService = new EditorPlatformLayoutPlanService();
+            ContainerWriter = new EditorPlatformContainerWriter();
+            ArtifactVariantResolver = new EditorPlatformArtifactVariantResolver();
+        }
+
+        /// <summary>
+        /// Executes the shared build graph for one queue item.
+        /// </summary>
+        public virtual EditorBuildExecutionResult Execute(EditorBuildQueueItemDocument queueItem) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+
+            IPlatformAssetBuilder builder = BuilderLoader.Load(PlatformDescriptor.BuilderAssemblyPath);
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(builder.Definition);
+            string selectedBuildProfileId = ResolveSelectedBuildProfileId(queueItem, selectionModel);
+            string selectedGraphicsProfileId = ResolveSelectedGraphicsProfileId(queueItem, selectedBuildProfileId, selectionModel);
+            string selectedCodegenProfileId = ResolveSelectedCodegenProfileId(queueItem, selectedBuildProfileId, selectionModel);
+            string selectedStorageProfileId = ResolveSelectedStorageProfileId(queueItem, selectionModel);
+            string selectedMediaProfileId = ResolveSelectedMediaProfileId(queueItem, selectionModel);
+            PlatformStorageProfileDefinition selectedStorageProfile = selectionModel.ResolveStorageProfile(selectedStorageProfileId);
+            PlatformMediaProfileDefinition selectedMediaProfile = selectionModel.ResolveMediaProfile(selectedMediaProfileId);
+            PlatformCodegenProfileDefinition selectedCodegenProfile = selectionModel.ResolveCodegenProfile(selectedCodegenProfileId);
+            EditorPlatformBuildGraphWorkspace workspace = WorkspaceFactory.Create(PlatformDescriptor.Id, queueItem.QueueItemId);
+
+            ResetExecutionDirectories(workspace.ExecutionRootPath, workspace.CookRootPath, workspace.PackageRootPath, workspace.BuilderWorkingRootPath, queueItem.OutputDirectoryPath);
+            Directory.CreateDirectory(workspace.GeneratedCoreRootPath);
+            Directory.CreateDirectory(workspace.CodeRootPath);
+            Directory.CreateDirectory(workspace.VariantRootPath);
+            Directory.CreateDirectory(workspace.LayoutRootPath);
+            Directory.CreateDirectory(workspace.BuilderWorkingRootPath);
+            Directory.CreateDirectory(workspace.LogsRootPath);
+
+            RunRegenerateCore(builder.Definition, selectedCodegenProfile, queueItem, workspace);
+            PlatformBuildManifest cookedManifest = RunCookAssets(builder.Definition, queueItem, workspace);
+            PlatformBuildCodeModule[] codeModules = RunCompileCode(selectedCodegenProfile, selectedStorageProfile, queueItem, workspace);
+            cookedManifest = ReplaceCodeModules(cookedManifest, codeModules);
+            cookedManifest = RunResolveVariants(cookedManifest, workspace);
+            cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
+            WriteRuntimeNativeManifestSources(cookedManifest, PlatformDescriptor.GeneratedCoreCppRootPath);
+            RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
+
+            return RunPackagePlatform(
+                builder,
+                queueItem,
+                workspace,
+                cookedManifest,
+                builder.Definition,
+                selectedBuildProfileId,
+                selectedGraphicsProfileId,
+                selectedCodegenProfileId,
+                selectedMediaProfileId);
+        }
+
+        /// <summary>
+        /// Executes the generated-core regeneration phase.
+        /// </summary>
+        void RunRegenerateCore(
+            PlatformDefinition builderDefinition,
+            PlatformCodegenProfileDefinition selectedCodegenProfile,
+            EditorBuildQueueItemDocument queueItem,
+            EditorPlatformBuildGraphWorkspace workspace) {
+            GeneratedCoreRegenerationService.Regenerate(
+                builderDefinition,
+                selectedCodegenProfile,
+                queueItem.SelectedCodegenOptionValues,
+                PlatformDescriptor.GeneratedCoreCppRootPath,
+                PlatformDescriptor.CodegenToolPath,
+                CancellationToken.None);
+        }
+
+        /// <summary>
+        /// Executes the content-cooking phase using the current scene packager.
+        /// </summary>
+        PlatformBuildManifest RunCookAssets(
+            PlatformDefinition builderDefinition,
+            EditorBuildQueueItemDocument queueItem,
+            EditorPlatformBuildGraphWorkspace workspace) {
+            return AssetCookService.Cook(
+                builderDefinition,
+                queueItem.SelectedSceneIds,
+                workspace.CookRootPath,
+                [PlatformDescriptor.Id]);
+        }
+
+        /// <summary>
+        /// Executes the authored-code phase.
+        /// </summary>
+        PlatformBuildCodeModule[] RunCompileCode(
+            PlatformCodegenProfileDefinition selectedCodegenProfile,
+            PlatformStorageProfileDefinition selectedStorageProfile,
+            EditorBuildQueueItemDocument queueItem,
+            EditorPlatformBuildGraphWorkspace workspace) {
+            EditorCodeModuleManifestDocument manifestDocument = CodeModuleManifestService.Load();
+            return CodeCookService.CompileModules(
+                manifestDocument,
+                PlatformDescriptor.Id,
+                selectedStorageProfile?.RuntimeSpecializationId ?? string.Empty,
+                PlatformDescriptor.CodegenToolPath,
+                selectedCodegenProfile,
+                queueItem.SelectedCodeModuleIds,
+                queueItem.SelectedCodegenOptionValues,
+                workspace.CodeRootPath);
+        }
+
+        /// <summary>
+        /// Executes the cooked-artifact variant resolution phase.
+        /// </summary>
+        PlatformBuildManifest RunResolveVariants(PlatformBuildManifest cookedManifest, EditorPlatformBuildGraphWorkspace workspace) {
+            if (cookedManifest == null) {
+                throw new ArgumentNullException(nameof(cookedManifest));
+            }
+
+            EditorResolvedArtifactSet resolvedArtifactSet = ArtifactVariantResolver.Resolve(cookedManifest.CookedArtifacts ?? []);
+            PlatformBuildArtifact[] resolvedArtifacts = [
+                .. resolvedArtifactSet.SharedArtifacts,
+                .. resolvedArtifactSet.PlatformVariants
+            ];
+
+            return new PlatformBuildManifest(
+                cookedManifest.ManifestVersion,
+                cookedManifest.ProjectId,
+                cookedManifest.ProjectVersion,
+                cookedManifest.RequiredEngineVersion,
+                cookedManifest.StartupSceneId,
+                cookedManifest.Scenes,
+                cookedManifest.LooseAssets,
+                resolvedArtifacts,
+                cookedManifest.CodeModules,
+                cookedManifest.ArtifactPlacements,
+                cookedManifest.ContainerWritePlan);
+        }
+
+        /// <summary>
+        /// Executes the media-layout phase.
+        /// </summary>
+        PlatformBuildManifest RunLayoutMedia(
+            PlatformBuildManifest cookedManifest,
+            PlatformStorageProfileDefinition selectedStorageProfile,
+            PlatformMediaProfileDefinition selectedMediaProfile,
+            EditorPlatformBuildGraphWorkspace workspace) {
+            return LayoutPlanService.Plan(cookedManifest, selectedStorageProfile, selectedMediaProfile);
+        }
+
+        /// <summary>
+        /// Writes the generated runtime native manifest source into the combined generated-core tree.
+        /// </summary>
+        /// <param name="cookedManifest">Cooked manifest that already contains the final runtime scene layout.</param>
+        /// <param name="generatedCoreRootPath">Generated core source root that will be compiled into the native player.</param>
+        void WriteRuntimeNativeManifestSources(PlatformBuildManifest cookedManifest, string generatedCoreRootPath) {
+            EditorRuntimeNativeManifestWriter writer = new();
+            writer.Write(generatedCoreRootPath, cookedManifest);
+        }
+
+        /// <summary>
+        /// Executes the container-writing phase using the current storage profile.
+        /// </summary>
+        void RunWriteContainers(
+            PlatformBuildManifest cookedManifest,
+            PlatformStorageProfileDefinition selectedStorageProfile,
+            PlatformMediaProfileDefinition selectedMediaProfile,
+            EditorPlatformBuildGraphWorkspace workspace) {
+            CopyDirectoryTree(workspace.CodeRootPath, Path.Combine(workspace.PackageRootPath, "code"));
+            ContainerWriter.Write(
+                cookedManifest,
+                workspace.CookRootPath,
+                workspace.PackageRootPath,
+                selectedStorageProfile,
+                selectedMediaProfile);
+            CopyDirectoryTree(workspace.CookRootPath, workspace.PackageRootPath);
+        }
+
+        /// <summary>
+        /// Mirrors a directory tree into a destination root preserving relative paths.
+        /// </summary>
+        static void CopyDirectoryTree(string sourceRootPath, string destinationRootPath) {
+            if (string.IsNullOrWhiteSpace(sourceRootPath)) {
+                return;
+            }
+
+            if (!Directory.Exists(sourceRootPath)) {
+                return;
+            }
+
+            Directory.CreateDirectory(destinationRootPath);
+            string[] sourceFiles = Directory.GetFiles(sourceRootPath, "*", SearchOption.AllDirectories);
+            Array.Sort(sourceFiles, StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < sourceFiles.Length; index++) {
+                string sourceFilePath = sourceFiles[index];
+                string relativePath = Path.GetRelativePath(sourceRootPath, sourceFilePath);
+                if (ShouldSkipPackagedCodePath(relativePath)) {
+                    continue;
+                }
+
+                string destinationFilePath = Path.Combine(destinationRootPath, relativePath);
+                string? destinationDirectoryPath = Path.GetDirectoryName(destinationFilePath);
+                if (!string.IsNullOrWhiteSpace(destinationDirectoryPath)) {
+                    Directory.CreateDirectory(destinationDirectoryPath);
+                }
+
+                File.Copy(sourceFilePath, destinationFilePath, true);
+            }
+        }
+
+        /// <summary>
+        /// Returns true when one code-output path is part of the build scaffolding instead of runtime payload.
+        /// </summary>
+        static bool ShouldSkipPackagedCodePath(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                return true;
+            }
+
+            string[] segments = relativePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            for (int index = 0; index < segments.Length; index++) {
+                string segment = segments[index];
+                if (string.Equals(segment, "_project", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(segment, "obj", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(segment, "bin", StringComparison.OrdinalIgnoreCase)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Executes the final platform package/build phase.
+        /// </summary>
+        EditorBuildExecutionResult RunPackagePlatform(
+            IPlatformAssetBuilder builder,
+            EditorBuildQueueItemDocument queueItem,
+            EditorPlatformBuildGraphWorkspace workspace,
+            PlatformBuildManifest cookedManifest,
+            PlatformDefinition builderDefinition,
+            string selectedBuildProfileId,
+            string selectedGraphicsProfileId,
+            string selectedCodegenProfileId,
+            string selectedMediaProfileId) {
+            PlatformBuildRequest request = BuildRequest(
+                queueItem,
+                cookedManifest,
+                workspace.CookRootPath,
+                workspace.BuilderWorkingRootPath,
+                selectedBuildProfileId,
+                selectedGraphicsProfileId,
+                selectedCodegenProfileId,
+                selectedMediaProfileId);
+            EditorPlatformBuildProgressReporter progressReporter = new();
+            EditorPlatformBuildDiagnosticCollector diagnosticCollector = new();
+
+            string previousWorkingDirectory = Directory.GetCurrentDirectory();
+            try {
+                Directory.SetCurrentDirectory(workspace.PackageRootPath);
+                PlatformBuildReport report = builder.BuildAsync(request, progressReporter, diagnosticCollector, CancellationToken.None).GetAwaiter().GetResult();
+                if (!report.Succeeded) {
+                    return EditorBuildExecutionResult.Failure(BuildFailureMessage(report));
+                }
+
+                return EditorBuildExecutionResult.Success($"Build completed for platform '{PlatformDescriptor.Id}': {queueItem.OutputDirectoryPath}");
+            } finally {
+                Directory.SetCurrentDirectory(previousWorkingDirectory);
+            }
+        }
+
+        static void ResetExecutionDirectories(string executionRoot, string cookRoot, string packageRoot, string builderWorkingRoot, string outputRoot) {
+            DeleteDirectoryIfPresent(executionRoot);
+            DeleteDirectoryIfPresent(outputRoot);
+
+            Directory.CreateDirectory(cookRoot);
+            Directory.CreateDirectory(packageRoot);
+            Directory.CreateDirectory(builderWorkingRoot);
+            Directory.CreateDirectory(outputRoot);
+        }
+
+        static void DeleteDirectoryIfPresent(string path) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                return;
+            }
+
+            if (Directory.Exists(path)) {
+                Directory.Delete(path, true);
+            }
+        }
+
+        PlatformBuildRequest BuildRequest(
+            EditorBuildQueueItemDocument queueItem,
+            PlatformBuildManifest cookedManifest,
+            string stagingRoot,
+            string builderWorkingRoot,
+            string selectedBuildProfileId,
+            string selectedGraphicsProfileId,
+            string selectedCodegenProfileId,
+            string selectedMediaProfileId) {
+            if (cookedManifest == null) {
+                throw new ArgumentNullException(nameof(cookedManifest));
+            }
+
+            string[] stagedFilePaths = Directory.GetFiles(stagingRoot, "*", SearchOption.AllDirectories);
+            Array.Sort(stagedFilePaths, StringComparer.OrdinalIgnoreCase);
+
+            PlatformBuildPayloadReference[] stagedPayloadReferences = new PlatformBuildPayloadReference[stagedFilePaths.Length];
+            for (int index = 0; index < stagedFilePaths.Length; index++) {
+                string stagedFilePath = stagedFilePaths[index];
+                string relativePath = NormalizeRelativePath(Path.GetRelativePath(stagingRoot, stagedFilePath));
+                stagedPayloadReferences[index] = new PlatformBuildPayloadReference(relativePath, relativePath);
+            }
+
+            PlatformBuildScene[] manifestScenes = new PlatformBuildScene[cookedManifest.Scenes.Length];
+            for (int index = 0; index < cookedManifest.Scenes.Length; index++) {
+                PlatformBuildScene scene = cookedManifest.Scenes[index];
+                PlatformBuildPayloadReference[] payloadReferences = index == 0 ? stagedPayloadReferences : [];
+                manifestScenes[index] = new PlatformBuildScene(
+                    scene.SceneId,
+                    scene.SceneName,
+                    scene.SourceIdentity,
+                    payloadReferences,
+                    scene.ResolvedMetadata);
+            }
+
+            PlatformBuildManifest manifest = new(
+                cookedManifest.ManifestVersion,
+                cookedManifest.ProjectId,
+                cookedManifest.ProjectVersion,
+                cookedManifest.RequiredEngineVersion,
+                cookedManifest.StartupSceneId,
+                manifestScenes,
+                cookedManifest.LooseAssets,
+                cookedManifest.CookedArtifacts,
+                cookedManifest.CodeModules,
+                cookedManifest.ArtifactPlacements,
+                cookedManifest.ContainerWritePlan);
+
+            PlatformBuildTargetVariant[] targetVariants = [
+                new PlatformBuildTargetVariant(
+                    selectedBuildProfileId,
+                    PlatformDescriptor.Id,
+                    PlatformDescriptor.Id,
+                    selectedBuildProfileId)
+            ];
+
+            PlatformCookProfile[] cookProfiles = [
+                new PlatformCookProfile(
+                    selectedBuildProfileId,
+                    selectedBuildProfileId,
+                    new PlatformCookProfileCapabilities(
+                        PlatformDescriptor.Id,
+                        selectedGraphicsProfileId,
+                        "raw",
+                        $"{PlatformDescriptor.Id}-scene-v1",
+                        PlatformSerializationEndianness.LittleEndian))
+            ];
+
+            return new PlatformBuildRequest(
+                manifest,
+                targetVariants,
+                cookProfiles,
+                queueItem.OutputDirectoryPath,
+                builderWorkingRoot,
+                selectedBuildProfileId,
+                selectedGraphicsProfileId,
+                selectedCodegenProfileId,
+                queueItem.SelectedBuildOptionValues,
+                queueItem.SelectedGraphicsOptionValues,
+                queueItem.SelectedCodegenOptionValues,
+                PlatformDescriptor.GeneratedCoreCppRootPath,
+                selectedMediaProfileId,
+                queueItem.SelectedStorageProfileId);
+        }
+
+        static string BuildFailureMessage(PlatformBuildReport report) {
+            if (report == null) {
+                return "Build failed with no report.";
+            }
+
+            PlatformBuildDiagnostic diagnostic = report.Diagnostics?.FirstOrDefault();
+            if (diagnostic != null && !string.IsNullOrWhiteSpace(diagnostic.Message)) {
+                return diagnostic.Message;
+            }
+
+            PlatformBuildItemOutcome failedSceneOutcome = report.SceneOutcomes?.FirstOrDefault(outcome => outcome?.OutcomeKind == PlatformBuildItemOutcomeKind.Failed);
+            if (failedSceneOutcome != null) {
+                return $"Build failed for scene '{failedSceneOutcome.ItemId}'.";
+            }
+
+            PlatformBuildItemOutcome failedLooseAssetOutcome = report.LooseAssetOutcomes?.FirstOrDefault(outcome => outcome?.OutcomeKind == PlatformBuildItemOutcomeKind.Failed);
+            if (failedLooseAssetOutcome != null) {
+                return $"Build failed for asset '{failedLooseAssetOutcome.ItemId}'.";
+            }
+
+            return "Build failed.";
+        }
+
+        static string NormalizeRelativePath(string relativePath) {
+            return relativePath.Replace(Path.DirectorySeparatorChar, '/');
+        }
+
+        static PlatformBuildManifest ReplaceCodeModules(PlatformBuildManifest manifest, PlatformBuildCodeModule[] codeModules) {
+            if (manifest == null) {
+                throw new ArgumentNullException(nameof(manifest));
+            }
+
+            return new PlatformBuildManifest(
+                manifest.ManifestVersion,
+                manifest.ProjectId,
+                manifest.ProjectVersion,
+                manifest.RequiredEngineVersion,
+                manifest.StartupSceneId,
+                manifest.Scenes,
+                manifest.LooseAssets,
+                manifest.CookedArtifacts,
+                codeModules ?? [],
+                manifest.ArtifactPlacements,
+                manifest.ContainerWritePlan);
+        }
+
+        static string ResolveSelectedBuildProfileId(EditorBuildQueueItemDocument queueItem, EditorPlatformBuildSelectionModel selectionModel) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+            if (selectionModel == null) {
+                throw new ArgumentNullException(nameof(selectionModel));
+            }
+
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedBuildProfileId)) {
+                PlatformBuildProfileDefinition requestedBuildProfile = selectionModel.ResolveBuildProfile(queueItem.SelectedBuildProfileId);
+                if (requestedBuildProfile != null) {
+                    return requestedBuildProfile.ProfileId;
+                }
+            }
+
+            if (queueItem.DebugBuild) {
+                PlatformBuildProfileDefinition requestedDebugProfile = selectionModel.ResolveBuildProfile("debug");
+                if (requestedDebugProfile != null) {
+                    return requestedDebugProfile.ProfileId;
+                }
+            } else {
+                PlatformBuildProfileDefinition requestedReleaseProfile = selectionModel.ResolveBuildProfile("release");
+                if (requestedReleaseProfile != null) {
+                    return requestedReleaseProfile.ProfileId;
+                }
+            }
+
+            PlatformBuildProfileDefinition fallbackBuildProfile = selectionModel.ResolveBuildProfile(string.Empty);
+            if (fallbackBuildProfile != null) {
+                return fallbackBuildProfile.ProfileId;
+            }
+
+            return queueItem.DebugBuild ? "debug" : "release";
+        }
+
+        static string ResolveSelectedGraphicsProfileId(
+            EditorBuildQueueItemDocument queueItem,
+            string selectedBuildProfileId,
+            EditorPlatformBuildSelectionModel selectionModel) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+            if (selectionModel == null) {
+                throw new ArgumentNullException(nameof(selectionModel));
+            }
+
+            PlatformBuildProfileDefinition resolvedBuildProfile = selectionModel.ResolveBuildProfile(selectedBuildProfileId);
+            if (resolvedBuildProfile != null && !string.IsNullOrWhiteSpace(resolvedBuildProfile.GraphicsProfileId)) {
+                return resolvedBuildProfile.GraphicsProfileId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedGraphicsProfileId)) {
+                PlatformGraphicsProfileDefinition selectedGraphicsProfile = selectionModel.ResolveGraphicsProfile(queueItem.SelectedGraphicsProfileId);
+                if (selectedGraphicsProfile != null) {
+                    return selectedGraphicsProfile.ProfileId;
+                }
+            }
+
+            PlatformGraphicsProfileDefinition defaultGraphicsProfile = selectionModel.ResolveGraphicsProfile(string.Empty);
+            if (defaultGraphicsProfile != null) {
+                return defaultGraphicsProfile.ProfileId;
+            }
+
+            return string.Empty;
+        }
+
+        static string ResolveSelectedCodegenProfileId(
+            EditorBuildQueueItemDocument queueItem,
+            string selectedBuildProfileId,
+            EditorPlatformBuildSelectionModel selectionModel) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+            if (selectionModel == null) {
+                throw new ArgumentNullException(nameof(selectionModel));
+            }
+
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedCodegenProfileId)) {
+                PlatformCodegenProfileDefinition selectedCodegenProfile = selectionModel.ResolveCodegenProfile(queueItem.SelectedCodegenProfileId);
+                if (selectedCodegenProfile != null) {
+                    return selectedCodegenProfile.ProfileId;
+                }
+            }
+
+            PlatformBuildProfileDefinition resolvedBuildProfile = selectionModel.ResolveBuildProfile(selectedBuildProfileId);
+            if (resolvedBuildProfile != null && !string.IsNullOrWhiteSpace(resolvedBuildProfile.CodegenProfileId)) {
+                return resolvedBuildProfile.CodegenProfileId;
+            }
+
+            PlatformCodegenProfileDefinition defaultCodegenProfile = selectionModel.ResolveCodegenProfile(string.Empty);
+            if (defaultCodegenProfile != null) {
+                return defaultCodegenProfile.ProfileId;
+            }
+
+            return string.Empty;
+        }
+
+        static string ResolveSelectedMediaProfileId(EditorBuildQueueItemDocument queueItem, EditorPlatformBuildSelectionModel selectionModel) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+            if (selectionModel == null) {
+                throw new ArgumentNullException(nameof(selectionModel));
+            }
+
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedMediaProfileId)) {
+                PlatformMediaProfileDefinition requestedMediaProfile = selectionModel.ResolveMediaProfile(queueItem.SelectedMediaProfileId);
+                if (requestedMediaProfile != null) {
+                    return requestedMediaProfile.ProfileId;
+                }
+            }
+
+            PlatformMediaProfileDefinition defaultMediaProfile = selectionModel.ResolveMediaProfile(string.Empty);
+            return defaultMediaProfile?.ProfileId ?? string.Empty;
+        }
+
+        static string ResolveSelectedStorageProfileId(EditorBuildQueueItemDocument queueItem, EditorPlatformBuildSelectionModel selectionModel) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+            if (selectionModel == null) {
+                throw new ArgumentNullException(nameof(selectionModel));
+            }
+
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedStorageProfileId)) {
+                PlatformStorageProfileDefinition requestedStorageProfile = selectionModel.ResolveStorageProfile(queueItem.SelectedStorageProfileId);
+                if (requestedStorageProfile != null) {
+                    return requestedStorageProfile.ProfileId;
+                }
+            }
+
+            PlatformStorageProfileDefinition defaultStorageProfile = selectionModel.ResolveStorageProfile(string.Empty);
+            return defaultStorageProfile?.ProfileId ?? string.Empty;
+        }
+
+    }
+}

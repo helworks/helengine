@@ -21,11 +21,13 @@
 #include "system/app_context.hpp"
 #include "system/bit_converter.hpp"
 #include "system/diagnostics/debug.hpp"
-#include "system/io/directory.hpp"
+#include "system/diagnostics/stopwatch.hpp"
+#include "system/guid.hpp"
 #include "system/io/file-stream.hpp"
 #include "system/io/file.hpp"
 #include "system/io/memory-stream.hpp"
 #include "system/io/path.hpp"
+#include "system/io/stream-reader.hpp"
 #include "system/io/stream.hpp"
 #include "system/io/string-reader.hpp"
 #include "system/math.hpp"
@@ -69,33 +71,33 @@ ShaderProgramBinary::ShaderProgramBinary(std::string programName, ::ShaderStage 
     if (String::IsNullOrWhiteSpace(programName))
     {
 throw ([&]() {
-auto __ctor_arg_6f930cf8 = "Program name must be provided.";
-auto __ctor_arg_f524b403 = "programName";
-return new ArgumentException(__ctor_arg_6f930cf8, __ctor_arg_f524b403);
+auto __ctor_arg_00000151 = "Program name must be provided.";
+auto __ctor_arg_00000152 = "programName";
+return new ArgumentException(__ctor_arg_00000151, __ctor_arg_00000152);
 })();
     }
     if (String::IsNullOrWhiteSpace(target))
     {
 throw ([&]() {
-auto __ctor_arg_6ecede63 = "Target must be provided.";
-auto __ctor_arg_389c65cb = "target";
-return new ArgumentException(__ctor_arg_6ecede63, __ctor_arg_389c65cb);
+auto __ctor_arg_00000153 = "Target must be provided.";
+auto __ctor_arg_00000154 = "target";
+return new ArgumentException(__ctor_arg_00000153, __ctor_arg_00000154);
 })();
     }
     if (String::IsNullOrWhiteSpace(variant))
     {
 throw ([&]() {
-auto __ctor_arg_4453813b = "Variant must be provided.";
-auto __ctor_arg_d1e09a6c = "variant";
-return new ArgumentException(__ctor_arg_4453813b, __ctor_arg_d1e09a6c);
+auto __ctor_arg_00000155 = "Variant must be provided.";
+auto __ctor_arg_00000156 = "variant";
+return new ArgumentException(__ctor_arg_00000155, __ctor_arg_00000156);
 })();
     }
     if (String::IsNullOrWhiteSpace(path))
     {
 throw ([&]() {
-auto __ctor_arg_0b29a140 = "Path must be provided.";
-auto __ctor_arg_def4db76 = "path";
-return new ArgumentException(__ctor_arg_0b29a140, __ctor_arg_def4db76);
+auto __ctor_arg_00000157 = "Path must be provided.";
+auto __ctor_arg_00000158 = "path";
+return new ArgumentException(__ctor_arg_00000157, __ctor_arg_00000158);
 })();
     }
 this->ProgramName = programName;
@@ -111,25 +113,25 @@ ShaderProgramBinary::ShaderProgramBinary(std::string programName, ::ShaderStage 
     if (String::IsNullOrWhiteSpace(programName))
     {
 throw ([&]() {
-auto __ctor_arg_d7ceac2c = "Program name must be provided.";
-auto __ctor_arg_032ad697 = "programName";
-return new ArgumentException(__ctor_arg_d7ceac2c, __ctor_arg_032ad697);
+auto __ctor_arg_00000159 = "Program name must be provided.";
+auto __ctor_arg_0000015A = "programName";
+return new ArgumentException(__ctor_arg_00000159, __ctor_arg_0000015A);
 })();
     }
     if (String::IsNullOrWhiteSpace(target))
     {
 throw ([&]() {
-auto __ctor_arg_922d042c = "Target must be provided.";
-auto __ctor_arg_cb7f364b = "target";
-return new ArgumentException(__ctor_arg_922d042c, __ctor_arg_cb7f364b);
+auto __ctor_arg_0000015B = "Target must be provided.";
+auto __ctor_arg_0000015C = "target";
+return new ArgumentException(__ctor_arg_0000015B, __ctor_arg_0000015C);
 })();
     }
     if (String::IsNullOrWhiteSpace(variant))
     {
 throw ([&]() {
-auto __ctor_arg_876ed86b = "Variant must be provided.";
-auto __ctor_arg_0bfa1047 = "variant";
-return new ArgumentException(__ctor_arg_876ed86b, __ctor_arg_0bfa1047);
+auto __ctor_arg_0000015D = "Variant must be provided.";
+auto __ctor_arg_0000015E = "variant";
+return new ArgumentException(__ctor_arg_0000015D, __ctor_arg_0000015E);
 })();
     }
     if (bytecode == nullptr)
@@ -139,9 +141,9 @@ throw new ArgumentNullException("bytecode");
     if (bytecode->Length == 0)
     {
 throw ([&]() {
-auto __ctor_arg_4c5986fe = "Bytecode payload must be provided.";
-auto __ctor_arg_b023df70 = "bytecode";
-return new ArgumentException(__ctor_arg_4c5986fe, __ctor_arg_b023df70);
+auto __ctor_arg_0000015F = "Bytecode payload must be provided.";
+auto __ctor_arg_00000160 = "bytecode";
+return new ArgumentException(__ctor_arg_0000015F, __ctor_arg_00000160);
 })();
     }
 this->ProgramName = programName;

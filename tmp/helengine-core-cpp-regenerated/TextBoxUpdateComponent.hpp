@@ -7,23 +7,22 @@
 class UpdateComponent;
 class IUpdateable;
 class TextBoxComponent;
-class InputManager;
 class Core;
-class int2;
 
 #include "UpdateComponent.hpp"
 #include "IUpdateable.hpp"
 #include "TextBoxComponent.hpp"
-#include "InputManager.hpp"
+#include "InputSystem.hpp"
 #include "Core.hpp"
 #include "Core.hpp"
-#include "int2.hpp"
-#include "InputManager.hpp"
+#include "InputSystem.hpp"
 #include "TextBoxComponent.hpp"
 
 class TextBoxUpdateComponent : public UpdateComponent
 {
 public:
+    virtual ~TextBoxUpdateComponent() = default;
+
     TextBoxUpdateComponent(::TextBoxComponent* textBox);
 
     void Update();
