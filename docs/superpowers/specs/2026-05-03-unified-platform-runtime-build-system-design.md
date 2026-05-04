@@ -495,6 +495,74 @@ That means:
 
 Windows may remain the first fully operational end-to-end target, but PS2 should not remain architecturally separate.
 
+## First PS2 Vertical Slice
+
+The first PS2 end-to-end slice should prove that the shared build graph can emit a bootable PS2 runtime package without introducing a second architecture.
+
+Success for this slice means:
+
+- the editor drives a PS2 build through the shared graph
+- the PS2 builder uses Docker, not a host-local toolchain
+- the export emits a PS2 ELF plus cooked runtime assets
+- the PS2 runtime loads the packaged startup scene from the cooked output
+
+This slice does not require final material authoring support. It only needs the runtime to reach packaged scene load on the same build contract as Windows.
+
+### PS2 Build and Packaging Rules
+
+The PS2 builder must be Docker-only for reproducibility.
+
+The editor should prepare generated core, cooked assets, cooked code modules, and generated native runtime metadata before invoking the PS2 builder.
+
+The PS2 builder should then:
+
+- stage the generated C++ that the native build will compile
+- build the ELF through the existing Docker plus `make` flow
+- copy the resulting `helengine_ps2.elf` into the final export root
+- copy cooked runtime assets into the same export root under `cooked/`
+
+The first physical storage layout is loose files. This is only a transport choice for the first slice.
+
+The storage model must still remain disc-oriented in the higher-level architecture. The next storage step is one mounted container file with seek-based reads, not a different runtime contract.
+
+### PS2 Runtime Startup Contract
+
+The PS2 runtime must follow the same no-JSON rule as the Windows runtime package.
+
+That means:
+
+- startup scene path is compiled into generated native source
+- code-module residency metadata is compiled into generated native source
+- the ELF does not depend on runtime JSON manifests
+
+The startup scene should resolve to the cooked runtime scene path, using the same startup-scene contract already established by build order.
+
+### PS2 Runtime Integration Constraints
+
+The PS2 host must not continue depending on the removed legacy input stack.
+
+It should move to the portable input system by feeding pad state through a PS2-specific backend bridge. This keeps PS2 aligned with the new input architecture and avoids reintroducing platform-only keyboard or mouse assumptions.
+
+Asset resolution must use the cooked runtime layout directly. The PS2 runtime should not introduce Windows-style path assumptions, editor-only bootstrap names, or temporary fallback rules.
+
+### Validation Project
+
+The validation project for this slice is `C:\\dev\\helprojs\\city`.
+
+For the current milestone, that project acts as a small smoke scene. The expected runtime payload is simple, which makes it appropriate for proving scene-load correctness before deeper PS2 rendering and material work.
+
+### Out of Scope for This Slice
+
+The first PS2 vertical slice does not need to solve:
+
+- authored material specialization
+- final disc-container mounting
+- streaming
+- dynamic code loading or unloading
+- general content-performance optimization
+
+Those concerns should remain enabled by the architecture, but they should not delay the first proof that the PS2 ELF can be exported and can load its packaged startup scene.
+
 ## Future Streaming System
 
 The streaming system is future work, but this design must preserve room for it.
