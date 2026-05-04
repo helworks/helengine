@@ -727,6 +727,11 @@ namespace helengine.editor {
             writer.WriteByte(settings.ClearStencil);
         }
 
+        /// <summary>
+        /// Reads one render-settings payload from the camera record.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the render-settings payload.</param>
+        /// <returns>Decoded camera render settings.</returns>
         CameraRenderSettings ReadRenderSettings(EngineBinaryReader reader) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
@@ -739,10 +744,16 @@ namespace helengine.editor {
             };
         }
 
+        /// <summary>
+        /// Writes one render-settings payload into the camera record.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the payload.</param>
+        /// <param name="settings">Render settings to serialize.</param>
         void WriteRenderSettings(EngineBinaryWriter writer, CameraRenderSettings settings) {
             if (writer == null) {
                 throw new ArgumentNullException(nameof(writer));
-            } else if (settings == null) {
+            }
+            if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
 

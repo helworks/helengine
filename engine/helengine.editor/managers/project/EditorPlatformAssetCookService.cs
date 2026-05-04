@@ -93,6 +93,7 @@ namespace helengine.editor {
             for (int index = 0; index < orderedSceneIds.Count; index++) {
                 string sceneId = orderedSceneIds[index];
                 string cookedRelativePath = BuildCookedSceneRelativePath(sceneId, index);
+                uint physics3DSceneFeatureFlags = ReadCookedScenePhysics3DFeatureFlags(outputRootPath, cookedRelativePath);
                 scenes[index] = new PlatformBuildScene(
                     sceneId,
                     Path.GetFileNameWithoutExtension(sceneId),
@@ -102,11 +103,36 @@ namespace helengine.editor {
                     ],
                     [
                         new KeyValuePair<string, string>("build-order-index", index.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                        new KeyValuePair<string, string>("cooked-relative-path", cookedRelativePath)
+                        new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, cookedRelativePath),
+                        new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.Physics3DSceneFeatureFlags, physics3DSceneFeatureFlags.ToString(System.Globalization.CultureInfo.InvariantCulture))
                     ]);
             }
 
             return scenes;
+        }
+
+        /// <summary>
+        /// Reads the compact 3D physics scene feature mask stored in one cooked scene asset.
+        /// </summary>
+        /// <param name="outputRootPath">Cooked output root path.</param>
+        /// <param name="cookedRelativePath">Runtime-relative cooked scene payload path.</param>
+        /// <returns>Compact 3D physics scene feature mask embedded in the cooked scene asset.</returns>
+        static uint ReadCookedScenePhysics3DFeatureFlags(string outputRootPath, string cookedRelativePath) {
+            if (string.IsNullOrWhiteSpace(outputRootPath)) {
+                throw new ArgumentException("Output root path must be provided.", nameof(outputRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(cookedRelativePath)) {
+                throw new ArgumentException("Cooked relative path must be provided.", nameof(cookedRelativePath));
+            }
+
+            string fullScenePath = Path.Combine(outputRootPath, cookedRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            using FileStream stream = File.OpenRead(fullScenePath);
+            Asset asset = AssetSerializer.Deserialize(stream);
+            if (asset is not SceneAsset sceneAsset) {
+                throw new InvalidOperationException($"Cooked scene '{cookedRelativePath}' did not deserialize into a SceneAsset.");
+            }
+
+            return sceneAsset.Physics3DSceneFeatureFlags;
         }
 
         PlatformBuildArtifact[] BuildCookedArtifacts(string outputRootPath, IReadOnlyList<string> targetIds) {
@@ -134,7 +160,7 @@ namespace helengine.editor {
 
             string normalizedSceneId = NormalizeRelativePath(sceneId);
             string changedExtensionPath = Path.ChangeExtension(normalizedSceneId, ".hasset");
-            return NormalizeRelativePath(Path.Combine("cooked", "scenes", changedExtensionPath));
+            return NormalizeRelativePath(Path.Combine("scenes", changedExtensionPath));
         }
 
         static string ResolveArtifactKind(string relativePath) {

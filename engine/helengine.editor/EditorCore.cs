@@ -35,8 +35,8 @@ namespace helengine {
         }
 
         /// <inheritdoc />
-        public override void Update() {
-            base.Update();
+        public override void Update(double elapsedSeconds) {
+            base.Update(elapsedSeconds);
 
             EditorObjectManager.Update();
         }

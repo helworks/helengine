@@ -469,6 +469,10 @@ namespace helengine.editor {
             persistenceRegistry.Register(new PointLightComponentPersistenceDescriptor());
             persistenceRegistry.Register(new SpotLightComponentPersistenceDescriptor());
             persistenceRegistry.Register(new MenuHostComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new RigidBody3DComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new BoxCollider3DComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new KinematicMotion3DComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new CharacterController3DComponentPersistenceDescriptor());
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
             SceneCreationService = new EditorSceneCreationService();
@@ -679,19 +683,37 @@ namespace helengine.editor {
         public string WindowTitle => titleBar.Title;
 
         /// <summary>
-        /// Executes the editor update loop for input and entities.
+        /// Executes the editor update loop for input and entities using the configured default frame delta.
         /// </summary>
         public void Update() {
-            core.Update();
+            Update(core.InitializationOptions.DefaultUpdateDeltaSeconds);
         }
 
         /// <summary>
-        /// Runs a full editor frame update, including layout, docking, and rendering.
+        /// Executes the editor update loop for input and entities using one explicit elapsed frame time.
+        /// </summary>
+        /// <param name="elapsedSeconds">Elapsed frame time in seconds supplied by the host runtime.</param>
+        public void Update(double elapsedSeconds) {
+            core.Update(elapsedSeconds);
+        }
+
+        /// <summary>
+        /// Runs a full editor frame update, including layout, docking, and rendering, using the configured default frame delta.
         /// </summary>
         /// <param name="renderWidth">Current render width.</param>
         /// <param name="renderHeight">Current render height.</param>
         public void UpdateFrame(int renderWidth, int renderHeight) {
-            Update();
+            UpdateFrame(renderWidth, renderHeight, core.InitializationOptions.DefaultUpdateDeltaSeconds);
+        }
+
+        /// <summary>
+        /// Runs a full editor frame update, including layout, docking, and rendering, using one explicit elapsed frame time.
+        /// </summary>
+        /// <param name="renderWidth">Current render width.</param>
+        /// <param name="renderHeight">Current render height.</param>
+        /// <param name="elapsedSeconds">Elapsed frame time in seconds supplied by the host runtime.</param>
+        public void UpdateFrame(int renderWidth, int renderHeight, double elapsedSeconds) {
+            Update(elapsedSeconds);
             UpdateLayout(renderWidth, renderHeight);
             bool layoutDirty = UpdateDocking(renderWidth, renderHeight);
             if (layoutDirty) {

@@ -16,7 +16,7 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 4;
+        public const byte CurrentVersion = 5;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -302,6 +302,7 @@ namespace helengine {
             writer.WriteString(asset.Id);
             writer.WriteArray(asset.RootEntities, WriteSceneEntityAsset);
             writer.WriteArray(asset.AssetReferences, WriteSceneAssetReference);
+            writer.WriteUInt32(asset.Physics3DSceneFeatureFlags);
         }
 
         /// <summary>
@@ -315,7 +316,10 @@ namespace helengine {
                 RootEntities = ReadSceneEntityAssetArray(reader, version) ?? Array.Empty<SceneEntityAsset>(),
                 AssetReferences = version >= 4
                     ? ReadSceneAssetReferenceArray(reader) ?? Array.Empty<SceneAssetReference>()
-                    : Array.Empty<SceneAssetReference>()
+                    : Array.Empty<SceneAssetReference>(),
+                Physics3DSceneFeatureFlags = version >= 5
+                    ? reader.ReadUInt32()
+                    : 0u
             };
         }
 

@@ -484,4 +484,64 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         string normalizedSource = File.ReadAllText(sourcePath);
         Assert.Contains("#include \"system/io/directory.hpp\"", normalizedSource);
     }
+
+    /// <summary>
+    /// Verifies regeneration argument building preserves authored symbols while appending scene-derived stripping symbols.
+    /// </summary>
+    [Fact]
+    public void Build_arguments_combines_selected_and_scene_feature_preprocessor_symbols() {
+        PlatformDefinition platformDefinition = new(
+            "windows",
+            "Windows",
+            Array.Empty<PlatformBuildProfileDefinition>(),
+            Array.Empty<PlatformGraphicsProfileDefinition>(),
+            Array.Empty<PlatformAssetRequirementDefinition>(),
+            Array.Empty<PlatformMaterialSchemaDefinition>(),
+            Array.Empty<PlatformComponentCompatibilityDefinition>(),
+            Array.Empty<PlatformCodegenProfileDefinition>(),
+            Array.Empty<PlatformStorageProfileDefinition>(),
+            Array.Empty<PlatformMediaProfileDefinition>());
+        PlatformCodegenProfileDefinition codegenProfile = new(
+            "default",
+            "Default",
+            "Default codegen profile",
+            PlatformCodegenLanguage.Cpp,
+            PlatformSerializationEndianness.LittleEndian,
+            []);
+        Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase) {
+            ["additional-preprocessor-symbols"] = "EXISTING_SYMBOL"
+        };
+
+        IReadOnlyList<string> arguments = EditorGeneratedCoreRegenerationService.BuildArguments(
+            @"C:\tmp\fixture.csproj",
+            @"C:\tmp\generated",
+            platformDefinition,
+            codegenProfile,
+            values,
+            [
+                PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol,
+                PhysicsSceneFeatureSymbolCatalog3D.BoxBoxContactSymbol
+            ]);
+
+        Assert.Contains("--set", arguments);
+        Assert.Contains(
+            "additional-preprocessor-symbols=EXISTING_SYMBOL;HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES;HELENGINE_PHYSICS3D_FEATURE_BOX_BOX_CONTACT",
+            arguments);
+    }
+
+    /// <summary>
+    /// Verifies portable input symbols and scene-derived stripping symbols merge into one ordered unique list.
+    /// </summary>
+    [Fact]
+    public void Combine_additional_preprocessor_symbols_merges_ordered_unique_values() {
+        IReadOnlyList<string> symbols = EditorGeneratedCoreRegenerationService.CombineAdditionalPreprocessorSymbols(
+            ["HELENGINE_INPUT_KEYBOARD", "HELENGINE_INPUT_MOUSE"],
+            ["HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES", "HELENGINE_INPUT_MOUSE"]);
+
+        Assert.Collection(
+            symbols,
+            symbol => Assert.Equal("HELENGINE_INPUT_KEYBOARD", symbol),
+            symbol => Assert.Equal("HELENGINE_INPUT_MOUSE", symbol),
+            symbol => Assert.Equal("HELENGINE_PHYSICS3D_STRIP_BY_SCENE_FEATURES", symbol));
+    }
 }
