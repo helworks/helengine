@@ -79,6 +79,18 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures runtime materials expose the compact Windows-forward lighting feature flags with conservative defaults.
+        /// </summary>
+        [Fact]
+        public void Constructor_InitializesCompactLightingFeatureFlags() {
+            RuntimeMaterial material = new RuntimeMaterial();
+
+            Assert.Equal(RuntimeMaterialLightingModel.Unlit, material.LightingModel);
+            Assert.False(material.SupportsNormalMapping);
+            Assert.False(material.SupportsEmissive);
+        }
+
+        /// <summary>
         /// Creates the initial material layout used by runtime-material tests.
         /// </summary>
         /// <returns>Material layout with one texture and one constant buffer.</returns>

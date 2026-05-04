@@ -70,6 +70,11 @@ namespace helengine.directx11 {
         public string Variant { get; }
 
         /// <summary>
+        /// Gets whether this resource uses the compact Windows-forward PBR material path.
+        /// </summary>
+        public bool UsesCompactPbrLightingModel => LightingModel == RuntimeMaterialLightingModel.MetalRoughPbr;
+
+        /// <summary>
         /// Updates the shader resource used by this material.
         /// </summary>
         /// <param name="shaderResource">New shader resource to assign.</param>

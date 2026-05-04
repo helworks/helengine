@@ -32,6 +32,16 @@ namespace helengine {
         public string Variant;
 
         /// <summary>
+        /// Gets or sets the asset identifier for the authored normal texture bound by this material.
+        /// </summary>
+        public string NormalTextureAssetId;
+
+        /// <summary>
+        /// Gets or sets the asset identifier for the authored emissive texture bound by this material.
+        /// </summary>
+        public string EmissiveTextureAssetId;
+
+        /// <summary>
         /// Gets or sets the fixed-function render state used while drawing the material.
         /// </summary>
         public MaterialRenderState RenderState;

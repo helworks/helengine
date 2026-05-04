@@ -20,6 +20,9 @@ namespace helengine {
             RenderState = new MaterialRenderState();
             Properties = new MaterialPropertyBlock(Layout);
             ChildMaterialsValue = new List<RuntimeMaterial>();
+            LightingModel = RuntimeMaterialLightingModel.Unlit;
+            SupportsNormalMapping = false;
+            SupportsEmissive = false;
         }
 
         /// <summary>
@@ -36,6 +39,21 @@ namespace helengine {
         /// Gets the material-scoped property block that stores texture and constant-buffer values for the layout.
         /// </summary>
         public MaterialPropertyBlock Properties { get; private set; }
+
+        /// <summary>
+        /// Gets or sets the lighting model expected by this runtime material.
+        /// </summary>
+        public RuntimeMaterialLightingModel LightingModel { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether this runtime material binds a normal-map input.
+        /// </summary>
+        public bool SupportsNormalMapping { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether this runtime material binds emissive inputs.
+        /// </summary>
+        public bool SupportsEmissive { get; set; }
 
         /// <summary>
         /// Gets the parent material whose layout, render state, and default values are inherited by this material.

@@ -53,6 +53,9 @@ namespace helengine.editor.tests.testing {
                 },
                 Array.Empty<MaterialLayoutBinding>(),
                 Array.Empty<MaterialLayoutBinding>()));
+            material.LightingModel = RuntimeMaterialLightingModel.MetalRoughPbr;
+            material.SupportsNormalMapping = !string.IsNullOrWhiteSpace(materialAsset.NormalTextureAssetId);
+            material.SupportsEmissive = !string.IsNullOrWhiteSpace(materialAsset.EmissiveTextureAssetId);
             return material;
         }
 

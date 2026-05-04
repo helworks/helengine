@@ -444,6 +444,9 @@ namespace helengine.directx11 {
             material.SetId(materialAsset.Id);
             material.SetLayout(layout);
             material.SetRenderState(materialAsset.RenderState);
+            material.LightingModel = RuntimeMaterialLightingModel.MetalRoughPbr;
+            material.SupportsNormalMapping = !string.IsNullOrWhiteSpace(materialAsset.NormalTextureAssetId);
+            material.SupportsEmissive = !string.IsNullOrWhiteSpace(materialAsset.EmissiveTextureAssetId);
             material.ApplyConstantBufferDefaults(materialAsset.ConstantBuffers ?? Array.Empty<MaterialConstantBufferAsset>());
             RegisterMaterial(material);
             return material;
