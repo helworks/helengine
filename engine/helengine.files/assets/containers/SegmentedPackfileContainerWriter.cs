@@ -34,12 +34,13 @@ namespace helengine.files {
             List<PackfileSegmentEntry> entries = [];
             if (Directory.Exists(sourceRootPath)) {
                 string[] sourceFiles = Directory.GetFiles(sourceRootPath, "*", SearchOption.AllDirectories);
-                Array.Sort(sourceFiles, StringComparer.OrdinalIgnoreCase);
                 for (int index = 0; index < sourceFiles.Length; index++) {
                     string sourceFilePath = sourceFiles[index];
                     string relativePath = Path.GetRelativePath(sourceRootPath, sourceFilePath).Replace('\\', '/');
                     entries.Add(new PackfileSegmentEntry(relativePath, new FileInfo(sourceFilePath).Length));
                 }
+
+                entries.Sort(CompareEntries);
             }
 
             List<List<PackfileSegmentEntry>> segments = SplitIntoSegments(entries);
@@ -87,6 +88,51 @@ namespace helengine.files {
             }
 
             return segments;
+        }
+
+        /// <summary>
+        /// Orders packfile entries so root-level files remain stable ahead of nested content before path-level comparison.
+        /// </summary>
+        /// <param name="left">The left entry being compared.</param>
+        /// <param name="right">The right entry being compared.</param>
+        /// <returns>Comparison result suitable for stable entry sorting.</returns>
+        static int CompareEntries(PackfileSegmentEntry left, PackfileSegmentEntry right) {
+            if (left == null) {
+                return right == null ? 0 : -1;
+            }
+
+            if (right == null) {
+                return 1;
+            }
+
+            int leftDepth = CountPathDepth(left.RelativePath);
+            int rightDepth = CountPathDepth(right.RelativePath);
+            int depthComparison = leftDepth.CompareTo(rightDepth);
+            if (depthComparison != 0) {
+                return depthComparison;
+            }
+
+            return StringComparer.OrdinalIgnoreCase.Compare(left.RelativePath, right.RelativePath);
+        }
+
+        /// <summary>
+        /// Counts path separators so shallower entries can be emitted before nested entries.
+        /// </summary>
+        /// <param name="relativePath">Relative entry path to inspect.</param>
+        /// <returns>The number of directory separators in the relative path.</returns>
+        static int CountPathDepth(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                return 0;
+            }
+
+            int depth = 0;
+            for (int index = 0; index < relativePath.Length; index++) {
+                if (relativePath[index] == '/') {
+                    depth++;
+                }
+            }
+
+            return depth;
         }
 
         sealed class PackfileSegmentManifest {

@@ -13,7 +13,9 @@
   <PropertyGroup Condition="
     $([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('\engine\'))
     Or $([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('/engine/'))">
-    <UseCommonOutputDirectory>true</UseCommonOutputDirectory>
+    <UseCommonOutputDirectory Condition="
+      !$([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('.tests\'))
+      And !$([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('.tests/'))">true</UseCommonOutputDirectory>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
