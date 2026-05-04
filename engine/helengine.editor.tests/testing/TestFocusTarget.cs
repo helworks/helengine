@@ -64,13 +64,14 @@ namespace helengine.editor.tests.testing {
         /// <summary>
         /// Returns true when the provided screen point falls inside the target's bounds.
         /// </summary>
-        /// <param name="point">Screen point to evaluate.</param>
+        /// <param name="x">Screen-space X coordinate to evaluate.</param>
+        /// <param name="y">Screen-space Y coordinate to evaluate.</param>
         /// <returns>True when the point is inside the target's bounds.</returns>
-        public bool ContainsScreenPoint(int2 point) {
-            return point.X >= Bounds.X &&
-                   point.X < Bounds.X + Bounds.Z &&
-                   point.Y >= Bounds.Y &&
-                   point.Y < Bounds.Y + Bounds.W;
+        public bool ContainsScreenPoint(int x, int y) {
+            return x >= Bounds.X &&
+                   x < Bounds.X + Bounds.Z &&
+                   y >= Bounds.Y &&
+                   y < Bounds.Y + Bounds.W;
         }
 
         /// <summary>

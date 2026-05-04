@@ -123,7 +123,7 @@ namespace helengine.editor {
             cookedManifest = ReplaceCodeModules(cookedManifest, codeModules);
             cookedManifest = RunResolveVariants(cookedManifest, workspace);
             cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
-            WriteRuntimeNativeManifestSources(cookedManifest, PlatformDescriptor.GeneratedCoreCppRootPath);
+            WriteRuntimeNativeManifestSources(cookedManifest, workspace.GeneratedCoreRootPath);
             RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
 
             return RunPackagePlatform(
@@ -135,7 +135,8 @@ namespace helengine.editor {
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
                 selectedCodegenProfileId,
-                selectedMediaProfileId);
+                selectedMediaProfileId,
+                selectedStorageProfileId);
         }
 
         /// <summary>
@@ -150,7 +151,7 @@ namespace helengine.editor {
                 builderDefinition,
                 selectedCodegenProfile,
                 queueItem.SelectedCodegenOptionValues,
-                PlatformDescriptor.GeneratedCoreCppRootPath,
+                workspace.GeneratedCoreRootPath,
                 PlatformDescriptor.CodegenToolPath,
                 CancellationToken.None);
         }
@@ -321,7 +322,8 @@ namespace helengine.editor {
             string selectedBuildProfileId,
             string selectedGraphicsProfileId,
             string selectedCodegenProfileId,
-            string selectedMediaProfileId) {
+            string selectedMediaProfileId,
+            string selectedStorageProfileId) {
             PlatformBuildRequest request = BuildRequest(
                 queueItem,
                 cookedManifest,
@@ -330,7 +332,9 @@ namespace helengine.editor {
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
                 selectedCodegenProfileId,
-                selectedMediaProfileId);
+                selectedMediaProfileId,
+                workspace.GeneratedCoreRootPath,
+                selectedStorageProfileId);
             EditorPlatformBuildProgressReporter progressReporter = new();
             EditorPlatformBuildDiagnosticCollector diagnosticCollector = new();
 
@@ -376,7 +380,9 @@ namespace helengine.editor {
             string selectedBuildProfileId,
             string selectedGraphicsProfileId,
             string selectedCodegenProfileId,
-            string selectedMediaProfileId) {
+            string selectedMediaProfileId,
+            string generatedCoreRootPath,
+            string selectedStorageProfileId) {
             if (cookedManifest == null) {
                 throw new ArgumentNullException(nameof(cookedManifest));
             }
@@ -448,9 +454,9 @@ namespace helengine.editor {
                 queueItem.SelectedBuildOptionValues,
                 queueItem.SelectedGraphicsOptionValues,
                 queueItem.SelectedCodegenOptionValues,
-                PlatformDescriptor.GeneratedCoreCppRootPath,
+                generatedCoreRootPath,
                 selectedMediaProfileId,
-                queueItem.SelectedStorageProfileId);
+                selectedStorageProfileId);
         }
 
         static string BuildFailureMessage(PlatformBuildReport report) {

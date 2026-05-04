@@ -77,6 +77,11 @@ namespace helengine {
         public InputSystem Input { get; private set; }
 
         /// <summary>
+        /// Gets the portable input system that resolves logical actions from raw frame data.
+        /// </summary>
+        public InputSystem InputSystem => Input;
+
+        /// <summary>
         /// Gets the pointer interaction router used to translate raw pointer state into hover and press events.
         /// </summary>
         public PointerInteractionSystem PointerInteractionSystem { get; private set; }
