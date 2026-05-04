@@ -18,6 +18,7 @@ namespace helengine.editor.tests.rendering {
             camera.RenderSettings.DepthPrepassMode = DepthPrepassMode.Always;
             camera.RenderSettings.PostProcessTier = PostProcessTier.High;
             TestDrawable3D drawable = new TestDrawable3D();
+            DirectionalLightComponent light = new DirectionalLightComponent();
             RenderFrame frame = new RenderFrame(
                 camera,
                 [
@@ -26,7 +27,7 @@ namespace helengine.editor.tests.rendering {
                         true,
                         new RenderFrameBatchingMetadata(false, false, false))
                 ],
-                [],
+                [new RenderFrameLightSubmission(light)],
                 [new RenderFrameShadowCasterSubmission(drawable)]);
 
             RenderPlan plan = builder.Build(frame, DirectX11RenderCapabilityProfile.CreateDefault());
@@ -41,6 +42,33 @@ namespace helengine.editor.tests.rendering {
                     RenderPassKind.Present
                 ],
                 plan.Passes);
+        }
+
+        /// <summary>
+        /// Ensures shadow passes are not scheduled when the frame has shadow casters but no shadow-enabled lights.
+        /// </summary>
+        [Fact]
+        public void Build_WhenFrameHasShadowCastersButNoShadowEnabledLights_SkipsShadowPass() {
+            InitializeCore();
+            DirectX11RenderPlanBuilder builder = new DirectX11RenderPlanBuilder();
+            CameraComponent camera = new CameraComponent();
+            TestDrawable3D drawable = new TestDrawable3D();
+            PointLightComponent light = new PointLightComponent();
+            light.ShadowsEnabled = false;
+            RenderFrame frame = new RenderFrame(
+                camera,
+                [
+                    new RenderFrameDrawableSubmission(
+                        drawable,
+                        false,
+                        new RenderFrameBatchingMetadata(false, false, false))
+                ],
+                [new RenderFrameLightSubmission(light)],
+                [new RenderFrameShadowCasterSubmission(drawable)]);
+
+            RenderPlan plan = builder.Build(frame, DirectX11RenderCapabilityProfile.CreateDefault());
+
+            Assert.DoesNotContain(RenderPassKind.Shadow, plan.Passes);
         }
 
         /// <summary>

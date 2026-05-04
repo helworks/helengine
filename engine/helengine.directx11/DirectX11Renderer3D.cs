@@ -15,7 +15,7 @@ namespace helengine.directx11 {
     /// <summary>
     /// DirectX11-backed renderer responsible for 3D rendering and swap chain management.
     /// </summary>
-    public class DirectX11Renderer3D : RenderManager3D, IRenderVisitor3D {
+    public class DirectX11Renderer3D : RenderManager3D, IRenderVisitor3D, IDirectX11RenderPassExecutor {
         /// <summary>
         /// Number of buffers used by each swap chain.
         /// </summary>
@@ -32,6 +32,10 @@ namespace helengine.directx11 {
         /// Shader filename used for missing-material rendering.
         /// </summary>
         const string MissingMaterialShaderFileName = "MissingMaterial.fx";
+        /// <summary>
+        /// Maximum number of point-shadow cube textures bound by the built-in forward shader.
+        /// </summary>
+        const int MaximumPointShadowTextureSlots = 4;
 
         /// <summary>
         /// Tracks elapsed time for frame statistics.
@@ -45,6 +49,14 @@ namespace helengine.directx11 {
         /// Draw call count from the previous frame.
         /// </summary>
         int lastDrawCalls;
+        /// <summary>
+        /// Visible light count selected for the previous extracted camera frame.
+        /// </summary>
+        int lastSelectedLightCount;
+        /// <summary>
+        /// Shadow-enabled light count selected for the previous extracted camera frame.
+        /// </summary>
+        int lastSelectedShadowLightCount;
         /// <summary>
         /// Frames per second measured on the previous frame.
         /// </summary>
@@ -69,6 +81,18 @@ namespace helengine.directx11 {
         /// Constant buffer used for custom effect shader data.
         /// </summary>
         Buffer customPassConstantBuffer;
+        /// <summary>
+        /// Constant buffer used for packed forward-light shader data.
+        /// </summary>
+        Buffer forwardLightConstantBuffer;
+        /// <summary>
+        /// Constant buffer used for packed atlas-shadow shader data.
+        /// </summary>
+        Buffer shadowConstantBuffer;
+        /// <summary>
+        /// Constant buffer used by the built-in point-shadow depth shader.
+        /// </summary>
+        Buffer pointShadowDepthConstantBuffer;
         /// <summary>
         /// Cache of compiled DirectX11 shader resources.
         /// </summary>
@@ -157,6 +181,58 @@ namespace helengine.directx11 {
         /// Cached view-projection matrix for the active camera render pass.
         /// </summary>
         float4x4 currentViewProjection;
+        /// <summary>
+        /// Shared extraction service used to build backend-neutral render frames.
+        /// </summary>
+        RenderFrameExtractionService FrameExtractionServiceValue;
+        /// <summary>
+        /// Shared render-plan builder used to select the ordered DirectX11 pass list.
+        /// </summary>
+        DirectX11RenderPlanBuilder RenderPlanBuilderValue;
+        /// <summary>
+        /// Shared plan executor used to dispatch selected pass kinds into runtime pass methods.
+        /// </summary>
+        DirectX11RenderPlanExecutor RenderPlanExecutorValue;
+        /// <summary>
+        /// Queue snapshot visitor used to copy ordered drawables before extraction.
+        /// </summary>
+        DirectX11RenderQueueSnapshotVisitor RenderQueueSnapshotVisitorValue;
+        /// <summary>
+        /// Builder that packs selected lights into the built-in DirectX11 forward-light constant buffer layout.
+        /// </summary>
+        DirectX11ForwardLightShaderDataBuilder ForwardLightShaderDataBuilderValue;
+        /// <summary>
+        /// Service that applies the DirectX11 visible-light budget to extracted lights.
+        /// </summary>
+        DirectX11LightSelectionService LightSelectionServiceValue;
+        /// <summary>
+        /// Service that plans DirectX11 shadow resources for the selected light set.
+        /// </summary>
+        DirectX11ShadowResourcePlanner ShadowResourcePlannerValue;
+        /// <summary>
+        /// Builder that packs atlas-shadow data into the built-in DirectX11 shadow constant buffer layout.
+        /// </summary>
+        DirectX11ShadowShaderDataBuilder ShadowShaderDataBuilderValue;
+        /// <summary>
+        /// Tracks the shadow resources planned for the current extracted camera frame.
+        /// </summary>
+        DirectX11ShadowResourceSet CurrentShadowResourceSet;
+        /// <summary>
+        /// Cached DirectX11 shadow atlas resources for the current runtime slice.
+        /// </summary>
+        DirectX11ShadowAtlasResources ShadowAtlasResourcesValue;
+        /// <summary>
+        /// Cached depth-only shader pass used while rendering atlas shadows.
+        /// </summary>
+        DirectX11ShaderPass ShadowDepthShaderPassValue;
+        /// <summary>
+        /// Cached point-shadow depth shader pass used while rendering cube-shadow faces.
+        /// </summary>
+        DirectX11ShaderPass PointShadowDepthShaderPassValue;
+        /// <summary>
+        /// Cached point-shadow cube resources reused across frames.
+        /// </summary>
+        List<DirectX11PointShadowCubeResources> PointShadowCubeResourcesValue;
 
         /// <summary>
         /// Initializes the DirectX11 device and default pipelines.
@@ -170,6 +246,13 @@ namespace helengine.directx11 {
             MaterialsByShaderAssetId = new Dictionary<string, List<DirectX11MaterialResource>>(StringComparer.OrdinalIgnoreCase);
             RasterizerStateCache = new Dictionary<int, RasterizerState>();
             DepthStencilStateCache = new Dictionary<int, DepthStencilState>();
+            FrameExtractionServiceValue = new RenderFrameExtractionService();
+            RenderPlanBuilderValue = new DirectX11RenderPlanBuilder();
+            RenderPlanExecutorValue = new DirectX11RenderPlanExecutor(true, false);
+            RenderQueueSnapshotVisitorValue = new DirectX11RenderQueueSnapshotVisitor();
+            LightSelectionServiceValue = new DirectX11LightSelectionService();
+            ShadowResourcePlannerValue = new DirectX11ShadowResourcePlanner();
+            PointShadowCubeResourcesValue = new List<DirectX11PointShadowCubeResources>();
 
             WindowResized += OnWindowResized;
 
@@ -191,6 +274,12 @@ namespace helengine.directx11 {
             constantBuffer = new Buffer(Device, Utilities.SizeOf<StandardMeshShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
             customPassConstantBuffer = new Buffer(Device, Utilities.SizeOf<CustomEffectShaderData>(), ResourceUsage.Default,
+                BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
+            forwardLightConstantBuffer = new Buffer(Device, Utilities.SizeOf<DirectX11ForwardLightShaderData>(), ResourceUsage.Default,
+                BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
+            shadowConstantBuffer = new Buffer(Device, Utilities.SizeOf<DirectX11ShadowShaderData>(), ResourceUsage.Default,
+                BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
+            pointShadowDepthConstantBuffer = new Buffer(Device, Utilities.SizeOf<DirectX11PointShadowDepthShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
 
             blendState = CreateBlendState(BlendOption.SourceAlpha, BlendOption.InverseSourceAlpha, BlendOperation.Add);
@@ -253,6 +342,16 @@ namespace helengine.directx11 {
         internal double LastFrameTimeMs => lastFrameTimeMs;
 
         /// <summary>
+        /// Gets the visible light count selected for the previous extracted camera frame.
+        /// </summary>
+        internal int LastSelectedLightCount => lastSelectedLightCount;
+
+        /// <summary>
+        /// Gets the shadow-enabled light count selected for the previous extracted camera frame.
+        /// </summary>
+        internal int LastSelectedShadowLightCount => lastSelectedShadowLightCount;
+
+        /// <summary>
         /// Releases GPU resources and detaches from window events.
         /// </summary>
         public override void Dispose() {
@@ -270,8 +369,15 @@ namespace helengine.directx11 {
             rasterizerState3D?.Dispose();
             materialTextureSampler?.Dispose();
             blendState?.Dispose();
+            pointShadowDepthConstantBuffer?.Dispose();
+            shadowConstantBuffer?.Dispose();
+            forwardLightConstantBuffer?.Dispose();
             customPassConstantBuffer?.Dispose();
             constantBuffer?.Dispose();
+            ShadowAtlasResourcesValue?.Dispose();
+            ShadowDepthShaderPassValue?.Dispose();
+            PointShadowDepthShaderPassValue?.Dispose();
+            DisposePointShadowCubeResources();
             DisposeRasterizerStateCache();
             DisposeDepthStencilStateCache();
             DisposeMissingMaterial();
@@ -637,14 +743,71 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
-        /// Renders a camera's 3D pass and then its 2D overlay.
+        /// Extracts, plans, and executes one camera render using the shared frame contracts.
         /// </summary>
         /// <param name="surface">Render surface for the window.</param>
         /// <param name="camera">Camera to render.</param>
-        void RenderCamera(DirectX11SwapChainSurface surface, ICamera camera) {
-            var context = Device.ImmediateContext;
-            RenderTargetView renderTargetView = surface.RenderTargetView;
-            DepthStencilView depthStencilView = surface.DepthStencilView;
+        protected virtual void RenderCamera(DirectX11SwapChainSurface surface, CameraComponent camera) {
+            if (surface == null) {
+                throw new ArgumentNullException(nameof(surface));
+            } else if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            }
+
+            IDrawable3D[] drawables = SnapshotRenderQueue(camera.RenderQueue3D);
+            LightComponent[] lights = SnapshotVisibleLights(camera);
+            RendererBackendCapabilityProfile capabilityProfile = GetCapabilityProfile();
+            RenderFrameExtractionResult extractionResult = GetFrameExtractionService().Extract(
+                [camera],
+                drawables,
+                lights,
+                capabilityProfile);
+            RenderFrame frame = extractionResult.Frames[0];
+            RenderFrameLightSubmission[] selectedLights = GetLightSelectionService().SelectVisibleLights(frame.LightSubmissions, capabilityProfile.MaximumVisibleLights);
+            lastSelectedLightCount = selectedLights.Length;
+            DirectX11ShadowResourceSet shadowResourceSet = GetShadowResourcePlanner().PlanResources(selectedLights, capabilityProfile.MaximumShadowedLights);
+            lastSelectedShadowLightCount = shadowResourceSet.SelectedShadowLights.Count;
+            CurrentShadowResourceSet = shadowResourceSet;
+            RenderPlan plan = GetRenderPlanBuilder().Build(frame, extractionResult.BackendCapabilities);
+            DirectX11RenderPassExecutionContext context = new DirectX11RenderPassExecutionContext(
+                frame,
+                surface,
+                selectedLights,
+                shadowResourceSet.SelectedShadowLights,
+                shadowResourceSet.AtlasAllocations,
+                shadowResourceSet.PointShadowResources);
+            ExecuteCameraPlan(context, plan);
+        }
+
+        /// <summary>
+        /// Executes one extracted camera plan after the frame and pass order have been resolved.
+        /// </summary>
+        /// <param name="context">Execution context containing the frame and target surface.</param>
+        /// <param name="plan">Ordered pass list to execute.</param>
+        protected virtual void ExecuteCameraPlan(DirectX11RenderPassExecutionContext context, RenderPlan plan) {
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            } else if (plan == null) {
+                throw new ArgumentNullException(nameof(plan));
+            }
+
+            PrepareCameraFrame(context);
+            GetRenderPlanExecutor().ExecutePlan(context, plan, this);
+        }
+
+        /// <summary>
+        /// Prepares the DirectX11 pipeline and render targets for one extracted camera frame.
+        /// </summary>
+        /// <param name="context">Execution context containing the frame and target surface.</param>
+        protected virtual void PrepareCameraFrame(DirectX11RenderPassExecutionContext context) {
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            CameraComponent camera = context.Frame.Camera;
+            var deviceContext = Device.ImmediateContext;
+            RenderTargetView renderTargetView = context.Surface.RenderTargetView;
+            DepthStencilView depthStencilView = context.Surface.DepthStencilView;
             CameraClearSettings clearSettings = camera.ClearSettings;
             bool clearColor = clearSettings.ClearColorEnabled;
             float4 clearColorValue = clearSettings.ClearColor;
@@ -663,9 +826,9 @@ namespace helengine.directx11 {
                 depthStencilView = directX11Target.DepthStencilView;
             }
 
-            context.OutputMerger.SetTargets(depthStencilView, renderTargetView);
+            deviceContext.OutputMerger.SetTargets(depthStencilView, renderTargetView);
             if (clearColor) {
-                context.ClearRenderTargetView(renderTargetView, new RawColor4(clearColorValue.X, clearColorValue.Y, clearColorValue.Z, clearColorValue.W));
+                deviceContext.ClearRenderTargetView(renderTargetView, new RawColor4(clearColorValue.X, clearColorValue.Y, clearColorValue.Z, clearColorValue.W));
             }
             DepthStencilClearFlags clearFlags = 0;
             if (clearDepth) {
@@ -675,10 +838,11 @@ namespace helengine.directx11 {
                 clearFlags |= DepthStencilClearFlags.Stencil;
             }
             if (clearFlags != 0) {
-                context.ClearDepthStencilView(depthStencilView, clearFlags, clearDepthValue, clearStencilValue);
+                deviceContext.ClearDepthStencilView(depthStencilView, clearFlags, clearDepthValue, clearStencilValue);
             }
-            context.Rasterizer.State = rasterizerState3D;
-            context.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
+
+            deviceContext.Rasterizer.State = rasterizerState3D;
+            deviceContext.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
             ActiveRasterizerState = rasterizerState3D;
             ActiveDepthStencilState = depthStencilState3D;
 
@@ -691,26 +855,534 @@ namespace helengine.directx11 {
             float4x4.CreateLookAt(ref cameraPos, ref cameraTarget, ref cameraUp, out view);
 
             float4 viewport = camera.Viewport;
-            context.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
+            deviceContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
 
             float4x4 projection;
             float4x4.CreatePerspectiveFieldOfView((float)Math.PI / 4.0f, (viewport.Z / viewport.W), 0.1f, 100f, out projection);
 
             float4x4.Multiply(ref view, ref projection, out currentViewProjection);
 
-            context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+            deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             isCustomPassActive = false;
             customColorProvider = null;
             ActiveMaterial = null;
-            context.OutputMerger.SetBlendState(null);
+            deviceContext.OutputMerger.SetBlendState(null);
             ActiveBlendState = null;
-            context.VertexShader.SetConstantBuffer(0, constantBuffer);
-            context.PixelShader.SetConstantBuffer(0, constantBuffer);
+            deviceContext.VertexShader.SetConstantBuffer(0, constantBuffer);
+            deviceContext.PixelShader.SetConstantBuffer(0, constantBuffer);
+            UpdateShadowShaderData(new DirectX11ShadowShaderData());
+            UpdateShadowAtlasBindings(false);
+            UpdatePointShadowBindings(0);
+            PrepareForwardLightState(context);
+        }
 
-            IRenderQueue3D renderQueue = camera.RenderQueue3D;
-            renderQueue.VisitOrdered(this);
+        /// <summary>
+        /// Executes the depth-only prepass for the extracted frame.
+        /// </summary>
+        /// <param name="context">Execution context containing the frame and target surface.</param>
+        public virtual void ExecuteDepthPrepass(DirectX11RenderPassExecutionContext context) {
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            }
+        }
 
-            renderer2D.RenderCamera(camera);
+        /// <summary>
+        /// Executes the shadow pass for the extracted frame.
+        /// </summary>
+        /// <param name="context">Execution context containing the frame and target surface.</param>
+        public virtual void ExecuteShadowPass(DirectX11RenderPassExecutionContext context) {
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            DirectX11ShadowResourceSet shadowResourceSet = CurrentShadowResourceSet;
+            if (shadowResourceSet == null) {
+                return;
+            }
+
+            if (shadowResourceSet.AtlasAllocations.Count > 0) {
+                DirectX11ShadowAtlasResources atlasResources = GetShadowAtlasResources(shadowResourceSet);
+                RenderShadowAtlas(context, shadowResourceSet, atlasResources);
+            }
+
+            if (shadowResourceSet.PointShadowResources.Count > 0) {
+                RenderPointShadowResources(context, shadowResourceSet);
+            }
+
+            PrepareShadowShaderState(context, shadowResourceSet);
+        }
+
+        /// <summary>
+        /// Executes the opaque forward pass for the extracted frame.
+        /// </summary>
+        /// <param name="context">Execution context containing the frame and target surface.</param>
+        public virtual void ExecuteOpaqueForwardPass(DirectX11RenderPassExecutionContext context) {
+            ExecuteGeometryPass(context, false);
+        }
+
+        /// <summary>
+        /// Executes the transparent forward pass for the extracted frame.
+        /// </summary>
+        /// <param name="context">Execution context containing the frame and target surface.</param>
+        public virtual void ExecuteTransparentForwardPass(DirectX11RenderPassExecutionContext context) {
+            ExecuteGeometryPass(context, true);
+        }
+
+        /// <summary>
+        /// Executes the post-process chain for the extracted frame.
+        /// </summary>
+        /// <param name="context">Execution context containing the frame and target surface.</param>
+        public virtual void ExecutePostProcessPass(DirectX11RenderPassExecutionContext context) {
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            }
+        }
+
+        /// <summary>
+        /// Executes the present stage for the extracted frame.
+        /// </summary>
+        /// <param name="context">Execution context containing the frame and target surface.</param>
+        public virtual void ExecutePresentPass(DirectX11RenderPassExecutionContext context) {
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            renderer2D.RenderCamera(context.Frame.Camera);
+        }
+
+        /// <summary>
+        /// Prepares the packed forward-light shader state for the current extracted camera frame.
+        /// </summary>
+        /// <param name="context">Execution context containing the selected light set for the current frame.</param>
+        protected virtual void PrepareForwardLightState(DirectX11RenderPassExecutionContext context) {
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            DirectX11ForwardLightShaderData data = BuildForwardLightShaderData(context.SelectedLights);
+            UpdateForwardLightShaderData(data);
+        }
+
+        /// <summary>
+        /// Builds the packed forward-light shader data for the selected lights of the current frame.
+        /// </summary>
+        /// <param name="selectedLights">Selected lights that survived backend budgeting.</param>
+        /// <returns>Packed forward-light shader data.</returns>
+        protected virtual DirectX11ForwardLightShaderData BuildForwardLightShaderData(IReadOnlyList<RenderFrameLightSubmission> selectedLights) {
+            return GetForwardLightShaderDataBuilder().Build(selectedLights);
+        }
+
+        /// <summary>
+        /// Gets the DirectX11 shadow-resource planner used to derive shadow execution resources for the current frame.
+        /// </summary>
+        /// <returns>DirectX11 shadow-resource planner.</returns>
+        protected virtual DirectX11ShadowResourcePlanner GetShadowResourcePlanner() {
+            if (ShadowResourcePlannerValue == null) {
+                ShadowResourcePlannerValue = new DirectX11ShadowResourcePlanner();
+            }
+
+            return ShadowResourcePlannerValue;
+        }
+
+        /// <summary>
+        /// Retrieves the shared atlas-shadow shader-data builder, creating it lazily when necessary.
+        /// </summary>
+        /// <returns>Shared DirectX11 atlas-shadow shader-data builder.</returns>
+        protected virtual DirectX11ShadowShaderDataBuilder GetShadowShaderDataBuilder() {
+            if (ShadowShaderDataBuilderValue == null) {
+                ShadowShaderDataBuilderValue = new DirectX11ShadowShaderDataBuilder();
+            }
+
+            return ShadowShaderDataBuilderValue;
+        }
+
+        /// <summary>
+        /// Prepares the atlas-shadow shader state for the current extracted camera frame.
+        /// </summary>
+        /// <param name="context">Execution context containing selected forward and shadow lights.</param>
+        /// <param name="shadowResourceSet">Planned shadow resources for the current frame.</param>
+        protected virtual void PrepareShadowShaderState(DirectX11RenderPassExecutionContext context, DirectX11ShadowResourceSet shadowResourceSet) {
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            } else if (shadowResourceSet == null) {
+                throw new ArgumentNullException(nameof(shadowResourceSet));
+            }
+
+            DirectX11ShadowShaderData data = BuildShadowShaderData(context, shadowResourceSet);
+            UpdateShadowShaderData(data);
+            UpdateShadowAtlasBindings(shadowResourceSet.AtlasAllocations.Count > 0);
+            UpdatePointShadowBindings(shadowResourceSet.PointShadowResources.Count);
+        }
+
+        /// <summary>
+        /// Builds the atlas-shadow shader data for the current extracted camera frame.
+        /// </summary>
+        /// <param name="context">Execution context containing selected forward and shadow lights.</param>
+        /// <param name="shadowResourceSet">Planned shadow resources for the current frame.</param>
+        /// <returns>Packed atlas-shadow shader data.</returns>
+        protected virtual DirectX11ShadowShaderData BuildShadowShaderData(
+            DirectX11RenderPassExecutionContext context,
+            DirectX11ShadowResourceSet shadowResourceSet) {
+            return GetShadowShaderDataBuilder().Build(context.Frame.Camera, context.SelectedLights, shadowResourceSet);
+        }
+
+        /// <summary>
+        /// Uploads the packed atlas-shadow shader data to the DirectX11 pixel-shader constant-buffer slot.
+        /// </summary>
+        /// <param name="data">Packed atlas-shadow shader data prepared for the current frame.</param>
+        protected virtual void UpdateShadowShaderData(DirectX11ShadowShaderData data) {
+            var context = Device.ImmediateContext;
+            context.UpdateSubresource(ref data, shadowConstantBuffer);
+            context.PixelShader.SetConstantBuffer(2, shadowConstantBuffer);
+        }
+
+        /// <summary>
+        /// Updates the pixel-shader atlas-shadow resource bindings for the current frame.
+        /// </summary>
+        /// <param name="atlasWasAvailable">Whether the current frame prepared an atlas shadow resource.</param>
+        protected virtual void UpdateShadowAtlasBindings(bool atlasWasAvailable) {
+            var context = Device.ImmediateContext;
+            if (atlasWasAvailable && ShadowAtlasResourcesValue != null) {
+                context.PixelShader.SetShaderResource(1, ShadowAtlasResourcesValue.ShaderResourceView);
+                context.PixelShader.SetSampler(1, ShadowAtlasResourcesValue.SamplerState);
+            } else {
+                context.PixelShader.SetShaderResource(1, null);
+                context.PixelShader.SetSampler(1, null);
+            }
+        }
+
+        /// <summary>
+        /// Updates the pixel-shader point-shadow resource bindings for the current frame.
+        /// </summary>
+        /// <param name="pointShadowResourceCount">Number of point-shadow resources prepared for the current frame.</param>
+        protected virtual void UpdatePointShadowBindings(int pointShadowResourceCount) {
+            var context = Device.ImmediateContext;
+            for (int slotIndex = 0; slotIndex < MaximumPointShadowTextureSlots; slotIndex++) {
+                ShaderResourceView shaderResourceView = slotIndex < pointShadowResourceCount && slotIndex < PointShadowCubeResourcesValue.Count
+                    ? PointShadowCubeResourcesValue[slotIndex].ShaderResourceView
+                    : null;
+                context.PixelShader.SetShaderResource(2 + slotIndex, shaderResourceView);
+            }
+
+            SamplerState samplerState = pointShadowResourceCount > 0 && PointShadowCubeResourcesValue.Count > 0
+                ? PointShadowCubeResourcesValue[0].SamplerState
+                : null;
+            context.PixelShader.SetSampler(2, null);
+            context.PixelShader.SetSampler(2, samplerState);
+        }
+
+        /// <summary>
+        /// Renders point-light cube shadow resources for the current extracted camera frame.
+        /// </summary>
+        /// <param name="context">Execution context containing the current camera frame.</param>
+        /// <param name="shadowResourceSet">Planned shadow resources for the current frame.</param>
+        protected virtual void RenderPointShadowResources(DirectX11RenderPassExecutionContext context, DirectX11ShadowResourceSet shadowResourceSet) {
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            } else if (shadowResourceSet == null) {
+                throw new ArgumentNullException(nameof(shadowResourceSet));
+            }
+
+            IReadOnlyList<DirectX11PointShadowCubeResources> pointShadowCubeResources = GetPointShadowCubeResources(shadowResourceSet);
+            DirectX11ShaderPass pointShadowPass = GetPointShadowDepthShaderPass();
+            var deviceContext = Device.ImmediateContext;
+            deviceContext.Rasterizer.State = rasterizerState3D;
+            deviceContext.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
+            deviceContext.OutputMerger.SetBlendState(null);
+            deviceContext.InputAssembler.InputLayout = pointShadowPass.InputLayout;
+            deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+            deviceContext.VertexShader.Set(pointShadowPass.VertexShader);
+            deviceContext.PixelShader.Set(pointShadowPass.PixelShader);
+            deviceContext.VertexShader.SetConstantBuffer(0, pointShadowDepthConstantBuffer);
+            deviceContext.PixelShader.SetConstantBuffer(0, pointShadowDepthConstantBuffer);
+
+            for (int resourceIndex = 0; resourceIndex < shadowResourceSet.PointShadowResources.Count; resourceIndex++) {
+                DirectX11PointShadowResource pointShadowResource = shadowResourceSet.PointShadowResources[resourceIndex];
+                PointLightComponent pointLight = (PointLightComponent)pointShadowResource.Light.Light;
+                DirectX11PointShadowCubeResources cubeResources = pointShadowCubeResources[resourceIndex];
+                for (int faceIndex = 0; faceIndex < 6; faceIndex++) {
+                    deviceContext.OutputMerger.SetTargets(cubeResources.DepthStencilViews[faceIndex], cubeResources.RenderTargetViews[faceIndex]);
+                    deviceContext.ClearDepthStencilView(cubeResources.DepthStencilViews[faceIndex], DepthStencilClearFlags.Depth, 1f, 0);
+                    deviceContext.ClearRenderTargetView(cubeResources.RenderTargetViews[faceIndex], new RawColor4(1f, 0f, 0f, 1f));
+                    deviceContext.Rasterizer.SetViewport(0, 0, cubeResources.Resolution, cubeResources.Resolution);
+                    float4x4 lightViewProjection = GetShadowShaderDataBuilder().BuildPointShadowViewProjectionMatrix(pointLight, faceIndex);
+                    for (int casterIndex = 0; casterIndex < context.Frame.ShadowCasterSubmissions.Count; casterIndex++) {
+                        RenderFrameShadowCasterSubmission shadowCaster = context.Frame.ShadowCasterSubmissions[casterIndex];
+                        if (shadowCaster == null) {
+                            continue;
+                        }
+
+                        DrawPointShadowCaster(shadowCaster.Drawable, lightViewProjection, pointLight.Parent.Position, pointLight.Range);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Retrieves the point-shadow cube resources for the current runtime slice, recreating them when the planned count or resolution changes.
+        /// </summary>
+        /// <param name="shadowResourceSet">Planned shadow resources for the current frame.</param>
+        /// <returns>Point-shadow cube resources matching the planned point-shadow set.</returns>
+        protected virtual IReadOnlyList<DirectX11PointShadowCubeResources> GetPointShadowCubeResources(DirectX11ShadowResourceSet shadowResourceSet) {
+            if (shadowResourceSet == null) {
+                throw new ArgumentNullException(nameof(shadowResourceSet));
+            }
+
+            while (PointShadowCubeResourcesValue.Count > shadowResourceSet.PointShadowResources.Count) {
+                int lastIndex = PointShadowCubeResourcesValue.Count - 1;
+                PointShadowCubeResourcesValue[lastIndex].Dispose();
+                PointShadowCubeResourcesValue.RemoveAt(lastIndex);
+            }
+
+            for (int resourceIndex = 0; resourceIndex < shadowResourceSet.PointShadowResources.Count; resourceIndex++) {
+                DirectX11PointShadowResource pointShadowResource = shadowResourceSet.PointShadowResources[resourceIndex];
+                if (PointShadowCubeResourcesValue.Count <= resourceIndex) {
+                    PointShadowCubeResourcesValue.Add(new DirectX11PointShadowCubeResources(Device, pointShadowResource.Resolution));
+                    continue;
+                }
+
+                DirectX11PointShadowCubeResources cachedResources = PointShadowCubeResourcesValue[resourceIndex];
+                if (cachedResources.Resolution == pointShadowResource.Resolution) {
+                    continue;
+                }
+
+                cachedResources.Dispose();
+                PointShadowCubeResourcesValue[resourceIndex] = new DirectX11PointShadowCubeResources(Device, pointShadowResource.Resolution);
+            }
+
+            return PointShadowCubeResourcesValue;
+        }
+
+        /// <summary>
+        /// Retrieves the shadow atlas resources for the current runtime slice, recreating them when the planned dimensions change.
+        /// </summary>
+        /// <param name="shadowResourceSet">Planned shadow resources for the current frame.</param>
+        /// <returns>Shadow atlas resources matching the planned atlas dimensions.</returns>
+        protected virtual DirectX11ShadowAtlasResources GetShadowAtlasResources(DirectX11ShadowResourceSet shadowResourceSet) {
+            if (shadowResourceSet == null) {
+                throw new ArgumentNullException(nameof(shadowResourceSet));
+            }
+
+            if (shadowResourceSet.AtlasWidth <= 0 || shadowResourceSet.AtlasHeight <= 0) {
+                return null;
+            }
+
+            if (ShadowAtlasResourcesValue != null
+                && ShadowAtlasResourcesValue.Width == shadowResourceSet.AtlasWidth
+                && ShadowAtlasResourcesValue.Height == shadowResourceSet.AtlasHeight) {
+                return ShadowAtlasResourcesValue;
+            }
+
+            ShadowAtlasResourcesValue?.Dispose();
+            ShadowAtlasResourcesValue = new DirectX11ShadowAtlasResources(Device, shadowResourceSet.AtlasWidth, shadowResourceSet.AtlasHeight);
+            return ShadowAtlasResourcesValue;
+        }
+
+        /// <summary>
+        /// Retrieves the shared depth-only shader pass used while rendering atlas shadows.
+        /// </summary>
+        /// <returns>Depth-only DirectX11 shader pass.</returns>
+        protected virtual DirectX11ShaderPass GetShadowDepthShaderPass() {
+            if (ShadowDepthShaderPassValue == null) {
+                string shaderPath = DirectX11BuiltInShaderPathResolver.ResolveShaderPath("EditorShadowDepth.hlsl");
+                ShadowDepthShaderPassValue = new DirectX11ShaderPass(Device, shaderPath, "VS", "PS");
+            }
+
+            return ShadowDepthShaderPassValue;
+        }
+
+        /// <summary>
+        /// Retrieves the shared shader pass used while rendering point-shadow cube faces.
+        /// </summary>
+        /// <returns>Point-shadow depth DirectX11 shader pass.</returns>
+        protected virtual DirectX11ShaderPass GetPointShadowDepthShaderPass() {
+            if (PointShadowDepthShaderPassValue == null) {
+                string shaderPath = DirectX11BuiltInShaderPathResolver.ResolveShaderPath("EditorPointShadowDepth.hlsl");
+                PointShadowDepthShaderPassValue = new DirectX11ShaderPass(Device, shaderPath, "VS", "PS");
+            }
+
+            return PointShadowDepthShaderPassValue;
+        }
+
+        /// <summary>
+        /// Renders atlas-backed shadow-caster depth for the current extracted camera frame.
+        /// </summary>
+        /// <param name="context">Execution context containing the current camera frame.</param>
+        /// <param name="shadowResourceSet">Planned shadow resources for the current frame.</param>
+        /// <param name="atlasResources">Atlas resources receiving shadow depth.</param>
+        protected virtual void RenderShadowAtlas(
+            DirectX11RenderPassExecutionContext context,
+            DirectX11ShadowResourceSet shadowResourceSet,
+            DirectX11ShadowAtlasResources atlasResources) {
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            } else if (shadowResourceSet == null) {
+                throw new ArgumentNullException(nameof(shadowResourceSet));
+            } else if (atlasResources == null) {
+                throw new ArgumentNullException(nameof(atlasResources));
+            }
+
+            DirectX11ShaderPass shadowPass = GetShadowDepthShaderPass();
+            var deviceContext = Device.ImmediateContext;
+            deviceContext.OutputMerger.SetTargets(atlasResources.DepthStencilView, (RenderTargetView)null);
+            deviceContext.ClearDepthStencilView(atlasResources.DepthStencilView, DepthStencilClearFlags.Depth, 1f, 0);
+            deviceContext.Rasterizer.State = rasterizerState3D;
+            deviceContext.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
+            deviceContext.OutputMerger.SetBlendState(null);
+            deviceContext.InputAssembler.InputLayout = shadowPass.InputLayout;
+            deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+            deviceContext.VertexShader.Set(shadowPass.VertexShader);
+            deviceContext.PixelShader.Set(shadowPass.PixelShader);
+            deviceContext.VertexShader.SetConstantBuffer(0, customPassConstantBuffer);
+            deviceContext.PixelShader.SetConstantBuffer(0, customPassConstantBuffer);
+
+            for (int allocationIndex = 0; allocationIndex < shadowResourceSet.AtlasAllocations.Count; allocationIndex++) {
+                DirectX11ShadowAtlasAllocation allocation = shadowResourceSet.AtlasAllocations[allocationIndex];
+                deviceContext.Rasterizer.SetViewport(allocation.X, allocation.Y, allocation.Width, allocation.Height);
+                float4x4 lightViewProjection = GetShadowShaderDataBuilder().BuildShadowViewProjectionMatrix(context.Frame.Camera, allocation);
+                for (int casterIndex = 0; casterIndex < context.Frame.ShadowCasterSubmissions.Count; casterIndex++) {
+                    RenderFrameShadowCasterSubmission shadowCaster = context.Frame.ShadowCasterSubmissions[casterIndex];
+                    if (shadowCaster == null) {
+                        continue;
+                    }
+
+                    DrawShadowCaster(shadowCaster.Drawable, lightViewProjection);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Draws one shadow-caster submission using the current depth-only shadow shader pass.
+        /// </summary>
+        /// <param name="drawable">Drawable to render into the shadow atlas.</param>
+        /// <param name="lightViewProjection">Untransposed light view-projection matrix for the active atlas tile.</param>
+        protected virtual void DrawShadowCaster(IDrawable3D drawable, float4x4 lightViewProjection) {
+            if (drawable?.Parent == null || !drawable.Parent.Enabled) {
+                return;
+            }
+
+            var deviceContext = Device.ImmediateContext;
+            var data = (DirectX11ModelResource)drawable.Model;
+            deviceContext.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, Utilities.SizeOf<VertexPositionNormalUV>(), 0));
+            if (data.IndexBuffer != null && data.IndexCount > 0) {
+                Format indexFormat = data.Uses32BitIndices ? Format.R32_UInt : Format.R16_UInt;
+                deviceContext.InputAssembler.SetIndexBuffer(data.IndexBuffer, indexFormat, 0);
+            }
+
+            float4x4 world = BuildDrawableWorldMatrix(drawable);
+            float4x4 worldLightViewProjection;
+            float4x4.Multiply(ref world, ref lightViewProjection, out worldLightViewProjection);
+            float4x4 worldLightViewProjectionTransposed;
+            float4x4.Transpose(ref worldLightViewProjection, out worldLightViewProjectionTransposed);
+
+            CustomEffectShaderData shadowData = new CustomEffectShaderData {
+                worldViewProj = worldLightViewProjectionTransposed,
+                color = new float4(0f, 0f, 0f, 0f)
+            };
+            deviceContext.UpdateSubresource(ref shadowData, customPassConstantBuffer);
+            if (data.IndexBuffer != null && data.IndexCount > 0) {
+                deviceContext.DrawIndexed(data.IndexCount, 0, 0);
+            } else {
+                deviceContext.Draw(data.VertexCount, 0);
+            }
+        }
+
+        /// <summary>
+        /// Draws one shadow-caster submission into the active point-shadow cube face.
+        /// </summary>
+        /// <param name="drawable">Drawable to render into the active point-shadow cube face.</param>
+        /// <param name="lightViewProjection">Untransposed point-light view-projection matrix for the active cube face.</param>
+        /// <param name="lightPosition">Point-light position in world space.</param>
+        /// <param name="lightRange">Point-light effective range.</param>
+        protected virtual void DrawPointShadowCaster(IDrawable3D drawable, float4x4 lightViewProjection, float3 lightPosition, float lightRange) {
+            if (drawable?.Parent == null || !drawable.Parent.Enabled) {
+                return;
+            }
+
+            var deviceContext = Device.ImmediateContext;
+            var data = (DirectX11ModelResource)drawable.Model;
+            deviceContext.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, Utilities.SizeOf<VertexPositionNormalUV>(), 0));
+            if (data.IndexBuffer != null && data.IndexCount > 0) {
+                Format indexFormat = data.Uses32BitIndices ? Format.R32_UInt : Format.R16_UInt;
+                deviceContext.InputAssembler.SetIndexBuffer(data.IndexBuffer, indexFormat, 0);
+            }
+
+            float4x4 world = BuildDrawableWorldMatrix(drawable);
+            float4x4 worldLightViewProjection;
+            float4x4.Multiply(ref world, ref lightViewProjection, out worldLightViewProjection);
+            float4x4 worldTransposed;
+            float4x4.Transpose(ref world, out worldTransposed);
+            float4x4 worldLightViewProjectionTransposed;
+            float4x4.Transpose(ref worldLightViewProjection, out worldLightViewProjectionTransposed);
+
+            DirectX11PointShadowDepthShaderData shadowData = new DirectX11PointShadowDepthShaderData {
+                World = worldTransposed,
+                WorldViewProj = worldLightViewProjectionTransposed,
+                LightPositionAndRange = new float4(lightPosition.X, lightPosition.Y, lightPosition.Z, lightRange)
+            };
+            deviceContext.UpdateSubresource(ref shadowData, pointShadowDepthConstantBuffer);
+            if (data.IndexBuffer != null && data.IndexCount > 0) {
+                deviceContext.DrawIndexed(data.IndexCount, 0, 0);
+            } else {
+                deviceContext.Draw(data.VertexCount, 0);
+            }
+        }
+
+        /// <summary>
+        /// Builds the world matrix for one drawable from its parent transform.
+        /// </summary>
+        /// <param name="drawable">Drawable whose parent transform should be encoded.</param>
+        /// <returns>World matrix for the drawable parent.</returns>
+        protected virtual float4x4 BuildDrawableWorldMatrix(IDrawable3D drawable) {
+            if (drawable?.Parent == null) {
+                throw new ArgumentNullException(nameof(drawable));
+            }
+
+            float4 orientation = drawable.Parent.Orientation;
+            float4x4 rotation;
+            float4x4.CreateFromQuaternion(ref orientation, out rotation);
+            float3 scale = drawable.Parent.Scale;
+            float4x4 size;
+            float4x4.CreateScale(scale.X, scale.Y, scale.Z, out size);
+            float4x4 rotationScale;
+            float4x4.Multiply(ref rotation, ref size, out rotationScale);
+            float3 position = drawable.Parent.Position;
+            float4x4 translation;
+            float4x4.CreateTranslation(ref position, out translation);
+            float4x4 world;
+            float4x4.Multiply(ref rotationScale, ref translation, out world);
+            return world;
+        }
+
+        /// <summary>
+        /// Uploads the packed forward-light shader data to the DirectX11 pixel-shader constant-buffer slot.
+        /// </summary>
+        /// <param name="data">Packed forward-light shader data prepared for the current frame.</param>
+        protected virtual void UpdateForwardLightShaderData(DirectX11ForwardLightShaderData data) {
+            var context = Device.ImmediateContext;
+            context.UpdateSubresource(ref data, forwardLightConstantBuffer);
+            context.PixelShader.SetConstantBuffer(1, forwardLightConstantBuffer);
+        }
+
+        /// <summary>
+        /// Executes one filtered geometry pass for the extracted frame.
+        /// </summary>
+        /// <param name="context">Execution context containing the frame and target surface.</param>
+        /// <param name="transparentPass">Whether to draw transparent or opaque submissions.</param>
+        void ExecuteGeometryPass(DirectX11RenderPassExecutionContext context, bool transparentPass) {
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            RenderFrame frame = context.Frame;
+            for (int drawableIndex = 0; drawableIndex < frame.DrawableSubmissions.Count; drawableIndex++) {
+                RenderFrameDrawableSubmission submission = frame.DrawableSubmissions[drawableIndex];
+                if (submission == null || submission.IsTransparent != transparentPass) {
+                    continue;
+                }
+
+                Visit(submission.Drawable);
+            }
         }
 
         /// <summary>
@@ -838,8 +1510,6 @@ namespace helengine.directx11 {
 
             UpdateFrameStats();
 
-            var context = Device.ImmediateContext;
-
             RenderCustomPasses();
 
             var cameras = Core.Instance.ObjectManager.Cameras;
@@ -848,12 +1518,129 @@ namespace helengine.directx11 {
                 var surface = surfaces[i];
 
                 for (int j = 0; j < cameras.Count; j++) {
-                    var camera = cameras[j];
-                    RenderCamera(surface, camera);
+                    ICamera camera = cameras[j];
+                    if (camera is not CameraComponent cameraComponent) {
+                        throw new InvalidOperationException("DirectX11 rendering requires camera entries to be CameraComponent instances.");
+                    }
+
+                    RenderCamera(surface, cameraComponent);
                 }
 
                 surface.SwapChain.Present(0, PresentFlags.None);
             }
+        }
+
+        /// <summary>
+        /// Retrieves the shared frame-extraction service, creating it lazily when necessary.
+        /// </summary>
+        /// <returns>Shared render-frame extraction service.</returns>
+        RenderFrameExtractionService GetFrameExtractionService() {
+            if (FrameExtractionServiceValue == null) {
+                FrameExtractionServiceValue = new RenderFrameExtractionService();
+            }
+
+            return FrameExtractionServiceValue;
+        }
+
+        /// <summary>
+        /// Retrieves the shared DirectX11 render-plan builder, creating it lazily when necessary.
+        /// </summary>
+        /// <returns>Shared DirectX11 render-plan builder.</returns>
+        DirectX11RenderPlanBuilder GetRenderPlanBuilder() {
+            if (RenderPlanBuilderValue == null) {
+                RenderPlanBuilderValue = new DirectX11RenderPlanBuilder();
+            }
+
+            return RenderPlanBuilderValue;
+        }
+
+        /// <summary>
+        /// Retrieves the shared DirectX11 render-plan executor, creating it lazily when necessary.
+        /// </summary>
+        /// <returns>Shared DirectX11 render-plan executor.</returns>
+        DirectX11RenderPlanExecutor GetRenderPlanExecutor() {
+            if (RenderPlanExecutorValue == null) {
+                RenderPlanExecutorValue = new DirectX11RenderPlanExecutor(true, false);
+            }
+
+            return RenderPlanExecutorValue;
+        }
+
+        /// <summary>
+        /// Retrieves the shared forward-light shader-data builder, creating it lazily when necessary.
+        /// </summary>
+        /// <returns>Shared forward-light shader-data builder.</returns>
+        DirectX11ForwardLightShaderDataBuilder GetForwardLightShaderDataBuilder() {
+            if (ForwardLightShaderDataBuilderValue == null) {
+                ForwardLightShaderDataBuilderValue = new DirectX11ForwardLightShaderDataBuilder();
+            }
+
+            return ForwardLightShaderDataBuilderValue;
+        }
+
+        /// <summary>
+        /// Retrieves the shared DirectX11 light-selection service, creating it lazily when necessary.
+        /// </summary>
+        /// <returns>Shared DirectX11 light-selection service.</returns>
+        DirectX11LightSelectionService GetLightSelectionService() {
+            if (LightSelectionServiceValue == null) {
+                LightSelectionServiceValue = new DirectX11LightSelectionService();
+            }
+
+            return LightSelectionServiceValue;
+        }
+
+        /// <summary>
+        /// Copies one ordered camera render queue into an extraction-ready snapshot.
+        /// </summary>
+        /// <param name="renderQueue">Ordered render queue to snapshot.</param>
+        /// <returns>Snapshot of the ordered queue contents.</returns>
+        IDrawable3D[] SnapshotRenderQueue(IRenderQueue3D renderQueue) {
+            if (renderQueue == null) {
+                throw new ArgumentNullException(nameof(renderQueue));
+            }
+
+            DirectX11RenderQueueSnapshotVisitor snapshotVisitor = RenderQueueSnapshotVisitorValue;
+            if (snapshotVisitor == null) {
+                snapshotVisitor = new DirectX11RenderQueueSnapshotVisitor();
+                RenderQueueSnapshotVisitorValue = snapshotVisitor;
+            }
+
+            snapshotVisitor.Reset(renderQueue.Count);
+            renderQueue.VisitOrdered(snapshotVisitor);
+            return snapshotVisitor.CreateSnapshot();
+        }
+
+        /// <summary>
+        /// Copies the visible authored lights relevant to one camera into an extraction-ready snapshot.
+        /// </summary>
+        /// <param name="camera">Camera whose matching visible lights should be gathered.</param>
+        /// <returns>Snapshot of visible light components relevant to the camera.</returns>
+        LightComponent[] SnapshotVisibleLights(CameraComponent camera) {
+            if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            }
+
+            List<LightComponent> lights = new List<LightComponent>();
+            List<Entity> entities = Core.Instance.ObjectManager.Entities;
+            for (int entityIndex = 0; entityIndex < entities.Count; entityIndex++) {
+                Entity entity = entities[entityIndex];
+                if (entity == null || !entity.IsHierarchyEnabled) {
+                    continue;
+                } else if ((entity.LayerMask & camera.LayerMask) == 0) {
+                    continue;
+                } else if (entity.Components == null) {
+                    continue;
+                }
+
+                for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                    if (entity.Components[componentIndex] is LightComponent light) {
+                        lights.Add(light);
+                    }
+                }
+            }
+
+            return lights.ToArray();
         }
 
         /// <summary>
@@ -1470,6 +2257,17 @@ namespace helengine.directx11 {
             }
 
             shaderPassCache.Clear();
+        }
+
+        /// <summary>
+        /// Disposes and clears cached point-shadow cube resources.
+        /// </summary>
+        void DisposePointShadowCubeResources() {
+            for (int resourceIndex = 0; resourceIndex < PointShadowCubeResourcesValue.Count; resourceIndex++) {
+                PointShadowCubeResourcesValue[resourceIndex].Dispose();
+            }
+
+            PointShadowCubeResourcesValue.Clear();
         }
 
         /// <summary>

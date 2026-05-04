@@ -26,13 +26,31 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(backendCapabilities));
             }
 
+            RenderFrameDrawableClassifier classifier = new RenderFrameDrawableClassifier();
+            RenderFrameDrawableSubmission[] drawableSubmissions = new RenderFrameDrawableSubmission[drawables.Count];
+            List<RenderFrameShadowCasterSubmission> shadowCasterSubmissions = new List<RenderFrameShadowCasterSubmission>(drawables.Count);
+            for (int drawableIndex = 0; drawableIndex < drawables.Count; drawableIndex++) {
+                IDrawable3D drawable = drawables[drawableIndex];
+                RenderFrameDrawableSubmission submission = classifier.Classify(drawable);
+                drawableSubmissions[drawableIndex] = submission;
+                if (!submission.IsTransparent) {
+                    shadowCasterSubmissions.Add(new RenderFrameShadowCasterSubmission(drawable));
+                }
+            }
+
+            RenderFrameLightClassifier lightClassifier = new RenderFrameLightClassifier();
+            RenderFrameLightSubmission[] lightSubmissions = new RenderFrameLightSubmission[lights.Count];
+            for (int lightIndex = 0; lightIndex < lights.Count; lightIndex++) {
+                lightSubmissions[lightIndex] = lightClassifier.Classify(lights[lightIndex]);
+            }
+
             RenderFrame[] frames = new RenderFrame[cameras.Count];
             for (int index = 0; index < cameras.Count; index++) {
                 frames[index] = new RenderFrame(
                     cameras[index],
-                    Array.Empty<RenderFrameDrawableSubmission>(),
-                    Array.Empty<RenderFrameLightSubmission>(),
-                    Array.Empty<RenderFrameShadowCasterSubmission>());
+                    drawableSubmissions,
+                    lightSubmissions,
+                    shadowCasterSubmissions.ToArray());
             }
 
             return new RenderFrameExtractionResult(frames, backendCapabilities);

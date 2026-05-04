@@ -31,7 +31,9 @@ namespace helengine.directx11 {
             items.Add(("Frame (ms)", renderer.LastFrameTimeMs.ToString("0.00")));
             items.Add(("Forward", capabilityProfile.SupportsForwardRendering ? "yes" : "no"));
             items.Add(("Light Budget", capabilityProfile.MaximumVisibleLights.ToString()));
+            items.Add(("Selected Lights", renderer.LastSelectedLightCount.ToString()));
             items.Add(("Shadow Budget", capabilityProfile.MaximumShadowedLights.ToString()));
+            items.Add(("Selected Shadow Lights", renderer.LastSelectedShadowLightCount.ToString()));
         }
     }
 }

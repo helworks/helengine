@@ -37,5 +37,33 @@ namespace helengine.editor.tests.rendering {
             Assert.Equal(512, resource.Resolution);
             Assert.Equal(LightType.Point, resource.Light.LightType);
         }
+
+        /// <summary>
+        /// Ensures the shadow planner preserves shadow-enabled light priority and splits atlas versus point resources.
+        /// </summary>
+        [Fact]
+        public void PlanResources_WhenShadowedLightsExceedBudget_SelectsShadowLightsAndBuildsExpectedResources() {
+            DirectX11ShadowResourcePlanner planner = new DirectX11ShadowResourcePlanner();
+            DirectionalLightComponent firstLight = new DirectionalLightComponent();
+            PointLightComponent secondLight = new PointLightComponent();
+            secondLight.ShadowsEnabled = true;
+            SpotLightComponent thirdLight = new SpotLightComponent();
+            thirdLight.ShadowsEnabled = false;
+            RenderFrameLightSubmission[] lights = [
+                new RenderFrameLightSubmission(firstLight, 20),
+                new RenderFrameLightSubmission(secondLight, 18),
+                new RenderFrameLightSubmission(thirdLight, 16)
+            ];
+
+            DirectX11ShadowResourceSet resourceSet = planner.PlanResources(lights, 2);
+
+            Assert.Equal(2, resourceSet.SelectedShadowLights.Count);
+            Assert.Same(firstLight, resourceSet.SelectedShadowLights[0].Light);
+            Assert.Same(secondLight, resourceSet.SelectedShadowLights[1].Light);
+            Assert.Single(resourceSet.AtlasAllocations);
+            Assert.Single(resourceSet.PointShadowResources);
+            Assert.Same(firstLight, resourceSet.AtlasAllocations[0].Light.Light);
+            Assert.Same(secondLight, resourceSet.PointShadowResources[0].Light.Light);
+        }
     }
 }

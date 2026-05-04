@@ -23,7 +23,9 @@ namespace helengine.directx11 {
             }
 
             DirectX11ShadowPlan shadowPlan = new DirectX11ShadowPlan(
-                frame.ShadowCasterSubmissions.Count > 0 && capabilities.MaximumShadowedLights > 0);
+                frame.ShadowCasterSubmissions.Count > 0
+                && capabilities.MaximumShadowedLights > 0
+                && HasShadowEnabledLight(frame.LightSubmissions));
             if (shadowPlan.HasShadowPass) {
                 passes.Add(RenderPassKind.Shadow);
             }
@@ -40,6 +42,26 @@ namespace helengine.directx11 {
 
             passes.Add(RenderPassKind.Present);
             return new RenderPlan(passes);
+        }
+
+        /// <summary>
+        /// Determines whether the extracted frame contains at least one light that requests shadow rendering.
+        /// </summary>
+        /// <param name="lights">Visible lights extracted for the frame.</param>
+        /// <returns><c>true</c> when at least one light requests shadows; otherwise <c>false</c>.</returns>
+        bool HasShadowEnabledLight(IReadOnlyList<RenderFrameLightSubmission> lights) {
+            if (lights == null) {
+                throw new ArgumentNullException(nameof(lights));
+            }
+
+            for (int lightIndex = 0; lightIndex < lights.Count; lightIndex++) {
+                RenderFrameLightSubmission light = lights[lightIndex];
+                if (light != null && light.Light.ShadowsEnabled) {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
