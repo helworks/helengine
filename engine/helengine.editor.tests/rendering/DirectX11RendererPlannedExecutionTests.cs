@@ -177,6 +177,36 @@ namespace helengine.editor.tests.rendering {
             Assert.Equal(
                 [
                     "point",
+                    "restore",
+                    "prepare"
+                ],
+                renderer.ShadowExecutionEvents);
+        }
+
+        /// <summary>
+        /// Ensures point-shadow execution restores the camera frame targets before forward shadow state is prepared.
+        /// </summary>
+        [Fact]
+        public void RenderCamera_WhenPointShadowResourcesExist_RestoresCameraFrameTargetsBeforePreparingShadowShaderState() {
+            InitializeCore();
+            PointShadowExecutingRenderer renderer = PointShadowExecutingRenderer.Create(new RendererBackendCapabilityProfile(true, false, true, true, 4, 2));
+            CameraComponent camera = new CameraComponent();
+            camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
+            camera.RenderQueue3D.Add(new TestDrawable3D(MaterialBlendMode.Opaque));
+
+            Entity pointLightEntity = new Entity();
+            pointLightEntity.InitComponents();
+            PointLightComponent pointLight = new PointLightComponent();
+            pointLight.ShadowsEnabled = true;
+            pointLight.Intensity = 1.5f;
+            pointLightEntity.AddComponent(pointLight);
+
+            renderer.RenderPlannedCamera(new DirectX11SwapChainSurface(), camera);
+
+            Assert.Equal(
+                [
+                    "point",
+                    "restore",
                     "prepare"
                 ],
                 renderer.ShadowExecutionEvents);
@@ -499,6 +529,18 @@ namespace helengine.editor.tests.rendering {
                 }
 
                 ShadowExecutionEvents.Add("point");
+            }
+
+            /// <summary>
+            /// Records restoration of the camera frame targets after shadow rendering changed the output-merger state.
+            /// </summary>
+            /// <param name="context">Execution context for the pass.</param>
+            protected override void RestoreCameraFrameTargetsAfterShadowPass(DirectX11RenderPassExecutionContext context) {
+                if (context == null) {
+                    throw new ArgumentNullException(nameof(context));
+                }
+
+                ShadowExecutionEvents.Add("restore");
             }
 
             /// <summary>

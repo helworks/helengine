@@ -79,6 +79,16 @@ namespace helengine.editor {
         public string ScalarCache { get; set; }
 
         /// <summary>
+        /// Gets or sets the host entity for boolean checkbox rows.
+        /// </summary>
+        public EditorEntity CheckBoxHost { get; set; }
+
+        /// <summary>
+        /// Gets or sets the checkbox component for boolean rows.
+        /// </summary>
+        public CheckBoxComponent CheckBoxField { get; set; }
+
+        /// <summary>
         /// Gets or sets the host entity for value text.
         /// </summary>
         public EditorEntity ValueHost { get; set; }

@@ -86,6 +86,44 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures directional and spot-light shader directions follow the shared engine light-direction convention.
+        /// </summary>
+        [Fact]
+        public void Build_WhenDirectionalAndSpotLightsAreRotated_UsesSharedLightDirectionConvention() {
+            InitializeCore();
+            Entity directionalEntity = CreateLightEntity();
+            float4 directionalOrientation;
+            float4.CreateFromYawPitchRoll((float)(Math.PI * 0.5), 0f, 0f, out directionalOrientation);
+            directionalEntity.LocalOrientation = directionalOrientation;
+            DirectionalLightComponent directionalLight = new DirectionalLightComponent();
+            directionalEntity.AddComponent(directionalLight);
+
+            Entity spotEntity = CreateLightEntity();
+            float4 spotOrientation;
+            float4.CreateFromYawPitchRoll(0f, (float)(Math.PI * 0.5), 0f, out spotOrientation);
+            spotEntity.LocalOrientation = spotOrientation;
+            SpotLightComponent spotLight = new SpotLightComponent();
+            spotEntity.AddComponent(spotLight);
+
+            DirectX11ForwardLightShaderDataBuilder builder = new DirectX11ForwardLightShaderDataBuilder();
+
+            DirectX11ForwardLightShaderData data = builder.Build([
+                new RenderFrameLightSubmission(directionalLight, 10),
+                new RenderFrameLightSubmission(spotLight, 9)
+            ]);
+
+            float3 expectedDirectionalDirection = LightDirectionUtility.GetLightDirection(directionalLight);
+            float3 expectedSpotDirection = LightDirectionUtility.GetLightDirection(spotLight);
+
+            Assert.Equal(expectedDirectionalDirection.X, data.Light0.DirectionAndShadow.X);
+            Assert.Equal(expectedDirectionalDirection.Y, data.Light0.DirectionAndShadow.Y);
+            Assert.Equal(expectedDirectionalDirection.Z, data.Light0.DirectionAndShadow.Z);
+            Assert.Equal(expectedSpotDirection.X, data.Light1.DirectionAndShadow.X);
+            Assert.Equal(expectedSpotDirection.Y, data.Light1.DirectionAndShadow.Y);
+            Assert.Equal(expectedSpotDirection.Z, data.Light1.DirectionAndShadow.Z);
+        }
+
+        /// <summary>
         /// Initializes a minimal core instance so test entities can be created safely.
         /// </summary>
         void InitializeCore() {

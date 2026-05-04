@@ -49,16 +49,18 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures materials without any assigned texture value fail instead of using an implicit compatibility fallback.
+        /// Ensures materials without any assigned texture value resolve no texture instead of throwing.
         /// </summary>
         [Fact]
-        public void ResolveTexture_WithoutAssignedTexture_Throws() {
+        public void ResolveTexture_WithoutAssignedTexture_ReturnsNull() {
             TestRuntimeMaterial material = new TestRuntimeMaterial();
             MaterialLayout layout = CreateFirstLayout();
 
             material.SetLayout(layout);
 
-            Assert.Throws<InvalidOperationException>(() => material.ResolveTexture());
+            RuntimeTexture resolvedTexture = material.ResolveTexture();
+
+            Assert.Null(resolvedTexture);
         }
 
         /// <summary>

@@ -990,7 +990,12 @@ namespace helengine.vulkan {
                 return TextureUtils.PixelTexture;
             }
 
-            return runtimeMaterial.ResolveTexture();
+            RuntimeTexture runtimeTexture = runtimeMaterial.ResolveTexture();
+            if (runtimeTexture != null) {
+                return runtimeTexture;
+            }
+
+            return TextureUtils.BlackPixelTexture;
         }
 
         /// <summary>

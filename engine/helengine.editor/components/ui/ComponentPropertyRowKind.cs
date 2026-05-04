@@ -24,6 +24,10 @@ namespace helengine.editor {
         /// </summary>
         Model,
         /// <summary>
+        /// Editable row for a boolean value.
+        /// </summary>
+        Boolean,
+        /// <summary>
         /// Editable row for a scalar value.
         /// </summary>
         Scalar,

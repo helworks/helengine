@@ -343,6 +343,15 @@ namespace helengine.editor {
                     continue;
                 }
 
+                if (propertyType == typeof(bool) && isEditable) {
+                    ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Boolean);
+                    BindPropertyRow(row, component, property);
+                    UpdateBooleanRow(row);
+                    section.Rows.Add(row);
+                    ActiveRows.Add(row);
+                    continue;
+                }
+
                 if (propertyType == typeof(RuntimeMaterial) && isEditable) {
                     ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Material);
                     BindPropertyRow(row, component, property);
@@ -422,6 +431,24 @@ namespace helengine.editor {
             object rawValue = GetPropertyValue(row);
             string text = FormatScalarValue(rawValue);
             UpdateScalarField(row, text);
+        }
+
+        /// <summary>
+        /// Updates a boolean row with the component property value.
+        /// </summary>
+        /// <param name="row">Row to update.</param>
+        void UpdateBooleanRow(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            bool isChecked = false;
+            object rawValue = GetPropertyValue(row);
+            if (rawValue is bool boolValue) {
+                isChecked = boolValue;
+            }
+
+            UpdateBooleanField(row, isChecked);
         }
 
         /// <summary>
@@ -531,8 +558,7 @@ namespace helengine.editor {
                 propertyType == typeof(uint) ||
                 propertyType == typeof(ulong) ||
                 propertyType == typeof(ushort) ||
-                propertyType == typeof(sbyte) ||
-                propertyType == typeof(bool)) {
+                propertyType == typeof(sbyte)) {
                 return true;
             }
 
@@ -582,6 +608,21 @@ namespace helengine.editor {
             IsSynchronizing = true;
             row.ScalarField.Text = text ?? string.Empty;
             row.ScalarCache = text ?? string.Empty;
+            IsSynchronizing = false;
+        }
+
+        /// <summary>
+        /// Updates the checkbox state for a boolean row.
+        /// </summary>
+        /// <param name="row">Row to update.</param>
+        /// <param name="isChecked">Checked state to apply.</param>
+        void UpdateBooleanField(ComponentPropertyRow row, bool isChecked) {
+            if (row.CheckBoxField == null) {
+                return;
+            }
+
+            IsSynchronizing = true;
+            row.CheckBoxField.IsChecked = isChecked;
             IsSynchronizing = false;
         }
 
@@ -758,6 +799,55 @@ namespace helengine.editor {
             row.Property.SetValue(row.TargetComponent, parsed);
             UpdateScalarField(row, FormatScalarValue(parsed));
             EditorSceneMutationService.MarkSceneMutated();
+        }
+
+        /// <summary>
+        /// Handles change events for boolean checkbox rows.
+        /// </summary>
+        /// <param name="checkBox">Checkbox that raised the change event.</param>
+        /// <param name="isChecked">New checked state.</param>
+        void HandleBooleanCheckedChanged(CheckBoxComponent checkBox, bool isChecked) {
+            if (IsSynchronizing) {
+                return;
+            }
+            if (checkBox == null) {
+                return;
+            }
+
+            ComponentPropertyRow row = FindBooleanRow(checkBox);
+            if (row == null || row.TargetComponent == null || row.Property == null) {
+                return;
+            }
+
+            object currentValue = GetPropertyValue(row);
+            if (currentValue is bool currentBoolValue && currentBoolValue == isChecked) {
+                UpdateBooleanField(row, isChecked);
+                return;
+            }
+
+            row.Property.SetValue(row.TargetComponent, isChecked);
+            UpdateBooleanField(row, isChecked);
+            EditorSceneMutationService.MarkSceneMutated();
+        }
+
+        /// <summary>
+        /// Finds the boolean property row that owns one checkbox.
+        /// </summary>
+        /// <param name="checkBox">Checkbox to resolve.</param>
+        /// <returns>Owning row when found.</returns>
+        ComponentPropertyRow FindBooleanRow(CheckBoxComponent checkBox) {
+            if (checkBox == null) {
+                throw new ArgumentNullException(nameof(checkBox));
+            }
+
+            for (int index = 0; index < ActiveRows.Count; index++) {
+                ComponentPropertyRow row = ActiveRows[index];
+                if (ReferenceEquals(row.CheckBoxField, checkBox)) {
+                    return row;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -1038,6 +1128,9 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Model:
                     LayoutMaterialRow(row, bodyWidth, height, labelWidth);
                     break;
+                case ComponentPropertyRowKind.Boolean:
+                    LayoutBooleanRow(row, bodyWidth, height, labelWidth);
+                    break;
                 case ComponentPropertyRowKind.Scalar:
                     LayoutScalarRow(row, bodyWidth, height, labelWidth);
                     break;
@@ -1146,6 +1239,24 @@ namespace helengine.editor {
             float fieldY = (float)Math.Round((height - FieldHeight) * 0.5);
             row.ScalarField.Parent.Position = new float3(labelWidth + FieldSpacing, fieldY, 0.2f);
             row.ScalarField.Size = new int2(fieldWidth, FieldHeight);
+        }
+
+        /// <summary>
+        /// Layouts a boolean row with one checkbox field.
+        /// </summary>
+        /// <param name="row">Boolean row to layout.</param>
+        /// <param name="width">Available width.</param>
+        /// <param name="height">Row height.</param>
+        /// <param name="labelWidth">Width reserved for labels.</param>
+        void LayoutBooleanRow(ComponentPropertyRow row, int width, int height, int labelWidth) {
+            if (row.CheckBoxHost == null || row.CheckBoxField == null) {
+                return;
+            }
+
+            int checkBoxSize = Math.Max(16, FieldHeight);
+            float checkBoxY = (float)Math.Round((height - checkBoxSize) * 0.5);
+            row.CheckBoxHost.Position = new float3(labelWidth + FieldSpacing, checkBoxY, 0.2f);
+            row.CheckBoxField.Size = new int2(checkBoxSize, checkBoxSize);
         }
 
         /// <summary>
@@ -1435,6 +1546,9 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Model:
                     BuildModelRow(row, rowEntity);
                     break;
+                case ComponentPropertyRowKind.Boolean:
+                    BuildBooleanRow(row, rowEntity);
+                    break;
                 case ComponentPropertyRowKind.Scalar:
                     BuildScalarRow(row, rowEntity);
                     break;
@@ -1711,6 +1825,26 @@ namespace helengine.editor {
             row.ScalarField = field;
             row.ScalarCache = string.Empty;
             ScalarFieldRows[field] = row;
+        }
+
+        /// <summary>
+        /// Builds the checkbox controls for a boolean row.
+        /// </summary>
+        /// <param name="row">Row to populate.</param>
+        /// <param name="rowEntity">Row root entity.</param>
+        void BuildBooleanRow(ComponentPropertyRow row, EditorEntity rowEntity) {
+            var checkBoxHost = new EditorEntity();
+            checkBoxHost.LayerMask = RootEntity.LayerMask;
+            checkBoxHost.Position = float3.Zero;
+            rowEntity.AddChild(checkBoxHost);
+
+            var checkBox = new CheckBoxComponent(new int2(FieldHeight, FieldHeight), Font);
+            checkBox.SetRenderOrders(RenderOrder2D.PanelSurface, TextOrder);
+            checkBox.CheckedChanged += HandleBooleanCheckedChanged;
+            checkBoxHost.AddComponent(checkBox);
+
+            row.CheckBoxHost = checkBoxHost;
+            row.CheckBoxField = checkBox;
         }
 
         /// <summary>

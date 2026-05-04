@@ -900,16 +900,62 @@ namespace helengine.directx11 {
                 return;
             }
 
+            bool renderedShadowResources = false;
             if (shadowResourceSet.AtlasAllocations.Count > 0) {
                 DirectX11ShadowAtlasResources atlasResources = GetShadowAtlasResources(shadowResourceSet);
                 RenderShadowAtlas(context, shadowResourceSet, atlasResources);
+                renderedShadowResources = true;
             }
 
             if (shadowResourceSet.PointShadowResources.Count > 0) {
                 RenderPointShadowResources(context, shadowResourceSet);
+                renderedShadowResources = true;
+            }
+
+            if (renderedShadowResources) {
+                RestoreCameraFrameTargetsAfterShadowPass(context);
             }
 
             PrepareShadowShaderState(context, shadowResourceSet);
+        }
+
+        /// <summary>
+        /// Restores the active camera render target and viewport after shadow rendering changed the output-merger state.
+        /// </summary>
+        /// <param name="context">Execution context containing the active camera and output surface.</param>
+        protected virtual void RestoreCameraFrameTargetsAfterShadowPass(DirectX11RenderPassExecutionContext context) {
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            CameraComponent camera = context.Frame.Camera;
+            RenderTargetView renderTargetView = context.Surface.RenderTargetView;
+            DepthStencilView depthStencilView = context.Surface.DepthStencilView;
+            RenderTarget renderTarget = camera.RenderTarget;
+            if (renderTarget != null) {
+                if (renderTarget is not DirectX11RenderTargetResource directX11Target) {
+                    throw new InvalidOperationException("Camera render targets must use DirectX11RenderTargetResource when rendering with DirectX11.");
+                }
+
+                renderTargetView = directX11Target.RenderTargetView;
+                depthStencilView = directX11Target.DepthStencilView;
+            }
+
+            var deviceContext = Device.ImmediateContext;
+            deviceContext.OutputMerger.SetTargets(depthStencilView, renderTargetView);
+            deviceContext.Rasterizer.State = rasterizerState3D;
+            deviceContext.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
+            deviceContext.OutputMerger.SetBlendState(null);
+            float4 viewport = camera.Viewport;
+            deviceContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
+            ActiveRasterizerState = rasterizerState3D;
+            ActiveDepthStencilState = depthStencilState3D;
+            ActiveBlendState = null;
+            deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
+            deviceContext.VertexShader.SetConstantBuffer(0, constantBuffer);
+            deviceContext.PixelShader.SetConstantBuffer(0, constantBuffer);
+            deviceContext.PixelShader.SetConstantBuffer(1, forwardLightConstantBuffer);
+            deviceContext.PixelShader.SetConstantBuffer(2, shadowConstantBuffer);
         }
 
         /// <summary>
@@ -1739,13 +1785,17 @@ namespace helengine.directx11 {
         /// Resolves the shader resource view sampled by a textured 3D material.
         /// </summary>
         /// <param name="material">Material whose texture binding should be resolved.</param>
-        /// <returns>Shader resource view to bind for the material.</returns>
+        /// <returns>Shader resource view to bind for the material, or null when the material intentionally has no texture.</returns>
         ShaderResourceView ResolveMaterialTextureResourceView(RuntimeMaterial material) {
             if (material == null) {
                 throw new ArgumentNullException(nameof(material));
             }
 
             RuntimeTexture runtimeTexture = material.ResolveTexture();
+            if (runtimeTexture == null) {
+                return null;
+            }
+
             if (runtimeTexture is not DirectX11TextureResource textureResource) {
                 throw new InvalidOperationException("3D material textures must be DirectX11 texture resources.");
             }

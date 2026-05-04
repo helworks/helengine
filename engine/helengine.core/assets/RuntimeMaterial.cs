@@ -116,7 +116,7 @@ namespace helengine {
         /// <summary>
         /// Resolves the runtime texture that should be sampled for this material after applying inherited defaults.
         /// </summary>
-        /// <returns>Resolved runtime texture for the draw.</returns>
+        /// <returns>Resolved runtime texture for the draw, or null when the active material layout has no assigned texture.</returns>
         public RuntimeTexture ResolveTexture() {
             if (Properties.TryGetFirstTexture(out RuntimeTexture propertyTexture)) {
                 return propertyTexture;
@@ -124,7 +124,7 @@ namespace helengine {
                 return ParentMaterialValue.ResolveTexture();
             }
 
-            throw new InvalidOperationException("Runtime material does not define a texture for the active material layout.");
+            return null;
         }
 
         /// <summary>

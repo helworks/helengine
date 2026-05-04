@@ -100,8 +100,40 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
             module => Assert.Equal("gameplay", module.ModuleId),
             module => Assert.Equal("ui", module.ModuleId));
         Assert.Equal(2, toolRunner.Invocations.Count);
-        Assert.Contains("gameplay", toolRunner.Invocations[0].WorkingDirectory, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("ui", toolRunner.Invocations[1].WorkingDirectory, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ProjectRootPath, toolRunner.Invocations[0].WorkingDirectory);
+        Assert.Equal(ProjectRootPath, toolRunner.Invocations[1].WorkingDirectory);
+    }
+
+    [Fact]
+    public void Compile_code_modules_runs_codegen_outside_module_output_directory() {
+        RecordingCodegenToolRunner toolRunner = new();
+        EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("gameplay", "assets/Scripts", [], ["always-loaded"])
+        ]);
+
+        service.CompileModules(
+            manifestDocument,
+            "windows",
+            "windows-loose-files",
+            "/tmp/fake-codegen.exe",
+            new PlatformCodegenProfileDefinition(
+                "windows-cpp",
+                "Windows C++",
+                "Default Windows C++ codegen profile.",
+                PlatformCodegenLanguage.Cpp,
+                PlatformSerializationEndianness.LittleEndian,
+                []),
+            [],
+            new Dictionary<string, string>(),
+            OutputRootPath);
+
+        Assert.Single(toolRunner.Invocations);
+        Assert.Equal(ProjectRootPath, toolRunner.Invocations[0].WorkingDirectory);
+        Assert.DoesNotContain(
+            Path.Combine("Build", "code", "gameplay"),
+            toolRunner.Invocations[0].WorkingDirectory,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

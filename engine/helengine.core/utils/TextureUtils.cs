@@ -4,6 +4,7 @@ namespace helengine {
     /// </summary>
     public class TextureUtils {
         private static RuntimeTexture pixelTexture;
+        private static RuntimeTexture blackPixelTexture;
 
         /// <summary>
         /// Gets a 1x1 white pixel texture, creating it on first access.
@@ -11,15 +12,40 @@ namespace helengine {
         public static RuntimeTexture PixelTexture {
             get {
                 if (pixelTexture == null) {
-                    TextureAsset rawTex = new TextureAsset();
-                    rawTex.Colors = [255, 255, 255, 255];
-                    rawTex.Width = 1;
-                    rawTex.Height = 1;
-
-                    pixelTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(rawTex);
+                    pixelTexture = BuildSolidPixelTexture(255, 255, 255, 255);
                 }
                 return pixelTexture;
             }
+        }
+
+        /// <summary>
+        /// Gets a 1x1 opaque black pixel texture, creating it on first access.
+        /// </summary>
+        public static RuntimeTexture BlackPixelTexture {
+            get {
+                if (blackPixelTexture == null) {
+                    blackPixelTexture = BuildSolidPixelTexture(0, 0, 0, 255);
+                }
+
+                return blackPixelTexture;
+            }
+        }
+
+        /// <summary>
+        /// Builds one solid-color 1x1 runtime texture.
+        /// </summary>
+        /// <param name="red">Red channel value.</param>
+        /// <param name="green">Green channel value.</param>
+        /// <param name="blue">Blue channel value.</param>
+        /// <param name="alpha">Alpha channel value.</param>
+        /// <returns>Runtime texture built through the active 2D renderer.</returns>
+        static RuntimeTexture BuildSolidPixelTexture(byte red, byte green, byte blue, byte alpha) {
+            TextureAsset rawTex = new TextureAsset();
+            rawTex.Colors = [red, green, blue, alpha];
+            rawTex.Width = 1;
+            rawTex.Height = 1;
+
+            return Core.Instance.RenderManager2D.BuildTextureFromRaw(rawTex);
         }
     }
 }

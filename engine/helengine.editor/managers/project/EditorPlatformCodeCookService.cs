@@ -88,7 +88,7 @@ namespace helengine.editor {
                     }
                 }
 
-                CodegenToolRunner.Run(codegenToolPath, arguments, moduleRootPath);
+                CodegenToolRunner.Run(codegenToolPath, arguments, ProjectRootPath);
                 compiledModules.Add(new PlatformBuildCodeModule(
                     moduleEntry.ModuleId,
                     NormalizeRelativePath(Path.Combine("code", moduleEntry.ModuleId)),

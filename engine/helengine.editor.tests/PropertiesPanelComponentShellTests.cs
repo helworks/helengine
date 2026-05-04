@@ -413,6 +413,33 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures boolean component properties are rendered as checkbox rows and update the target property.
+        /// </summary>
+        [Fact]
+        public void ShowComponents_WhenLightContainsBooleanShadowProperty_UsesCheckboxRowAndUpdatesTheLight() {
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Light"
+            };
+            DirectionalLightComponent light = new DirectionalLightComponent();
+            entity.AddComponent(light);
+
+            view.ShowComponents(entity);
+
+            List<ComponentPropertyRow> rows = GetPrivateField<List<ComponentPropertyRow>>(view, "ActiveRows");
+            ComponentPropertyRow shadowRow = Assert.Single(rows, row => string.Equals(row.Property?.Name, nameof(LightComponent.ShadowsEnabled), StringComparison.Ordinal));
+
+            Assert.Equal(ComponentPropertyRowKind.Boolean, shadowRow.Kind);
+            Assert.NotNull(shadowRow.CheckBoxField);
+            Assert.True(shadowRow.CheckBoxField.IsChecked);
+
+            InvokePrivate(view, "HandleBooleanCheckedChanged", shadowRow.CheckBoxField, false);
+
+            Assert.False(light.ShadowsEnabled);
+            Assert.False(shadowRow.CheckBoxField.IsChecked);
+        }
+
+        /// <summary>
         /// Ensures confirming removal deletes the component and keeps the entity selected.
         /// </summary>
         [Fact]

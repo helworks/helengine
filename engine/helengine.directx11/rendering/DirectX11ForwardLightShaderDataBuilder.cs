@@ -9,11 +9,6 @@ namespace helengine.directx11 {
         public const int MaximumPackedLightCount = 4;
 
         /// <summary>
-        /// Default forward axis used to derive authored directional and spot-light directions.
-        /// </summary>
-        static readonly float3 DefaultForward = new float3(0f, 0f, -1f);
-
-        /// <summary>
         /// Builds one packed forward-light buffer payload from the selected lights for the current frame.
         /// </summary>
         /// <param name="selectedLights">Selected frame lights that survived backend budgeting.</param>
@@ -83,7 +78,7 @@ namespace helengine.directx11 {
         /// <param name="entity">Entity that owns the authored light.</param>
         /// <returns>Packed direction and shadow payload.</returns>
         float4 BuildDirectionAndShadow(LightComponent light, Entity entity) {
-            float3 direction = float4.RotateVector(DefaultForward, entity.Orientation);
+            float3 direction = LightDirectionUtility.GetEntityForwardDirection(entity);
             return new float4(direction.X, direction.Y, direction.Z, light.ShadowStrength);
         }
 

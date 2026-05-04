@@ -4,10 +4,6 @@ namespace helengine.directx11 {
     /// </summary>
     public sealed class DirectX11ShadowShaderDataBuilder {
         /// <summary>
-        /// Default forward axis used to derive light-facing directions from entity orientation.
-        /// </summary>
-        static readonly float3 DefaultForward = new float3(0f, 0f, -1f);
-        /// <summary>
         /// Default up axis used to build light view matrices.
         /// </summary>
         static readonly float3 DefaultUp = new float3(0f, 1f, 0f);
@@ -192,7 +188,7 @@ namespace helengine.directx11 {
             float4x4 view;
             float4x4 projection;
             if (light.LightType == LightType.Directional) {
-                float3 rotatedForward = float4.RotateVector(DefaultForward, entity.Orientation);
+                float3 rotatedForward = LightDirectionUtility.GetEntityForwardDirection(entity);
                 float3 lightDirection = Normalize(new float3(-rotatedForward.X, -rotatedForward.Y, -rotatedForward.Z));
                 float shadowDistance = (float)Math.Max(1.0, camera.RenderSettings.ShadowDistance);
                 float3 target = camera.Parent.Position;
@@ -203,7 +199,7 @@ namespace helengine.directx11 {
                 float4x4.CreateOrthographicOffCenter(-halfDistance, halfDistance, -halfDistance, halfDistance, 0.1f, shadowDistance, out projection);
             } else if (light.LightType == LightType.Spot) {
                 SpotLightComponent spotLight = (SpotLightComponent)light;
-                float3 lightDirection = Normalize(float4.RotateVector(DefaultForward, entity.Orientation));
+                float3 lightDirection = Normalize(LightDirectionUtility.GetEntityForwardDirection(entity));
                 float3 lightPosition = entity.Position;
                 float3 target = lightPosition + lightDirection;
                 float3 up = Math.Abs(float3.Dot(lightDirection, DefaultUp)) > 0.99f ? new float3(0f, 0f, 1f) : DefaultUp;
@@ -300,11 +296,11 @@ namespace helengine.directx11 {
         /// Normalizes one vector using double-precision length calculations.
         /// </summary>
         /// <param name="value">Vector to normalize.</param>
-        /// <returns>Normalized vector, or the default forward axis when the length is too small.</returns>
+        /// <returns>Normalized vector, or the authored forward axis when the length is too small.</returns>
         float3 Normalize(float3 value) {
             double lengthSquared = (value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z);
             if (lengthSquared <= 0.0000001) {
-                return DefaultForward;
+                return LightDirectionUtility.AuthoredForwardAxis;
             }
 
             double inverseLength = 1.0 / Math.Sqrt(lengthSquared);
