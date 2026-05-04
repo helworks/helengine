@@ -65,6 +65,14 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets the backend capability profile published by this renderer.
+        /// </summary>
+        /// <returns>Renderer capability profile used by shared extraction and planning systems.</returns>
+        public virtual RendererBackendCapabilityProfile GetCapabilityProfile() {
+            return new RendererBackendCapabilityProfile(true, false, false, false, 0, 0);
+        }
+
+        /// <summary>
         /// Performs per-frame update for 3D rendering systems.
         /// </summary>
         public virtual void Update() { }

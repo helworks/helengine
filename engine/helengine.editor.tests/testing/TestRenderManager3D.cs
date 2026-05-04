@@ -38,6 +38,14 @@ namespace helengine.editor.tests.testing {
         public ShaderCompileTarget ShaderCompileTarget => ShaderCompileTarget.Vulkan;
 
         /// <summary>
+        /// Gets the capability profile published by the test renderer.
+        /// </summary>
+        /// <returns>Capability profile for the lightweight test renderer.</returns>
+        public override RendererBackendCapabilityProfile GetCapabilityProfile() {
+            return new RendererBackendCapabilityProfile(true, false, false, false, 0, 0);
+        }
+
+        /// <summary>
         /// Creates a lightweight test render target with the requested dimensions.
         /// </summary>
         /// <param name="width">Requested target width.</param>
