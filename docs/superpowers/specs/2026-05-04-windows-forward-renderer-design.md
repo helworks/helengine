@@ -416,6 +416,73 @@ The first implementation slice should land these concrete foundations:
 
 This keeps the renderer useful immediately while leaving the heavier execution work, richer batching behavior, and future deferred path on top of stable contracts.
 
+## First Execution Slice
+
+The next Windows renderer slice should move the live DirectX 11 runtime onto the new planning boundary without trying to finish all later systems at once.
+
+The success bar is:
+
+- `DirectX11Renderer3D` extracts one `RenderFrame` per camera
+- builds one `RenderPlan` from that frame
+- executes geometry and present work from the planned pass order
+- tolerates planned shadow and post-process passes without executing them yet
+
+This slice should make the runtime consume the new architecture for:
+
+- `DepthPrepass`
+- `OpaqueForward`
+- `TransparentForward`
+- `Present`
+
+It should not yet require:
+
+- runtime light-budget binding into shaders
+- runtime shadow-map rendering
+- runtime post-process execution
+
+Those features stay planned and represented in contracts, but execution remains deferred to later slices.
+
+## DirectX 11 Execution Boundary
+
+`DirectX11Renderer3D` should stop deciding render flow ad hoc inside the camera draw loop.
+
+The runtime shape for this slice should be:
+
+1. extract frame data from the current scene state
+2. build an ordered render plan
+3. execute the ordered plan against one swapchain surface or camera render target
+
+That execution should be split into focused pass methods such as:
+
+- `ExecuteDepthPrepass(...)`
+- `ExecuteOpaqueForwardPass(...)`
+- `ExecuteTransparentForwardPass(...)`
+- `ExecutePresentPass(...)`
+
+The old model and material binding path can still be reused inside these execution methods. The important architectural change is that pass selection and ordering now come from `RenderPlan`, not from embedded renderer branches.
+
+## Rendering Test Scenes
+
+This renderer work should also produce a curated set of authored `.helen` scenes under a dedicated rendering folder so the project can accumulate a reusable graphics demo and validation disc.
+
+The initial convention should be:
+
+- `assets/Scenes/rendering/`
+
+The first execution slice should add a small set of scenes that are intentionally simple and stable enough for repeated renderer verification. Recommended starter scenes:
+
+- one opaque geometry scene
+- one transparency ordering scene
+- one depth-prepass scene
+- one material feature scene for albedo plus normal and emissive inputs
+
+These scenes should serve two roles:
+
+- smoke-test inputs for renderer development
+- curated demo-disc content that future platforms can reuse with simpler backends
+
+The scene set should stay authored and human-readable. It should not be generated only in tests or hidden in temporary packager fixtures.
+
 ## Testing and Validation
 
 The implementation should add shared tests for:
@@ -429,6 +496,8 @@ The implementation should add shared tests for:
 The Windows renderer should add tests for:
 
 - pass planning
+- plan-driven geometry execution
+- skipped execution behavior for unimplemented planned passes
 - shadow resource planning
 - material feature binding
 - post-process chain ordering
@@ -441,6 +510,7 @@ Smoke scenes should cover:
 - normal-mapped physically based materials
 - repeated meshes for batching and instancing
 - post-processing enabled and disabled
+- minimal rendering validation scenes under `assets/Scenes/rendering/`
 
 ## Recommended Rollout
 
