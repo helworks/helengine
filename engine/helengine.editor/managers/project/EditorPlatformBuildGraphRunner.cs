@@ -135,6 +135,7 @@ namespace helengine.editor {
             cookedManifest = RunResolveVariants(cookedManifest, workspace);
             cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
             WriteRuntimeNativeManifestSources(cookedManifest, workspace.GeneratedCoreRootPath);
+            WriteRuntimeGraphicsRendererManifestSource(workspace.GeneratedCoreRootPath);
             RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
 
             return RunPackagePlatform(
@@ -257,6 +258,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Writes generated runtime renderer-default source into the combined generated-core tree.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Generated core source root that will be compiled into the native player.</param>
+        void WriteRuntimeGraphicsRendererManifestSource(string generatedCoreRootPath) {
+            EditorRuntimeGraphicsRendererManifestWriter writer = new();
+            writer.Write(generatedCoreRootPath, ResolveRuntimeGraphicsRendererManifest());
+        }
+
+        /// <summary>
         /// Executes the container-writing phase using the current storage profile.
         /// </summary>
         void RunWriteContainers(
@@ -304,6 +314,51 @@ namespace helengine.editor {
 
                 File.Copy(sourceFilePath, destinationFilePath, true);
             }
+        }
+
+        /// <summary>
+        /// Resolves the renderer-default manifest for the active platform from persisted profile settings.
+        /// </summary>
+        /// <returns>Renderer-default manifest consumed by native manifest generation.</returns>
+        RuntimeGraphicsRendererManifest ResolveRuntimeGraphicsRendererManifest() {
+            EditorGraphicsProfileSettingsDocument graphicsSettings = LoadPlatformGraphicsSettings();
+            return new RuntimeGraphicsRendererManifest(
+                graphicsSettings.RendererDepthPrepassMode,
+                graphicsSettings.RendererShadowQualityTier,
+                graphicsSettings.RendererHdrEnabled,
+                graphicsSettings.RendererPostProcessTier);
+        }
+
+        /// <summary>
+        /// Loads the persisted graphics-profile settings for the active platform, falling back to defaults when unavailable.
+        /// </summary>
+        /// <returns>Normalized platform graphics-profile settings.</returns>
+        EditorGraphicsProfileSettingsDocument LoadPlatformGraphicsSettings() {
+            EditorProfileSettingsService profileSettingsService = new EditorProfileSettingsService(ProjectRootPath);
+            EditorProfileSettingsDocument document = profileSettingsService.TryLoadExisting();
+            if (document == null || document.Platforms == null) {
+                return new EditorGraphicsProfileSettingsDocument();
+            }
+
+            for (int index = 0; index < document.Platforms.Count; index++) {
+                EditorPlatformProfileSettingsDocument platform = document.Platforms[index];
+                if (platform == null) {
+                    continue;
+                }
+                if (!string.Equals(platform.PlatformId, PlatformDescriptor.Id, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (platform.Graphics == null) {
+                    return new EditorGraphicsProfileSettingsDocument();
+                }
+                if (string.IsNullOrWhiteSpace(platform.Graphics.RendererShadowQualityTier)) {
+                    platform.Graphics.RendererShadowQualityTier = "medium";
+                }
+
+                return platform.Graphics;
+            }
+
+            return new EditorGraphicsProfileSettingsDocument();
         }
 
         /// <summary>

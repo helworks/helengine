@@ -64,6 +64,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Attempts to load an existing profile settings document without seeding new platform entries.
+        /// </summary>
+        /// <returns>Loaded profile settings document, or null when the file is missing or malformed.</returns>
+        public EditorProfileSettingsDocument TryLoadExisting() {
+            return TryLoadDocument();
+        }
+
+        /// <summary>
         /// Persists the supplied profile settings document to `user_settings/profile_config.json`.
         /// </summary>
         /// <param name="document">Validated platform profile settings to persist.</param>
@@ -108,6 +116,7 @@ namespace helengine.editor {
                     platform.Codegen ??= new EditorCodegenProfileSettingsDocument();
                     platform.Build.SelectedBuildProfileId ??= string.Empty;
                     platform.Graphics.SelectedGraphicsProfileId ??= string.Empty;
+                    platform.Graphics.RendererShadowQualityTier ??= "medium";
                     platform.Build.SelectedOptionValues ??= [];
                     platform.Graphics.SelectedOptionValues ??= [];
                     platform.Codegen.SelectedCodegenProfileId ??= string.Empty;
@@ -176,6 +185,10 @@ namespace helengine.editor {
                 }
                 if (platform.Graphics.SelectedOptionValues == null) {
                     platform.Graphics.SelectedOptionValues = [];
+                    changed = true;
+                }
+                if (string.IsNullOrWhiteSpace(platform.Graphics.RendererShadowQualityTier)) {
+                    platform.Graphics.RendererShadowQualityTier = "medium";
                     changed = true;
                 }
                 if (string.IsNullOrWhiteSpace(platform.Codegen.SelectedCodegenProfileId)) {

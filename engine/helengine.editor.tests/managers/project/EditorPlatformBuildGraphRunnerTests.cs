@@ -136,6 +136,74 @@ public class EditorPlatformBuildGraphRunnerTests {
         }
     }
 
+    /// <summary>
+    /// Verifies the build-graph runner writes renderer defaults from the persisted platform profile into generated native source.
+    /// </summary>
+    [Fact]
+    public void WriteRuntimeGraphicsRendererManifestSource_uses_platform_profile_defaults() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(rootPath);
+
+        try {
+            EditorProfileSettingsService profileSettingsService = new EditorProfileSettingsService(rootPath);
+            profileSettingsService.Save(new EditorProfileSettingsDocument {
+                Platforms = new List<EditorPlatformProfileSettingsDocument> {
+                    new EditorPlatformProfileSettingsDocument {
+                        PlatformId = "windows",
+                        Graphics = new EditorGraphicsProfileSettingsDocument {
+                            RendererDepthPrepassMode = DepthPrepassMode.Always,
+                            RendererShadowQualityTier = "ultra",
+                            RendererHdrEnabled = true,
+                            RendererPostProcessTier = PostProcessTier.High
+                        }
+                    }
+                }
+            });
+
+            EditorPlatformBuildGraphRunner runner = new(
+                rootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "windows",
+                    "Windows",
+                    "builder.dll",
+                    string.Empty,
+                    true,
+                    Path.Combine(rootPath, "descriptor-generated-core"),
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService());
+
+            string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
+            Directory.CreateDirectory(generatedCoreRootPath);
+
+            MethodInfo writeMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "WriteRuntimeGraphicsRendererManifestSource",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(writeMethod);
+
+            writeMethod.Invoke(runner, [generatedCoreRootPath]);
+
+            string sourcePath = Path.Combine(generatedCoreRootPath, "runtime", "runtime_graphics_renderer_manifest.cpp");
+            Assert.True(File.Exists(sourcePath));
+
+            string source = File.ReadAllText(sourcePath);
+            Assert.Contains("HERuntimeDepthPrepassMode::Always", source);
+            Assert.Contains("\"ultra\"", source);
+            Assert.Contains("true", source);
+            Assert.Contains("HERuntimePostProcessTier::High", source);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
     sealed class FakeEditorPlatformBuildGraphRunner : EditorPlatformBuildGraphRunner {
         public FakeEditorPlatformBuildGraphRunner()
             : base(

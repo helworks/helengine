@@ -29,6 +29,26 @@ namespace helengine.editor {
         public bool FullscreenEnabled { get; set; } = false;
 
         /// <summary>
+        /// Gets or sets the renderer-wide depth-prepass mode requested by this platform profile.
+        /// </summary>
+        public DepthPrepassMode RendererDepthPrepassMode { get; set; } = DepthPrepassMode.Auto;
+
+        /// <summary>
+        /// Gets or sets the renderer-wide shadow quality tier identifier requested by this platform profile.
+        /// </summary>
+        public string RendererShadowQualityTier { get; set; } = "medium";
+
+        /// <summary>
+        /// Gets or sets whether HDR rendering should be enabled by default for this platform profile.
+        /// </summary>
+        public bool RendererHdrEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets the renderer-wide post-processing tier requested by this platform profile.
+        /// </summary>
+        public PostProcessTier RendererPostProcessTier { get; set; } = PostProcessTier.High;
+
+        /// <summary>
         /// Gets or sets the builder-provided graphics option values keyed by setting id.
         /// </summary>
         public Dictionary<string, string> SelectedOptionValues { get; set; } = [];
