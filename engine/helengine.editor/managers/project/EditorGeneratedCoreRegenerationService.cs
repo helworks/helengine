@@ -157,6 +157,53 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(logBuilder));
             }
 
+            List<string> arguments = BuildArguments(
+                projectPath,
+                outputRootPath,
+                platformDefinition,
+                codegenProfile,
+                selectedCodegenOptionValues,
+                additionalPreprocessorSymbols);
+
+            RunProcess(fileName, arguments, Path.GetDirectoryName(fileName) ?? Directory.GetCurrentDirectory(), logBuilder, cancellationToken);
+        }
+
+        /// <summary>
+        /// Builds one codegen command-line argument list from the selected platform and codegen settings.
+        /// </summary>
+        /// <param name="projectPath">Project path to convert.</param>
+        /// <param name="outputRootPath">Output tree that receives the generated files.</param>
+        /// <param name="platformDefinition">Typed platform metadata exposed by the active builder.</param>
+        /// <param name="codegenProfile">Selected codegen profile metadata.</param>
+        /// <param name="selectedCodegenOptionValues">Selected codegen option values persisted by the editor.</param>
+        /// <param name="additionalPreprocessorSymbols">Feature symbols injected for portable-input compilation.</param>
+        /// <returns>Ordered codegen process arguments.</returns>
+        internal static List<string> BuildArguments(
+            string projectPath,
+            string outputRootPath,
+            PlatformDefinition platformDefinition,
+            PlatformCodegenProfileDefinition codegenProfile,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
+            IReadOnlyList<string> additionalPreprocessorSymbols) {
+            if (string.IsNullOrWhiteSpace(projectPath)) {
+                throw new ArgumentException("Project path must be provided.", nameof(projectPath));
+            }
+            if (string.IsNullOrWhiteSpace(outputRootPath)) {
+                throw new ArgumentException("Output root path must be provided.", nameof(outputRootPath));
+            }
+            if (platformDefinition == null) {
+                throw new ArgumentNullException(nameof(platformDefinition));
+            }
+            if (codegenProfile == null) {
+                throw new ArgumentNullException(nameof(codegenProfile));
+            }
+            if (selectedCodegenOptionValues == null) {
+                throw new ArgumentNullException(nameof(selectedCodegenOptionValues));
+            }
+            if (additionalPreprocessorSymbols == null) {
+                throw new ArgumentNullException(nameof(additionalPreprocessorSymbols));
+            }
+
             List<string> arguments = [
                 "--cpp",
                 "--project",
@@ -171,8 +218,16 @@ namespace helengine.editor {
                 codegenProfile.Endianness == PlatformSerializationEndianness.LittleEndian ? "little" : "big"
             ];
 
+            if (selectedCodegenOptionValues.TryGetValue(PlatformCodegenSettingIds.PresetId, out string presetId)
+                && !string.IsNullOrWhiteSpace(presetId)) {
+                arguments.Add("--preset");
+                arguments.Add(presetId);
+            }
+
             foreach (KeyValuePair<string, string> selectedOption in selectedCodegenOptionValues.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)) {
-                if (string.IsNullOrWhiteSpace(selectedOption.Key) || string.Equals(selectedOption.Key, "additional-preprocessor-symbols", StringComparison.OrdinalIgnoreCase)) {
+                if (string.IsNullOrWhiteSpace(selectedOption.Key)
+                    || string.Equals(selectedOption.Key, "additional-preprocessor-symbols", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(selectedOption.Key, PlatformCodegenSettingIds.PresetId, StringComparison.OrdinalIgnoreCase)) {
                     continue;
                 }
 
@@ -188,7 +243,7 @@ namespace helengine.editor {
                 arguments.Add($"additional-preprocessor-symbols={combinedPreprocessorSymbols}");
             }
 
-            RunProcess(fileName, arguments, Path.GetDirectoryName(fileName) ?? Directory.GetCurrentDirectory(), logBuilder, cancellationToken);
+            return arguments;
         }
 
         /// <summary>
