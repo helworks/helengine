@@ -25,6 +25,10 @@
     <ProjectReference Include="..\..\tools\demo-disc-scene-writer\helengine.demo-disc.scene-writer.csproj" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="managers\physics\**\*.cs" />
+  </ItemGroup>
+
   <Target Name="CopyHelengineRuntimeAssemblies" AfterTargets="Build">
     <ItemGroup>
       <HelengineRuntimeAssembly Include="..\helengine.baseplatform\bin\$(Configuration)\net9.0\helengine.baseplatform.dll" />

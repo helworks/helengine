@@ -129,6 +129,43 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures the spot-shadow lab scene exists and contains one camera, one spot light, and multiple room meshes for cone-shadow debugging.
+        /// </summary>
+        [Fact]
+        public void SceneCatalog_WhenLoadingSpotShadowLab_IncludesCameraSpotLightAndEnclosedDebugRoom() {
+            SceneAsset sceneAsset = LoadSceneAsset("spot-shadow-lab.helen");
+            SceneComponentAssetRecord cameraRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.CameraComponent");
+            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            CameraComponent cameraComponent = (CameraComponent)descriptor.DeserializeComponent(cameraRecord, null, null);
+            int meshComponentCount = CountComponents(sceneAsset.RootEntities, "helengine.MeshComponent");
+
+            Assert.NotNull(cameraRecord);
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.SpotLightComponent"));
+            Assert.True(meshComponentCount >= 12, "Expected at least 12 mesh components in spot-shadow-lab.helen but found " + meshComponentCount + ".");
+            Assert.Equal(DepthPrepassMode.Auto, cameraComponent.RenderSettings.DepthPrepassMode);
+            Assert.Equal(60f, cameraComponent.RenderSettings.ShadowDistance);
+            Assert.Equal(PostProcessTier.Disabled, cameraComponent.RenderSettings.PostProcessTier);
+        }
+
+        /// <summary>
+        /// Ensures the directional-shadow lab scene exists and contains one camera, one directional light, and multiple outdoor receiver meshes.
+        /// </summary>
+        [Fact]
+        public void SceneCatalog_WhenLoadingDirectionalShadowLab_IncludesCameraDirectionalLightAndOutdoorDebugLayout() {
+            SceneAsset sceneAsset = LoadSceneAsset("directional-shadow-lab.helen");
+            SceneComponentAssetRecord cameraRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.CameraComponent");
+            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            CameraComponent cameraComponent = (CameraComponent)descriptor.DeserializeComponent(cameraRecord, null, null);
+
+            Assert.NotNull(cameraRecord);
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.DirectionalLightComponent"));
+            Assert.True(CountComponents(sceneAsset.RootEntities, "helengine.MeshComponent") >= 8);
+            Assert.Equal(DepthPrepassMode.Auto, cameraComponent.RenderSettings.DepthPrepassMode);
+            Assert.Equal(60f, cameraComponent.RenderSettings.ShadowDistance);
+            Assert.Equal(PostProcessTier.Disabled, cameraComponent.RenderSettings.PostProcessTier);
+        }
+
+        /// <summary>
         /// Loads one committed rendering scene asset from disk.
         /// </summary>
         /// <param name="sceneFileName">Scene file name under the committed rendering scene directory.</param>

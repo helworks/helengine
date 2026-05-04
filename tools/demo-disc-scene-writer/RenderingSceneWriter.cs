@@ -18,6 +18,14 @@ namespace helengine.demo_disc_scene_writer {
         /// </summary>
         const string PointLightComponentTypeId = "helengine.PointLightComponent";
         /// <summary>
+        /// Stable serialized component identifier used by spot-light records.
+        /// </summary>
+        const string SpotLightComponentTypeId = "helengine.SpotLightComponent";
+        /// <summary>
+        /// Stable serialized component identifier used by directional-light records.
+        /// </summary>
+        const string DirectionalLightComponentTypeId = "helengine.DirectionalLightComponent";
+        /// <summary>
         /// Stable generated engine provider identifier used by built-in assets.
         /// </summary>
         const string EngineProviderId = "engine";
@@ -46,6 +54,14 @@ namespace helengine.demo_disc_scene_writer {
         /// Scene id written into the committed point-shadow lab scene asset.
         /// </summary>
         const string PointShadowLabSceneId = "Scenes/rendering/point-shadow-lab.helen";
+        /// <summary>
+        /// Scene id written into the committed spot-shadow lab scene asset.
+        /// </summary>
+        const string SpotShadowLabSceneId = "Scenes/rendering/spot-shadow-lab.helen";
+        /// <summary>
+        /// Scene id written into the committed directional-shadow lab scene asset.
+        /// </summary>
+        const string DirectionalShadowLabSceneId = "Scenes/rendering/directional-shadow-lab.helen";
 
         /// <summary>
         /// Writes the committed rendering smoke scenes into the supplied project root.
@@ -64,6 +80,8 @@ namespace helengine.demo_disc_scene_writer {
 
             WritePointShadowSceneAsset(assetsRootPath);
             WritePointShadowLabSceneAsset(assetsRootPath);
+            WriteSpotShadowLabSceneAsset(assetsRootPath);
+            WriteDirectionalShadowLabSceneAsset(assetsRootPath);
         }
 
         /// <summary>
@@ -104,6 +122,50 @@ namespace helengine.demo_disc_scene_writer {
                 Id = PointShadowLabSceneId,
                 AssetReferences = CreatePointShadowAssetReferences(),
                 RootEntities = CreatePointShadowLabRootEntities()
+            };
+
+            using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            EditorAssetBinarySerializer.Serialize(stream, sceneAsset);
+        }
+
+        /// <summary>
+        /// Writes the committed spot-shadow lab scene asset used for manual cone-shadow debugging.
+        /// </summary>
+        /// <param name="assetsRootPath">Assets root path inside the target project.</param>
+        void WriteSpotShadowLabSceneAsset(string assetsRootPath) {
+            string scenePath = Path.Combine(assetsRootPath, SpotShadowLabSceneId.Replace('/', Path.DirectorySeparatorChar));
+            string sceneDirectoryPath = Path.GetDirectoryName(scenePath);
+            if (string.IsNullOrWhiteSpace(sceneDirectoryPath)) {
+                throw new InvalidOperationException("Spot-shadow lab scene directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(sceneDirectoryPath);
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = SpotShadowLabSceneId,
+                AssetReferences = CreatePointShadowAssetReferences(),
+                RootEntities = CreateSpotShadowLabRootEntities()
+            };
+
+            using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            EditorAssetBinarySerializer.Serialize(stream, sceneAsset);
+        }
+
+        /// <summary>
+        /// Writes the committed directional-shadow lab scene asset used for manual sun-shadow debugging.
+        /// </summary>
+        /// <param name="assetsRootPath">Assets root path inside the target project.</param>
+        void WriteDirectionalShadowLabSceneAsset(string assetsRootPath) {
+            string scenePath = Path.Combine(assetsRootPath, DirectionalShadowLabSceneId.Replace('/', Path.DirectorySeparatorChar));
+            string sceneDirectoryPath = Path.GetDirectoryName(scenePath);
+            if (string.IsNullOrWhiteSpace(sceneDirectoryPath)) {
+                throw new InvalidOperationException("Directional-shadow lab scene directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(sceneDirectoryPath);
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = DirectionalShadowLabSceneId,
+                AssetReferences = CreatePointShadowAssetReferences(),
+                RootEntities = CreateDirectionalShadowLabRootEntities()
             };
 
             using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
@@ -391,6 +453,225 @@ namespace helengine.demo_disc_scene_writer {
         }
 
         /// <summary>
+        /// Creates the root entity hierarchy stored in the committed spot-shadow lab scene.
+        /// </summary>
+        /// <returns>Serialized root entities for the scene.</returns>
+        SceneEntityAsset[] CreateSpotShadowLabRootEntities() {
+            float4 cameraOrientation;
+            float4.CreateFromYawPitchRoll(0f, 0f, 0f, out cameraOrientation);
+            float4 spotLightOrientation;
+            float4.CreateFromYawPitchRoll((float)(Math.PI * 0.15), (float)(-Math.PI * 0.16), 0f, out spotLightOrientation);
+            return new[] {
+                CreateCameraEntity(
+                    "spot-shadow-lab-camera",
+                    "SpotShadowLabCamera",
+                    new float3(0f, 0f, -28f),
+                    cameraOrientation),
+                CreateMeshEntity(
+                    "spot-shadow-lab-floor",
+                    "SpotShadowLabFloor",
+                    new float3(0f, -16f, 0f),
+                    new float3(32f, 2f, 32f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "spot-shadow-lab-ceiling",
+                    "SpotShadowLabCeiling",
+                    new float3(0f, 16f, 0f),
+                    new float3(32f, 2f, 32f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "spot-shadow-lab-wall-positive-x",
+                    "SpotShadowLabWallPositiveX",
+                    new float3(16f, 0f, 0f),
+                    new float3(2f, 32f, 32f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "spot-shadow-lab-wall-negative-x",
+                    "SpotShadowLabWallNegativeX",
+                    new float3(-16f, 0f, 0f),
+                    new float3(2f, 32f, 32f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "spot-shadow-lab-wall-positive-z",
+                    "SpotShadowLabWallPositiveZ",
+                    new float3(0f, 0f, 16f),
+                    new float3(32f, 32f, 2f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "spot-shadow-lab-wall-negative-z",
+                    "SpotShadowLabWallNegativeZ",
+                    new float3(0f, 0f, -16f),
+                    new float3(32f, 32f, 2f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "spot-shadow-lab-caster-primary",
+                    "SpotShadowLabCasterPrimary",
+                    new float3(4f, -8f, 6f),
+                    new float3(4f, 8f, 4f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "spot-shadow-lab-caster-secondary",
+                    "SpotShadowLabCasterSecondary",
+                    new float3(-6f, -10f, 2f),
+                    new float3(3f, 4f, 3f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "spot-shadow-lab-marker-positive-z-top-left",
+                    "SpotShadowLabMarkerPositiveZTopLeft",
+                    new float3(8f, 8f, 12f),
+                    new float3(3f, 3f, 3f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "spot-shadow-lab-marker-positive-z-bottom-left",
+                    "SpotShadowLabMarkerPositiveZBottomLeft",
+                    new float3(8f, -8f, 12f),
+                    new float3(3f, 3f, 3f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "spot-shadow-lab-marker-positive-z-bottom-right",
+                    "SpotShadowLabMarkerPositiveZBottomRight",
+                    new float3(-8f, -8f, 12f),
+                    new float3(3f, 3f, 3f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "spot-shadow-lab-marker-positive-z-top-right",
+                    "SpotShadowLabMarkerPositiveZTopRight",
+                    new float3(-8f, 8f, 12f),
+                    new float3(3f, 3f, 3f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateSpotLightEntity(
+                    "spot-shadow-lab-light",
+                    "SpotShadowLabLight",
+                    new float3(-4f, 10f, -8f),
+                    spotLightOrientation,
+                    30f,
+                    28f,
+                    40f,
+                    8f)
+            };
+        }
+
+        /// <summary>
+        /// Creates the root entity hierarchy stored in the committed directional-shadow lab scene.
+        /// </summary>
+        /// <returns>Serialized root entities for the scene.</returns>
+        SceneEntityAsset[] CreateDirectionalShadowLabRootEntities() {
+            float4 cameraOrientation;
+            float4.CreateFromYawPitchRoll((float)(Math.PI * 0.08), (float)(-Math.PI * 0.18), 0f, out cameraOrientation);
+            float4 directionalLightOrientation;
+            float4.CreateFromYawPitchRoll((float)(-Math.PI * 0.27), (float)(-Math.PI * 0.24), 0f, out directionalLightOrientation);
+            return new[] {
+                CreateCameraEntity(
+                    "directional-shadow-lab-camera",
+                    "DirectionalShadowLabCamera",
+                    new float3(-12f, 10f, -24f),
+                    cameraOrientation),
+                CreateMeshEntity(
+                    "directional-shadow-lab-floor",
+                    "DirectionalShadowLabFloor",
+                    new float3(0f, -1f, 0f),
+                    new float3(48f, 1f, 48f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "directional-shadow-lab-caster-left",
+                    "DirectionalShadowLabCasterLeft",
+                    new float3(-10f, 2f, -4f),
+                    new float3(4f, 4f, 4f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "directional-shadow-lab-caster-center",
+                    "DirectionalShadowLabCasterCenter",
+                    new float3(0f, 4f, 0f),
+                    new float3(4f, 8f, 4f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "directional-shadow-lab-caster-right",
+                    "DirectionalShadowLabCasterRight",
+                    new float3(10f, 3f, 6f),
+                    new float3(4f, 6f, 4f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "directional-shadow-lab-column-front",
+                    "DirectionalShadowLabColumnFront",
+                    new float3(-4f, 6f, 14f),
+                    new float3(3f, 12f, 3f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "directional-shadow-lab-column-back",
+                    "DirectionalShadowLabColumnBack",
+                    new float3(12f, 5f, -12f),
+                    new float3(3f, 10f, 3f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "directional-shadow-lab-ground-marker-left",
+                    "DirectionalShadowLabGroundMarkerLeft",
+                    new float3(-18f, 0.5f, 12f),
+                    new float3(2f, 1f, 2f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "directional-shadow-lab-ground-marker-center",
+                    "DirectionalShadowLabGroundMarkerCenter",
+                    new float3(-10f, 0.5f, 12f),
+                    new float3(2f, 1f, 2f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateMeshEntity(
+                    "directional-shadow-lab-ground-marker-right",
+                    "DirectionalShadowLabGroundMarkerRight",
+                    new float3(-10f, 0.5f, 20f),
+                    new float3(2f, 1f, 2f),
+                    float4.Identity,
+                    CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                    CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)),
+                CreateDirectionalLightEntity(
+                    "directional-shadow-lab-light",
+                    "DirectionalShadowLabLight",
+                    new float3(0f, 12f, 0f),
+                    directionalLightOrientation,
+                    2.8f)
+            };
+        }
+
+        /// <summary>
         /// Creates one serialized camera entity for the smoke scene.
         /// </summary>
         /// <param name="id">Stable entity id.</param>
@@ -473,6 +754,76 @@ namespace helengine.demo_disc_scene_writer {
                         ComponentTypeId = PointLightComponentTypeId,
                         ComponentIndex = 0,
                         Payload = WritePointLightPayload(range, intensity)
+                    }
+                },
+                Children = Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Creates one serialized spot-light entity for the smoke scene.
+        /// </summary>
+        /// <param name="id">Stable entity id.</param>
+        /// <param name="name">Display name stored on the entity.</param>
+        /// <param name="localPosition">Local position assigned to the entity.</param>
+        /// <param name="localOrientation">Local orientation assigned to the entity.</param>
+        /// <param name="range">Authored spot-light range.</param>
+        /// <param name="innerConeAngleDegrees">Authored inner cone angle in degrees.</param>
+        /// <param name="outerConeAngleDegrees">Authored outer cone angle in degrees.</param>
+        /// <param name="intensity">Authored spot-light intensity.</param>
+        /// <returns>Serialized spot-light entity.</returns>
+        SceneEntityAsset CreateSpotLightEntity(
+            string id,
+            string name,
+            float3 localPosition,
+            float4 localOrientation,
+            float range,
+            float innerConeAngleDegrees,
+            float outerConeAngleDegrees,
+            float intensity) {
+            return new SceneEntityAsset {
+                Id = id,
+                Name = name,
+                LocalPosition = localPosition,
+                LocalScale = float3.One,
+                LocalOrientation = localOrientation,
+                Components = new[] {
+                    new SceneComponentAssetRecord {
+                        ComponentTypeId = SpotLightComponentTypeId,
+                        ComponentIndex = 0,
+                        Payload = WriteSpotLightPayload(range, innerConeAngleDegrees, outerConeAngleDegrees, intensity)
+                    }
+                },
+                Children = Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Creates one serialized directional-light entity for the smoke scene.
+        /// </summary>
+        /// <param name="id">Stable entity id.</param>
+        /// <param name="name">Display name stored on the entity.</param>
+        /// <param name="localPosition">Local position assigned to the entity.</param>
+        /// <param name="localOrientation">Local orientation assigned to the entity.</param>
+        /// <param name="intensity">Authored directional-light intensity.</param>
+        /// <returns>Serialized directional-light entity.</returns>
+        SceneEntityAsset CreateDirectionalLightEntity(
+            string id,
+            string name,
+            float3 localPosition,
+            float4 localOrientation,
+            float intensity) {
+            return new SceneEntityAsset {
+                Id = id,
+                Name = name,
+                LocalPosition = localPosition,
+                LocalScale = float3.One,
+                LocalOrientation = localOrientation,
+                Components = new[] {
+                    new SceneComponentAssetRecord {
+                        ComponentTypeId = DirectionalLightComponentTypeId,
+                        ComponentIndex = 0,
+                        Payload = WriteDirectionalLightPayload(intensity)
                     }
                 },
                 Children = Array.Empty<SceneEntityAsset>()
@@ -571,6 +922,54 @@ namespace helengine.demo_disc_scene_writer {
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
             LightComponentScenePayloadSerializer.WritePointLight(writer, lightComponent);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one serialized spot-light component payload.
+        /// </summary>
+        /// <param name="range">Authored spot-light range.</param>
+        /// <param name="innerConeAngleDegrees">Authored inner cone angle in degrees.</param>
+        /// <param name="outerConeAngleDegrees">Authored outer cone angle in degrees.</param>
+        /// <param name="intensity">Authored spot-light intensity.</param>
+        /// <returns>Serialized spot-light component payload.</returns>
+        byte[] WriteSpotLightPayload(float range, float innerConeAngleDegrees, float outerConeAngleDegrees, float intensity) {
+            SpotLightComponent lightComponent = new SpotLightComponent {
+                Color = new float4(1f, 0.93f, 0.82f, 1f),
+                Intensity = intensity,
+                ShadowsEnabled = true,
+                ShadowMapMode = ShadowMapMode.Forced,
+                ShadowStrength = 1f,
+                Range = range,
+                InnerConeAngleDegrees = innerConeAngleDegrees,
+                OuterConeAngleDegrees = outerConeAngleDegrees
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
+            LightComponentScenePayloadSerializer.WriteSpotLight(writer, lightComponent);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one serialized directional-light component payload.
+        /// </summary>
+        /// <param name="intensity">Authored directional-light intensity.</param>
+        /// <returns>Serialized directional-light component payload.</returns>
+        byte[] WriteDirectionalLightPayload(float intensity) {
+            DirectionalLightComponent lightComponent = new DirectionalLightComponent {
+                Color = new float4(1f, 0.96f, 0.90f, 1f),
+                Intensity = intensity,
+                ShadowsEnabled = true,
+                ShadowMapMode = ShadowMapMode.Forced,
+                ShadowStrength = 1f
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
+            LightComponentScenePayloadSerializer.WriteDirectionalLight(writer, lightComponent);
             return stream.ToArray();
         }
 
