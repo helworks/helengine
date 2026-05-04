@@ -12,6 +12,10 @@ namespace helengine.editor {
         /// </summary>
         static string AssetsRootPath;
         /// <summary>
+        /// Tracks the resolved cache root path.
+        /// </summary>
+        static string CacheRootPath;
+        /// <summary>
         /// Tracks the resolved shader cache path.
         /// </summary>
         static string ShaderCachePath;
@@ -25,6 +29,11 @@ namespace helengine.editor {
         /// Gets the resolved assets root path.
         /// </summary>
         public static string AssetsRoot => AssetsRootPath;
+
+        /// <summary>
+        /// Gets the resolved cache root path.
+        /// </summary>
+        public static string CacheRoot => CacheRootPath;
 
         /// <summary>
         /// Gets the resolved shader cache path.
@@ -42,7 +51,8 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
-            ShaderCachePath = Path.Combine(ProjectRootPath, "shader-cache");
+            CacheRootPath = Path.Combine(ProjectRootPath, "cache");
+            ShaderCachePath = Path.Combine(CacheRootPath, "shader-cache");
         }
     }
 }

@@ -25,7 +25,7 @@ namespace helengine.editor.tests {
             ProjectRootPath = workspaceRootPath;
             BuildRootPath = Path.Combine(workspaceRootPath, "Build");
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets"));
-            Directory.CreateDirectory(Path.Combine(ProjectRootPath, "shader-cache"));
+            Directory.CreateDirectory(Path.Combine(ProjectRootPath, "cache", "shader-cache"));
             Directory.CreateDirectory(BuildRootPath);
         }
 
@@ -132,6 +132,74 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures packaged scenes preserve menu-host components and their file-backed font dependencies for the player runtime loader.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsMenuHostComponent_LeavesPackagedComponentLoadable() {
+            string menuSceneId = "Scenes/MenuScene.helen";
+            string playableSceneId = "Scenes/TestPlayableScene.helen";
+
+            WriteFontAsset("fonts/title.hefont", CreatePackagedFontAsset());
+            WriteFontAsset("fonts/body.hefont", CreatePackagedFontAsset());
+            WriteSceneAsset(
+                menuSceneId,
+                MenuHostComponent.SerializedComponentTypeId,
+                WriteMenuHostComponentPayload(),
+                new[] {
+                    CreateFileFontReference("fonts/title.hefont"),
+                    CreateFileFontReference("fonts/body.hefont")
+                });
+            WriteEmptySceneAsset(playableSceneId);
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont);
+            packager.Package(new[] { menuSceneId, playableSceneId }, BuildRootPath);
+
+            string packagedMenuScenePath = Path.Combine(
+                BuildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string packagedPlayableScenePath = Path.Combine(
+                BuildRootPath,
+                "scenes",
+                "Scenes",
+                "TestPlayableScene.hasset");
+            Assert.True(File.Exists(packagedMenuScenePath));
+            Assert.True(File.Exists(packagedPlayableScenePath));
+            Assert.True(File.Exists(Path.Combine(BuildRootPath, "fonts", "title.hefont")));
+            Assert.True(File.Exists(Path.Combine(BuildRootPath, "fonts", "body.hefont")));
+
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedMenuScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = BuildRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
+
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+            Entity loadedRoot = Assert.Single(loadedRoots);
+            MenuHostComponent menuHostComponent = Assert.IsType<MenuHostComponent>(
+                Assert.Single(loadedRoot.Components, component => component is MenuHostComponent));
+
+            Assert.True(menuHostComponent.IsInitialized);
+            Assert.Equal("main", menuHostComponent.ActivePanelId);
+            Assert.Equal("select-scene", menuHostComponent.SelectedItemId);
+        }
+
+        /// <summary>
         /// Ensures file-system model references in the scene manifest are imported instead of copied raw.
         /// </summary>
         [Fact]
@@ -189,6 +257,30 @@ namespace helengine.editor.tests {
             Assert.Single(packagedScene.AssetReferences);
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, packagedScene.AssetReferences[0].SourceKind);
             Assert.Equal("cooked/imported/Models/Sponza.model.asset", packagedScene.AssetReferences[0].RelativePath);
+        }
+
+        /// <summary>
+        /// Ensures the committed point-shadow smoke scene packages without failing the component rewrite pipeline.
+        /// </summary>
+        [Fact]
+        public void Package_WhenUsingCommittedPointShadowScene_PackagesSuccessfully() {
+            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string sourceScenePath = Path.Combine(repositoryRootPath, "test-project", "assets", "Scenes", "rendering", "point-shadow.helen");
+            string sceneId = "Scenes/rendering/point-shadow.helen";
+            string targetScenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "rendering", "point-shadow.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(targetScenePath));
+            File.Copy(sourceScenePath, targetScenePath, true);
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont);
+
+            EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
+
+            Assert.NotNull(result);
+            Assert.True(File.Exists(Path.Combine(BuildRootPath, EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar))));
         }
 
         /// <summary>
@@ -376,6 +468,20 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates the file-backed font reference used by packaged demo-disc menu scenes.
+        /// </summary>
+        /// <param name="relativePath">Project-relative font asset path.</param>
+        /// <returns>File-backed scene reference.</returns>
+        static SceneAssetReference CreateFileFontReference(string relativePath) {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = relativePath,
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            };
+        }
+
+        /// <summary>
         /// Writes one serialized scene asset containing a single empty root entity.
         /// </summary>
         /// <param name="sceneId">Scene asset id to write.</param>
@@ -400,6 +506,19 @@ namespace helengine.editor.tests {
 
             using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, sceneAsset);
+        }
+
+        /// <summary>
+        /// Writes one packaged font asset into the source project assets folder.
+        /// </summary>
+        /// <param name="relativePath">Project-relative font asset path.</param>
+        /// <param name="fontAsset">Font asset to serialize.</param>
+        void WriteFontAsset(string relativePath, FontAsset fontAsset) {
+            string fullPath = Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            FontAssetBinarySerializer.Serialize(stream, fontAsset);
         }
 
         /// <summary>
@@ -468,7 +587,7 @@ namespace helengine.editor.tests {
         /// <param name="shaderAssetId">Shader asset identifier to encode.</param>
         /// <param name="target">Shader compile target to encode.</param>
         void WriteShaderCachePackage(string shaderAssetId, ShaderCompileTarget target) {
-            string packagePath = ShaderPackagePaths.GetPackagePath(Path.Combine(ProjectRootPath, "shader-cache"), shaderAssetId, target);
+            string packagePath = ShaderPackagePaths.GetPackagePath(Path.Combine(ProjectRootPath, "cache", "shader-cache"), shaderAssetId, target);
             Directory.CreateDirectory(Path.GetDirectoryName(packagePath));
 
             ShaderAsset shaderAsset = new ShaderAsset {
@@ -563,6 +682,18 @@ namespace helengine.editor.tests {
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(textComponent, 0, saveState);
             return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one serialized menu-host component payload for the runtime menu-definition provider used by tests.
+        /// </summary>
+        /// <returns>Serialized menu-host component payload.</returns>
+        byte[] WriteMenuHostComponentPayload() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(MenuHostComponent.CurrentVersion);
+            writer.WriteString(typeof(TestMenuDefinitionProvider).AssemblyQualifiedName);
+            return stream.ToArray();
         }
 
         /// <summary>

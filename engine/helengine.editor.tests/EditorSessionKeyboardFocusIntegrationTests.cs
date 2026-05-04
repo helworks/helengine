@@ -21,7 +21,7 @@ namespace helengine.editor.tests {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-session-keyboard-focus-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempProjectRootPath);
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets"));
-            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "shader-cache"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "cache", "shader-cache"));
         }
 
         /// <summary>
@@ -310,7 +310,7 @@ namespace helengine.editor.tests {
         /// <returns>Disposable shader module manager for the test session.</returns>
         ShaderModuleManager CreateShaderModuleManager() {
             string shaderRootPath = Path.Combine(TempProjectRootPath, "assets", "Shaders");
-            string packageOutputPath = Path.Combine(TempProjectRootPath, "shader-cache");
+            string packageOutputPath = Path.Combine(TempProjectRootPath, "cache", "shader-cache");
             Directory.CreateDirectory(shaderRootPath);
             Directory.CreateDirectory(packageOutputPath);
 

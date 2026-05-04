@@ -22,6 +22,7 @@
     <ProjectReference Include="..\helengine.files\helengine.files.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.platforms\helengine.platforms.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.projectfile\helengine.projectfile.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\..\tools\demo-disc-scene-writer\helengine.demo-disc.scene-writer.csproj" SkipGetTargetFrameworkProperties="true" />
   </ItemGroup>
 
   <Target Name="CopyHelengineRuntimeAssemblies" AfterTargets="Build">

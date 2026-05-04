@@ -21,6 +21,16 @@ namespace helengine.editor.tests.testing {
         public bool IsForegroundActive { get; set; } = true;
 
         /// <summary>
+        /// Gets or sets the gamepad states returned by the backend.
+        /// </summary>
+        public InputGamepadState[] Gamepads { get; set; } = Array.Empty<InputGamepadState>();
+
+        /// <summary>
+        /// Gets or sets the number of valid gamepad entries returned by the backend.
+        /// </summary>
+        public int GamepadCount { get; set; }
+
+        /// <summary>
         /// Advances the active core input system through its early frame phase.
         /// </summary>
         public void EarlyUpdate() {
@@ -65,6 +75,8 @@ namespace helengine.editor.tests.testing {
             InputFrameState frame = new InputFrameState();
             frame.Keyboard = KeyboardState;
             frame.Mouse = CaptureMouseState();
+            frame.Gamepads = Gamepads;
+            frame.GamepadCount = GamepadCount;
             return frame;
         }
 
@@ -82,6 +94,19 @@ namespace helengine.editor.tests.testing {
         /// <param name="state">Mouse state to expose.</param>
         public void SetMouseState(MouseState state) {
             MouseState = state;
+        }
+
+        /// <summary>
+        /// Replaces the gamepad states returned during the next input capture.
+        /// </summary>
+        /// <param name="states">Gamepad states to expose.</param>
+        public void SetGamepadStates(InputGamepadState[] states) {
+            if (states == null) {
+                throw new ArgumentNullException(nameof(states));
+            }
+
+            Gamepads = states;
+            GamepadCount = states.Length;
         }
 
         /// <summary>

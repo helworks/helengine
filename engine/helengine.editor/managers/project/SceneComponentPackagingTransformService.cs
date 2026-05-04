@@ -15,7 +15,7 @@ namespace helengine.editor {
         /// <summary>
         /// Current payload version for serialized camera component scene records.
         /// </summary>
-        const byte CameraComponentPayloadVersion = 1;
+        const byte CameraComponentPayloadVersion = 2;
 
         /// <summary>
         /// Current payload version for serialized FPS component scene records.
@@ -280,7 +280,7 @@ namespace helengine.editor {
             using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != CameraComponentPayloadVersion) {
+            if (version != 1 && version != CameraComponentPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
             }
 
@@ -288,6 +288,7 @@ namespace helengine.editor {
             ushort layerMask = reader.ReadUInt16();
             float4 viewport = ReadFloat4(reader);
             CameraClearSettings clearSettings = ReadClearSettings(reader);
+            CameraRenderSettings renderSettings = version >= 2 ? ReadRenderSettings(reader) : new CameraRenderSettings();
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -296,6 +297,7 @@ namespace helengine.editor {
             writer.WriteUInt16(NormalizePackagedCameraLayerMask(layerMask));
             WriteFloat4(writer, viewport);
             WriteClearSettings(writer, clearSettings);
+            WriteRenderSettings(writer, renderSettings);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = record.ComponentTypeId,
@@ -723,6 +725,30 @@ namespace helengine.editor {
             writer.WriteSingle(settings.ClearDepth);
             writer.WriteByte(settings.ClearStencilEnabled ? (byte)1 : (byte)0);
             writer.WriteByte(settings.ClearStencil);
+        }
+
+        CameraRenderSettings ReadRenderSettings(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            return new CameraRenderSettings {
+                DepthPrepassMode = (DepthPrepassMode)reader.ReadByte(),
+                ShadowDistance = reader.ReadSingle(),
+                PostProcessTier = (PostProcessTier)reader.ReadByte()
+            };
+        }
+
+        void WriteRenderSettings(EngineBinaryWriter writer, CameraRenderSettings settings) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            writer.WriteByte((byte)settings.DepthPrepassMode);
+            writer.WriteSingle(settings.ShadowDistance);
+            writer.WriteByte((byte)settings.PostProcessTier);
         }
 
         ushort NormalizePackagedCameraLayerMask(ushort layerMask) {

@@ -29,7 +29,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         ProjectRootPath = workspaceRootPath;
         BuildRootPath = Path.Combine(workspaceRootPath, "Build");
         Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets"));
-        Directory.CreateDirectory(Path.Combine(ProjectRootPath, "shader-cache"));
+        Directory.CreateDirectory(Path.Combine(ProjectRootPath, "cache", "shader-cache"));
         Directory.CreateDirectory(BuildRootPath);
     }
 

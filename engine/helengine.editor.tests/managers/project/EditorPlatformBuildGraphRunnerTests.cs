@@ -204,6 +204,118 @@ public class EditorPlatformBuildGraphRunnerTests {
         }
     }
 
+    /// <summary>
+    /// Verifies the shared Windows build graph can export the committed point-shadow smoke scene from a copied project workspace.
+    /// </summary>
+    [Fact]
+    public void Execute_WhenBuildingCommittedPointShadowSceneForWindows_Succeeds() {
+        string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+        string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
+        string workspaceRootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        string projectRootPath = Path.Combine(workspaceRootPath, "project");
+        string outputRootPath = Path.Combine(workspaceRootPath, "output");
+
+        try {
+            CopyDirectory(sourceProjectRootPath, projectRootPath);
+            ConfigureWindowsBuildForCommittedPointShadowScene(projectRootPath, outputRootPath);
+
+            EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(Path.Combine(projectRootPath, "project.heproj"));
+            EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(
+                bootstrap.BuildConfigService.TryLoadExisting(),
+                "windows");
+            EditorPlatformBuildSelectionModel selectionModel = bootstrap.ResolveSelectionModel("windows");
+            EditorBuildQueueItemFactory queueItemFactory = new EditorBuildQueueItemFactory(bootstrap.SceneCatalogService);
+            EditorBuildQueueItemDocument queueItem = queueItemFactory.Create(platformConfig, selectionModel, outputRootPath);
+            AvailablePlatformDescriptor platformDescriptor = bootstrap.ResolvePlatformDescriptor("windows");
+            EditorPlatformBuildGraphRunner runner = new(
+                bootstrap.ProjectRootPath,
+                bootstrap.RequiredEngineVersion,
+                bootstrap.ProjectName,
+                bootstrap.ProjectVersion,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDescriptor,
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService());
+
+            EditorBuildExecutionResult result = runner.Execute(queueItem);
+
+            Assert.True(result.Succeeded, result.Message);
+        } finally {
+            if (Directory.Exists(workspaceRootPath)) {
+                Directory.Delete(workspaceRootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Finds the persisted build configuration entry for one platform id.
+    /// </summary>
+    /// <param name="buildConfig">Persisted build configuration document.</param>
+    /// <param name="platformId">Target platform identifier.</param>
+    /// <returns>Matching platform configuration when present; otherwise null.</returns>
+    static EditorBuildPlatformConfigDocument FindPlatformConfig(EditorBuildConfigDocument buildConfig, string platformId) {
+        if (buildConfig == null) {
+            throw new ArgumentNullException(nameof(buildConfig));
+        }
+        if (string.IsNullOrWhiteSpace(platformId)) {
+            throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+        }
+
+        for (int index = 0; index < buildConfig.Platforms.Count; index++) {
+            EditorBuildPlatformConfigDocument platform = buildConfig.Platforms[index];
+            if (platform != null && string.Equals(platform.PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
+                return platform;
+            }
+        }
+
+        throw new InvalidOperationException($"Build configuration did not define platform '{platformId}'.");
+    }
+
+    /// <summary>
+    /// Rewrites the copied test-project build configuration so Windows exports only the committed point-shadow smoke scene.
+    /// </summary>
+    /// <param name="projectRootPath">Copied project workspace root.</param>
+    /// <param name="outputRootPath">Requested build output root.</param>
+    static void ConfigureWindowsBuildForCommittedPointShadowScene(string projectRootPath, string outputRootPath) {
+        EditorBuildConfigService buildConfigService = new EditorBuildConfigService(projectRootPath);
+        EditorBuildConfigDocument buildConfig = buildConfigService.TryLoadExisting()
+            ?? throw new InvalidOperationException($"Copied project at '{projectRootPath}' did not provide a build configuration.");
+
+        for (int index = 0; index < buildConfig.Platforms.Count; index++) {
+            EditorBuildPlatformConfigDocument platform = buildConfig.Platforms[index];
+            if (platform == null || !string.Equals(platform.PlatformId, "windows", StringComparison.OrdinalIgnoreCase)) {
+                continue;
+            }
+
+            platform.SelectedSceneIds = ["Scenes/rendering/point-shadow.helen"];
+            platform.OutputDirectoryPath = outputRootPath.Replace('\\', '/');
+        }
+
+        buildConfigService.Save(buildConfig);
+    }
+
+    /// <summary>
+    /// Copies one directory tree into a target workspace while preserving the relative layout.
+    /// </summary>
+    /// <param name="sourceRootPath">Source directory tree to copy.</param>
+    /// <param name="destinationRootPath">Destination directory tree that will receive the copy.</param>
+    static void CopyDirectory(string sourceRootPath, string destinationRootPath) {
+        Directory.CreateDirectory(destinationRootPath);
+        string[] sourceFilePaths = Directory.GetFiles(sourceRootPath, "*", SearchOption.AllDirectories);
+        Array.Sort(sourceFilePaths, StringComparer.OrdinalIgnoreCase);
+
+        for (int index = 0; index < sourceFilePaths.Length; index++) {
+            string sourceFilePath = sourceFilePaths[index];
+            string relativePath = Path.GetRelativePath(sourceRootPath, sourceFilePath);
+            string destinationPath = Path.Combine(destinationRootPath, relativePath);
+            string destinationDirectoryPath = Path.GetDirectoryName(destinationPath)
+                ?? throw new InvalidOperationException($"Unable to resolve destination directory for '{destinationPath}'.");
+            Directory.CreateDirectory(destinationDirectoryPath);
+            File.Copy(sourceFilePath, destinationPath, true);
+        }
+    }
+
     sealed class FakeEditorPlatformBuildGraphRunner : EditorPlatformBuildGraphRunner {
         public FakeEditorPlatformBuildGraphRunner()
             : base(

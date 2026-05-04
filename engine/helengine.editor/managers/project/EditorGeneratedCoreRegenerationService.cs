@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Profiles;
 
@@ -61,6 +62,9 @@ namespace helengine.editor {
             string generatedCoreOutputRoot = Path.GetFullPath(generatedCoreRootPath);
             string helengineCoreProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.core", "helengine.core.csproj");
             string helengineInputProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.input", "helengine.input.csproj");
+            string bundledRuntimeSupportRootPath = Path.Combine(
+                Path.GetDirectoryName(fullCodegenToolPath) ?? throw new InvalidOperationException($"Unable to resolve the codegen tool directory from '{fullCodegenToolPath}'."),
+                ".net.cpp");
             string tempRoot = Path.Combine(Path.GetTempPath(), "helengine-generated-core", platformDefinition.PlatformId, Guid.NewGuid().ToString("N"));
             string portableInputOutputRoot = Path.Combine(tempRoot, "portable-input");
             string logPath = Path.Combine(tempRoot, "regeneration.log");
@@ -102,6 +106,7 @@ namespace helengine.editor {
                     logBuilder,
                     cancellationToken);
                 MergeGeneratedSourceTree(portableInputOutputRoot, generatedCoreOutputRoot);
+                MergeBundledRuntimeSupportTree(bundledRuntimeSupportRootPath, generatedCoreOutputRoot);
                 NormalizeGeneratedNativeSources(generatedCoreOutputRoot);
                 RewriteUnityTranslationUnit(generatedCoreOutputRoot);
             } finally {
@@ -257,10 +262,10 @@ namespace helengine.editor {
             }
 
             if (string.Equals(platformDefinition.PlatformId, "windows", StringComparison.OrdinalIgnoreCase)) {
-                return ["HELENGINE_INPUT_KEYBOARD", "HELENGINE_INPUT_MOUSE"];
+                return ["HELENGINE_INPUT_KEYBOARD", "HELENGINE_INPUT_MOUSE", "HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION"];
             }
 
-            return [];
+            return ["HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION"];
         }
 
         /// <summary>
@@ -348,6 +353,46 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Copies bundled codegen runtime support files into the generated output tree when conversion output omitted them.
+        /// </summary>
+        /// <param name="bundledRuntimeSupportRootPath">Bundled runtime support root that ships beside the codegen executable.</param>
+        /// <param name="destinationRootPath">Combined generated-core output root that must become self-contained.</param>
+        internal static void MergeBundledRuntimeSupportTree(string bundledRuntimeSupportRootPath, string destinationRootPath) {
+            if (string.IsNullOrWhiteSpace(bundledRuntimeSupportRootPath)) {
+                throw new ArgumentException("Bundled runtime support root path must be provided.", nameof(bundledRuntimeSupportRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(destinationRootPath)) {
+                throw new ArgumentException("Destination root path must be provided.", nameof(destinationRootPath));
+            }
+
+            if (!Directory.Exists(bundledRuntimeSupportRootPath)) {
+                return;
+            }
+
+            string[] sourceFiles = Directory.GetFiles(bundledRuntimeSupportRootPath, "*", SearchOption.AllDirectories);
+            Array.Sort(sourceFiles, StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < sourceFiles.Length; index++) {
+                string sourceFilePath = sourceFiles[index];
+                if (!ShouldMergeGeneratedSourceFile(sourceFilePath)) {
+                    continue;
+                }
+
+                string relativePath = Path.GetRelativePath(bundledRuntimeSupportRootPath, sourceFilePath);
+                string destinationFilePath = Path.Combine(destinationRootPath, relativePath);
+                if (File.Exists(destinationFilePath)) {
+                    continue;
+                }
+
+                string? destinationDirectoryPath = Path.GetDirectoryName(destinationFilePath);
+                if (!string.IsNullOrWhiteSpace(destinationDirectoryPath)) {
+                    Directory.CreateDirectory(destinationDirectoryPath);
+                }
+
+                File.Copy(sourceFilePath, destinationFilePath, false);
+            }
+        }
+
+        /// <summary>
         /// Normalizes generated source files that still need post-processing for the native Windows build.
         /// </summary>
         /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
@@ -366,7 +411,8 @@ namespace helengine.editor {
                 string sourceFilePath = sourceFiles[index];
                 string extension = Path.GetExtension(sourceFilePath);
                 if (!string.Equals(extension, ".cpp", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(extension, ".hpp", StringComparison.OrdinalIgnoreCase)) {
+                    && !string.Equals(extension, ".hpp", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(extension, ".tpp", StringComparison.OrdinalIgnoreCase)) {
                     continue;
                 }
 
@@ -439,7 +485,357 @@ namespace helengine.editor {
                 return contents.Replace("int2 *pointer = input->GetMousePosition();", "int2 pointer = input->GetMousePosition();");
             }
 
+            if (string.Equals(fileName, "MenuHostComponent.cpp", StringComparison.OrdinalIgnoreCase)) {
+                string updatedContents = Regex.Replace(
+                    contents,
+                    @"=\s*\(\)\s*=>\s*this->ActivateItem\(runtimeItem\);",
+                    "= new Action<>([&]() { this->ActivateItem(runtimeItem); });",
+                    RegexOptions.CultureInvariant);
+                updatedContents = Regex.Replace(
+                    updatedContents,
+                    @"button->Hovered\s*\+=\s*\(\)\s*=>\s*this->HandleItemHovered\(runtimeItem\);",
+                    "button->Hovered += [&]() { this->HandleItemHovered(runtimeItem); };",
+                    RegexOptions.CultureInvariant);
+                updatedContents = updatedContents.Replace(
+                    "relativePath.Replace('/', Path::DirectorySeparatorChar).Replace('\\\\', Path::DirectorySeparatorChar)",
+                    "String::Replace(String::Replace(relativePath, '/', Path::DirectorySeparatorChar), '\\\\', Path::DirectorySeparatorChar)",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "relativePath.Replace('\\\\', '/')",
+                    "String::Replace(relativePath, '\\\\', '/')",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "InputGamepadState *currentGamepadState = inputSystem->GetGamepadState(0);",
+                    "InputGamepadState currentGamepadState = inputSystem->GetGamepadState(0);",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "InputGamepadState* MenuHostComponent::ReadPrimaryGamepadState()",
+                    "InputGamepadState MenuHostComponent::ReadPrimaryGamepadState()",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "bool MenuHostComponent::WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button)",
+                    "bool MenuHostComponent::WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button)",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("currentGamepadState->", "currentGamepadState.", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("currentState->", "currentState.", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("previousState->", "previousState.", StringComparison.Ordinal);
+                return updatedContents;
+            }
+
+            if (string.Equals(fileName, "MenuHostComponent.hpp", StringComparison.OrdinalIgnoreCase)) {
+                string updatedContents = contents.Replace(
+                    "InputGamepadState* PreviousGamepadState;",
+                    "InputGamepadState PreviousGamepadState;",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "InputGamepadState* ReadPrimaryGamepadState();",
+                    "InputGamepadState ReadPrimaryGamepadState();",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "bool WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button);",
+                    "bool WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button);",
+                    StringComparison.Ordinal);
+                return updatedContents;
+            }
+
+            if (string.Equals(fileName, "DirectionalLightComponent.cpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "PointLightComponent.cpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "SpotLightComponent.cpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "LightComponent.cpp", StringComparison.OrdinalIgnoreCase)) {
+                string updatedContents = contents.Replace("LightType.", "LightType::");
+                updatedContents = updatedContents.Replace("this->ShadowMapMode::Auto", "::ShadowMapMode::Auto");
+                return updatedContents;
+            }
+
+            if (string.Equals(fileName, "CoreInitializationOptions.cpp", StringComparison.OrdinalIgnoreCase)
+                && contents.Contains("AppContext::BaseDirectory", StringComparison.Ordinal)
+                && !contents.Contains("#include \"system/app_context.hpp\"", StringComparison.Ordinal)) {
+                return InsertIncludeAfterOwnHeader(contents, "#include \"system/app_context.hpp\"");
+            }
+
+            if (string.Equals(fileName, "path.hpp", StringComparison.OrdinalIgnoreCase)
+                && !contents.Contains("ChangeExtension", StringComparison.Ordinal)) {
+                return InsertPathChangeExtensionDeclaration(contents);
+            }
+
+            if (string.Equals(fileName, "path.cpp", StringComparison.OrdinalIgnoreCase)
+                && !contents.Contains("Path::ChangeExtension", StringComparison.Ordinal)) {
+                return InsertPathChangeExtensionImplementation(contents);
+            }
+
+            if (string.Equals(fileName, "native_dictionary.hpp", StringComparison.OrdinalIgnoreCase)
+                && !contents.Contains("void Clear()", StringComparison.Ordinal)) {
+                return InsertNativeDictionaryClearHelper(contents);
+            }
+
+            if (string.Equals(fileName, "native_string.hpp", StringComparison.OrdinalIgnoreCase)
+                && !contents.Contains("static std::string Replace(const std::string& value, char oldValue, char newValue)", StringComparison.Ordinal)) {
+                return InsertNativeStringReplaceHelper(contents);
+            }
+
+            if (string.Equals(fileName, "feature_manifest.hpp", StringComparison.OrdinalIgnoreCase)
+                && !contents.Contains("HostFileSystem", StringComparison.Ordinal)) {
+                return InsertMissingFeatureManifestEntries(contents);
+            }
+
+            if (string.Equals(fileName, "ShaderFilesystemIncludeResolver.cpp", StringComparison.OrdinalIgnoreCase)
+                && contents.Contains("Directory::Exists", StringComparison.Ordinal)
+                && !contents.Contains("#include \"system/io/directory.hpp\"", StringComparison.Ordinal)) {
+                return InsertIncludeAfterOwnHeader(contents, "#include \"system/io/directory.hpp\"");
+            }
+
+            if (string.Equals(fileName, "action.hpp", StringComparison.OrdinalIgnoreCase)
+                && !contents.Contains("std::function<void(TArgs...)> func{}", StringComparison.Ordinal)) {
+                return InsertActionCallableSupportHeader(contents);
+            }
+
+            if (string.Equals(fileName, "action.tpp", StringComparison.OrdinalIgnoreCase)
+                && !contents.Contains("Action<TArgs...>::Action(TCallable f) : func(f) {}", StringComparison.Ordinal)) {
+                return InsertActionCallableSupportImplementation(contents);
+            }
+
             return contents;
+        }
+
+        /// <summary>
+        /// Inserts one additional include immediately after the generated file's primary self-include.
+        /// </summary>
+        /// <param name="contents">Current generated file contents.</param>
+        /// <param name="includeLine">Include line that should be inserted.</param>
+        /// <returns>Updated generated file contents.</returns>
+        static string InsertIncludeAfterOwnHeader(string contents, string includeLine) {
+            if (string.IsNullOrEmpty(contents) || string.IsNullOrWhiteSpace(includeLine)) {
+                return contents;
+            }
+
+            string[] lines = contents.Split(["\r\n", "\n"], StringSplitOptions.None);
+            for (int index = 0; index < lines.Length; index++) {
+                string line = lines[index];
+                if (!line.StartsWith("#include \"", StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                List<string> updatedLines = new(lines.Length + 1);
+                for (int lineIndex = 0; lineIndex < lines.Length; lineIndex++) {
+                    updatedLines.Add(lines[lineIndex]);
+                    if (lineIndex == index) {
+                        updatedLines.Add(includeLine);
+                    }
+                }
+
+                return string.Join(Environment.NewLine, updatedLines);
+            }
+
+            return includeLine + Environment.NewLine + contents;
+        }
+
+        /// <summary>
+        /// Inserts the missing dictionary Clear helper into bundled native dictionary support.
+        /// </summary>
+        /// <param name="contents">Current native dictionary support contents.</param>
+        /// <returns>Updated native dictionary support contents.</returns>
+        static string InsertNativeDictionaryClearHelper(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("void Clear()", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            string clearMethod = "    void Clear() {" + newline
+                + "        this->clear();" + newline
+                + "    }" + newline + newline;
+
+            if (contents.Contains("    bool TryGetValue(", StringComparison.Ordinal)) {
+                return contents.Replace("    bool TryGetValue(", clearMethod + "    bool TryGetValue(", StringComparison.Ordinal);
+            }
+
+            if (contents.Contains("    std::vector<TKey> Keys() const {", StringComparison.Ordinal)) {
+                return contents.Replace("    std::vector<TKey> Keys() const {", clearMethod + "    std::vector<TKey> Keys() const {", StringComparison.Ordinal);
+            }
+
+            if (contents.Contains("};", StringComparison.Ordinal)) {
+                return contents.Replace("};", clearMethod + "};", StringComparison.Ordinal);
+            }
+
+            return contents + newline + clearMethod;
+        }
+
+        /// <summary>
+        /// Upgrades bundled native Action support to store arbitrary callables needed by captured generated lambdas.
+        /// </summary>
+        /// <param name="contents">Current action header contents.</param>
+        /// <returns>Updated action header contents.</returns>
+        static string InsertActionCallableSupportHeader(string contents) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            string updatedContents = contents;
+            if (!updatedContents.Contains("#include <functional>", StringComparison.Ordinal)) {
+                updatedContents = updatedContents.Replace(
+                    "#define ACTION_HPP",
+                    "#define ACTION_HPP" + Environment.NewLine + Environment.NewLine + "#include <functional>",
+                    StringComparison.Ordinal);
+            }
+
+            updatedContents = updatedContents.Replace(
+                "    FuncType func = nullptr;",
+                "    std::function<void(TArgs...)> func{};",
+                StringComparison.Ordinal);
+
+            if (!updatedContents.Contains("template<typename TCallable>", StringComparison.Ordinal)) {
+                updatedContents = updatedContents.Replace(
+                    "    explicit Action(FuncType f);",
+                    "    explicit Action(FuncType f);" + Environment.NewLine
+                    + "    template<typename TCallable>" + Environment.NewLine
+                    + "    explicit Action(TCallable f) : func(f) {}",
+                    StringComparison.Ordinal);
+            }
+
+            return updatedContents;
+        }
+
+        /// <summary>
+        /// Upgrades bundled native Action implementation to support arbitrary captured callables.
+        /// </summary>
+        /// <param name="contents">Current action template implementation contents.</param>
+        /// <returns>Updated action template implementation contents.</returns>
+        static string InsertActionCallableSupportImplementation(string contents) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            string updatedContents = contents;
+            if (updatedContents.Contains("template<typename TCallable>", StringComparison.Ordinal)
+                && updatedContents.Contains("Action<TArgs...>::Action(TCallable f) : func(f) {}", StringComparison.Ordinal)) {
+                updatedContents = Regex.Replace(
+                    updatedContents,
+                    @"template<typename\.\.\. TArgs>\r?\ntemplate<typename TCallable>\r?\nAction<TArgs\.\.\.>::Action\(TCallable f\) : func\(f\) \{\}\r?\n\r?\n",
+                    string.Empty,
+                    RegexOptions.CultureInvariant);
+            }
+
+            updatedContents = updatedContents.Replace(
+                "    return func != nullptr;",
+                "    return static_cast<bool>(func);",
+                StringComparison.Ordinal);
+
+            return updatedContents;
+        }
+
+        /// <summary>
+        /// Inserts the missing managed-style single-character replace helper into bundled native string support.
+        /// </summary>
+        /// <param name="contents">Current native string support contents.</param>
+        /// <returns>Updated native string support contents.</returns>
+        static string InsertNativeStringReplaceHelper(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("static std::string Replace(const std::string& value, char oldValue, char newValue)", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            string replaceMethod = "    static std::string Replace(const std::string& value, char oldValue, char newValue) {" + newline
+                + "        std::string replaced = value;" + newline
+                + "        std::replace(replaced.begin(), replaced.end(), oldValue, newValue);" + newline
+                + "        return replaced;" + newline
+                + "    }" + newline + newline;
+
+            if (contents.Contains("    static std::string Insert(", StringComparison.Ordinal)) {
+                return contents.Replace("    static std::string Insert(", replaceMethod + "    static std::string Insert(", StringComparison.Ordinal);
+            }
+
+            if (contents.Contains("};", StringComparison.Ordinal)) {
+                return contents.Replace("};", replaceMethod + "};", StringComparison.Ordinal);
+            }
+
+            return contents + newline + replaceMethod;
+        }
+
+        /// <summary>
+        /// Inserts runtime feature enum entries that generated manifest bodies already reference during native validation builds.
+        /// </summary>
+        /// <param name="contents">Current feature-manifest header contents.</param>
+        /// <returns>Updated feature-manifest header contents.</returns>
+        static string InsertMissingFeatureManifestEntries(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("HostFileSystem", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            int enumStartIndex = contents.IndexOf("enum class HEFeature {", StringComparison.Ordinal);
+            if (enumStartIndex < 0) {
+                return contents;
+            }
+
+            int enumEndIndex = contents.IndexOf("};", enumStartIndex, StringComparison.Ordinal);
+            if (enumEndIndex < 0) {
+                return contents;
+            }
+
+            string replacement = "enum class HEFeature {" + Environment.NewLine
+                + "    Render2D," + Environment.NewLine
+                + "    Sprites," + Environment.NewLine
+                + "    Text2D," + Environment.NewLine
+                + "    Shaders," + Environment.NewLine
+                + "    DebugOverlay," + Environment.NewLine
+                + "    HostFileSystem," + Environment.NewLine
+                + "    ReflectionLikeRuntime," + Environment.NewLine
+                + "    RuntimeJson," + Environment.NewLine
+                + "    TextProcessing" + Environment.NewLine
+                + "};";
+
+            return contents.Substring(0, enumStartIndex)
+                + replacement
+                + contents.Substring(enumEndIndex + 2);
+        }
+
+        /// <summary>
+        /// Inserts the missing Path.ChangeExtension declaration into bundled path support.
+        /// </summary>
+        /// <param name="contents">Current path header contents.</param>
+        /// <returns>Updated path header contents.</returns>
+        static string InsertPathChangeExtensionDeclaration(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("ChangeExtension", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            string declaration = "    static std::string ChangeExtension(const std::string& path, const std::string& extension);" + newline + newline;
+
+            if (contents.Contains("    static bool IsPathRooted", StringComparison.Ordinal)) {
+                return contents.Replace("    static bool IsPathRooted", declaration + "    static bool IsPathRooted", StringComparison.Ordinal);
+            }
+
+            if (contents.Contains("};", StringComparison.Ordinal)) {
+                return contents.Replace("};", declaration + "};", StringComparison.Ordinal);
+            }
+
+            return contents + newline + declaration;
+        }
+
+        /// <summary>
+        /// Inserts the missing Path.ChangeExtension implementation into bundled path support.
+        /// </summary>
+        /// <param name="contents">Current path source contents.</param>
+        /// <returns>Updated path source contents.</returns>
+        static string InsertPathChangeExtensionImplementation(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("Path::ChangeExtension", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            string implementation = "std::string Path::ChangeExtension(const std::string& path, const std::string& extension) {" + newline
+                + "    if (path.empty()) {" + newline
+                + "        return std::string();" + newline
+                + "    }" + newline + newline
+                + "    std::filesystem::path updatedPath(path);" + newline
+                + "    updatedPath.replace_extension(extension);" + newline
+                + "    return updatedPath.string();" + newline
+                + "}" + newline + newline;
+
+            if (contents.Contains("bool Path::IsPathRooted", StringComparison.Ordinal)) {
+                return contents.Replace("bool Path::IsPathRooted", implementation + "bool Path::IsPathRooted", StringComparison.Ordinal);
+            }
+
+            return contents + newline + implementation;
         }
 
         /// <summary>

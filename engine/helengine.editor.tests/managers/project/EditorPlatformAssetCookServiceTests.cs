@@ -1,5 +1,6 @@
 using helengine.baseplatform.Manifest;
 using helengine.editor.tests.testing;
+using helengine.platforms;
 using Xunit;
 
 namespace helengine.editor.tests.managers.project;
@@ -16,7 +17,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         ProjectRootPath = workspaceRootPath;
         BuildRootPath = Path.Combine(workspaceRootPath, "Build");
         Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets"));
-        Directory.CreateDirectory(Path.Combine(ProjectRootPath, "shader-cache"));
+        Directory.CreateDirectory(Path.Combine(ProjectRootPath, "cache", "shader-cache"));
         Directory.CreateDirectory(BuildRootPath);
     }
 
@@ -80,6 +81,44 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.False(File.Exists(Path.Combine(BuildRootPath, "Models", "Sponza.obj")));
     }
 
+    /// <summary>
+    /// Verifies the committed point-shadow rendering scene cooks successfully with the installed Windows builder metadata.
+    /// </summary>
+    [Fact]
+    public void Cook_when_using_committed_point_shadow_scene_with_windows_builder_metadata_succeeds() {
+        string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+        string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
+        CopyDirectory(Path.Combine(sourceProjectRootPath, "assets"), Path.Combine(ProjectRootPath, "assets"));
+        string sourceCacheRootPath = Path.Combine(sourceProjectRootPath, "cache");
+        if (Directory.Exists(sourceCacheRootPath)) {
+            CopyDirectory(sourceCacheRootPath, Path.Combine(ProjectRootPath, "cache"));
+        }
+
+        EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(Path.Combine(sourceProjectRootPath, "project.heproj"));
+        AvailablePlatformDescriptor platformDescriptor = bootstrap.ResolvePlatformDescriptor("windows");
+        EditorPlatformAssetBuilderLoader builderLoader = new();
+        helengine.baseplatform.Builders.IPlatformAssetBuilder builder = builderLoader.Load(platformDescriptor.BuilderAssemblyPath);
+        EditorPlatformAssetCookService service = new(
+            ProjectRootPath,
+            bootstrap.RequiredEngineVersion,
+            bootstrap.ProjectName,
+            bootstrap.ProjectVersion,
+            Array.Empty<IAssetImporterRegistration>(),
+            null);
+
+        PlatformBuildManifest manifest = service.Cook(
+            builder.Definition,
+            ["Scenes/rendering/point-shadow.helen"],
+            BuildRootPath,
+            ["windows"],
+            builder,
+            "debug",
+            "directx11");
+
+        Assert.Equal("Scenes/rendering/point-shadow.helen", manifest.StartupSceneId);
+        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "main.hasset")));
+    }
+
     void WriteSceneAsset(string sceneId, SceneAssetReference[] assetReferences) {
         string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(scenePath)!);
@@ -102,5 +141,25 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
 
         using FileStream stream = new(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
         AssetSerializer.Serialize(stream, sceneAsset);
+    }
+
+    /// <summary>
+    /// Copies one directory tree into the temporary test workspace while preserving relative paths.
+    /// </summary>
+    /// <param name="sourceRootPath">Source directory tree to copy.</param>
+    /// <param name="destinationRootPath">Destination directory root.</param>
+    static void CopyDirectory(string sourceRootPath, string destinationRootPath) {
+        Directory.CreateDirectory(destinationRootPath);
+        string[] sourceFilePaths = Directory.GetFiles(sourceRootPath, "*", SearchOption.AllDirectories);
+        Array.Sort(sourceFilePaths, StringComparer.OrdinalIgnoreCase);
+
+        for (int index = 0; index < sourceFilePaths.Length; index++) {
+            string sourceFilePath = sourceFilePaths[index];
+            string relativePath = Path.GetRelativePath(sourceRootPath, sourceFilePath);
+            string destinationPath = Path.Combine(destinationRootPath, relativePath);
+            string destinationDirectoryPath = Path.GetDirectoryName(destinationPath)!;
+            Directory.CreateDirectory(destinationDirectoryPath);
+            File.Copy(sourceFilePath, destinationPath, true);
+        }
     }
 }

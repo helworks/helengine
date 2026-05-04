@@ -465,6 +465,10 @@ namespace helengine.editor {
             persistenceRegistry.Register(new CameraComponentPersistenceDescriptor());
             persistenceRegistry.Register(new TextComponentPersistenceDescriptor());
             persistenceRegistry.Register(new FPSComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new DirectionalLightComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new PointLightComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new SpotLightComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new MenuHostComponentPersistenceDescriptor());
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
             SceneCreationService = new EditorSceneCreationService();
@@ -1992,7 +1996,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Project root path is required to locate shader output.");
             }
 
-            string outputPath = Path.Combine(projectRoot, "shader-cache");
+            string outputPath = Path.Combine(projectRoot, "cache", "shader-cache");
             return Path.GetFullPath(outputPath);
         }
 

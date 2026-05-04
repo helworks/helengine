@@ -1,4 +1,5 @@
 using helengine.editor.tests.testing;
+using helengine.files;
 using Xunit;
 
 namespace helengine.editor.tests.serialization.scene {
@@ -210,6 +211,123 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures packaged runtime scene loading materializes menu-host components through the default runtime registry.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneContainsMenuHostComponent_MaterializesTheComponent() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            WriteFontAsset("fonts/title.hefont", CreateFont());
+            WriteFontAsset("fonts/body.hefont", CreateFont());
+            WriteSceneAsset("Scenes/TestPlayableScene.helen");
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "root-entity",
+                        Name = "Root",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = MenuHostComponent.SerializedComponentTypeId,
+                                ComponentIndex = 0,
+                                Payload = WriteMenuHostComponentPayload()
+                            }
+                        }
+                    }
+                }
+            };
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            Entity loadedRoot = Assert.Single(loadedRoots);
+            MenuHostComponent menuHostComponent = Assert.IsType<MenuHostComponent>(Assert.Single(loadedRoot.Components, component => component is MenuHostComponent));
+
+            Assert.Equal(typeof(TestMenuDefinitionProvider).AssemblyQualifiedName, menuHostComponent.ProviderTypeName);
+            Assert.True(menuHostComponent.IsInitialized);
+            Assert.Equal("main", menuHostComponent.ActivePanelId);
+            Assert.Equal("select-scene", menuHostComponent.SelectedItemId);
+        }
+
+        /// <summary>
+        /// Ensures packaged runtime scene loading materializes the authored light component families through the default runtime registry.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneContainsLightComponents_MaterializesAllSupportedLightFamilies() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "directional-light",
+                        Name = "DirectionalLight",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.DirectionalLightComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteDirectionalLightComponentPayload()
+                            }
+                        }
+                    },
+                    new SceneEntityAsset {
+                        Id = "point-light",
+                        Name = "PointLight",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.PointLightComponent",
+                                ComponentIndex = 0,
+                                Payload = WritePointLightComponentPayload()
+                            }
+                        }
+                    },
+                    new SceneEntityAsset {
+                        Id = "spot-light",
+                        Name = "SpotLight",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.SpotLightComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteSpotLightComponentPayload()
+                            }
+                        }
+                    }
+                }
+            };
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            Assert.Equal(3, loadedRoots.Count);
+
+            DirectionalLightComponent directionalLight = Assert.IsType<DirectionalLightComponent>(Assert.Single(loadedRoots[0].Components, component => component is DirectionalLightComponent));
+            PointLightComponent pointLight = Assert.IsType<PointLightComponent>(Assert.Single(loadedRoots[1].Components, component => component is PointLightComponent));
+            SpotLightComponent spotLight = Assert.IsType<SpotLightComponent>(Assert.Single(loadedRoots[2].Components, component => component is SpotLightComponent));
+
+            Assert.Equal(new float4(0.3f, 0.4f, 0.5f, 1f), directionalLight.Color);
+            Assert.Equal(3.0f, directionalLight.Intensity);
+            Assert.True(directionalLight.ShadowsEnabled);
+            Assert.Equal(ShadowMapMode.Forced, directionalLight.ShadowMapMode);
+            Assert.Equal(0.7f, directionalLight.ShadowStrength);
+
+            Assert.Equal(new float4(1f, 0.8f, 0.6f, 1f), pointLight.Color);
+            Assert.Equal(4.0f, pointLight.Intensity);
+            Assert.True(pointLight.ShadowsEnabled);
+            Assert.Equal(ShadowMapMode.Auto, pointLight.ShadowMapMode);
+            Assert.Equal(0.85f, pointLight.ShadowStrength);
+            Assert.Equal(18f, pointLight.Range);
+
+            Assert.Equal(new float4(0.8f, 0.9f, 1f, 1f), spotLight.Color);
+            Assert.Equal(2.5f, spotLight.Intensity);
+            Assert.False(spotLight.ShadowsEnabled);
+            Assert.Equal(ShadowMapMode.Disabled, spotLight.ShadowMapMode);
+            Assert.Equal(0.45f, spotLight.ShadowStrength);
+            Assert.Equal(24f, spotLight.Range);
+            Assert.Equal(20f, spotLight.InnerConeAngleDegrees);
+            Assert.Equal(36f, spotLight.OuterConeAngleDegrees);
+        }
+
+        /// <summary>
         /// Creates a small font asset for the FPS overlay constructor.
         /// </summary>
         /// <returns>Font asset with basic metrics for the test harness.</returns>
@@ -314,6 +432,98 @@ namespace helengine.editor.tests.serialization.scene {
             writer.WriteByte(1);
             writer.WriteByte(9);
             return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one serialized menu-host component payload.
+        /// </summary>
+        /// <returns>Serialized menu-host component payload.</returns>
+        byte[] WriteMenuHostComponentPayload() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(MenuHostComponent.CurrentVersion);
+            writer.WriteString(typeof(TestMenuDefinitionProvider).AssemblyQualifiedName);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one serialized directional light component payload.
+        /// </summary>
+        /// <returns>Serialized directional light component payload.</returns>
+        byte[] WriteDirectionalLightComponentPayload() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
+            LightComponentScenePayloadSerializer.WriteDirectionalLight(writer, new DirectionalLightComponent {
+                Color = new float4(0.3f, 0.4f, 0.5f, 1f),
+                Intensity = 3.0f,
+                ShadowsEnabled = true,
+                ShadowMapMode = ShadowMapMode.Forced,
+                ShadowStrength = 0.7f
+            });
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one serialized point light component payload.
+        /// </summary>
+        /// <returns>Serialized point light component payload.</returns>
+        byte[] WritePointLightComponentPayload() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
+            LightComponentScenePayloadSerializer.WritePointLight(writer, new PointLightComponent {
+                Color = new float4(1f, 0.8f, 0.6f, 1f),
+                Intensity = 4.0f,
+                ShadowsEnabled = true,
+                ShadowMapMode = ShadowMapMode.Auto,
+                ShadowStrength = 0.85f,
+                Range = 18f
+            });
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one serialized spot light component payload.
+        /// </summary>
+        /// <returns>Serialized spot light component payload.</returns>
+        byte[] WriteSpotLightComponentPayload() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
+            LightComponentScenePayloadSerializer.WriteSpotLight(writer, new SpotLightComponent {
+                Color = new float4(0.8f, 0.9f, 1f, 1f),
+                Intensity = 2.5f,
+                ShadowsEnabled = false,
+                ShadowMapMode = ShadowMapMode.Disabled,
+                ShadowStrength = 0.45f,
+                Range = 24f,
+                InnerConeAngleDegrees = 20f,
+                OuterConeAngleDegrees = 36f
+            });
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one empty packaged scene asset referenced by the menu-host test provider.
+        /// </summary>
+        /// <param name="relativePath">Project-relative packaged scene path.</param>
+        void WriteSceneAsset(string relativePath) {
+            string fullPath = Path.Combine(TempRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "root-entity",
+                        Name = "Root",
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, sceneAsset);
         }
     }
 }
