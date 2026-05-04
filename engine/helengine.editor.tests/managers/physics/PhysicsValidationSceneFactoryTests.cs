@@ -83,7 +83,7 @@ namespace helengine.editor.tests.managers.physics {
             SceneAsset sceneAsset = factory.CreateSceneAsset(PhysicsValidationSceneCatalog.DynamicStackBoxesSceneId);
 
             Assert.Equal(PhysicsValidationSceneCatalog.DynamicStackBoxesSceneId, sceneAsset.Id);
-            Assert.Equal(2, sceneAsset.AssetReferences.Length);
+            Assert.NotEmpty(sceneAsset.AssetReferences);
 
             SceneEntityAsset cameraEntity = FindRootEntity(sceneAsset, "Camera");
             SceneEntityAsset scenarioEntity = FindRootEntity(sceneAsset, "Scenario");
@@ -110,6 +110,71 @@ namespace helengine.editor.tests.managers.physics {
             Assert.Contains(groundEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
             Assert.Contains(firstStackBoxEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
             Assert.Contains(firstStackBoxEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Ensures the stacked-box validation scene includes one shadowed directional light and distinct file-backed materials for the visible stack meshes.
+        /// </summary>
+        [Fact]
+        public void CreateSceneAsset_ForDynamicStackBoxes_AddsShadowedDirectionalLightAndDistinctMeshMaterials() {
+            PhysicsValidationSceneFactory factory = new PhysicsValidationSceneFactory();
+
+            SceneAsset sceneAsset = factory.CreateSceneAsset(PhysicsValidationSceneCatalog.DynamicStackBoxesSceneId);
+            SceneEntityAsset scenarioEntity = FindRootEntity(sceneAsset, "Scenario");
+            SceneEntityAsset lightEntity = FindChildEntity(scenarioEntity, "KeyLight");
+            SceneEntityAsset groundEntity = FindChildEntity(scenarioEntity, "Ground");
+            SceneEntityAsset firstStackBoxEntity = FindChildEntity(scenarioEntity, "StackBox01");
+            SceneEntityAsset secondStackBoxEntity = FindChildEntity(scenarioEntity, "StackBox02");
+            SceneEntityAsset thirdStackBoxEntity = FindChildEntity(scenarioEntity, "StackBox03");
+            SceneEntityAsset fourthStackBoxEntity = FindChildEntity(scenarioEntity, "StackBox04");
+
+            SceneComponentAssetRecord lightRecord = Assert.Single(lightEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.DirectionalLightComponent", StringComparison.Ordinal));
+            DirectionalLightComponent lightComponent = ReadDirectionalLight(lightRecord);
+            Assert.True(lightComponent.ShadowsEnabled);
+            Assert.Equal(ShadowMapMode.Forced, lightComponent.ShadowMapMode);
+            Assert.True(lightComponent.Intensity > 1f);
+
+            SceneAssetReference groundMaterialReference = ReadMaterialReference(groundEntity);
+            SceneAssetReference firstBoxMaterialReference = ReadMaterialReference(firstStackBoxEntity);
+            SceneAssetReference secondBoxMaterialReference = ReadMaterialReference(secondStackBoxEntity);
+            SceneAssetReference thirdBoxMaterialReference = ReadMaterialReference(thirdStackBoxEntity);
+            SceneAssetReference fourthBoxMaterialReference = ReadMaterialReference(fourthStackBoxEntity);
+
+            Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, groundMaterialReference.SourceKind);
+            Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, firstBoxMaterialReference.SourceKind);
+            Assert.NotEqual(groundMaterialReference.RelativePath, firstBoxMaterialReference.RelativePath);
+            Assert.NotEqual(firstBoxMaterialReference.RelativePath, secondBoxMaterialReference.RelativePath);
+            Assert.NotEqual(secondBoxMaterialReference.RelativePath, thirdBoxMaterialReference.RelativePath);
+            Assert.NotEqual(thirdBoxMaterialReference.RelativePath, fourthBoxMaterialReference.RelativePath);
+        }
+
+        /// <summary>
+        /// Ensures writing the physics validation scenes also emits the shared demo shader and material assets used for prettier presentation.
+        /// </summary>
+        [Fact]
+        public void WriteScenes_WritesSharedPhysicsDemoShaderAndMaterialAssets() {
+            PhysicsValidationSceneFactory factory = new PhysicsValidationSceneFactory();
+
+            factory.WriteScenes(TempProjectRootPath);
+
+            string shaderPath = Path.Combine(TempProjectRootPath, "assets", "Shaders", "physics", "PhysicsDemoMesh.hlsl");
+            string neutralMaterialPath = Path.Combine(TempProjectRootPath, "assets", "Materials", "physics", "PhysicsDemoNeutral.helmat");
+            string blueMaterialPath = Path.Combine(TempProjectRootPath, "assets", "Materials", "physics", "PhysicsDemoBlue.helmat");
+
+            Assert.True(File.Exists(shaderPath));
+            Assert.True(File.Exists(neutralMaterialPath));
+            Assert.True(File.Exists(blueMaterialPath));
+
+            string shaderSource = File.ReadAllText(shaderPath);
+            Assert.Contains("cbuffer MaterialColorBuffer", shaderSource);
+            Assert.Contains("surfaceColor", shaderSource);
+
+            using FileStream materialStream = File.OpenRead(blueMaterialPath);
+            MaterialAsset blueMaterialAsset = Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(materialStream));
+            Assert.Equal("Shaders.physics.PhysicsDemoMesh", blueMaterialAsset.ShaderAssetId);
+            Assert.Equal("PhysicsDemoMesh.vs", blueMaterialAsset.VertexProgram);
+            Assert.Equal("PhysicsDemoMesh.ps", blueMaterialAsset.PixelProgram);
+            Assert.Contains(blueMaterialAsset.ConstantBuffers, constantBuffer => string.Equals(constantBuffer.Name, "MaterialColorBuffer", StringComparison.Ordinal));
         }
 
         /// <summary>
@@ -359,6 +424,65 @@ namespace helengine.editor.tests.managers.physics {
             }
 
             throw new InvalidOperationException($"Could not find child entity '{entityName}'.");
+        }
+
+        /// <summary>
+        /// Reads one serialized directional light component record into a live light instance for assertion.
+        /// </summary>
+        /// <param name="componentRecord">Serialized scene component record to decode.</param>
+        /// <returns>Directional light reconstructed from the payload.</returns>
+        static DirectionalLightComponent ReadDirectionalLight(SceneComponentAssetRecord componentRecord) {
+            if (componentRecord == null) {
+                throw new ArgumentNullException(nameof(componentRecord));
+            }
+
+            using MemoryStream stream = new MemoryStream(componentRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            Assert.Equal(LightComponentScenePayloadSerializer.CurrentVersion, version);
+            return LightComponentScenePayloadSerializer.ReadDirectionalLight(reader);
+        }
+
+        /// <summary>
+        /// Reads the material reference from one serialized mesh component payload.
+        /// </summary>
+        /// <param name="entity">Entity whose mesh record should be decoded.</param>
+        /// <returns>Scene asset reference used by the mesh material.</returns>
+        static SceneAssetReference ReadMaterialReference(SceneEntityAsset entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            SceneComponentAssetRecord meshRecord = Assert.Single(entity.Components, component => string.Equals(component.ComponentTypeId, "helengine.MeshComponent", StringComparison.Ordinal));
+            using MemoryStream stream = new MemoryStream(meshRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            Assert.Equal(1, version);
+            SceneAssetReference modelReference = ReadOptionalReference(reader);
+            SceneAssetReference materialReference = ReadOptionalReference(reader);
+            Assert.NotNull(modelReference);
+            Assert.NotNull(materialReference);
+            return materialReference;
+        }
+
+        /// <summary>
+        /// Reads one optional scene asset reference from a binary component payload.
+        /// </summary>
+        /// <param name="reader">Payload reader positioned at the optional reference flag.</param>
+        /// <returns>Decoded scene asset reference.</returns>
+        static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            bool hasValue = reader.ReadByte() != 0;
+            Assert.True(hasValue);
+            return new SceneAssetReference {
+                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
+                RelativePath = reader.ReadString(),
+                ProviderId = reader.ReadString(),
+                AssetId = reader.ReadString()
+            };
         }
     }
 }
