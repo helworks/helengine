@@ -17,10 +17,5 @@ namespace helengine {
         /// Gets or sets the stable asset references required by the scene.
         /// </summary>
         public SceneAssetReference[] AssetReferences { get; set; } = Array.Empty<SceneAssetReference>();
-
-        /// <summary>
-        /// Gets or sets the raw packaged 3D physics feature bitmask inferred from the serialized scene contents.
-        /// </summary>
-        public uint Physics3DSceneFeatureFlags { get; set; }
     }
 }

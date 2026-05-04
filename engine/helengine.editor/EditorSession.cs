@@ -469,10 +469,6 @@ namespace helengine.editor {
             persistenceRegistry.Register(new PointLightComponentPersistenceDescriptor());
             persistenceRegistry.Register(new SpotLightComponentPersistenceDescriptor());
             persistenceRegistry.Register(new MenuHostComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new RigidBody3DComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new BoxCollider3DComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new KinematicMotion3DComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new CharacterController3DComponentPersistenceDescriptor());
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
             SceneCreationService = new EditorSceneCreationService();
@@ -526,6 +522,9 @@ namespace helengine.editor {
             titleBar.AddCubeRequested += HandleAddCubeRequested;
             titleBar.AddPlaneRequested += HandleAddPlaneRequested;
             titleBar.AddCameraRequested += HandleAddCameraRequested;
+            titleBar.AddSpotLightRequested += HandleAddSpotLightRequested;
+            titleBar.AddPointLightRequested += HandleAddPointLightRequested;
+            titleBar.AddDirectionalLightRequested += HandleAddDirectionalLightRequested;
             saveFileDialog.SaveRequested += HandleSceneSaveRequested;
             openFileDialog.OpenRequested += HandleSceneOpenRequested;
             reparentEntityDialog.ConfirmRequested += HandleReparentEntityDialogConfirmed;
@@ -683,37 +682,19 @@ namespace helengine.editor {
         public string WindowTitle => titleBar.Title;
 
         /// <summary>
-        /// Executes the editor update loop for input and entities using the configured default frame delta.
+        /// Executes the editor update loop for input and entities.
         /// </summary>
         public void Update() {
-            Update(core.InitializationOptions.DefaultUpdateDeltaSeconds);
+            core.Update();
         }
 
         /// <summary>
-        /// Executes the editor update loop for input and entities using one explicit elapsed frame time.
-        /// </summary>
-        /// <param name="elapsedSeconds">Elapsed frame time in seconds supplied by the host runtime.</param>
-        public void Update(double elapsedSeconds) {
-            core.Update(elapsedSeconds);
-        }
-
-        /// <summary>
-        /// Runs a full editor frame update, including layout, docking, and rendering, using the configured default frame delta.
+        /// Runs a full editor frame update, including layout, docking, and rendering.
         /// </summary>
         /// <param name="renderWidth">Current render width.</param>
         /// <param name="renderHeight">Current render height.</param>
         public void UpdateFrame(int renderWidth, int renderHeight) {
-            UpdateFrame(renderWidth, renderHeight, core.InitializationOptions.DefaultUpdateDeltaSeconds);
-        }
-
-        /// <summary>
-        /// Runs a full editor frame update, including layout, docking, and rendering, using one explicit elapsed frame time.
-        /// </summary>
-        /// <param name="renderWidth">Current render width.</param>
-        /// <param name="renderHeight">Current render height.</param>
-        /// <param name="elapsedSeconds">Elapsed frame time in seconds supplied by the host runtime.</param>
-        public void UpdateFrame(int renderWidth, int renderHeight, double elapsedSeconds) {
-            Update(elapsedSeconds);
+            Update();
             UpdateLayout(renderWidth, renderHeight);
             bool layoutDirty = UpdateDocking(renderWidth, renderHeight);
             if (layoutDirty) {
@@ -869,6 +850,9 @@ namespace helengine.editor {
             titleBar.AddCubeRequested -= HandleAddCubeRequested;
             titleBar.AddPlaneRequested -= HandleAddPlaneRequested;
             titleBar.AddCameraRequested -= HandleAddCameraRequested;
+            titleBar.AddSpotLightRequested -= HandleAddSpotLightRequested;
+            titleBar.AddPointLightRequested -= HandleAddPointLightRequested;
+            titleBar.AddDirectionalLightRequested -= HandleAddDirectionalLightRequested;
             saveFileDialog.SaveRequested -= HandleSceneSaveRequested;
             openFileDialog.OpenRequested -= HandleSceneOpenRequested;
             reparentEntityDialog.ConfirmRequested -= HandleReparentEntityDialogConfirmed;
@@ -1029,6 +1013,27 @@ namespace helengine.editor {
         /// </summary>
         void HandleAddCameraRequested() {
             CreateAndSelectSceneEntity(SceneCreationService.CreateCamera);
+        }
+
+        /// <summary>
+        /// Handles the Add Spot Light command from the editor title bar.
+        /// </summary>
+        void HandleAddSpotLightRequested() {
+            CreateAndSelectSceneEntity(SceneCreationService.CreateSpotLight);
+        }
+
+        /// <summary>
+        /// Handles the Add Point Light command from the editor title bar.
+        /// </summary>
+        void HandleAddPointLightRequested() {
+            CreateAndSelectSceneEntity(SceneCreationService.CreatePointLight);
+        }
+
+        /// <summary>
+        /// Handles the Add Directional Light command from the editor title bar.
+        /// </summary>
+        void HandleAddDirectionalLightRequested() {
+            CreateAndSelectSceneEntity(SceneCreationService.CreateDirectionalLight);
         }
 
         /// <summary>

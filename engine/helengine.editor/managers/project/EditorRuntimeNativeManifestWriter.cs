@@ -24,7 +24,6 @@ namespace helengine.editor {
 
             WriteStartupManifestSource(runtimeRootPath, cookedManifest);
             WriteCodeModuleManifestSource(runtimeRootPath, cookedManifest);
-            WritePhysics3DSceneFeatureManifestSource(runtimeRootPath, cookedManifest);
         }
 
         /// <summary>
@@ -52,19 +51,6 @@ namespace helengine.editor {
 
             File.WriteAllText(headerPath, BuildCodeModuleManifestHeaderContents());
             File.WriteAllText(sourcePath, BuildCodeModuleManifestSourceContents(cookedManifest.CodeModules));
-        }
-
-        /// <summary>
-        /// Writes the generated scene-physics feature manifest header and implementation.
-        /// </summary>
-        /// <param name="runtimeRootPath">Runtime source folder inside the generated core tree.</param>
-        /// <param name="cookedManifest">Final cooked manifest whose scene feature masks should be embedded.</param>
-        void WritePhysics3DSceneFeatureManifestSource(string runtimeRootPath, PlatformBuildManifest cookedManifest) {
-            string headerPath = Path.Combine(runtimeRootPath, "runtime_physics3d_scene_feature_manifest.hpp");
-            string sourcePath = Path.Combine(runtimeRootPath, "runtime_physics3d_scene_feature_manifest.cpp");
-
-            File.WriteAllText(headerPath, BuildPhysics3DSceneFeatureManifestHeaderContents());
-            File.WriteAllText(sourcePath, BuildPhysics3DSceneFeatureManifestSourceContents(cookedManifest));
         }
 
         /// <summary>
@@ -123,27 +109,6 @@ namespace helengine.editor {
             builder.AppendLine("const HERuntimeCodeModuleEntry* he_runtime_code_module_entries(std::size_t* count);");
             builder.AppendLine("HERuntimeCodeModuleLoadState he_runtime_code_module_load_state(const char* moduleId);");
             builder.AppendLine("bool he_runtime_code_module_can_unload(const char* moduleId);");
-            return builder.ToString();
-        }
-
-        /// <summary>
-        /// Builds the generated runtime scene-physics feature manifest header.
-        /// </summary>
-        /// <returns>Generated C++ header text.</returns>
-        static string BuildPhysics3DSceneFeatureManifestHeaderContents() {
-            StringBuilder builder = new();
-            builder.AppendLine("#pragma once");
-            builder.AppendLine();
-            builder.AppendLine("#include <cstddef>");
-            builder.AppendLine("#include <cstdint>");
-            builder.AppendLine();
-            builder.AppendLine("struct HERuntimePhysics3DSceneFeatureEntry {");
-            builder.AppendLine("    const char* SceneId;");
-            builder.AppendLine("    std::uint32_t FeatureFlags;");
-            builder.AppendLine("};");
-            builder.AppendLine();
-            builder.AppendLine("const HERuntimePhysics3DSceneFeatureEntry* he_runtime_physics3d_scene_feature_entries(std::size_t* count);");
-            builder.AppendLine("std::uint32_t he_runtime_physics3d_scene_feature_flags(const char* sceneId);");
             return builder.ToString();
         }
 
@@ -244,68 +209,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the generated runtime scene-physics feature manifest implementation.
-        /// </summary>
-        /// <param name="cookedManifest">Final cooked manifest whose scene feature masks should be embedded.</param>
-        /// <returns>Generated C++ implementation text.</returns>
-        static string BuildPhysics3DSceneFeatureManifestSourceContents(PlatformBuildManifest cookedManifest) {
-            if (cookedManifest == null) {
-                throw new ArgumentNullException(nameof(cookedManifest));
-            }
-
-            StringBuilder builder = new();
-            builder.AppendLine("#include \"runtime/runtime_physics3d_scene_feature_manifest.hpp\"");
-            builder.AppendLine();
-            builder.AppendLine("#include <cstring>");
-            builder.AppendLine("#include <stdexcept>");
-            builder.AppendLine();
-
-            if (cookedManifest.Scenes == null || cookedManifest.Scenes.Length == 0) {
-                builder.AppendLine("static const HERuntimePhysics3DSceneFeatureEntry* kRuntimePhysics3DSceneFeatureEntries = nullptr;");
-                builder.AppendLine("static const std::size_t kRuntimePhysics3DSceneFeatureEntryCount = 0;");
-            } else {
-                builder.AppendLine("static const HERuntimePhysics3DSceneFeatureEntry kRuntimePhysics3DSceneFeatureEntries[] = {");
-                for (int index = 0; index < cookedManifest.Scenes.Length; index++) {
-                    PlatformBuildScene scene = cookedManifest.Scenes[index];
-                    uint featureFlags = ResolveScenePhysics3DFeatureFlags(scene);
-                    builder.Append("    { \"");
-                    builder.Append(EscapeCppStringLiteral(scene.SceneId));
-                    builder.Append("\", ");
-                    builder.Append(featureFlags.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                    builder.AppendLine("u },");
-                }
-
-                builder.AppendLine("};");
-                builder.AppendLine("static const std::size_t kRuntimePhysics3DSceneFeatureEntryCount = sizeof(kRuntimePhysics3DSceneFeatureEntries) / sizeof(kRuntimePhysics3DSceneFeatureEntries[0]);");
-            }
-
-            builder.AppendLine();
-            builder.AppendLine("const HERuntimePhysics3DSceneFeatureEntry* he_runtime_physics3d_scene_feature_entries(std::size_t* count) {");
-            builder.AppendLine("    if (count != nullptr) {");
-            builder.AppendLine("        *count = kRuntimePhysics3DSceneFeatureEntryCount;");
-            builder.AppendLine("    }");
-            builder.AppendLine();
-            builder.AppendLine("    return kRuntimePhysics3DSceneFeatureEntries;");
-            builder.AppendLine("}");
-            builder.AppendLine();
-            builder.AppendLine("std::uint32_t he_runtime_physics3d_scene_feature_flags(const char* sceneId) {");
-            builder.AppendLine("    if (sceneId == nullptr || sceneId[0] == '\\0') {");
-            builder.AppendLine("        throw std::invalid_argument(\"Runtime scene id is required.\");");
-            builder.AppendLine("    }");
-            builder.AppendLine();
-            builder.AppendLine("    for (std::size_t index = 0; index < kRuntimePhysics3DSceneFeatureEntryCount; index++) {");
-            builder.AppendLine("        const HERuntimePhysics3DSceneFeatureEntry& entry = kRuntimePhysics3DSceneFeatureEntries[index];");
-            builder.AppendLine("        if (std::strcmp(entry.SceneId, sceneId) == 0) {");
-            builder.AppendLine("            return entry.FeatureFlags;");
-            builder.AppendLine("        }");
-            builder.AppendLine("    }");
-            builder.AppendLine();
-            builder.AppendLine("    throw std::runtime_error(\"Runtime scene id was not found in the physics feature manifest.\");");
-            builder.AppendLine("}");
-            return builder.ToString();
-        }
-
-        /// <summary>
         /// Resolves the cooked runtime scene path embedded into the generated startup source.
         /// </summary>
         /// <param name="cookedManifest">Final cooked manifest that carries the startup scene metadata.</param>
@@ -328,7 +231,7 @@ namespace helengine.editor {
                 if (scene.ResolvedMetadata != null) {
                     for (int metadataIndex = 0; metadataIndex < scene.ResolvedMetadata.Length; metadataIndex++) {
                         KeyValuePair<string, string> entry = scene.ResolvedMetadata[metadataIndex];
-                        if (string.Equals(entry.Key, PlatformBuildSceneMetadataKeys.CookedRelativePath, StringComparison.OrdinalIgnoreCase)
+                        if (string.Equals(entry.Key, "cooked-relative-path", StringComparison.OrdinalIgnoreCase)
                             && !string.IsNullOrWhiteSpace(entry.Value)) {
                             return entry.Value.Replace('\\', '/');
                         }
@@ -366,34 +269,6 @@ namespace helengine.editor {
             }
 
             return "HERuntimeCodeModuleLoadState::Unloadable";
-        }
-
-        /// <summary>
-        /// Resolves the compact 3D physics feature mask stored in one scene metadata record.
-        /// </summary>
-        /// <param name="scene">Resolved scene whose metadata should be inspected.</param>
-        /// <returns>Compact 3D physics feature mask for the supplied scene.</returns>
-        static uint ResolveScenePhysics3DFeatureFlags(PlatformBuildScene scene) {
-            if (scene == null) {
-                throw new ArgumentNullException(nameof(scene));
-            }
-            if (scene.ResolvedMetadata == null) {
-                return 0u;
-            }
-
-            for (int index = 0; index < scene.ResolvedMetadata.Length; index++) {
-                KeyValuePair<string, string> entry = scene.ResolvedMetadata[index];
-                if (!string.Equals(entry.Key, PlatformBuildSceneMetadataKeys.Physics3DSceneFeatureFlags, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
-                }
-                if (string.IsNullOrWhiteSpace(entry.Value)) {
-                    return 0u;
-                }
-
-                return uint.Parse(entry.Value, System.Globalization.CultureInfo.InvariantCulture);
-            }
-
-            return 0u;
         }
 
         /// <summary>

@@ -50,7 +50,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the Add menu shows Empty, Cube, Plane, and Camera and hides File when opened.
+        /// Ensures the Add menu shows Empty, Cube, Plane, Camera, and Light and hides File when opened.
         /// </summary>
         [Fact]
         public void ToggleAddMenu_ShowsExpectedItemsAndHidesFileMenu() {
@@ -70,7 +70,34 @@ namespace helengine.editor.tests {
                 item => Assert.Equal("Empty", item.Label),
                 item => Assert.Equal("Cube", item.Label),
                 item => Assert.Equal("Plane", item.Label),
-                item => Assert.Equal("Camera", item.Label));
+                item => Assert.Equal("Camera", item.Label),
+                item => Assert.Equal("Light", item.Label));
+        }
+
+        /// <summary>
+        /// Ensures the Light submenu shows Spot Light, Point Light, and Directional Light when hovered.
+        /// </summary>
+        [Fact]
+        public void ToggleAddMenu_WhenLightHovered_ShowsExpectedLightSubmenu() {
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+
+            InvokePrivate(titleBar, "ToggleAddMenu");
+
+            ContextMenu addMenu = GetPrivateField<ContextMenu>(titleBar, "AddMenu");
+            ContextMenu lightMenu = GetPrivateField<ContextMenu>(titleBar, "LightMenu");
+            List<ContextMenuItem> addMenuItems = GetPrivateField<List<ContextMenuItem>>(addMenu, "ActiveItems");
+
+            addMenuItems[4].HoverAction();
+
+            List<ContextMenuItem> activeLightItems = GetPrivateField<List<ContextMenuItem>>(lightMenu, "ActiveItems");
+
+            Assert.True(addMenu.IsVisible);
+            Assert.True(lightMenu.IsVisible);
+            Assert.Collection(
+                activeLightItems,
+                item => Assert.Equal("Spot Light", item.Label),
+                item => Assert.Equal("Point Light", item.Label),
+                item => Assert.Equal("Directional Light", item.Label));
         }
 
         /// <summary>
@@ -215,10 +242,13 @@ namespace helengine.editor.tests {
         FontAsset CreateFont() {
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
                 ['A'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['D'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
                 ['C'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
                 ['E'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['F'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['G'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['H'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['L'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['M'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f),
                 ['O'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
                 ['P'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
@@ -227,13 +257,18 @@ namespace helengine.editor.tests {
                 ['.'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
                 ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['b'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['c'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
                 ['d'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['e'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['g'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['h'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['i'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
+                ['o'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['l'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
                 ['m'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f),
                 ['n'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['p'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['r'] = new FontChar(new float4(0f, 0f, 6f, 12f), 0f, 6f, 0f, 0f),
                 ['t'] = new FontChar(new float4(0f, 0f, 5f, 12f), 0f, 5f, 0f, 0f),
                 ['u'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['y'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)

@@ -106,6 +106,59 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Add > Light > Spot Light creates a spot-light entity and selects it.
+        /// </summary>
+        [Fact]
+        public void HandleAddSpotLightRequested_CreatesSpotLightEntityAndSelectsIt() {
+            EditorSession session = CreateSessionForAddCommands();
+
+            InvokePrivate(session, "HandleAddSpotLightRequested");
+
+            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            SpotLightComponent lightComponent = Assert.IsType<SpotLightComponent>(Assert.Single(selectedEntity.Components, component => component is SpotLightComponent));
+
+            Assert.Equal("Spot Light", selectedEntity.Name);
+            Assert.Equal(10f, lightComponent.Range);
+            Assert.Equal(25f, lightComponent.InnerConeAngleDegrees);
+            Assert.Equal(45f, lightComponent.OuterConeAngleDegrees);
+            Assert.Equal(1, GetHierarchyNodeCount(session));
+        }
+
+        /// <summary>
+        /// Ensures Add > Light > Point Light creates a point-light entity and selects it.
+        /// </summary>
+        [Fact]
+        public void HandleAddPointLightRequested_CreatesPointLightEntityAndSelectsIt() {
+            EditorSession session = CreateSessionForAddCommands();
+
+            InvokePrivate(session, "HandleAddPointLightRequested");
+
+            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            PointLightComponent lightComponent = Assert.IsType<PointLightComponent>(Assert.Single(selectedEntity.Components, component => component is PointLightComponent));
+
+            Assert.Equal("Point Light", selectedEntity.Name);
+            Assert.Equal(10f, lightComponent.Range);
+            Assert.Equal(1, GetHierarchyNodeCount(session));
+        }
+
+        /// <summary>
+        /// Ensures Add > Light > Directional Light creates a directional-light entity and selects it.
+        /// </summary>
+        [Fact]
+        public void HandleAddDirectionalLightRequested_CreatesDirectionalLightEntityAndSelectsIt() {
+            EditorSession session = CreateSessionForAddCommands();
+
+            InvokePrivate(session, "HandleAddDirectionalLightRequested");
+
+            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            DirectionalLightComponent lightComponent = Assert.IsType<DirectionalLightComponent>(Assert.Single(selectedEntity.Components, component => component is DirectionalLightComponent));
+
+            Assert.Equal("Directional Light", selectedEntity.Name);
+            Assert.True(lightComponent.ShadowsEnabled);
+            Assert.Equal(1, GetHierarchyNodeCount(session));
+        }
+
+        /// <summary>
         /// Ensures Add commands mark the current scene as mutated.
         /// </summary>
         [Fact]

@@ -1140,17 +1140,9 @@ namespace helengine.render.validation {
                 throw new ArgumentNullException(nameof(core));
             }
 
-            System.Diagnostics.Stopwatch frameStopwatch = System.Diagnostics.Stopwatch.StartNew();
-            double previousElapsedSeconds = 0d;
             for (int i = 0; i < frameCount; i++) {
                 Application.DoEvents();
-                double currentElapsedSeconds = frameStopwatch.Elapsed.TotalSeconds;
-                double frameDeltaSeconds = i == 0
-                    ? core.InitializationOptions.DefaultUpdateDeltaSeconds
-                    : currentElapsedSeconds - previousElapsedSeconds;
-                previousElapsedSeconds = currentElapsedSeconds;
-
-                core.Update(frameDeltaSeconds);
+                core.Update();
                 core.Draw();
                 Thread.Sleep(16);
             }

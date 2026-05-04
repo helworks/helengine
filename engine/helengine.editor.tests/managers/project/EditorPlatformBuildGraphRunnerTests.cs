@@ -1,7 +1,5 @@
 using helengine.baseplatform.Builders;
-using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Manifest;
-using helengine.baseplatform.Profiles;
 using helengine.baseplatform.Requests;
 using helengine.platforms;
 using System.Reflection;
@@ -251,97 +249,6 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
-    /// Verifies source-scene 3D physics feature symbols are forwarded into generated-core regeneration.
-    /// </summary>
-    [Fact]
-    public void RunRegenerateCore_ForwardsPhysicsSceneFeatureSymbolsFromSelectedScenes() {
-        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(rootPath, "assets", "Scenes"));
-
-        try {
-            SceneAsset sceneAsset = new SceneAsset {
-                Id = "Scenes/PhysicsScene.helen",
-                RootEntities = new[] {
-                    new SceneEntityAsset {
-                        Id = "ground",
-                        Name = "Ground",
-                        LocalPosition = float3.Zero,
-                        LocalScale = float3.One,
-                        LocalOrientation = float4.Identity,
-                        Components = new[] {
-                            CreateRigidBodyRecord(BodyKind3D.Static, false),
-                            CreateBoxColliderRecord(new float3(8f, 1f, 8f), false)
-                        },
-                        Children = Array.Empty<SceneEntityAsset>()
-                    },
-                    new SceneEntityAsset {
-                        Id = "box",
-                        Name = "Box",
-                        LocalPosition = new float3(0f, 2f, 0f),
-                        LocalScale = float3.One,
-                        LocalOrientation = float4.Identity,
-                        Components = new[] {
-                            CreateRigidBodyRecord(BodyKind3D.Dynamic, true),
-                            CreateBoxColliderRecord(new float3(1f, 1f, 1f), false)
-                        },
-                        Children = Array.Empty<SceneEntityAsset>()
-                    }
-                }
-            };
-            using (FileStream sceneStream = File.Create(Path.Combine(rootPath, "assets", "Scenes", "PhysicsScene.helen"))) {
-                AssetSerializer.Serialize(sceneStream, sceneAsset);
-            }
-
-            RecordingGeneratedCoreRegenerationService regenerationService = new RecordingGeneratedCoreRegenerationService();
-            EditorPlatformBuildGraphRunner runner = new(
-                rootPath,
-                "1.0.0",
-                "project",
-                "1.0.0",
-                Array.Empty<IAssetImporterRegistration>(),
-                new AvailablePlatformDescriptor(
-                    "windows",
-                    "Windows",
-                    "builder.dll",
-                    string.Empty,
-                    true,
-                    Path.Combine(rootPath, "descriptor-generated-core"),
-                    "codegen.exe"),
-                null,
-                new EditorPlatformAssetBuilderLoader(),
-                regenerationService);
-
-            MethodInfo runRegenerateCoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
-                "RunRegenerateCore",
-                BindingFlags.Instance | BindingFlags.NonPublic);
-            Assert.NotNull(runRegenerateCoreMethod);
-
-            runRegenerateCoreMethod.Invoke(
-                runner,
-                [
-                    CreatePlatformDefinition("windows", "Windows"),
-                    CreateCodegenProfile(),
-                    new EditorBuildQueueItemDocument {
-                        QueueItemId = "queue-item",
-                        PlatformId = "windows",
-                        OutputDirectoryPath = Path.Combine(rootPath, "output"),
-                        SelectedSceneIds = ["Scenes/PhysicsScene.helen"],
-                        SelectedCodegenOptionValues = new Dictionary<string, string>()
-                    },
-                    new EditorPlatformBuildGraphWorkspace(Path.Combine(rootPath, "workspace"))
-                ]);
-
-            Assert.NotNull(regenerationService.AdditionalPreprocessorSymbols);
-            Assert.Contains(PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol, regenerationService.AdditionalPreprocessorSymbols);
-            Assert.Contains(PhysicsSceneFeatureSymbolCatalog3D.BoxBoxContactSymbol, regenerationService.AdditionalPreprocessorSymbols);
-        } finally {
-            if (Directory.Exists(rootPath)) {
-                Directory.Delete(rootPath, true);
-            }
-        }
-    }
-
-    /// <summary>
     /// Finds the persisted build configuration entry for one platform id.
     /// </summary>
     /// <param name="buildConfig">Persisted build configuration document.</param>
@@ -409,85 +316,6 @@ public class EditorPlatformBuildGraphRunnerTests {
         }
     }
 
-    /// <summary>
-    /// Creates one minimal platform definition for test-only build-graph execution.
-    /// </summary>
-    /// <param name="platformId">Stable platform identifier.</param>
-    /// <param name="platformName">Display platform name.</param>
-    /// <returns>Platform definition used by the focused build-graph tests.</returns>
-    static PlatformDefinition CreatePlatformDefinition(string platformId, string platformName) {
-        return new PlatformDefinition(
-            platformId,
-            platformName,
-            Array.Empty<helengine.baseplatform.Definitions.PlatformBuildProfileDefinition>(),
-            Array.Empty<helengine.baseplatform.Definitions.PlatformGraphicsProfileDefinition>(),
-            Array.Empty<helengine.baseplatform.Definitions.PlatformAssetRequirementDefinition>(),
-            Array.Empty<helengine.baseplatform.Definitions.PlatformMaterialSchemaDefinition>(),
-            Array.Empty<helengine.baseplatform.Definitions.PlatformComponentCompatibilityDefinition>(),
-            Array.Empty<helengine.baseplatform.Definitions.PlatformCodegenProfileDefinition>(),
-            Array.Empty<helengine.baseplatform.Definitions.PlatformStorageProfileDefinition>(),
-            Array.Empty<helengine.baseplatform.Definitions.PlatformMediaProfileDefinition>());
-    }
-
-    /// <summary>
-    /// Creates one minimal codegen profile for test-only regeneration forwarding.
-    /// </summary>
-    /// <returns>Codegen profile used by the focused build-graph tests.</returns>
-    static PlatformCodegenProfileDefinition CreateCodegenProfile() {
-        return new PlatformCodegenProfileDefinition(
-            "default",
-            "Default",
-            "Default codegen profile",
-            PlatformCodegenLanguage.Cpp,
-            PlatformSerializationEndianness.LittleEndian,
-            []);
-    }
-
-    /// <summary>
-    /// Creates one serialized rigid-body component record.
-    /// </summary>
-    /// <param name="bodyKind">Rigid-body participation mode to encode.</param>
-    /// <param name="useGravity">True when gravity should be enabled.</param>
-    /// <returns>Serialized rigid-body scene record.</returns>
-    static SceneComponentAssetRecord CreateRigidBodyRecord(BodyKind3D bodyKind, bool useGravity) {
-        using MemoryStream stream = new MemoryStream();
-        using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-        writer.WriteByte(1);
-        writer.WriteByte((byte)bodyKind);
-        writer.WriteByte(useGravity ? (byte)1 : (byte)0);
-        writer.WriteSingle(1f);
-        writer.WriteSingle(1f);
-        writer.WriteFloat3(float3.Zero);
-
-        return new SceneComponentAssetRecord {
-            ComponentTypeId = "helengine.RigidBody3DComponent",
-            ComponentIndex = 0,
-            Payload = stream.ToArray()
-        };
-    }
-
-    /// <summary>
-    /// Creates one serialized box-collider component record.
-    /// </summary>
-    /// <param name="size">Full collider size to encode.</param>
-    /// <param name="isTrigger">True when the collider should be encoded as a trigger.</param>
-    /// <returns>Serialized box-collider scene record.</returns>
-    static SceneComponentAssetRecord CreateBoxColliderRecord(float3 size, bool isTrigger) {
-        using MemoryStream stream = new MemoryStream();
-        using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-        writer.WriteByte(2);
-        writer.WriteFloat3(size);
-        writer.WriteUInt16(1);
-        writer.WriteUInt16(ushort.MaxValue);
-        writer.WriteByte(isTrigger ? (byte)1 : (byte)0);
-
-        return new SceneComponentAssetRecord {
-            ComponentTypeId = "helengine.BoxCollider3DComponent",
-            ComponentIndex = 1,
-            Payload = stream.ToArray()
-        };
-    }
-
     sealed class FakeEditorPlatformBuildGraphRunner : EditorPlatformBuildGraphRunner {
         public FakeEditorPlatformBuildGraphRunner()
             : base(
@@ -507,30 +335,6 @@ public class EditorPlatformBuildGraphRunnerTests {
         public override EditorBuildExecutionResult Execute(EditorBuildQueueItemDocument queueItem) {
             ExecutedQueueItemId = queueItem.QueueItemId;
             return EditorBuildExecutionResult.Success("Executed.");
-        }
-    }
-
-    /// <summary>
-    /// Captures the additional preprocessor symbols supplied to generated-core regeneration.
-    /// </summary>
-    sealed class RecordingGeneratedCoreRegenerationService : EditorGeneratedCoreRegenerationService {
-        /// <summary>
-        /// Gets the additional preprocessor symbols supplied by the build graph.
-        /// </summary>
-        public IReadOnlyList<string> AdditionalPreprocessorSymbols { get; private set; }
-
-        /// <summary>
-        /// Captures regeneration inputs without launching the external codegen tool.
-        /// </summary>
-        public override void Regenerate(
-            PlatformDefinition platformDefinition,
-            PlatformCodegenProfileDefinition codegenProfile,
-            IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
-            string generatedCoreRootPath,
-            string codegenToolPath,
-            IReadOnlyList<string> additionalPreprocessorSymbols,
-            CancellationToken cancellationToken) {
-            AdditionalPreprocessorSymbols = additionalPreprocessorSymbols;
         }
     }
 

@@ -123,6 +123,68 @@ namespace helengine.editor.tests.managers.scene {
         }
 
         /// <summary>
+        /// Ensures Add > Light > Spot Light creates a root spot-light entity with the authored defaults.
+        /// </summary>
+        [Fact]
+        public void CreateSpotLight_CreatesRootSpotLightEntityWithDefaultSettings() {
+            EditorSceneCreationService service = new EditorSceneCreationService();
+
+            EditorEntity entity = service.CreateSpotLight();
+
+            SpotLightComponent lightComponent = Assert.IsType<SpotLightComponent>(Assert.Single(entity.Components, component => component is SpotLightComponent));
+
+            Assert.Equal("Spot Light", entity.Name);
+            Assert.Equal(EditorLayerMasks.SceneObjects, entity.LayerMask);
+            Assert.Null(entity.Parent);
+            Assert.Equal(float3.Zero, entity.LocalPosition);
+            Assert.Equal(float3.One, entity.LocalScale);
+            Assert.Equal(float4.Identity, entity.LocalOrientation);
+            Assert.Equal(10f, lightComponent.Range);
+            Assert.Equal(25f, lightComponent.InnerConeAngleDegrees);
+            Assert.Equal(45f, lightComponent.OuterConeAngleDegrees);
+        }
+
+        /// <summary>
+        /// Ensures Add > Light > Point Light creates a root point-light entity with the authored defaults.
+        /// </summary>
+        [Fact]
+        public void CreatePointLight_CreatesRootPointLightEntityWithDefaultSettings() {
+            EditorSceneCreationService service = new EditorSceneCreationService();
+
+            EditorEntity entity = service.CreatePointLight();
+
+            PointLightComponent lightComponent = Assert.IsType<PointLightComponent>(Assert.Single(entity.Components, component => component is PointLightComponent));
+
+            Assert.Equal("Point Light", entity.Name);
+            Assert.Equal(EditorLayerMasks.SceneObjects, entity.LayerMask);
+            Assert.Null(entity.Parent);
+            Assert.Equal(float3.Zero, entity.LocalPosition);
+            Assert.Equal(float3.One, entity.LocalScale);
+            Assert.Equal(float4.Identity, entity.LocalOrientation);
+            Assert.Equal(10f, lightComponent.Range);
+        }
+
+        /// <summary>
+        /// Ensures Add > Light > Directional Light creates a root directional-light entity with the authored defaults.
+        /// </summary>
+        [Fact]
+        public void CreateDirectionalLight_CreatesRootDirectionalLightEntityWithDefaultSettings() {
+            EditorSceneCreationService service = new EditorSceneCreationService();
+
+            EditorEntity entity = service.CreateDirectionalLight();
+
+            DirectionalLightComponent lightComponent = Assert.IsType<DirectionalLightComponent>(Assert.Single(entity.Components, component => component is DirectionalLightComponent));
+
+            Assert.Equal("Directional Light", entity.Name);
+            Assert.Equal(EditorLayerMasks.SceneObjects, entity.LayerMask);
+            Assert.Null(entity.Parent);
+            Assert.Equal(float3.Zero, entity.LocalPosition);
+            Assert.Equal(float3.One, entity.LocalScale);
+            Assert.Equal(float4.Identity, entity.LocalOrientation);
+            Assert.True(lightComponent.ShadowsEnabled);
+        }
+
+        /// <summary>
         /// Ensures Add > Point Light creates a point-light-backed scene entity with the hidden editor visual attached.
         /// </summary>
         [Fact]

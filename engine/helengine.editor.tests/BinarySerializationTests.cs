@@ -92,7 +92,6 @@ namespace helengine.editor.tests {
         public void AssetSerializer_SceneAsset_WritesHeleHeaderAndRoundTrips() {
             SceneAsset asset = new SceneAsset {
                 Id = "Scenes/TestScene.helen",
-                Physics3DSceneFeatureFlags = 1234u,
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = "root-entity",
@@ -135,7 +134,6 @@ namespace helengine.editor.tests {
             Assert.Equal(new float3(1f, 2f, 3f), deserialized.RootEntities[0].LocalPosition);
             Assert.Equal(new float3(2f, 2f, 2f), deserialized.RootEntities[0].LocalScale);
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, deserialized.RootEntities[0].Components[0].Payload);
-            Assert.Equal(1234u, deserialized.Physics3DSceneFeatureFlags);
             Assert.Equal("child-entity", deserialized.RootEntities[0].Children[0].Id);
             Assert.Equal("Child", deserialized.RootEntities[0].Children[0].Name);
         }

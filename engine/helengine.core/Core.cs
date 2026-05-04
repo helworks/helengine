@@ -14,19 +14,9 @@ namespace helengine {
         readonly object ContentManagerLock;
 
         /// <summary>
-        /// Fixed-step scheduler used to feed attached physics runtimes from host frame time.
-        /// </summary>
-        PhysicsFixedStepScheduler PhysicsSchedulerValue;
-
-        /// <summary>
         /// Backing field for the default font asset used by text-heavy components.
         /// </summary>
         FontAsset DefaultFontAssetValue;
-
-        /// <summary>
-        /// Attached physics runtime advanced by the core update loop when one has been configured.
-        /// </summary>
-        IPhysicsRuntime PhysicsRuntimeValue;
 
         /// <summary>
         /// Initializes a new core instance with default initialization options.
@@ -47,7 +37,6 @@ namespace helengine {
             Instance = this;
             InitializationOptions = options;
             InitializationOptions.Normalize();
-            PhysicsSchedulerValue = CreatePhysicsScheduler(InitializationOptions);
             Input = new InputSystem();
             PointerInteractionSystem = new PointerInteractionSystem(this, Input);
         }
@@ -98,26 +87,6 @@ namespace helengine {
         public PointerInteractionSystem PointerInteractionSystem { get; private set; }
 
         /// <summary>
-        /// Gets the elapsed time, in seconds, that was applied during the most recent update.
-        /// </summary>
-        public double FrameDeltaSeconds { get; private set; }
-
-        /// <summary>
-        /// Gets the accumulated update time, in seconds, since this core instance started running.
-        /// </summary>
-        public double TotalElapsedSeconds { get; private set; }
-
-        /// <summary>
-        /// Gets the fixed-step scheduler that converts host frame time into physics simulation steps.
-        /// </summary>
-        public PhysicsFixedStepScheduler PhysicsScheduler => PhysicsSchedulerValue;
-
-        /// <summary>
-        /// Gets the currently attached pluggable physics runtime, when one has been configured.
-        /// </summary>
-        public IPhysicsRuntime PhysicsRuntime => PhysicsRuntimeValue;
-
-        /// <summary>
         /// Gets or sets the default font asset used by components that need a text font without being configured explicitly.
         /// </summary>
         public FontAsset DefaultFontAsset {
@@ -140,11 +109,6 @@ namespace helengine {
         /// Gets the runtime scene loader configured for packaged player scene assets.
         /// </summary>
         public RuntimeSceneLoadService SceneLoadService { get; private set; }
-
-        /// <summary>
-        /// Gets the runtime component registry used to materialize packaged scene components.
-        /// </summary>
-        public RuntimeComponentRegistry SceneRuntimeComponentRegistry { get; private set; }
 
         /// <summary>
         /// Initializes core systems with rendering and input capture.
@@ -178,7 +142,6 @@ namespace helengine {
 
             options.Normalize();
             InitializationOptions = options;
-            PhysicsSchedulerValue = CreatePhysicsScheduler(options);
 
             ObjectManager = new ObjectManager(options);
             ContentManager contentManager = GetContentManager();
@@ -187,23 +150,8 @@ namespace helengine {
                 contentManager,
                 InitializationOptions.ContentRootPath,
                 ShaderCompileTarget.DirectX11);
-            SceneRuntimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
-            SceneLoadService = new RuntimeSceneLoadService(SceneAssetReferenceResolver, SceneRuntimeComponentRegistry);
-        }
-
-        /// <summary>
-        /// Registers one additional packaged-scene component deserializer with the active runtime scene loader.
-        /// </summary>
-        /// <param name="deserializer">Deserializer to register for packaged runtime scene loading.</param>
-        public void RegisterRuntimeComponentDeserializer(IRuntimeComponentDeserializer deserializer) {
-            if (deserializer == null) {
-                throw new ArgumentNullException(nameof(deserializer));
-            }
-            if (SceneRuntimeComponentRegistry == null) {
-                throw new InvalidOperationException("Core must be initialized before runtime component deserializers can be registered.");
-            }
-
-            SceneRuntimeComponentRegistry.Register(deserializer);
+            RuntimeComponentRegistry runtimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
+            SceneLoadService = new RuntimeSceneLoadService(SceneAssetReferenceResolver, runtimeComponentRegistry);
         }
 
         /// <summary>
@@ -237,47 +185,13 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Attaches one pluggable physics runtime to the core update loop.
-        /// </summary>
-        /// <param name="runtime">Physics runtime that should receive fixed simulation steps.</param>
-        public void AttachPhysicsRuntime(IPhysicsRuntime runtime) {
-            if (runtime == null) {
-                throw new ArgumentNullException(nameof(runtime));
-            }
-
-            PhysicsRuntimeValue = runtime;
-            PhysicsSchedulerValue.Reset();
-        }
-
-        /// <summary>
-        /// Detaches the current physics runtime and clears any unconsumed fixed-step accumulator state.
-        /// </summary>
-        public void DetachPhysicsRuntime() {
-            PhysicsRuntimeValue = null;
-            PhysicsSchedulerValue.Reset();
-        }
-
-        /// <summary>
-        /// Advances the engine update loop for objects and input using the configured default frame delta.
+        /// Advances the engine update loop for objects and input.
         /// </summary>
         public virtual void Update() {
-            Update(InitializationOptions.DefaultUpdateDeltaSeconds);
-        }
-
-        /// <summary>
-        /// Advances the engine update loop for objects and input using one explicit elapsed frame time.
-        /// </summary>
-        /// <param name="elapsedSeconds">Elapsed frame time in seconds supplied by the host runtime.</param>
-        public virtual void Update(double elapsedSeconds) {
-            ValidateElapsedSeconds(elapsedSeconds);
-            FrameDeltaSeconds = elapsedSeconds;
-            TotalElapsedSeconds += elapsedSeconds;
-
             Input.EarlyUpdate();
             FPSComponent.RecordUpdateFrame();
 
             ObjectManager.Update();
-            UpdatePhysics(elapsedSeconds);
 
             Input.Update();
             PointerInteractionSystem.Update();
@@ -297,48 +211,6 @@ namespace helengine {
         public void Dispose() {
             RenderManager3D.Dispose();
             RenderManager2D.Dispose();
-        }
-
-        /// <summary>
-        /// Validates one host-supplied elapsed frame time before it is accumulated into core timing state.
-        /// </summary>
-        /// <param name="elapsedSeconds">Elapsed frame time in seconds.</param>
-        void ValidateElapsedSeconds(double elapsedSeconds) {
-            if (double.IsNaN(elapsedSeconds) || double.IsInfinity(elapsedSeconds)) {
-                throw new ArgumentOutOfRangeException(nameof(elapsedSeconds), "Elapsed frame time must be finite.");
-            }
-
-            if (elapsedSeconds < 0d) {
-                throw new ArgumentOutOfRangeException(nameof(elapsedSeconds), "Elapsed frame time cannot be negative.");
-            }
-        }
-
-        /// <summary>
-        /// Creates one fixed-step scheduler from the supplied initialization options.
-        /// </summary>
-        /// <param name="options">Initialization options that provide the configured physics step.</param>
-        /// <returns>Scheduler configured for the current core instance.</returns>
-        PhysicsFixedStepScheduler CreatePhysicsScheduler(CoreInitializationOptions options) {
-            if (options == null) {
-                throw new ArgumentNullException(nameof(options));
-            }
-
-            return new PhysicsFixedStepScheduler(options.PhysicsFixedStepSeconds);
-        }
-
-        /// <summary>
-        /// Advances the attached physics runtime using the configured fixed-step scheduler.
-        /// </summary>
-        /// <param name="elapsedSeconds">Elapsed host frame time in seconds.</param>
-        void UpdatePhysics(double elapsedSeconds) {
-            if (PhysicsRuntimeValue == null) {
-                return;
-            }
-
-            PhysicsSchedulerValue.AddElapsedSeconds(elapsedSeconds);
-            while (PhysicsSchedulerValue.TryConsumeStep()) {
-                PhysicsRuntimeValue.Step(PhysicsSchedulerValue.StepSeconds);
-            }
         }
     }
 }

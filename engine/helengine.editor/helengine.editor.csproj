@@ -10,7 +10,6 @@
     <ProjectReference Include="..\helengine.baseplatform\helengine.baseplatform.csproj" />
     <ProjectReference Include="..\helengine.core\helengine.core.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.files\helengine.files.csproj" SkipGetTargetFrameworkProperties="true" />
-    <ProjectReference Include="..\helengine.physics3d\helengine.physics3d.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.directx11\helengine.directx11.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.platforms\helengine.platforms.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\helengine.projectfile\helengine.projectfile.csproj" SkipGetTargetFrameworkProperties="true" />

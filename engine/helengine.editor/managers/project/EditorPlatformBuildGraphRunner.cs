@@ -28,7 +28,6 @@ namespace helengine.editor {
         readonly FontAsset DefaultFontAsset;
         readonly EditorPlatformAssetBuilderLoader BuilderLoader;
         readonly EditorGeneratedCoreRegenerationService GeneratedCoreRegenerationService;
-        readonly EditorPhysics3DCodegenFeatureSymbolService Physics3DCodegenFeatureSymbolService;
         readonly EditorPlatformBuildGraphWorkspaceFactory WorkspaceFactory;
         readonly EditorPlatformAssetCookService AssetCookService;
         readonly EditorCodeModuleManifestService CodeModuleManifestService;
@@ -80,7 +79,6 @@ namespace helengine.editor {
             DefaultFontAsset = defaultFontAsset;
             BuilderLoader = builderLoader ?? throw new ArgumentNullException(nameof(builderLoader));
             GeneratedCoreRegenerationService = generatedCoreRegenerationService ?? throw new ArgumentNullException(nameof(generatedCoreRegenerationService));
-            Physics3DCodegenFeatureSymbolService = new EditorPhysics3DCodegenFeatureSymbolService(ProjectRootPath);
             WorkspaceFactory = workspaceFactory ?? new EditorPlatformBuildGraphWorkspaceFactory();
             AssetCookService = new EditorPlatformAssetCookService(
                 ProjectRootPath,
@@ -161,14 +159,12 @@ namespace helengine.editor {
             PlatformCodegenProfileDefinition selectedCodegenProfile,
             EditorBuildQueueItemDocument queueItem,
             EditorPlatformBuildGraphWorkspace workspace) {
-            IReadOnlyList<string> physics3DCodegenSymbols = Physics3DCodegenFeatureSymbolService.ResolveSymbols(queueItem.SelectedSceneIds ?? []);
             GeneratedCoreRegenerationService.Regenerate(
                 builderDefinition,
                 selectedCodegenProfile,
                 queueItem.SelectedCodegenOptionValues,
                 workspace.GeneratedCoreRootPath,
                 PlatformDescriptor.CodegenToolPath,
-                physics3DCodegenSymbols,
                 CancellationToken.None);
         }
 

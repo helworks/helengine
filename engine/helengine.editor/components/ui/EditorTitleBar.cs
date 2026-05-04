@@ -44,6 +44,10 @@ namespace helengine.editor {
         /// </summary>
         const int TitleSpacing = 10;
         /// <summary>
+        /// Index of the Light entry inside the Add menu.
+        /// </summary>
+        const int AddMenuLightItemIndex = 4;
+        /// <summary>
         /// Minimum width reserved for the title label.
         /// </summary>
         const int MinimumTitleWidth = 40;
@@ -152,6 +156,14 @@ namespace helengine.editor {
         /// Items displayed by the Add context menu.
         /// </summary>
         readonly IReadOnlyList<ContextMenuItem> AddMenuItems;
+        /// <summary>
+        /// Context menu shown when the Light submenu is opened from the Add menu.
+        /// </summary>
+        readonly ContextMenu LightMenu;
+        /// <summary>
+        /// Items displayed by the Light submenu.
+        /// </summary>
+        readonly IReadOnlyList<ContextMenuItem> LightMenuItems;
         /// <summary>
         /// Context menu shown when the Build button is activated.
         /// </summary>
@@ -324,6 +336,9 @@ namespace helengine.editor {
             AddMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
             RootEntity.AddChild(AddMenu.Entity);
             AddMenuItems = BuildAddMenuItems();
+            LightMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            RootEntity.AddChild(LightMenu.Entity);
+            LightMenuItems = BuildLightMenuItems();
             BuildMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
             RootEntity.AddChild(BuildMenu.Entity);
             BuildMenuItems = BuildBuildMenuItems();
@@ -415,6 +430,18 @@ namespace helengine.editor {
         /// </summary>
         public event Action AddCameraRequested;
         /// <summary>
+        /// Raised when the user selects the Add Spot Light command.
+        /// </summary>
+        public event Action AddSpotLightRequested;
+        /// <summary>
+        /// Raised when the user selects the Add Point Light command.
+        /// </summary>
+        public event Action AddPointLightRequested;
+        /// <summary>
+        /// Raised when the user selects the Add Directional Light command.
+        /// </summary>
+        public event Action AddDirectionalLightRequested;
+        /// <summary>
         /// Raised when the user selects the Build Settings command.
         /// </summary>
         public event Action BuildSettingsRequested;
@@ -468,6 +495,7 @@ namespace helengine.editor {
             UpdateDragRegion(controlStartX);
             FileMenu.UpdateLayout(HostSize);
             AddMenu.UpdateLayout(HostSize);
+            LightMenu.UpdateLayout(HostSize);
             BuildMenu.UpdateLayout(HostSize);
         }
 
@@ -490,10 +518,23 @@ namespace helengine.editor {
         /// <returns>Immutable collection of Add menu items.</returns>
         IReadOnlyList<ContextMenuItem> BuildAddMenuItems() {
             return new ContextMenuItem[] {
-                new ContextMenuItem("Empty", RaiseAddEmptyRequested),
-                new ContextMenuItem("Cube", RaiseAddCubeRequested),
-                new ContextMenuItem("Plane", RaiseAddPlaneRequested),
-                new ContextMenuItem("Camera", RaiseAddCameraRequested)
+                new ContextMenuItem("Empty", RaiseAddEmptyRequested, HideLightMenu, true),
+                new ContextMenuItem("Cube", RaiseAddCubeRequested, HideLightMenu, true),
+                new ContextMenuItem("Plane", RaiseAddPlaneRequested, HideLightMenu, true),
+                new ContextMenuItem("Camera", RaiseAddCameraRequested, HideLightMenu, true),
+                new ContextMenuItem("Light", ShowLightMenu, ShowLightMenu, false)
+            };
+        }
+
+        /// <summary>
+        /// Creates the Light submenu items shown beneath the Add menu.
+        /// </summary>
+        /// <returns>Immutable collection of Light submenu items.</returns>
+        IReadOnlyList<ContextMenuItem> BuildLightMenuItems() {
+            return new ContextMenuItem[] {
+                new ContextMenuItem("Spot Light", RaiseAddSpotLightRequested),
+                new ContextMenuItem("Point Light", RaiseAddPointLightRequested),
+                new ContextMenuItem("Directional Light", RaiseAddDirectionalLightRequested)
             };
         }
 
@@ -641,6 +682,7 @@ namespace helengine.editor {
         void HideMenus() {
             FileMenu.Hide();
             AddMenu.Hide();
+            LightMenu.Hide();
             BuildMenu.Hide();
         }
 
@@ -661,7 +703,7 @@ namespace helengine.editor {
         /// </summary>
         void ToggleAddMenu() {
             if (AddMenu.IsVisible) {
-                AddMenu.Hide();
+                HideMenus();
                 return;
             }
 
@@ -717,8 +759,7 @@ namespace helengine.editor {
         /// Shows the File menu and closes any other title-bar menu.
         /// </summary>
         void ShowFileMenu() {
-            AddMenu.Hide();
-            BuildMenu.Hide();
+            HideMenus();
             FileMenu.Show(FileMenuItems, GetFileMenuPosition(), HostSize);
         }
 
@@ -726,8 +767,7 @@ namespace helengine.editor {
         /// Shows the Add menu and closes any other title-bar menu.
         /// </summary>
         void ShowAddMenu() {
-            FileMenu.Hide();
-            BuildMenu.Hide();
+            HideMenus();
             AddMenu.Show(AddMenuItems, GetAddMenuPosition(), HostSize);
         }
 
@@ -735,9 +775,28 @@ namespace helengine.editor {
         /// Shows the Build menu and closes any other title-bar menu.
         /// </summary>
         void ShowBuildMenu() {
-            FileMenu.Hide();
-            AddMenu.Hide();
+            HideMenus();
             BuildMenu.Show(BuildMenuItems, GetBuildMenuPosition(), HostSize);
+        }
+
+        /// <summary>
+        /// Shows the Light submenu anchored beside the Light entry inside the Add menu.
+        /// </summary>
+        void ShowLightMenu() {
+            if (!AddMenu.IsVisible) {
+                return;
+            }
+
+            FileMenu.Hide();
+            BuildMenu.Hide();
+            LightMenu.Show(LightMenuItems, GetLightMenuPosition(), HostSize);
+        }
+
+        /// <summary>
+        /// Hides the Light submenu without affecting the top-level Add menu.
+        /// </summary>
+        void HideLightMenu() {
+            LightMenu.Hide();
         }
 
         /// <summary>
@@ -756,6 +815,16 @@ namespace helengine.editor {
         int2 GetAddMenuPosition() {
             int x = (int)Math.Round(AddMenuButtonEntity.Position.X);
             return new int2(x, HeightPixels);
+        }
+
+        /// <summary>
+        /// Computes the top-left position used to open the Light submenu from the Add menu.
+        /// </summary>
+        /// <returns>Menu position relative to the title bar root.</returns>
+        int2 GetLightMenuPosition() {
+            int x = AddMenu.Position.X + AddMenu.Size.X;
+            int y = AddMenu.Position.Y + ContextMenu.PaddingY + (AddMenuLightItemIndex * (ContextMenu.RowHeight + ContextMenu.RowSpacing));
+            return new int2(x, y);
         }
 
         /// <summary>
@@ -886,6 +955,7 @@ namespace helengine.editor {
         /// Raises the Add Empty command event.
         /// </summary>
         void RaiseAddEmptyRequested() {
+            HideMenus();
             if (AddEmptyRequested != null) {
                 AddEmptyRequested();
             }
@@ -895,6 +965,7 @@ namespace helengine.editor {
         /// Raises the Add Cube command event.
         /// </summary>
         void RaiseAddCubeRequested() {
+            HideMenus();
             if (AddCubeRequested != null) {
                 AddCubeRequested();
             }
@@ -904,6 +975,7 @@ namespace helengine.editor {
         /// Raises the Add Plane command event.
         /// </summary>
         void RaiseAddPlaneRequested() {
+            HideMenus();
             if (AddPlaneRequested != null) {
                 AddPlaneRequested();
             }
@@ -913,8 +985,39 @@ namespace helengine.editor {
         /// Raises the Add Camera command event.
         /// </summary>
         void RaiseAddCameraRequested() {
+            HideMenus();
             if (AddCameraRequested != null) {
                 AddCameraRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Add Spot Light command event after closing title-bar menus.
+        /// </summary>
+        void RaiseAddSpotLightRequested() {
+            HideMenus();
+            if (AddSpotLightRequested != null) {
+                AddSpotLightRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Add Point Light command event after closing title-bar menus.
+        /// </summary>
+        void RaiseAddPointLightRequested() {
+            HideMenus();
+            if (AddPointLightRequested != null) {
+                AddPointLightRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Add Directional Light command event after closing title-bar menus.
+        /// </summary>
+        void RaiseAddDirectionalLightRequested() {
+            HideMenus();
+            if (AddDirectionalLightRequested != null) {
+                AddDirectionalLightRequested();
             }
         }
 
