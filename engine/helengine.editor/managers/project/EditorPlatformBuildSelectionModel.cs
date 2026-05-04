@@ -14,6 +14,7 @@ namespace helengine.editor {
         /// <param name="buildProfiles">Build profiles exposed by the builder.</param>
         /// <param name="graphicsProfiles">Graphics profiles exposed by the builder.</param>
         /// <param name="assetRequirements">Asset requirements exposed by the builder.</param>
+        /// <param name="materialSchemas">Material schemas exposed by the builder.</param>
         /// <param name="componentCompatibilities">Component compatibility rules exposed by the builder.</param>
         /// <param name="codegenProfiles">Codegen profiles exposed by the builder.</param>
         /// <param name="storageProfiles">Storage/runtime profiles exposed by the builder.</param>
@@ -25,6 +26,7 @@ namespace helengine.editor {
             PlatformBuildProfileDefinition[] buildProfiles,
             PlatformGraphicsProfileDefinition[] graphicsProfiles,
             PlatformAssetRequirementDefinition[] assetRequirements,
+            PlatformMaterialSchemaDefinition[] materialSchemas,
             PlatformComponentCompatibilityDefinition[] componentCompatibilities,
             PlatformCodegenProfileDefinition[] codegenProfiles,
             PlatformStorageProfileDefinition[] storageProfiles,
@@ -46,6 +48,9 @@ namespace helengine.editor {
             if (assetRequirements == null) {
                 throw new ArgumentNullException(nameof(assetRequirements));
             }
+            if (materialSchemas == null) {
+                throw new ArgumentNullException(nameof(materialSchemas));
+            }
             if (componentCompatibilities == null) {
                 throw new ArgumentNullException(nameof(componentCompatibilities));
             }
@@ -64,6 +69,7 @@ namespace helengine.editor {
             BuildProfiles = buildProfiles;
             GraphicsProfiles = graphicsProfiles;
             AssetRequirements = assetRequirements;
+            MaterialSchemas = materialSchemas;
             ComponentCompatibilities = componentCompatibilities;
             CodegenProfiles = codegenProfiles;
             StorageProfiles = storageProfiles;
@@ -94,6 +100,11 @@ namespace helengine.editor {
         /// Gets the asset requirements exposed by the platform builder.
         /// </summary>
         public PlatformAssetRequirementDefinition[] AssetRequirements { get; }
+
+        /// <summary>
+        /// Gets the material schemas exposed by the platform builder.
+        /// </summary>
+        public PlatformMaterialSchemaDefinition[] MaterialSchemas { get; }
 
         /// <summary>
         /// Gets the component compatibility rules exposed by the platform builder.
@@ -137,6 +148,7 @@ namespace helengine.editor {
                 definition.BuildProfiles,
                 definition.GraphicsProfiles,
                 definition.AssetRequirements,
+                definition.MaterialSchemas,
                 definition.ComponentCompatibilities,
                 definition.CodegenProfiles,
                 definition.StorageProfiles,
@@ -205,6 +217,32 @@ namespace helengine.editor {
         public PlatformSettingDefinition[] ResolveGraphicsProfileSettings(string profileId) {
             PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(profileId);
             return graphicsProfile?.Settings ?? Array.Empty<PlatformSettingDefinition>();
+        }
+
+        /// <summary>
+        /// Resolves the material schemas available to one graphics profile.
+        /// </summary>
+        /// <param name="graphicsProfileId">Requested graphics profile identifier.</param>
+        /// <returns>Material schemas that apply to the resolved graphics profile.</returns>
+        public PlatformMaterialSchemaDefinition[] ResolveMaterialSchemas(string graphicsProfileId) {
+            PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(graphicsProfileId);
+
+            if (graphicsProfile == null) {
+                return [.. MaterialSchemas];
+            }
+
+            List<PlatformMaterialSchemaDefinition> matchingSchemas = [];
+            for (int index = 0; index < MaterialSchemas.Length; index++) {
+                PlatformMaterialSchemaDefinition materialSchema = MaterialSchemas[index];
+                if (materialSchema.GraphicsProfileIds.Length == 0 ||
+                    Array.Exists(
+                        materialSchema.GraphicsProfileIds,
+                        profileId => string.Equals(profileId, graphicsProfile.ProfileId, StringComparison.OrdinalIgnoreCase))) {
+                    matchingSchemas.Add(materialSchema);
+                }
+            }
+
+            return [.. matchingSchemas];
         }
 
         /// <summary>

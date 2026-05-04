@@ -1,5 +1,6 @@
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Profiles;
+using Xunit;
 
 namespace helengine.baseplatform.tests.Definitions;
 
@@ -8,10 +9,10 @@ namespace helengine.baseplatform.tests.Definitions;
 /// </summary>
 public class PlatformDefinitionTests {
     /// <summary>
-    /// Verifies a platform definition retains build, graphics, and asset metadata.
+    /// Verifies a platform definition retains build, graphics, asset, material, and profile metadata.
     /// </summary>
     [Fact]
-    public void PlatformDefinition_preserves_build_and_graphics_metadata() {
+    public void PlatformDefinition_preserves_build_graphics_asset_and_material_metadata() {
         PlatformDefinition definition = new(
             "windows",
             "Windows DirectX",
@@ -44,6 +45,21 @@ public class PlatformDefinitionTests {
                     "Texture",
                     true,
                     ["png", "tga"])
+            ],
+            [
+                new PlatformMaterialSchemaDefinition(
+                    "standard-shader",
+                    "Standard Shader",
+                    ["directx11"],
+                    [
+                        new PlatformMaterialFieldDefinition(
+                            "shader-asset-id",
+                            "Shader Asset",
+                            PlatformMaterialFieldKind.AssetReference,
+                            string.Empty,
+                            true,
+                            [])
+                    ])
             ],
             [
                 new PlatformComponentCompatibilityDefinition(
@@ -83,6 +99,8 @@ public class PlatformDefinitionTests {
         Assert.Equal("debug", definition.BuildProfiles[0].ProfileId);
         Assert.Equal("directx11", definition.GraphicsProfiles[0].ProfileId);
         Assert.Equal("texture", definition.AssetRequirements[0].RequirementId);
+        Assert.Equal("standard-shader", definition.MaterialSchemas[0].SchemaId);
+        Assert.Equal(PlatformMaterialFieldKind.AssetReference, definition.MaterialSchemas[0].Fields[0].FieldKind);
         Assert.Equal("helengine.FPSComponent", definition.ComponentCompatibilities[0].ComponentTypeId);
         Assert.Equal("default", definition.CodegenProfiles[0].ProfileId);
         Assert.Equal("install-tree", definition.StorageProfiles[0].ProfileId);

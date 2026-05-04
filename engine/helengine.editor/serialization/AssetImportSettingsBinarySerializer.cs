@@ -16,7 +16,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 2;
+        public const byte CurrentVersion = 3;
 
         /// <summary>
         /// Payload endianness used by the current asset import settings format.
@@ -63,10 +63,26 @@ namespace helengine.editor {
                     throw new InvalidOperationException($"Asset import settings must include processor settings for platform '{entry.Key}'.");
                 } else if (entry.Value.Model == null) {
                     throw new InvalidOperationException($"Asset import settings must include model processor settings for platform '{entry.Key}'.");
+                } else if (entry.Value.Material == null) {
+                    throw new InvalidOperationException($"Asset import settings must include material processor settings for platform '{entry.Key}'.");
+                } else if (entry.Value.Material.FieldValues == null) {
+                    throw new InvalidOperationException($"Asset import settings must include material field values for platform '{entry.Key}'.");
                 }
 
                 writer.WriteString(entry.Key);
                 writer.WriteByte(entry.Value.Model.FlipWinding ? (byte)1 : (byte)0);
+                writer.WriteString(entry.Value.Material.SchemaId ?? string.Empty);
+                writer.WriteInt32(entry.Value.Material.FieldValues.Count);
+                foreach (KeyValuePair<string, string> fieldEntry in entry.Value.Material.FieldValues) {
+                    if (string.IsNullOrWhiteSpace(fieldEntry.Key)) {
+                        throw new InvalidOperationException($"Asset import settings cannot contain a blank material field id for platform '{entry.Key}'.");
+                    } else if (fieldEntry.Value == null) {
+                        throw new InvalidOperationException($"Asset import settings cannot contain a null material field value for platform '{entry.Key}'.");
+                    }
+
+                    writer.WriteString(fieldEntry.Key);
+                    writer.WriteString(fieldEntry.Value);
+                }
             }
         }
 
@@ -101,6 +117,23 @@ namespace helengine.editor {
 
                 AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings();
                 platformSettings.Model.FlipWinding = ReadBooleanByte(reader);
+                if (header.Version >= 3) {
+                    platformSettings.Material.SchemaId = reader.ReadString();
+
+                    int fieldValueCount = reader.ReadInt32();
+                    if (fieldValueCount < 0) {
+                        throw new InvalidOperationException("Asset import settings material field count cannot be negative.");
+                    }
+
+                    for (int fieldIndex = 0; fieldIndex < fieldValueCount; fieldIndex++) {
+                        string fieldId = reader.ReadString();
+                        if (string.IsNullOrWhiteSpace(fieldId)) {
+                            throw new InvalidOperationException("Asset import settings cannot contain a blank material field id.");
+                        }
+
+                        platformSettings.Material.FieldValues.Add(fieldId, reader.ReadString());
+                    }
+                }
                 settings.Processor.Platforms.Add(platformId, platformSettings);
             }
 
@@ -120,7 +153,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected asset import settings record kind '{header.RecordKind}'.");
             } else if (header.ValueKind != (ushort)ValueKind) {
                 throw new InvalidOperationException($"Unexpected asset import settings value kind '{header.ValueKind}'.");
-            } else if (header.Version != CurrentVersion) {
+            } else if (header.Version != 2 && header.Version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported asset import settings binary version '{header.Version}'.");
             }
         }

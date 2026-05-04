@@ -8,11 +8,17 @@ namespace helengine.editor {
         /// </summary>
         public AssetPlatformProcessorSettings() {
             Model = new ModelAssetProcessorSettings();
+            Material = new MaterialAssetProcessorSettings();
         }
 
         /// <summary>
         /// Gets or sets the processor settings that affect model asset generation.
         /// </summary>
         public ModelAssetProcessorSettings Model { get; set; }
+
+        /// <summary>
+        /// Gets or sets the processor settings that affect material asset authoring on this platform.
+        /// </summary>
+        public MaterialAssetProcessorSettings Material { get; set; }
     }
 }

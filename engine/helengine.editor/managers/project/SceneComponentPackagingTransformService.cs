@@ -1,3 +1,7 @@
+using helengine.baseplatform.Builders;
+using helengine.baseplatform.Requests;
+using helengine.baseplatform.Results;
+
 namespace helengine.editor {
     /// <summary>
     /// Rewrites shared scene component payloads into packaged runtime forms.
@@ -144,6 +148,31 @@ namespace helengine.editor {
         readonly HashSet<string> ReferencedShaderAssetIdsSet;
 
         /// <summary>
+        /// Service used to load per-platform material settings sidecars for packaged material assets.
+        /// </summary>
+        readonly MaterialAssetSettingsService MaterialAssetSettingsService;
+
+        /// <summary>
+        /// Target platform id whose material settings should drive packaged compatibility payloads.
+        /// </summary>
+        readonly string TargetPlatformId;
+
+        /// <summary>
+        /// Builder used to translate schema-driven material settings into cooked runtime material bytes.
+        /// </summary>
+        readonly IPlatformAssetBuilder MaterialBuilder;
+
+        /// <summary>
+        /// Selected build profile id for the current packaging operation.
+        /// </summary>
+        readonly string SelectedBuildProfileId;
+
+        /// <summary>
+        /// Selected graphics profile id for the current packaging operation.
+        /// </summary>
+        readonly string SelectedGraphicsProfileId;
+
+        /// <summary>
         /// Initializes one shared scene-component transform service.
         /// </summary>
         /// <param name="assetsRootPath">Absolute source assets root path.</param>
@@ -152,13 +181,21 @@ namespace helengine.editor {
         /// <param name="fileSystemModelResolver">Resolver used to obtain processed model assets for file-backed source references.</param>
         /// <param name="referencedShaderAssetIds">Deduplicated shader ids collected during packaging.</param>
         /// <param name="referencedShaderAssetIdsSet">Fast lookup set used to deduplicate shader ids.</param>
+        /// <param name="targetPlatformId">Target platform id whose material settings should be used during packaging.</param>
+        /// <param name="materialBuilder">Optional builder used to translate schema-driven material settings.</param>
+        /// <param name="selectedBuildProfileId">Selected build profile id for the current packaging operation.</param>
+        /// <param name="selectedGraphicsProfileId">Selected graphics profile id for the current packaging operation.</param>
         public SceneComponentPackagingTransformService(
             string assetsRootPath,
             ContentManager projectContentManager,
             AssetImportManager assetImportManager,
             EditorFileSystemModelResolver fileSystemModelResolver,
             List<string> referencedShaderAssetIds,
-            HashSet<string> referencedShaderAssetIdsSet) {
+            HashSet<string> referencedShaderAssetIdsSet,
+            string targetPlatformId = "",
+            IPlatformAssetBuilder materialBuilder = null,
+            string selectedBuildProfileId = "",
+            string selectedGraphicsProfileId = "") {
             AssetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
                 ? throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath))
                 : Path.GetFullPath(assetsRootPath);
@@ -167,6 +204,11 @@ namespace helengine.editor {
             FileSystemModelResolver = fileSystemModelResolver ?? throw new ArgumentNullException(nameof(fileSystemModelResolver));
             ReferencedShaderAssetIds = referencedShaderAssetIds ?? throw new ArgumentNullException(nameof(referencedShaderAssetIds));
             ReferencedShaderAssetIdsSet = referencedShaderAssetIdsSet ?? throw new ArgumentNullException(nameof(referencedShaderAssetIdsSet));
+            MaterialAssetSettingsService = new MaterialAssetSettingsService();
+            TargetPlatformId = string.IsNullOrWhiteSpace(targetPlatformId) ? "windows" : targetPlatformId;
+            MaterialBuilder = materialBuilder;
+            SelectedBuildProfileId = selectedBuildProfileId ?? string.Empty;
+            SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
         }
 
         /// <summary>
@@ -453,11 +495,83 @@ namespace helengine.editor {
         SceneAssetReference RewriteFileSystemMaterialReference(SceneAssetReference reference, string buildRootPath) {
             string fullPath = ResolveProjectAssetPath(reference.RelativePath);
             MaterialAsset materialAsset = ProjectContentManager.Load<MaterialAsset>(fullPath, EditorContentProcessorIds.MaterialAsset);
+            if (MaterialBuilder != null) {
+                AssetImportSettings materialSettings = LoadMaterialSettingsForCook(fullPath, reference.RelativePath);
+                if (!materialSettings.Processor.Platforms.ContainsKey(TargetPlatformId)) {
+                    throw new InvalidOperationException($"Material '{reference.RelativePath}' does not define settings for target platform '{TargetPlatformId}'.");
+                }
+
+                PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(BuildMaterialCookRequest(reference, materialAsset, materialSettings));
+                RememberReferencedShaderAssetIds(cookResult.ReferencedShaderAssetIds);
+
+                string cookedRelativePath = NormalizeRelativePath(reference.RelativePath);
+                WriteBytes(Path.Combine(buildRootPath, cookedRelativePath), cookResult.CookedMaterialBytes);
+                return CreateFileSystemReference(cookedRelativePath);
+            }
+
             RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
 
             string relativePath = NormalizeRelativePath(reference.RelativePath);
             CopyFile(fullPath, Path.Combine(buildRootPath, relativePath));
             return CreateFileSystemReference(relativePath);
+        }
+
+        /// <summary>
+        /// Loads one material-settings sidecar for build-time material translation.
+        /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
+        /// <param name="materialRelativePath">Project-relative material asset path used in diagnostics.</param>
+        /// <returns>Deserialized material settings sidecar.</returns>
+        AssetImportSettings LoadMaterialSettingsForCook(string materialAssetPath, string materialRelativePath) {
+            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
+                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
+            } else if (string.IsNullOrWhiteSpace(materialRelativePath)) {
+                throw new ArgumentException("Material relative path must be provided.", nameof(materialRelativePath));
+            }
+
+            string settingsPath = materialAssetPath + AssetImportManager.SettingsExtension;
+            if (!File.Exists(settingsPath)) {
+                throw new InvalidOperationException($"Material '{materialRelativePath}' is missing settings required for target platform '{TargetPlatformId}'.");
+            }
+
+            using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return AssetImportSettingsBinarySerializer.Deserialize(stream);
+        }
+
+        /// <summary>
+        /// Builds one builder-owned material translation request from the target-platform sidecar settings.
+        /// </summary>
+        /// <param name="reference">File-backed material reference being packaged.</param>
+        /// <param name="materialAsset">Source serialized material asset.</param>
+        /// <param name="materialSettings">Per-platform material settings sidecar.</param>
+        /// <returns>Builder-owned material translation request.</returns>
+        PlatformMaterialCookRequest BuildMaterialCookRequest(
+            SceneAssetReference reference,
+            MaterialAsset materialAsset,
+            AssetImportSettings materialSettings) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            } else if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            } else if (materialSettings == null) {
+                throw new ArgumentNullException(nameof(materialSettings));
+            }
+
+            MaterialAssetProcessorSettings platformMaterialSettings = materialSettings.Processor.Platforms[TargetPlatformId].Material;
+            if (platformMaterialSettings == null) {
+                throw new InvalidOperationException($"Material '{reference.RelativePath}' is missing material settings for target platform '{TargetPlatformId}'.");
+            } else if (string.IsNullOrWhiteSpace(platformMaterialSettings.SchemaId)) {
+                throw new InvalidOperationException($"Material '{reference.RelativePath}' is missing a schema id for target platform '{TargetPlatformId}'.");
+            }
+
+            return new PlatformMaterialCookRequest(
+                materialAsset.Id ?? reference.RelativePath,
+                reference.RelativePath,
+                TargetPlatformId,
+                SelectedBuildProfileId,
+                SelectedGraphicsProfileId,
+                platformMaterialSettings.SchemaId,
+                platformMaterialSettings.FieldValues);
         }
 
         void EnsureGeneratedStandardMaterialAssets(string buildRootPath) {
@@ -481,6 +595,20 @@ namespace helengine.editor {
 
             if (ReferencedShaderAssetIdsSet.Add(shaderAssetId)) {
                 ReferencedShaderAssetIds.Add(shaderAssetId);
+            }
+        }
+
+        /// <summary>
+        /// Tracks referenced shader asset ids returned by one builder-owned material cook result.
+        /// </summary>
+        /// <param name="shaderAssetIds">Referenced shader asset ids to record.</param>
+        void RememberReferencedShaderAssetIds(IReadOnlyList<string> shaderAssetIds) {
+            if (shaderAssetIds == null) {
+                throw new ArgumentNullException(nameof(shaderAssetIds));
+            }
+
+            for (int index = 0; index < shaderAssetIds.Count; index++) {
+                RememberReferencedShaderAssetId(shaderAssetIds[index]);
             }
         }
 
@@ -617,6 +745,27 @@ namespace helengine.editor {
             Directory.CreateDirectory(directoryPath);
             using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, asset);
+        }
+
+        /// <summary>
+        /// Writes one serialized asset payload to disk from prebuilt bytes.
+        /// </summary>
+        /// <param name="fullPath">Absolute output path.</param>
+        /// <param name="data">Serialized asset bytes to write.</param>
+        void WriteBytes(string fullPath, byte[] data) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Output path must be provided.", nameof(fullPath));
+            } else if (data == null) {
+                throw new ArgumentNullException(nameof(data));
+            }
+
+            string directoryPath = Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException("Output directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
+            File.WriteAllBytes(fullPath, data);
         }
 
         void WriteFontAsset(string fullPath, FontAsset fontAsset) {

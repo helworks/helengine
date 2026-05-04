@@ -2,6 +2,7 @@ using helengine.baseplatform.Descriptors;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Reporting;
 using helengine.baseplatform.Requests;
+using helengine.baseplatform.Results;
 
 namespace helengine.baseplatform.Builders;
 
@@ -18,6 +19,13 @@ public interface IPlatformAssetBuilder {
     /// Gets the typed platform definition that describes the build profiles, graphics profiles, and asset requirements exposed to the editor.
     /// </summary>
     PlatformDefinition Definition { get; }
+
+    /// <summary>
+    /// Translates one editor-authored material schema payload into the cooked material bytes the target platform runtime consumes.
+    /// </summary>
+    /// <param name="request">Material translation request that carries the schema id and serialized field values.</param>
+    /// <returns>Cooked material payload plus referenced shader dependencies.</returns>
+    PlatformMaterialCookResult CookMaterial(PlatformMaterialCookRequest request);
 
     /// <summary>
     /// Executes the platform content build for one fully resolved request.

@@ -1,71 +1,14 @@
-using helengine.baseplatform.Builders;
-using helengine.baseplatform.Definitions;
-using helengine.baseplatform.Manifest;
-using helengine.baseplatform.Profiles;
-using helengine.baseplatform.Reporting;
-using helengine.baseplatform.Requests;
-using helengine.baseplatform.Targets;
 using helengine.platforms;
 
 namespace helengine.editor {
     /// <summary>
-    /// Executes one queued build item through a dynamically loaded platform builder assembly.
+    /// Executes one queued build item through the shared editor-owned platform build graph.
     /// </summary>
     public sealed class EditorPlatformBuildExecutor : IEditorBuildExecutor {
-        /// <summary>
-        /// Working-root folder name used by the platform content staging step.
-        /// </summary>
-        const string StagingRootFolderName = "staging";
-
-        /// <summary>
-        /// Working-root folder name used by the platform builder execution.
-        /// </summary>
-        const string BuilderWorkingFolderName = "builder";
-
-        /// <summary>
-        /// Absolute source project root path.
-        /// </summary>
-        readonly string ProjectRootPath;
-
-        /// <summary>
-        /// Exact engine version required by the current project build.
-        /// </summary>
-        readonly string RequiredEngineVersion;
-
-        /// <summary>
-        /// Stable project identifier reported to the builder.
-        /// </summary>
-        readonly string ProjectId;
-
-        /// <summary>
-        /// Human-visible project version reported to the builder.
-        /// </summary>
-        readonly string ProjectVersion;
-
-        /// <summary>
-        /// Importer registrations supplied by the editor host.
-        /// </summary>
-        readonly IReadOnlyList<IAssetImporterRegistration> Importers;
-
         /// <summary>
         /// Platform descriptor loaded from the editor platform catalog.
         /// </summary>
         readonly AvailablePlatformDescriptor PlatformDescriptor;
-
-        /// <summary>
-        /// Default font asset packaged for player builds.
-        /// </summary>
-        readonly FontAsset DefaultFontAsset;
-
-        /// <summary>
-        /// Loads platform builders from their resolved assembly path.
-        /// </summary>
-        readonly EditorPlatformAssetBuilderLoader BuilderLoader;
-
-        /// <summary>
-        /// Regenerates shared generated-core output before the native builder runs.
-        /// </summary>
-        readonly EditorGeneratedCoreRegenerationService GeneratedCoreRegenerationService;
 
         /// <summary>
         /// Executes the shared platform build graph for this platform.
@@ -81,6 +24,8 @@ namespace helengine.editor {
         /// <param name="projectVersion">Human-visible project version reported to the builder.</param>
         /// <param name="importers">Importer registrations supplied by the editor host.</param>
         /// <param name="platformDescriptor">Loaded platform descriptor that carries the builder assembly path.</param>
+        /// <param name="defaultFontAsset">Default font asset packaged for player builds.</param>
+        /// <param name="buildGraphRunner">Optional override used by tests.</param>
         public EditorPlatformBuildExecutor(
             string projectRootPath,
             string requiredEngineVersion,
@@ -115,25 +60,17 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform descriptor must provide a csharpcodegen tool path.", nameof(platformDescriptor));
             }
 
-            ProjectRootPath = Path.GetFullPath(projectRootPath);
-            RequiredEngineVersion = requiredEngineVersion;
-            ProjectId = projectId;
-            ProjectVersion = projectVersion;
-            Importers = importers;
             PlatformDescriptor = platformDescriptor;
-            DefaultFontAsset = defaultFontAsset;
-            BuilderLoader = new EditorPlatformAssetBuilderLoader();
-            GeneratedCoreRegenerationService = new EditorGeneratedCoreRegenerationService();
             BuildGraphRunner = buildGraphRunner ?? new EditorPlatformBuildGraphRunner(
-                ProjectRootPath,
-                RequiredEngineVersion,
-                ProjectId,
-                ProjectVersion,
-                Importers,
-                PlatformDescriptor,
-                DefaultFontAsset,
-                BuilderLoader,
-                GeneratedCoreRegenerationService);
+                Path.GetFullPath(projectRootPath),
+                requiredEngineVersion,
+                projectId,
+                projectVersion,
+                importers,
+                platformDescriptor,
+                defaultFontAsset,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService());
         }
 
         /// <summary>
@@ -168,265 +105,6 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(queueItem.OutputDirectoryPath)) {
                 throw new InvalidOperationException($"Platform '{PlatformDescriptor.Id}' requires an output directory.");
             }
-        }
-
-        /// <summary>
-        /// Recreates the staging and working directories used by one platform build execution.
-        /// </summary>
-        /// <param name="executionRoot">Temporary execution root.</param>
-        /// <param name="stagingRoot">Content staging root.</param>
-        /// <param name="builderWorkingRoot">Builder working root.</param>
-        /// <param name="outputRoot">Final build output root.</param>
-        void ResetExecutionDirectories(string executionRoot, string stagingRoot, string builderWorkingRoot, string outputRoot) {
-            DeleteDirectoryIfPresent(executionRoot);
-            DeleteDirectoryIfPresent(outputRoot);
-
-            Directory.CreateDirectory(stagingRoot);
-            Directory.CreateDirectory(builderWorkingRoot);
-            Directory.CreateDirectory(outputRoot);
-        }
-
-        /// <summary>
-        /// Builds one fully resolved builder request from the staged platform content root.
-        /// </summary>
-        /// <param name="queueItem">Queued build item being executed.</param>
-        /// <param name="stagingRoot">Absolute staging root produced by the content packager.</param>
-        /// <param name="builderWorkingRoot">Absolute temporary working directory for the builder.</param>
-        /// <param name="builderDefinition">Typed metadata exposed by the loaded builder assembly.</param>
-        /// <returns>Resolved builder request.</returns>
-        PlatformBuildRequest BuildRequest(
-            EditorBuildQueueItemDocument queueItem,
-            string stagingRoot,
-            string builderWorkingRoot,
-            PlatformDefinition builderDefinition) {
-            string[] stagedFilePaths = Directory.GetFiles(stagingRoot, "*", SearchOption.AllDirectories);
-            Array.Sort(stagedFilePaths, StringComparer.OrdinalIgnoreCase);
-
-            PlatformBuildPayloadReference[] stagedPayloadReferences = new PlatformBuildPayloadReference[stagedFilePaths.Length];
-            for (int index = 0; index < stagedFilePaths.Length; index++) {
-                string stagedFilePath = stagedFilePaths[index];
-                string relativePath = NormalizeRelativePath(Path.GetRelativePath(stagingRoot, stagedFilePath));
-                stagedPayloadReferences[index] = new PlatformBuildPayloadReference(relativePath, relativePath);
-            }
-
-            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(builderDefinition);
-            string selectedBuildProfileId = ResolveSelectedBuildProfileId(queueItem, selectionModel);
-            string selectedGraphicsProfileId = ResolveSelectedGraphicsProfileId(queueItem, selectedBuildProfileId, selectionModel);
-            string selectedCodegenProfileId = ResolveSelectedCodegenProfileId(queueItem, selectedBuildProfileId, selectionModel);
-
-            PlatformBuildScene[] scenes = new PlatformBuildScene[queueItem.SelectedSceneIds.Count];
-            for (int index = 0; index < queueItem.SelectedSceneIds.Count; index++) {
-                string sceneId = queueItem.SelectedSceneIds[index];
-                string sceneSourceIdentity = NormalizeRelativePath(Path.Combine("scenes", sceneId));
-                PlatformBuildPayloadReference[] payloadReferences = index == 0 ? stagedPayloadReferences : [];
-
-                scenes[index] = new PlatformBuildScene(
-                    sceneId,
-                    Path.GetFileNameWithoutExtension(sceneId),
-                    sceneSourceIdentity,
-                    payloadReferences,
-                    []);
-            }
-
-            PlatformBuildManifest manifest = new(
-                1,
-                ProjectId,
-                ProjectVersion,
-                RequiredEngineVersion,
-                scenes,
-                []);
-
-            PlatformBuildTargetVariant[] targetVariants = [
-                new PlatformBuildTargetVariant(
-                    selectedBuildProfileId,
-                    PlatformDescriptor.Id,
-                    PlatformDescriptor.Id,
-                    selectedBuildProfileId)
-            ];
-
-            PlatformCookProfile[] cookProfiles = [
-                new PlatformCookProfile(
-                    selectedBuildProfileId,
-                    selectedBuildProfileId,
-                    new PlatformCookProfileCapabilities(
-                        PlatformDescriptor.Id,
-                        selectedGraphicsProfileId,
-                        "raw",
-                        $"{PlatformDescriptor.Id}-scene-v1",
-                        PlatformSerializationEndianness.LittleEndian))
-            ];
-
-            return new PlatformBuildRequest(
-                manifest,
-                targetVariants,
-                cookProfiles,
-                queueItem.OutputDirectoryPath,
-                builderWorkingRoot,
-                selectedBuildProfileId,
-                selectedGraphicsProfileId,
-                selectedCodegenProfileId,
-                queueItem.SelectedBuildOptionValues,
-                queueItem.SelectedGraphicsOptionValues,
-                queueItem.SelectedCodegenOptionValues,
-                PlatformDescriptor.GeneratedCoreCppRootPath,
-                queueItem.SelectedMediaProfileId,
-                queueItem.SelectedStorageProfileId);
-        }
-
-        /// <summary>
-        /// Chooses one build profile id from the builder metadata.
-        /// </summary>
-        /// <param name="queueItem">Queued build item containing the requested metadata snapshot.</param>
-        /// <param name="selectionModel">Typed builder metadata exposed by the loaded platform.</param>
-        /// <returns>Selected build profile id.</returns>
-        static string ResolveSelectedBuildProfileId(EditorBuildQueueItemDocument queueItem, EditorPlatformBuildSelectionModel selectionModel) {
-            if (queueItem == null) {
-                throw new ArgumentNullException(nameof(queueItem));
-            }
-            if (selectionModel == null) {
-                throw new ArgumentNullException(nameof(selectionModel));
-            }
-
-            if (!string.IsNullOrWhiteSpace(queueItem.SelectedBuildProfileId)) {
-                PlatformBuildProfileDefinition requestedBuildProfile = selectionModel.ResolveBuildProfile(queueItem.SelectedBuildProfileId);
-                if (requestedBuildProfile != null) {
-                    return requestedBuildProfile.ProfileId;
-                }
-            }
-
-            if (queueItem.DebugBuild) {
-                PlatformBuildProfileDefinition requestedDebugProfile = selectionModel.ResolveBuildProfile("debug");
-                if (requestedDebugProfile != null) {
-                    return requestedDebugProfile.ProfileId;
-                }
-            } else {
-                PlatformBuildProfileDefinition requestedReleaseProfile = selectionModel.ResolveBuildProfile("release");
-                if (requestedReleaseProfile != null) {
-                    return requestedReleaseProfile.ProfileId;
-                }
-            }
-
-            PlatformBuildProfileDefinition fallbackBuildProfile = selectionModel.ResolveBuildProfile(string.Empty);
-            if (fallbackBuildProfile != null) {
-                return fallbackBuildProfile.ProfileId;
-            }
-
-            return queueItem.DebugBuild ? "debug" : "release";
-        }
-
-        /// <summary>
-        /// Chooses one graphics profile id from the builder metadata.
-        /// </summary>
-        /// <param name="queueItem">Queued build item containing the requested metadata snapshot.</param>
-        /// <param name="selectedBuildProfileId">Build profile id chosen for this queue item.</param>
-        /// <param name="selectionModel">Typed builder metadata exposed by the loaded platform.</param>
-        /// <returns>Selected graphics profile id.</returns>
-        static string ResolveSelectedGraphicsProfileId(
-            EditorBuildQueueItemDocument queueItem,
-            string selectedBuildProfileId,
-            EditorPlatformBuildSelectionModel selectionModel) {
-            if (queueItem == null) {
-                throw new ArgumentNullException(nameof(queueItem));
-            }
-            if (selectionModel == null) {
-                throw new ArgumentNullException(nameof(selectionModel));
-            }
-
-            PlatformBuildProfileDefinition resolvedBuildProfile = selectionModel.ResolveBuildProfile(selectedBuildProfileId);
-            if (resolvedBuildProfile != null && !string.IsNullOrWhiteSpace(resolvedBuildProfile.GraphicsProfileId)) {
-                return resolvedBuildProfile.GraphicsProfileId;
-            }
-
-            if (!string.IsNullOrWhiteSpace(queueItem.SelectedGraphicsProfileId)) {
-                PlatformGraphicsProfileDefinition selectedGraphicsProfile = selectionModel.ResolveGraphicsProfile(queueItem.SelectedGraphicsProfileId);
-                if (selectedGraphicsProfile != null) {
-                    return selectedGraphicsProfile.ProfileId;
-                }
-            }
-
-            PlatformGraphicsProfileDefinition defaultGraphicsProfile = selectionModel.ResolveGraphicsProfile(string.Empty);
-            if (defaultGraphicsProfile != null) {
-                return defaultGraphicsProfile.ProfileId;
-            }
-
-            return string.Empty;
-        }
-
-        /// <summary>
-        /// Chooses one codegen profile id from the builder metadata.
-        /// </summary>
-        /// <param name="queueItem">Queued build item containing the requested metadata snapshot.</param>
-        /// <param name="selectedBuildProfileId">Build profile id chosen for this queue item.</param>
-        /// <param name="selectionModel">Typed builder metadata exposed by the loaded platform.</param>
-        /// <returns>Selected codegen profile id.</returns>
-        static string ResolveSelectedCodegenProfileId(
-            EditorBuildQueueItemDocument queueItem,
-            string selectedBuildProfileId,
-            EditorPlatformBuildSelectionModel selectionModel) {
-            if (queueItem == null) {
-                throw new ArgumentNullException(nameof(queueItem));
-            }
-            if (selectionModel == null) {
-                throw new ArgumentNullException(nameof(selectionModel));
-            }
-
-            PlatformBuildProfileDefinition resolvedBuildProfile = selectionModel.ResolveBuildProfile(selectedBuildProfileId);
-            if (resolvedBuildProfile != null && !string.IsNullOrWhiteSpace(resolvedBuildProfile.CodegenProfileId)) {
-                return resolvedBuildProfile.CodegenProfileId;
-            }
-
-            if (!string.IsNullOrWhiteSpace(queueItem.SelectedCodegenProfileId)) {
-                PlatformCodegenProfileDefinition selectedCodegenProfile = selectionModel.ResolveCodegenProfile(queueItem.SelectedCodegenProfileId);
-                if (selectedCodegenProfile != null) {
-                    return selectedCodegenProfile.ProfileId;
-                }
-            }
-
-            PlatformCodegenProfileDefinition defaultCodegenProfile = selectionModel.ResolveCodegenProfile(string.Empty);
-            if (defaultCodegenProfile != null) {
-                return defaultCodegenProfile.ProfileId;
-            }
-
-            return string.Empty;
-        }
-
-        /// <summary>
-        /// Builds one failure message from a completed platform builder report.
-        /// </summary>
-        /// <param name="report">Builder report returned by the platform assembly.</param>
-        /// <returns>User-facing failure message.</returns>
-        static string BuildFailureMessage(PlatformBuildReport report) {
-            if (report == null) {
-                throw new ArgumentNullException(nameof(report));
-            }
-
-            for (int index = 0; index < report.Diagnostics.Length; index++) {
-                PlatformBuildDiagnostic diagnostic = report.Diagnostics[index];
-                if (diagnostic.Severity == PlatformBuildDiagnosticSeverity.Error) {
-                    return $"Platform build failed: {diagnostic.Message}";
-                }
-            }
-
-            return "Platform build reported a failed build.";
-        }
-
-        /// <summary>
-        /// Deletes one directory if it already exists.
-        /// </summary>
-        /// <param name="directoryPath">Directory path to delete.</param>
-        static void DeleteDirectoryIfPresent(string directoryPath) {
-            if (Directory.Exists(directoryPath)) {
-                Directory.Delete(directoryPath, recursive: true);
-            }
-        }
-
-        /// <summary>
-        /// Normalizes one relative path for cross-platform build request metadata.
-        /// </summary>
-        /// <param name="path">Path to normalize.</param>
-        /// <returns>Normalized relative path.</returns>
-        static string NormalizeRelativePath(string path) {
-            return path.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
         }
     }
 }

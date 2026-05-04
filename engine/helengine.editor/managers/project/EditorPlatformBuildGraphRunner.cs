@@ -14,6 +14,11 @@ namespace helengine.editor {
     /// Executes the shared editor-owned build graph for one queued platform build item.
     /// </summary>
     public class EditorPlatformBuildGraphRunner {
+        /// <summary>
+        /// Environment variable used by the PS2 builder to resolve its native repository root when loaded from the editor app.
+        /// </summary>
+        const string Ps2RepositoryRootEnvironmentVariableName = "HELENGINE_PS2_REPOSITORY_ROOT";
+
         readonly string ProjectRootPath;
         readonly string RequiredEngineVersion;
         readonly string ProjectId;
@@ -118,7 +123,13 @@ namespace helengine.editor {
             Directory.CreateDirectory(workspace.LogsRootPath);
 
             RunRegenerateCore(builder.Definition, selectedCodegenProfile, queueItem, workspace);
-            PlatformBuildManifest cookedManifest = RunCookAssets(builder.Definition, queueItem, workspace);
+            PlatformBuildManifest cookedManifest = RunCookAssets(
+                builder,
+                builder.Definition,
+                selectedBuildProfileId,
+                selectedGraphicsProfileId,
+                queueItem,
+                workspace);
             PlatformBuildCodeModule[] codeModules = RunCompileCode(selectedCodegenProfile, selectedStorageProfile, queueItem, workspace);
             cookedManifest = ReplaceCodeModules(cookedManifest, codeModules);
             cookedManifest = RunResolveVariants(cookedManifest, workspace);
@@ -160,14 +171,20 @@ namespace helengine.editor {
         /// Executes the content-cooking phase using the current scene packager.
         /// </summary>
         PlatformBuildManifest RunCookAssets(
+            IPlatformAssetBuilder builder,
             PlatformDefinition builderDefinition,
+            string selectedBuildProfileId,
+            string selectedGraphicsProfileId,
             EditorBuildQueueItemDocument queueItem,
             EditorPlatformBuildGraphWorkspace workspace) {
             return AssetCookService.Cook(
                 builderDefinition,
                 queueItem.SelectedSceneIds,
                 workspace.CookRootPath,
-                [PlatformDescriptor.Id]);
+                [PlatformDescriptor.Id],
+                builder,
+                selectedBuildProfileId,
+                selectedGraphicsProfileId);
         }
 
         /// <summary>
@@ -339,8 +356,10 @@ namespace helengine.editor {
             EditorPlatformBuildDiagnosticCollector diagnosticCollector = new();
 
             string previousWorkingDirectory = Directory.GetCurrentDirectory();
+            string previousPs2RepositoryRootPath = Environment.GetEnvironmentVariable(Ps2RepositoryRootEnvironmentVariableName) ?? string.Empty;
             try {
                 Directory.SetCurrentDirectory(workspace.PackageRootPath);
+                ApplyBuilderEnvironmentOverrides();
                 PlatformBuildReport report = builder.BuildAsync(request, progressReporter, diagnosticCollector, CancellationToken.None).GetAwaiter().GetResult();
                 if (!report.Succeeded) {
                     return EditorBuildExecutionResult.Failure(BuildFailureMessage(report));
@@ -348,8 +367,38 @@ namespace helengine.editor {
 
                 return EditorBuildExecutionResult.Success($"Build completed for platform '{PlatformDescriptor.Id}': {queueItem.OutputDirectoryPath}");
             } finally {
+                RestoreBuilderEnvironmentOverrides(previousPs2RepositoryRootPath);
                 Directory.SetCurrentDirectory(previousWorkingDirectory);
             }
+        }
+
+        /// <summary>
+        /// Applies temporary environment overrides required by builder implementations loaded into the editor process.
+        /// </summary>
+        void ApplyBuilderEnvironmentOverrides() {
+            if (string.Equals(PlatformDescriptor.Id, "ps2", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(PlatformDescriptor.PlayerSourceRootPath)) {
+                Environment.SetEnvironmentVariable(
+                    Ps2RepositoryRootEnvironmentVariableName,
+                    Path.GetFullPath(PlatformDescriptor.PlayerSourceRootPath));
+            }
+        }
+
+        /// <summary>
+        /// Restores temporary builder environment overrides after one build graph execution finishes.
+        /// </summary>
+        /// <param name="previousPs2RepositoryRootPath">Previous PS2 repository-root environment variable value.</param>
+        void RestoreBuilderEnvironmentOverrides(string previousPs2RepositoryRootPath) {
+            if (!string.Equals(PlatformDescriptor.Id, "ps2", StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(previousPs2RepositoryRootPath)) {
+                Environment.SetEnvironmentVariable(Ps2RepositoryRootEnvironmentVariableName, null);
+                return;
+            }
+
+            Environment.SetEnvironmentVariable(Ps2RepositoryRootEnvironmentVariableName, previousPs2RepositoryRootPath);
         }
 
         static void ResetExecutionDirectories(string executionRoot, string cookRoot, string packageRoot, string builderWorkingRoot, string outputRoot) {

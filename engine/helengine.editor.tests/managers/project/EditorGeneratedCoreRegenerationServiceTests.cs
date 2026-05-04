@@ -61,11 +61,14 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         PlatformDefinition definition = new(
             "windows",
             "Windows",
-            [],
-            [],
-            [],
-            [],
-            []);
+            Array.Empty<PlatformBuildProfileDefinition>(),
+            Array.Empty<PlatformGraphicsProfileDefinition>(),
+            Array.Empty<PlatformAssetRequirementDefinition>(),
+            Array.Empty<PlatformMaterialSchemaDefinition>(),
+            Array.Empty<PlatformComponentCompatibilityDefinition>(),
+            Array.Empty<PlatformCodegenProfileDefinition>(),
+            Array.Empty<PlatformStorageProfileDefinition>(),
+            Array.Empty<PlatformMediaProfileDefinition>());
 
         IReadOnlyList<string> symbols = EditorGeneratedCoreRegenerationService.ResolvePortableInputPreprocessorSymbols(definition);
 

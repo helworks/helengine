@@ -1,3 +1,4 @@
+using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Manifest;
 
@@ -37,7 +38,10 @@ namespace helengine.editor {
             PlatformDefinition platformDefinition,
             IReadOnlyList<string> orderedSceneIds,
             string outputRootPath,
-            IReadOnlyList<string> targetIds) {
+            IReadOnlyList<string> targetIds,
+            IPlatformAssetBuilder materialBuilder = null,
+            string selectedBuildProfileId = "",
+            string selectedGraphicsProfileId = "") {
             if (platformDefinition == null) {
                 throw new ArgumentNullException(nameof(platformDefinition));
             }
@@ -61,7 +65,10 @@ namespace helengine.editor {
                 ProjectRootPath,
                 Importers,
                 platformDefinition,
-                DefaultFontAsset);
+                DefaultFontAsset,
+                materialBuilder,
+                selectedBuildProfileId,
+                selectedGraphicsProfileId);
             packager.Package(orderedSceneIds, fullOutputRootPath);
 
             PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, fullOutputRootPath);

@@ -177,11 +177,12 @@ public class EditorPlatformBuildGraphRunnerTests {
             Definition = new(
                 "ps2",
                 "PlayStation 2",
-                [],
-                [],
-                [],
-                [],
-                [],
+                Array.Empty<helengine.baseplatform.Definitions.PlatformBuildProfileDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformGraphicsProfileDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformAssetRequirementDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformMaterialSchemaDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformComponentCompatibilityDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformCodegenProfileDefinition>(),
                 [
                     new(
                         "disc-layout",
@@ -209,6 +210,15 @@ public class EditorPlatformBuildGraphRunnerTests {
         /// Gets the fake PS2 platform definition used by the test.
         /// </summary>
         public helengine.baseplatform.Definitions.PlatformDefinition Definition { get; }
+
+        /// <summary>
+        /// Material cooking is not used by this test-only builder.
+        /// </summary>
+        /// <param name="request">Material translation request that is unsupported in this test.</param>
+        /// <returns>This method always throws because the request-construction tests never cook materials.</returns>
+        public helengine.baseplatform.Results.PlatformMaterialCookResult CookMaterial(helengine.baseplatform.Requests.PlatformMaterialCookRequest request) {
+            throw new NotSupportedException("Material cooking is not used by this test builder.");
+        }
 
         /// <summary>
         /// Returns a successful build report without mutating the request.
