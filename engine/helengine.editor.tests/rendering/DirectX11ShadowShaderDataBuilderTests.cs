@@ -142,7 +142,7 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
-        /// Ensures the positive X cube face maps world positive Z to the right and negative Z to the left instead of mirroring that face.
+        /// Ensures the positive X cube face maps world positive Z to the left and negative Z to the right according to the Direct3D cubemap convention.
         /// </summary>
         [Fact]
         public void BuildPointShadowViewProjectionMatrix_WhenUsingPositiveXFace_PreservesExpectedHorizontalOrientation() {
@@ -157,8 +157,88 @@ namespace helengine.editor.tests.rendering {
             float3 negativeZOffsetClip = TransformPointToNormalizedDeviceCoordinates(new float3(1f, 0f, -0.25f), positiveXFaceMatrix);
             float3 positiveZOffsetClip = TransformPointToNormalizedDeviceCoordinates(new float3(1f, 0f, 0.25f), positiveXFaceMatrix);
 
+            Assert.True(negativeZOffsetClip.X > 0f);
+            Assert.True(positiveZOffsetClip.X < 0f);
+        }
+
+        /// <summary>
+        /// Ensures the positive Y cube face maps world positive X to the right and negative X to the left according to the Direct3D cubemap convention.
+        /// </summary>
+        [Fact]
+        public void BuildPointShadowViewProjectionMatrix_WhenUsingPositiveYFace_PreservesExpectedHorizontalOrientation() {
+            InitializeCore();
+            Entity pointEntity = CreateEntity(new float3(0f, 0f, 0f));
+            PointLightComponent pointLight = new PointLightComponent();
+            pointLight.Range = 12f;
+            pointEntity.AddComponent(pointLight);
+            DirectX11ShadowShaderDataBuilder builder = new DirectX11ShadowShaderDataBuilder();
+
+            float4x4 positiveYFaceMatrix = builder.BuildPointShadowViewProjectionMatrix(pointLight, 2);
+            float3 negativeXOffsetClip = TransformPointToNormalizedDeviceCoordinates(new float3(-0.25f, 1f, 0f), positiveYFaceMatrix);
+            float3 positiveXOffsetClip = TransformPointToNormalizedDeviceCoordinates(new float3(0.25f, 1f, 0f), positiveYFaceMatrix);
+
+            Assert.True(negativeXOffsetClip.X < 0f);
+            Assert.True(positiveXOffsetClip.X > 0f);
+        }
+
+        /// <summary>
+        /// Ensures the negative X cube face maps world positive Z to the right and negative Z to the left according to the Direct3D cubemap convention.
+        /// </summary>
+        [Fact]
+        public void BuildPointShadowViewProjectionMatrix_WhenUsingNegativeXFace_PreservesExpectedHorizontalOrientation() {
+            InitializeCore();
+            Entity pointEntity = CreateEntity(new float3(0f, 0f, 0f));
+            PointLightComponent pointLight = new PointLightComponent();
+            pointLight.Range = 12f;
+            pointEntity.AddComponent(pointLight);
+            DirectX11ShadowShaderDataBuilder builder = new DirectX11ShadowShaderDataBuilder();
+
+            float4x4 negativeXFaceMatrix = builder.BuildPointShadowViewProjectionMatrix(pointLight, 1);
+            float3 negativeZOffsetClip = TransformPointToNormalizedDeviceCoordinates(new float3(-1f, 0f, -0.25f), negativeXFaceMatrix);
+            float3 positiveZOffsetClip = TransformPointToNormalizedDeviceCoordinates(new float3(-1f, 0f, 0.25f), negativeXFaceMatrix);
+
             Assert.True(negativeZOffsetClip.X < 0f);
             Assert.True(positiveZOffsetClip.X > 0f);
+        }
+
+        /// <summary>
+        /// Ensures the positive Z cube face maps world positive Y upward and negative Y downward according to the Direct3D cubemap convention.
+        /// </summary>
+        [Fact]
+        public void BuildPointShadowViewProjectionMatrix_WhenUsingPositiveZFace_PreservesExpectedVerticalOrientation() {
+            InitializeCore();
+            Entity pointEntity = CreateEntity(new float3(0f, 0f, 0f));
+            PointLightComponent pointLight = new PointLightComponent();
+            pointLight.Range = 12f;
+            pointEntity.AddComponent(pointLight);
+            DirectX11ShadowShaderDataBuilder builder = new DirectX11ShadowShaderDataBuilder();
+
+            float4x4 positiveZFaceMatrix = builder.BuildPointShadowViewProjectionMatrix(pointLight, 4);
+            float3 negativeYOffsetClip = TransformPointToNormalizedDeviceCoordinates(new float3(0f, -0.25f, 1f), positiveZFaceMatrix);
+            float3 positiveYOffsetClip = TransformPointToNormalizedDeviceCoordinates(new float3(0f, 0.25f, 1f), positiveZFaceMatrix);
+
+            Assert.True(negativeYOffsetClip.Y < 0f);
+            Assert.True(positiveYOffsetClip.Y > 0f);
+        }
+
+        /// <summary>
+        /// Ensures the negative Z cube face maps world positive Y upward and negative Y downward according to the Direct3D cubemap convention.
+        /// </summary>
+        [Fact]
+        public void BuildPointShadowViewProjectionMatrix_WhenUsingNegativeZFace_PreservesExpectedVerticalOrientation() {
+            InitializeCore();
+            Entity pointEntity = CreateEntity(new float3(0f, 0f, 0f));
+            PointLightComponent pointLight = new PointLightComponent();
+            pointLight.Range = 12f;
+            pointEntity.AddComponent(pointLight);
+            DirectX11ShadowShaderDataBuilder builder = new DirectX11ShadowShaderDataBuilder();
+
+            float4x4 negativeZFaceMatrix = builder.BuildPointShadowViewProjectionMatrix(pointLight, 5);
+            float3 negativeYOffsetClip = TransformPointToNormalizedDeviceCoordinates(new float3(0f, -0.25f, -1f), negativeZFaceMatrix);
+            float3 positiveYOffsetClip = TransformPointToNormalizedDeviceCoordinates(new float3(0f, 0.25f, -1f), negativeZFaceMatrix);
+
+            Assert.True(negativeYOffsetClip.Y < 0f);
+            Assert.True(positiveYOffsetClip.Y > 0f);
         }
 
         /// <summary>

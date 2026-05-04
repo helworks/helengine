@@ -211,6 +211,32 @@ float3 EvaluateForwardLight(
                 specularColor = float3(0.35f, 0.0f, 0.0f) * specular * attenuation;
             }
         }
+        else if (absY >= absX && absY >= absZ)
+        {
+            if (lightToSurface.y >= 0.0f)
+            {
+                diffuseColor = float3(0.0f, 0.0f, 1.0f) * diffuse * attenuation;
+                specularColor = float3(0.0f, 0.0f, 0.35f) * specular * attenuation;
+            }
+            else
+            {
+                diffuseColor = float3(1.0f, 1.0f, 0.0f) * diffuse * attenuation;
+                specularColor = float3(0.35f, 0.35f, 0.0f) * specular * attenuation;
+            }
+        }
+        else
+        {
+            if (lightToSurface.z >= 0.0f)
+            {
+                diffuseColor = float3(1.0f, 0.0f, 1.0f) * diffuse * attenuation;
+                specularColor = float3(0.35f, 0.0f, 0.35f) * specular * attenuation;
+            }
+            else
+            {
+                diffuseColor = float3(0.0f, 1.0f, 1.0f) * diffuse * attenuation;
+                specularColor = float3(0.0f, 0.35f, 0.35f) * specular * attenuation;
+            }
+        }
     }
 
     return diffuseColor + specularColor;
