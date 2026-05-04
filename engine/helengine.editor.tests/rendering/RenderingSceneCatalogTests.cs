@@ -111,6 +111,24 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures the point-shadow lab scene exists and contains one enclosed debug room, one point light, and multiple receiver markers.
+        /// </summary>
+        [Fact]
+        public void SceneCatalog_WhenLoadingPointShadowLab_IncludesCameraPointLightAndEnclosedDebugRoom() {
+            SceneAsset sceneAsset = LoadSceneAsset("point-shadow-lab.helen");
+            SceneComponentAssetRecord cameraRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.CameraComponent");
+            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            CameraComponent cameraComponent = (CameraComponent)descriptor.DeserializeComponent(cameraRecord, null, null);
+
+            Assert.NotNull(cameraRecord);
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.PointLightComponent"));
+            Assert.True(CountComponents(sceneAsset.RootEntities, "helengine.MeshComponent") >= 14);
+            Assert.Equal(DepthPrepassMode.Auto, cameraComponent.RenderSettings.DepthPrepassMode);
+            Assert.Equal(60f, cameraComponent.RenderSettings.ShadowDistance);
+            Assert.Equal(PostProcessTier.Disabled, cameraComponent.RenderSettings.PostProcessTier);
+        }
+
+        /// <summary>
         /// Loads one committed rendering scene asset from disk.
         /// </summary>
         /// <param name="sceneFileName">Scene file name under the committed rendering scene directory.</param>

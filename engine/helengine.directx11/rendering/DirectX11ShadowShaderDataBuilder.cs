@@ -283,13 +283,17 @@ namespace helengine.directx11 {
         /// <param name="faceIndex">Cube-face index in the range <c>0-5</c>.</param>
         /// <returns>Up vector for the requested cube face.</returns>
         float3 GetPointShadowFaceUp(int faceIndex) {
-            if (faceIndex == 2) {
-                return new float3(0f, 0f, -1f);
-            } else if (faceIndex == 3) {
+            if (faceIndex == 0 || faceIndex == 1) {
+                return new float3(0f, 1f, 0f);
+            } else if (faceIndex == 4 || faceIndex == 5) {
+                return new float3(0f, -1f, 0f);
+            } else if (faceIndex == 2) {
                 return new float3(0f, 0f, 1f);
+            } else if (faceIndex == 3) {
+                return new float3(0f, 0f, -1f);
             }
 
-            return DefaultUp;
+            return new float3(0f, -1f, 0f);
         }
 
         /// <summary>

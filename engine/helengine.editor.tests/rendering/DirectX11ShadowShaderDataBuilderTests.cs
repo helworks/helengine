@@ -119,6 +119,49 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures the point-shadow cube Z faces align with the engine forward convention instead of mirroring across the light.
+        /// </summary>
+        [Fact]
+        public void BuildPointShadowViewProjectionMatrix_WhenUsingZFaces_MapsNegativeAndPositiveZToTheirExpectedCubeFaces() {
+            InitializeCore();
+            Entity pointEntity = CreateEntity(new float3(0f, 0f, 0f));
+            PointLightComponent pointLight = new PointLightComponent();
+            pointLight.Range = 12f;
+            pointEntity.AddComponent(pointLight);
+            DirectX11ShadowShaderDataBuilder builder = new DirectX11ShadowShaderDataBuilder();
+
+            float4x4 positiveZFaceMatrix = builder.BuildPointShadowViewProjectionMatrix(pointLight, 4);
+            float4x4 negativeZFaceMatrix = builder.BuildPointShadowViewProjectionMatrix(pointLight, 5);
+            float3 negativeZPointClip = TransformPointToNormalizedDeviceCoordinates(new float3(0f, 0f, -1f), positiveZFaceMatrix);
+            float3 positiveZPointClip = TransformPointToNormalizedDeviceCoordinates(new float3(0f, 0f, 1f), negativeZFaceMatrix);
+
+            Assert.InRange(Math.Abs(negativeZPointClip.X), 0f, 0.0001f);
+            Assert.InRange(Math.Abs(negativeZPointClip.Y), 0f, 0.0001f);
+            Assert.InRange(Math.Abs(positiveZPointClip.X), 0f, 0.0001f);
+            Assert.InRange(Math.Abs(positiveZPointClip.Y), 0f, 0.0001f);
+        }
+
+        /// <summary>
+        /// Ensures the positive X cube face maps world positive Z to the right and negative Z to the left instead of mirroring that face.
+        /// </summary>
+        [Fact]
+        public void BuildPointShadowViewProjectionMatrix_WhenUsingPositiveXFace_PreservesExpectedHorizontalOrientation() {
+            InitializeCore();
+            Entity pointEntity = CreateEntity(new float3(0f, 0f, 0f));
+            PointLightComponent pointLight = new PointLightComponent();
+            pointLight.Range = 12f;
+            pointEntity.AddComponent(pointLight);
+            DirectX11ShadowShaderDataBuilder builder = new DirectX11ShadowShaderDataBuilder();
+
+            float4x4 positiveXFaceMatrix = builder.BuildPointShadowViewProjectionMatrix(pointLight, 0);
+            float3 negativeZOffsetClip = TransformPointToNormalizedDeviceCoordinates(new float3(1f, 0f, -0.25f), positiveXFaceMatrix);
+            float3 positiveZOffsetClip = TransformPointToNormalizedDeviceCoordinates(new float3(1f, 0f, 0.25f), positiveXFaceMatrix);
+
+            Assert.True(negativeZOffsetClip.X < 0f);
+            Assert.True(positiveZOffsetClip.X > 0f);
+        }
+
+        /// <summary>
         /// Initializes a core instance so cameras and entities can allocate engine-owned state safely.
         /// </summary>
         void InitializeCore() {
@@ -150,6 +193,24 @@ namespace helengine.editor.tests.rendering {
             entity.InitComponents();
             entity.LocalPosition = position;
             return entity;
+        }
+
+        /// <summary>
+        /// Transforms one world-space point by a row-major world-view-projection matrix and returns normalized-device coordinates.
+        /// </summary>
+        /// <param name="point">World-space point to transform.</param>
+        /// <param name="matrix">Row-major matrix used by the runtime shader path.</param>
+        /// <returns>Normalized-device coordinates for the transformed point.</returns>
+        float3 TransformPointToNormalizedDeviceCoordinates(float3 point, float4x4 matrix) {
+            float clipX = (point.X * matrix.M11) + (point.Y * matrix.M21) + (point.Z * matrix.M31) + matrix.M41;
+            float clipY = (point.X * matrix.M12) + (point.Y * matrix.M22) + (point.Z * matrix.M32) + matrix.M42;
+            float clipZ = (point.X * matrix.M13) + (point.Y * matrix.M23) + (point.Z * matrix.M33) + matrix.M43;
+            float clipW = (point.X * matrix.M14) + (point.Y * matrix.M24) + (point.Z * matrix.M34) + matrix.M44;
+            if (Math.Abs(clipW) <= 0.0001f) {
+                throw new InvalidOperationException("Point-shadow clip-space transform produced an invalid W component.");
+            }
+
+            return new float3(clipX / clipW, clipY / clipW, clipZ / clipW);
         }
     }
 }

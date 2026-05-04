@@ -172,7 +172,7 @@ float3 EvaluateForwardLight(
         if (distanceToSurface > 0.0001f && positionAndRange.w > 0.0f)
         {
             int pointShadowTextureIndex = (int)(shadowSlotMetadata.w + 0.5f);
-            float3 sampleDirection = float3(lightToSurface.x, lightToSurface.y, -lightToSurface.z) / distanceToSurface;
+            float3 sampleDirection = lightToSurface / distanceToSurface;
             float currentDepth = saturate(distanceToSurface / positionAndRange.w);
             float sampledDepth = SamplePointShadowTexture(pointShadowTextureIndex, sampleDirection);
             float shadowBias = 0.01f;
@@ -191,6 +191,28 @@ float3 EvaluateForwardLight(
     float specular = pow(saturate(dot(normal, halfVector)), 32.0f);
     float3 diffuseColor = surfaceColor * radiance * diffuse * attenuation;
     float3 specularColor = radiance * specular * 0.35f * attenuation;
+
+    if (lightType == 1)
+    {
+        float3 lightToSurface = worldPos - positionAndRange.xyz;
+        float absX = abs(lightToSurface.x);
+        float absY = abs(lightToSurface.y);
+        float absZ = abs(lightToSurface.z);
+        if (absX >= absY && absX >= absZ)
+        {
+            if (lightToSurface.x >= 0.0f)
+            {
+                diffuseColor = float3(0.0f, 1.0f, 0.0f) * diffuse * attenuation;
+                specularColor = float3(0.0f, 0.35f, 0.0f) * specular * attenuation;
+            }
+            else
+            {
+                diffuseColor = float3(1.0f, 0.0f, 0.0f) * diffuse * attenuation;
+                specularColor = float3(0.35f, 0.0f, 0.0f) * specular * attenuation;
+            }
+        }
+    }
+
     return diffuseColor + specularColor;
 }
 
