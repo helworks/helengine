@@ -26,6 +26,9 @@ namespace helengine.editor.tests.managers.scene {
             EngineGeneratedModelCache.ResetForTests();
             EngineGeneratedMaterialCache.ResetForTests();
             EditorCameraVisualResources.ResetForTests();
+            EditorPointLightVisualResources.ResetForTests();
+            EditorDirectionalLightVisualResources.ResetForTests();
+            EditorSpotLightVisualResources.ResetForTests();
         }
 
         /// <summary>
@@ -35,6 +38,9 @@ namespace helengine.editor.tests.managers.scene {
             EngineGeneratedModelCache.ResetForTests();
             EngineGeneratedMaterialCache.ResetForTests();
             EditorCameraVisualResources.ResetForTests();
+            EditorPointLightVisualResources.ResetForTests();
+            EditorDirectionalLightVisualResources.ResetForTests();
+            EditorSpotLightVisualResources.ResetForTests();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -114,6 +120,123 @@ namespace helengine.editor.tests.managers.scene {
             Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
             Assert.NotNull(visualComponent.Model);
             Assert.NotNull(visualComponent.Material);
+        }
+
+        /// <summary>
+        /// Ensures Add > Point Light creates a point-light-backed scene entity with the hidden editor visual attached.
+        /// </summary>
+        [Fact]
+        public void CreatePointLight_CreatesScenePointLightWithHiddenEditorVisual() {
+            EditorSceneCreationService service = new EditorSceneCreationService();
+
+            EditorEntity entity = service.CreatePointLight();
+
+            PointLightComponent pointLightComponent = Assert.IsType<PointLightComponent>(Assert.Single(entity.Components, component => component is PointLightComponent));
+            EditorEntity visualEntity = Assert.IsType<EditorEntity>(Assert.Single(entity.Children));
+            EditorPointLightVisualComponent visualComponent = Assert.IsType<EditorPointLightVisualComponent>(Assert.Single(visualEntity.Components, component => component is EditorPointLightVisualComponent));
+
+            Assert.Equal("Point Light", entity.Name);
+            Assert.Equal(EditorLayerMasks.SceneObjects, entity.LayerMask);
+            Assert.Equal(10f, pointLightComponent.Range);
+            Assert.Equal(LightType.Point, pointLightComponent.LightType);
+            Assert.True(visualEntity.InternalEntity);
+            Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
+            Assert.NotNull(visualComponent.Model);
+            Assert.NotNull(visualComponent.Material);
+        }
+
+        /// <summary>
+        /// Ensures Add > Directional Light creates a directional-light-backed scene entity with the hidden editor arrow attached.
+        /// </summary>
+        [Fact]
+        public void CreateDirectionalLight_CreatesSceneDirectionalLightWithHiddenEditorVisual() {
+            EditorSceneCreationService service = new EditorSceneCreationService();
+
+            EditorEntity entity = service.CreateDirectionalLight();
+
+            DirectionalLightComponent directionalLightComponent = Assert.IsType<DirectionalLightComponent>(Assert.Single(entity.Components, component => component is DirectionalLightComponent));
+            EditorEntity visualEntity = Assert.IsType<EditorEntity>(Assert.Single(entity.Children));
+            EditorDirectionalLightVisualComponent visualComponent = Assert.IsType<EditorDirectionalLightVisualComponent>(Assert.Single(visualEntity.Components, component => component is EditorDirectionalLightVisualComponent));
+
+            Assert.Equal("Directional Light", entity.Name);
+            Assert.Equal(EditorLayerMasks.SceneObjects, entity.LayerMask);
+            Assert.True(directionalLightComponent.ShadowsEnabled);
+            Assert.Equal(LightType.Directional, directionalLightComponent.LightType);
+            Assert.True(visualEntity.InternalEntity);
+            Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
+            Assert.NotNull(visualComponent.Model);
+            Assert.NotNull(visualComponent.Material);
+        }
+
+        /// <summary>
+        /// Ensures the directional-light visual arrow extends along the engine forward direction on the local negative Z axis.
+        /// </summary>
+        [Fact]
+        public void CreateDirectionalLightVisual_WhenBuilt_PointsTowardNegativeZ() {
+            MethodInfo createModelAssetMethod = typeof(EditorDirectionalLightVisualResources).GetMethod("CreateModelAsset", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(createModelAssetMethod);
+
+            ModelAsset modelAsset = Assert.IsType<ModelAsset>(createModelAssetMethod.Invoke(null, null));
+            Assert.NotNull(modelAsset.Positions);
+
+            float minZ = float.MaxValue;
+            float maxZ = float.MinValue;
+            for (int index = 0; index < modelAsset.Positions.Length; index++) {
+                float z = modelAsset.Positions[index].Z;
+                minZ = Math.Min(minZ, z);
+                maxZ = Math.Max(maxZ, z);
+            }
+
+            Assert.True(minZ < -0.1f);
+            Assert.InRange(Math.Abs(maxZ - 0f), 0f, 0.0001f);
+        }
+
+        /// <summary>
+        /// Ensures Add > Spot Light creates a spot-light-backed scene entity with the hidden editor cone attached.
+        /// </summary>
+        [Fact]
+        public void CreateSpotLight_CreatesSceneSpotLightWithHiddenEditorVisual() {
+            EditorSceneCreationService service = new EditorSceneCreationService();
+
+            EditorEntity entity = service.CreateSpotLight();
+
+            SpotLightComponent spotLightComponent = Assert.IsType<SpotLightComponent>(Assert.Single(entity.Components, component => component is SpotLightComponent));
+            EditorEntity visualEntity = Assert.IsType<EditorEntity>(Assert.Single(entity.Children));
+            EditorSpotLightVisualComponent visualComponent = Assert.IsType<EditorSpotLightVisualComponent>(Assert.Single(visualEntity.Components, component => component is EditorSpotLightVisualComponent));
+
+            Assert.Equal("Spot Light", entity.Name);
+            Assert.Equal(EditorLayerMasks.SceneObjects, entity.LayerMask);
+            Assert.Equal(10f, spotLightComponent.Range);
+            Assert.Equal(25f, spotLightComponent.InnerConeAngleDegrees);
+            Assert.Equal(45f, spotLightComponent.OuterConeAngleDegrees);
+            Assert.Equal(LightType.Spot, spotLightComponent.LightType);
+            Assert.True(visualEntity.InternalEntity);
+            Assert.Equal(EditorLayerMasks.SceneCameraVisuals, visualEntity.LayerMask);
+            Assert.NotNull(visualComponent.Model);
+            Assert.NotNull(visualComponent.Material);
+        }
+
+        /// <summary>
+        /// Ensures the spot-light visual cone extends along the engine forward direction on the local negative Z axis.
+        /// </summary>
+        [Fact]
+        public void CreateSpotLightVisual_WhenBuilt_PointsTowardNegativeZ() {
+            MethodInfo createModelAssetMethod = typeof(EditorSpotLightVisualResources).GetMethod("CreateModelAsset", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.NotNull(createModelAssetMethod);
+
+            ModelAsset modelAsset = Assert.IsType<ModelAsset>(createModelAssetMethod.Invoke(null, null));
+            Assert.NotNull(modelAsset.Positions);
+
+            float minZ = float.MaxValue;
+            float maxZ = float.MinValue;
+            for (int index = 0; index < modelAsset.Positions.Length; index++) {
+                float z = modelAsset.Positions[index].Z;
+                minZ = Math.Min(minZ, z);
+                maxZ = Math.Max(maxZ, z);
+            }
+
+            Assert.True(minZ < -0.1f);
+            Assert.InRange(Math.Abs(maxZ - 0f), 0f, 0.0001f);
         }
 
         /// <summary>
