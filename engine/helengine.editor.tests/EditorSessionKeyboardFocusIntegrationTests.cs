@@ -38,10 +38,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the scene hierarchy and properties panels share the same right-side tab group after layout.
+        /// Ensures the scene hierarchy and properties panels stack vertically on the right side after layout.
         /// </summary>
         [Fact]
-        public void UpdateLayout_WhenCalled_DocksSceneHierarchyAndPropertiesIntoTheSameRightSideArea() {
+        public void UpdateLayout_WhenCalled_DocksSceneHierarchyAbovePropertiesOnTheRightSide() {
             EditorSession session = CreateSessionForKeyboardFocus(
                 out DockingManager dockingManager,
                 out TestInputBackend inputManager,
@@ -59,16 +59,26 @@ namespace helengine.editor.tests {
                 IReadOnlyList<DockableEntity> dockOrder = dockingManager.Layout.GetVisibleDockablesInTraversalOrder();
 
                 Assert.Equal(896, mainViewport.Size.X);
-                Assert.Equal(384, propertiesPanel.Size.X);
-                Assert.Equal(propertiesPanel.Position.X, sceneHierarchyPanel.Position.X);
-                Assert.Equal(propertiesPanel.Position.Y, sceneHierarchyPanel.Position.Y);
-                Assert.Equal(propertiesPanel.Position.Z, sceneHierarchyPanel.Position.Z);
-                Assert.Equal(propertiesPanel.Size.X, sceneHierarchyPanel.Size.X);
-                Assert.Equal(propertiesPanel.Size.Y, sceneHierarchyPanel.Size.Y);
+                Assert.Equal(384, sceneHierarchyPanel.Size.X);
+                Assert.Equal(sceneHierarchyPanel.Size.X, propertiesPanel.Size.X);
+                Assert.Equal(sceneHierarchyPanel.Position.X, propertiesPanel.Position.X);
+                Assert.Equal(sceneHierarchyPanel.Position.Z, propertiesPanel.Position.Z);
+                Assert.True(sceneHierarchyPanel.Enabled);
                 Assert.True(propertiesPanel.Enabled);
-                Assert.False(sceneHierarchyPanel.Enabled);
+                Assert.True(sceneHierarchyPanel.Position.Y < propertiesPanel.Position.Y);
+                Assert.InRange(Math.Abs(sceneHierarchyPanel.Size.Y - propertiesPanel.Size.Y), 0, 1);
+                Assert.Equal(
+                    sceneHierarchyPanel.Position.Y + sceneHierarchyPanel.Size.Y + DockableEntity.TitleBarHeight,
+                    propertiesPanel.Position.Y);
+                int rightSideDockCount = 0;
+                for (int dockIndex = 0; dockIndex < dockOrder.Count; dockIndex++) {
+                    if (ReferenceEquals(dockOrder[dockIndex], sceneHierarchyPanel) || ReferenceEquals(dockOrder[dockIndex], propertiesPanel)) {
+                        rightSideDockCount++;
+                    }
+                }
+                Assert.Equal(2, rightSideDockCount);
+                Assert.Contains(sceneHierarchyPanel, dockOrder);
                 Assert.Contains(propertiesPanel, dockOrder);
-                Assert.DoesNotContain(sceneHierarchyPanel, dockOrder);
             } finally {
                 session.Dispose();
             }
@@ -251,7 +261,7 @@ namespace helengine.editor.tests {
             dockingManager.Layout.Add(assetBrowserPanel);
             dockingManager.Layout.DockAsRoot(mainViewport);
             dockingManager.Layout.DockRelative(sceneHierarchyPanel, mainViewport, DockInsertDirection.Right, 0.7f);
-            dockingManager.Layout.DockRelative(propertiesPanel, sceneHierarchyPanel, DockInsertDirection.Fill, 0.75f);
+            dockingManager.Layout.DockRelative(propertiesPanel, sceneHierarchyPanel, DockInsertDirection.Bottom, 0.5f);
             dockingManager.Layout.DockRelative(assetBrowserPanel, mainViewport, DockInsertDirection.Bottom, 0.7f);
 
             var keyboardFocusEntity = new EditorEntity {
