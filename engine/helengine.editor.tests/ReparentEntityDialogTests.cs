@@ -100,6 +100,36 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures scaled metrics resize the target row, hierarchy area, and footer buttons.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_WithScaledMetrics_UsesScaledContentAndFooterLayout() {
+            EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
+            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont(), metrics);
+            EditorEntity root = new EditorEntity {
+                Name = "Root"
+            };
+            EditorEntity child = new EditorEntity {
+                Name = "Child"
+            };
+            root.AddChild(child);
+
+            dialog.Show(child, new Entity[] { root, child });
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity targetHost = GetPrivateField<EditorEntity>(dialog, "TargetHost");
+            EditorEntity cancelButtonHost = GetPrivateField<EditorEntity>(dialog, "CancelButtonHost");
+            ButtonComponent cancelButton = GetPrivateField<ButtonComponent>(dialog, "CancelButton");
+            ButtonComponent applyButton = GetPrivateField<ButtonComponent>(dialog, "ApplyButton");
+
+            Assert.Equal(metrics.ScalePixels(ReparentEntityDialog.PanelPadding), (int)Math.Round(targetHost.LocalPosition.X));
+            Assert.Equal(metrics.ScalePixels(ReparentEntityDialog.PanelPadding + ReparentEntityDialog.HeaderHeight + ReparentEntityDialog.SectionSpacing), (int)Math.Round(targetHost.LocalPosition.Y));
+            Assert.Equal(new int2(metrics.ScalePixels(88), metrics.ScalePixels(22)), cancelButton.Size);
+            Assert.Equal(new int2(metrics.ScalePixels(88), metrics.ScalePixels(22)), applyButton.Size);
+            Assert.Equal(metrics.ScalePixels(ReparentEntityDialog.PanelWidth - ReparentEntityDialog.PanelPadding - 88), (int)Math.Round(cancelButtonHost.LocalPosition.X));
+        }
+
+        /// <summary>
         /// Ensures the close button owns the same left separator used by the editor window chrome.
         /// </summary>
         [Fact]

@@ -117,7 +117,29 @@ namespace helengine.editor.tests {
                 item => Assert.Equal("New Map", item.Label),
                 item => Assert.Equal("Open Map...", item.Label),
                 item => Assert.Equal("Save Map", item.Label),
-                item => Assert.Equal("Save Map As...", item.Label));
+                item => Assert.Equal("Save Map As...", item.Label),
+                item => Assert.Equal("Preferences...", item.Label));
+        }
+
+        /// <summary>
+        /// Ensures the File menu exposes `Preferences...` after `Save Map As...`.
+        /// </summary>
+        [Fact]
+        public void ToggleFileMenu_ShowsPreferencesAfterSaveMapAs() {
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+
+            InvokePrivate(titleBar, "ToggleFileMenu");
+
+            ContextMenu fileMenu = GetPrivateField<ContextMenu>(titleBar, "FileMenu");
+            List<ContextMenuItem> activeItems = GetPrivateField<List<ContextMenuItem>>(fileMenu, "ActiveItems");
+
+            Assert.Collection(
+                activeItems,
+                item => Assert.Equal("New Map", item.Label),
+                item => Assert.Equal("Open Map...", item.Label),
+                item => Assert.Equal("Save Map", item.Label),
+                item => Assert.Equal("Save Map As...", item.Label),
+                item => Assert.Equal("Preferences...", item.Label));
         }
 
         /// <summary>

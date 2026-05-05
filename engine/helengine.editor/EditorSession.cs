@@ -97,7 +97,7 @@ namespace helengine.editor {
         /// <summary>
         /// Font used for UI elements and title bars.
         /// </summary>
-        readonly FontAsset uiFont;
+        FontAsset uiFont;
         /// <summary>
         /// Content manager used to load editor and project asset files.
         /// </summary>
@@ -137,7 +137,7 @@ namespace helengine.editor {
         /// <summary>
         /// Modal used to pick an asset for editor fields.
         /// </summary>
-        readonly AssetPickerModal assetPickerModal;
+        AssetPickerModal assetPickerModal;
         /// <summary>
         /// Main viewport dock panel.
         /// </summary>
@@ -213,31 +213,31 @@ namespace helengine.editor {
         /// <summary>
         /// Modal dialog used to choose scene save destinations.
         /// </summary>
-        readonly SaveFileDialog saveFileDialog;
+        SaveFileDialog saveFileDialog;
         /// <summary>
         /// Modal dialog used to choose scene files to open.
         /// </summary>
-        readonly OpenFileDialog openFileDialog;
+        OpenFileDialog openFileDialog;
         /// <summary>
         /// Modal dialog used to choose a new parent for one scene entity.
         /// </summary>
-        readonly ReparentEntityDialog reparentEntityDialog;
+        ReparentEntityDialog reparentEntityDialog;
         /// <summary>
         /// Modal dialog used to change the project's supported build platforms.
         /// </summary>
-        readonly BuildSettingsDialog buildSettingsDialog;
+        BuildSettingsDialog buildSettingsDialog;
         /// <summary>
         /// Modal dialog used to edit per-platform build and graphics profiles.
         /// </summary>
-        readonly ProfilesDialog profilesDialog;
+        ProfilesDialog profilesDialog;
         /// <summary>
         /// Modal dialog used to configure local build map selections and the queued build list.
         /// </summary>
-        readonly BuildDialog buildDialog;
+        BuildDialog buildDialog;
         /// <summary>
         /// Modal dialog used to choose a source platform before copying build settings.
         /// </summary>
-        readonly BuildDialogCopySettingsDialog buildDialogCopySettingsDialog;
+        BuildDialogCopySettingsDialog buildDialogCopySettingsDialog;
         /// <summary>
         /// Service that generates and opens the game solution for scripting.
         /// </summary>
@@ -253,11 +253,19 @@ namespace helengine.editor {
         /// <summary>
         /// Modal dialog used to confirm whether pending scene transitions should save dirty changes.
         /// </summary>
-        readonly UnsavedChangesDialog unsavedChangesDialog;
+        UnsavedChangesDialog unsavedChangesDialog;
+        /// <summary>
+        /// Modal dialog used to edit editor-global preferences such as UI scale.
+        /// </summary>
+        EditorPreferencesDialog preferencesDialog;
         /// <summary>
         /// Raised when the editor host should close after a pending dirty-state prompt completes.
         /// </summary>
         public event Action CloseRequested;
+        /// <summary>
+        /// Raised when the user confirms one new editor UI scale selection.
+        /// </summary>
+        public event Action<EditorUiScaleSettings> UiScaleSettingsChanged;
         /// <summary>
         /// Resolves the available platform list that can be selected in Build Settings.
         /// </summary>
@@ -314,12 +322,30 @@ namespace helengine.editor {
         /// Host-provided folder picker used by build-planning dialogs.
         /// </summary>
         Func<string> BrowseOutputFolderResolver;
+        /// <summary>
+        /// Current editor-global UI scale settings reflected by the preferences dialog.
+        /// </summary>
+        EditorUiScaleSettings CurrentUiScaleSettings;
+        /// <summary>
+        /// Current scaled editor UI metrics applied to scale-aware editor chrome.
+        /// </summary>
+        EditorUiMetrics CurrentUiMetrics;
+        /// <summary>
+        /// Most recent host layout width used to relayout the session after live UI scale changes.
+        /// </summary>
+        int LastLayoutWidth;
+        /// <summary>
+        /// Most recent host layout height used to relayout the session after live UI scale changes.
+        /// </summary>
+        int LastLayoutHeight;
 
         /// <summary>
         /// Initializes a new editor session and sets up cameras, docking, and starter content.
         /// </summary>
         /// <param name="core">Editor core instance that owns shared state.</param>
         /// <param name="projectPath">Path to the project root or project file being edited.</param>
+        /// <param name="initialUiScaleSettings">Validated global editor UI scale settings resolved by the host before session startup.</param>
+        /// <param name="initialUiMetrics">Scaled editor UI metrics resolved by the host before session startup.</param>
         /// <param name="uiFont">Font used for editor UI text.</param>
         /// <param name="snapModifierFont">Font used for the viewport snap modifier labels.</param>
         /// <param name="render3D">3D renderer instance.</param>
@@ -334,6 +360,8 @@ namespace helengine.editor {
         public EditorSession(
             EditorCore core,
             string projectPath,
+            EditorUiScaleSettings initialUiScaleSettings,
+            EditorUiMetrics initialUiMetrics,
             FontAsset uiFont,
             FontAsset snapModifierFont,
             RenderManager3D render3D,
@@ -350,6 +378,8 @@ namespace helengine.editor {
             CanonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
             this.projectPath = ResolveProjectRootPathFromCanonicalProjectFile(CanonicalProjectFilePath);
             ProjectDisplayName = ResolveProjectDisplayNameFromCanonicalProjectFile(CanonicalProjectFilePath);
+            CurrentUiScaleSettings = initialUiScaleSettings ?? throw new ArgumentNullException(nameof(initialUiScaleSettings));
+            CurrentUiMetrics = initialUiMetrics ?? throw new ArgumentNullException(nameof(initialUiMetrics));
             ProjectFileDocument projectDocument = LoadProjectDocument(CanonicalProjectFilePath);
             RequiredEngineVersion = ResolveRequiredEngineVersion(projectDocument);
             ProjectName = ResolveProjectName(projectDocument);
@@ -443,23 +473,23 @@ namespace helengine.editor {
                 Logger.WriteWarning("Scene picking is currently available only on the DirectX11 renderer.");
             }
 
-            titleBar = new EditorTitleBar(uiFont, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle(), titleBarIcon);
+            titleBar = new EditorTitleBar(uiFont, CurrentUiMetrics, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle(), titleBarIcon);
 
             dockingManager = new DockingManager();
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
-            sceneHierarchyPanel = new SceneHierarchyPanel(uiFont);
+            sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath);
             mainViewport = new EditorViewport(sceneCameraComponent, uiFont, snapModifierFont, toolbarIcons);
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService);
-            loggerPanel = new LoggerPanel(uiFont);
-            previewPanel = new PreviewPanel(uiFont);
+            loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
+            previewPanel = new PreviewPanel(uiFont, CurrentUiMetrics);
             EditorKeyboardFocusService.RegisterGroup(sceneHierarchyPanel);
             EditorKeyboardFocusService.RegisterGroup(assetBrowserPanel);
             EditorKeyboardFocusService.RegisterGroup(mainViewport);
             EditorKeyboardFocusService.RegisterGroup(propertiesPanel);
             EditorKeyboardFocusService.RegisterGroup(loggerPanel);
             EditorKeyboardFocusService.RegisterGroup(previewPanel);
-            assetPickerModal = new AssetPickerModal(uiFont, this.projectPath);
+            assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath);
             ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
             persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
             persistenceRegistry.Register(new CameraComponentPersistenceDescriptor());
@@ -480,19 +510,20 @@ namespace helengine.editor {
                 buildConfigService,
                 CreateBuildExecutorRouter());
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
-            saveFileDialog = new SaveFileDialog(uiFont, this.projectPath);
-            openFileDialog = new OpenFileDialog(uiFont, this.projectPath);
-            reparentEntityDialog = new ReparentEntityDialog(uiFont);
-            buildSettingsDialog = new BuildSettingsDialog(uiFont);
-            profilesDialog = new ProfilesDialog(uiFont);
-            buildDialog = new BuildDialog(uiFont);
-            buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont);
+            saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, this.projectPath);
+            openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, this.projectPath);
+            reparentEntityDialog = new ReparentEntityDialog(uiFont, CurrentUiMetrics);
+            buildSettingsDialog = new BuildSettingsDialog(uiFont, CurrentUiMetrics);
+            profilesDialog = new ProfilesDialog(uiFont, CurrentUiMetrics);
+            buildDialog = new BuildDialog(uiFont, CurrentUiMetrics);
+            buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics);
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
             scriptHotReloadService = new EditorGameScriptHotReloadService(
                 gameSolutionService,
                 new EditorDotNetScriptBuildTool(),
                 new EditorGameScriptAssemblyHost(this.projectPath));
-            unsavedChangesDialog = new UnsavedChangesDialog(uiFont);
+            unsavedChangesDialog = new UnsavedChangesDialog(uiFont, CurrentUiMetrics);
+            preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
                 persistenceRegistry,
@@ -513,6 +544,7 @@ namespace helengine.editor {
             titleBar.OpenMapRequested += HandleOpenMapRequested;
             titleBar.SaveMapRequested += HandleSaveMapRequested;
             titleBar.SaveMapAsRequested += HandleSaveMapAsRequested;
+            titleBar.PreferencesRequested += HandlePreferencesRequested;
             titleBar.BuildRequested += HandleBuildRequested;
             titleBar.BuildSettingsRequested += HandleBuildSettingsRequested;
             titleBar.ProfilesRequested += HandleProfilesRequested;
@@ -525,25 +557,7 @@ namespace helengine.editor {
             titleBar.AddSpotLightRequested += HandleAddSpotLightRequested;
             titleBar.AddPointLightRequested += HandleAddPointLightRequested;
             titleBar.AddDirectionalLightRequested += HandleAddDirectionalLightRequested;
-            saveFileDialog.SaveRequested += HandleSceneSaveRequested;
-            openFileDialog.OpenRequested += HandleSceneOpenRequested;
-            reparentEntityDialog.ConfirmRequested += HandleReparentEntityDialogConfirmed;
-            reparentEntityDialog.CancelRequested += HandleReparentEntityDialogCancelRequested;
-            buildSettingsDialog.ConfirmRequested += HandleBuildSettingsDialogConfirmed;
-            buildSettingsDialog.CancelRequested += HandleBuildSettingsDialogCancelRequested;
-            profilesDialog.ConfirmRequested += HandleProfilesDialogConfirmed;
-            profilesDialog.CancelRequested += HandleProfilesDialogCancelRequested;
-            buildDialog.AddRequested += HandleBuildDialogAddRequested;
-            buildDialog.CopySettingsRequested += HandleBuildDialogCopySettingsRequested;
-            buildDialog.BrowseOutputFolderRequested += HandleBuildDialogBrowseOutputFolderRequested;
-            buildDialog.BuildQueueRequested += HandleBuildDialogBuildQueueRequested;
-            buildDialog.RemoveQueueItemRequested += HandleBuildDialogRemoveQueueItemRequested;
-            buildDialog.CancelRequested += HandleBuildDialogCancelRequested;
-            buildDialogCopySettingsDialog.ConfirmRequested += HandleBuildDialogCopySettingsConfirmed;
-            buildDialogCopySettingsDialog.CancelRequested += HandleBuildDialogCopySettingsCanceled;
-            unsavedChangesDialog.SaveRequested += HandleUnsavedChangesSaveRequested;
-            unsavedChangesDialog.DontSaveRequested += HandleUnsavedChangesDontSaveRequested;
-            unsavedChangesDialog.CancelRequested += HandleUnsavedChangesCancelRequested;
+            AttachScaleSensitiveDialogHandlers();
 
             sceneHierarchyPanel.Size = new int2(280, 600);
             assetBrowserPanel.Size = new int2(500, 240);
@@ -740,6 +754,8 @@ namespace helengine.editor {
         public void UpdateLayout(int renderWidth, int renderHeight) {
             int width = Math.Max(1, renderWidth);
             int height = Math.Max(1, renderHeight);
+            LastLayoutWidth = width;
+            LastLayoutHeight = height;
 
             titleBar.UpdateLayout(width, height);
             uiCameraComponent.Viewport = new float4(0, 0, width, height);
@@ -757,9 +773,251 @@ namespace helengine.editor {
             buildDialog.UpdateLayout(width, height);
             buildDialogCopySettingsDialog.UpdateLayout(width, height);
             unsavedChangesDialog.UpdateLayout(width, height);
+            preferencesDialog.UpdateLayout(width, height);
             propertiesPanel.UpdateModalLayout(width, height);
             mainViewport.RefreshInputBlockers();
             UpdateDockInputBlockers();
+        }
+
+        /// <summary>
+        /// Reapplies the current editor-global UI scale to scale-aware chrome and recreates hidden modal dialogs using the updated fonts.
+        /// </summary>
+        /// <param name="settings">Validated editor-global UI scale settings to preserve in the live session.</param>
+        /// <param name="metrics">Updated scaled editor UI metrics resolved by the host.</param>
+        /// <param name="uiFont">Updated UI font created by the host for the resolved metrics.</param>
+        /// <param name="snapModifierFont">Updated snap-modifier font created by the host for the resolved metrics.</param>
+        public void ApplyUiScale(EditorUiScaleSettings settings, EditorUiMetrics metrics, FontAsset uiFont, FontAsset snapModifierFont) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
+            }
+            if (uiFont == null) {
+                throw new ArgumentNullException(nameof(uiFont));
+            }
+            if (snapModifierFont == null) {
+                throw new ArgumentNullException(nameof(snapModifierFont));
+            }
+
+            CurrentUiScaleSettings = settings;
+            CurrentUiMetrics = metrics;
+            this.uiFont = uiFont;
+
+            if (core != null) {
+                core.DefaultFontAsset = uiFont;
+            }
+            if (titleBar != null) {
+                titleBar.ApplyUiMetrics(uiFont, metrics);
+            }
+            if (sceneHierarchyPanel != null) {
+                sceneHierarchyPanel.ApplyUiMetrics(uiFont, metrics);
+            }
+            if (loggerPanel != null) {
+                loggerPanel.ApplyUiMetrics(uiFont, metrics);
+            }
+            if (previewPanel != null) {
+                previewPanel.ApplyUiMetrics(uiFont, metrics);
+            }
+
+            RecreateScaleSensitiveDialogs();
+
+            if (LastLayoutWidth > 0 && LastLayoutHeight > 0) {
+                UpdateLayout(LastLayoutWidth, LastLayoutHeight);
+            }
+        }
+
+        /// <summary>
+        /// Attaches session event handlers to the scale-sensitive modal dialogs currently owned by the session.
+        /// </summary>
+        void AttachScaleSensitiveDialogHandlers() {
+            if (saveFileDialog != null) {
+                saveFileDialog.SaveRequested += HandleSceneSaveRequested;
+            }
+            if (openFileDialog != null) {
+                openFileDialog.OpenRequested += HandleSceneOpenRequested;
+            }
+            if (reparentEntityDialog != null) {
+                reparentEntityDialog.ConfirmRequested += HandleReparentEntityDialogConfirmed;
+                reparentEntityDialog.CancelRequested += HandleReparentEntityDialogCancelRequested;
+            }
+            if (buildSettingsDialog != null) {
+                buildSettingsDialog.ConfirmRequested += HandleBuildSettingsDialogConfirmed;
+                buildSettingsDialog.CancelRequested += HandleBuildSettingsDialogCancelRequested;
+            }
+            if (profilesDialog != null) {
+                profilesDialog.ConfirmRequested += HandleProfilesDialogConfirmed;
+                profilesDialog.CancelRequested += HandleProfilesDialogCancelRequested;
+            }
+            if (buildDialog != null) {
+                buildDialog.AddRequested += HandleBuildDialogAddRequested;
+                buildDialog.CopySettingsRequested += HandleBuildDialogCopySettingsRequested;
+                buildDialog.BrowseOutputFolderRequested += HandleBuildDialogBrowseOutputFolderRequested;
+                buildDialog.BuildQueueRequested += HandleBuildDialogBuildQueueRequested;
+                buildDialog.RemoveQueueItemRequested += HandleBuildDialogRemoveQueueItemRequested;
+                buildDialog.CancelRequested += HandleBuildDialogCancelRequested;
+            }
+            if (buildDialogCopySettingsDialog != null) {
+                buildDialogCopySettingsDialog.ConfirmRequested += HandleBuildDialogCopySettingsConfirmed;
+                buildDialogCopySettingsDialog.CancelRequested += HandleBuildDialogCopySettingsCanceled;
+            }
+            if (unsavedChangesDialog != null) {
+                unsavedChangesDialog.SaveRequested += HandleUnsavedChangesSaveRequested;
+                unsavedChangesDialog.DontSaveRequested += HandleUnsavedChangesDontSaveRequested;
+                unsavedChangesDialog.CancelRequested += HandleUnsavedChangesCancelRequested;
+            }
+            if (preferencesDialog != null) {
+                preferencesDialog.ConfirmRequested += HandlePreferencesDialogConfirmed;
+                preferencesDialog.CancelRequested += HandlePreferencesDialogCanceled;
+            }
+        }
+
+        /// <summary>
+        /// Detaches session event handlers from the current scale-sensitive modal dialogs.
+        /// </summary>
+        void DetachScaleSensitiveDialogHandlers() {
+            if (saveFileDialog != null) {
+                saveFileDialog.SaveRequested -= HandleSceneSaveRequested;
+            }
+            if (openFileDialog != null) {
+                openFileDialog.OpenRequested -= HandleSceneOpenRequested;
+            }
+            if (reparentEntityDialog != null) {
+                reparentEntityDialog.ConfirmRequested -= HandleReparentEntityDialogConfirmed;
+                reparentEntityDialog.CancelRequested -= HandleReparentEntityDialogCancelRequested;
+            }
+            if (buildSettingsDialog != null) {
+                buildSettingsDialog.ConfirmRequested -= HandleBuildSettingsDialogConfirmed;
+                buildSettingsDialog.CancelRequested -= HandleBuildSettingsDialogCancelRequested;
+            }
+            if (profilesDialog != null) {
+                profilesDialog.ConfirmRequested -= HandleProfilesDialogConfirmed;
+                profilesDialog.CancelRequested -= HandleProfilesDialogCancelRequested;
+            }
+            if (buildDialog != null) {
+                buildDialog.AddRequested -= HandleBuildDialogAddRequested;
+                buildDialog.CopySettingsRequested -= HandleBuildDialogCopySettingsRequested;
+                buildDialog.BrowseOutputFolderRequested -= HandleBuildDialogBrowseOutputFolderRequested;
+                buildDialog.BuildQueueRequested -= HandleBuildDialogBuildQueueRequested;
+                buildDialog.RemoveQueueItemRequested -= HandleBuildDialogRemoveQueueItemRequested;
+                buildDialog.CancelRequested -= HandleBuildDialogCancelRequested;
+            }
+            if (buildDialogCopySettingsDialog != null) {
+                buildDialogCopySettingsDialog.ConfirmRequested -= HandleBuildDialogCopySettingsConfirmed;
+                buildDialogCopySettingsDialog.CancelRequested -= HandleBuildDialogCopySettingsCanceled;
+            }
+            if (unsavedChangesDialog != null) {
+                unsavedChangesDialog.SaveRequested -= HandleUnsavedChangesSaveRequested;
+                unsavedChangesDialog.DontSaveRequested -= HandleUnsavedChangesDontSaveRequested;
+                unsavedChangesDialog.CancelRequested -= HandleUnsavedChangesCancelRequested;
+            }
+            if (preferencesDialog != null) {
+                preferencesDialog.ConfirmRequested -= HandlePreferencesDialogConfirmed;
+                preferencesDialog.CancelRequested -= HandlePreferencesDialogCanceled;
+            }
+        }
+
+        /// <summary>
+        /// Hides currently owned scale-sensitive modal dialogs before disposal or recreation.
+        /// </summary>
+        void HideScaleSensitiveDialogs() {
+            if (assetPickerModal != null) {
+                assetPickerModal.Hide();
+            }
+            if (saveFileDialog != null) {
+                saveFileDialog.Hide();
+            }
+            if (openFileDialog != null) {
+                openFileDialog.Hide();
+            }
+            if (reparentEntityDialog != null) {
+                reparentEntityDialog.Hide();
+            }
+            if (buildSettingsDialog != null) {
+                buildSettingsDialog.Hide();
+            }
+            if (profilesDialog != null) {
+                profilesDialog.Hide();
+            }
+            if (buildDialog != null) {
+                buildDialog.Hide();
+            }
+            if (buildDialogCopySettingsDialog != null) {
+                buildDialogCopySettingsDialog.Hide();
+            }
+            if (unsavedChangesDialog != null) {
+                unsavedChangesDialog.Hide();
+            }
+            if (preferencesDialog != null) {
+                preferencesDialog.Hide();
+            }
+        }
+
+        /// <summary>
+        /// Recreates scale-sensitive modal dialogs using the current fonts and metrics so newly opened dialogs match the live session scale.
+        /// </summary>
+        void RecreateScaleSensitiveDialogs() {
+            HideScaleSensitiveDialogs();
+            DetachScaleSensitiveDialogHandlers();
+            DisposeScaleSensitiveDialogs();
+
+            if (uiFont == null || CurrentUiMetrics == null) {
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(projectPath)) {
+                assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, projectPath);
+                saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, projectPath);
+                openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, projectPath);
+            } else {
+                assetPickerModal = null;
+                saveFileDialog = null;
+                openFileDialog = null;
+            }
+            reparentEntityDialog = new ReparentEntityDialog(uiFont, CurrentUiMetrics);
+            buildSettingsDialog = new BuildSettingsDialog(uiFont, CurrentUiMetrics);
+            profilesDialog = new ProfilesDialog(uiFont, CurrentUiMetrics);
+            buildDialog = new BuildDialog(uiFont, CurrentUiMetrics);
+            buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics);
+            unsavedChangesDialog = new UnsavedChangesDialog(uiFont, CurrentUiMetrics);
+            preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
+            AttachScaleSensitiveDialogHandlers();
+        }
+
+        /// <summary>
+        /// Disposes the current scale-sensitive modal dialogs so stale entity trees are removed before recreation.
+        /// </summary>
+        void DisposeScaleSensitiveDialogs() {
+            if (assetPickerModal != null) {
+                assetPickerModal.Dispose();
+            }
+            if (saveFileDialog != null) {
+                saveFileDialog.Dispose();
+            }
+            if (openFileDialog != null) {
+                openFileDialog.Dispose();
+            }
+            if (reparentEntityDialog != null) {
+                reparentEntityDialog.Dispose();
+            }
+            if (buildSettingsDialog != null) {
+                buildSettingsDialog.Dispose();
+            }
+            if (profilesDialog != null) {
+                profilesDialog.Dispose();
+            }
+            if (buildDialog != null) {
+                buildDialog.Dispose();
+            }
+            if (buildDialogCopySettingsDialog != null) {
+                buildDialogCopySettingsDialog.Dispose();
+            }
+            if (unsavedChangesDialog != null) {
+                unsavedChangesDialog.Dispose();
+            }
+            if (preferencesDialog != null) {
+                preferencesDialog.Dispose();
+            }
         }
 
         /// <summary>
@@ -841,6 +1099,7 @@ namespace helengine.editor {
             titleBar.OpenMapRequested -= HandleOpenMapRequested;
             titleBar.SaveMapRequested -= HandleSaveMapRequested;
             titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested;
+            titleBar.PreferencesRequested -= HandlePreferencesRequested;
             titleBar.BuildRequested -= HandleBuildRequested;
             titleBar.BuildSettingsRequested -= HandleBuildSettingsRequested;
             titleBar.ProfilesRequested -= HandleProfilesRequested;
@@ -853,36 +1112,11 @@ namespace helengine.editor {
             titleBar.AddSpotLightRequested -= HandleAddSpotLightRequested;
             titleBar.AddPointLightRequested -= HandleAddPointLightRequested;
             titleBar.AddDirectionalLightRequested -= HandleAddDirectionalLightRequested;
-            saveFileDialog.SaveRequested -= HandleSceneSaveRequested;
-            openFileDialog.OpenRequested -= HandleSceneOpenRequested;
-            reparentEntityDialog.ConfirmRequested -= HandleReparentEntityDialogConfirmed;
-            reparentEntityDialog.CancelRequested -= HandleReparentEntityDialogCancelRequested;
-            buildSettingsDialog.ConfirmRequested -= HandleBuildSettingsDialogConfirmed;
-            buildSettingsDialog.CancelRequested -= HandleBuildSettingsDialogCancelRequested;
-            profilesDialog.ConfirmRequested -= HandleProfilesDialogConfirmed;
-            profilesDialog.CancelRequested -= HandleProfilesDialogCancelRequested;
-            buildDialog.AddRequested -= HandleBuildDialogAddRequested;
-            buildDialog.BrowseOutputFolderRequested -= HandleBuildDialogBrowseOutputFolderRequested;
-            buildDialog.BuildQueueRequested -= HandleBuildDialogBuildQueueRequested;
-            buildDialog.RemoveQueueItemRequested -= HandleBuildDialogRemoveQueueItemRequested;
-            buildDialog.CopySettingsRequested -= HandleBuildDialogCopySettingsRequested;
-            buildDialog.CancelRequested -= HandleBuildDialogCancelRequested;
-            buildDialogCopySettingsDialog.ConfirmRequested -= HandleBuildDialogCopySettingsConfirmed;
-            buildDialogCopySettingsDialog.CancelRequested -= HandleBuildDialogCopySettingsCanceled;
-            unsavedChangesDialog.SaveRequested -= HandleUnsavedChangesSaveRequested;
-            unsavedChangesDialog.DontSaveRequested -= HandleUnsavedChangesDontSaveRequested;
-            unsavedChangesDialog.CancelRequested -= HandleUnsavedChangesCancelRequested;
+            DetachScaleSensitiveDialogHandlers();
             scriptHotReloadService.Dispose();
             mainViewport.ClearInputBlockers();
             EditorViewportToolService.ClearToolMode(sceneCameraComponent);
-            assetPickerModal.Hide();
-            saveFileDialog.Hide();
-            openFileDialog.Hide();
-            reparentEntityDialog.Hide();
-            buildSettingsDialog.Hide();
-            buildDialog.Hide();
-            buildDialogCopySettingsDialog.Hide();
-            unsavedChangesDialog.Hide();
+            HideScaleSensitiveDialogs();
             shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
             shaderModuleManager.Dispose();
             loggerPanel.Detach();
@@ -929,14 +1163,18 @@ namespace helengine.editor {
         void RequestSceneTransition(SceneTransitionKind transitionKind, string openPath) {
             PendingSceneTransition = transitionKind;
             PendingOpenScenePath = openPath ?? string.Empty;
-            reparentEntityDialog.Hide();
+            if (reparentEntityDialog != null) {
+                reparentEntityDialog.Hide();
+            }
 
             if (!IsSceneDirty) {
                 ContinuePendingSceneTransition();
                 return;
             }
 
-            unsavedChangesDialog.Show();
+            if (unsavedChangesDialog != null) {
+                unsavedChangesDialog.Show();
+            }
         }
 
         /// <summary>
@@ -947,15 +1185,23 @@ namespace helengine.editor {
             if (!IsSceneDirty) {
                 PendingSceneTransition = SceneTransitionKind.None;
                 PendingOpenScenePath = string.Empty;
-                reparentEntityDialog.Hide();
-                unsavedChangesDialog.Hide();
+                if (reparentEntityDialog != null) {
+                    reparentEntityDialog.Hide();
+                }
+                if (unsavedChangesDialog != null) {
+                    unsavedChangesDialog.Hide();
+                }
                 return false;
             }
 
             PendingSceneTransition = SceneTransitionKind.Exit;
             PendingOpenScenePath = string.Empty;
-            reparentEntityDialog.Hide();
-            unsavedChangesDialog.Show();
+            if (reparentEntityDialog != null) {
+                reparentEntityDialog.Hide();
+            }
+            if (unsavedChangesDialog != null) {
+                unsavedChangesDialog.Show();
+            }
             return true;
         }
 
@@ -968,7 +1214,9 @@ namespace helengine.editor {
 
             PendingSceneTransition = SceneTransitionKind.None;
             PendingOpenScenePath = string.Empty;
-            unsavedChangesDialog.Hide();
+            if (unsavedChangesDialog != null) {
+                unsavedChangesDialog.Hide();
+            }
 
             if (pendingTransition == SceneTransitionKind.NewMap) {
                 ResetToNewScene();
@@ -1082,12 +1330,46 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Opens the editor preferences dialog using the current UI scale settings.
+        /// </summary>
+        void HandlePreferencesRequested() {
+            preferencesDialog.Show(CurrentUiScaleSettings);
+        }
+
+        /// <summary>
+        /// Applies one confirmed editor UI scale selection and notifies the host.
+        /// </summary>
+        /// <param name="settings">Confirmed editor UI scale settings.</param>
+        void HandlePreferencesDialogConfirmed(EditorUiScaleSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            CurrentUiScaleSettings = settings;
+            preferencesDialog.Hide();
+            if (UiScaleSettingsChanged != null) {
+                UiScaleSettingsChanged(settings);
+            }
+        }
+
+        /// <summary>
+        /// Cancels the preferences workflow and hides the dialog.
+        /// </summary>
+        void HandlePreferencesDialogCanceled() {
+            preferencesDialog.Hide();
+        }
+
+        /// <summary>
         /// Opens Build Settings using the currently available platforms for the active engine version.
         /// </summary>
         void HandleBuildSettingsRequested() {
             IReadOnlyList<AvailablePlatformDescriptor> availablePlatforms = availablePlatformProviderResolver.LoadPlatforms(RequiredEngineVersion);
-            buildDialogCopySettingsDialog.Hide();
-            buildSettingsDialog.Show(availablePlatforms, SupportedPlatforms);
+            if (buildDialogCopySettingsDialog != null) {
+                buildDialogCopySettingsDialog.Hide();
+            }
+            if (buildSettingsDialog != null) {
+                buildSettingsDialog.Show(availablePlatforms, SupportedPlatforms);
+            }
         }
 
         /// <summary>
@@ -1381,6 +1663,28 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Reapplies the active theme background color to the main scene viewport clear settings.
+        /// </summary>
+        void ApplySceneViewportBackground() {
+            if (sceneCameraComponent == null) {
+                return;
+            }
+
+            byte4 backgroundColor = ThemeManager.Current.Colors.BackgroundPrimary;
+            sceneCameraComponent.ClearSettings = new CameraClearSettings(
+                true,
+                new float4(
+                    backgroundColor.X / 255f,
+                    backgroundColor.Y / 255f,
+                    backgroundColor.Z / 255f,
+                    backgroundColor.W / 255f),
+                sceneCameraComponent.ClearSettings.ClearDepthEnabled,
+                sceneCameraComponent.ClearSettings.ClearDepth,
+                sceneCameraComponent.ClearSettings.ClearStencilEnabled,
+                sceneCameraComponent.ClearSettings.ClearStencil);
+        }
+
+        /// <summary>
         /// Loads one `.helen` scene into the active editor session and swaps it into the live scene on success.
         /// </summary>
         /// <param name="fullPath">Absolute path to the scene file that should be opened.</param>
@@ -1401,7 +1705,9 @@ namespace helengine.editor {
                 sceneHierarchyPanel.RefreshHierarchy();
                 assetBrowserPanel.RefreshEntries();
                 openFileDialog.Hide();
-                reparentEntityDialog.Hide();
+                if (reparentEntityDialog != null) {
+                    reparentEntityDialog.Hide();
+                }
             } catch (Exception ex) {
                 Logger.WriteError($"Scene open failed: {ex.Message}");
                 openFileDialog.ShowError(ex.Message);
@@ -1417,9 +1723,15 @@ namespace helengine.editor {
             MarkSceneClean();
             RefreshWindowTitle();
             EditorSelectionService.ClearSelection();
-            sceneHierarchyPanel.RefreshHierarchy();
-            openFileDialog.Hide();
-            reparentEntityDialog.Hide();
+            if (sceneHierarchyPanel != null) {
+                sceneHierarchyPanel.RefreshHierarchy();
+            }
+            if (openFileDialog != null) {
+                openFileDialog.Hide();
+            }
+            if (reparentEntityDialog != null) {
+                reparentEntityDialog.Hide();
+            }
         }
 
         /// <summary>
@@ -1471,7 +1783,9 @@ namespace helengine.editor {
         /// </summary>
         void HandleUnsavedChangesSaveRequested() {
             if (string.IsNullOrWhiteSpace(CurrentScenePath)) {
-                unsavedChangesDialog.Hide();
+                if (unsavedChangesDialog != null) {
+                    unsavedChangesDialog.Hide();
+                }
                 ShowSceneSaveDialog();
                 return;
             }
@@ -1492,7 +1806,9 @@ namespace helengine.editor {
         void HandleUnsavedChangesCancelRequested() {
             PendingSceneTransition = SceneTransitionKind.None;
             PendingOpenScenePath = string.Empty;
-            unsavedChangesDialog.Hide();
+            if (unsavedChangesDialog != null) {
+                unsavedChangesDialog.Hide();
+            }
         }
 
         /// <summary>
@@ -2032,7 +2348,9 @@ namespace helengine.editor {
         /// </summary>
         void RefreshWindowTitle() {
             string title = BuildWindowTitle();
-            titleBar.Title = title;
+            if (titleBar != null) {
+                titleBar.Title = title;
+            }
             TitleChanged?.Invoke(title);
         }
 

@@ -95,13 +95,21 @@ namespace helengine.editor {
         /// Initializes a new copy-settings chooser modal.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
-        public BuildDialogCopySettingsDialog(FontAsset font) : base("BuildDialogCopySettingsDialog", "Copy Settings", font, PanelWidth, PanelHeight, HeaderHeight) {
+        public BuildDialogCopySettingsDialog(FontAsset font) : this(font, EditorUiMetrics.Default) {
+        }
+
+        /// <summary>
+        /// Initializes a new copy-settings chooser modal using one shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for labels and buttons.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
+        public BuildDialogCopySettingsDialog(FontAsset font, EditorUiMetrics metrics) : base("BuildDialogCopySettingsDialog", "Copy Settings", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
 
             DialogIsResizable = false;
-            DialogMinimumSize = new int2(PanelWidth, PanelHeight);
+            SetDialogMinimumSize(PanelWidth, PanelHeight);
 
             SourcePlatformIds = new List<string>(8);
 
@@ -127,7 +135,7 @@ namespace helengine.editor {
             };
             DialogPanelRoot.AddChild(SourceComboHost);
 
-            SourceComboBox = new ComboBoxComponent(new int2(PanelWidth - (PanelPadding * 2), SourceComboHeight), DialogFont, Array.Empty<string>(), -1);
+            SourceComboBox = new ComboBoxComponent(GetSourceComboBoxSize(), DialogFont, Array.Empty<string>(), -1);
             SourceComboBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder, RenderOrder2D.ModalBackground, RenderOrder2D.ModalForeground);
             SourceComboHost.AddComponent(SourceComboBox);
 
@@ -138,7 +146,7 @@ namespace helengine.editor {
             };
             DialogPanelRoot.AddChild(CopyButtonHost);
 
-            CopyButton = new ButtonComponent("Copy", new int2(1, FooterHeight), DialogFont, HandleCopyButtonClicked);
+            CopyButton = new ButtonComponent("Copy", new int2(1, GetFooterHeightPixels()), DialogFont, HandleCopyButtonClicked);
             CopyButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CopyButtonHost.AddComponent(CopyButton);
 
@@ -149,7 +157,7 @@ namespace helengine.editor {
             };
             DialogPanelRoot.AddChild(CancelButtonHost);
 
-            CancelButton = new ButtonComponent("Cancel", new int2(1, FooterHeight), DialogFont, HandleCancelClicked);
+            CancelButton = new ButtonComponent("Cancel", new int2(1, GetFooterHeightPixels()), DialogFont, HandleCancelClicked);
             CancelButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CancelButtonHost.AddComponent(CancelButton);
 
@@ -235,26 +243,26 @@ namespace helengine.editor {
         /// Positions and sizes the modal content.
         /// </summary>
         void LayoutContent() {
-            int contentWidth = PanelWidth - (PanelPadding * 2);
-            int labelY = PanelPadding + HeaderHeight + SectionSpacing;
-            int comboY = labelY + 18 + 6;
-            int buttonY = PanelHeight - PanelPadding - FooterHeight;
-            int buttonWidth = Math.Max(1, (contentWidth - ButtonSpacing) / 2);
+            int contentWidth = GetContentWidth();
+            int labelY = GetLabelTop();
+            int comboY = labelY + GetLabelHeight() + GetLabelToComboSpacing();
+            int buttonY = DialogHeight - GetPanelPaddingPixels() - GetFooterHeightPixels();
+            int buttonWidth = Math.Max(1, (contentWidth - GetButtonSpacingPixels()) / 2);
 
-            SourceLabelHost.Position = new float3(PanelPadding, labelY, 0.1f);
-            SourceLabelText.Size = new int2(contentWidth, 18);
+            SourceLabelHost.Position = new float3(GetPanelPaddingPixels(), labelY, 0.1f);
+            SourceLabelText.Size = new int2(contentWidth, GetLabelHeight());
 
-            SourceComboHost.Position = new float3(PanelPadding, comboY, 0.1f);
-            SourceComboBox.Size = new int2(contentWidth, SourceComboHeight);
+            SourceComboHost.Position = new float3(GetPanelPaddingPixels(), comboY, 0.1f);
+            SourceComboBox.Size = GetSourceComboBoxSize();
 
-            EmptyStateHost.Position = new float3(PanelPadding, comboY + 4f, 0.1f);
-            EmptyStateText.Size = new int2(contentWidth, SourceComboHeight);
+            EmptyStateHost.Position = new float3(GetPanelPaddingPixels(), comboY + GetEmptyStateTopOffset(), 0.1f);
+            EmptyStateText.Size = GetSourceComboBoxSize();
 
-            CopyButtonHost.Position = new float3(PanelPadding, buttonY, 0.1f);
-            CopyButton.SetSize(new int2(buttonWidth, FooterHeight));
+            CopyButtonHost.Position = new float3(GetPanelPaddingPixels(), buttonY, 0.1f);
+            CopyButton.SetSize(new int2(buttonWidth, GetFooterHeightPixels()));
 
-            CancelButtonHost.Position = new float3(PanelPadding + buttonWidth + ButtonSpacing, buttonY, 0.1f);
-            CancelButton.SetSize(new int2(buttonWidth, FooterHeight));
+            CancelButtonHost.Position = new float3(GetPanelPaddingPixels() + buttonWidth + GetButtonSpacingPixels(), buttonY, 0.1f);
+            CancelButton.SetSize(new int2(buttonWidth, GetFooterHeightPixels()));
 
             UpdateActionState();
         }
@@ -290,6 +298,78 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnCloseRequested() {
             HandleCancelClicked();
+        }
+
+        /// <summary>
+        /// Gets the scaled content width used by the dialog body.
+        /// </summary>
+        /// <returns>Scaled body content width in pixels.</returns>
+        int GetContentWidth() {
+            return DialogWidth - (GetPanelPaddingPixels() * 2);
+        }
+
+        /// <summary>
+        /// Gets the scaled top position of the source label row.
+        /// </summary>
+        /// <returns>Scaled source-label top position in pixels.</returns>
+        int GetLabelTop() {
+            return DialogMetrics.ScalePixels(PanelPadding + HeaderHeight + SectionSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled label height used by the dialog.
+        /// </summary>
+        /// <returns>Scaled label height in pixels.</returns>
+        int GetLabelHeight() {
+            return DialogMetrics.ScalePixels(18);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing between the label and combo box.
+        /// </summary>
+        /// <returns>Scaled spacing in pixels.</returns>
+        int GetLabelToComboSpacing() {
+            return DialogMetrics.ScalePixels(6);
+        }
+
+        /// <summary>
+        /// Gets the scaled empty-state offset beneath the combo row.
+        /// </summary>
+        /// <returns>Scaled empty-state top offset in pixels.</returns>
+        int GetEmptyStateTopOffset() {
+            return DialogMetrics.ScalePixels(4);
+        }
+
+        /// <summary>
+        /// Gets the scaled panel padding used by the dialog body.
+        /// </summary>
+        /// <returns>Scaled panel padding in pixels.</returns>
+        int GetPanelPaddingPixels() {
+            return DialogMetrics.ScalePixels(PanelPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled footer button height.
+        /// </summary>
+        /// <returns>Scaled footer button height in pixels.</returns>
+        int GetFooterHeightPixels() {
+            return DialogMetrics.ScalePixels(FooterHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing between footer buttons.
+        /// </summary>
+        /// <returns>Scaled button spacing in pixels.</returns>
+        int GetButtonSpacingPixels() {
+            return DialogMetrics.ScalePixels(ButtonSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled combo-box size used by the dialog.
+        /// </summary>
+        /// <returns>Scaled combo-box size.</returns>
+        int2 GetSourceComboBoxSize() {
+            return new int2(GetContentWidth(), DialogMetrics.ScalePixels(SourceComboHeight));
         }
     }
 }

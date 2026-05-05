@@ -174,6 +174,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the open dialog scales its panel and footer buttons when one shared metrics source is provided.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_WithScaledMetrics_UsesScaledPanelAndFooterButtons() {
+            EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), metrics, ProjectRootPath);
+
+            dialog.Show("Scenes");
+            dialog.UpdateLayout(1280, 720);
+
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            ButtonComponent cancelButton = GetPrivateField<ButtonComponent>(dialog, "CancelButton");
+            ButtonComponent openButton = GetPrivateField<ButtonComponent>(dialog, "OpenButton");
+
+            Assert.Equal(new int2(1232, 672), panelBackground.Size);
+            Assert.Equal(new int2(132, 33), cancelButton.Size);
+            Assert.Equal(new int2(132, 33), openButton.Size);
+        }
+
+        /// <summary>
         /// Ensures the open dialog keeps a manual resize after the next layout pass instead of snapping back to its original size.
         /// </summary>
         [Fact]

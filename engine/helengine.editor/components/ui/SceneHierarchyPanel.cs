@@ -13,7 +13,7 @@ namespace helengine.editor {
         const int ArrowSlotWidth = 12;
         const int ArrowLabelSpacing = 4;
 
-        readonly FontAsset font;
+        FontAsset font;
         readonly EditorEntity contentRoot;
         readonly List<SceneHierarchyRow> rows;
         readonly List<NodeInfo> nodes;
@@ -59,17 +59,25 @@ namespace helengine.editor {
         /// Initializes a new scene hierarchy panel with the provided font.
         /// </summary>
         /// <param name="font">Font used for row labels.</param>
-        public SceneHierarchyPanel(FontAsset font) : base(font) {
+        public SceneHierarchyPanel(FontAsset font) : this(font, EditorUiMetrics.Default) {
+        }
+
+        /// <summary>
+        /// Initializes a new scene hierarchy panel with the provided font and shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for row labels.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dock chrome and rows.</param>
+        public SceneHierarchyPanel(FontAsset font, EditorUiMetrics metrics) : base(font, metrics) {
             this.font = font;
             Title = "Scene";
-            MinSize = new int2(220, 160);
+            MinSize = new int2(metrics.ScalePixels(220), metrics.ScalePixels(160));
 
             rowBackgroundOrder = RenderOrder2D.PanelSurface;
             rowTextOrder = RenderOrder2D.PanelForeground;
 
             contentRoot = new EditorEntity();
             contentRoot.LayerMask = LayerMask;
-            contentRoot.Position = new float3(0, TitleBarHeight, 0.05f);
+            contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
             AddChild(contentRoot);
 
             rows = new List<SceneHierarchyRow>(32);
@@ -120,6 +128,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Reapplies scaled dock metrics after one live UI scale change.
+        /// </summary>
+        /// <param name="font">Updated dock title and hierarchy row font.</param>
+        /// <param name="metrics">Updated scaled editor UI metrics.</param>
+        public override void ApplyUiMetrics(FontAsset font, EditorUiMetrics metrics) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+
+            this.font = font;
+            base.ApplyUiMetrics(font, metrics);
+
+            for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++) {
+                rows[rowIndex].Arrow.Font = font;
+                rows[rowIndex].Label.Font = font;
+            }
+
+            RefreshHierarchy();
+        }
+
+        /// <summary>
         /// Handles layout updates when the dockable size changes.
         /// </summary>
         protected override void OnSizeChanged() {
@@ -130,6 +159,14 @@ namespace helengine.editor {
 
             LayoutRows();
             hierarchyContextMenu.UpdateLayout(GetContextMenuHostSize());
+        }
+
+        /// <summary>
+        /// Updates scaled hierarchy content offsets after the shared dock chrome metrics change.
+        /// </summary>
+        protected override void HandleUiMetricsApplied() {
+            MinSize = new int2(UiMetrics.ScalePixels(220), UiMetrics.ScalePixels(160));
+            contentRoot.Position = new float3(0f, TitleBarHeightPixels, 0.05f);
         }
 
         /// <summary>
@@ -254,7 +291,7 @@ namespace helengine.editor {
                 row.IsExpanded = node.IsExpanded;
                 row.IsSelectable = true;
                 row.IsSceneRoot = false;
-                row.Entity.Position = new float3(0, i * RowHeight, 0.1f);
+                row.Entity.Position = new float3(0, i * GetRowHeightPixels(), 0.1f);
                 row.IsSelected = node.Entity == EditorSelectionService.SelectedEntity;
 
                 bool alternate = i % 2 == 1;
@@ -264,21 +301,21 @@ namespace helengine.editor {
 
                 int rowWidth = Math.Max(Size.X, MinSize.X);
 
-                row.Background.Size = new int2(rowWidth, RowHeight);
-                row.Interactable.Size = new int2(rowWidth, RowHeight);
+                row.Background.Size = new int2(rowWidth, GetRowHeightPixels());
+                row.Interactable.Size = new int2(rowWidth, GetRowHeightPixels());
 
-                int arrowLeft = RowPaddingLeft + node.Depth * RowIndent;
+                int arrowLeft = GetRowPaddingLeftPixels() + node.Depth * GetRowIndentPixels();
                 row.ArrowHitLeft = arrowLeft;
-                row.ArrowHitWidth = ArrowSlotWidth;
-                row.ArrowHost.Position = new float3(arrowLeft, MathF.Round((RowHeight - lineHeight) * 0.5f), 0.2f);
+                row.ArrowHitWidth = GetArrowSlotWidthPixels();
+                row.ArrowHost.Position = new float3(arrowLeft, MathF.Round((GetRowHeightPixels() - lineHeight) * 0.5f), 0.2f);
                 row.Arrow.Text = node.HasChildren
                     ? (node.IsExpanded ? "v" : ">")
                     : string.Empty;
-                row.Arrow.Size = new int2(ArrowSlotWidth, (int)MathF.Ceiling(lineHeight));
+                row.Arrow.Size = new int2(GetArrowSlotWidthPixels(), (int)MathF.Ceiling(lineHeight));
                 row.Arrow.Color = ThemeManager.Colors.InputForegroundPrimary;
 
-                float indent = arrowLeft + ArrowSlotWidth + ArrowLabelSpacing;
-                row.LabelHost.Position = new float3(indent, MathF.Round((RowHeight - lineHeight) * 0.5f), 0.2f);
+                float indent = arrowLeft + GetArrowSlotWidthPixels() + GetArrowLabelSpacingPixels();
+                row.LabelHost.Position = new float3(indent, MathF.Round((GetRowHeightPixels() - lineHeight) * 0.5f), 0.2f);
 
                 string label = node.Entity is EditorEntity editorEntity ? editorEntity.Name : node.Entity.GetType().Name;
                 row.Label.Text = label;
@@ -318,19 +355,19 @@ namespace helengine.editor {
             rowEntity.AddComponent(background);
 
             var interactable = new InteractableComponent();
-            interactable.Size = new int2(Size.X, RowHeight);
+            interactable.Size = new int2(Size.X, GetRowHeightPixels());
             rowEntity.AddComponent(interactable);
 
             var arrowHost = new EditorEntity();
             arrowHost.LayerMask = LayerMask;
-            arrowHost.Position = new float3(RowPaddingLeft, 2, 0.2f);
+            arrowHost.Position = new float3(GetRowPaddingLeftPixels(), 2, 0.2f);
             rowEntity.AddChild(arrowHost);
 
             var arrow = new TextComponent();
             arrow.Font = font;
             arrow.Text = string.Empty;
             arrow.Color = ThemeManager.Colors.InputForegroundPrimary;
-            arrow.Size = new int2(ArrowSlotWidth, RowHeight);
+            arrow.Size = new int2(GetArrowSlotWidthPixels(), GetRowHeightPixels());
             arrow.RenderOrder2D = rowTextOrder;
             arrowHost.AddComponent(arrow);
 
@@ -343,7 +380,7 @@ namespace helengine.editor {
             text.Font = font;
             text.Text = string.Empty;
             text.Color = ThemeManager.Colors.InputForegroundPrimary;
-            text.Size = new int2(100, RowHeight);
+            text.Size = new int2(100, GetRowHeightPixels());
             text.RenderOrder2D = rowTextOrder;
             labelHost.AddComponent(text);
 
@@ -651,7 +688,7 @@ namespace helengine.editor {
         int2 GetContextMenuHostSize() {
             return new int2(
                 Math.Max(Size.X, MinSize.X),
-                Math.Max(Size.Y + TitleBarHeight, MinSize.Y + TitleBarHeight));
+                Math.Max(Size.Y + TitleBarHeightPixels, MinSize.Y + TitleBarHeightPixels));
         }
 
         /// <summary>
@@ -667,8 +704,8 @@ namespace helengine.editor {
 
             return pointer.X >= panelX &&
                    pointer.X < panelX + panelWidth &&
-                   pointer.Y >= panelY + TitleBarHeight &&
-                   pointer.Y < panelY + TitleBarHeight + panelHeight;
+                   pointer.Y >= panelY + TitleBarHeightPixels &&
+                   pointer.Y < panelY + TitleBarHeightPixels + panelHeight;
         }
 
         /// <summary>
@@ -689,7 +726,7 @@ namespace helengine.editor {
                 if (pointer.X >= rowPosition.X &&
                     pointer.X < rowPosition.X + rowWidth &&
                     pointer.Y >= rowPosition.Y &&
-                    pointer.Y < rowPosition.Y + RowHeight) {
+                    pointer.Y < rowPosition.Y + GetRowHeightPixels()) {
                     row = candidate;
                     return true;
                 }
@@ -724,7 +761,47 @@ namespace helengine.editor {
             return point.X >= position.X &&
                    point.X < position.X + rowWidth &&
                    point.Y >= position.Y &&
-                   point.Y < position.Y + RowHeight;
+                   point.Y < position.Y + GetRowHeightPixels();
+        }
+
+        /// <summary>
+        /// Gets the scaled row height used by hierarchy rows.
+        /// </summary>
+        /// <returns>Scaled row height in pixels.</returns>
+        int GetRowHeightPixels() {
+            return UiMetrics.ScalePixels(RowHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled indentation added per hierarchy depth.
+        /// </summary>
+        /// <returns>Scaled indentation width in pixels.</returns>
+        int GetRowIndentPixels() {
+            return UiMetrics.ScalePixels(RowIndent);
+        }
+
+        /// <summary>
+        /// Gets the scaled left padding reserved before the row arrow slot.
+        /// </summary>
+        /// <returns>Scaled left padding in pixels.</returns>
+        int GetRowPaddingLeftPixels() {
+            return UiMetrics.ScalePixels(RowPaddingLeft);
+        }
+
+        /// <summary>
+        /// Gets the scaled arrow-slot width.
+        /// </summary>
+        /// <returns>Scaled arrow-slot width in pixels.</returns>
+        int GetArrowSlotWidthPixels() {
+            return UiMetrics.ScalePixels(ArrowSlotWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing preserved between the arrow slot and row label.
+        /// </summary>
+        /// <returns>Scaled arrow-to-label spacing in pixels.</returns>
+        int GetArrowLabelSpacingPixels() {
+            return UiMetrics.ScalePixels(ArrowLabelSpacing);
         }
 
         /// <summary>

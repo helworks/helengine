@@ -75,7 +75,11 @@ namespace helengine.editor {
         /// <summary>
         /// Font used for dialog labels and buttons.
         /// </summary>
-        readonly FontAsset Font;
+        FontAsset Font;
+        /// <summary>
+        /// Shared scaled metrics used to size the dialog shell and content spacing.
+        /// </summary>
+        EditorUiMetrics Metrics;
         /// <summary>
         /// Path resolver used to validate scene save destinations.
         /// </summary>
@@ -223,17 +227,31 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="projectPath">Project root that owns the assets folder.</param>
-        public SaveFileDialog(FontAsset font, string projectPath) {
+        public SaveFileDialog(FontAsset font, string projectPath)
+            : this(font, EditorUiMetrics.Default, projectPath) {
+        }
+
+        /// <summary>
+        /// Initializes a new save-file dialog rooted at the project assets folder using one shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for labels and buttons.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
+        /// <param name="projectPath">Project root that owns the assets folder.</param>
+        public SaveFileDialog(FontAsset font, EditorUiMetrics metrics, string projectPath) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
+            }
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
             }
             if (string.IsNullOrWhiteSpace(projectPath)) {
                 throw new ArgumentException("Project path must be provided.", nameof(projectPath));
             }
 
             Font = font;
+            Metrics = metrics;
             PathResolver = new SceneSavePathResolver(projectPath);
-            PanelSize = new int2(MinPanelWidth, MinPanelHeight);
+            PanelSize = new int2(GetMinimumPanelWidthPixels(), GetMinimumPanelHeightPixels());
 
             LayerMask = 0b1000000000000000;
             InternalEntity = true;
@@ -377,7 +395,7 @@ namespace helengine.editor {
             };
             PanelRoot.AddChild(FileNameFieldHost);
 
-            FileNameField = new TextBoxComponent(new int2(220, FileNameFieldHeight), font, "Scene Name");
+            FileNameField = new TextBoxComponent(new int2(GetFileNameFieldWidthPixels(), GetFileNameFieldHeightPixels()), font, "Scene Name");
             FileNameFieldHost.AddComponent(FileNameField);
 
             StatusHost = new EditorEntity {
@@ -401,7 +419,7 @@ namespace helengine.editor {
             };
             PanelRoot.AddChild(CancelButtonHost);
 
-            CancelButton = new ButtonComponent("Cancel", CancelButtonSize, font, Hide, 0f);
+            CancelButton = new ButtonComponent("Cancel", GetCancelButtonSize(), font, Hide, 0f);
             CancelButtonHost.AddComponent(CancelButton);
             CancelButton.SetRenderOrders(TextOrder, TextOrder);
 
@@ -411,7 +429,7 @@ namespace helengine.editor {
             };
             PanelRoot.AddChild(SaveButtonHost);
 
-            SaveButton = new ButtonComponent("Save", SaveButtonSize, font, HandleSaveClicked, 0f);
+            SaveButton = new ButtonComponent("Save", GetSaveButtonSize(), font, HandleSaveClicked, 0f);
             SaveButtonHost.AddComponent(SaveButton);
             SaveButton.SetRenderOrders(TextOrder, TextOrder);
 
@@ -477,10 +495,10 @@ namespace helengine.editor {
             int height = Math.Max(1, windowHeight);
             HostSize = new int2(width, height);
 
-            int maxWidth = Math.Max(MinPanelWidth, width - PanelPadding * 2);
-            int maxHeight = Math.Max(MinPanelHeight, height - PanelPadding * 2);
-            int panelWidth = Math.Min(MaxPanelWidth, maxWidth);
-            int panelHeight = Math.Min(MaxPanelHeight, maxHeight);
+            int maxWidth = Math.Max(GetMinimumPanelWidthPixels(), width - GetPanelPaddingPixels() * 2);
+            int maxHeight = Math.Max(GetMinimumPanelHeightPixels(), height - GetPanelPaddingPixels() * 2);
+            int panelWidth = Math.Min(GetMaximumPanelWidthPixels(), maxWidth);
+            int panelHeight = Math.Min(GetMaximumPanelHeightPixels(), maxHeight);
             panelWidth = Math.Min(panelWidth, width);
             panelHeight = Math.Min(panelHeight, height);
 
@@ -514,12 +532,12 @@ namespace helengine.editor {
         /// Updates the backdrop geometry so the host title-bar buttons remain clickable.
         /// </summary>
         void UpdateBackdrop() {
-            int topWidth = Math.Max(0, HostSize.X - HostTitleBarButtonGapWidth);
+            int topWidth = Math.Max(0, HostSize.X - GetHostTitleBarButtonGapWidthPixels());
             BackdropTopRoot.Position = float3.Zero;
-            BackdropTopSurface.Size = new int2(topWidth, EditorTitleBar.HeightPixels);
-            BackdropTopInteractable.Size = new int2(topWidth, EditorTitleBar.HeightPixels);
-            BackdropBodyRoot.Position = new float3(0f, EditorTitleBar.HeightPixels, 0f);
-            int bodyHeight = Math.Max(0, HostSize.Y - EditorTitleBar.HeightPixels);
+            BackdropTopSurface.Size = new int2(topWidth, Metrics.HostTitleBarHeight);
+            BackdropTopInteractable.Size = new int2(topWidth, Metrics.HostTitleBarHeight);
+            BackdropBodyRoot.Position = new float3(0f, Metrics.HostTitleBarHeight, 0f);
+            int bodyHeight = Math.Max(0, HostSize.Y - Metrics.HostTitleBarHeight);
             BackdropBodySurface.Size = new int2(HostSize.X, bodyHeight);
             BackdropBodyInteractable.Size = new int2(HostSize.X, bodyHeight);
         }
@@ -582,14 +600,14 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="panelWidth">Panel width used for layout.</param>
         void LayoutHeader(int panelWidth) {
-            int headerWidth = Math.Max(0, panelWidth - PanelPadding * 2);
-            HeaderRoot.Position = new float3(PanelPadding, PanelPadding, 0.2f);
-            HeaderBackground.Size = new int2(headerWidth, HeaderHeight);
-            HeaderInteractable.Size = new int2(headerWidth, HeaderHeight);
+            int headerWidth = Math.Max(0, panelWidth - GetPanelPaddingPixels() * 2);
+            HeaderRoot.Position = new float3(GetPanelPaddingPixels(), GetPanelPaddingPixels(), 0.2f);
+            HeaderBackground.Size = new int2(headerWidth, GetHeaderHeightPixels());
+            HeaderInteractable.Size = new int2(headerWidth, GetHeaderHeightPixels());
 
             FontTightMetrics headerMetrics = Font.MeasureTight(HeaderText.Text);
-            HeaderHost.Position = new float3(HeaderPadding, GetTextTopOffset(HeaderHeight, headerMetrics), 0.2f);
-            HeaderText.Size = new int2(Math.Max(1, headerWidth - HeaderPadding * 2), (int)Math.Ceiling(headerMetrics.Height));
+            HeaderHost.Position = new float3(GetHeaderPaddingPixels(), GetTextTopOffset(GetHeaderHeightPixels(), headerMetrics), 0.2f);
+            HeaderText.Size = new int2(Math.Max(1, headerWidth - GetHeaderPaddingPixels() * 2), (int)Math.Ceiling(headerMetrics.Height));
         }
 
         /// <summary>
@@ -598,13 +616,13 @@ namespace helengine.editor {
         /// <param name="panelWidth">Panel width used for layout.</param>
         /// <param name="panelHeight">Panel height used for layout.</param>
         void LayoutBrowser(int panelWidth, int panelHeight) {
-            int browserWidth = Math.Max(0, panelWidth - PanelPadding * 2);
-            int browserTop = PanelPadding + HeaderHeight + SectionSpacing;
-            int footerTop = panelHeight - PanelPadding - FooterHeight;
-            int browserBottom = footerTop - SectionSpacing - FileNameLabelHeight - FileNameFieldHeight - SectionSpacing - Math.Max(FileNameLabelHeight, (int)Math.Ceiling(Font.LineHeight));
+            int browserWidth = Math.Max(0, panelWidth - GetPanelPaddingPixels() * 2);
+            int browserTop = GetPanelPaddingPixels() + GetHeaderHeightPixels() + GetSectionSpacingPixels();
+            int footerTop = panelHeight - GetPanelPaddingPixels() - GetFooterHeightPixels();
+            int browserBottom = footerTop - GetSectionSpacingPixels() - GetFileNameLabelHeightPixels() - GetFileNameFieldHeightPixels() - GetSectionSpacingPixels() - GetStatusHeightPixels();
             int browserHeight = Math.Max(120, browserBottom - browserTop);
 
-            BrowserView.Entity.Position = new float3(PanelPadding, browserTop, 0.2f);
+            BrowserView.Entity.Position = new float3(GetPanelPaddingPixels(), browserTop, 0.2f);
             BrowserView.UpdateLayout(browserWidth, browserHeight);
         }
 
@@ -614,20 +632,20 @@ namespace helengine.editor {
         /// <param name="panelWidth">Panel width used for layout.</param>
         /// <param name="panelHeight">Panel height used for layout.</param>
         void LayoutFileName(int panelWidth, int panelHeight) {
-            int footerTop = panelHeight - PanelPadding - FooterHeight;
-            int statusHeight = Math.Max(FileNameLabelHeight, (int)Math.Ceiling(Font.LineHeight));
-            int fieldTop = footerTop - SectionSpacing - statusHeight - SectionSpacing - FileNameFieldHeight;
-            int labelTop = fieldTop - FileNameLabelHeight;
-            int contentWidth = Math.Max(0, panelWidth - PanelPadding * 2);
+            int footerTop = panelHeight - GetPanelPaddingPixels() - GetFooterHeightPixels();
+            int statusHeight = GetStatusHeightPixels();
+            int fieldTop = footerTop - GetSectionSpacingPixels() - statusHeight - GetSectionSpacingPixels() - GetFileNameFieldHeightPixels();
+            int labelTop = fieldTop - GetFileNameLabelHeightPixels();
+            int contentWidth = Math.Max(0, panelWidth - GetPanelPaddingPixels() * 2);
 
-            FileNameLabelHost.Position = new float3(PanelPadding, labelTop, 0.2f);
+            FileNameLabelHost.Position = new float3(GetPanelPaddingPixels(), labelTop, 0.2f);
             FontTightMetrics labelMetrics = Font.MeasureTight(FileNameLabel.Text);
-            FileNameLabel.Size = new int2(contentWidth, (int)Math.Ceiling(Math.Max(labelMetrics.Height, FileNameLabelHeight)));
+            FileNameLabel.Size = new int2(contentWidth, (int)Math.Ceiling(Math.Max(labelMetrics.Height, GetFileNameLabelHeightPixels())));
 
-            FileNameFieldHost.Position = new float3(PanelPadding, fieldTop, 0.2f);
-            FileNameField.Size = new int2(contentWidth, FileNameFieldHeight);
+            FileNameFieldHost.Position = new float3(GetPanelPaddingPixels(), fieldTop, 0.2f);
+            FileNameField.Size = new int2(contentWidth, GetFileNameFieldHeightPixels());
 
-            StatusHost.Position = new float3(PanelPadding, fieldTop + FileNameFieldHeight + SectionSpacing, 0.2f);
+            StatusHost.Position = new float3(GetPanelPaddingPixels(), fieldTop + GetFileNameFieldHeightPixels() + GetSectionSpacingPixels(), 0.2f);
             FontTightMetrics statusMetrics = Font.MeasureTight(StatusText.Text ?? string.Empty);
             StatusText.Size = new int2(contentWidth, (int)Math.Ceiling(Math.Max(statusMetrics.Height, Font.LineHeight)));
         }
@@ -638,13 +656,153 @@ namespace helengine.editor {
         /// <param name="panelWidth">Panel width used for layout.</param>
         /// <param name="panelHeight">Panel height used for layout.</param>
         void LayoutFooter(int panelWidth, int panelHeight) {
-            int footerTop = panelHeight - PanelPadding - FooterHeight;
-            int saveButtonX = panelWidth - PanelPadding - SaveButtonSize.X;
-            int cancelButtonX = saveButtonX - 8 - CancelButtonSize.X;
-            int buttonY = footerTop + Math.Max(0, (FooterHeight - SaveButtonSize.Y) / 2);
+            int footerTop = panelHeight - GetPanelPaddingPixels() - GetFooterHeightPixels();
+            int saveButtonX = panelWidth - GetPanelPaddingPixels() - GetSaveButtonSize().X;
+            int cancelButtonX = saveButtonX - GetFooterButtonSpacingPixels() - GetCancelButtonSize().X;
+            int buttonY = footerTop + Math.Max(0, (GetFooterHeightPixels() - GetSaveButtonSize().Y) / 2);
 
             CancelButtonHost.Position = new float3(cancelButtonX, buttonY, 0.2f);
             SaveButtonHost.Position = new float3(saveButtonX, buttonY, 0.2f);
+        }
+
+        /// <summary>
+        /// Gets the scaled minimum panel width.
+        /// </summary>
+        /// <returns>Scaled minimum panel width in pixels.</returns>
+        int GetMinimumPanelWidthPixels() {
+            return Metrics.ScalePixels(MinPanelWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled minimum panel height.
+        /// </summary>
+        /// <returns>Scaled minimum panel height in pixels.</returns>
+        int GetMinimumPanelHeightPixels() {
+            return Metrics.ScalePixels(MinPanelHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled maximum panel width.
+        /// </summary>
+        /// <returns>Scaled maximum panel width in pixels.</returns>
+        int GetMaximumPanelWidthPixels() {
+            return Metrics.ScalePixels(MaxPanelWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled maximum panel height.
+        /// </summary>
+        /// <returns>Scaled maximum panel height in pixels.</returns>
+        int GetMaximumPanelHeightPixels() {
+            return Metrics.ScalePixels(MaxPanelHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled panel padding.
+        /// </summary>
+        /// <returns>Scaled panel padding in pixels.</returns>
+        int GetPanelPaddingPixels() {
+            return Metrics.ScalePixels(PanelPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled header height.
+        /// </summary>
+        /// <returns>Scaled header height in pixels.</returns>
+        int GetHeaderHeightPixels() {
+            return Metrics.ScalePixels(HeaderHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled file-name label height.
+        /// </summary>
+        /// <returns>Scaled file-name label height in pixels.</returns>
+        int GetFileNameLabelHeightPixels() {
+            return Metrics.ScalePixels(FileNameLabelHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled file-name input height.
+        /// </summary>
+        /// <returns>Scaled file-name input height in pixels.</returns>
+        int GetFileNameFieldHeightPixels() {
+            return Metrics.ScalePixels(FileNameFieldHeight);
+        }
+
+        /// <summary>
+        /// Gets the base width used when the file-name field is first created.
+        /// </summary>
+        /// <returns>Scaled initial file-name field width in pixels.</returns>
+        int GetFileNameFieldWidthPixels() {
+            return Metrics.ScalePixels(220);
+        }
+
+        /// <summary>
+        /// Gets the scaled footer height.
+        /// </summary>
+        /// <returns>Scaled footer height in pixels.</returns>
+        int GetFooterHeightPixels() {
+            return Metrics.ScalePixels(FooterHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled section spacing between dialog regions.
+        /// </summary>
+        /// <returns>Scaled section spacing in pixels.</returns>
+        int GetSectionSpacingPixels() {
+            return Metrics.ScalePixels(SectionSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled footer-button spacing.
+        /// </summary>
+        /// <returns>Scaled footer-button spacing in pixels.</returns>
+        int GetFooterButtonSpacingPixels() {
+            return Metrics.ScalePixels(8);
+        }
+
+        /// <summary>
+        /// Gets the scaled status-text height reservation.
+        /// </summary>
+        /// <returns>Scaled status-text height in pixels.</returns>
+        int GetStatusHeightPixels() {
+            return Math.Max(GetFileNameLabelHeightPixels(), (int)Math.Ceiling(Font.LineHeight));
+        }
+
+        /// <summary>
+        /// Gets the scaled header padding.
+        /// </summary>
+        /// <returns>Scaled header padding in pixels.</returns>
+        int GetHeaderPaddingPixels() {
+            return Metrics.ScalePixels(HeaderPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled reserved width for the host window control cluster.
+        /// </summary>
+        /// <returns>Scaled reserved host title-bar button width in pixels.</returns>
+        int GetHostTitleBarButtonGapWidthPixels() {
+            return Metrics.ScalePixels(HostTitleBarButtonGapWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled cancel-button size.
+        /// </summary>
+        /// <returns>Scaled cancel-button size.</returns>
+        int2 GetCancelButtonSize() {
+            return new int2(
+                Metrics.ScalePixels(CancelButtonSize.X),
+                Metrics.ScalePixels(CancelButtonSize.Y));
+        }
+
+        /// <summary>
+        /// Gets the scaled save-button size.
+        /// </summary>
+        /// <returns>Scaled save-button size.</returns>
+        int2 GetSaveButtonSize() {
+            return new int2(
+                Metrics.ScalePixels(SaveButtonSize.X),
+                Metrics.ScalePixels(SaveButtonSize.Y));
         }
 
         /// <summary>

@@ -23,11 +23,11 @@ namespace helengine.editor {
         /// <summary>
         /// Shared scaled metrics used to size the dockable chrome.
         /// </summary>
-        readonly EditorUiMetrics Metrics;
+        EditorUiMetrics Metrics;
         /// <summary>
         /// Font used by the dockable title bar.
         /// </summary>
-        readonly FontAsset font;
+        FontAsset font;
         /// <summary>
         /// Render order for panel background surfaces.
         /// </summary>
@@ -223,6 +223,33 @@ namespace helengine.editor {
         public int TitleBarHeightPixels => Metrics.DockTitleBarHeight;
 
         /// <summary>
+        /// Reapplies the shared dock font and metrics after one live UI scale change.
+        /// </summary>
+        /// <param name="font">Updated title font used by the dock chrome.</param>
+        /// <param name="metrics">Updated scaled editor UI metrics used by the dock chrome.</param>
+        public virtual void ApplyUiMetrics(FontAsset font, EditorUiMetrics metrics) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
+            }
+
+            this.font = font;
+            Metrics = metrics;
+
+            if (titleTextComponent != null) {
+                titleTextComponent.Font = font;
+            }
+            if (titleBarText != null) {
+                titleBarText.Position = new float3(Metrics.ScalePixels(8), GetTitleTextTopOffset(), 0f);
+            }
+
+            HandleUiMetricsApplied();
+            Size = size;
+        }
+
+        /// <summary>
         /// Gets the root dock group that owns this group.
         /// </summary>
         public IFocusGroup RootGroup => this;
@@ -288,6 +315,12 @@ namespace helengine.editor {
         /// Invoked after the size changes to allow subclasses to react to layout updates.
         /// </summary>
         protected virtual void OnSizeChanged() {
+        }
+
+        /// <summary>
+        /// Allows subclasses to update their own scaled content after the shared dock chrome metrics change.
+        /// </summary>
+        protected virtual void HandleUiMetricsApplied() {
         }
 
         /// <summary>

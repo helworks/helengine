@@ -98,6 +98,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the save dialog scales its file-name field, footer buttons, and backdrop height with shared metrics.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_WithScaledMetrics_UsesScaledFieldAndFooterButtons() {
+            EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
+            SaveFileDialog dialog = new SaveFileDialog(CreateFont(), metrics, ProjectRootPath);
+            dialog.Show("Scenes", "Prototype");
+            dialog.UpdateLayout(1280, 720);
+
+            TextBoxComponent fileNameField = GetPrivateField<TextBoxComponent>(dialog, "FileNameField");
+            ButtonComponent cancelButton = GetPrivateField<ButtonComponent>(dialog, "CancelButton");
+            ButtonComponent saveButton = GetPrivateField<ButtonComponent>(dialog, "SaveButton");
+            SpriteComponent backdropTopSurface = GetPrivateField<SpriteComponent>(dialog, "BackdropTopSurface");
+
+            Assert.Equal(new int2(1184, 33), fileNameField.Size);
+            Assert.Equal(new int2(132, 33), cancelButton.Size);
+            Assert.Equal(new int2(132, 33), saveButton.Size);
+            Assert.Equal(54, backdropTopSurface.Size.Y);
+        }
+
+        /// <summary>
         /// Assigns the save-file name field through the private dialog field.
         /// </summary>
         /// <param name="dialog">Dialog whose file name should be updated.</param>

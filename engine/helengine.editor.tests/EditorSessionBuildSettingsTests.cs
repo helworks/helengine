@@ -123,7 +123,7 @@ namespace helengine.editor.tests {
             List<CheckBoxComponent> checkBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "PlatformCheckBoxes");
             List<TextComponent> labels = GetPrivateField<List<TextComponent>>(dialog, "PlatformLabelTexts");
             Assert.Equal(2, checkBoxes.Count);
-            Assert.Equal(new[] { "Windows DirectX", "Linux Vulkan (missing)" }, labels.Select(label => label.Text).ToArray());
+            Assert.Equal(new[] { "Windows DirectX", "Linux Vulkan" }, labels.Select(label => label.Text).ToArray());
             Assert.True(checkBoxes[0].IsChecked);
             Assert.False(checkBoxes[1].IsChecked);
         }

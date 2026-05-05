@@ -127,7 +127,7 @@ namespace helengine.editor {
         /// <summary>
         /// Width reserved for the File menu trigger button.
         /// </summary>
-        readonly int FileMenuButtonWidth;
+        int FileMenuButtonWidth;
         /// <summary>
         /// Entity that hosts the Add menu trigger button.
         /// </summary>
@@ -135,7 +135,7 @@ namespace helengine.editor {
         /// <summary>
         /// Width reserved for the Add menu trigger button.
         /// </summary>
-        readonly int AddMenuButtonWidth;
+        int AddMenuButtonWidth;
         /// <summary>
         /// Entity that hosts the Build menu trigger button.
         /// </summary>
@@ -143,7 +143,7 @@ namespace helengine.editor {
         /// <summary>
         /// Width reserved for the Build menu trigger button.
         /// </summary>
-        readonly int BuildMenuButtonWidth;
+        int BuildMenuButtonWidth;
         /// <summary>
         /// Context menu shown when the File button is activated.
         /// </summary>
@@ -183,7 +183,7 @@ namespace helengine.editor {
         /// <summary>
         /// Width reserved for the minimize control.
         /// </summary>
-        readonly int MinimizeButtonWidth;
+        int MinimizeButtonWidth;
         /// <summary>
         /// Entity that hosts the maximize control.
         /// </summary>
@@ -191,7 +191,7 @@ namespace helengine.editor {
         /// <summary>
         /// Width reserved for the maximize control.
         /// </summary>
-        readonly int MaximizeButtonWidth;
+        int MaximizeButtonWidth;
         /// <summary>
         /// Entity that hosts the close control.
         /// </summary>
@@ -199,7 +199,7 @@ namespace helengine.editor {
         /// <summary>
         /// Width reserved for the close control.
         /// </summary>
-        readonly int CloseButtonWidth;
+        int CloseButtonWidth;
         /// <summary>
         /// Render order used for the title bar background.
         /// </summary>
@@ -396,6 +396,47 @@ namespace helengine.editor {
         public int Height => Metrics.HostTitleBarHeight;
 
         /// <summary>
+        /// Reapplies the title-bar font and metrics after one live UI scale change.
+        /// </summary>
+        /// <param name="font">Updated font used to render title-bar labels.</param>
+        /// <param name="metrics">Updated scaled editor UI metrics used to size the title-bar chrome.</param>
+        public void ApplyUiMetrics(FontAsset font, EditorUiMetrics metrics) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
+            }
+
+            Font = font;
+            Metrics = metrics;
+            TitleTextComponent.Font = font;
+
+            FileMenuButtonWidth = ComputeButtonWidth("File");
+            AddMenuButtonWidth = ComputeButtonWidth("Add");
+            BuildMenuButtonWidth = ComputeButtonWidth("Build");
+            MinimizeButtonWidth = ComputeButtonWidth("-");
+            MaximizeButtonWidth = ComputeButtonWidth("Max");
+            CloseButtonWidth = ComputeButtonWidth("X");
+
+            UpdateTitleBarButtonChrome(FileMenuButtonEntity, FileMenuButtonWidth, true, false, font);
+            UpdateTitleBarButtonChrome(AddMenuButtonEntity, AddMenuButtonWidth, true, true, font);
+            UpdateTitleBarButtonChrome(BuildMenuButtonEntity, BuildMenuButtonWidth, false, true, font);
+            UpdateTitleBarButtonChrome(MinimizeButtonEntity, MinimizeButtonWidth, true, false, font);
+            UpdateTitleBarButtonChrome(MaximizeButtonEntity, MaximizeButtonWidth, true, false, font);
+            UpdateTitleBarButtonChrome(CloseButtonEntity, CloseButtonWidth, true, false, font);
+
+            if (IconEntity != null) {
+                IconEntity.Position = new float3(Metrics.HostTitleBarIconPadding, Metrics.HostTitleBarIconPadding, 0f);
+            }
+            if (IconSprite != null) {
+                IconSprite.Size = new int2(Metrics.HostTitleBarIconSize, Metrics.HostTitleBarIconSize);
+            }
+
+            UpdateLayout(HostSize.X, HostSize.Y);
+        }
+
+        /// <summary>
         /// Raised when the user initiates a window drag from the title region.
         /// </summary>
         public event Action DragRequested;
@@ -434,6 +475,10 @@ namespace helengine.editor {
         /// Raised when the user selects the Save Map As file-menu command.
         /// </summary>
         public event Action SaveMapAsRequested;
+        /// <summary>
+        /// Raised when the user selects the Preferences file-menu command.
+        /// </summary>
+        public event Action PreferencesRequested;
         /// <summary>
         /// Raised when the user selects the Add Empty command.
         /// </summary>
@@ -529,7 +574,8 @@ namespace helengine.editor {
                 new ContextMenuItem("New Map", RaiseNewMapRequested),
                 new ContextMenuItem("Open Map...", RaiseOpenMapRequested),
                 new ContextMenuItem("Save Map", RaiseSaveMapRequested),
-                new ContextMenuItem("Save Map As...", RaiseSaveMapAsRequested)
+                new ContextMenuItem("Save Map As...", RaiseSaveMapAsRequested),
+                new ContextMenuItem("Preferences...", RaisePreferencesRequested)
             };
         }
 
@@ -610,6 +656,162 @@ namespace helengine.editor {
             AddTitleBarButtonVerticalBorders(buttonEntity, width, includeLeftBorder, includeRightBorder);
             RootEntity.AddChild(buttonEntity);
             return buttonEntity;
+        }
+
+        /// <summary>
+        /// Reapplies the size, font, and separator geometry for one existing title-bar button.
+        /// </summary>
+        /// <param name="buttonEntity">Existing title-bar button entity.</param>
+        /// <param name="width">Updated button width in pixels.</param>
+        /// <param name="includeLeftBorder">True when the left separator should remain visible.</param>
+        /// <param name="includeRightBorder">True when the right separator should remain visible.</param>
+        /// <param name="font">Updated font used by the button label.</param>
+        void UpdateTitleBarButtonChrome(EditorEntity buttonEntity, int width, bool includeLeftBorder, bool includeRightBorder, FontAsset font) {
+            if (buttonEntity == null) {
+                throw new ArgumentNullException(nameof(buttonEntity));
+            }
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+
+            ButtonComponent button = GetComponent<ButtonComponent>(buttonEntity);
+            button.Font = font;
+            button.SetSize(new int2(width, GetButtonHeight()));
+
+            SpriteComponent inputSurface = FindInputSurface(buttonEntity);
+            if (inputSurface != null) {
+                inputSurface.Size = new int2(width, GetButtonHeight());
+            }
+
+            UpdateTitleBarButtonVerticalBorders(buttonEntity, width, includeLeftBorder, includeRightBorder);
+        }
+
+        /// <summary>
+        /// Updates existing vertical separators for one title-bar button.
+        /// </summary>
+        /// <param name="buttonEntity">Button entity that owns the separators.</param>
+        /// <param name="width">Current button width in pixels.</param>
+        /// <param name="includeLeftBorder">True when the left separator should remain visible.</param>
+        /// <param name="includeRightBorder">True when the right separator should remain visible.</param>
+        void UpdateTitleBarButtonVerticalBorders(EditorEntity buttonEntity, int width, bool includeLeftBorder, bool includeRightBorder) {
+            if (buttonEntity.Children == null) {
+                return;
+            }
+
+            List<Entity> borderEntities = FindBorderEntities(buttonEntity);
+
+            int borderIndex = 0;
+            if (includeLeftBorder && borderIndex < borderEntities.Count) {
+                UpdateTitleBarButtonVerticalBorderLine(borderEntities[borderIndex], 0f);
+                borderIndex++;
+            }
+
+            if (includeRightBorder && borderIndex < borderEntities.Count) {
+                UpdateTitleBarButtonVerticalBorderLine(borderEntities[borderIndex], width - GetButtonBorderWidth());
+            }
+        }
+
+        /// <summary>
+        /// Updates one existing vertical separator inside a title-bar button.
+        /// </summary>
+        /// <param name="borderEntity">Separator entity to reposition and resize.</param>
+        /// <param name="x">Local x offset for the separator.</param>
+        void UpdateTitleBarButtonVerticalBorderLine(Entity borderEntity, float x) {
+            if (borderEntity == null) {
+                throw new ArgumentNullException(nameof(borderEntity));
+            }
+
+            borderEntity.Position = new float3(x, 0f, 0f);
+            SpriteComponent border = GetComponent<SpriteComponent>(borderEntity);
+            border.Size = new int2(GetButtonBorderWidth(), GetButtonHeight());
+        }
+
+        /// <summary>
+        /// Finds the transparent input surface component attached to one title-bar button entity.
+        /// </summary>
+        /// <param name="buttonEntity">Button entity to inspect.</param>
+        /// <returns>Transparent input surface component when present; otherwise null.</returns>
+        SpriteComponent FindInputSurface(EditorEntity buttonEntity) {
+            if (buttonEntity.Components == null) {
+                return null;
+            }
+
+            for (int componentIndex = 0; componentIndex < buttonEntity.Components.Count; componentIndex++) {
+                if (buttonEntity.Components[componentIndex] is SpriteComponent spriteComponent &&
+                    spriteComponent.RenderOrder2D == InputSurfaceOrder &&
+                    spriteComponent.Color.W == 0) {
+                    return spriteComponent;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Finds the child entities that render title-bar separator lines.
+        /// </summary>
+        /// <param name="buttonEntity">Button entity to inspect.</param>
+        /// <returns>Ordered list of separator child entities.</returns>
+        List<Entity> FindBorderEntities(EditorEntity buttonEntity) {
+            List<Entity> borderEntities = new List<Entity>(2);
+            if (buttonEntity == null || buttonEntity.Children == null) {
+                return borderEntities;
+            }
+
+            for (int childIndex = 0; childIndex < buttonEntity.Children.Count; childIndex++) {
+                Entity childEntity = buttonEntity.Children[childIndex];
+                if (TryGetComponent<SpriteComponent>(childEntity, out _)) {
+                    borderEntities.Add(childEntity);
+                }
+            }
+
+            return borderEntities;
+        }
+
+        /// <summary>
+        /// Gets the first component of the requested type from one entity.
+        /// </summary>
+        /// <typeparam name="T">Component type to locate.</typeparam>
+        /// <param name="entity">Entity that owns the component.</param>
+        /// <returns>Component of the requested type.</returns>
+        T GetComponent<T>(Entity entity) where T : Component {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+            if (entity.Components == null) {
+                throw new InvalidOperationException("Expected the entity to contain components.");
+            }
+
+            for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                if (entity.Components[componentIndex] is T component) {
+                    return component;
+                }
+            }
+
+            throw new InvalidOperationException("Expected the entity to contain the requested component type.");
+        }
+
+        /// <summary>
+        /// Attempts to locate the first component of the requested type on one entity.
+        /// </summary>
+        /// <typeparam name="T">Component type to locate.</typeparam>
+        /// <param name="entity">Entity that owns the component.</param>
+        /// <param name="component">Resolved component when present.</param>
+        /// <returns>True when the requested component type was found; otherwise false.</returns>
+        bool TryGetComponent<T>(Entity entity, out T component) where T : Component {
+            component = null;
+            if (entity == null || entity.Components == null) {
+                return false;
+            }
+
+            for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                if (entity.Components[componentIndex] is T typedComponent) {
+                    component = typedComponent;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -969,6 +1171,16 @@ namespace helengine.editor {
         void RaiseSaveMapAsRequested() {
             if (SaveMapAsRequested != null) {
                 SaveMapAsRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Preferences command event.
+        /// </summary>
+        void RaisePreferencesRequested() {
+            HideMenus();
+            if (PreferencesRequested != null) {
+                PreferencesRequested();
             }
         }
 

@@ -67,6 +67,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures scaled metrics resize the chooser content and footer buttons.
+        /// </summary>
+        [Fact]
+        public void Show_WithScaledMetrics_UsesScaledContentAndFooterButtons() {
+            EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
+            BuildDialogCopySettingsDialog dialog = new BuildDialogCopySettingsDialog(CreateFont(), metrics);
+
+            dialog.Show([
+                "windows",
+                "linux"
+            ]);
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity sourceLabelHost = GetPrivateField<EditorEntity>(dialog, "SourceLabelHost");
+            ComboBoxComponent sourceComboBox = GetPrivateField<ComboBoxComponent>(dialog, "SourceComboBox");
+            ButtonComponent copyButton = GetPrivateField<ButtonComponent>(dialog, "CopyButton");
+            ButtonComponent cancelButton = GetPrivateField<ButtonComponent>(dialog, "CancelButton");
+
+            Assert.Equal(metrics.ScalePixels(BuildDialogCopySettingsDialog.PanelPadding), (int)Math.Round(sourceLabelHost.LocalPosition.X));
+            Assert.Equal(metrics.ScalePixels(BuildDialogCopySettingsDialog.PanelPadding + BuildDialogCopySettingsDialog.HeaderHeight + BuildDialogCopySettingsDialog.SectionSpacing), (int)Math.Round(sourceLabelHost.LocalPosition.Y));
+            Assert.Equal(new int2(metrics.ScalePixels(BuildDialogCopySettingsDialog.PanelWidth - (BuildDialogCopySettingsDialog.PanelPadding * 2)), metrics.ScalePixels(BuildDialogCopySettingsDialog.SourceComboHeight)), sourceComboBox.Size);
+            Assert.Equal(metrics.ScalePixels(BuildDialogCopySettingsDialog.FooterHeight), copyButton.Size.Y);
+            Assert.Equal(metrics.ScalePixels(BuildDialogCopySettingsDialog.FooterHeight), cancelButton.Size.Y);
+        }
+
+        /// <summary>
         /// Creates one deterministic font asset for modal layout and control tests.
         /// </summary>
         /// <returns>Font asset with stable glyph metrics.</returns>

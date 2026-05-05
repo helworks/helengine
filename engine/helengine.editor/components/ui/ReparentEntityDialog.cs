@@ -117,8 +117,17 @@ namespace helengine.editor {
         /// Initializes a new reparent dialog.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
-        public ReparentEntityDialog(FontAsset font) : base("ReparentEntityDialog", "Reparent", font, PanelWidth, PanelHeight, HeaderHeight) {
+        public ReparentEntityDialog(FontAsset font) : this(font, EditorUiMetrics.Default) {
+        }
+
+        /// <summary>
+        /// Initializes a new reparent dialog using one shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for labels and buttons.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
+        public ReparentEntityDialog(FontAsset font, EditorUiMetrics metrics) : base("ReparentEntityDialog", "Reparent", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             AvailableParentEntitiesInternal = new List<Entity>(8);
+            SetDialogMinimumSize(PanelWidth, PanelHeight);
 
             TargetHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -164,7 +173,7 @@ namespace helengine.editor {
             };
             DialogPanelRoot.AddChild(CancelButtonHost);
 
-            CancelButton = new ButtonComponent("Cancel", CancelButtonSize, DialogFont, HandleCancelClicked, 0f);
+            CancelButton = new ButtonComponent("Cancel", GetFooterButtonSize(), DialogFont, HandleCancelClicked, 0f);
             CancelButtonHost.AddComponent(CancelButton);
             CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
@@ -175,7 +184,7 @@ namespace helengine.editor {
             };
             DialogPanelRoot.AddChild(ApplyButtonHost);
 
-            ApplyButton = new ButtonComponent("Apply", ApplyButtonSize, DialogFont, HandleApplyClicked, 0f);
+            ApplyButton = new ButtonComponent("Apply", GetFooterButtonSize(), DialogFont, HandleApplyClicked, 0f);
             ApplyButtonHost.AddComponent(ApplyButton);
             ApplyButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
@@ -307,12 +316,12 @@ namespace helengine.editor {
         /// Lays out the target-entity label.
         /// </summary>
         void LayoutTarget() {
-            int y = PanelPadding + HeaderHeight + SectionSpacing;
-            TargetHost.Position = new float3(PanelPadding, y, 0.2f);
+            int y = GetTargetTop();
+            TargetHost.Position = new float3(GetPanelPaddingPixels(), y, 0.2f);
 
             FontTightMetrics metrics = DialogFont.MeasureTight(TargetText.Text);
             TargetText.Size = new int2(
-                Math.Max(1, PanelWidth - (PanelPadding * 2)),
+                Math.Max(1, DialogWidth - (GetPanelPaddingPixels() * 2)),
                 Math.Max(1, (int)Math.Ceiling(Math.Max(metrics.Height, DialogFont.LineHeight))));
         }
 
@@ -320,21 +329,21 @@ namespace helengine.editor {
         /// Lays out the embedded hierarchy picker.
         /// </summary>
         void LayoutParentHierarchy() {
-            int y = PanelPadding + HeaderHeight + SectionSpacing + GetDialogLineHeight() + SectionSpacing;
-            ParentHierarchyView.Entity.Position = new float3(PanelPadding, y, 0.2f);
-            ParentHierarchyView.UpdateLayout(PanelWidth - (PanelPadding * 2), HierarchyHeight);
+            int y = GetTargetTop() + GetDialogLineHeight() + GetSectionSpacingPixels();
+            ParentHierarchyView.Entity.Position = new float3(GetPanelPaddingPixels(), y, 0.2f);
+            ParentHierarchyView.UpdateLayout(DialogWidth - (GetPanelPaddingPixels() * 2), GetHierarchyHeightPixels());
         }
 
         /// <summary>
         /// Lays out the validation or status text row.
         /// </summary>
         void LayoutStatus() {
-            int y = PanelHeight - PanelPadding - FooterHeight - SectionSpacing - GetDialogLineHeight();
-            StatusHost.Position = new float3(PanelPadding, y, 0.2f);
+            int y = DialogHeight - GetPanelPaddingPixels() - GetFooterHeightPixels() - GetSectionSpacingPixels() - GetDialogLineHeight();
+            StatusHost.Position = new float3(GetPanelPaddingPixels(), y, 0.2f);
 
             FontTightMetrics metrics = DialogFont.MeasureTight(StatusText.Text);
             StatusText.Size = new int2(
-                Math.Max(1, PanelWidth - (PanelPadding * 2)),
+                Math.Max(1, DialogWidth - (GetPanelPaddingPixels() * 2)),
                 Math.Max(1, (int)Math.Ceiling(Math.Max(metrics.Height, DialogFont.LineHeight))));
         }
 
@@ -342,9 +351,10 @@ namespace helengine.editor {
         /// Lays out the footer buttons.
         /// </summary>
         void LayoutFooter() {
-            int buttonY = PanelHeight - PanelPadding - CancelButtonSize.Y;
-            int cancelX = PanelWidth - PanelPadding - CancelButtonSize.X;
-            int applyX = cancelX - 8 - ApplyButtonSize.X;
+            int2 footerButtonSize = GetFooterButtonSize();
+            int buttonY = DialogHeight - GetPanelPaddingPixels() - footerButtonSize.Y;
+            int cancelX = DialogWidth - GetPanelPaddingPixels() - footerButtonSize.X;
+            int applyX = cancelX - GetFooterButtonSpacingPixels() - footerButtonSize.X;
 
             CancelButtonHost.Position = new float3(cancelX, buttonY, 0.2f);
             ApplyButtonHost.Position = new float3(applyX, buttonY, 0.2f);
@@ -371,6 +381,62 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnCloseRequested() {
             HandleCancelClicked();
+        }
+
+        /// <summary>
+        /// Gets the scaled panel padding used by the dialog.
+        /// </summary>
+        /// <returns>Scaled panel padding in pixels.</returns>
+        int GetPanelPaddingPixels() {
+            return DialogMetrics.ScalePixels(PanelPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing between dialog sections.
+        /// </summary>
+        /// <returns>Scaled section spacing in pixels.</returns>
+        int GetSectionSpacingPixels() {
+            return DialogMetrics.ScalePixels(SectionSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled hierarchy-picker height.
+        /// </summary>
+        /// <returns>Scaled hierarchy-picker height in pixels.</returns>
+        int GetHierarchyHeightPixels() {
+            return DialogMetrics.ScalePixels(HierarchyHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled footer button size.
+        /// </summary>
+        /// <returns>Scaled footer button size.</returns>
+        int2 GetFooterButtonSize() {
+            return new int2(DialogMetrics.ScalePixels(CancelButtonSize.X), DialogMetrics.ScalePixels(CancelButtonSize.Y));
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing between footer buttons.
+        /// </summary>
+        /// <returns>Scaled footer-button spacing in pixels.</returns>
+        int GetFooterButtonSpacingPixels() {
+            return DialogMetrics.ScalePixels(8);
+        }
+
+        /// <summary>
+        /// Gets the scaled footer band height.
+        /// </summary>
+        /// <returns>Scaled footer height in pixels.</returns>
+        int GetFooterHeightPixels() {
+            return DialogMetrics.ScalePixels(FooterHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled top position for the target row.
+        /// </summary>
+        /// <returns>Scaled target-row top position in pixels.</returns>
+        int GetTargetTop() {
+            return DialogMetrics.ScalePixels(PanelPadding + HeaderHeight + SectionSpacing);
         }
     }
 }

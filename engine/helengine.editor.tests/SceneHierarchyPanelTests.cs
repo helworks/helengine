@@ -171,6 +171,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures scaled dock metrics move the hierarchy content root below the scaled title bar and enlarge row chrome.
+        /// </summary>
+        [Fact]
+        public void RefreshHierarchy_WithScaledMetrics_UsesScaledTitleBarOffsetAndRowHeight() {
+            EditorEntity selectedEntity = new EditorEntity {
+                Name = "Scaled Hierarchy Entity"
+            };
+            EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont(), metrics) {
+                Size = new int2(320, 240)
+            };
+
+            panel.RefreshHierarchy();
+
+            EditorEntity contentRoot = GetPrivateField<EditorEntity>(panel, "contentRoot");
+            SceneHierarchyRow row = FindVisibleRow(panel, selectedEntity);
+
+            Assert.Equal(30f, contentRoot.Position.Y);
+            Assert.Equal(new int2(330, 33), row.Background.Size);
+            Assert.Equal(new int2(330, 33), row.Interactable.Size);
+        }
+
+        /// <summary>
         /// Creates a small font asset that can satisfy hierarchy label layout in tests.
         /// </summary>
         /// <returns>Font asset with basic glyph metrics for the current test.</returns>

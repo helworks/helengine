@@ -73,7 +73,7 @@ namespace helengine.editor {
         /// <summary>
         /// Font used for all dialog labels and controls.
         /// </summary>
-        readonly FontAsset DialogFontValue;
+        FontAsset DialogFontValue;
 
         /// <summary>
         /// Host entity for the platform selector label.
@@ -184,12 +184,21 @@ namespace helengine.editor {
         /// Initializes one profiles dialog.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
-        public ProfilesDialog(FontAsset font) : base("ProfilesDialog", "Profiles", font, PanelWidth, PanelHeight, HeaderHeight) {
+        public ProfilesDialog(FontAsset font) : this(font, EditorUiMetrics.Default) {
+        }
+
+        /// <summary>
+        /// Initializes one profiles dialog using one shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for labels and buttons.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
+        public ProfilesDialog(FontAsset font, EditorUiMetrics metrics) : base("ProfilesDialog", "Profiles", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
 
             DialogFontValue = font;
+            SetDialogMinimumSize(PanelWidth, PanelHeight);
             SupportedPlatformIds = new List<string>(8);
 
             PlatformLabelHost = CreateTextHost();
@@ -199,19 +208,19 @@ namespace helengine.editor {
 
             PlatformComboBoxHost = CreateTextHost();
             DialogPanelRoot.AddChild(PlatformComboBoxHost);
-            PlatformComboBox = new ComboBoxComponent(new int2(PlatformComboBoxWidth, FieldRowHeight), DialogFontValue, Array.Empty<string>(), -1);
+            PlatformComboBox = new ComboBoxComponent(GetPlatformComboBoxSize(), DialogFontValue, Array.Empty<string>(), -1);
             PlatformComboBox.SelectionChanged += HandlePlatformSelectionChanged;
             PlatformComboBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder, RenderOrder2D.ModalBackground, RenderOrder2D.ModalForeground);
             PlatformComboBoxHost.AddComponent(PlatformComboBox);
 
-            int settingValueWidth = PanelWidth - (PanelPadding * 2) - LabelColumnWidth - 12;
+            int settingValueWidth = GetSettingValueWidth();
             BuildSettingsSection = new EditorPlatformSettingsSection(
                 DialogPanelRoot,
                 LayerMask,
                 DialogFontValue,
                 DialogPanelOrder,
                 DialogTextOrder,
-                LabelColumnWidth,
+                GetLabelColumnWidth(),
                 settingValueWidth);
             GraphicsSettingsSection = new EditorPlatformSettingsSection(
                 DialogPanelRoot,
@@ -219,7 +228,7 @@ namespace helengine.editor {
                 DialogFontValue,
                 DialogPanelOrder,
                 DialogTextOrder,
-                LabelColumnWidth,
+                GetLabelColumnWidth(),
                 settingValueWidth);
             CodegenSettingsSection = new EditorPlatformSettingsSection(
                 DialogPanelRoot,
@@ -227,7 +236,7 @@ namespace helengine.editor {
                 DialogFontValue,
                 DialogPanelOrder,
                 DialogTextOrder,
-                LabelColumnWidth,
+                GetLabelColumnWidth(),
                 settingValueWidth);
 
             StatusHost = CreateTextHost();
@@ -247,7 +256,7 @@ namespace helengine.editor {
                 InternalEntity = true
             };
             DialogPanelRoot.AddChild(CancelButtonHost);
-            CancelButton = new ButtonComponent("Cancel", CancelButtonSize, DialogFontValue, HandleCancelClicked, 0f);
+            CancelButton = new ButtonComponent("Cancel", GetFooterButtonSize(), DialogFontValue, HandleCancelClicked, 0f);
             CancelButtonHost.AddComponent(CancelButton);
             CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
@@ -257,7 +266,7 @@ namespace helengine.editor {
                 InternalEntity = true
             };
             DialogPanelRoot.AddChild(SaveButtonHost);
-            SaveButton = new ButtonComponent("Save", SaveButtonSize, DialogFontValue, HandleSaveClicked, 0f);
+            SaveButton = new ButtonComponent("Save", GetFooterButtonSize(), DialogFontValue, HandleSaveClicked, 0f);
             SaveButtonHost.AddComponent(SaveButton);
             SaveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
@@ -608,25 +617,25 @@ namespace helengine.editor {
         /// Positions the platform selector row.
         /// </summary>
         void LayoutPlatformSelector() {
-            float rowY = HeaderHeight + PanelPadding;
-            PlatformLabelHost.Position = new float3(PanelPadding, rowY + 2f, 0.1f);
-            PlatformComboBoxHost.Position = new float3(PanelPadding + LabelColumnWidth + 12f, rowY, 0.1f);
+            float rowY = GetPlatformSelectorTop();
+            PlatformLabelHost.Position = new float3(GetPanelPaddingPixels(), rowY + GetPlatformLabelOffsetY(), 0.1f);
+            PlatformComboBoxHost.Position = new float3(GetPanelPaddingPixels() + GetLabelColumnWidth() + GetLabelColumnSpacingPixels(), rowY, 0.1f);
         }
 
         /// <summary>
         /// Positions the builder-defined settings sections beneath the platform selector.
         /// </summary>
         void LayoutSettingsSections() {
-            float buildTopY = HeaderHeight + PanelPadding + FieldRowHeight + SectionSpacing;
-            BuildSettingsSection.Root.Position = new float3(PanelPadding, buildTopY, 0.1f);
+            float buildTopY = GetPlatformSelectorTop() + GetFieldRowHeightPixels() + GetSectionSpacingPixels();
+            BuildSettingsSection.Root.Position = new float3(GetPanelPaddingPixels(), buildTopY, 0.1f);
             BuildSettingsSection.Layout();
 
-            float graphicsTopY = buildTopY + BuildSettingsSection.ContentHeight + SectionSpacing;
-            GraphicsSettingsSection.Root.Position = new float3(PanelPadding, graphicsTopY, 0.1f);
+            float graphicsTopY = buildTopY + BuildSettingsSection.ContentHeight + GetSectionSpacingPixels();
+            GraphicsSettingsSection.Root.Position = new float3(GetPanelPaddingPixels(), graphicsTopY, 0.1f);
             GraphicsSettingsSection.Layout();
 
-            float codegenTopY = graphicsTopY + GraphicsSettingsSection.ContentHeight + SectionSpacing;
-            CodegenSettingsSection.Root.Position = new float3(PanelPadding, codegenTopY, 0.1f);
+            float codegenTopY = graphicsTopY + GraphicsSettingsSection.ContentHeight + GetSectionSpacingPixels();
+            CodegenSettingsSection.Root.Position = new float3(GetPanelPaddingPixels(), codegenTopY, 0.1f);
             CodegenSettingsSection.Layout();
         }
 
@@ -634,21 +643,25 @@ namespace helengine.editor {
         /// Positions the status text above the footer.
         /// </summary>
         void LayoutStatus() {
-            float statusY = HeaderHeight + PanelPadding + FieldRowHeight + SectionSpacing + BuildSettingsSection.ContentHeight + SectionSpacing + GraphicsSettingsSection.ContentHeight + SectionSpacing + CodegenSettingsSection.ContentHeight + 8f;
-            float footerLimitY = PanelHeight - FooterHeight - 38f;
+            float statusY = GetPlatformSelectorTop() + GetFieldRowHeightPixels() + GetSectionSpacingPixels() + BuildSettingsSection.ContentHeight + GetSectionSpacingPixels() + GraphicsSettingsSection.ContentHeight + GetSectionSpacingPixels() + CodegenSettingsSection.ContentHeight + GetStatusTopPadding();
+            float footerLimitY = DialogHeight - GetFooterHeightPixels() - GetFooterStatusBottomGap();
             if (statusY > footerLimitY) {
                 statusY = footerLimitY;
             }
-            StatusHost.Position = new float3(PanelPadding, statusY, 0.1f);
+            StatusHost.Position = new float3(GetPanelPaddingPixels(), statusY, 0.1f);
         }
 
         /// <summary>
         /// Positions the save and cancel buttons along the footer.
         /// </summary>
         void LayoutButtons() {
-            float buttonY = PanelHeight - FooterHeight - 2f;
-            CancelButtonHost.Position = new float3(PanelWidth - PanelPadding - CancelButtonSize.X, buttonY, 0.1f);
-            SaveButtonHost.Position = new float3(PanelWidth - PanelPadding - CancelButtonSize.X - 10f - SaveButtonSize.X, buttonY, 0.1f);
+            int2 footerButtonSize = GetFooterButtonSize();
+            float buttonY = DialogHeight - GetFooterHeightPixels() - GetFooterButtonTopOffset();
+            float cancelX = DialogWidth - GetPanelPaddingPixels() - footerButtonSize.X;
+            float saveX = cancelX - GetFooterButtonSpacingPixels() - footerButtonSize.X;
+
+            CancelButtonHost.Position = new float3(cancelX, buttonY, 0.1f);
+            SaveButtonHost.Position = new float3(saveX, buttonY, 0.1f);
         }
 
         /// <summary>
@@ -656,6 +669,126 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnCloseRequested() {
             HandleCancelClicked();
+        }
+
+        /// <summary>
+        /// Gets the scaled platform-selector top position.
+        /// </summary>
+        /// <returns>Scaled selector top position in pixels.</returns>
+        float GetPlatformSelectorTop() {
+            return DialogMetrics.ScalePixels(HeaderHeight + PanelPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled panel padding used by the dialog.
+        /// </summary>
+        /// <returns>Scaled panel padding in pixels.</returns>
+        int GetPanelPaddingPixels() {
+            return DialogMetrics.ScalePixels(PanelPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled label column width used by settings rows.
+        /// </summary>
+        /// <returns>Scaled label column width in pixels.</returns>
+        int GetLabelColumnWidth() {
+            return DialogMetrics.ScalePixels(LabelColumnWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled width available to the setting value column.
+        /// </summary>
+        /// <returns>Scaled setting-value width in pixels.</returns>
+        int GetSettingValueWidth() {
+            return DialogWidth - (GetPanelPaddingPixels() * 2) - GetLabelColumnWidth() - GetLabelColumnSpacingPixels();
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing between the label and selector columns.
+        /// </summary>
+        /// <returns>Scaled label-column spacing in pixels.</returns>
+        int GetLabelColumnSpacingPixels() {
+            return DialogMetrics.ScalePixels(12);
+        }
+
+        /// <summary>
+        /// Gets the scaled field row height used by the platform selector.
+        /// </summary>
+        /// <returns>Scaled field row height in pixels.</returns>
+        int GetFieldRowHeightPixels() {
+            return DialogMetrics.ScalePixels(FieldRowHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing between dialog sections.
+        /// </summary>
+        /// <returns>Scaled section spacing in pixels.</returns>
+        int GetSectionSpacingPixels() {
+            return DialogMetrics.ScalePixels(SectionSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled vertical offset applied to the platform label.
+        /// </summary>
+        /// <returns>Scaled label offset in pixels.</returns>
+        int GetPlatformLabelOffsetY() {
+            return DialogMetrics.ScalePixels(2);
+        }
+
+        /// <summary>
+        /// Gets the scaled footer button size.
+        /// </summary>
+        /// <returns>Scaled footer button size.</returns>
+        int2 GetFooterButtonSize() {
+            return new int2(DialogMetrics.ScalePixels(SaveButtonSize.X), DialogMetrics.ScalePixels(SaveButtonSize.Y));
+        }
+
+        /// <summary>
+        /// Gets the scaled footer button spacing.
+        /// </summary>
+        /// <returns>Scaled footer button spacing in pixels.</returns>
+        int GetFooterButtonSpacingPixels() {
+            return DialogMetrics.ScalePixels(10);
+        }
+
+        /// <summary>
+        /// Gets the scaled footer band height.
+        /// </summary>
+        /// <returns>Scaled footer band height in pixels.</returns>
+        int GetFooterHeightPixels() {
+            return DialogMetrics.ScalePixels(FooterHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled top offset used to vertically center footer buttons.
+        /// </summary>
+        /// <returns>Scaled footer button top offset in pixels.</returns>
+        int GetFooterButtonTopOffset() {
+            return DialogMetrics.ScalePixels(2);
+        }
+
+        /// <summary>
+        /// Gets the scaled top padding applied before the status row.
+        /// </summary>
+        /// <returns>Scaled status-row top padding in pixels.</returns>
+        int GetStatusTopPadding() {
+            return DialogMetrics.ScalePixels(8);
+        }
+
+        /// <summary>
+        /// Gets the scaled gap preserved between the status row and footer.
+        /// </summary>
+        /// <returns>Scaled status/footer gap in pixels.</returns>
+        int GetFooterStatusBottomGap() {
+            return DialogMetrics.ScalePixels(38);
+        }
+
+        /// <summary>
+        /// Gets the scaled platform-selector combo-box size.
+        /// </summary>
+        /// <returns>Scaled combo-box size.</returns>
+        int2 GetPlatformComboBoxSize() {
+            return new int2(DialogMetrics.ScalePixels(PlatformComboBoxWidth), GetFieldRowHeightPixels());
         }
     }
 }

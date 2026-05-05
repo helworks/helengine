@@ -60,7 +60,7 @@ namespace helengine.editor {
         /// <summary>
         /// Font used for dialog labels and buttons.
         /// </summary>
-        readonly FontAsset Font;
+        FontAsset Font;
         /// <summary>
         /// Shared asset browser view used in filesystem-only mode.
         /// </summary>
@@ -121,13 +121,24 @@ namespace helengine.editor {
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="projectPath">Project root that owns the assets folder.</param>
         public OpenFileDialog(FontAsset font, string projectPath)
-            : base("OpenFileDialog", "Open Map", font, MinPanelWidth, MinPanelHeight, HeaderHeight) {
+            : this(font, EditorUiMetrics.Default, projectPath) {
+        }
+
+        /// <summary>
+        /// Initializes a new open-file dialog rooted at the project assets folder using one shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for labels and buttons.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
+        /// <param name="projectPath">Project root that owns the assets folder.</param>
+        public OpenFileDialog(FontAsset font, EditorUiMetrics metrics, string projectPath)
+            : base("OpenFileDialog", "Open Map", font, metrics, MinPanelWidth, MinPanelHeight, HeaderHeight) {
             if (string.IsNullOrWhiteSpace(projectPath)) {
                 throw new ArgumentException("Project path must be provided.", nameof(projectPath));
             }
 
             Font = font;
-            PanelSize = new int2(MinPanelWidth, MinPanelHeight);
+            SetDialogMinimumSize(MinPanelWidth, MinPanelHeight);
+            PanelSize = DialogPanelBackground.Size;
             PanelPosition = int2.Zero;
             DialogPanelBackground.FillColor = ThemeManager.Colors.SurfacePrimary;
 
@@ -173,7 +184,7 @@ namespace helengine.editor {
             };
             DialogPanelRoot.AddChild(CancelButtonHost);
 
-            CancelButton = new ButtonComponent("Cancel", CancelButtonSize, font, Hide, 0f);
+            CancelButton = new ButtonComponent("Cancel", GetCancelButtonSize(), font, Hide, 0f);
             CancelButtonHost.AddComponent(CancelButton);
             CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
@@ -184,7 +195,7 @@ namespace helengine.editor {
             };
             DialogPanelRoot.AddChild(OpenButtonHost);
 
-            OpenButton = new ButtonComponent("Open", OpenButtonSize, font, HandleOpenClicked, 0f);
+            OpenButton = new ButtonComponent("Open", GetOpenButtonSize(), font, HandleOpenClicked, 0f);
             OpenButtonHost.AddComponent(OpenButton);
             OpenButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
@@ -252,10 +263,10 @@ namespace helengine.editor {
             int safeWindowWidth = Math.Max(1, windowWidth);
             int safeWindowHeight = Math.Max(1, windowHeight);
             if (!DialogIsUserPositioned) {
-                int maxWidth = Math.Max(MinPanelWidth, safeWindowWidth - PanelPadding * 2);
-                int maxHeight = Math.Max(MinPanelHeight, safeWindowHeight - PanelPadding * 2);
-                int panelWidth = Math.Min(MaxPanelWidth, Math.Min(maxWidth, safeWindowWidth));
-                int panelHeight = Math.Min(MaxPanelHeight, Math.Min(maxHeight, safeWindowHeight));
+                int maxWidth = Math.Max(GetMinimumPanelWidthPixels(), safeWindowWidth - GetPanelPaddingPixels() * 2);
+                int maxHeight = Math.Max(GetMinimumPanelHeightPixels(), safeWindowHeight - GetPanelPaddingPixels() * 2);
+                int panelWidth = Math.Min(GetMaximumPanelWidthPixels(), Math.Min(maxWidth, safeWindowWidth));
+                int panelHeight = Math.Min(GetMaximumPanelHeightPixels(), Math.Min(maxHeight, safeWindowHeight));
                 SetDialogSize(panelWidth, panelHeight);
             }
 
@@ -336,14 +347,14 @@ namespace helengine.editor {
         /// Updates browser placement within the dialog panel.
         /// </summary>
         void LayoutBrowser() {
-            int browserWidth = Math.Max(0, PanelSize.X - PanelPadding * 2);
-            int browserTop = PanelPadding + HeaderHeight + SectionSpacing;
-            int footerTop = PanelSize.Y - PanelPadding - FooterHeight;
-            int statusTop = footerTop - SectionSpacing - StatusHeight;
-            int browserBottom = statusTop - SectionSpacing;
+            int browserWidth = Math.Max(0, PanelSize.X - GetPanelPaddingPixels() * 2);
+            int browserTop = GetPanelPaddingPixels() + GetHeaderHeightPixels() + GetSectionSpacingPixels();
+            int footerTop = PanelSize.Y - GetPanelPaddingPixels() - GetFooterHeightPixels();
+            int statusTop = footerTop - GetSectionSpacingPixels() - GetStatusHeightPixels();
+            int browserBottom = statusTop - GetSectionSpacingPixels();
             int browserHeight = Math.Max(120, browserBottom - browserTop);
 
-            BrowserView.Entity.Position = new float3(PanelPadding, browserTop, 0.2f);
+            BrowserView.Entity.Position = new float3(GetPanelPaddingPixels(), browserTop, 0.2f);
             BrowserView.UpdateLayout(browserWidth, browserHeight);
         }
 
@@ -351,11 +362,11 @@ namespace helengine.editor {
         /// Updates the status text placement.
         /// </summary>
         void LayoutStatus() {
-            int footerTop = PanelSize.Y - PanelPadding - FooterHeight;
-            int statusTop = footerTop - SectionSpacing - StatusHeight;
-            int contentWidth = Math.Max(0, PanelSize.X - PanelPadding * 2);
+            int footerTop = PanelSize.Y - GetPanelPaddingPixels() - GetFooterHeightPixels();
+            int statusTop = footerTop - GetSectionSpacingPixels() - GetStatusHeightPixels();
+            int contentWidth = Math.Max(0, PanelSize.X - GetPanelPaddingPixels() * 2);
 
-            StatusHost.Position = new float3(PanelPadding, statusTop, 0.2f);
+            StatusHost.Position = new float3(GetPanelPaddingPixels(), statusTop, 0.2f);
             FontTightMetrics statusMetrics = Font.MeasureTight(StatusText.Text ?? string.Empty);
             StatusText.Size = new int2(contentWidth, (int)Math.Ceiling(Math.Max(statusMetrics.Height, Font.LineHeight)));
         }
@@ -364,13 +375,113 @@ namespace helengine.editor {
         /// Updates footer button placement within the dialog panel.
         /// </summary>
         void LayoutFooter() {
-            int footerTop = PanelSize.Y - PanelPadding - FooterHeight;
-            int openButtonX = PanelSize.X - PanelPadding - OpenButtonSize.X;
-            int cancelButtonX = openButtonX - 8 - CancelButtonSize.X;
-            int buttonY = footerTop + Math.Max(0, (FooterHeight - OpenButtonSize.Y) / 2);
+            int footerTop = PanelSize.Y - GetPanelPaddingPixels() - GetFooterHeightPixels();
+            int openButtonX = PanelSize.X - GetPanelPaddingPixels() - GetOpenButtonSize().X;
+            int cancelButtonX = openButtonX - GetFooterButtonSpacingPixels() - GetCancelButtonSize().X;
+            int buttonY = footerTop + Math.Max(0, (GetFooterHeightPixels() - GetOpenButtonSize().Y) / 2);
 
             CancelButtonHost.Position = new float3(cancelButtonX, buttonY, 0.2f);
             OpenButtonHost.Position = new float3(openButtonX, buttonY, 0.2f);
+        }
+
+        /// <summary>
+        /// Gets the scaled minimum panel width.
+        /// </summary>
+        /// <returns>Scaled minimum panel width in pixels.</returns>
+        int GetMinimumPanelWidthPixels() {
+            return DialogMetrics.ScalePixels(MinPanelWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled minimum panel height.
+        /// </summary>
+        /// <returns>Scaled minimum panel height in pixels.</returns>
+        int GetMinimumPanelHeightPixels() {
+            return DialogMetrics.ScalePixels(MinPanelHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled maximum panel width.
+        /// </summary>
+        /// <returns>Scaled maximum panel width in pixels.</returns>
+        int GetMaximumPanelWidthPixels() {
+            return DialogMetrics.ScalePixels(MaxPanelWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled maximum panel height.
+        /// </summary>
+        /// <returns>Scaled maximum panel height in pixels.</returns>
+        int GetMaximumPanelHeightPixels() {
+            return DialogMetrics.ScalePixels(MaxPanelHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled panel padding.
+        /// </summary>
+        /// <returns>Scaled panel padding in pixels.</returns>
+        int GetPanelPaddingPixels() {
+            return DialogMetrics.ScalePixels(PanelPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled header height used by the dialog content layout.
+        /// </summary>
+        /// <returns>Scaled content header height in pixels.</returns>
+        int GetHeaderHeightPixels() {
+            return DialogMetrics.ScalePixels(HeaderHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled footer height used by the dialog content layout.
+        /// </summary>
+        /// <returns>Scaled footer height in pixels.</returns>
+        int GetFooterHeightPixels() {
+            return DialogMetrics.ScalePixels(FooterHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled status row height.
+        /// </summary>
+        /// <returns>Scaled status row height in pixels.</returns>
+        int GetStatusHeightPixels() {
+            return DialogMetrics.ScalePixels(StatusHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled section spacing between dialog regions.
+        /// </summary>
+        /// <returns>Scaled section spacing in pixels.</returns>
+        int GetSectionSpacingPixels() {
+            return DialogMetrics.ScalePixels(SectionSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing preserved between footer buttons.
+        /// </summary>
+        /// <returns>Scaled footer-button spacing in pixels.</returns>
+        int GetFooterButtonSpacingPixels() {
+            return DialogMetrics.ScalePixels(8);
+        }
+
+        /// <summary>
+        /// Gets the scaled cancel-button size.
+        /// </summary>
+        /// <returns>Scaled cancel-button size.</returns>
+        int2 GetCancelButtonSize() {
+            return new int2(
+                DialogMetrics.ScalePixels(CancelButtonSize.X),
+                DialogMetrics.ScalePixels(CancelButtonSize.Y));
+        }
+
+        /// <summary>
+        /// Gets the scaled open-button size.
+        /// </summary>
+        /// <returns>Scaled open-button size.</returns>
+        int2 GetOpenButtonSize() {
+            return new int2(
+                DialogMetrics.ScalePixels(OpenButtonSize.X),
+                DialogMetrics.ScalePixels(OpenButtonSize.Y));
         }
     }
 }

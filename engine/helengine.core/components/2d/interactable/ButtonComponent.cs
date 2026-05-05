@@ -86,6 +86,25 @@ namespace helengine {
         public int2 Size => size;
 
         /// <summary>
+        /// Gets or sets the font used to render the button label.
+        /// </summary>
+        public FontAsset Font {
+            get { return font; }
+            set {
+                if (value == null) {
+                    throw new ArgumentNullException(nameof(value));
+                }
+
+                font = value;
+                if (textComponent != null) {
+                    textComponent.Font = font;
+                }
+
+                ApplyTextLayout();
+            }
+        }
+
+        /// <summary>
         /// Gets the size used by anchor components when the button host is pinned to a layout edge.
         /// </summary>
         public int2 AnchorSize => size;
