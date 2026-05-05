@@ -138,7 +138,7 @@ namespace helengine.editor.tests {
         /// </summary>
         void InitializeCore() {
             Core core = new Core();
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputManager());
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
         }
     }
 }

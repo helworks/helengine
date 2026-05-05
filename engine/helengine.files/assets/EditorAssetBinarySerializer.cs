@@ -124,6 +124,8 @@ namespace helengine.files {
                 return EditorAssetBinaryValueKind.MaterialAsset;
             } else if (asset is Ps2MaterialAsset) {
                 return EditorAssetBinaryValueKind.Ps2MaterialAsset;
+            } else if (asset is AnimationClipAsset) {
+                return EditorAssetBinaryValueKind.AnimationClipAsset;
             } else if (asset is SceneAsset) {
                 return EditorAssetBinaryValueKind.SceneAsset;
             }
@@ -155,6 +157,9 @@ namespace helengine.files {
             } else if (asset is Ps2MaterialAsset ps2MaterialAsset) {
                 WritePs2MaterialAsset(writer, ps2MaterialAsset);
                 return;
+            } else if (asset is AnimationClipAsset animationClipAsset) {
+                WriteAnimationClipAsset(writer, animationClipAsset);
+                return;
             } else if (asset is SceneAsset sceneAsset) {
                 WriteSceneAsset(writer, sceneAsset);
                 return;
@@ -183,6 +188,8 @@ namespace helengine.files {
                     return ReadMaterialAsset(reader);
                 case EditorAssetBinaryValueKind.Ps2MaterialAsset:
                     return ReadPs2MaterialAsset(reader);
+                case EditorAssetBinaryValueKind.AnimationClipAsset:
+                    return ReadAnimationClipAsset(reader);
                 case EditorAssetBinaryValueKind.SceneAsset:
                     return ReadSceneAsset(reader, version);
                 default:
@@ -344,6 +351,180 @@ namespace helengine.files {
                 SpecularStrength = reader.ReadSingle(),
                 EmissiveStrength = reader.ReadSingle()
             };
+        }
+
+        /// <summary>
+        /// Writes an animation clip asset payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">Animation clip asset to serialize.</param>
+        static void WriteAnimationClipAsset(EngineBinaryWriter writer, AnimationClipAsset asset) {
+            writer.WriteString(asset.Id);
+            writer.WriteSingle(asset.Duration);
+            writer.WriteArray(asset.PositionTracks, WritePositionKeyframeTrackAsset);
+            writer.WriteArray(asset.PositionOffsetTracks, WritePositionOffsetKeyframeTrackAsset);
+            writer.WriteArray(asset.ScaleTracks, WriteScaleKeyframeTrackAsset);
+            writer.WriteArray(asset.RotationTracks, WriteRotationKeyframeTrackAsset);
+        }
+
+        /// <summary>
+        /// Reads an animation clip asset payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized animation clip asset.</returns>
+        static AnimationClipAsset ReadAnimationClipAsset(EngineBinaryReader reader) {
+            return new AnimationClipAsset {
+                Id = reader.ReadString(),
+                Duration = reader.ReadSingle(),
+                PositionTracks = reader.ReadArray(ReadPositionKeyframeTrackAsset) ?? Array.Empty<PositionKeyframeTrackAsset>(),
+                PositionOffsetTracks = reader.ReadArray(ReadPositionOffsetKeyframeTrackAsset) ?? Array.Empty<PositionOffsetKeyframeTrackAsset>(),
+                ScaleTracks = reader.ReadArray(ReadScaleKeyframeTrackAsset) ?? Array.Empty<ScaleKeyframeTrackAsset>(),
+                RotationTracks = reader.ReadArray(ReadRotationKeyframeTrackAsset) ?? Array.Empty<RotationKeyframeTrackAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Writes one absolute-position keyframe track payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">Track asset to serialize.</param>
+        static void WritePositionKeyframeTrackAsset(EngineBinaryWriter writer, PositionKeyframeTrackAsset asset) {
+            writer.WriteArray(asset.Keyframes, WritePositionKeyframeAsset);
+        }
+
+        /// <summary>
+        /// Reads one absolute-position keyframe track payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized track asset.</returns>
+        static PositionKeyframeTrackAsset ReadPositionKeyframeTrackAsset(EngineBinaryReader reader) {
+            return new PositionKeyframeTrackAsset {
+                Keyframes = reader.ReadArray(ReadPositionKeyframeAsset) ?? Array.Empty<PositionKeyframeAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Writes one additive-position keyframe track payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">Track asset to serialize.</param>
+        static void WritePositionOffsetKeyframeTrackAsset(EngineBinaryWriter writer, PositionOffsetKeyframeTrackAsset asset) {
+            writer.WriteArray(asset.Keyframes, WritePositionKeyframeAsset);
+        }
+
+        /// <summary>
+        /// Reads one additive-position keyframe track payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized track asset.</returns>
+        static PositionOffsetKeyframeTrackAsset ReadPositionOffsetKeyframeTrackAsset(EngineBinaryReader reader) {
+            return new PositionOffsetKeyframeTrackAsset {
+                Keyframes = reader.ReadArray(ReadPositionKeyframeAsset) ?? Array.Empty<PositionKeyframeAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Writes one scale keyframe track payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">Track asset to serialize.</param>
+        static void WriteScaleKeyframeTrackAsset(EngineBinaryWriter writer, ScaleKeyframeTrackAsset asset) {
+            writer.WriteArray(asset.Keyframes, WritePositionKeyframeAsset);
+        }
+
+        /// <summary>
+        /// Reads one scale keyframe track payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized track asset.</returns>
+        static ScaleKeyframeTrackAsset ReadScaleKeyframeTrackAsset(EngineBinaryReader reader) {
+            return new ScaleKeyframeTrackAsset {
+                Keyframes = reader.ReadArray(ReadPositionKeyframeAsset) ?? Array.Empty<PositionKeyframeAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Writes one rotation keyframe track payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">Track asset to serialize.</param>
+        static void WriteRotationKeyframeTrackAsset(EngineBinaryWriter writer, RotationKeyframeTrackAsset asset) {
+            writer.WriteArray(asset.Keyframes, WriteRotationKeyframeAsset);
+        }
+
+        /// <summary>
+        /// Reads one rotation keyframe track payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized track asset.</returns>
+        static RotationKeyframeTrackAsset ReadRotationKeyframeTrackAsset(EngineBinaryReader reader) {
+            return new RotationKeyframeTrackAsset {
+                Keyframes = reader.ReadArray(ReadRotationKeyframeAsset) ?? Array.Empty<RotationKeyframeAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Writes one position-style keyframe payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">Keyframe asset to serialize.</param>
+        static void WritePositionKeyframeAsset(EngineBinaryWriter writer, PositionKeyframeAsset asset) {
+            writer.WriteSingle(asset.Time);
+            WriteFloat3(writer, asset.Value);
+            WriteAnimationInterpolationMode(writer, asset.InterpolationMode);
+        }
+
+        /// <summary>
+        /// Reads one position-style keyframe payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized keyframe asset.</returns>
+        static PositionKeyframeAsset ReadPositionKeyframeAsset(EngineBinaryReader reader) {
+            return new PositionKeyframeAsset(
+                reader.ReadSingle(),
+                ReadFloat3(reader),
+                ReadAnimationInterpolationMode(reader));
+        }
+
+        /// <summary>
+        /// Writes one rotation keyframe payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">Keyframe asset to serialize.</param>
+        static void WriteRotationKeyframeAsset(EngineBinaryWriter writer, RotationKeyframeAsset asset) {
+            writer.WriteSingle(asset.Time);
+            WriteFloat4(writer, asset.Value);
+            WriteAnimationInterpolationMode(writer, asset.InterpolationMode);
+        }
+
+        /// <summary>
+        /// Reads one rotation keyframe payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized keyframe asset.</returns>
+        static RotationKeyframeAsset ReadRotationKeyframeAsset(EngineBinaryReader reader) {
+            return new RotationKeyframeAsset(
+                reader.ReadSingle(),
+                ReadFloat4(reader),
+                ReadAnimationInterpolationMode(reader));
+        }
+
+        /// <summary>
+        /// Writes one animation interpolation mode value.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="value">Interpolation mode to serialize.</param>
+        static void WriteAnimationInterpolationMode(EngineBinaryWriter writer, AnimationInterpolationMode value) {
+            writer.WriteByte((byte)value);
+        }
+
+        /// <summary>
+        /// Reads one animation interpolation mode value.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized interpolation mode.</returns>
+        static AnimationInterpolationMode ReadAnimationInterpolationMode(EngineBinaryReader reader) {
+            return (AnimationInterpolationMode)reader.ReadByte();
         }
 
         /// <summary>
