@@ -39,14 +39,14 @@ public class IPlatformAssetBuilderMetadataTests {
             "directx11",
             "standard-shader",
             new Dictionary<string, string> {
-                ["shader-asset-id"] = "EditorDefaultMesh",
-                ["vertex-program"] = "EditorDefaultMesh.vs",
-                ["pixel-program"] = "EditorDefaultMesh.ps",
+                ["shader-asset-id"] = "ForwardStandardShader",
+                ["vertex-program"] = "ForwardStandardShader.vs",
+                ["pixel-program"] = "ForwardStandardShader.ps",
                 ["variant"] = "default"
             }));
 
         MaterialAsset materialAsset = Assert.IsType<MaterialAsset>(AssetSerializer.DeserializeFromBytes(result.CookedMaterialBytes));
-        Assert.Equal("EditorDefaultMesh", materialAsset.ShaderAssetId);
-        Assert.Equal(new[] { "EditorDefaultMesh" }, result.ReferencedShaderAssetIds);
+        Assert.Equal("ForwardStandardShader", materialAsset.ShaderAssetId);
+        Assert.Equal(new[] { "ForwardStandardShader" }, result.ReferencedShaderAssetIds);
     }
 }

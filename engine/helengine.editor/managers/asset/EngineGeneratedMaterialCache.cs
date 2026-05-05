@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Built-in shader source file used by the generated standard material.
         /// </summary>
-        const string StandardShaderFileName = "EditorDefaultMesh.hlsl";
+        const string StandardShaderFileName = "ForwardStandardShader.hlsl";
         /// <summary>
         /// Logical material asset identifier used when building the generated standard material.
         /// </summary>
@@ -19,11 +19,11 @@ namespace helengine.editor {
         /// <summary>
         /// Vertex program name used by the generated standard material.
         /// </summary>
-        const string StandardVertexProgramName = "EditorDefaultMesh.vs";
+        const string StandardVertexProgramName = "ForwardStandardShader.vs";
         /// <summary>
         /// Pixel program name used by the generated standard material.
         /// </summary>
-        const string StandardPixelProgramName = "EditorDefaultMesh.ps";
+        const string StandardPixelProgramName = "ForwardStandardShader.ps";
         /// <summary>
         /// Shader variant used by the generated standard material.
         /// </summary>

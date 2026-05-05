@@ -3,18 +3,18 @@ using Xunit;
 
 namespace helengine.editor.tests.rendering {
     /// <summary>
-    /// Verifies the built-in standard editor mesh shader compiles after forward-light and shadow-buffer changes.
+    /// Verifies the built-in forward standard shader compiles after forward-light and shadow-buffer changes.
     /// </summary>
     public class EditorBuiltInStandardShaderTests {
         /// <summary>
-        /// Ensures the built-in standard mesh shader compiles for the DirectX11 target.
+        /// Ensures the built-in forward standard shader compiles for the DirectX11 target.
         /// </summary>
         [Fact]
         public void LoadShaderAsset_WhenUsingBuiltInStandardShader_CompilesForDirectX11() {
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, "EditorDefaultMesh.hlsl");
+            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, "ForwardStandardShader.hlsl");
 
             Assert.NotNull(shaderAsset);
-            Assert.Equal("EditorDefaultMesh", shaderAsset.Id);
+            Assert.Equal("ForwardStandardShader", shaderAsset.Id);
             Assert.NotNull(shaderAsset.Binaries);
             Assert.NotEmpty(shaderAsset.Binaries);
         }

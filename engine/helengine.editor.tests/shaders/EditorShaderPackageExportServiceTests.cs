@@ -41,13 +41,13 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Export_WhenOneReferencedShaderExists_CopiesItIntoBuildShadersFolder() {
-            string shaderId = "EditorDefaultMesh";
+            string shaderId = "ForwardStandardShader";
             WriteCompiledShaderPackage(ShaderCacheRootPath, shaderId, ShaderCompileTarget.DirectX11);
 
             EditorShaderPackageExportService exportService = new EditorShaderPackageExportService(ShaderCacheRootPath);
             exportService.Export(new[] { shaderId }, ShaderCompileTarget.DirectX11, BuildRootPath);
 
-            string exportedPackagePath = Path.Combine(BuildRootPath, "shaders", "EditorDefaultMesh.dx11.shader.asset");
+            string exportedPackagePath = Path.Combine(BuildRootPath, "shaders", "ForwardStandardShader.dx11.shader.asset");
             Assert.True(File.Exists(exportedPackagePath));
 
             ShaderAsset exportedShaderAsset = LoadShaderAsset(exportedPackagePath);

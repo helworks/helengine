@@ -91,17 +91,17 @@ namespace helengine.editor {
         /// <summary>
         /// Shader source file used by the packaged generated standard material.
         /// </summary>
-        const string StandardShaderFileName = "EditorDefaultMesh.hlsl";
+        const string StandardShaderFileName = "ForwardStandardShader.hlsl";
 
         /// <summary>
         /// Vertex program name used by the packaged generated standard material.
         /// </summary>
-        const string StandardVertexProgramName = "EditorDefaultMesh.vs";
+        const string StandardVertexProgramName = "ForwardStandardShader.vs";
 
         /// <summary>
         /// Pixel program name used by the packaged generated standard material.
         /// </summary>
-        const string StandardPixelProgramName = "EditorDefaultMesh.ps";
+        const string StandardPixelProgramName = "ForwardStandardShader.ps";
 
         /// <summary>
         /// Shader variant name used by the packaged generated standard material.
@@ -116,7 +116,7 @@ namespace helengine.editor {
         /// <summary>
         /// Relative packaged shader path used by generated primitive scenes.
         /// </summary>
-        const string StandardGeneratedShaderRelativePath = "cooked/shaders/EditorDefaultMesh.dx11.hasset";
+        const string StandardGeneratedShaderRelativePath = "cooked/shaders/ForwardStandardShader.dx11.hasset";
 
         /// <summary>
         /// Absolute project root that owns the source `assets` folder.
@@ -669,43 +669,43 @@ namespace helengine.editor {
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
                     "helengine.RoundedRectComponent",
-                    PlatformComponentCompatibilityKind.PassThrough,
-                    "Rounded rectangle visuals are emitted unchanged for runtime UI reconstruction.",
+                    PlatformComponentCompatibilityKind.Transform,
+                    "Rounded rectangle visuals are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
                     "helengine.DirectionalLightComponent",
-                    PlatformComponentCompatibilityKind.PassThrough,
-                    "Directional light payloads are emitted unchanged for runtime light extraction.",
+                    PlatformComponentCompatibilityKind.Transform,
+                    "Directional light payloads are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
                     "helengine.PointLightComponent",
-                    PlatformComponentCompatibilityKind.PassThrough,
-                    "Point light payloads are emitted unchanged for runtime light extraction.",
+                    PlatformComponentCompatibilityKind.Transform,
+                    "Point light payloads are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
                     "helengine.SpotLightComponent",
-                    PlatformComponentCompatibilityKind.PassThrough,
-                    "Spot light payloads are emitted unchanged for runtime light extraction.",
+                    PlatformComponentCompatibilityKind.Transform,
+                    "Spot light payloads are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
                     DemoMenuBuildComponent.SerializedComponentTypeId,
-                    PlatformComponentCompatibilityKind.PassThrough,
-                    "Baked demo menu root components are emitted unchanged and resolve packaged scene ids at runtime.",
+                    PlatformComponentCompatibilityKind.Transform,
+                    "Baked demo menu root components are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
                     DemoMenuPanelComponent.SerializedComponentTypeId,
-                    PlatformComponentCompatibilityKind.PassThrough,
-                    "Baked demo menu panel metadata is emitted unchanged for runtime navigation binding.",
+                    PlatformComponentCompatibilityKind.Transform,
+                    "Baked demo menu panel metadata is rewritten into strict runtime payloads during packaging.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
                     DemoMenuItemComponent.SerializedComponentTypeId,
-                    PlatformComponentCompatibilityKind.PassThrough,
-                    "Baked demo menu item metadata is emitted unchanged for runtime navigation binding.",
+                    PlatformComponentCompatibilityKind.Transform,
+                    "Baked demo menu item metadata is rewritten into strict runtime payloads during packaging.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
                     DemoMenuSelectedDescriptionComponent.SerializedComponentTypeId,
-                    PlatformComponentCompatibilityKind.PassThrough,
-                    "Baked demo menu selected-description markers are emitted unchanged for runtime binding.",
+                    PlatformComponentCompatibilityKind.Transform,
+                    "Baked demo menu selected-description markers are rewritten into strict runtime payloads during packaging.",
                     string.Empty)
             ];
         }

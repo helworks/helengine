@@ -155,19 +155,19 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     }
 
     /// <summary>
-    /// Seeds the built-in shader library cache with a prebuilt EditorDefaultMesh shader asset so the test does not invoke runtime compilation.
+    /// Seeds the built-in shader library cache with a prebuilt ForwardStandardShader shader asset so the test does not invoke runtime compilation.
     /// </summary>
     /// <param name="target">Shader compile target to seed.</param>
     void SeedBuiltInStandardShaderAsset(ShaderCompileTarget target) {
-        string shaderPath = EditorBuiltInShaderAssetLibrary.ResolveShaderPath("EditorDefaultMesh.hlsl");
+        string shaderPath = EditorBuiltInShaderAssetLibrary.ResolveShaderPath("ForwardStandardShader.hlsl");
         string cacheKey = string.Concat(target.ToString(), "|", shaderPath);
         ShaderAsset shaderAsset = new ShaderAsset {
-            Id = "EditorDefaultMesh",
-            Name = "EditorDefaultMesh",
+            Id = "ForwardStandardShader",
+            Name = "ForwardStandardShader",
             TargetName = ShaderTargetNames.GetTargetName(target),
             Programs = [
                 new ShaderProgramAsset {
-                    Name = "EditorDefaultMesh.vs",
+                    Name = "ForwardStandardShader.vs",
                     Stage = ShaderStage.Vertex,
                     EntryPoint = "VS",
                     Bindings = Array.Empty<ShaderBindingAsset>(),
@@ -183,7 +183,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             ],
             Binaries = [
                 new ShaderBinaryAsset {
-                    ProgramName = "EditorDefaultMesh.vs",
+                    ProgramName = "ForwardStandardShader.vs",
                     Stage = ShaderStage.Vertex,
                     TargetName = ShaderTargetNames.GetTargetName(target),
                     Variant = "default",

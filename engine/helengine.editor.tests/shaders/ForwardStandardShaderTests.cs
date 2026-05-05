@@ -3,11 +3,11 @@ using Xunit;
 
 namespace helengine.editor.tests.shaders {
     /// <summary>
-    /// Verifies the built-in default mesh shader compiles for both renderer backends and keeps the material layout engine-managed.
+    /// Verifies the built-in forward standard shader compiles for both renderer backends and keeps the material layout engine-managed.
     /// </summary>
-    public class EditorDefaultMeshShaderTests {
+    public class ForwardStandardShaderTests {
         /// <summary>
-        /// Ensures the built-in default mesh shader compiles for DirectX11 and exposes no user-authored material bindings.
+        /// Ensures the built-in forward standard shader compiles for DirectX11 and exposes no user-authored material bindings.
         /// </summary>
         [Fact]
         public void LoadShaderAsset_WhenCompilingForDirectX11_ProducesAnEmptyMaterialLayout() {
@@ -15,7 +15,7 @@ namespace helengine.editor.tests.shaders {
         }
 
         /// <summary>
-        /// Ensures the built-in default mesh shader compiles for Vulkan and exposes no user-authored material bindings.
+        /// Ensures the built-in forward standard shader compiles for Vulkan and exposes no user-authored material bindings.
         /// </summary>
         [Fact]
         public void LoadShaderAsset_WhenCompilingForVulkan_ProducesAnEmptyMaterialLayout() {
@@ -23,13 +23,13 @@ namespace helengine.editor.tests.shaders {
         }
 
         /// <summary>
-        /// Compiles the built-in default mesh shader for one backend and verifies the resolved material layout.
+        /// Compiles the built-in forward standard shader for one backend and verifies the resolved material layout.
         /// </summary>
         /// <param name="target">Shader backend that should receive the compiled built-in shader.</param>
         static void AssertShaderAssetLayout(ShaderCompileTarget target) {
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(target, "EditorDefaultMesh.hlsl");
+            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(target, "ForwardStandardShader.hlsl");
 
-            Assert.Equal("EditorDefaultMesh", shaderAsset.Id);
+            Assert.Equal("ForwardStandardShader", shaderAsset.Id);
             Assert.Equal(ShaderTargetNames.GetTargetName(target), shaderAsset.TargetName);
             Assert.Equal(2, shaderAsset.Binaries.Length);
 
@@ -41,20 +41,20 @@ namespace helengine.editor.tests.shaders {
         }
 
         /// <summary>
-        /// Creates the minimal material asset required to resolve the built-in default mesh shader layout.
+        /// Creates the minimal material asset required to resolve the built-in forward standard shader layout.
         /// </summary>
         /// <param name="shaderAssetId">Shader asset identifier selected by the material.</param>
-        /// <returns>Material asset configured for the built-in default mesh shader.</returns>
+        /// <returns>Material asset configured for the built-in forward standard shader.</returns>
         static MaterialAsset CreateMaterialAsset(string shaderAssetId) {
             if (string.IsNullOrWhiteSpace(shaderAssetId)) {
                 throw new ArgumentException("Shader asset id must be provided.", nameof(shaderAssetId));
             }
 
             return new MaterialAsset {
-                Id = "EditorDefaultMesh.material",
+                Id = "ForwardStandardShader.material",
                 ShaderAssetId = shaderAssetId,
-                VertexProgram = "EditorDefaultMesh.vs",
-                PixelProgram = "EditorDefaultMesh.ps",
+                VertexProgram = "ForwardStandardShader.vs",
+                PixelProgram = "ForwardStandardShader.ps",
                 Variant = "default",
                 RenderState = new MaterialRenderState()
             };

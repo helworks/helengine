@@ -45,7 +45,7 @@ namespace helengine.editor.tests {
         public void Package_WhenTwoMeshesReferenceTheSameShader_ReportsOneReferencedShaderId() {
             string sceneId = "Scenes/TestScene.helen";
             string materialRelativePath = "Materials/TestMaterial.helmat";
-            string shaderAssetId = "EditorDefaultMesh";
+            string shaderAssetId = "ForwardStandardShader";
 
             WriteShaderCachePackage(shaderAssetId, ShaderCompileTarget.DirectX11);
             WriteMaterialAsset(materialRelativePath, shaderAssetId);
@@ -73,7 +73,9 @@ namespace helengine.editor.tests {
                 defaultFont);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
-            string packagedScenePath = Path.Combine(BuildRootPath, "scenes", "Scenes", "FpsScene.helen");
+            string packagedScenePath = Path.Combine(
+                BuildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
                 packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
@@ -102,7 +104,9 @@ namespace helengine.editor.tests {
                 defaultFont);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
-            string packagedScenePath = Path.Combine(BuildRootPath, "scenes", "Scenes", "TextScene.helen");
+            string packagedScenePath = Path.Combine(
+                BuildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
                 packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
@@ -194,6 +198,53 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures packaged lights and rounded rectangles are rewritten into strict runtime payloads that still load correctly.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsLightsAndRoundedRect_LeavesPackagedComponentsLoadable() {
+            string sceneId = "Scenes/LightingUiScene.helen";
+            WriteSceneAsset(sceneId, BuildLightingAndUiSceneAsset(sceneId));
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = Path.Combine(
+                BuildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+            DirectionalLightComponent directionalLightComponent = Assert.IsType<DirectionalLightComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is DirectionalLightComponent));
+            PointLightComponent pointLightComponent = Assert.IsType<PointLightComponent>(
+                Assert.Single(loadedRoots[1].Components, component => component is PointLightComponent));
+            SpotLightComponent spotLightComponent = Assert.IsType<SpotLightComponent>(
+                Assert.Single(loadedRoots[2].Components, component => component is SpotLightComponent));
+            RoundedRectComponent roundedRectComponent = Assert.IsType<RoundedRectComponent>(
+                Assert.Single(loadedRoots[3].Components, component => component is RoundedRectComponent));
+
+            Assert.Equal(72f, directionalLightComponent.ShadowDistance);
+            Assert.Equal(18f, pointLightComponent.Range);
+            Assert.Equal(22f, spotLightComponent.Range);
+            Assert.Equal(18f, spotLightComponent.InnerConeAngleDegrees);
+            Assert.Equal(31f, spotLightComponent.OuterConeAngleDegrees);
+            Assert.Equal(14f, roundedRectComponent.Radius);
+            Assert.Equal(new byte4(4, 8, 12, 255), roundedRectComponent.FillColor);
+            Assert.Equal(new byte4(80, 120, 160, 255), roundedRectComponent.BorderColor);
+        }
+
+        /// <summary>
         /// Ensures file-system model references in the scene manifest are imported instead of copied raw.
         /// </summary>
         [Fact]
@@ -242,15 +293,17 @@ namespace helengine.editor.tests {
                 defaultFont);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
-            string importedModelPath = Path.Combine(BuildRootPath, "cooked", "imported", "Models", "Sponza.model.asset");
+            string importedModelPath = Path.Combine(BuildRootPath, "cooked", "imported", "Models", "Sponza.hasset");
             Assert.True(File.Exists(importedModelPath));
             Assert.False(File.Exists(Path.Combine(BuildRootPath, "Models", "Sponza.obj")));
 
-            using FileStream packagedSceneStream = File.OpenRead(Path.Combine(BuildRootPath, "cooked", "scenes", "Scenes", "SponzaScene.helen"));
+            using FileStream packagedSceneStream = File.OpenRead(Path.Combine(
+                BuildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar)));
             SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
             Assert.Single(packagedScene.AssetReferences);
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, packagedScene.AssetReferences[0].SourceKind);
-            Assert.Equal("cooked/imported/Models/Sponza.model.asset", packagedScene.AssetReferences[0].RelativePath);
+            Assert.Equal("cooked/imported/Models/Sponza.hasset", packagedScene.AssetReferences[0].RelativePath);
         }
 
         /// <summary>
@@ -642,17 +695,20 @@ namespace helengine.editor.tests {
         /// <param name="materialRelativePath">Project-relative material path to encode.</param>
         /// <returns>Serialized mesh component payload.</returns>
         byte[] WriteMeshComponentPayload(string materialRelativePath) {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            writer.WriteByte(0);
-            writer.WriteByte(1);
-            writer.WriteInt32((int)SceneAssetReferenceSourceKind.FileSystem);
-            writer.WriteString(materialRelativePath);
-            writer.WriteString(string.Empty);
-            writer.WriteString(string.Empty);
-            writer.WriteByte(0);
-            return stream.ToArray();
+            MeshComponentPersistenceDescriptor descriptor = new MeshComponentPersistenceDescriptor();
+            MeshComponent meshComponent = new MeshComponent {
+                Material = new TestRuntimeMaterial()
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference("Material", new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = materialRelativePath,
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            });
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(meshComponent, 0, saveState);
+            return record.Payload;
         }
 
         /// <summary>
@@ -660,14 +716,18 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Serialized FPS component payload.</returns>
         byte[] WriteFpsComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
-            WriteEditorFontReference(writer);
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
-            writer.WriteInt2(new int2(8, 6));
-            writer.WriteByte(250);
-            return stream.ToArray();
+            FPSComponentPersistenceDescriptor descriptor = new FPSComponentPersistenceDescriptor();
+            FPSComponent fpsComponent = new FPSComponent {
+                Font = CreatePackagedFontAsset(),
+                RefreshIntervalSeconds = 0.5d,
+                Padding = new int2(8, 6),
+                RenderOrder2D = 250
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference("Font", CreateEditorFontReference());
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(fpsComponent, 0, saveState);
+            return record.Payload;
         }
 
         /// <summary>
@@ -692,6 +752,89 @@ namespace helengine.editor.tests {
             saveState.SetAssetReference("Font", CreateEditorFontReference());
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(textComponent, 0, saveState);
+            return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one serialized directional light component payload.
+        /// </summary>
+        /// <returns>Serialized directional light payload.</returns>
+        byte[] WriteDirectionalLightPayload() {
+            DirectionalLightComponentPersistenceDescriptor descriptor = new DirectionalLightComponentPersistenceDescriptor();
+            DirectionalLightComponent lightComponent = new DirectionalLightComponent {
+                Color = new float4(0.6f, 0.7f, 0.8f, 1f),
+                Intensity = 1.8f,
+                ShadowsEnabled = true,
+                ShadowMapMode = ShadowMapMode.Forced,
+                ShadowStrength = 0.65f,
+                ShadowDistance = 72f
+            };
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(lightComponent, 0, null);
+            return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one serialized point light component payload.
+        /// </summary>
+        /// <returns>Serialized point light payload.</returns>
+        byte[] WritePointLightPayload() {
+            PointLightComponentPersistenceDescriptor descriptor = new PointLightComponentPersistenceDescriptor();
+            PointLightComponent lightComponent = new PointLightComponent {
+                Color = new float4(1f, 0.9f, 0.7f, 1f),
+                Intensity = 2.2f,
+                ShadowsEnabled = true,
+                ShadowMapMode = ShadowMapMode.Forced,
+                ShadowStrength = 0.5f,
+                Range = 18f
+            };
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(lightComponent, 0, null);
+            return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one serialized spot light component payload.
+        /// </summary>
+        /// <returns>Serialized spot light payload.</returns>
+        byte[] WriteSpotLightPayload() {
+            SpotLightComponentPersistenceDescriptor descriptor = new SpotLightComponentPersistenceDescriptor();
+            SpotLightComponent lightComponent = new SpotLightComponent {
+                Color = new float4(0.5f, 0.8f, 1f, 1f),
+                Intensity = 3.1f,
+                ShadowsEnabled = true,
+                ShadowMapMode = ShadowMapMode.Forced,
+                ShadowStrength = 0.7f,
+                Range = 22f,
+                InnerConeAngleDegrees = 18f,
+                OuterConeAngleDegrees = 31f
+            };
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(lightComponent, 0, null);
+            return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one serialized rounded rectangle component payload.
+        /// </summary>
+        /// <returns>Serialized rounded rectangle payload.</returns>
+        byte[] WriteRoundedRectPayload() {
+            RoundedRectComponentPersistenceDescriptor descriptor = new RoundedRectComponentPersistenceDescriptor();
+            RoundedRectComponent roundedRectComponent = new RoundedRectComponent {
+                RenderOrder2D = 8,
+                LayerMask = 3,
+                Corners = RoundedRectCorners.All,
+                Rotation = 0.45f,
+                Color = new byte4(1, 2, 3, 4),
+                SourceRect = new float4(0.2f, 0.3f, 0.4f, 0.5f),
+                Size = new int2(280, 120),
+                Radius = 14f,
+                BorderThickness = 3f,
+                FillColor = new byte4(4, 8, 12, 255),
+                BorderColor = new byte4(80, 120, 160, 255)
+            };
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(roundedRectComponent, 0, null);
             return record.Payload;
         }
 
@@ -729,6 +872,79 @@ namespace helengine.editor.tests {
                                 new MenuItemDefinition("back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
                             })
                     }));
+        }
+
+        /// <summary>
+        /// Builds one authored scene containing lights and a rounded-rectangle visual for packaged runtime verification.
+        /// </summary>
+        /// <param name="sceneId">Scene id assigned to the asset.</param>
+        /// <returns>Scene asset containing tagged editor payloads for packaged runtime verification.</returns>
+        SceneAsset BuildLightingAndUiSceneAsset(string sceneId) {
+            return new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "directional-root",
+                        Name = "Directional",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.DirectionalLightComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteDirectionalLightPayload()
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = "point-root",
+                        Name = "Point",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.PointLightComponent",
+                                ComponentIndex = 0,
+                                Payload = WritePointLightPayload()
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = "spot-root",
+                        Name = "Spot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.SpotLightComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteSpotLightPayload()
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = "rounded-root",
+                        Name = "RoundedRect",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.RoundedRectComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteRoundedRectPayload()
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
         }
 
         /// <summary>
