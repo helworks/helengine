@@ -67,7 +67,11 @@ namespace helengine.editor {
         /// <summary>
         /// Font used to render the title bar labels.
         /// </summary>
-        readonly FontAsset Font;
+        FontAsset Font;
+        /// <summary>
+        /// Shared scaled metrics used to size the title bar chrome.
+        /// </summary>
+        EditorUiMetrics Metrics;
         /// <summary>
         /// Root entity that owns all title bar visuals.
         /// </summary>
@@ -234,19 +238,36 @@ namespace helengine.editor {
         /// <param name="windowHeight">Initial host window height.</param>
         /// <param name="titleText">Initial window title text.</param>
         /// <param name="iconTexture">Optional editor logo texture rendered in the left title-bar slot.</param>
-        public EditorTitleBar(FontAsset font, int windowWidth, int windowHeight, string titleText, RuntimeTexture iconTexture = null) {
+        public EditorTitleBar(FontAsset font, int windowWidth, int windowHeight, string titleText, RuntimeTexture iconTexture = null)
+            : this(font, EditorUiMetrics.Default, windowWidth, windowHeight, titleText, iconTexture) {
+        }
+
+        /// <summary>
+        /// Initializes the title bar UI with its File menu and window controls using one shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for labels.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the title bar chrome.</param>
+        /// <param name="windowWidth">Initial host window width.</param>
+        /// <param name="windowHeight">Initial host window height.</param>
+        /// <param name="titleText">Initial window title text.</param>
+        /// <param name="iconTexture">Optional editor logo texture rendered in the left title-bar slot.</param>
+        public EditorTitleBar(FontAsset font, EditorUiMetrics metrics, int windowWidth, int windowHeight, string titleText, RuntimeTexture iconTexture = null) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
+            }
 
             Font = font;
+            Metrics = metrics;
             TitleValue = titleText ?? string.Empty;
             IconEntity = null;
             IconSprite = null;
             BackgroundOrder = RenderOrder2D.PanelSurface;
             TextOrder = RenderOrder2D.PanelForeground;
             InputSurfaceOrder = RenderOrder2D.OverlayInput;
-            HostSize = new int2(Math.Max(1, windowWidth), Math.Max(HeightPixels, windowHeight));
+            HostSize = new int2(Math.Max(1, windowWidth), Math.Max(Height, windowHeight));
 
             RootEntity = new EditorEntity {
                 InternalEntity = true,
@@ -257,7 +278,7 @@ namespace helengine.editor {
             Background = new SpriteComponent {
                 Texture = TextureUtils.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
-                Size = new int2(HostSize.X, HeightPixels),
+                Size = new int2(HostSize.X, Height),
                 RenderOrder2D = BackgroundOrder
             };
             RootEntity.AddComponent(Background);
@@ -268,11 +289,11 @@ namespace helengine.editor {
             };
             RootEntity.AddChild(HoverShieldEntity);
 
-            HoverShieldSurface = CreateInputSurface(new int2(HostSize.X, HeightPixels));
+            HoverShieldSurface = CreateInputSurface(new int2(HostSize.X, Height));
             HoverShieldEntity.AddComponent(HoverShieldSurface);
 
             HoverShieldInteractable = new InteractableComponent {
-                Size = new int2(HostSize.X, HeightPixels)
+                Size = new int2(HostSize.X, Height)
             };
             HoverShieldEntity.AddComponent(HoverShieldInteractable);
 
@@ -283,11 +304,11 @@ namespace helengine.editor {
             RootEntity.AddChild(DragRegionEntity);
 
             DragRegion = new InteractableComponent {
-                Size = new int2(0, HeightPixels)
+                Size = new int2(0, Height)
             };
             DragRegion.CursorEvent += HandleTitleBarCursorEvent;
             DragRegionEntity.AddComponent(DragRegion);
-            DragRegionInputSurface = CreateInputSurface(new int2(0, HeightPixels));
+            DragRegionInputSurface = CreateInputSurface(new int2(0, Height));
             DragRegionEntity.AddComponent(DragRegionInputSurface);
 
             FileMenuButtonEntity = CreateTitleBarButton("File", ToggleFileMenu, HandleFileMenuButtonHovered, true, false, out int fileMenuButtonWidth);
@@ -316,13 +337,13 @@ namespace helengine.editor {
             if (iconTexture != null) {
                 IconEntity = new EditorEntity {
                     LayerMask = TitleBarLayerMask,
-                    Position = new float3(IconPadding, IconPadding, 0f)
+                    Position = new float3(Metrics.HostTitleBarIconPadding, Metrics.HostTitleBarIconPadding, 0f)
                 };
                 RootEntity.AddChild(IconEntity);
 
                 IconSprite = new SpriteComponent {
                     Texture = iconTexture,
-                    Size = new int2(IconSize, IconSize),
+                    Size = new int2(Metrics.HostTitleBarIconSize, Metrics.HostTitleBarIconSize),
                     RenderOrder2D = TextOrder
                 };
                 IconEntity.AddComponent(IconSprite);
@@ -372,7 +393,7 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the height of the title bar in pixels.
         /// </summary>
-        public int Height => HeightPixels;
+        public int Height => Metrics.HostTitleBarHeight;
 
         /// <summary>
         /// Raised when the user initiates a window drag from the title region.
@@ -469,14 +490,14 @@ namespace helengine.editor {
         /// <param name="windowHeight">Current host window height.</param>
         public void UpdateLayout(int windowWidth, int windowHeight) {
             int width = Math.Max(1, windowWidth);
-            int height = Math.Max(HeightPixels, windowHeight);
+            int height = Math.Max(Height, windowHeight);
             HostSize = new int2(width, height);
 
-            Background.Size = new int2(width + 1, HeightPixels);
-            HoverShieldSurface.Size = new int2(width, HeightPixels);
-            HoverShieldInteractable.Size = new int2(width, HeightPixels);
+            Background.Size = new int2(width + 1, Height);
+            HoverShieldSurface.Size = new int2(width, Height);
+            HoverShieldInteractable.Size = new int2(width, Height);
 
-            float fileButtonX = LeftIconSlotWidth;
+            float fileButtonX = GetLeftIconSlotWidth();
             FileMenuButtonEntity.Position = new float3(fileButtonX, ButtonTop, 0f);
             float addButtonX = fileButtonX + FileMenuButtonWidth + ButtonSpacing;
             AddMenuButtonEntity.Position = new float3(addButtonX, ButtonTop, 0f);
@@ -484,11 +505,11 @@ namespace helengine.editor {
             BuildMenuButtonEntity.Position = new float3(buildButtonX, ButtonTop, 0f);
 
             int totalControlsWidth = MinimizeButtonWidth + MaximizeButtonWidth + CloseButtonWidth + (ButtonSpacing * 2);
-            float titleX = buildButtonX + BuildMenuButtonWidth + ButtonSpacing + TitleSpacing;
+            float titleX = buildButtonX + BuildMenuButtonWidth + ButtonSpacing + GetTitleSpacing();
             float controlStartX = Math.Max(0, width - totalControlsWidth);
 
             TitleEntity.Position = new float3(titleX, GetTitleVerticalOffset(), 0f);
-            int titleWidth = Math.Max(1, (int)Math.Floor(controlStartX - titleX - TitleSpacing));
+            int titleWidth = Math.Max(GetMinimumTitleWidth(), (int)Math.Floor(controlStartX - titleX - GetTitleSpacing()));
             TitleTextComponent.Size = new int2(titleWidth, TitleTextComponent.Size.Y);
 
             LayoutWindowControls(controlStartX);
@@ -576,7 +597,7 @@ namespace helengine.editor {
                 Position = new float3(0f, ButtonTop, 0f)
             };
 
-            ButtonComponent button = new ButtonComponent(label, new int2(width, ButtonHeight), Font, onClick, 0f);
+            ButtonComponent button = new ButtonComponent(label, new int2(width, GetButtonHeight()), Font, onClick, 0f);
             if (onHover != null) {
                 button.Hovered += onHover;
             }
@@ -585,7 +606,7 @@ namespace helengine.editor {
             button.SetTextColor(ThemeManager.Colors.AccentQuaternary);
             button.UseSquareCorners();
             buttonEntity.AddComponent(button);
-            buttonEntity.AddComponent(CreateInputSurface(new int2(width, ButtonHeight)));
+            buttonEntity.AddComponent(CreateInputSurface(new int2(width, GetButtonHeight())));
             AddTitleBarButtonVerticalBorders(buttonEntity, width, includeLeftBorder, includeRightBorder);
             RootEntity.AddChild(buttonEntity);
             return buttonEntity;
@@ -608,7 +629,7 @@ namespace helengine.editor {
             }
 
             if (includeRightBorder) {
-                AddTitleBarButtonVerticalBorderLine(buttonEntity, width - ButtonBorderWidth);
+                AddTitleBarButtonVerticalBorderLine(buttonEntity, width - GetButtonBorderWidth());
             }
         }
 
@@ -626,7 +647,7 @@ namespace helengine.editor {
             SpriteComponent border = new SpriteComponent {
                 Texture = TextureUtils.PixelTexture,
                 Color = ThemeManager.Colors.AccentQuaternary,
-                Size = new int2(ButtonBorderWidth, ButtonHeight),
+                Size = new int2(GetButtonBorderWidth(), GetButtonHeight()),
                 RenderOrder2D = TextOrder
             };
             borderEntity.AddComponent(border);
@@ -654,12 +675,12 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="controlStartX">Left edge of the window control cluster.</param>
         void UpdateDragRegion(float controlStartX) {
-            float dragRegionX = LeftIconSlotWidth + FileMenuButtonWidth + ButtonSpacing + AddMenuButtonWidth + ButtonSpacing + BuildMenuButtonWidth + ButtonSpacing;
+            float dragRegionX = GetLeftIconSlotWidth() + FileMenuButtonWidth + ButtonSpacing + AddMenuButtonWidth + ButtonSpacing + BuildMenuButtonWidth + ButtonSpacing;
             int dragRegionWidth = Math.Max(0, (int)Math.Floor(controlStartX - dragRegionX - ButtonSpacing));
 
             DragRegionEntity.Position = new float3(dragRegionX, 0f, 0f);
-            DragRegion.Size = new int2(dragRegionWidth, HeightPixels);
-            DragRegionInputSurface.Size = new int2(dragRegionWidth, HeightPixels);
+            DragRegion.Size = new int2(dragRegionWidth, Height);
+            DragRegionInputSurface.Size = new int2(dragRegionWidth, Height);
         }
 
         /// <summary>
@@ -805,7 +826,7 @@ namespace helengine.editor {
         /// <returns>Menu position relative to the title bar root.</returns>
         int2 GetFileMenuPosition() {
             int x = (int)Math.Round(FileMenuButtonEntity.Position.X);
-            return new int2(x, HeightPixels);
+            return new int2(x, Height);
         }
 
         /// <summary>
@@ -814,7 +835,7 @@ namespace helengine.editor {
         /// <returns>Menu position relative to the title bar root.</returns>
         int2 GetAddMenuPosition() {
             int x = (int)Math.Round(AddMenuButtonEntity.Position.X);
-            return new int2(x, HeightPixels);
+            return new int2(x, Height);
         }
 
         /// <summary>
@@ -833,7 +854,7 @@ namespace helengine.editor {
         /// <returns>Menu position relative to the title bar root.</returns>
         int2 GetBuildMenuPosition() {
             int x = (int)Math.Round(BuildMenuButtonEntity.Position.X);
-            return new int2(x, HeightPixels);
+            return new int2(x, Height);
         }
 
         /// <summary>
@@ -1078,7 +1099,7 @@ namespace helengine.editor {
         /// <returns>Calculated button width.</returns>
         int ComputeButtonWidth(string label) {
             FontTightMetrics tightMetrics = Font.MeasureTight(label);
-            return Math.Max(40, (int)Math.Ceiling(tightMetrics.Width) + 16);
+            return Math.Max(GetMinimumTitleWidth(), (int)Math.Ceiling(tightMetrics.Width) + Metrics.ScalePixels(16));
         }
 
         /// <summary>
@@ -1087,7 +1108,47 @@ namespace helengine.editor {
         /// <returns>Top offset for the title label.</returns>
         float GetTitleVerticalOffset() {
             float lineHeight = Math.Max(Font.LineHeight, 1f);
-            return (HeightPixels - lineHeight) * 0.5f;
+            return (Height - lineHeight) * 0.5f;
+        }
+
+        /// <summary>
+        /// Gets the scaled width reserved for the title-bar icon slot.
+        /// </summary>
+        /// <returns>Scaled width reserved for the title-bar icon slot.</returns>
+        int GetLeftIconSlotWidth() {
+            return Height;
+        }
+
+        /// <summary>
+        /// Gets the scaled height used for title-bar buttons.
+        /// </summary>
+        /// <returns>Scaled title-bar button height in pixels.</returns>
+        int GetButtonHeight() {
+            return Height;
+        }
+
+        /// <summary>
+        /// Gets the scaled width of vertical separators drawn on title-bar buttons.
+        /// </summary>
+        /// <returns>Scaled separator width in pixels.</returns>
+        int GetButtonBorderWidth() {
+            return Metrics.ScalePixels(ButtonBorderWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing inserted between the menu strip and the title text.
+        /// </summary>
+        /// <returns>Scaled title spacing in pixels.</returns>
+        int GetTitleSpacing() {
+            return Metrics.ScalePixels(TitleSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled minimum width reserved for the title label.
+        /// </summary>
+        /// <returns>Scaled minimum title width in pixels.</returns>
+        int GetMinimumTitleWidth() {
+            return Metrics.ScalePixels(MinimumTitleWidth);
         }
     }
 }

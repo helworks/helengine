@@ -49,6 +49,10 @@ namespace helengine.editor {
         /// Font used to render tab labels.
         /// </summary>
         readonly FontAsset font;
+        /// <summary>
+        /// Shared scaled metrics used to size the tab strip chrome.
+        /// </summary>
+        readonly EditorUiMetrics Metrics;
 
         /// <summary>
         /// Collection of tab entries and their visuals.
@@ -86,8 +90,29 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for tab labels.</param>
         /// <param name="onTabSelected">Callback invoked when a tab is selected.</param>
-        public DockTabStrip(FontAsset font, Action<int> onTabSelected) {
+        public DockTabStrip(FontAsset font, Action<int> onTabSelected)
+            : this(font, EditorUiMetrics.Default, onTabSelected) {
+        }
+
+        /// <summary>
+        /// Initializes a new tab strip for docked windows using one shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for tab labels.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the tab strip.</param>
+        /// <param name="onTabSelected">Callback invoked when a tab is selected.</param>
+        public DockTabStrip(FontAsset font, EditorUiMetrics metrics, Action<int> onTabSelected) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
+            }
+            if (onTabSelected == null) {
+                throw new ArgumentNullException(nameof(onTabSelected));
+            }
+
             this.font = font;
+            Metrics = metrics;
             this.onTabSelected = onTabSelected;
             tabs = new List<DockTabEntry>(4);
             activeIndex = -1;
@@ -130,7 +155,7 @@ namespace helengine.editor {
             DockableEntity activeDock = dockables[activeIndex];
             EnsureTabCount(dockables, layerMask, activeDock);
 
-            float x = TabStripPadding;
+            float x = GetTabStripPadding();
             for (int i = 0; i < dockables.Count; i++) {
                 DockableEntity dockable = dockables[i];
                 DockTabEntry entry = tabs[i];
@@ -145,21 +170,21 @@ namespace helengine.editor {
 
                 string label = dockable.Title;
                 var metrics = font.MeasureTight(label);
-                int tabWidth = Math.Max(TabMinWidth, (int)MathF.Ceiling(metrics.Width) + TabPaddingX * 2);
+                int tabWidth = Math.Max(GetTabMinWidth(), (int)Math.Ceiling(metrics.Width) + (GetTabPaddingX() * 2));
 
                 entry.Width = tabWidth;
                 entry.Root.Position = new float3(x, 0, 0.1f);
-                entry.Background.Size = new int2(tabWidth, TabHeight);
-                entry.Interactable.Size = new int2(tabWidth, TabHeight);
+                entry.Background.Size = new int2(tabWidth, GetTabHeightPixels());
+                entry.Interactable.Size = new int2(tabWidth, GetTabHeightPixels());
                 entry.Label.Text = label;
-                entry.Label.Size = new int2((int)MathF.Ceiling(metrics.Width), (int)MathF.Ceiling(metrics.Height));
+                entry.Label.Size = new int2((int)Math.Ceiling(metrics.Width), (int)Math.Ceiling(metrics.Height));
 
-                float labelX = MathF.Round((tabWidth - metrics.Width) * 0.5f);
-                float labelY = GetTextTopOffset(TabHeight);
+                float labelX = (float)Math.Round((tabWidth - metrics.Width) * 0.5f);
+                float labelY = GetTextTopOffset(GetTabHeightPixels());
                 entry.LabelHost.Position = new float3(labelX, labelY, 0.2f);
 
                 UpdateTabVisual(entry, i == activeIndex);
-                x += tabWidth + TabSpacing;
+                x += tabWidth + GetTabSpacing();
                 if (x > width) {
                     x = width;
                 }
@@ -345,7 +370,7 @@ namespace helengine.editor {
         /// <returns>Top offset to position the label.</returns>
         float GetTextTopOffset(float containerHeight) {
             float lineHeight = Math.Max(font.LineHeight, 1f);
-            return MathF.Round((containerHeight - lineHeight) * 0.5f);
+            return (float)Math.Round((containerHeight - lineHeight) * 0.5f);
         }
 
         /// <summary>
@@ -376,7 +401,47 @@ namespace helengine.editor {
             return point.X >= position.X &&
                    point.X < position.X + entry.Width &&
                    point.Y >= position.Y &&
-                   point.Y < position.Y + TabHeight;
+                   point.Y < position.Y + GetTabHeightPixels();
+        }
+
+        /// <summary>
+        /// Gets the scaled height used by tab-strip tabs.
+        /// </summary>
+        /// <returns>Scaled tab height in pixels.</returns>
+        int GetTabHeightPixels() {
+            return Metrics.ScalePixels(TabHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled horizontal padding applied inside each tab.
+        /// </summary>
+        /// <returns>Scaled horizontal tab padding in pixels.</returns>
+        int GetTabPaddingX() {
+            return Metrics.ScalePixels(TabPaddingX);
+        }
+
+        /// <summary>
+        /// Gets the scaled minimum width enforced for each tab.
+        /// </summary>
+        /// <returns>Scaled minimum tab width in pixels.</returns>
+        int GetTabMinWidth() {
+            return Metrics.ScalePixels(TabMinWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing inserted between adjacent tabs.
+        /// </summary>
+        /// <returns>Scaled tab spacing in pixels.</returns>
+        int GetTabSpacing() {
+            return Metrics.ScalePixels(TabSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled left padding before the first tab.
+        /// </summary>
+        /// <returns>Scaled tab-strip leading padding in pixels.</returns>
+        int GetTabStripPadding() {
+            return Metrics.ScalePixels(TabStripPadding);
         }
 
         /// <summary>

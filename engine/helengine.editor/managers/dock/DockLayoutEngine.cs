@@ -669,7 +669,7 @@ namespace helengine.editor {
                 }
 
                 minWidth = Math.Max(1, maxWidth);
-                minHeight = Math.Max(1, maxHeight + DockableEntity.TitleBarHeight);
+                minHeight = Math.Max(1, maxHeight + Entity.TitleBarHeightPixels);
             }
 
             public override void Layout(float left, float top, float right, float bottom, float z, int gap) {
@@ -678,7 +678,7 @@ namespace helengine.editor {
                 Bounds = new float4(left, top, width, height);
 
                 int targetWidth = Math.Max(1, (int)MathF.Round(width));
-                int targetHeight = Math.Max(1, (int)MathF.Round(height - DockableEntity.TitleBarHeight));
+                int targetHeight = Math.Max(1, (int)Math.Round(height - Entity.TitleBarHeightPixels));
 
                 ApplyTabVisibility();
 
@@ -778,11 +778,11 @@ namespace helengine.editor {
                 }
 
                 if (tabStrip == null) {
-                    tabStrip = new DockTabStrip(Entity.TitleFont, SetActiveTab);
+                    tabStrip = new DockTabStrip(Entity.TitleFont, Entity.UiMetrics, SetActiveTab);
                 }
 
                 DockableEntity active = Entity;
-                tabStrip.UpdateTabs(tabs, activeTabIndex, new float3(left, top + 1, z), width, active.LayerMask);
+                tabStrip.UpdateTabs(tabs, activeTabIndex, new float3(left, top + active.UiMetrics.ScalePixels(1), z), width, active.LayerMask);
             }
 
             /// <summary>
