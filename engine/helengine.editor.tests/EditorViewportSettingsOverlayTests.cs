@@ -48,6 +48,21 @@ namespace helengine.editor.tests {
             settingsTarget.ActivateFromKey(Keys.Enter);
             EditorKeyboardFocusService.HandleTab(true);
             Assert.Same(
+                overlayComponent.CanvasWidthFocusTarget,
+                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+
+            EditorKeyboardFocusService.HandleTab(true);
+            Assert.Same(
+                overlayComponent.CanvasHeightFocusTarget,
+                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+
+            EditorKeyboardFocusService.HandleTab(true);
+            Assert.Same(
+                overlayComponent.PixelsPerWorldUnitFocusTarget,
+                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+
+            EditorKeyboardFocusService.HandleTab(true);
+            Assert.Same(
                 overlayComponent.NearPlaneFocusTarget,
                 GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
 
@@ -60,6 +75,19 @@ namespace helengine.editor.tests {
             Assert.Same(
                 overlayComponent.CloseButtonFocusTarget,
                 GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+        }
+
+        /// <summary>
+        /// Ensures each viewport starts with the default canvas preview settings used by the world-space 2D plane.
+        /// </summary>
+        [Fact]
+        public void CreateViewport_WhenConstructed_UsesDefaultCanvasPreviewSettings() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+
+            Assert.Equal(1280, viewport.CanvasPreviewSettings.CanvasWidth);
+            Assert.Equal(720, viewport.CanvasPreviewSettings.CanvasHeight);
+            Assert.Equal(100, viewport.CanvasPreviewSettings.PixelsPerWorldUnit);
         }
 
         /// <summary>
@@ -237,6 +265,25 @@ namespace helengine.editor.tests {
             overlayComponent.FarPlaneSlider.SetValue(750.0);
 
             Assert.Equal(750f, viewport.Camera.FarPlaneDistance, 3);
+        }
+
+        /// <summary>
+        /// Ensures canvas preview sliders update viewport-local preview settings immediately.
+        /// </summary>
+        [Fact]
+        public void SetCanvasPreviewSliderValues_WhenChanged_UpdatesViewportSettingsImmediately() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+
+            overlayComponent.Open();
+            overlayComponent.CanvasWidthSlider.SetValue(1920);
+            overlayComponent.CanvasHeightSlider.SetValue(1080);
+            overlayComponent.PixelsPerWorldUnitSlider.SetValue(200);
+
+            Assert.Equal(1920, viewport.CanvasPreviewSettings.CanvasWidth);
+            Assert.Equal(1080, viewport.CanvasPreviewSettings.CanvasHeight);
+            Assert.Equal(200, viewport.CanvasPreviewSettings.PixelsPerWorldUnit);
         }
 
         /// <summary>

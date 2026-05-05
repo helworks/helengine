@@ -173,6 +173,10 @@ namespace helengine.editor {
         /// </summary>
         EditorViewportSettingsOverlayComponent SettingsOverlayComponent;
         /// <summary>
+        /// Viewport-local simulated canvas settings used by the world-space 2D preview plane.
+        /// </summary>
+        readonly EditorViewportCanvasPreviewSettings CanvasPreviewSettingsValue;
+        /// <summary>
         /// Snap slots shown by the toolbar.
         /// </summary>
         readonly TransformGizmoSnapSlot[] SnapSlots;
@@ -294,6 +298,7 @@ namespace helengine.editor {
             Font = font ?? throw new ArgumentNullException(nameof(font));
             SnapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
             ToolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
+            CanvasPreviewSettingsValue = new EditorViewportCanvasPreviewSettings();
             Title = "Viewport";
             SetContentBackgroundColor(new byte4(0, 0, 0, 0));
 
@@ -381,6 +386,10 @@ namespace helengine.editor {
         /// Gets the camera used to render into this viewport.
         /// </summary>
         public CameraComponent Camera { get; private set; }
+        /// <summary>
+        /// Gets the viewport-local simulated canvas settings used by the world-space 2D preview plane.
+        /// </summary>
+        public EditorViewportCanvasPreviewSettings CanvasPreviewSettings => CanvasPreviewSettingsValue;
         /// <summary>
         /// Gets or sets the active gizmo tool mode for this viewport.
         /// </summary>
@@ -546,6 +555,7 @@ namespace helengine.editor {
                 Camera,
                 Font,
                 LayerMask,
+                CanvasPreviewSettingsValue,
                 SetGridVisible,
                 IsGridVisible);
             SettingsOverlayComponent.OpenStateChanged += HandleSettingsOverlayOpenStateChanged;
