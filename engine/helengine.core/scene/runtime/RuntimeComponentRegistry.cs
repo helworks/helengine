@@ -24,10 +24,15 @@ namespace helengine {
             registry.Register(new RuntimeMeshComponentDeserializer());
             registry.Register(new RuntimeCameraComponentDeserializer());
             registry.Register(new RuntimeFPSComponentDeserializer());
+            registry.Register(new RuntimeTextComponentDeserializer());
+            registry.Register(new RuntimeRoundedRectComponentDeserializer());
             registry.Register(new RuntimeDirectionalLightComponentDeserializer());
             registry.Register(new RuntimePointLightComponentDeserializer());
             registry.Register(new RuntimeSpotLightComponentDeserializer());
-            registry.Register(new RuntimeMenuHostComponentDeserializer());
+            registry.Register(new RuntimeDemoMenuBuildComponentDeserializer());
+            registry.Register(new RuntimeDemoMenuPanelComponentDeserializer());
+            registry.Register(new RuntimeDemoMenuItemComponentDeserializer());
+            registry.Register(new RuntimeDemoMenuSelectedDescriptionComponentDeserializer());
             return registry;
         }
 

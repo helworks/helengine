@@ -485,7 +485,7 @@ namespace helengine.editor {
                 return contents.Replace("int2 *pointer = input->GetMousePosition();", "int2 pointer = input->GetMousePosition();");
             }
 
-            if (string.Equals(fileName, "MenuHostComponent.cpp", StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(fileName, "DemoMenuBuildComponent.cpp", StringComparison.OrdinalIgnoreCase)) {
                 string updatedContents = Regex.Replace(
                     contents,
                     @"=\s*\(\)\s*=>\s*this->ActivateItem\(runtimeItem\);",
@@ -509,12 +509,12 @@ namespace helengine.editor {
                     "InputGamepadState currentGamepadState = inputSystem->GetGamepadState(0);",
                     StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace(
-                    "InputGamepadState* MenuHostComponent::ReadPrimaryGamepadState()",
-                    "InputGamepadState MenuHostComponent::ReadPrimaryGamepadState()",
+                    "InputGamepadState* DemoMenuBuildComponent::ReadPrimaryGamepadState()",
+                    "InputGamepadState DemoMenuBuildComponent::ReadPrimaryGamepadState()",
                     StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace(
-                    "bool MenuHostComponent::WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button)",
-                    "bool MenuHostComponent::WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button)",
+                    "bool DemoMenuBuildComponent::WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button)",
+                    "bool DemoMenuBuildComponent::WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button)",
                     StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace("currentGamepadState->", "currentGamepadState.", StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace("currentState->", "currentState.", StringComparison.Ordinal);
@@ -522,7 +522,7 @@ namespace helengine.editor {
                 return updatedContents;
             }
 
-            if (string.Equals(fileName, "MenuHostComponent.hpp", StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(fileName, "DemoMenuBuildComponent.hpp", StringComparison.OrdinalIgnoreCase)) {
                 string updatedContents = contents.Replace(
                     "InputGamepadState* PreviousGamepadState;",
                     "InputGamepadState PreviousGamepadState;",

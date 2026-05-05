@@ -668,6 +668,11 @@ namespace helengine.editor {
                     "Text component font references are rewritten during packaging.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
+                    "helengine.RoundedRectComponent",
+                    PlatformComponentCompatibilityKind.PassThrough,
+                    "Rounded rectangle visuals are emitted unchanged for runtime UI reconstruction.",
+                    string.Empty),
+                new PlatformComponentCompatibilityDefinition(
                     "helengine.DirectionalLightComponent",
                     PlatformComponentCompatibilityKind.PassThrough,
                     "Directional light payloads are emitted unchanged for runtime light extraction.",
@@ -683,9 +688,24 @@ namespace helengine.editor {
                     "Spot light payloads are emitted unchanged for runtime light extraction.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
-                    MenuHostComponent.SerializedComponentTypeId,
+                    DemoMenuBuildComponent.SerializedComponentTypeId,
                     PlatformComponentCompatibilityKind.PassThrough,
-                    "Menu host components are emitted unchanged and resolve packaged scene ids at runtime.",
+                    "Baked demo menu root components are emitted unchanged and resolve packaged scene ids at runtime.",
+                    string.Empty),
+                new PlatformComponentCompatibilityDefinition(
+                    DemoMenuPanelComponent.SerializedComponentTypeId,
+                    PlatformComponentCompatibilityKind.PassThrough,
+                    "Baked demo menu panel metadata is emitted unchanged for runtime navigation binding.",
+                    string.Empty),
+                new PlatformComponentCompatibilityDefinition(
+                    DemoMenuItemComponent.SerializedComponentTypeId,
+                    PlatformComponentCompatibilityKind.PassThrough,
+                    "Baked demo menu item metadata is emitted unchanged for runtime navigation binding.",
+                    string.Empty),
+                new PlatformComponentCompatibilityDefinition(
+                    DemoMenuSelectedDescriptionComponent.SerializedComponentTypeId,
+                    PlatformComponentCompatibilityKind.PassThrough,
+                    "Baked demo menu selected-description markers are emitted unchanged for runtime binding.",
                     string.Empty)
             ];
         }

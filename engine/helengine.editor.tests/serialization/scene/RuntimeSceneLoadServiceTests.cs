@@ -211,42 +211,28 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures packaged runtime scene loading materializes menu-host components through the default runtime registry.
+        /// Ensures packaged runtime scene loading materializes baked demo menu metadata and hierarchy through the default runtime registry.
         /// </summary>
         [Fact]
-        public void Load_WhenSceneContainsMenuHostComponent_MaterializesTheComponent() {
+        public void Load_WhenSceneContainsBakedDemoMenu_MaterializesTheComponent() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 Core.Instance.ContentManager,
                 TempRootPath,
                 ShaderCompileTarget.DirectX11);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
-            WriteFontAsset("fonts/title.hefont", CreateFont());
-            WriteFontAsset("fonts/body.hefont", CreateFont());
-            WriteSceneAsset("Scenes/TestPlayableScene.helen");
-            SceneAsset sceneAsset = new SceneAsset {
-                RootEntities = new[] {
-                    new SceneEntityAsset {
-                        Id = "root-entity",
-                        Name = "Root",
-                        Components = new[] {
-                            new SceneComponentAssetRecord {
-                                ComponentTypeId = MenuHostComponent.SerializedComponentTypeId,
-                                ComponentIndex = 0,
-                                Payload = WriteMenuHostComponentPayload()
-                            }
-                        }
-                    }
-                }
-            };
+            WriteFontAsset("Fonts/DemoDiscTitle.hefont", CreateFont());
+            WriteFontAsset("Fonts/DemoDiscBody.hefont", CreateFont());
+            SceneAsset sceneAsset = BuildDemoMenuSceneAsset();
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
-            Entity loadedRoot = Assert.Single(loadedRoots);
-            MenuHostComponent menuHostComponent = Assert.IsType<MenuHostComponent>(Assert.Single(loadedRoot.Components, component => component is MenuHostComponent));
+            Assert.Equal(2, loadedRoots.Count);
+            Entity loadedRoot = Assert.Single(loadedRoots, entity => entity.Components.Any(component => component is DemoMenuBuildComponent));
+            DemoMenuBuildComponent menuHostComponent = Assert.IsType<DemoMenuBuildComponent>(Assert.Single(loadedRoot.Components, component => component is DemoMenuBuildComponent));
 
             Assert.Equal(typeof(TestMenuDefinitionProvider).AssemblyQualifiedName, menuHostComponent.ProviderTypeName);
-            Assert.True(menuHostComponent.IsInitialized);
-            Assert.Equal("main", menuHostComponent.ActivePanelId);
-            Assert.Equal("select-scene", menuHostComponent.SelectedItemId);
+            Assert.False(menuHostComponent.IsInitialized);
+            Assert.Single(loadedRoot.Children);
+            Assert.NotEmpty(loadedRoot.Children[0].Children);
         }
 
         /// <summary>
@@ -309,6 +295,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.True(directionalLight.ShadowsEnabled);
             Assert.Equal(ShadowMapMode.Forced, directionalLight.ShadowMapMode);
             Assert.Equal(0.7f, directionalLight.ShadowStrength);
+            Assert.Equal(64f, directionalLight.ShadowDistance);
 
             Assert.Equal(new float4(1f, 0.8f, 0.6f, 1f), pointLight.Color);
             Assert.Equal(4.0f, pointLight.Intensity);
@@ -435,15 +422,38 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Writes one serialized menu-host component payload.
+        /// Builds one baked demo menu scene asset for runtime materialization tests.
         /// </summary>
-        /// <returns>Serialized menu-host component payload.</returns>
-        byte[] WriteMenuHostComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(MenuHostComponent.CurrentVersion);
-            writer.WriteString(typeof(TestMenuDefinitionProvider).AssemblyQualifiedName);
-            return stream.ToArray();
+        /// <returns>Baked demo menu scene asset.</returns>
+        SceneAsset BuildDemoMenuSceneAsset() {
+            DemoMenuSceneAssetFactory factory = new DemoMenuSceneAssetFactory();
+            return factory.BuildSceneAsset(
+                "Scenes/TestMenu.helen",
+                typeof(TestMenuDefinitionProvider).AssemblyQualifiedName,
+                new MenuDefinition(
+                    "Demo",
+                    "Runtime",
+                    "main",
+                    "Fonts/DemoDiscTitle.hefont",
+                    "Fonts/DemoDiscBody.hefont",
+                    new byte4(10, 10, 20, 255),
+                    new byte4(30, 30, 50, 255),
+                    new byte4(60, 60, 90, 255),
+                    new byte4(120, 120, 255, 255),
+                    new byte4(80, 180, 200, 255),
+                    new byte4(255, 255, 255, 255),
+                    new byte4(210, 210, 220, 255),
+                    new[] {
+                        new MenuPanelDefinition(
+                            "main",
+                            "Main Menu",
+                            "Runtime test panel.",
+                            4,
+                            new[] {
+                                new MenuItemDefinition("select-scene", "Select Scene", "Loads a scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "Scenes/TestPlayableScene.helen")),
+                                new MenuItemDefinition("back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
+                            })
+                    }));
         }
 
         /// <summary>
@@ -459,7 +469,8 @@ namespace helengine.editor.tests.serialization.scene {
                 Intensity = 3.0f,
                 ShadowsEnabled = true,
                 ShadowMapMode = ShadowMapMode.Forced,
-                ShadowStrength = 0.7f
+                ShadowStrength = 0.7f,
+                ShadowDistance = 64f
             });
             return stream.ToArray();
         }

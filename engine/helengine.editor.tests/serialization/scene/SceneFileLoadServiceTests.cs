@@ -87,19 +87,24 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures editor scene loading can materialize a menu-host component without requiring the game script assembly to be loaded.
+        /// Ensures editor scene loading materializes baked demo menu metadata without executing the runtime menu lifecycle.
         /// </summary>
         [Fact]
-        public void Load_WhenSceneContainsMenuHostComponent_LoadsWithoutInitializingRuntimeMenuHost() {
-            string scenePath = SaveMenuHostSceneAsset("MenuHost.helen", "Menu Root", "city.menu.DemoDiscMenuDefinitionProvider, city");
-            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, CreateMenuHostPersistenceRegistry(), new TestSceneAssetReferenceResolver());
+        public void Load_WhenSceneContainsBakedDemoMenu_LoadsWithoutExecutingRuntimeLifecycle() {
+            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
+            RegisterDemoMenuFonts(resolver);
+            string scenePath = SaveBakedMenuSceneAsset("MenuRoot.helen", "city.menu.DemoDiscMenuDefinitionProvider, city");
+            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, CreateDemoMenuPersistenceRegistry(), resolver);
 
             IReadOnlyList<EditorEntity> loaded = loadService.Load(scenePath);
 
-            EditorEntity root = Assert.Single(loaded);
-            MenuHostComponent menuHostComponent = Assert.IsType<MenuHostComponent>(Assert.Single(root.Components, component => component is MenuHostComponent));
-            Assert.Equal("city.menu.DemoDiscMenuDefinitionProvider, city", menuHostComponent.ProviderTypeName);
-            Assert.False(menuHostComponent.IsInitialized);
+            Assert.Equal(2, loaded.Count);
+            EditorEntity root = Assert.Single(loaded, entity => entity.Components.Any(component => component is DemoMenuBuildComponent));
+            DemoMenuBuildComponent demoMenuBuildComponent = Assert.IsType<DemoMenuBuildComponent>(Assert.Single(root.Components, component => component is DemoMenuBuildComponent));
+            Assert.Equal("city.menu.DemoDiscMenuDefinitionProvider, city", demoMenuBuildComponent.ProviderTypeName);
+            Assert.False(demoMenuBuildComponent.IsInitialized);
+            Assert.Single(root.Children);
+            Assert.NotEmpty(root.Children[0].Children);
         }
 
         /// <summary>
@@ -126,12 +131,18 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Creates the component persistence registry required to load menu-host scene records.
+        /// Creates the component persistence registry required to load baked demo menu scene records.
         /// </summary>
-        /// <returns>Configured persistence registry containing menu-host support.</returns>
-        ComponentPersistenceRegistry CreateMenuHostPersistenceRegistry() {
+        /// <returns>Configured persistence registry containing baked menu support.</returns>
+        ComponentPersistenceRegistry CreateDemoMenuPersistenceRegistry() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            registry.Register(new MenuHostComponentPersistenceDescriptor());
+            registry.Register(new CameraComponentPersistenceDescriptor());
+            registry.Register(new DemoMenuBuildComponentPersistenceDescriptor());
+            registry.Register(new DemoMenuPanelComponentPersistenceDescriptor());
+            registry.Register(new DemoMenuItemComponentPersistenceDescriptor());
+            registry.Register(new DemoMenuSelectedDescriptionComponentPersistenceDescriptor());
+            registry.Register(new RoundedRectComponentPersistenceDescriptor());
+            registry.Register(new TextComponentPersistenceDescriptor());
             return registry;
         }
 
@@ -166,47 +177,109 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Writes one scene file containing a single menu-host entity with an authored provider type name.
+        /// Writes one scene file containing a baked demo menu root and generated hierarchy.
         /// </summary>
         /// <param name="fileName">Scene file name to write.</param>
-        /// <param name="entityName">Name assigned to the saved root entity.</param>
-        /// <param name="providerTypeName">Assembly-qualified provider type stored in the menu-host payload.</param>
+        /// <param name="providerTypeName">Assembly-qualified provider type stored in the baked root metadata.</param>
         /// <returns>Absolute path to the written `.helen` file.</returns>
-        string SaveMenuHostSceneAsset(string fileName, string entityName, string providerTypeName) {
+        string SaveBakedMenuSceneAsset(string fileName, string providerTypeName) {
             if (string.IsNullOrWhiteSpace(fileName)) {
                 throw new ArgumentException("Scene file name must be provided.", nameof(fileName));
-            }
-            if (string.IsNullOrWhiteSpace(entityName)) {
-                throw new ArgumentException("Entity name must be provided.", nameof(entityName));
             }
             if (string.IsNullOrWhiteSpace(providerTypeName)) {
                 throw new ArgumentException("Provider type name must be provided.", nameof(providerTypeName));
             }
 
-            SceneAsset sceneAsset = new SceneAsset {
-                RootEntities = new[] {
-                    new SceneEntityAsset {
-                        Id = "menu-root",
-                        Name = entityName,
-                        LocalPosition = float3.Zero,
-                        LocalScale = float3.One,
-                        LocalOrientation = float4.Identity,
-                        Components = new[] {
-                            new SceneComponentAssetRecord {
-                                ComponentTypeId = MenuHostComponent.SerializedComponentTypeId,
-                                ComponentIndex = 0,
-                                Payload = WriteMenuHostComponentPayload(providerTypeName)
-                            }
-                        },
-                        Children = Array.Empty<SceneEntityAsset>()
-                    }
-                }
-            };
+            DemoMenuSceneAssetFactory factory = new DemoMenuSceneAssetFactory();
+            SceneAsset sceneAsset = factory.BuildSceneAsset("Scenes/TestMenu.helen", providerTypeName, BuildDemoMenuDefinition());
 
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", fileName);
             using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, sceneAsset);
             return scenePath;
+        }
+
+        /// <summary>
+        /// Registers deterministic font assets for the baked demo menu references.
+        /// </summary>
+        /// <param name="resolver">Resolver that should receive the registered font assets.</param>
+        void RegisterDemoMenuFonts(TestSceneAssetReferenceResolver resolver) {
+            if (resolver == null) {
+                throw new ArgumentNullException(nameof(resolver));
+            }
+
+            FontAsset font = CreateFont();
+            resolver.RegisterFont(
+                new SceneAssetReference {
+                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                    RelativePath = "Fonts/DemoDiscTitle.hefont",
+                    ProviderId = string.Empty,
+                    AssetId = string.Empty
+                },
+                font);
+            resolver.RegisterFont(
+                new SceneAssetReference {
+                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                    RelativePath = "Fonts/DemoDiscBody.hefont",
+                    ProviderId = string.Empty,
+                    AssetId = string.Empty
+                },
+                font);
+        }
+
+        /// <summary>
+        /// Creates one small deterministic baked menu definition for editor scene load tests.
+        /// </summary>
+        /// <returns>Demo menu definition used by the scene load fixture.</returns>
+        MenuDefinition BuildDemoMenuDefinition() {
+            return new MenuDefinition(
+                "Demo",
+                "Preview",
+                "main",
+                "Fonts/DemoDiscTitle.hefont",
+                "Fonts/DemoDiscBody.hefont",
+                new byte4(10, 10, 20, 255),
+                new byte4(30, 30, 50, 255),
+                new byte4(60, 60, 90, 255),
+                new byte4(120, 120, 255, 255),
+                new byte4(80, 180, 200, 255),
+                new byte4(255, 255, 255, 255),
+                new byte4(210, 210, 220, 255),
+                new[] {
+                    new MenuPanelDefinition(
+                        "main",
+                        "Main Menu",
+                        "Scene load test panel.",
+                        4,
+                        new[] {
+                            new MenuItemDefinition("select-scene", "Select Scene", "Loads a scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "Scenes/TestPlayableScene.helen")),
+                            new MenuItemDefinition("back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
+                        })
+                });
+        }
+
+        /// <summary>
+        /// Writes one minimal playable scene asset referenced by the test menu definition.
+        /// </summary>
+        /// <param name="relativeScenePath">Project-relative scene path to create beneath the temporary assets root.</param>
+        void WritePlayableSceneAsset(string relativeScenePath) {
+            if (string.IsNullOrWhiteSpace(relativeScenePath)) {
+                throw new ArgumentException("Relative scene path must be provided.", nameof(relativeScenePath));
+            }
+
+            string scenePath = Path.Combine(TempProjectRootPath, relativeScenePath.Replace('/', Path.DirectorySeparatorChar));
+            string sceneDirectoryPath = Path.GetDirectoryName(scenePath);
+            if (string.IsNullOrWhiteSpace(sceneDirectoryPath)) {
+                throw new InvalidOperationException("Playable scene directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(sceneDirectoryPath);
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = Array.Empty<SceneEntityAsset>()
+            };
+
+            using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, sceneAsset);
         }
 
         /// <summary>
@@ -219,20 +292,68 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Writes one menu-host component payload using the current scene serialization contract.
+        /// Writes one deterministic packaged font asset to the temporary content root.
         /// </summary>
-        /// <param name="providerTypeName">Assembly-qualified provider type stored in the payload.</param>
-        /// <returns>Serialized menu-host component payload.</returns>
-        byte[] WriteMenuHostComponentPayload(string providerTypeName) {
-            if (string.IsNullOrWhiteSpace(providerTypeName)) {
-                throw new ArgumentException("Provider type name must be provided.", nameof(providerTypeName));
+        /// <param name="relativePath">Project-relative font asset path.</param>
+        /// <param name="fontAsset">Font asset written to disk.</param>
+        void WriteFontAsset(string relativePath, FontAsset fontAsset) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+            if (fontAsset == null) {
+                throw new ArgumentNullException(nameof(fontAsset));
             }
 
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(MenuHostComponent.CurrentVersion);
-            writer.WriteString(providerTypeName);
-            return stream.ToArray();
+            string fullPath = Path.Combine(TempProjectRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            string directoryPath = Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException("Font asset directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
+            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            FontAssetBinarySerializer.Serialize(stream, fontAsset);
+        }
+
+        /// <summary>
+        /// Creates one deterministic font asset containing the glyphs required by the menu preview labels.
+        /// </summary>
+        /// <returns>Font asset with stable glyph metrics.</returns>
+        FontAsset CreateFont() {
+            Dictionary<char, FontChar> characters = new Dictionary<char, FontChar>();
+            for (char character = 'A'; character <= 'Z'; character++) {
+                characters[character] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f);
+            }
+
+            for (char character = 'a'; character <= 'z'; character++) {
+                characters[character] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f);
+            }
+
+            characters['i'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f);
+            characters['l'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f);
+            characters['r'] = new FontChar(new float4(0f, 0f, 5f, 12f), 0f, 5f, 0f, 0f);
+            characters['t'] = new FontChar(new float4(0f, 0f, 5f, 12f), 0f, 5f, 0f, 0f);
+            characters['m'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f);
+            characters['M'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f);
+            characters[' '] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f);
+            characters['.'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f);
+
+            FontAsset fontAsset = new FontAsset(
+                new FontInfo("Test", 16, 4f),
+                new TestRuntimeTexture {
+                    Width = 64,
+                    Height = 64
+                },
+                characters,
+                16f,
+                64,
+                64);
+            fontAsset.SourceTextureAsset = new TextureAsset {
+                Width = 64,
+                Height = 64,
+                Colors = new byte[64 * 64 * 4]
+            };
+            return fontAsset;
         }
 
         /// <summary>

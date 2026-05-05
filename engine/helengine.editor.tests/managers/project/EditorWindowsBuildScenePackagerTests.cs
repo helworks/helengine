@@ -132,23 +132,16 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures packaged scenes preserve menu-host components and their file-backed font dependencies for the player runtime loader.
+        /// Ensures packaged scenes preserve baked demo menu components and their file-backed font dependencies for the player runtime loader.
         /// </summary>
         [Fact]
-        public void Package_WhenSceneContainsMenuHostComponent_LeavesPackagedComponentLoadable() {
+        public void Package_WhenSceneContainsDemoMenuBuildComponent_LeavesPackagedComponentLoadable() {
             string menuSceneId = "Scenes/MenuScene.helen";
             string playableSceneId = "Scenes/TestPlayableScene.helen";
 
             WriteFontAsset("fonts/title.hefont", CreatePackagedFontAsset());
             WriteFontAsset("fonts/body.hefont", CreatePackagedFontAsset());
-            WriteSceneAsset(
-                menuSceneId,
-                MenuHostComponent.SerializedComponentTypeId,
-                WriteMenuHostComponentPayload(),
-                new[] {
-                    CreateFileFontReference("fonts/title.hefont"),
-                    CreateFileFontReference("fonts/body.hefont")
-                });
+            WriteSceneAsset(menuSceneId, BuildDemoMenuSceneAsset(menuSceneId));
             WriteEmptySceneAsset(playableSceneId);
 
             FontAsset defaultFont = CreatePackagedFontAsset();
@@ -190,13 +183,14 @@ namespace helengine.editor.tests {
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
-            Entity loadedRoot = Assert.Single(loadedRoots);
-            MenuHostComponent menuHostComponent = Assert.IsType<MenuHostComponent>(
-                Assert.Single(loadedRoot.Components, component => component is MenuHostComponent));
+            Assert.Equal(2, loadedRoots.Count);
+            Entity loadedRoot = Assert.Single(loadedRoots, entity => entity.Components.Any(component => component is DemoMenuBuildComponent));
+            DemoMenuBuildComponent menuHostComponent = Assert.IsType<DemoMenuBuildComponent>(
+                Assert.Single(loadedRoot.Components, component => component is DemoMenuBuildComponent));
 
-            Assert.True(menuHostComponent.IsInitialized);
-            Assert.Equal("main", menuHostComponent.ActivePanelId);
-            Assert.Equal("select-scene", menuHostComponent.SelectedItemId);
+            Assert.False(menuHostComponent.IsInitialized);
+            Assert.Single(loadedRoot.Children);
+            Assert.NotEmpty(loadedRoot.Children[0].Children);
         }
 
         /// <summary>
@@ -455,6 +449,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Writes one complete serialized scene asset to the test project.
+        /// </summary>
+        /// <param name="sceneId">Scene asset id to write.</param>
+        /// <param name="sceneAsset">Complete scene asset to serialize.</param>
+        void WriteSceneAsset(string sceneId, SceneAsset sceneAsset) {
+            if (sceneAsset == null) {
+                throw new ArgumentNullException(nameof(sceneAsset));
+            }
+
+            string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+
+            using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, sceneAsset);
+        }
+
+        /// <summary>
         /// Creates the generated scene reference used for the editor's built-in font asset.
         /// </summary>
         /// <returns>Generated editor font scene reference.</returns>
@@ -685,15 +696,39 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Writes one serialized menu-host component payload for the runtime menu-definition provider used by tests.
+        /// Builds one baked demo menu scene asset for packaged runtime-load verification.
         /// </summary>
-        /// <returns>Serialized menu-host component payload.</returns>
-        byte[] WriteMenuHostComponentPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(MenuHostComponent.CurrentVersion);
-            writer.WriteString(typeof(TestMenuDefinitionProvider).AssemblyQualifiedName);
-            return stream.ToArray();
+        /// <param name="sceneId">Scene id assigned to the baked asset.</param>
+        /// <returns>Baked demo menu scene asset.</returns>
+        SceneAsset BuildDemoMenuSceneAsset(string sceneId) {
+            DemoMenuSceneAssetFactory factory = new DemoMenuSceneAssetFactory();
+            return factory.BuildSceneAsset(
+                sceneId,
+                typeof(TestMenuDefinitionProvider).AssemblyQualifiedName,
+                new MenuDefinition(
+                    "Demo",
+                    "Packager",
+                    "main",
+                    "fonts/title.hefont",
+                    "fonts/body.hefont",
+                    new byte4(10, 10, 20, 255),
+                    new byte4(30, 30, 50, 255),
+                    new byte4(60, 60, 90, 255),
+                    new byte4(120, 120, 255, 255),
+                    new byte4(80, 180, 200, 255),
+                    new byte4(255, 255, 255, 255),
+                    new byte4(210, 210, 220, 255),
+                    new[] {
+                        new MenuPanelDefinition(
+                            "main",
+                            "Main Menu",
+                            "Packager test panel.",
+                            4,
+                            new[] {
+                                new MenuItemDefinition("select-scene", "Select Scene", "Loads a scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "Scenes/TestPlayableScene.helen")),
+                                new MenuItemDefinition("back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
+                            })
+                    }));
         }
 
         /// <summary>

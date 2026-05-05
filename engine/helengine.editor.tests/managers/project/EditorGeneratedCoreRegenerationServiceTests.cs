@@ -353,7 +353,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     public void Normalize_generated_native_sources_rewrites_menu_host_action_lambdas() {
         string generatedCoreRootPath = Path.Combine(RootPath, "normalize-menu-host-lambdas");
         Directory.CreateDirectory(generatedCoreRootPath);
-        string sourcePath = Path.Combine(generatedCoreRootPath, "MenuHostComponent.cpp");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "DemoMenuBuildComponent.cpp");
         File.WriteAllText(
             sourcePath,
             "::ButtonComponent *button = ([&]() {\n"
@@ -378,7 +378,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     public void Normalize_generated_native_sources_rewrites_menu_host_string_replace_calls() {
         string generatedCoreRootPath = Path.Combine(RootPath, "normalize-menu-host-replace-calls");
         Directory.CreateDirectory(generatedCoreRootPath);
-        string sourcePath = Path.Combine(generatedCoreRootPath, "MenuHostComponent.cpp");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "DemoMenuBuildComponent.cpp");
         File.WriteAllText(
             sourcePath,
             "const std::string normalizedRelativePath = relativePath.Replace('/', Path::DirectorySeparatorChar).Replace('\\\\', Path::DirectorySeparatorChar);\n"
@@ -398,11 +398,11 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     public void Normalize_generated_native_sources_rewrites_menu_host_gamepad_state_value_semantics() {
         string generatedCoreRootPath = Path.Combine(RootPath, "normalize-menu-host-gamepad-state");
         Directory.CreateDirectory(generatedCoreRootPath);
-        string headerPath = Path.Combine(generatedCoreRootPath, "MenuHostComponent.hpp");
-        string sourcePath = Path.Combine(generatedCoreRootPath, "MenuHostComponent.cpp");
+        string headerPath = Path.Combine(generatedCoreRootPath, "DemoMenuBuildComponent.hpp");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "DemoMenuBuildComponent.cpp");
         File.WriteAllText(
             headerPath,
-            "class MenuHostComponent {\n"
+            "class DemoMenuBuildComponent {\n"
             + "    InputGamepadState* PreviousGamepadState;\n"
             + "    InputGamepadState* ReadPrimaryGamepadState();\n"
             + "    bool WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button);\n"
@@ -411,10 +411,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             sourcePath,
             "InputGamepadState *currentGamepadState = inputSystem->GetGamepadState(0);\n"
             + "if (!currentGamepadState->Connected) { }\n"
-            + "bool MenuHostComponent::WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button) {\n"
+            + "bool DemoMenuBuildComponent::WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button) {\n"
             + "    return currentState->IsButtonDown(button) && !previousState->IsButtonDown(button);\n"
             + "}\n"
-            + "InputGamepadState* MenuHostComponent::ReadPrimaryGamepadState() {\n"
+            + "InputGamepadState* DemoMenuBuildComponent::ReadPrimaryGamepadState() {\n"
             + "    return this->ResolveInputSystem()->GetGamepadState(0);\n"
             + "}\n");
 
@@ -427,9 +427,9 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("bool WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button);", normalizedHeader);
         Assert.Contains("InputGamepadState currentGamepadState = inputSystem->GetGamepadState(0);", normalizedSource);
         Assert.Contains("if (!currentGamepadState.Connected)", normalizedSource);
-        Assert.Contains("bool MenuHostComponent::WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button)", normalizedSource);
+        Assert.Contains("bool DemoMenuBuildComponent::WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button)", normalizedSource);
         Assert.Contains("return currentState.IsButtonDown(button) && !previousState.IsButtonDown(button);", normalizedSource);
-        Assert.Contains("InputGamepadState MenuHostComponent::ReadPrimaryGamepadState()", normalizedSource);
+        Assert.Contains("InputGamepadState DemoMenuBuildComponent::ReadPrimaryGamepadState()", normalizedSource);
     }
 
     /// <summary>

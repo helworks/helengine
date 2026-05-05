@@ -1,0 +1,658 @@
+namespace helengine {
+    /// <summary>
+    /// Stores demo-disc menu build metadata and drives runtime navigation against the baked menu hierarchy.
+    /// </summary>
+    public class DemoMenuBuildComponent : UpdateComponent {
+        /// <summary>
+        /// Current payload version used by scene persistence for the baked demo menu root component.
+        /// </summary>
+        public const byte CurrentVersion = 1;
+
+        /// <summary>
+        /// Stable serialized component type id used by baked demo menu scene records.
+        /// </summary>
+        public const string SerializedComponentTypeId = "helengine.DemoMenuBuildComponent";
+
+        /// <summary>
+        /// Baked panels keyed by stable panel id.
+        /// </summary>
+        readonly Dictionary<string, DemoMenuPanelRuntime> PanelsById;
+
+        /// <summary>
+        /// History stack used by Back actions.
+        /// </summary>
+        readonly List<string> PanelHistory;
+
+        /// <summary>
+        /// Backing field for the authored provider type name.
+        /// </summary>
+        string ProviderTypeNameValue;
+
+        /// <summary>
+        /// Backing field for the authored initial panel id.
+        /// </summary>
+        string InitialPanelIdValue;
+
+        /// <summary>
+        /// Active baked panel runtime.
+        /// </summary>
+        DemoMenuPanelRuntime ActivePanel;
+
+        /// <summary>
+        /// Previous primary gamepad state used for edge detection.
+        /// </summary>
+        InputGamepadState PreviousGamepadState;
+
+        /// <summary>
+        /// Backing field for the active panel id.
+        /// </summary>
+        string ActivePanelIdValue;
+
+        /// <summary>
+        /// Backing field for the selected item id.
+        /// </summary>
+        string SelectedItemIdValue;
+
+        /// <summary>
+        /// Initializes a new baked demo menu root component.
+        /// </summary>
+        public DemoMenuBuildComponent() {
+            PanelsById = new Dictionary<string, DemoMenuPanelRuntime>(StringComparer.Ordinal);
+            PanelHistory = new List<string>();
+            ProviderTypeNameValue = string.Empty;
+            InitialPanelIdValue = string.Empty;
+            ActivePanelIdValue = string.Empty;
+            SelectedItemIdValue = string.Empty;
+        }
+
+        /// <summary>
+        /// Gets or sets the assembly-qualified provider type name used when the baked scene is rebuilt in the editor.
+        /// </summary>
+        public string ProviderTypeName {
+            get { return ProviderTypeNameValue; }
+            set { ProviderTypeNameValue = value ?? string.Empty; }
+        }
+
+        /// <summary>
+        /// Gets or sets the initial panel id selected when the baked menu becomes active.
+        /// </summary>
+        public string InitialPanelId {
+            get { return InitialPanelIdValue; }
+            set { InitialPanelIdValue = value ?? string.Empty; }
+        }
+
+        /// <summary>
+        /// Gets the currently active panel id.
+        /// </summary>
+        public string ActivePanelId {
+            get { return ActivePanelIdValue; }
+        }
+
+        /// <summary>
+        /// Gets the currently selected item id.
+        /// </summary>
+        public string SelectedItemId {
+            get { return SelectedItemIdValue; }
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether the baked runtime hierarchy has been bound successfully.
+        /// </summary>
+        public bool IsInitialized { get; private set; }
+
+        /// <summary>
+        /// Binds the baked panel and item hierarchy when the scene is loaded at runtime.
+        /// </summary>
+        /// <param name="entity">Owning menu root entity.</param>
+        public override void ComponentAdded(Entity entity) {
+            base.ComponentAdded(entity);
+
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+            if (string.IsNullOrWhiteSpace(InitialPanelIdValue)) {
+                throw new InvalidOperationException("Demo menu build components require an initial panel id.");
+            }
+        }
+
+        /// <summary>
+        /// Routes keyboard and gamepad input through the baked menu hierarchy.
+        /// </summary>
+        public override void Update() {
+            if (!IsInitialized) {
+                TryInitialize();
+                if (!IsInitialized) {
+                    return;
+                }
+            }
+
+            InputSystem inputSystem = Core.Instance.Input;
+            if (inputSystem == null) {
+                return;
+            }
+
+            HandleKeyboardInput(inputSystem);
+            HandleGamepadInput(inputSystem);
+        }
+
+        /// <summary>
+        /// Attempts to bind the baked runtime hierarchy after the full scene subtree has been loaded.
+        /// </summary>
+        void TryInitialize() {
+            if (Parent == null) {
+                return;
+            }
+
+            Entity generatedRootEntity = FindGeneratedRootEntity(Parent);
+            if (generatedRootEntity == null) {
+                return;
+            }
+
+            BindPanels(Parent);
+            ActivatePanel(InitialPanelIdValue, false);
+            PreviousGamepadState = ReadPrimaryGamepadState();
+            IsInitialized = true;
+        }
+
+        /// <summary>
+        /// Scans the baked scene hierarchy and binds every serialized panel and item runtime record.
+        /// </summary>
+        /// <param name="rootEntity">Owning menu root entity.</param>
+        void BindPanels(Entity rootEntity) {
+            PanelsById.Clear();
+            PanelHistory.Clear();
+
+            Entity generatedRootEntity = FindGeneratedRootEntity(rootEntity);
+            if (generatedRootEntity == null) {
+                throw new InvalidOperationException($"Demo menu root '{DescribeEntity(rootEntity)}' is missing the generated menu subtree.");
+            }
+
+            List<Entity> panelEntities = new List<Entity>();
+            CollectEntitiesWithComponent<DemoMenuPanelComponent>(generatedRootEntity, panelEntities);
+            for (int panelIndex = 0; panelIndex < panelEntities.Count; panelIndex++) {
+                Entity panelEntity = panelEntities[panelIndex];
+                DemoMenuPanelComponent panelComponent = FindRequiredComponent<DemoMenuPanelComponent>(panelEntity);
+                TextComponent selectedDescriptionText = ResolveSelectedDescriptionText(panelEntity);
+                DemoMenuItemRuntime[] itemRuntimes = BindItems(panelEntity, panelComponent.PanelId);
+                DemoMenuPanelRuntime panelRuntime = new DemoMenuPanelRuntime(panelComponent, panelEntity, selectedDescriptionText, itemRuntimes);
+                if (PanelsById.ContainsKey(panelComponent.PanelId)) {
+                    throw new InvalidOperationException($"Duplicate baked demo menu panel id '{panelComponent.PanelId}' was found.");
+                }
+
+                PanelsById.Add(panelComponent.PanelId, panelRuntime);
+            }
+
+            if (PanelsById.Count == 0) {
+                throw new InvalidOperationException("The baked demo menu scene does not contain any panel metadata.");
+            }
+        }
+
+        /// <summary>
+        /// Binds the baked item metadata records contained by one panel root.
+        /// </summary>
+        /// <param name="panelEntity">Panel root whose baked items should be bound.</param>
+        /// <param name="panelId">Stable panel id expected for every bound item.</param>
+        /// <returns>Bound baked item runtime records.</returns>
+        DemoMenuItemRuntime[] BindItems(Entity panelEntity, string panelId) {
+            List<Entity> itemEntities = new List<Entity>();
+            CollectEntitiesWithComponent<DemoMenuItemComponent>(panelEntity, itemEntities);
+            DemoMenuItemRuntime[] itemRuntimes = new DemoMenuItemRuntime[itemEntities.Count];
+            for (int itemIndex = 0; itemIndex < itemEntities.Count; itemIndex++) {
+                Entity itemEntity = itemEntities[itemIndex];
+                DemoMenuItemComponent itemComponent = FindRequiredComponent<DemoMenuItemComponent>(itemEntity);
+                if (!string.Equals(itemComponent.PanelId, panelId, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException($"Baked menu item '{itemComponent.ItemId}' does not match panel '{panelId}'.");
+                }
+
+                RoundedRectComponent backgroundComponent = FindRequiredComponent<RoundedRectComponent>(itemEntity);
+                itemRuntimes[itemIndex] = new DemoMenuItemRuntime(itemComponent, itemIndex, itemEntity, backgroundComponent);
+            }
+
+            if (itemRuntimes.Length == 0) {
+                throw new InvalidOperationException($"Baked demo menu panel '{panelId}' does not contain any items.");
+            }
+
+            return itemRuntimes;
+        }
+
+        /// <summary>
+        /// Activates one baked panel and refreshes its selection state.
+        /// </summary>
+        /// <param name="panelId">Panel id to activate.</param>
+        /// <param name="pushHistory">True when the current panel should be recorded in the back stack.</param>
+        void ActivatePanel(string panelId, bool pushHistory) {
+            if (!PanelsById.TryGetValue(panelId, out DemoMenuPanelRuntime nextPanel)) {
+                throw new InvalidOperationException($"Baked demo menu panel '{panelId}' was not registered.");
+            }
+
+            if (ActivePanel != null) {
+                if (pushHistory && !string.Equals(ActivePanel.Definition.PanelId, panelId, StringComparison.Ordinal)) {
+                    PanelHistory.Add(ActivePanel.Definition.PanelId);
+                }
+
+                ActivePanel.RootEntity.Enabled = false;
+                ClearSelectionVisuals(ActivePanel);
+            }
+
+            ActivePanel = nextPanel;
+            ActivePanel.RootEntity.Enabled = true;
+            ActivePanelIdValue = nextPanel.Definition.PanelId;
+            SetSelection(nextPanel, ResolveSelectedIndex(nextPanel));
+        }
+
+        /// <summary>
+        /// Moves selection through the active baked panel by the supplied signed delta.
+        /// </summary>
+        /// <param name="delta">Signed movement amount.</param>
+        void MoveSelection(int delta) {
+            if (ActivePanel == null || ActivePanel.Items.Length == 0) {
+                return;
+            }
+            if (delta == 0) {
+                return;
+            }
+
+            int nextIndex = ActivePanel.SelectedItemIndex;
+            if (nextIndex < 0) {
+                nextIndex = 0;
+            }
+
+            nextIndex += delta;
+            if (nextIndex < 0) {
+                nextIndex = ActivePanel.Items.Length - 1;
+            } else if (nextIndex >= ActivePanel.Items.Length) {
+                nextIndex = 0;
+            }
+
+            SetSelection(ActivePanel, nextIndex);
+        }
+
+        /// <summary>
+        /// Applies the selected-state visuals and description text for one baked item.
+        /// </summary>
+        /// <param name="panelRuntime">Panel that owns the item.</param>
+        /// <param name="itemIndex">Enabled-item index to select.</param>
+        void SetSelection(DemoMenuPanelRuntime panelRuntime, int itemIndex) {
+            if (panelRuntime == null) {
+                throw new ArgumentNullException(nameof(panelRuntime));
+            }
+            if (itemIndex < 0 || itemIndex >= panelRuntime.Items.Length) {
+                throw new ArgumentOutOfRangeException(nameof(itemIndex), "Selected baked menu item index must be valid.");
+            }
+
+            panelRuntime.SelectedItemIndex = itemIndex;
+            for (int index = 0; index < panelRuntime.Items.Length; index++) {
+                DemoMenuItemRuntime runtimeItem = panelRuntime.Items[index];
+                bool isSelected = index == itemIndex;
+                ApplyItemVisualState(runtimeItem, isSelected);
+            }
+
+            DemoMenuItemRuntime selectedItem = panelRuntime.Items[itemIndex];
+            SelectedItemIdValue = selectedItem.Definition.ItemId;
+            panelRuntime.SelectedDescriptionText.Text = selectedItem.Definition.Description;
+        }
+
+        /// <summary>
+        /// Executes the action associated with the currently selected baked item.
+        /// </summary>
+        /// <param name="key">Logical activation key routed to the active item.</param>
+        void ConfirmSelection(Keys key) {
+            if (ActivePanel == null) {
+                return;
+            }
+            if (ActivePanel.SelectedItemIndex < 0 || ActivePanel.SelectedItemIndex >= ActivePanel.Items.Length) {
+                return;
+            }
+
+            ExecuteAction(ActivePanel.Items[ActivePanel.SelectedItemIndex].Definition);
+        }
+
+        /// <summary>
+        /// Executes one baked menu action.
+        /// </summary>
+        /// <param name="itemComponent">Serialized item metadata whose action should be executed.</param>
+        void ExecuteAction(DemoMenuItemComponent itemComponent) {
+            if (itemComponent == null) {
+                throw new ArgumentNullException(nameof(itemComponent));
+            }
+
+            if (itemComponent.ActionKind == MenuActionKind.None) {
+                return;
+            } else if (itemComponent.ActionKind == MenuActionKind.OpenPanel) {
+                ActivatePanel(itemComponent.TargetId, true);
+            } else if (itemComponent.ActionKind == MenuActionKind.LoadScene) {
+                LoadScene(itemComponent.TargetId);
+            } else if (itemComponent.ActionKind == MenuActionKind.Back) {
+                NavigateBack();
+            } else {
+                throw new InvalidOperationException($"Unsupported baked menu action kind '{itemComponent.ActionKind}'.");
+            }
+        }
+
+        /// <summary>
+        /// Returns to the previous panel recorded in the baked menu history stack.
+        /// </summary>
+        void NavigateBack() {
+            if (PanelHistory.Count == 0) {
+                return;
+            }
+
+            string previousPanelId = PanelHistory[PanelHistory.Count - 1];
+            PanelHistory.RemoveAt(PanelHistory.Count - 1);
+            ActivatePanel(previousPanelId, false);
+        }
+
+        /// <summary>
+        /// Loads one authored or packaged scene targeted by the baked menu.
+        /// </summary>
+        /// <param name="scenePath">Authored or packaged scene path targeted by the menu item.</param>
+        void LoadScene(string scenePath) {
+            if (string.IsNullOrWhiteSpace(scenePath)) {
+                throw new InvalidOperationException("Scene-loading baked menu items must provide a scene path.");
+            }
+            if (Core.Instance == null) {
+                throw new InvalidOperationException("A core instance must exist before loading a scene from the baked menu.");
+            }
+            if (Core.Instance.SceneLoadService == null) {
+                throw new InvalidOperationException("Core scene loading services must be initialized before loading a scene from the baked menu.");
+            }
+
+            string resolvedScenePath = ResolveSceneContentPath(scenePath);
+            SceneAsset sceneAsset = Core.Instance.ContentManager.Load<SceneAsset>(resolvedScenePath, RuntimeContentProcessorIds.SceneAsset);
+            Core.Instance.SceneLoadService.Load(sceneAsset);
+            Parent.Enabled = false;
+        }
+
+        /// <summary>
+        /// Handles keyboard navigation and activation for the active baked panel.
+        /// </summary>
+        /// <param name="inputSystem">Input system supplying the current frame state.</param>
+        void HandleKeyboardInput(InputSystem inputSystem) {
+            if (inputSystem.WasKeyPressed(Keys.Up) || inputSystem.WasKeyPressed(Keys.W)) {
+                MoveSelection(-1);
+            } else if (inputSystem.WasKeyPressed(Keys.Down) || inputSystem.WasKeyPressed(Keys.S)) {
+                MoveSelection(1);
+            } else if (inputSystem.WasKeyPressed(Keys.Enter)) {
+                ConfirmSelection(Keys.Enter);
+            } else if (inputSystem.WasKeyPressed(Keys.Space)) {
+                ConfirmSelection(Keys.Space);
+            } else if (inputSystem.WasKeyPressed(Keys.Escape) || inputSystem.WasKeyPressed(Keys.Back)) {
+                NavigateBack();
+            }
+        }
+
+        /// <summary>
+        /// Handles d-pad and face-button navigation for the primary gamepad.
+        /// </summary>
+        /// <param name="inputSystem">Input system supplying the current frame state.</param>
+        void HandleGamepadInput(InputSystem inputSystem) {
+            InputGamepadState currentGamepadState = inputSystem.GetGamepadState(0);
+            if (!currentGamepadState.Connected) {
+                PreviousGamepadState = currentGamepadState;
+                return;
+            }
+
+            if (WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.DPadUp)) {
+                MoveSelection(-1);
+            } else if (WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.DPadDown)) {
+                MoveSelection(1);
+            } else if (WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.South)) {
+                ConfirmSelection(Keys.Enter);
+            } else if (WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.East)
+                || WasGamepadButtonPressed(currentGamepadState, PreviousGamepadState, InputGamepadButton.Select)) {
+                NavigateBack();
+            }
+
+            PreviousGamepadState = currentGamepadState;
+        }
+
+        /// <summary>
+        /// Returns whether the supplied gamepad button transitioned from up to down on the current frame.
+        /// </summary>
+        /// <param name="currentState">Current raw gamepad state.</param>
+        /// <param name="previousState">Previous raw gamepad state.</param>
+        /// <param name="button">Button to test.</param>
+        /// <returns>True when the button was pressed this frame.</returns>
+        bool WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button) {
+            return currentState.IsButtonDown(button) && !previousState.IsButtonDown(button);
+        }
+
+        /// <summary>
+        /// Returns the initial selected index for one panel.
+        /// </summary>
+        /// <param name="panelRuntime">Panel whose initial selected index should be resolved.</param>
+        /// <returns>Resolved initial selected item index.</returns>
+        int ResolveSelectedIndex(DemoMenuPanelRuntime panelRuntime) {
+            if (panelRuntime.SelectedItemIndex >= 0 && panelRuntime.SelectedItemIndex < panelRuntime.Items.Length) {
+                return panelRuntime.SelectedItemIndex;
+            }
+
+            return 0;
+        }
+
+        /// <summary>
+        /// Applies idle or selected colors to one baked menu row background.
+        /// </summary>
+        /// <param name="runtimeItem">Item whose visual state should be updated.</param>
+        /// <param name="isSelected">True when selected-state colors should be applied.</param>
+        void ApplyItemVisualState(DemoMenuItemRuntime runtimeItem, bool isSelected) {
+            if (isSelected) {
+                runtimeItem.Background.FillColor = runtimeItem.Definition.SelectedFillColor;
+                runtimeItem.Background.BorderColor = runtimeItem.Definition.SelectedBorderColor;
+            } else {
+                runtimeItem.Background.FillColor = runtimeItem.Definition.IdleFillColor;
+                runtimeItem.Background.BorderColor = runtimeItem.Definition.IdleBorderColor;
+            }
+        }
+
+        /// <summary>
+        /// Clears selected-state visuals for one panel before another panel becomes active.
+        /// </summary>
+        /// <param name="panelRuntime">Panel whose item visuals should be reset.</param>
+        void ClearSelectionVisuals(DemoMenuPanelRuntime panelRuntime) {
+            for (int itemIndex = 0; itemIndex < panelRuntime.Items.Length; itemIndex++) {
+                ApplyItemVisualState(panelRuntime.Items[itemIndex], false);
+            }
+        }
+
+        /// <summary>
+        /// Resolves the generated menu subtree attached beneath the baked menu root.
+        /// </summary>
+        /// <param name="rootEntity">Owning menu root entity.</param>
+        /// <returns>Generated menu subtree root.</returns>
+        Entity FindGeneratedRootEntity(Entity rootEntity) {
+            if (rootEntity.Children == null) {
+                return null;
+            }
+
+            if (rootEntity.Children.Count == 1) {
+                return rootEntity.Children[0];
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Resolves the selected-description text component hosted somewhere beneath one panel root.
+        /// </summary>
+        /// <param name="panelEntity">Panel root to inspect.</param>
+        /// <returns>Selected-description text component for the panel.</returns>
+        TextComponent ResolveSelectedDescriptionText(Entity panelEntity) {
+            List<Entity> markerEntities = new List<Entity>();
+            CollectEntitiesWithComponent<DemoMenuSelectedDescriptionComponent>(panelEntity, markerEntities);
+            if (markerEntities.Count != 1) {
+                throw new InvalidOperationException("Each baked demo menu panel must contain exactly one selected-description marker.");
+            }
+
+            return FindRequiredComponent<TextComponent>(markerEntities[0]);
+        }
+
+        /// <summary>
+        /// Recursively collects entities that contain one required component type.
+        /// </summary>
+        /// <typeparam name="TComponent">Component type that marks collected entities.</typeparam>
+        /// <param name="entity">Root entity to inspect.</param>
+        /// <param name="entities">Destination list receiving matching entities.</param>
+        void CollectEntitiesWithComponent<TComponent>(Entity entity, List<Entity> entities) where TComponent : Component {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+            if (entities == null) {
+                throw new ArgumentNullException(nameof(entities));
+            }
+
+            if (TryFindComponent<TComponent>(entity, out TComponent component)) {
+                entities.Add(entity);
+            }
+
+            if (entity.Children == null) {
+                return;
+            }
+
+            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                CollectEntitiesWithComponent<TComponent>(entity.Children[childIndex], entities);
+            }
+        }
+
+        /// <summary>
+        /// Finds one required component on the supplied entity.
+        /// </summary>
+        /// <typeparam name="TComponent">Component type to resolve.</typeparam>
+        /// <param name="entity">Entity that must own the component.</param>
+        /// <returns>Resolved component instance.</returns>
+        TComponent FindRequiredComponent<TComponent>(Entity entity) where TComponent : Component {
+            if (TryFindComponent<TComponent>(entity, out TComponent component)) {
+                return component;
+            }
+
+            throw new InvalidOperationException($"Entity '{DescribeEntity(entity)}' is missing required component '{typeof(TComponent).Name}'.");
+        }
+
+        /// <summary>
+        /// Builds a readable identifier for one entity used in diagnostics across editor and runtime paths.
+        /// </summary>
+        /// <param name="entity">Entity to describe.</param>
+        /// <returns>Readable entity identifier.</returns>
+        string DescribeEntity(Entity entity) {
+            return entity.GetType().Name;
+        }
+
+        /// <summary>
+        /// Attempts to resolve one component type from the supplied entity.
+        /// </summary>
+        /// <typeparam name="TComponent">Component type to resolve.</typeparam>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <param name="component">Resolved component when one exists.</param>
+        /// <returns>True when the component was found.</returns>
+        bool TryFindComponent<TComponent>(Entity entity, out TComponent component) where TComponent : Component {
+            if (entity != null && entity.Components != null) {
+                for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                    if (entity.Components[componentIndex] is TComponent typedComponent) {
+                        component = typedComponent;
+                        return true;
+                    }
+                }
+            }
+
+            component = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Resolves one authored scene id into the content-relative path available in the current execution layout.
+        /// </summary>
+        /// <param name="scenePath">Authored or packaged scene path requested by the baked menu item.</param>
+        /// <returns>Content-relative path that exists beneath the current content root.</returns>
+        string ResolveSceneContentPath(string scenePath) {
+            if (Core.Instance == null) {
+                throw new InvalidOperationException("A core instance must exist before resolving demo menu scene paths.");
+            }
+            if (string.IsNullOrWhiteSpace(scenePath)) {
+                throw new ArgumentException("Scene path must be provided.", nameof(scenePath));
+            }
+
+            string normalizedScenePath = NormalizeRelativeContentPath(scenePath);
+            string contentRootPath = Core.Instance.InitializationOptions.ContentRootPath;
+            if (DoesContentFileExist(contentRootPath, normalizedScenePath)) {
+                return normalizedScenePath;
+            }
+            if (ComponentExecutionContext.CurrentMode == ComponentExecutionMode.Editor) {
+                throw new InvalidOperationException(
+                    $"Menu scene '{scenePath}' could not be found in authored form '{normalizedScenePath}'.");
+            }
+
+            string packagedScenePath = BuildPackagedSceneContentPath(normalizedScenePath);
+            if (DoesContentFileExist(contentRootPath, packagedScenePath)) {
+                return packagedScenePath;
+            }
+
+            throw new InvalidOperationException(
+                $"Menu scene '{scenePath}' could not be found in authored form '{normalizedScenePath}' or packaged form '{packagedScenePath}'.");
+        }
+
+        /// <summary>
+        /// Builds the packaged content-relative path used by player builds for one authored scene id.
+        /// </summary>
+        /// <param name="scenePath">Normalized authored scene id.</param>
+        /// <returns>Packaged content-relative scene path.</returns>
+        string BuildPackagedSceneContentPath(string scenePath) {
+            if (string.IsNullOrWhiteSpace(scenePath)) {
+                throw new ArgumentException("Scene path must be provided.", nameof(scenePath));
+            }
+
+            if (scenePath.EndsWith(".hasset", StringComparison.OrdinalIgnoreCase)) {
+                return scenePath;
+            }
+            if (scenePath.StartsWith("cooked/", StringComparison.OrdinalIgnoreCase)) {
+                return scenePath;
+            }
+
+            string changedExtensionPath = Path.ChangeExtension(scenePath, ".hasset");
+            return NormalizeRelativeContentPath(Path.Combine("scenes", changedExtensionPath));
+        }
+
+        /// <summary>
+        /// Returns whether the supplied content-relative path exists beneath the current content root.
+        /// </summary>
+        /// <param name="contentRootPath">Absolute content root path.</param>
+        /// <param name="relativePath">Content-relative path to inspect.</param>
+        /// <returns>True when the content file exists.</returns>
+        bool DoesContentFileExist(string contentRootPath, string relativePath) {
+            if (string.IsNullOrWhiteSpace(contentRootPath)) {
+                throw new ArgumentException("Content root path must be provided.", nameof(contentRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+
+            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            string fullPath = Path.GetFullPath(Path.Combine(contentRootPath, normalizedRelativePath));
+            return File.Exists(fullPath);
+        }
+
+        /// <summary>
+        /// Normalizes one content-relative path to the forward-slash form used by runtime asset ids.
+        /// </summary>
+        /// <param name="relativePath">Relative content path to normalize.</param>
+        /// <returns>Normalized content-relative path.</returns>
+        string NormalizeRelativeContentPath(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+
+            return relativePath.Replace('\\', '/');
+        }
+
+        /// <summary>
+        /// Reads the current primary gamepad state from the shared input system.
+        /// </summary>
+        /// <returns>Current primary gamepad state.</returns>
+        InputGamepadState ReadPrimaryGamepadState() {
+            if (Core.Instance == null || Core.Instance.Input == null) {
+                return default;
+            }
+
+            return Core.Instance.Input.GetGamepadState(0);
+        }
+    }
+}

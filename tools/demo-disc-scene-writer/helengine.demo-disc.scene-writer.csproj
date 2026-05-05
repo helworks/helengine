@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\engine\helengine.editor\helengine.editor.csproj" />
     <ProjectReference Include="..\..\engine\helengine.core\helengine.core.csproj" />
     <ProjectReference Include="..\..\engine\helengine.files\helengine.files.csproj" />
     <ProjectReference Include="..\..\engine\helengine.projectfile\helengine.projectfile.csproj" />

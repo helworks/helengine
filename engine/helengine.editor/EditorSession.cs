@@ -464,11 +464,15 @@ namespace helengine.editor {
             persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
             persistenceRegistry.Register(new CameraComponentPersistenceDescriptor());
             persistenceRegistry.Register(new TextComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new RoundedRectComponentPersistenceDescriptor());
             persistenceRegistry.Register(new FPSComponentPersistenceDescriptor());
             persistenceRegistry.Register(new DirectionalLightComponentPersistenceDescriptor());
             persistenceRegistry.Register(new PointLightComponentPersistenceDescriptor());
             persistenceRegistry.Register(new SpotLightComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new MenuHostComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new DemoMenuBuildComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new DemoMenuPanelComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new DemoMenuItemComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new DemoMenuSelectedDescriptionComponentPersistenceDescriptor());
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
             SceneCreationService = new EditorSceneCreationService();
