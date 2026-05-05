@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text;
 
 namespace helengine.editor {
@@ -10,11 +9,6 @@ namespace helengine.editor {
         /// Project folder name used by the generated C# project to enumerate game scripts.
         /// </summary>
         const string AssetsFolderName = "assets";
-
-        /// <summary>
-        /// Project file extension used by the generated game project.
-        /// </summary>
-        const string ProjectFileExtension = ".csproj";
 
         /// <summary>
         /// Solution file extension used by the generated IDE workspace.
@@ -32,16 +26,6 @@ namespace helengine.editor {
         const string TargetFrameworkValue = "net9.0";
 
         /// <summary>
-        /// Relative output folder used for generated intermediate build files.
-        /// </summary>
-        const string IntermediateOutputPathValue = "../obj/";
-
-        /// <summary>
-        /// Relative output folder used for generated binary build files.
-        /// </summary>
-        const string OutputPathValue = "../bin/";
-
-        /// <summary>
         /// Legacy intermediate folder that should not remain under the assets project root.
         /// </summary>
         const string LegacyIntermediateFolderName = "obj";
@@ -57,34 +41,14 @@ namespace helengine.editor {
         readonly string ProjectRootPath;
 
         /// <summary>
-        /// Absolute path to the assets folder that owns the generated C# project.
-        /// </summary>
-        readonly string ProjectAssetsRootPath;
-
-        /// <summary>
-        /// User-visible game project name loaded from the canonical project document.
-        /// </summary>
-        readonly string ProjectName;
-
-        /// <summary>
         /// Sanitized identifier used for file names and assembly metadata.
         /// </summary>
         readonly string ProjectIdentifier;
 
         /// <summary>
-        /// Generated project file path.
-        /// </summary>
-        readonly string ProjectFilePath;
-
-        /// <summary>
         /// Generated solution file path.
         /// </summary>
         readonly string SolutionFilePath;
-
-        /// <summary>
-        /// Stable project GUID emitted into the generated solution.
-        /// </summary>
-        readonly Guid ProjectGuid;
 
         /// <summary>
         /// IDE launcher used after generating the solution files.
@@ -95,6 +59,21 @@ namespace helengine.editor {
         /// Detector used to skip reopening a solution that is already active in the IDE.
         /// </summary>
         readonly IEditorIdeSolutionDetector SolutionDetector;
+
+        /// <summary>
+        /// Authored code-module manifest service used to discover generated script projects.
+        /// </summary>
+        readonly EditorCodeModuleManifestService CodeModuleManifestService;
+
+        /// <summary>
+        /// Builder used to convert authored modules into generated code project descriptions.
+        /// </summary>
+        readonly EditorGeneratedCodeSolutionBuilder GeneratedCodeSolutionBuilder;
+
+        /// <summary>
+        /// Cached generated code solution description from the most recent generation pass.
+        /// </summary>
+        EditorGeneratedCodeSolution GeneratedCodeSolutionValue;
 
         /// <summary>
         /// Initializes one solution generator for the supplied game project root.
@@ -128,24 +107,22 @@ namespace helengine.editor {
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
-            ProjectAssetsRootPath = Path.Combine(ProjectRootPath, AssetsFolderName);
-            ProjectName = projectName;
             ProjectIdentifier = SanitizeIdentifier(projectName);
             if (string.IsNullOrWhiteSpace(ProjectIdentifier)) {
                 ProjectIdentifier = "Game";
             }
 
-            ProjectFilePath = Path.Combine(ProjectAssetsRootPath, ProjectIdentifier + ProjectFileExtension);
             SolutionFilePath = Path.Combine(ProjectRootPath, ProjectIdentifier + SolutionFileExtension);
-            ProjectGuid = CreateStableGuid(ProjectRootPath + "|" + ProjectName);
             IdeLauncher = ideLauncher;
             SolutionDetector = solutionDetector;
+            CodeModuleManifestService = new EditorCodeModuleManifestService(ProjectRootPath);
+            GeneratedCodeSolutionBuilder = new EditorGeneratedCodeSolutionBuilder();
         }
 
         /// <summary>
         /// Gets the absolute path to the generated project file.
         /// </summary>
-        public string GeneratedProjectFilePath => ProjectFilePath;
+        public string GeneratedProjectFilePath => GetPrimaryModuleProject().ProjectFilePath;
 
         /// <summary>
         /// Gets the absolute path to the generated solution file.
@@ -157,7 +134,7 @@ namespace helengine.editor {
         /// </summary>
         public string GeneratedOutputDirectoryPath {
             get {
-                return Path.Combine(ProjectAssetsRootPath, "bin", "Debug", TargetFrameworkValue);
+                return GetPrimaryModuleProject().OutputDirectoryPath;
             }
         }
 
@@ -166,7 +143,21 @@ namespace helengine.editor {
         /// </summary>
         public string GeneratedOutputAssemblyPath {
             get {
-                return Path.Combine(GeneratedOutputDirectoryPath, ProjectIdentifier + ".dll");
+                EditorGeneratedCodeModuleProject primaryModuleProject = GetPrimaryModuleProject();
+                return Path.Combine(primaryModuleProject.OutputDirectoryPath, primaryModuleProject.ModuleId + ".dll");
+            }
+        }
+
+        /// <summary>
+        /// Gets the ordered generated module projects included in the current solution.
+        /// </summary>
+        public IReadOnlyList<EditorGeneratedCodeModuleProject> GeneratedModuleProjects {
+            get {
+                if (GeneratedCodeSolutionValue == null) {
+                    GeneratedCodeSolutionValue = BuildGeneratedCodeSolution();
+                }
+
+                return GeneratedCodeSolutionValue.ModuleProjects;
             }
         }
 
@@ -176,10 +167,19 @@ namespace helengine.editor {
         /// <returns>Absolute path to the generated solution file.</returns>
         public string GenerateSolutionFiles() {
             Directory.CreateDirectory(ProjectRootPath);
-            Directory.CreateDirectory(ProjectAssetsRootPath);
             DeleteLegacyProjectFolders();
-            File.WriteAllText(ProjectFilePath, BuildProjectFileContents());
-            File.WriteAllText(SolutionFilePath, BuildSolutionFileContents());
+            GeneratedCodeSolutionValue = BuildGeneratedCodeSolution();
+            for (int index = 0; index < GeneratedCodeSolutionValue.ModuleProjects.Count; index++) {
+                EditorGeneratedCodeModuleProject moduleProject = GeneratedCodeSolutionValue.ModuleProjects[index];
+                string projectDirectoryPath = Path.GetDirectoryName(moduleProject.ProjectFilePath);
+                if (!string.IsNullOrWhiteSpace(projectDirectoryPath)) {
+                    Directory.CreateDirectory(projectDirectoryPath);
+                }
+
+                File.WriteAllText(moduleProject.ProjectFilePath, BuildProjectFileContents(moduleProject));
+            }
+
+            File.WriteAllText(SolutionFilePath, BuildSolutionFileContents(GeneratedCodeSolutionValue));
             return SolutionFilePath;
         }
 
@@ -199,8 +199,11 @@ namespace helengine.editor {
         /// Builds the SDK-style project file for the game's C# script sources.
         /// </summary>
         /// <returns>Project file contents.</returns>
-        string BuildProjectFileContents() {
-            string compileGlob = "**/*.cs";
+        string BuildProjectFileContents(EditorGeneratedCodeModuleProject moduleProject) {
+            if (moduleProject == null) {
+                throw new ArgumentNullException(nameof(moduleProject));
+            }
+
             StringBuilder builder = new StringBuilder();
             builder.AppendLine("<Project Sdk=\"Microsoft.NET.Sdk\">");
             builder.AppendLine("  <PropertyGroup>");
@@ -215,14 +218,17 @@ namespace helengine.editor {
             builder.AppendLine("    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>");
             builder.AppendLine("    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>");
             builder.AppendLine("    <ImplicitUsings>disable</ImplicitUsings>");
-            builder.AppendLine("    <BaseIntermediateOutputPath>" + IntermediateOutputPathValue + "</BaseIntermediateOutputPath>");
-            builder.AppendLine("    <MSBuildProjectExtensionsPath>" + IntermediateOutputPathValue + "</MSBuildProjectExtensionsPath>");
-            builder.AppendLine("    <BaseOutputPath>" + OutputPathValue + "</BaseOutputPath>");
-            builder.AppendLine("    <AssemblyName>" + EscapeXml(ProjectIdentifier) + "</AssemblyName>");
-            builder.AppendLine("    <RootNamespace>" + EscapeXml(ProjectIdentifier) + "</RootNamespace>");
+            builder.AppendLine("    <BaseIntermediateOutputPath>" + EscapeXml(moduleProject.BaseIntermediateOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>");
+            builder.AppendLine("    <MSBuildProjectExtensionsPath>" + EscapeXml(moduleProject.BaseIntermediateOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</MSBuildProjectExtensionsPath>");
+            builder.AppendLine("    <BaseOutputPath>" + EscapeXml(moduleProject.BaseOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseOutputPath>");
+            builder.AppendLine("    <AssemblyName>" + EscapeXml(moduleProject.ModuleId) + "</AssemblyName>");
+            builder.AppendLine("    <RootNamespace>" + EscapeXml(moduleProject.ModuleId) + "</RootNamespace>");
             builder.AppendLine("  </PropertyGroup>");
             builder.AppendLine("  <ItemGroup>");
-            builder.AppendLine("    <Compile Include=\"" + EscapeXml(compileGlob) + "\" />");
+            builder.AppendLine("    <Compile Include=\"" + EscapeXml(Path.Combine(ResolveProjectPath(moduleProject.SourceFolderPath), "**", "*.cs")) + "\" />");
+            for (int index = 0; index < moduleProject.NestedSourceFolderPaths.Count; index++) {
+                builder.AppendLine("    <Compile Remove=\"" + EscapeXml(Path.Combine(ResolveProjectPath(moduleProject.NestedSourceFolderPaths[index]), "**", "*.cs")) + "\" />");
+            }
             builder.AppendLine("  </ItemGroup>");
             builder.AppendLine("</Project>");
             return builder.ToString();
@@ -232,29 +238,38 @@ namespace helengine.editor {
         /// Builds the Visual Studio solution file for the generated project.
         /// </summary>
         /// <returns>Solution file contents.</returns>
-        string BuildSolutionFileContents() {
-            string projectFileName = Path.GetFileName(ProjectFilePath);
-            string relativeProjectFileName = AssetsFolderName + "/" + projectFileName;
-            string projectGuidText = ProjectGuid.ToString("B").ToUpperInvariant();
+        string BuildSolutionFileContents(EditorGeneratedCodeSolution generatedCodeSolution) {
+            if (generatedCodeSolution == null) {
+                throw new ArgumentNullException(nameof(generatedCodeSolution));
+            }
 
             StringBuilder builder = new StringBuilder();
             builder.AppendLine("Microsoft Visual Studio Solution File, Format Version 12.00");
             builder.AppendLine("# Visual Studio Version 17");
             builder.AppendLine("VisualStudioVersion = 17.0.31903.59");
             builder.AppendLine("MinimumVisualStudioVersion = 10.0.40219.1");
-            builder.AppendLine("Project(\"{" + CSharpProjectTypeGuid + "}\") = \"" + EscapeSolutionText(ProjectName) + "\", \"" + EscapeSolutionText(relativeProjectFileName) + "\", \"" + projectGuidText + "\"");
-            builder.AppendLine("EndProject");
+            for (int index = 0; index < generatedCodeSolution.ModuleProjects.Count; index++) {
+                EditorGeneratedCodeModuleProject moduleProject = generatedCodeSolution.ModuleProjects[index];
+                string relativeProjectFileName = Path.GetRelativePath(ProjectRootPath, moduleProject.ProjectFilePath).Replace('\\', '/');
+                string projectGuidText = moduleProject.ProjectGuid.ToString("B").ToUpperInvariant();
+                builder.AppendLine("Project(\"{" + CSharpProjectTypeGuid + "}\") = \"" + EscapeSolutionText(moduleProject.ModuleId) + "\", \"" + EscapeSolutionText(relativeProjectFileName) + "\", \"" + projectGuidText + "\"");
+                builder.AppendLine("EndProject");
+            }
+
             builder.AppendLine("Global");
-            builder.AppendLine("	GlobalSection(SolutionConfigurationPlatforms) = preSolution");
-            builder.AppendLine("		Debug|Any CPU = Debug|Any CPU");
-            builder.AppendLine("		Release|Any CPU = Release|Any CPU");
-            builder.AppendLine("	EndGlobalSection");
-            builder.AppendLine("	GlobalSection(ProjectConfigurationPlatforms) = postSolution");
-            builder.AppendLine("		" + projectGuidText + ".Debug|Any CPU.ActiveCfg = Debug|Any CPU");
-            builder.AppendLine("		" + projectGuidText + ".Debug|Any CPU.Build.0 = Debug|Any CPU");
-            builder.AppendLine("		" + projectGuidText + ".Release|Any CPU.ActiveCfg = Release|Any CPU");
-            builder.AppendLine("		" + projectGuidText + ".Release|Any CPU.Build.0 = Release|Any CPU");
-            builder.AppendLine("	EndGlobalSection");
+            builder.AppendLine("\tGlobalSection(SolutionConfigurationPlatforms) = preSolution");
+            builder.AppendLine("\t\tDebug|Any CPU = Debug|Any CPU");
+            builder.AppendLine("\t\tRelease|Any CPU = Release|Any CPU");
+            builder.AppendLine("\tEndGlobalSection");
+            builder.AppendLine("\tGlobalSection(ProjectConfigurationPlatforms) = postSolution");
+            for (int index = 0; index < generatedCodeSolution.ModuleProjects.Count; index++) {
+                string projectGuidText = generatedCodeSolution.ModuleProjects[index].ProjectGuid.ToString("B").ToUpperInvariant();
+                builder.AppendLine("\t\t" + projectGuidText + ".Debug|Any CPU.ActiveCfg = Debug|Any CPU");
+                builder.AppendLine("\t\t" + projectGuidText + ".Debug|Any CPU.Build.0 = Debug|Any CPU");
+                builder.AppendLine("\t\t" + projectGuidText + ".Release|Any CPU.ActiveCfg = Release|Any CPU");
+                builder.AppendLine("\t\t" + projectGuidText + ".Release|Any CPU.Build.0 = Release|Any CPU");
+            }
+            builder.AppendLine("\tEndGlobalSection");
             builder.AppendLine("EndGlobal");
             return builder.ToString();
         }
@@ -263,15 +278,53 @@ namespace helengine.editor {
         /// Deletes legacy output folders that may remain inside the assets project root from earlier layouts.
         /// </summary>
         void DeleteLegacyProjectFolders() {
-            string legacyObjPath = Path.Combine(ProjectAssetsRootPath, LegacyIntermediateFolderName);
+            string legacyObjPath = Path.Combine(ProjectRootPath, AssetsFolderName, LegacyIntermediateFolderName);
             if (Directory.Exists(legacyObjPath)) {
                 Directory.Delete(legacyObjPath, true);
             }
 
-            string legacyBinPath = Path.Combine(ProjectAssetsRootPath, LegacyBinaryFolderName);
+            string legacyBinPath = Path.Combine(ProjectRootPath, AssetsFolderName, LegacyBinaryFolderName);
             if (Directory.Exists(legacyBinPath)) {
                 Directory.Delete(legacyBinPath, true);
             }
+        }
+
+        /// <summary>
+        /// Builds the generated code solution description for the current authored module layout.
+        /// </summary>
+        /// <returns>Generated code solution description.</returns>
+        EditorGeneratedCodeSolution BuildGeneratedCodeSolution() {
+            EditorProjectPaths.Initialize(ProjectRootPath);
+            EditorCodeModuleManifestDocument manifestDocument = CodeModuleManifestService.Load();
+            return GeneratedCodeSolutionBuilder.Build(ProjectRootPath, manifestDocument);
+        }
+
+        /// <summary>
+        /// Returns the primary generated module project used by legacy single-module callers during migration.
+        /// </summary>
+        /// <returns>Primary generated module project.</returns>
+        EditorGeneratedCodeModuleProject GetPrimaryModuleProject() {
+            if (GeneratedCodeSolutionValue == null) {
+                GeneratedCodeSolutionValue = BuildGeneratedCodeSolution();
+            }
+
+            return GeneratedCodeSolutionValue.PrimaryModuleProject;
+        }
+
+        /// <summary>
+        /// Resolves one project-relative or absolute path beneath the current project root.
+        /// </summary>
+        /// <param name="relativeOrAbsolutePath">Project-relative or absolute path to resolve.</param>
+        /// <returns>Absolute resolved path.</returns>
+        string ResolveProjectPath(string relativeOrAbsolutePath) {
+            if (string.IsNullOrWhiteSpace(relativeOrAbsolutePath)) {
+                throw new ArgumentException("Path must be provided.", nameof(relativeOrAbsolutePath));
+            }
+
+            string resolvedPath = Path.IsPathRooted(relativeOrAbsolutePath)
+                ? relativeOrAbsolutePath
+                : Path.Combine(ProjectRootPath, relativeOrAbsolutePath);
+            return Path.GetFullPath(resolvedPath);
         }
 
         /// <summary>
@@ -323,20 +376,6 @@ namespace helengine.editor {
 
             string result = builder.ToString().Trim('_');
             return result.Replace("__", "_");
-        }
-
-        /// <summary>
-        /// Creates one stable GUID from the supplied seed string.
-        /// </summary>
-        /// <param name="seed">Seed value used to derive the GUID.</param>
-        /// <returns>Deterministic GUID.</returns>
-        static Guid CreateStableGuid(string seed) {
-            byte[] hash = SHA1.HashData(Encoding.UTF8.GetBytes(seed ?? string.Empty));
-            Span<byte> guidBytes = stackalloc byte[16];
-            hash.AsSpan(0, guidBytes.Length).CopyTo(guidBytes);
-            guidBytes[7] = (byte)((guidBytes[7] & 0x0F) | 0x50);
-            guidBytes[8] = (byte)((guidBytes[8] & 0x3F) | 0x80);
-            return new Guid(guidBytes);
         }
     }
 }

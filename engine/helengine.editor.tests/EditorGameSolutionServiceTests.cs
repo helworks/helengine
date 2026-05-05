@@ -37,10 +37,11 @@ namespace helengine.editor.tests {
 
             string solutionPath = service.GenerateSolutionFiles();
 
-            string projectFilePath = Path.Combine(TempProjectRootPath, "assets", "SkyRider.csproj");
+            string projectFilePath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay", "gameplay.csproj");
             Assert.Equal(Path.Combine(TempProjectRootPath, "SkyRider.sln"), solutionPath);
             Assert.True(File.Exists(projectFilePath));
             Assert.True(File.Exists(solutionPath));
+            Assert.False(File.Exists(Path.Combine(TempProjectRootPath, "assets", "SkyRider.csproj")));
 
             string projectFileContents = File.ReadAllText(projectFilePath);
             string solutionFileContents = File.ReadAllText(solutionPath);
@@ -53,14 +54,16 @@ namespace helengine.editor.tests {
             Assert.Contains("<GenerateAssemblyInfo>false</GenerateAssemblyInfo>", projectFileContents);
             Assert.Contains("<GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>", projectFileContents);
             Assert.Contains("<ImplicitUsings>disable</ImplicitUsings>", projectFileContents);
-            Assert.Contains("<BaseIntermediateOutputPath>../obj/</BaseIntermediateOutputPath>", projectFileContents);
-            Assert.Contains("<MSBuildProjectExtensionsPath>../obj/</MSBuildProjectExtensionsPath>", projectFileContents);
-            Assert.Contains("<BaseOutputPath>../bin/</BaseOutputPath>", projectFileContents);
-            Assert.Contains("<Compile Include=\"**/*.cs\" />", projectFileContents);
-            Assert.Contains("SkyRider", solutionFileContents);
-            Assert.Contains("assets/SkyRider.csproj", solutionFileContents);
-            Assert.Equal(Path.Combine(TempProjectRootPath, "assets", "bin", "Debug", "net9.0"), service.GeneratedOutputDirectoryPath);
-            Assert.Equal(Path.Combine(TempProjectRootPath, "assets", "bin", "Debug", "net9.0", "SkyRider.dll"), service.GeneratedOutputAssemblyPath);
+            Assert.Contains("<AssemblyName>gameplay</AssemblyName>", projectFileContents);
+            Assert.Contains("<RootNamespace>gameplay</RootNamespace>", projectFileContents);
+            Assert.Contains("<BaseIntermediateOutputPath>" + EscapeXml(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "obj", "gameplay") + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>", projectFileContents);
+            Assert.Contains("<MSBuildProjectExtensionsPath>" + EscapeXml(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "obj", "gameplay") + Path.DirectorySeparatorChar) + "</MSBuildProjectExtensionsPath>", projectFileContents);
+            Assert.Contains("<BaseOutputPath>" + EscapeXml(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "bin", "gameplay") + Path.DirectorySeparatorChar) + "</BaseOutputPath>", projectFileContents);
+            Assert.Contains("<Compile Include=\"" + EscapeXml(Path.Combine(TempProjectRootPath, "assets", "**", "*.cs")) + "\" />", projectFileContents);
+            Assert.Contains("gameplay", solutionFileContents);
+            Assert.Contains("user_settings/generated_code/projects/gameplay/gameplay.csproj", solutionFileContents);
+            Assert.Equal(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "bin", "gameplay", "Debug", "net9.0"), service.GeneratedOutputDirectoryPath);
+            Assert.Equal(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "bin", "gameplay", "Debug", "net9.0", "gameplay.dll"), service.GeneratedOutputAssemblyPath);
         }
 
         /// <summary>
@@ -90,7 +93,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(1, detector.QueryCount);
             Assert.Equal(0, launcher.OpenCount);
-            Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "assets", "SkyRider.csproj")));
+            Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay", "gameplay.csproj")));
             Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "SkyRider.sln")));
         }
 
@@ -108,7 +111,60 @@ namespace helengine.editor.tests {
 
             Assert.False(Directory.Exists(Path.Combine(TempProjectRootPath, "assets", "obj")));
             Assert.False(Directory.Exists(Path.Combine(TempProjectRootPath, "assets", "bin")));
-            Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "assets", "SkyRider.csproj")));
+            Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay", "gameplay.csproj")));
+        }
+
+        /// <summary>
+        /// Ensures module manifests produce one generated project per module outside authored assets.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenModulesExist_WritesOneProjectPerModuleOutsideAssets() {
+            File.Delete(Path.Combine(TempProjectRootPath, "assets", "Scripts", "Player.cs"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scripts", "gameplay"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scripts", "gameplay", "ui"));
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Scripts", "gameplay", "Player.cs"), "public sealed class Player { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Scripts", "gameplay", "code.module.json"), """
+{
+  "moduleId": "gameplay",
+  "dependencyModuleIds": [],
+  "loadScopes": [ "always-loaded" ]
+}
+""");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Scripts", "gameplay", "ui", "code.module.json"), """
+{
+  "moduleId": "gameplay.ui",
+  "dependencyModuleIds": [ "gameplay" ],
+  "loadScopes": [ "scene-loaded" ]
+}
+""");
+
+            EditorGameSolutionService service = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+
+            string solutionPath = service.GenerateSolutionFiles();
+
+            Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay", "gameplay.csproj")));
+            Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay.ui", "gameplay.ui.csproj")));
+            Assert.Contains("user_settings/generated_code/projects/gameplay/gameplay.csproj", File.ReadAllText(solutionPath), StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("user_settings/generated_code/projects/gameplay.ui/gameplay.ui.csproj", File.ReadAllText(solutionPath), StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("assets/SkyRider.csproj", File.ReadAllText(solutionPath), StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Escapes one text value for inclusion in XML text content so string assertions can match generated project values.
+        /// </summary>
+        /// <param name="value">Text value to escape.</param>
+        /// <returns>XML-safe text value.</returns>
+        static string EscapeXml(string value) {
+            if (string.IsNullOrEmpty(value)) {
+                return string.Empty;
+            }
+
+            return value
+                .Replace("&", "&amp;")
+                .Replace("<", "&lt;")
+                .Replace(">", "&gt;")
+                .Replace("\"", "&quot;")
+                .Replace("'", "&apos;");
         }
 
         /// <summary>

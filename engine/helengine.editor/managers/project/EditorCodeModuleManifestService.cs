@@ -30,6 +30,10 @@ namespace helengine.editor {
 
             EditorCodeModuleManifestEntry[] discoveredModules = LoadFolderScopedManifests(assetsRootPath);
             if (discoveredModules.Length > 0) {
+                if (ProjectContainsScriptsOutsideModules(assetsRootPath, discoveredModules)) {
+                    return new EditorCodeModuleManifestDocument(BuildRootFallbackManifestEntries(discoveredModules));
+                }
+
                 return new EditorCodeModuleManifestDocument(discoveredModules);
             }
 
@@ -53,10 +57,7 @@ namespace helengine.editor {
             foreach (string manifestFilePath in Directory.EnumerateFiles(assetsRootPath, ManifestFileName, SearchOption.AllDirectories)) {
                 string manifestFolderPath = Path.GetDirectoryName(manifestFilePath) ?? assetsRootPath;
                 string folderPath = NormalizeRelativePath(Path.GetRelativePath(ProjectRootPath, manifestFolderPath));
-                EditorCodeModuleManifestFileRecord? manifestRecord = ReadManifestFile(manifestFilePath);
-                if (manifestRecord == null) {
-                    continue;
-                }
+                EditorCodeModuleManifestFileRecord manifestRecord = ReadManifestFile(manifestFilePath);
                 if (!discoveredModuleIds.Add(manifestRecord.ModuleId)) {
                     throw new InvalidOperationException($"Duplicate code module id '{manifestRecord.ModuleId}' was discovered.");
                 }
@@ -113,15 +114,94 @@ namespace helengine.editor {
             return [.. resolvedEntries];
         }
 
+        /// <summary>
+        /// Builds the manifest entry list when root-owned scripts coexist with folder-scoped modules.
+        /// </summary>
+        /// <param name="discoveredModules">Folder-scoped modules discovered beneath the assets root.</param>
+        /// <returns>Combined manifest entry list including the root gameplay module.</returns>
+        EditorCodeModuleManifestEntry[] BuildRootFallbackManifestEntries(EditorCodeModuleManifestEntry[] discoveredModules) {
+            if (discoveredModules == null) {
+                throw new ArgumentNullException(nameof(discoveredModules));
+            }
+
+            if (discoveredModules.Any(module => string.Equals(module.ModuleId, DefaultModuleId, StringComparison.OrdinalIgnoreCase))) {
+                throw new InvalidOperationException($"Folder-scoped code module id '{DefaultModuleId}' conflicts with the reserved main project module id required by loose scripts.");
+            }
+
+            List<EditorCodeModuleManifestEntry> combinedEntries = [
+                new EditorCodeModuleManifestEntry(
+                    DefaultModuleId,
+                    DefaultSourceRoot,
+                    [],
+                    [DefaultLoadScope],
+                    [.. discoveredModules.Select(module => module.FolderPath).OrderBy(static folderPath => folderPath, StringComparer.OrdinalIgnoreCase)])
+            ];
+            combinedEntries.AddRange(discoveredModules);
+            return [.. combinedEntries];
+        }
+
         bool ProjectContainsAnyScripts() {
             string assetsRootPath = Path.Combine(ProjectRootPath, DefaultSourceRoot);
             return Directory.Exists(assetsRootPath)
                 && Directory.EnumerateFiles(assetsRootPath, "*.cs", SearchOption.AllDirectories).Any();
         }
 
-        static EditorCodeModuleManifestFileRecord? ReadManifestFile(string manifestFilePath) {
+        /// <summary>
+        /// Determines whether any script file remains outside all discovered folder-scoped module boundaries.
+        /// </summary>
+        /// <param name="assetsRootPath">Absolute assets root path.</param>
+        /// <param name="discoveredModules">Folder-scoped modules discovered beneath the assets root.</param>
+        /// <returns><c>true</c> when at least one script belongs to the root gameplay module.</returns>
+        bool ProjectContainsScriptsOutsideModules(string assetsRootPath, EditorCodeModuleManifestEntry[] discoveredModules) {
+            if (string.IsNullOrWhiteSpace(assetsRootPath)) {
+                throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath));
+            }
+            if (discoveredModules == null) {
+                throw new ArgumentNullException(nameof(discoveredModules));
+            }
+
+            foreach (string scriptFilePath in Directory.EnumerateFiles(assetsRootPath, "*.cs", SearchOption.AllDirectories)) {
+                string relativeScriptPath = NormalizeRelativePath(Path.GetRelativePath(ProjectRootPath, scriptFilePath));
+                if (!IsOwnedByDiscoveredModule(relativeScriptPath, discoveredModules)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Determines whether one script path is contained by any discovered folder-scoped module boundary.
+        /// </summary>
+        /// <param name="relativeScriptPath">Project-relative script file path.</param>
+        /// <param name="discoveredModules">Folder-scoped modules discovered beneath the assets root.</param>
+        /// <returns><c>true</c> when the script is owned by one discovered module.</returns>
+        static bool IsOwnedByDiscoveredModule(string relativeScriptPath, EditorCodeModuleManifestEntry[] discoveredModules) {
+            if (string.IsNullOrWhiteSpace(relativeScriptPath)) {
+                throw new ArgumentException("Relative script path must be provided.", nameof(relativeScriptPath));
+            }
+            if (discoveredModules == null) {
+                throw new ArgumentNullException(nameof(discoveredModules));
+            }
+
+            for (int index = 0; index < discoveredModules.Length; index++) {
+                string moduleFolderPrefix = discoveredModules[index].FolderPath.TrimEnd('/') + "/";
+                if (relativeScriptPath.StartsWith(moduleFolderPrefix, StringComparison.OrdinalIgnoreCase)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        static EditorCodeModuleManifestFileRecord ReadManifestFile(string manifestFilePath) {
             string manifestJson = File.ReadAllText(manifestFilePath);
-            return JsonSerializer.Deserialize<EditorCodeModuleManifestFileRecord>(manifestJson, JsonOptions);
+            EditorCodeModuleManifestFileRecord manifestRecord = JsonSerializer.Deserialize<EditorCodeModuleManifestFileRecord>(manifestJson, JsonOptions);
+            if (manifestRecord == null) {
+                throw new InvalidOperationException($"Code module manifest '{manifestFilePath}' could not be deserialized.");
+            }
+
+            return manifestRecord;
         }
 
         static bool IsDescendantFolder(string parentFolderPath, string candidateFolderPath) {
