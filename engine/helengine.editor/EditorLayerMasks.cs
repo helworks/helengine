@@ -32,5 +32,10 @@ namespace helengine.editor {
         /// Layer mask used by Scene Hierarchy row visuals rendered inside the hierarchy viewport.
         /// </summary>
         public const ushort SceneHierarchyContent = 0b0000010000000000;
+
+        /// <summary>
+        /// Layer mask used by the world-space 2D canvas preview plane.
+        /// </summary>
+        public const ushort SceneCanvasPlane = 0b0000001000000000;
     }
 }
