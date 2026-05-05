@@ -39,13 +39,18 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(sceneAsset));
             }
 
-            SceneEntityAsset[] rootEntities = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
-            List<EditorEntity> loadedRoots = new List<EditorEntity>(rootEntities.Length);
-            for (int i = 0; i < rootEntities.Length; i++) {
-                loadedRoots.Add(LoadEntity(rootEntities[i]));
-            }
+            ComponentExecutionContext.EnterEditor();
+            try {
+                SceneEntityAsset[] rootEntities = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
+                List<EditorEntity> loadedRoots = new List<EditorEntity>(rootEntities.Length);
+                for (int i = 0; i < rootEntities.Length; i++) {
+                    loadedRoots.Add(LoadEntity(rootEntities[i]));
+                }
 
-            return loadedRoots;
+                return loadedRoots;
+            } finally {
+                ComponentExecutionContext.ExitEditor();
+            }
         }
 
         /// <summary>
@@ -61,6 +66,7 @@ namespace helengine.editor {
             EditorEntity entity = new EditorEntity {
                 Name = entityAsset.Name,
                 LayerMask = EditorLayerMasks.SceneObjects,
+                SuppressUpdateComponentExecutionInEditor = true,
                 LocalPosition = entityAsset.LocalPosition,
                 LocalScale = entityAsset.LocalScale,
                 LocalOrientation = entityAsset.LocalOrientation

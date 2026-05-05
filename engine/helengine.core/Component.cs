@@ -7,21 +7,34 @@ namespace helengine {
         /// Gets the entity this component is attached to.
         /// </summary>
         public Entity Parent { get; private set; }
-        
+
         /// <summary>
-        /// Called when the component is added to an entity.
+        /// Associates the component with one entity before any runtime lifecycle callbacks are considered.
         /// </summary>
         /// <param name="entity">Entity receiving the component.</param>
-        public virtual void ComponentAdded(Entity entity) {
+        internal void AttachToEntity(Entity entity) {
             Parent = entity;
         }
 
         /// <summary>
-        /// Called when the component is removed from an entity.
+        /// Clears the parent association after the component has finished its detach lifecycle.
+        /// </summary>
+        internal void DetachFromEntity() {
+            Parent = null;
+        }
+        
+        /// <summary>
+        /// Called when the component is allowed to run its attach lifecycle.
+        /// </summary>
+        /// <param name="entity">Entity receiving the component.</param>
+        public virtual void ComponentAdded(Entity entity) {
+        }
+
+        /// <summary>
+        /// Called when the component is allowed to run its detach lifecycle.
         /// </summary>
         /// <param name="entity">Entity losing the component.</param>
         public virtual void ComponentRemoved(Entity entity) {
-            Parent = null;
         }
 
         /// <summary>

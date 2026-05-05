@@ -105,6 +105,11 @@ namespace helengine {
         public ushort LayerMask { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether update-driven runtime component behavior should stay inactive while this entity is authored inside the editor.
+        /// </summary>
+        public bool SuppressUpdateComponentExecutionInEditor { get; set; }
+
+        /// <summary>
         /// Gets the list of components attached to this entity.
         /// </summary>
         public List<Component> Components { get; internal set; }
@@ -224,7 +229,11 @@ namespace helengine {
         /// <param name="comp">Component to add.</param>
         public void AddComponent(Component comp) {
             Components.Add(comp);
-            comp.ComponentAdded(this);
+            comp.AttachToEntity(this);
+
+            if (ComponentExecutionPolicy.ShouldRunComponentLifecycle(comp, this)) {
+                comp.ComponentAdded(this);
+            }
         }
 
         /// <summary>
@@ -244,11 +253,16 @@ namespace helengine {
                 throw new InvalidOperationException("Component could not be removed from the component collection.");
             }
 
-            if (IsHierarchyEnabled) {
+            bool shouldRunLifecycle = ComponentExecutionPolicy.ShouldRunComponentLifecycle(comp, this);
+            if (IsHierarchyEnabled && shouldRunLifecycle) {
                 comp.ParentEnabledChange(false);
             }
 
-            comp.ComponentRemoved(this);
+            if (shouldRunLifecycle) {
+                comp.ComponentRemoved(this);
+            }
+
+            comp.DetachFromEntity();
         }
 
         /// <summary>
@@ -258,7 +272,12 @@ namespace helengine {
         protected virtual void ParentEnabledChange(bool newEnabled) {
             if (Components != null) {
                 for (int i = 0; i < Components.Count; i++) {
-                    Components[i].ParentEnabledChange(newEnabled);
+                    Component component = Components[i];
+                    if (!ComponentExecutionPolicy.ShouldRunComponentLifecycle(component, this)) {
+                        continue;
+                    }
+
+                    component.ParentEnabledChange(newEnabled);
                 }
             }
 

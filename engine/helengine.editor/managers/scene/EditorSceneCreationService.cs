@@ -162,6 +162,7 @@ namespace helengine.editor {
             return new EditorEntity {
                 Name = name,
                 LayerMask = EditorLayerMasks.SceneObjects,
+                SuppressUpdateComponentExecutionInEditor = true,
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity

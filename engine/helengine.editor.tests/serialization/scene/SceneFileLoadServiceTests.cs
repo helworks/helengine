@@ -87,6 +87,22 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures editor scene loading can materialize a menu-host component without requiring the game script assembly to be loaded.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneContainsMenuHostComponent_LoadsWithoutInitializingRuntimeMenuHost() {
+            string scenePath = SaveMenuHostSceneAsset("MenuHost.helen", "Menu Root", "city.menu.DemoDiscMenuDefinitionProvider, city");
+            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, CreateMenuHostPersistenceRegistry(), new TestSceneAssetReferenceResolver());
+
+            IReadOnlyList<EditorEntity> loaded = loadService.Load(scenePath);
+
+            EditorEntity root = Assert.Single(loaded);
+            MenuHostComponent menuHostComponent = Assert.IsType<MenuHostComponent>(Assert.Single(root.Components, component => component is MenuHostComponent));
+            Assert.Equal("city.menu.DemoDiscMenuDefinitionProvider, city", menuHostComponent.ProviderTypeName);
+            Assert.False(menuHostComponent.IsInitialized);
+        }
+
+        /// <summary>
         /// Creates a scene-load service with runtime references registered for a saved mesh component.
         /// </summary>
         /// <param name="modelReference">Model reference to resolve during load.</param>
@@ -106,6 +122,16 @@ namespace helengine.editor.tests.serialization.scene {
         ComponentPersistenceRegistry CreatePersistenceRegistry() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             registry.Register(new MeshComponentPersistenceDescriptor());
+            return registry;
+        }
+
+        /// <summary>
+        /// Creates the component persistence registry required to load menu-host scene records.
+        /// </summary>
+        /// <returns>Configured persistence registry containing menu-host support.</returns>
+        ComponentPersistenceRegistry CreateMenuHostPersistenceRegistry() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            registry.Register(new MenuHostComponentPersistenceDescriptor());
             return registry;
         }
 
@@ -140,12 +166,73 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Writes one scene file containing a single menu-host entity with an authored provider type name.
+        /// </summary>
+        /// <param name="fileName">Scene file name to write.</param>
+        /// <param name="entityName">Name assigned to the saved root entity.</param>
+        /// <param name="providerTypeName">Assembly-qualified provider type stored in the menu-host payload.</param>
+        /// <returns>Absolute path to the written `.helen` file.</returns>
+        string SaveMenuHostSceneAsset(string fileName, string entityName, string providerTypeName) {
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new ArgumentException("Scene file name must be provided.", nameof(fileName));
+            }
+            if (string.IsNullOrWhiteSpace(entityName)) {
+                throw new ArgumentException("Entity name must be provided.", nameof(entityName));
+            }
+            if (string.IsNullOrWhiteSpace(providerTypeName)) {
+                throw new ArgumentException("Provider type name must be provided.", nameof(providerTypeName));
+            }
+
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "menu-root",
+                        Name = entityName,
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = MenuHostComponent.SerializedComponentTypeId,
+                                ComponentIndex = 0,
+                                Payload = WriteMenuHostComponentPayload(providerTypeName)
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", fileName);
+            using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, sceneAsset);
+            return scenePath;
+        }
+
+        /// <summary>
         /// Retrieves the hidden save component attached to one editor entity.
         /// </summary>
         /// <param name="entity">Entity whose save component should be returned.</param>
         /// <returns>Attached hidden save component.</returns>
         EntitySaveComponent GetSaveComponent(EditorEntity entity) {
             return Assert.IsType<EntitySaveComponent>(Assert.Single(entity.Components, component => component is EntitySaveComponent));
+        }
+
+        /// <summary>
+        /// Writes one menu-host component payload using the current scene serialization contract.
+        /// </summary>
+        /// <param name="providerTypeName">Assembly-qualified provider type stored in the payload.</param>
+        /// <returns>Serialized menu-host component payload.</returns>
+        byte[] WriteMenuHostComponentPayload(string providerTypeName) {
+            if (string.IsNullOrWhiteSpace(providerTypeName)) {
+                throw new ArgumentException("Provider type name must be provided.", nameof(providerTypeName));
+            }
+
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(MenuHostComponent.CurrentVersion);
+            writer.WriteString(providerTypeName);
+            return stream.ToArray();
         }
 
         /// <summary>

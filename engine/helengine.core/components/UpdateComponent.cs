@@ -15,7 +15,7 @@ namespace helengine {
             get { return updateOrder; }
             set {
                 if (updateOrder != value) {
-                    if (Parent != null && Parent.IsHierarchyEnabled) {
+                    if (Parent != null && Parent.IsHierarchyEnabled && ComponentExecutionPolicy.ShouldRunComponentLifecycle(this, Parent)) {
                         Core.Instance.ObjectManager.RemoveFromUpdate(this, updateOrder);
                         updateOrder = value;
                         Core.Instance.ObjectManager.RegisterForUpdate(this);
@@ -33,7 +33,7 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            if (entity.IsHierarchyEnabled) {
+            if (entity.IsHierarchyEnabled && ComponentExecutionPolicy.ShouldRunComponentLifecycle(this, entity)) {
                 Core.Instance.ObjectManager.RegisterForUpdate(this);
             }
         }
@@ -44,6 +44,9 @@ namespace helengine {
         /// <param name="newEnabled">New enabled state.</param>
         public override void ParentEnabledChange(bool newEnabled) {
             base.ParentEnabledChange(newEnabled);
+            if (!ComponentExecutionPolicy.ShouldRunComponentLifecycle(this, Parent)) {
+                return;
+            }
 
             if (newEnabled) {
                 Core.Instance.ObjectManager.RegisterForUpdate(this);
