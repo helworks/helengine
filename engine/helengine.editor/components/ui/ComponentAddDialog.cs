@@ -566,7 +566,24 @@ namespace helengine.editor {
             };
             labelHost.AddComponent(label);
 
-            ContextMenuRow row = new ContextMenuRow(rowEntity, background, labelHost, label, interactable);
+            EditorEntity indicatorHost = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true,
+                Enabled = false
+            };
+            rowEntity.AddChild(indicatorHost);
+
+            TextComponent indicator = new TextComponent {
+                Font = SearchFont,
+                Text = string.Empty,
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                Size = new int2(0, 0),
+                RenderOrder2D = DialogTextOrder
+            };
+            indicatorHost.AddComponent(indicator);
+
+            ContextMenuRow row = new ContextMenuRow(rowEntity, background, labelHost, label, indicatorHost, indicator, interactable);
             row.Pressed += HandleRowPressed;
             row.Activated += HandleRowActivated;
             ListHost.AddChild(rowEntity);

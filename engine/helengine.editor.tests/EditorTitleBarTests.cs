@@ -35,7 +35,7 @@ namespace helengine.editor.tests {
             InitializeCore();
             EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
 
-            Assert.Equal(22, titleBar.Height);
+            Assert.Equal(27, titleBar.Height);
         }
 
         /// <summary>
@@ -74,7 +74,7 @@ namespace helengine.editor.tests {
             Assert.Equal(4f, iconEntity.Position.X);
             Assert.Equal(4f, iconEntity.Position.Y);
             Assert.Same(iconTexture, iconSprite.Texture);
-            Assert.Equal(new int2(14, 14), iconSprite.Size);
+            Assert.Equal(new int2(19, 19), iconSprite.Size);
         }
 
         /// <summary>
@@ -94,10 +94,10 @@ namespace helengine.editor.tests {
             EditorEntity iconEntity = GetPrivateField<EditorEntity>(titleBar, "IconEntity");
             SpriteComponent iconSprite = GetPrivateField<SpriteComponent>(titleBar, "IconSprite");
 
-            Assert.Equal(33, titleBar.Height);
+            Assert.Equal(41, titleBar.Height);
             Assert.Equal(6f, iconEntity.Position.X);
             Assert.Equal(6f, iconEntity.Position.Y);
-            Assert.Equal(new int2(21, 21), iconSprite.Size);
+            Assert.Equal(new int2(29, 29), iconSprite.Size);
         }
 
         /// <summary>

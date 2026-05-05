@@ -82,6 +82,30 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures PS2 graphics profiles seed the depth-handler choice with the hardware default.
+        /// </summary>
+        [Fact]
+        public void Create_WhenPs2GraphicsProfileOmitsDepthHandlerMode_SeedsHardwareDefault() {
+            WriteScene("Scenes/A.helen");
+
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            EditorBuildQueueItemFactory factory = new EditorBuildQueueItemFactory(sceneCatalogService);
+            EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
+                PlatformId = "ps2",
+                SelectedSceneIds = [
+                    "Scenes/A.helen"
+                ]
+            };
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreatePs2SelectionModel());
+            EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
+
+            Assert.Equal("ps2-default", queueItem.SelectedBuildProfileId);
+            Assert.Equal("ps2-standard-forward", queueItem.SelectedGraphicsProfileId);
+            Assert.Equal("hardware", queueItem.SelectedGraphicsOptionValues["depth-handler-mode"]);
+        }
+
+        /// <summary>
         /// Ensures one blank platform scene selection falls back to the project scene catalog.
         /// </summary>
         [Fact]
@@ -240,6 +264,139 @@ namespace helengine.editor.tests {
                         PlatformMediaLayoutKind.InstallTree,
                         true,
                         false)
+                ]);
+        }
+
+        /// <summary>
+        /// Creates one PS2 builder definition used by the PS2 queue-item test.
+        /// </summary>
+        /// <returns>Selection model backed by the supplied definition.</returns>
+        static PlatformDefinition CreatePs2SelectionModel() {
+            return new PlatformDefinition(
+                "ps2",
+                "PlayStation 2",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "ps2-default",
+                        "PS2 Default",
+                        "PS2 player build",
+                        "ps2-standard-forward",
+                        "default",
+                        [
+                            new PlatformSettingDefinition(
+                                "texture-scale-percent",
+                                "Texture scale %",
+                                PlatformSettingKind.Text,
+                                "100",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "shader-variant-pruning",
+                                "Shader variant pruning",
+                                PlatformSettingKind.Boolean,
+                                "true",
+                                true,
+                                [])
+                        ])
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "ps2-standard-forward",
+                        "PS2 Standard Forward",
+                        "Default PS2 forward renderer",
+                        [
+                            new PlatformSettingDefinition(
+                                "default-width",
+                                "Default width",
+                                PlatformSettingKind.Text,
+                                "640",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "default-height",
+                                "Default height",
+                                PlatformSettingKind.Text,
+                                "448",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "vsync-enabled",
+                                "VSync",
+                                PlatformSettingKind.Boolean,
+                                "true",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "fullscreen-enabled",
+                                "Fullscreen",
+                                PlatformSettingKind.Boolean,
+                                "false",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "depth-handler-mode",
+                                "Depth Handler Mode",
+                                PlatformSettingKind.Choice,
+                                "hardware",
+                                true,
+                                ["hardware", "software"])
+                        ])
+                ],
+                [],
+                [],
+                [
+                    new PlatformCodegenProfileDefinition(
+                        "default",
+                        "Default",
+                        "Default codegen profile",
+                        PlatformCodegenLanguage.Cpp,
+                        PlatformSerializationEndianness.LittleEndian,
+                        [
+                            new PlatformSettingDefinition(
+                                "write-conversion-report",
+                                "Write Conversion Report",
+                                PlatformSettingKind.Boolean,
+                                "true",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "include-project-defined-preprocessor-symbols",
+                                "Include Project Symbols",
+                                PlatformSettingKind.Boolean,
+                                "false",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "load-native-runtime-metadata",
+                                "Load Native Runtime Metadata",
+                                PlatformSettingKind.Boolean,
+                                "true",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                PlatformCodegenSettingIds.PresetId,
+                                "Preset",
+                                PlatformSettingKind.Text,
+                                "ps2-default",
+                                true,
+                                [])
+                        ])
+                ],
+                [
+                    new PlatformStorageProfileDefinition(
+                        "disc-layout",
+                        "Disc Layout",
+                        PlatformStorageProfileKind.DiscLayout,
+                        "ps2-disc-layout",
+                        true)
+                ],
+                [
+                    new PlatformMediaProfileDefinition(
+                        "ps2-install-tree",
+                        "PS2 Install Tree",
+                        PlatformMediaLayoutKind.InstallTree,
+                        true,
+                        true)
                 ]);
         }
     }

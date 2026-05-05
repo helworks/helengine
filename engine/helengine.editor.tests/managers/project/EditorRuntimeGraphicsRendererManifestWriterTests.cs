@@ -39,7 +39,8 @@ public sealed class EditorRuntimeGraphicsRendererManifestWriterTests : IDisposab
             DepthPrepassMode.Always,
             "ultra",
             true,
-            PostProcessTier.High);
+            PostProcessTier.High,
+            Ps2DepthHandlerMode.Hardware);
 
         EditorRuntimeGraphicsRendererManifestWriter writer = new();
         writer.Write(generatedCoreRootPath, manifest);
@@ -57,5 +58,6 @@ public sealed class EditorRuntimeGraphicsRendererManifestWriterTests : IDisposab
         Assert.Contains("\"ultra\"", source);
         Assert.Contains("true", source);
         Assert.Contains("HERuntimePostProcessTier::High", source);
+        Assert.Contains("HERuntimePs2DepthHandlerMode::Hardware", source);
     }
 }

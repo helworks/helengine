@@ -194,6 +194,40 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the hierarchy only enables rows that fit inside the current panel viewport.
+        /// </summary>
+        [Fact]
+        public void RefreshHierarchy_WhenSceneContainsMoreRowsThanViewport_OnlyEnablesVisibleRows() {
+            for (int entityIndex = 0; entityIndex < 20; entityIndex++) {
+                new EditorEntity();
+            }
+
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+                Size = new int2(320, 176)
+            };
+
+            panel.RefreshHierarchy();
+
+            EditorEntity contentRoot = GetPrivateField<EditorEntity>(panel, "contentRoot");
+            List<SceneHierarchyRow> rows = GetPrivateField<List<SceneHierarchyRow>>(panel, "rows");
+            int enabledRowCount = 0;
+            SceneHierarchyRow lastVisibleRow = null;
+            for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++) {
+                SceneHierarchyRow row = rows[rowIndex];
+                if (!row.Entity.Enabled || row.NodeEntity == null) {
+                    continue;
+                }
+
+                enabledRowCount++;
+                lastVisibleRow = row;
+            }
+
+            Assert.Equal(8, enabledRowCount);
+            Assert.NotNull(lastVisibleRow);
+            Assert.True(lastVisibleRow.Entity.Position.Y + SceneHierarchyPanel.RowHeight <= contentRoot.Position.Y + panel.Size.Y);
+        }
+
+        /// <summary>
         /// Creates a small font asset that can satisfy hierarchy label layout in tests.
         /// </summary>
         /// <returns>Font asset with basic glyph metrics for the current test.</returns>

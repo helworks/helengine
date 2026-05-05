@@ -4,6 +4,16 @@ namespace helengine.editor {
     /// </summary>
     public class ContextMenu {
         /// <summary>
+        /// Backing value for the shared submenu indicator appended to rows that open another menu.
+        /// </summary>
+        static string SubmenuIndicatorValue = "v";
+
+        /// <summary>
+        /// Horizontal gap preserved between the row label and the right-aligned submenu indicator.
+        /// </summary>
+        const int SubmenuIndicatorGap = 12;
+
+        /// <summary>
         /// Height of each menu row in pixels.
         /// </summary>
         public const int RowHeight = 24;
@@ -158,6 +168,20 @@ namespace helengine.editor {
         /// Gets the root entity for the context menu.
         /// </summary>
         public EditorEntity Entity => Root;
+
+        /// <summary>
+        /// Gets or sets the shared text appended to rows that open another menu.
+        /// </summary>
+        public static string SubmenuIndicator {
+            get { return SubmenuIndicatorValue; }
+            set {
+                if (value == null) {
+                    throw new ArgumentNullException(nameof(value));
+                }
+
+                SubmenuIndicatorValue = value;
+            }
+        }
 
         /// <summary>
         /// Gets a value indicating whether the menu is currently visible.
@@ -324,12 +348,27 @@ namespace helengine.editor {
             };
             labelHost.AddComponent(label);
 
+            var indicatorHost = new EditorEntity {
+                LayerMask = Root.LayerMask,
+                Position = float3.Zero
+            };
+            rowEntity.AddChild(indicatorHost);
+
+            var indicator = new TextComponent {
+                Font = Font,
+                Text = string.Empty,
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                Size = new int2(1, 1),
+                RenderOrder2D = TextOrder
+            };
+            indicatorHost.AddComponent(indicator);
+
             var interactable = new InteractableComponent {
                 Size = new int2(0, 0)
             };
             rowEntity.AddComponent(interactable);
 
-            var row = new ContextMenuRow(rowEntity, background, labelHost, label, interactable);
+            var row = new ContextMenuRow(rowEntity, background, labelHost, label, indicatorHost, indicator, interactable);
             row.Activated += HandleRowActivated;
             row.Hovered += HandleRowHovered;
             return row;
@@ -350,7 +389,9 @@ namespace helengine.editor {
                 ContextMenuItem item = ActiveItems[i];
                 row.Entity.Enabled = true;
                 row.Item = item;
-                row.Label.Text = item.Label ?? string.Empty;
+                row.Label.Text = item.Label;
+                row.Indicator.Text = GetIndicatorLabel(item);
+                row.IndicatorHost.Enabled = !string.IsNullOrEmpty(row.Indicator.Text);
                 row.ResetState();
             }
         }
@@ -384,10 +425,23 @@ namespace helengine.editor {
                 row.Background.Size = new int2(MenuSize.X, RowHeight);
                 row.Interactable.Size = new int2(MenuSize.X, RowHeight);
 
-                var metrics = Font.MeasureTight(row.Label.Text ?? string.Empty);
-                float labelY = GetTextTopOffset(RowHeight, metrics);
+                var labelMetrics = Font.MeasureTight(row.Label.Text ?? string.Empty);
+                float labelY = GetTextTopOffset(RowHeight, labelMetrics);
                 row.LabelHost.Position = new float3(PaddingX, labelY, 0.2f);
-                row.Label.Size = new int2(Math.Max(0, MenuSize.X - PaddingX * 2), (int)Math.Ceiling(metrics.Height));
+                int labelWidth = Math.Max(0, MenuSize.X - PaddingX * 2);
+                if (row.IndicatorHost.Enabled) {
+                    var indicatorMetrics = Font.MeasureTight(row.Indicator.Text ?? string.Empty);
+                    double indicatorX = MenuSize.X - PaddingX - indicatorMetrics.Width;
+                    float indicatorY = GetTextTopOffset(RowHeight, indicatorMetrics);
+                    row.IndicatorHost.Position = new float3((float)indicatorX, indicatorY, 0.2f);
+                    row.Indicator.Size = new int2((int)Math.Ceiling(indicatorMetrics.Width), (int)Math.Ceiling(indicatorMetrics.Height));
+                    labelWidth = Math.Max(0, (int)Math.Floor(indicatorX - PaddingX - SubmenuIndicatorGap));
+                } else {
+                    row.IndicatorHost.Position = new float3(MenuSize.X - PaddingX, labelY, 0.2f);
+                    row.Indicator.Size = new int2(0, 0);
+                }
+
+                row.Label.Size = new int2(labelWidth, (int)Math.Ceiling(labelMetrics.Height));
 
                 y += RowHeight + RowSpacing;
             }
@@ -401,8 +455,13 @@ namespace helengine.editor {
             int width = MinWidth;
             for (int i = 0; i < ActiveItems.Count; i++) {
                 string label = ActiveItems[i].Label ?? string.Empty;
-                var metrics = Font.MeasureTight(label);
-                int required = (int)Math.Ceiling(metrics.Width) + (PaddingX * 2);
+                var labelMetrics = Font.MeasureTight(label);
+                int required = (int)Math.Ceiling(labelMetrics.Width) + (PaddingX * 2);
+                string indicator = GetIndicatorLabel(ActiveItems[i]);
+                if (!string.IsNullOrEmpty(indicator)) {
+                    var indicatorMetrics = Font.MeasureTight(indicator);
+                    required += SubmenuIndicatorGap + (int)Math.Ceiling(indicatorMetrics.Width);
+                }
                 if (required > width) {
                     width = required;
                 }
@@ -423,6 +482,23 @@ namespace helengine.editor {
             }
 
             return new int2(width, height);
+        }
+
+        /// <summary>
+        /// Gets the rendered submenu indicator text for one menu item.
+        /// </summary>
+        /// <param name="item">Menu item whose display label should be built.</param>
+        /// <returns>Rendered submenu indicator text for the row.</returns>
+        string GetIndicatorLabel(ContextMenuItem item) {
+            if (item == null) {
+                throw new ArgumentNullException(nameof(item));
+            }
+
+            if (!item.OpensSubmenu || string.IsNullOrEmpty(SubmenuIndicator)) {
+                return string.Empty;
+            }
+
+            return SubmenuIndicator;
         }
 
         /// <summary>

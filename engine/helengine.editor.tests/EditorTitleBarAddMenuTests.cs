@@ -72,6 +72,26 @@ namespace helengine.editor.tests {
                 item => Assert.Equal("Plane", item.Label),
                 item => Assert.Equal("Camera", item.Label),
                 item => Assert.Equal("Light", item.Label));
+            Assert.True(activeItems[4].OpensSubmenu);
+        }
+
+        /// <summary>
+        /// Ensures the visible Add-menu Light row renders the shared submenu indicator.
+        /// </summary>
+        [Fact]
+        public void ToggleAddMenu_RendersSubmenuIndicatorOnLightRow() {
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+
+            InvokePrivate(titleBar, "ToggleAddMenu");
+
+            ContextMenu addMenu = GetPrivateField<ContextMenu>(titleBar, "AddMenu");
+            List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(addMenu, "Rows");
+            ContextMenuRow lightRow = rows.First(value => value.Entity.Enabled && string.Equals(value.Item.Label, "Light", StringComparison.Ordinal));
+
+            Assert.Equal("Light", lightRow.Label.Text);
+            Assert.Equal("v", lightRow.Indicator.Text);
+            Assert.True(lightRow.IndicatorHost.Enabled);
+            Assert.True(lightRow.IndicatorHost.Position.X > lightRow.LabelHost.Position.X);
         }
 
         /// <summary>

@@ -81,6 +81,11 @@ namespace helengine.editor {
         public Entity NodeEntity { get; set; }
 
         /// <summary>
+        /// Gets or sets the flattened hierarchy node index currently represented by this row.
+        /// </summary>
+        public int NodeIndex { get; set; }
+
+        /// <summary>
         /// Gets or sets the base color used when the row is idle.
         /// </summary>
         public byte4 BaseColor { get; set; }

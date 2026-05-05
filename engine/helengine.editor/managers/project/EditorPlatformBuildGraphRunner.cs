@@ -135,7 +135,7 @@ namespace helengine.editor {
             cookedManifest = RunResolveVariants(cookedManifest, workspace);
             cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
             WriteRuntimeNativeManifestSources(cookedManifest, workspace.GeneratedCoreRootPath);
-            WriteRuntimeGraphicsRendererManifestSource(workspace.GeneratedCoreRootPath);
+            WriteRuntimeGraphicsRendererManifestSource(workspace.GeneratedCoreRootPath, selectionModel);
             RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
 
             return RunPackagePlatform(
@@ -261,9 +261,10 @@ namespace helengine.editor {
         /// Writes generated runtime renderer-default source into the combined generated-core tree.
         /// </summary>
         /// <param name="generatedCoreRootPath">Generated core source root that will be compiled into the native player.</param>
-        void WriteRuntimeGraphicsRendererManifestSource(string generatedCoreRootPath) {
+        /// <param name="selectionModel">Resolved builder metadata for the active platform.</param>
+        void WriteRuntimeGraphicsRendererManifestSource(string generatedCoreRootPath, EditorPlatformBuildSelectionModel selectionModel) {
             EditorRuntimeGraphicsRendererManifestWriter writer = new();
-            writer.Write(generatedCoreRootPath, ResolveRuntimeGraphicsRendererManifest());
+            writer.Write(generatedCoreRootPath, ResolveRuntimeGraphicsRendererManifest(selectionModel));
         }
 
         /// <summary>
@@ -320,20 +321,31 @@ namespace helengine.editor {
         /// Resolves the renderer-default manifest for the active platform from persisted profile settings.
         /// </summary>
         /// <returns>Renderer-default manifest consumed by native manifest generation.</returns>
-        RuntimeGraphicsRendererManifest ResolveRuntimeGraphicsRendererManifest() {
-            EditorGraphicsProfileSettingsDocument graphicsSettings = LoadPlatformGraphicsSettings();
+        /// <param name="selectionModel">Resolved builder metadata for the active platform.</param>
+        RuntimeGraphicsRendererManifest ResolveRuntimeGraphicsRendererManifest(EditorPlatformBuildSelectionModel selectionModel) {
+            if (selectionModel == null) {
+                throw new ArgumentNullException(nameof(selectionModel));
+            }
+
+            EditorGraphicsProfileSettingsDocument graphicsSettings = LoadPlatformGraphicsSettings(selectionModel);
             return new RuntimeGraphicsRendererManifest(
                 graphicsSettings.RendererDepthPrepassMode,
                 graphicsSettings.RendererShadowQualityTier,
                 graphicsSettings.RendererHdrEnabled,
-                graphicsSettings.RendererPostProcessTier);
+                graphicsSettings.RendererPostProcessTier,
+                ResolvePs2DepthHandlerMode(graphicsSettings));
         }
 
         /// <summary>
         /// Loads the persisted graphics-profile settings for the active platform, falling back to defaults when unavailable.
         /// </summary>
+        /// <param name="selectionModel">Resolved builder metadata for the active platform.</param>
         /// <returns>Normalized platform graphics-profile settings.</returns>
-        EditorGraphicsProfileSettingsDocument LoadPlatformGraphicsSettings() {
+        EditorGraphicsProfileSettingsDocument LoadPlatformGraphicsSettings(EditorPlatformBuildSelectionModel selectionModel) {
+            if (selectionModel == null) {
+                throw new ArgumentNullException(nameof(selectionModel));
+            }
+
             EditorProfileSettingsService profileSettingsService = new EditorProfileSettingsService(ProjectRootPath);
             EditorProfileSettingsDocument document = profileSettingsService.TryLoadExisting();
             if (document == null || document.Platforms == null) {
@@ -351,6 +363,10 @@ namespace helengine.editor {
                 if (platform.Graphics == null) {
                     return new EditorGraphicsProfileSettingsDocument();
                 }
+                PlatformGraphicsProfileDefinition graphicsProfile = selectionModel.ResolveGraphicsProfile(platform.Graphics.SelectedGraphicsProfileId);
+                if (graphicsProfile != null) {
+                    EnsureSettingDefaults(platform.Graphics.SelectedOptionValues, graphicsProfile.Settings);
+                }
                 if (string.IsNullOrWhiteSpace(platform.Graphics.RendererShadowQualityTier)) {
                     platform.Graphics.RendererShadowQualityTier = "medium";
                 }
@@ -359,6 +375,44 @@ namespace helengine.editor {
             }
 
             return new EditorGraphicsProfileSettingsDocument();
+        }
+
+        /// <summary>
+        /// Seeds missing graphics-option values from the supplied setting definitions.
+        /// </summary>
+        /// <param name="values">Persisted option values.</param>
+        /// <param name="settings">Builder-provided graphics setting definitions.</param>
+        static void EnsureSettingDefaults(Dictionary<string, string> values, PlatformSettingDefinition[] settings) {
+            if (values == null || settings == null) {
+                return;
+            }
+
+            for (int index = 0; index < settings.Length; index++) {
+                PlatformSettingDefinition setting = settings[index];
+                if (!values.TryGetValue(setting.SettingId, out string existingValue) || string.IsNullOrWhiteSpace(existingValue)) {
+                    values[setting.SettingId] = setting.DefaultValue;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Resolves the PS2 depth-handler mode from the persisted graphics-profile options.
+        /// </summary>
+        /// <param name="graphicsSettings">Normalized graphics-profile settings.</param>
+        /// <returns>Resolved PS2 depth-handler mode.</returns>
+        static Ps2DepthHandlerMode ResolvePs2DepthHandlerMode(EditorGraphicsProfileSettingsDocument graphicsSettings) {
+            if (graphicsSettings == null) {
+                throw new ArgumentNullException(nameof(graphicsSettings));
+            }
+
+            if (graphicsSettings.SelectedOptionValues != null &&
+                graphicsSettings.SelectedOptionValues.TryGetValue("depth-handler-mode", out string selectedValue) &&
+                !string.IsNullOrWhiteSpace(selectedValue) &&
+                string.Equals(selectedValue, "software", StringComparison.OrdinalIgnoreCase)) {
+                return Ps2DepthHandlerMode.Software;
+            }
+
+            return Ps2DepthHandlerMode.Hardware;
         }
 
         /// <summary>

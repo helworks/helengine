@@ -49,11 +49,17 @@ namespace helengine.editor {
             builder.AppendLine("    High = 2");
             builder.AppendLine("};");
             builder.AppendLine();
+            builder.AppendLine("enum class HERuntimePs2DepthHandlerMode {");
+            builder.AppendLine("    Hardware = 0,");
+            builder.AppendLine("    Software = 1");
+            builder.AppendLine("};");
+            builder.AppendLine();
             builder.AppendLine("struct HERuntimeGraphicsRendererManifest {");
             builder.AppendLine("    HERuntimeDepthPrepassMode DepthPrepassMode;");
             builder.AppendLine("    const char* ShadowQualityTier;");
             builder.AppendLine("    bool HdrEnabled;");
             builder.AppendLine("    HERuntimePostProcessTier PostProcessTier;");
+            builder.AppendLine("    HERuntimePs2DepthHandlerMode Ps2DepthHandlerMode;");
             builder.AppendLine("};");
             builder.AppendLine();
             builder.AppendLine("const HERuntimeGraphicsRendererManifest* he_get_runtime_graphics_renderer_manifest();");
@@ -77,7 +83,8 @@ namespace helengine.editor {
             builder.AppendLine("    " + ResolveDepthPrepassModeExpression(manifest.DepthPrepassMode) + ",");
             builder.AppendLine("    \"" + EscapeCppStringLiteral(manifest.ShadowQualityTier) + "\",");
             builder.AppendLine("    " + (manifest.HdrEnabled ? "true" : "false") + ",");
-            builder.AppendLine("    " + ResolvePostProcessTierExpression(manifest.PostProcessTier));
+            builder.AppendLine("    " + ResolvePostProcessTierExpression(manifest.PostProcessTier) + ",");
+            builder.AppendLine("    " + ResolvePs2DepthHandlerModeExpression(manifest.Ps2DepthHandlerMode));
             builder.AppendLine("};");
             builder.AppendLine();
             builder.AppendLine("const HERuntimeGraphicsRendererManifest* he_get_runtime_graphics_renderer_manifest() {");
@@ -116,6 +123,19 @@ namespace helengine.editor {
             }
 
             return "HERuntimePostProcessTier::Disabled";
+        }
+
+        /// <summary>
+        /// Resolves one PS2 depth-handler mode into its generated C++ enumeration expression.
+        /// </summary>
+        /// <param name="ps2DepthHandlerMode">PS2 depth-handler mode to translate.</param>
+        /// <returns>Generated C++ enumeration expression.</returns>
+        static string ResolvePs2DepthHandlerModeExpression(Ps2DepthHandlerMode ps2DepthHandlerMode) {
+            if (ps2DepthHandlerMode == Ps2DepthHandlerMode.Software) {
+                return "HERuntimePs2DepthHandlerMode::Software";
+            }
+
+            return "HERuntimePs2DepthHandlerMode::Hardware";
         }
 
         /// <summary>

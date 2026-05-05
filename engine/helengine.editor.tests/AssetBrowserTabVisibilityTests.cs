@@ -1,4 +1,6 @@
 using System.Collections;
+using System.Reflection;
+using System.Linq;
 using helengine.editor.tests.testing;
 using Xunit;
 
@@ -58,6 +60,18 @@ namespace helengine.editor.tests {
             Assert.Equal(0, CountOwnedDrawables(assetBrowserPanel));
             Assert.Equal(0, CountOwnedInteractables(assetBrowserPanel));
             Assert.True(GetRowCount(assetBrowserPanel) > 0);
+        }
+
+        /// <summary>
+        /// Ensures the asset browser marks `New File` as a submenu-opening item so the shared indicator renders automatically.
+        /// </summary>
+        [Fact]
+        public void Constructor_MarksNewFileItemAsOpeningSubmenu() {
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath);
+            List<ContextMenuItem> createAssetItems = GetPrivateField<List<ContextMenuItem>>(assetBrowserPanel, "CreateAssetItems");
+            ContextMenuItem newFileItem = createAssetItems.First(value => string.Equals(value.Label, "New File", StringComparison.Ordinal));
+
+            Assert.True(newFileItem.OpensSubmenu);
         }
 
         /// <summary>
@@ -141,7 +155,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentException("Field name must be provided.", nameof(fieldName));
             }
 
-            var fieldInfo = instance.GetType().GetField(fieldName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            FieldInfo fieldInfo = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
             if (fieldInfo == null) {
                 throw new InvalidOperationException("Expected private field was not found.");
             }

@@ -14,7 +14,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(18, metrics.UiFontPixelSize);
             Assert.Equal(23, metrics.SnapModifierFontPixelSize);
-            Assert.Equal(54, metrics.HostTitleBarHeight);
+            Assert.Equal(41, metrics.HostTitleBarHeight);
             Assert.Equal(30, metrics.DockTitleBarHeight);
         }
     }

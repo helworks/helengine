@@ -9,20 +9,22 @@ namespace helengine.editor {
         /// <summary>
         /// Default title bar height in pixels.
         /// </summary>
-        public const int HeightPixels = 36;
+        public const int HeightPixels = 27;
+
+        /// <summary>
+        /// Padding applied around the rendered editor icon.
+        /// </summary>
+        public const int IconPaddingPixels = 4;
+
+        /// <summary>
+        /// Size used for the rendered editor icon inside the left slot.
+        /// </summary>
+        public const int IconSizePixels = HeightPixels - (IconPaddingPixels * 2);
 
         /// <summary>
         /// Width reserved at the left edge for the editor icon.
         /// </summary>
         const int LeftIconSlotWidth = HeightPixels;
-        /// <summary>
-        /// Size used for the rendered editor icon inside the left slot.
-        /// </summary>
-        const int IconSize = 24;
-        /// <summary>
-        /// Padding applied around the rendered editor icon.
-        /// </summary>
-        const int IconPadding = (HeightPixels - IconSize) / 2;
         /// <summary>
         /// Top offset used for title bar buttons.
         /// </summary>

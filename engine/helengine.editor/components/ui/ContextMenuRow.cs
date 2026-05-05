@@ -10,12 +10,16 @@ namespace helengine.editor {
         /// <param name="background">Background sprite component.</param>
         /// <param name="labelHost">Host entity for the label.</param>
         /// <param name="label">Text label component.</param>
+        /// <param name="indicatorHost">Host entity for the submenu indicator text.</param>
+        /// <param name="indicator">Text component used to render the submenu indicator.</param>
         /// <param name="interactable">Interactable used for input.</param>
         public ContextMenuRow(
             EditorEntity entity,
             SpriteComponent background,
             EditorEntity labelHost,
             TextComponent label,
+            EditorEntity indicatorHost,
+            TextComponent indicator,
             InteractableComponent interactable) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
@@ -29,6 +33,12 @@ namespace helengine.editor {
             if (label == null) {
                 throw new ArgumentNullException(nameof(label));
             }
+            if (indicatorHost == null) {
+                throw new ArgumentNullException(nameof(indicatorHost));
+            }
+            if (indicator == null) {
+                throw new ArgumentNullException(nameof(indicator));
+            }
             if (interactable == null) {
                 throw new ArgumentNullException(nameof(interactable));
             }
@@ -37,6 +47,8 @@ namespace helengine.editor {
             Background = background;
             LabelHost = labelHost;
             Label = label;
+            IndicatorHost = indicatorHost;
+            Indicator = indicator;
             Interactable = interactable;
             BaseColor = ThemeManager.Colors.SurfacePrimary;
             HoverColor = ThemeManager.Colors.AccentSecondary;
@@ -83,6 +95,16 @@ namespace helengine.editor {
         /// Gets the label text component.
         /// </summary>
         public TextComponent Label { get; }
+
+        /// <summary>
+        /// Gets the host entity for the submenu indicator text.
+        /// </summary>
+        public EditorEntity IndicatorHost { get; }
+
+        /// <summary>
+        /// Gets the text component used to render the submenu indicator.
+        /// </summary>
+        public TextComponent Indicator { get; }
 
         /// <summary>
         /// Gets the interactable component used for hit testing.

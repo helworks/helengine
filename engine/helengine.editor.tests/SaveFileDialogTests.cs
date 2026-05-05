@@ -115,7 +115,7 @@ namespace helengine.editor.tests {
             Assert.Equal(new int2(1184, 33), fileNameField.Size);
             Assert.Equal(new int2(132, 33), cancelButton.Size);
             Assert.Equal(new int2(132, 33), saveButton.Size);
-            Assert.Equal(54, backdropTopSurface.Size.Y);
+            Assert.Equal(41, backdropTopSurface.Size.Y);
         }
 
         /// <summary>

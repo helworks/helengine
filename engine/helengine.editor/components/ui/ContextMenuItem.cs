@@ -62,5 +62,24 @@ namespace helengine.editor {
         /// Gets a value indicating whether the menu should close on activation.
         /// </summary>
         public bool CloseOnActivate { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether the item opens another menu and should render the shared submenu indicator.
+        /// </summary>
+        public bool OpensSubmenu => HoverAction != null && !CloseOnActivate && ActionsAreEquivalent(Action, HoverAction);
+
+        /// <summary>
+        /// Determines whether two action delegates represent the same callback target and method.
+        /// </summary>
+        /// <param name="first">First action to compare.</param>
+        /// <param name="second">Second action to compare.</param>
+        /// <returns>True when both actions resolve to the same callback target and method.</returns>
+        static bool ActionsAreEquivalent(Action first, Action second) {
+            if (first == null || second == null) {
+                return false;
+            }
+
+            return first.Method == second.Method && ReferenceEquals(first.Target, second.Target);
+        }
     }
 }

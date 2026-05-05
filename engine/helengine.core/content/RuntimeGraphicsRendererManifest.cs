@@ -10,11 +10,13 @@ namespace helengine {
         /// <param name="shadowQualityTier">Default platform shadow quality tier identifier.</param>
         /// <param name="hdrEnabled">Whether HDR should be enabled by default.</param>
         /// <param name="postProcessTier">Default post-processing tier requested by the platform profile.</param>
+        /// <param name="ps2DepthHandlerMode">Default PS2 depth-handler mode requested by the platform profile.</param>
         public RuntimeGraphicsRendererManifest(
             DepthPrepassMode depthPrepassMode,
             string shadowQualityTier,
             bool hdrEnabled,
-            PostProcessTier postProcessTier) {
+            PostProcessTier postProcessTier,
+            Ps2DepthHandlerMode ps2DepthHandlerMode) {
             if (string.IsNullOrWhiteSpace(shadowQualityTier)) {
                 throw new ArgumentException("Shadow quality tier must be provided.", nameof(shadowQualityTier));
             }
@@ -23,6 +25,7 @@ namespace helengine {
             ShadowQualityTier = shadowQualityTier;
             HdrEnabled = hdrEnabled;
             PostProcessTier = postProcessTier;
+            Ps2DepthHandlerMode = ps2DepthHandlerMode;
         }
 
         /// <summary>
@@ -44,5 +47,10 @@ namespace helengine {
         /// Gets the default post-processing tier requested by the platform profile.
         /// </summary>
         public PostProcessTier PostProcessTier { get; }
+
+        /// <summary>
+        /// Gets the default PS2 depth-handler mode requested by the platform profile.
+        /// </summary>
+        public Ps2DepthHandlerMode Ps2DepthHandlerMode { get; }
     }
 }

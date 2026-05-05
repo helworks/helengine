@@ -15,6 +15,10 @@ namespace helengine.editor {
 
         FontAsset font;
         readonly EditorEntity contentRoot;
+        /// <summary>
+        /// Scroll controller that pages through hierarchy rows inside the panel viewport.
+        /// </summary>
+        readonly ScrollComponent scrollComponent;
         readonly List<SceneHierarchyRow> rows;
         readonly List<NodeInfo> nodes;
         /// <summary>
@@ -80,6 +84,11 @@ namespace helengine.editor {
             contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
             AddChild(contentRoot);
 
+            scrollComponent = new ScrollComponent();
+            scrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
+            scrollComponent.ScrollOffsetChanged += HandleScrollOffsetChanged;
+            contentRoot.AddComponent(scrollComponent);
+
             rows = new List<SceneHierarchyRow>(32);
             nodes = new List<NodeInfo>(64);
             expandedEntities = new Dictionary<Entity, bool>();
@@ -124,6 +133,8 @@ namespace helengine.editor {
                 }
             }
 
+            scrollComponent.ItemCount = nodes.Count;
+            scrollComponent.ClampScrollOffset();
             LayoutRows();
         }
 
@@ -258,56 +269,51 @@ namespace helengine.editor {
         /// Lays out all rows based on the current node list and panel size.
         /// </summary>
         void LayoutRows() {
-            EnsureRowCount(nodes.Count);
+            int visibleRowCount = GetVisibleRowCount();
+            int rowHeight = GetRowHeightPixels();
+            int rowWidth = Math.Max(Size.X, MinSize.X);
+            int contentHeight = GetContentHeightPixels();
+            int scrollOffset = scrollComponent.ScrollOffset;
+
+            scrollComponent.VisibleItemCount = visibleRowCount;
+            scrollComponent.Size = new int2(rowWidth, contentHeight);
+
+            EnsureRowCount(visibleRowCount);
 
             float lineHeight = MathF.Max(font.LineHeight, 1f);
 
             for (int i = 0; i < rows.Count; i++) {
                 SceneHierarchyRow row = rows[i];
                 row.FocusTarget.TabIndex = i;
-                if (i >= nodes.Count) {
-                    row.Entity.Enabled = false;
-                    row.NodeEntity = null;
-                    row.HasChildren = false;
-                    row.IsExpanded = false;
-                    row.IsHovering = false;
-                    row.IsPressed = false;
-                    row.IsArrowPressed = false;
-                    row.IsSelected = false;
-                    row.IsSelectable = false;
-                    row.IsSceneRoot = false;
-                    row.Arrow.Text = string.Empty;
-                    row.ArrowHitLeft = 0;
-                    row.ArrowHitWidth = 0;
-                    row.FocusTarget.SetTargetFocused(false);
-                    UpdateRowBackground(row, ThemeManager.Colors.SurfacePrimary);
+                int nodeIndex = scrollOffset + i;
+                if (nodeIndex >= nodes.Count) {
+                    DisableRow(row);
                     continue;
                 }
 
-                NodeInfo node = nodes[i];
+                NodeInfo node = nodes[nodeIndex];
                 row.Entity.Enabled = true;
+                row.NodeIndex = nodeIndex;
                 row.NodeEntity = node.Entity;
                 row.HasChildren = node.HasChildren;
                 row.IsExpanded = node.IsExpanded;
                 row.IsSelectable = true;
                 row.IsSceneRoot = false;
-                row.Entity.Position = new float3(0, i * GetRowHeightPixels(), 0.1f);
+                row.Entity.Position = new float3(0, i * rowHeight, 0.1f);
                 row.IsSelected = node.Entity == EditorSelectionService.SelectedEntity;
 
-                bool alternate = i % 2 == 1;
+                bool alternate = nodeIndex % 2 == 1;
                 byte4 baseColor = alternate ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
                 row.BaseColor = baseColor;
                 UpdateRowBackground(row, baseColor);
 
-                int rowWidth = Math.Max(Size.X, MinSize.X);
-
-                row.Background.Size = new int2(rowWidth, GetRowHeightPixels());
-                row.Interactable.Size = new int2(rowWidth, GetRowHeightPixels());
+                row.Background.Size = new int2(rowWidth, rowHeight);
+                row.Interactable.Size = new int2(rowWidth, rowHeight);
 
                 int arrowLeft = GetRowPaddingLeftPixels() + node.Depth * GetRowIndentPixels();
                 row.ArrowHitLeft = arrowLeft;
                 row.ArrowHitWidth = GetArrowSlotWidthPixels();
-                row.ArrowHost.Position = new float3(arrowLeft, MathF.Round((GetRowHeightPixels() - lineHeight) * 0.5f), 0.2f);
+                row.ArrowHost.Position = new float3(arrowLeft, MathF.Round((rowHeight - lineHeight) * 0.5f), 0.2f);
                 row.Arrow.Text = node.HasChildren
                     ? (node.IsExpanded ? "v" : ">")
                     : string.Empty;
@@ -315,7 +321,7 @@ namespace helengine.editor {
                 row.Arrow.Color = ThemeManager.Colors.InputForegroundPrimary;
 
                 float indent = arrowLeft + GetArrowSlotWidthPixels() + GetArrowLabelSpacingPixels();
-                row.LabelHost.Position = new float3(indent, MathF.Round((GetRowHeightPixels() - lineHeight) * 0.5f), 0.2f);
+                row.LabelHost.Position = new float3(indent, MathF.Round((rowHeight - lineHeight) * 0.5f), 0.2f);
 
                 string label = node.Entity is EditorEntity editorEntity ? editorEntity.Name : node.Entity.GetType().Name;
                 row.Label.Text = label;
@@ -337,6 +343,30 @@ namespace helengine.editor {
             if (created) {
                 RefreshRenderOrderBias();
             }
+        }
+
+        /// <summary>
+        /// Resets one pooled row that no longer maps to a visible hierarchy node.
+        /// </summary>
+        /// <param name="row">Row to disable.</param>
+        void DisableRow(SceneHierarchyRow row) {
+            row.Entity.Enabled = false;
+            row.NodeIndex = -1;
+            row.NodeEntity = null;
+            row.HasChildren = false;
+            row.IsExpanded = false;
+            row.IsHovering = false;
+            row.IsPressed = false;
+            row.IsArrowPressed = false;
+            row.IsSelected = false;
+            row.IsSelectable = false;
+            row.IsSceneRoot = false;
+            row.Arrow.Text = string.Empty;
+            row.ArrowHitLeft = 0;
+            row.ArrowHitWidth = 0;
+            row.Label.Text = string.Empty;
+            row.FocusTarget.SetTargetFocused(false);
+            UpdateRowBackground(row, ThemeManager.Colors.SurfacePrimary);
         }
 
         /// <summary>
@@ -549,18 +579,24 @@ namespace helengine.editor {
         /// <param name="row">Currently focused row.</param>
         /// <param name="offset">Visible-row offset to apply.</param>
         void FocusAdjacentRow(SceneHierarchyRow row, int offset) {
-            int rowIndex = rows.IndexOf(row);
-            if (rowIndex < 0) {
+            if (row == null || row.NodeIndex < 0) {
                 return;
             }
 
-            int adjacentIndex = rowIndex + offset;
+            int adjacentIndex = row.NodeIndex + offset;
             if (adjacentIndex < 0 || adjacentIndex >= nodes.Count) {
                 return;
             }
 
-            SceneHierarchyRow adjacentRow = rows[adjacentIndex];
-            if (!adjacentRow.Entity.Enabled || adjacentRow.NodeEntity == null) {
+            EnsureNodeVisible(adjacentIndex);
+
+            int visibleRowIndex = adjacentIndex - scrollComponent.ScrollOffset;
+            if (visibleRowIndex < 0 || visibleRowIndex >= rows.Count) {
+                return;
+            }
+
+            SceneHierarchyRow adjacentRow = rows[visibleRowIndex];
+            if (!adjacentRow.Entity.Enabled || adjacentRow.NodeEntity == null || adjacentRow.NodeIndex != adjacentIndex) {
                 return;
             }
 
@@ -600,6 +636,11 @@ namespace helengine.editor {
             Entity entity = row.NodeEntity;
             expandedEntities[entity] = isExpanded;
             RefreshHierarchy();
+
+            int refreshedNodeIndex = FindNodeIndex(entity);
+            if (refreshedNodeIndex >= 0) {
+                EnsureNodeVisible(refreshedNodeIndex);
+            }
 
             SceneHierarchyRow refreshedRow = FindVisibleRow(entity);
             if (refreshedRow != null) {
@@ -679,6 +720,39 @@ namespace helengine.editor {
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Finds the flattened hierarchy node index for the provided entity.
+        /// </summary>
+        /// <param name="entity">Entity to locate.</param>
+        /// <returns>Flattened node index when found; otherwise -1.</returns>
+        int FindNodeIndex(Entity entity) {
+            for (int nodeIndex = 0; nodeIndex < nodes.Count; nodeIndex++) {
+                if (ReferenceEquals(nodes[nodeIndex].Entity, entity)) {
+                    return nodeIndex;
+                }
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// Adjusts the scroll offset so the requested flattened node lies inside the visible viewport.
+        /// </summary>
+        /// <param name="nodeIndex">Flattened node index that should remain visible.</param>
+        void EnsureNodeVisible(int nodeIndex) {
+            int visibleRowCount = Math.Max(1, scrollComponent.VisibleItemCount);
+            int scrollOffset = scrollComponent.ScrollOffset;
+            if (nodeIndex < scrollOffset) {
+                scrollComponent.ScrollTo(nodeIndex);
+                return;
+            }
+
+            int visibleEndIndex = scrollOffset + visibleRowCount - 1;
+            if (nodeIndex > visibleEndIndex) {
+                scrollComponent.ScrollTo(nodeIndex - visibleRowCount + 1);
+            }
         }
 
         /// <summary>
@@ -765,11 +839,41 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Rebuilds the visible row slice after the wheel-driven scroll offset changes.
+        /// </summary>
+        /// <param name="scrollComponent">Scroll controller that raised the change notification.</param>
+        /// <param name="scrollOffset">Current visible node offset.</param>
+        void HandleScrollOffsetChanged(ScrollComponent scrollComponent, int scrollOffset) {
+            LayoutRows();
+        }
+
+        /// <summary>
         /// Gets the scaled row height used by hierarchy rows.
         /// </summary>
         /// <returns>Scaled row height in pixels.</returns>
         int GetRowHeightPixels() {
             return UiMetrics.ScalePixels(RowHeight);
+        }
+
+        /// <summary>
+        /// Gets the scrollable content height available for hierarchy rows.
+        /// </summary>
+        /// <returns>Content viewport height in pixels.</returns>
+        int GetContentHeightPixels() {
+            return Math.Max(Size.Y, MinSize.Y);
+        }
+
+        /// <summary>
+        /// Gets the maximum number of full hierarchy rows that fit inside the current viewport.
+        /// </summary>
+        /// <returns>Visible hierarchy row count.</returns>
+        int GetVisibleRowCount() {
+            int rowHeight = GetRowHeightPixels();
+            if (rowHeight <= 0) {
+                return 1;
+            }
+
+            return Math.Max(1, GetContentHeightPixels() / rowHeight);
         }
 
         /// <summary>

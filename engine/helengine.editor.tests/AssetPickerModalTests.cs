@@ -55,7 +55,7 @@ namespace helengine.editor.tests {
             Assert.Equal(new int2(1232, 672), panelBackground.Size);
             Assert.Equal(48, headerBackground.Size.Y);
             Assert.Equal(new int2(108, 33), closeButton.Size);
-            Assert.Equal(54, backdropTopSurface.Size.Y);
+            Assert.Equal(41, backdropTopSurface.Size.Y);
         }
 
         /// <summary>

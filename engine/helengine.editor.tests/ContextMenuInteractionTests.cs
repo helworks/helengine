@@ -40,6 +40,7 @@ namespace helengine.editor.tests {
         /// Removes the temporary content root created for the test.
         /// </summary>
         public void Dispose() {
+            ContextMenu.SubmenuIndicator = "v";
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -124,6 +125,51 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures rows that open another menu automatically render the default submenu indicator on the right without mutating the source label.
+        /// </summary>
+        [Fact]
+        public void Show_WhenItemOpensSubmenu_RendersDefaultIndicatorOnTheRight() {
+            ContextMenuItem item = new ContextMenuItem("Light", HandleMenuItemActivated, HandleMenuItemActivated, false);
+            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            menu.Show(
+                new[] {
+                    item
+                },
+                new int2(40, 24),
+                new int2(320, 240));
+
+            List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(menu, "Rows");
+            ContextMenuRow row = rows[0];
+
+            Assert.Equal("Light", row.Label.Text);
+            Assert.Equal("v", row.Indicator.Text);
+            Assert.True(row.IndicatorHost.Enabled);
+            Assert.True(row.IndicatorHost.Position.X > row.LabelHost.Position.X);
+            Assert.Equal("Light", item.Label);
+        }
+
+        /// <summary>
+        /// Ensures the shared submenu indicator text can be customized globally for all rendered submenu rows.
+        /// </summary>
+        [Fact]
+        public void Show_WhenGlobalSubmenuIndicatorChanges_UsesCustomizedRightIndicator() {
+            ContextMenu.SubmenuIndicator = ">>";
+            ContextMenuItem item = new ContextMenuItem("Light", HandleMenuItemActivated, HandleMenuItemActivated, false);
+            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            menu.Show(
+                new[] {
+                    item
+                },
+                new int2(40, 24),
+                new int2(320, 240));
+
+            List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(menu, "Rows");
+
+            Assert.Equal("Light", rows[0].Label.Text);
+            Assert.Equal(">>", rows[0].Indicator.Text);
+        }
+
+        /// <summary>
         /// Advances the input system by one frame using the supplied mouse state.
         /// </summary>
         /// <param name="mouseState">Mouse state to expose for the next frame.</param>
@@ -188,9 +234,16 @@ namespace helengine.editor.tests {
         FontAsset CreateFont() {
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
                 ['O'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['L'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['g'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['h'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['i'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
                 ['e'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['n'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['p'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)
+                ['p'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['t'] = new FontChar(new float4(0f, 0f, 5f, 12f), 0f, 5f, 0f, 0f),
+                ['v'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['>'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)
             };
 
             return new FontAsset(

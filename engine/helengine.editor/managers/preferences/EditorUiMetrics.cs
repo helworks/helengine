@@ -43,12 +43,12 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the scaled icon size used by the editor host title bar.
         /// </summary>
-        public int HostTitleBarIconSize => ScalePixels(24);
+        public int HostTitleBarIconSize => ScalePixels(EditorTitleBar.IconSizePixels);
 
         /// <summary>
         /// Gets the scaled icon padding used by the editor host title bar.
         /// </summary>
-        public int HostTitleBarIconPadding => ScalePixels(6);
+        public int HostTitleBarIconPadding => ScalePixels(EditorTitleBar.IconPaddingPixels);
 
         /// <summary>
         /// Gets the scaled dock title-bar height used by dockable editor panels.

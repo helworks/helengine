@@ -1,5 +1,7 @@
 using helengine.baseplatform.Builders;
+using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Manifest;
+using helengine.baseplatform.Profiles;
 using helengine.baseplatform.Requests;
 using helengine.platforms;
 using System.Reflection;
@@ -187,7 +189,8 @@ public class EditorPlatformBuildGraphRunnerTests {
 
             Assert.NotNull(writeMethod);
 
-            writeMethod.Invoke(runner, [generatedCoreRootPath]);
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(new FakePlatformBuilder().Definition);
+            writeMethod.Invoke(runner, [generatedCoreRootPath, selectionModel]);
 
             string sourcePath = Path.Combine(generatedCoreRootPath, "runtime", "runtime_graphics_renderer_manifest.cpp");
             Assert.True(File.Exists(sourcePath));
@@ -197,6 +200,73 @@ public class EditorPlatformBuildGraphRunnerTests {
             Assert.Contains("\"ultra\"", source);
             Assert.Contains("true", source);
             Assert.Contains("HERuntimePostProcessTier::High", source);
+            Assert.Contains("HERuntimePs2DepthHandlerMode::Hardware", source);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies the build-graph runner forwards the PS2 depth-handler choice from the persisted graphics profile into generated native source.
+    /// </summary>
+    [Fact]
+    public void WriteRuntimeGraphicsRendererManifestSource_uses_ps2_depth_handler_mode() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(rootPath);
+
+        try {
+            EditorProfileSettingsService profileSettingsService = new EditorProfileSettingsService(rootPath);
+            profileSettingsService.Save(new EditorProfileSettingsDocument {
+                Platforms = new List<EditorPlatformProfileSettingsDocument> {
+                    new EditorPlatformProfileSettingsDocument {
+                        PlatformId = "ps2",
+                        Graphics = new EditorGraphicsProfileSettingsDocument {
+                            SelectedGraphicsProfileId = "ps2-standard-forward",
+                            SelectedOptionValues = new Dictionary<string, string> {
+                                ["depth-handler-mode"] = "software"
+                            }
+                        }
+                    }
+                }
+            });
+
+            EditorPlatformBuildGraphRunner runner = new(
+                rootPath,
+                "1.0.0",
+                "project",
+                "1.0.0",
+                Array.Empty<IAssetImporterRegistration>(),
+                new AvailablePlatformDescriptor(
+                    "ps2",
+                    "PlayStation 2",
+                    typeof(FakePs2PlatformBuilder).Assembly.Location,
+                    string.Empty,
+                    true,
+                    Path.Combine(rootPath, "descriptor-generated-core"),
+                    "codegen.exe"),
+                null,
+                new EditorPlatformAssetBuilderLoader(),
+                new EditorGeneratedCoreRegenerationService());
+
+            string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
+            Directory.CreateDirectory(generatedCoreRootPath);
+
+            MethodInfo writeMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "WriteRuntimeGraphicsRendererManifestSource",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(writeMethod);
+
+            EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(new FakePs2PlatformBuilder().Definition);
+            writeMethod.Invoke(runner, [generatedCoreRootPath, selectionModel]);
+
+            string sourcePath = Path.Combine(generatedCoreRootPath, "runtime", "runtime_graphics_renderer_manifest.cpp");
+            Assert.True(File.Exists(sourcePath));
+
+            string source = File.ReadAllText(sourcePath);
+            Assert.Contains("HERuntimePs2DepthHandlerMode::Software", source);
         } finally {
             if (Directory.Exists(rootPath)) {
                 Directory.Delete(rootPath, true);
@@ -390,6 +460,153 @@ public class EditorPlatformBuildGraphRunnerTests {
         /// Gets the fake PS2 platform definition used by the test.
         /// </summary>
         public helengine.baseplatform.Definitions.PlatformDefinition Definition { get; }
+
+        /// <summary>
+        /// Material cooking is not used by this test-only builder.
+        /// </summary>
+        /// <param name="request">Material translation request that is unsupported in this test.</param>
+        /// <returns>This method always throws because the request-construction tests never cook materials.</returns>
+        public helengine.baseplatform.Results.PlatformMaterialCookResult CookMaterial(helengine.baseplatform.Requests.PlatformMaterialCookRequest request) {
+            throw new NotSupportedException("Material cooking is not used by this test builder.");
+        }
+
+        /// <summary>
+        /// Returns a successful build report without mutating the request.
+        /// </summary>
+        public Task<helengine.baseplatform.Reporting.PlatformBuildReport> BuildAsync(
+            PlatformBuildRequest request,
+            helengine.baseplatform.Builders.IPlatformBuildProgressReporter progressReporter,
+            helengine.baseplatform.Builders.IPlatformBuildDiagnosticReporter diagnosticReporter,
+            CancellationToken cancellationToken) {
+            return Task.FromResult(new helengine.baseplatform.Reporting.PlatformBuildReport(true, [], [], []));
+        }
+    }
+
+    /// <summary>
+    /// Provides one minimal PS2 builder definition for manifest-resolution tests.
+    /// </summary>
+    sealed class FakePs2PlatformBuilder : IPlatformAssetBuilder {
+        /// <summary>
+        /// Initializes the fake PS2 builder metadata.
+        /// </summary>
+        public FakePs2PlatformBuilder() {
+            Descriptor = new(
+                "test.ps2.builder",
+                "1.0.0",
+                "ps2",
+                new("1.0.0", "999.0.0"),
+                new(1, 3),
+                ["ps2"],
+                ["ps2"]);
+            Definition = new(
+                "ps2",
+                "PlayStation 2",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "ps2-default",
+                        "PS2 Default",
+                        "PS2 player build",
+                        "ps2-standard-forward",
+                        "default",
+                        [
+                            new PlatformSettingDefinition(
+                                "texture-scale-percent",
+                                "Texture scale %",
+                                PlatformSettingKind.Text,
+                                "100",
+                                true,
+                                [])
+                        ])
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "ps2-standard-forward",
+                        "PS2 Standard Forward",
+                        "Default PS2 forward renderer",
+                        [
+                            new PlatformSettingDefinition(
+                                "default-width",
+                                "Default width",
+                                PlatformSettingKind.Text,
+                                "640",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "default-height",
+                                "Default height",
+                                PlatformSettingKind.Text,
+                                "448",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "vsync-enabled",
+                                "VSync",
+                                PlatformSettingKind.Boolean,
+                                "true",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "fullscreen-enabled",
+                                "Fullscreen",
+                                PlatformSettingKind.Boolean,
+                                "false",
+                                true,
+                                []),
+                            new PlatformSettingDefinition(
+                                "depth-handler-mode",
+                                "Depth Handler Mode",
+                                PlatformSettingKind.Choice,
+                                "hardware",
+                                true,
+                                ["hardware", "software"])
+                        ])
+                ],
+                [],
+                [],
+                [
+                    new PlatformCodegenProfileDefinition(
+                        "default",
+                        "Default",
+                        "Default codegen profile",
+                        PlatformCodegenLanguage.Cpp,
+                        PlatformSerializationEndianness.LittleEndian,
+                        [
+                            new PlatformSettingDefinition(
+                                "write-conversion-report",
+                                "Write Conversion Report",
+                                PlatformSettingKind.Boolean,
+                                "true",
+                                true,
+                                [])
+                        ])
+                ],
+                [
+                    new PlatformStorageProfileDefinition(
+                        "disc-layout",
+                        "Disc Layout",
+                        PlatformStorageProfileKind.DiscLayout,
+                        "ps2-disc-layout",
+                        true)
+                ],
+                [
+                    new PlatformMediaProfileDefinition(
+                        "ps2-install-tree",
+                        "PS2 Install Tree",
+                        PlatformMediaLayoutKind.InstallTree,
+                        true,
+                        true)
+                ]);
+        }
+
+        /// <summary>
+        /// Gets the fake builder descriptor returned to the loader.
+        /// </summary>
+        public helengine.baseplatform.Descriptors.PlatformBuilderDescriptor Descriptor { get; }
+
+        /// <summary>
+        /// Gets the fake PS2 platform definition used by the test.
+        /// </summary>
+        public PlatformDefinition Definition { get; }
 
         /// <summary>
         /// Material cooking is not used by this test-only builder.
