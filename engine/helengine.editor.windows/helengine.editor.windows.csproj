@@ -10,12 +10,17 @@
   <ItemGroup>
     <PackageReference Include="distrohelena.nucleus.net" Version="1.0.3" />
     <PackageReference Include="distrohelena.nucleus.net.windows" Version="1.0.2" />
-    <PackageReference Include="System.Drawing.Common" Version="9.0.11" />
   </ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\helengine.core\helengine.core.csproj" />
-		<ProjectReference Include="..\helengine.editor\helengine.editor.csproj" />
+		<ProjectReference Include="..\helengine.core\helengine.core.csproj" SkipGetTargetFrameworkProperties="true" />
+		<ProjectReference Include="..\helengine.editor\helengine.editor.csproj" SkipGetTargetFrameworkProperties="true" />
 	</ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="content\textures\GDITextureImporter.cs" />
+    <Compile Remove="content\textures\PfimTextureImporter.cs" />
+    <Compile Remove="content\textures\MagickTextureImporter.cs" />
+  </ItemGroup>
 
 </Project>

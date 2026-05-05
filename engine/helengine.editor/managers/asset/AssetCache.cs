@@ -1,3 +1,5 @@
+using helengine.editor;
+
 namespace helengine.ui.managers {
     /// <summary>
     /// Caches and manages project asset files with refresh capabilities.
@@ -11,29 +13,7 @@ namespace helengine.ui.managers {
         /// <summary>
         /// Extensions recognized as supported asset types.
         /// </summary>
-        readonly HashSet<string> _supportedExtensions = new(StringComparer.OrdinalIgnoreCase)
-        {
-            // Images
-            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tga", ".dds",
-
-            // 3D Models
-            ".obj", ".fbx", ".dae", ".3ds", ".blend", ".gltf", ".glb",
-
-            // Audio
-            ".wav", ".mp3", ".ogg", ".flac", ".aac",
-
-            // Textures/Materials
-            ".mat", ".shader", ".cg", ".hlsl", ".glsl",
-
-            // Configuration
-            ".json", ".xml", ".yaml", ".yml",
-
-            // Scripts
-            ".cs", ".js", ".lua", ".py",
-
-            // Other
-            ".txt", ".md", ".map"
-        };
+        readonly HashSet<string> _supportedExtensions = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Absolute path to the assets root once initialized.
@@ -44,6 +24,19 @@ namespace helengine.ui.managers {
         /// Timestamp of the last refresh operation.
         /// </summary>
         DateTime _lastRefreshTime;
+
+        /// <summary>
+        /// Initializes a new asset cache with the current supported extension catalog.
+        /// </summary>
+        public AssetCache() {
+            AddSupportedExtensions(TextureImportFormatCatalog.AllTextureExtensions);
+            AddSupportedExtensions(new[] { ".obj", ".fbx", ".dae", ".3ds", ".blend", ".gltf", ".glb" });
+            AddSupportedExtensions(new[] { ".wav", ".mp3", ".ogg", ".flac", ".aac" });
+            AddSupportedExtensions(new[] { ".mat", ".shader", ".cg", ".hlsl", ".glsl" });
+            AddSupportedExtensions(new[] { ".json", ".xml", ".yaml", ".yml" });
+            AddSupportedExtensions(new[] { ".cs", ".js", ".lua", ".py" });
+            AddSupportedExtensions(new[] { ".txt", ".md", ".map" });
+        }
 
         /// <summary>
         /// Gets all cached asset files keyed by relative path.
@@ -278,6 +271,20 @@ namespace helengine.ui.managers {
         /// <returns>Normalized path string.</returns>
         static string NormalizePath(string path) {
             return path.Replace('\\', '/').Trim('/');
+        }
+
+        /// <summary>
+        /// Adds one extension collection into the supported-extension set.
+        /// </summary>
+        /// <param name="extensions">Extensions to add into the cache catalog.</param>
+        void AddSupportedExtensions(IReadOnlyList<string> extensions) {
+            if (extensions == null) {
+                throw new ArgumentNullException(nameof(extensions));
+            }
+
+            for (int index = 0; index < extensions.Count; index++) {
+                _supportedExtensions.Add(extensions[index]);
+            }
         }
     }
 }

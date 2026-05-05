@@ -122,6 +122,76 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures multiple texture importers can register the same file extension while preserving the first importer as the default.
+        /// </summary>
+        [Fact]
+        public void RegisterTextureImporter_WhenMultipleImportersShareExtension_RegistersAllForTheFormat() {
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterTextureImporter(new TextureImporterRegistration("first-texture", new TestTextureImporter(), new[] { ".png" }));
+            manager.RegisterTextureImporter(new TextureImporterRegistration("second-texture", new TestTextureImporter(), new[] { ".png" }));
+
+            IReadOnlyList<string> importerIds = manager.GetImporterIdsForExtension(".png");
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(WriteSourceTexture("shared-extension.png"));
+
+            Assert.Equal(new[] { "first-texture", "second-texture" }, importerIds);
+            Assert.Equal("first-texture", settings.Importer.ImporterId);
+        }
+
+        /// <summary>
+        /// Ensures importer options for a shared texture extension preserve registration order instead of alphabetical order.
+        /// </summary>
+        [Fact]
+        public void GetImporterIdsForExtension_WhenMultipleTextureImportersShareExtension_PreservesRegistrationOrder() {
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterTextureImporter(new TextureImporterRegistration("z-default", new TestTextureImporter(), new[] { ".png" }));
+            manager.RegisterTextureImporter(new TextureImporterRegistration("a-override", new TestTextureImporter(), new[] { ".png" }));
+
+            IReadOnlyList<string> importerIds = manager.GetImporterIdsForExtension(".png");
+
+            Assert.Equal(new[] { "z-default", "a-override" }, importerIds);
+        }
+
+        /// <summary>
+        /// Ensures default texture importer selection rejects importers that were not registered for the requested extension.
+        /// </summary>
+        [Fact]
+        public void SetDefaultTextureImporter_WhenImporterDoesNotSupportExtension_Throws() {
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterTextureImporter(new TextureImporterRegistration("png-importer", new TestTextureImporter(), new[] { ".png" }));
+            manager.RegisterTextureImporter(new TextureImporterRegistration("dds-importer", new TestTextureImporter(), new[] { ".dds" }));
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                manager.SetDefaultTextureImporter(".png", "dds-importer"));
+
+            Assert.Equal("Texture importer 'dds-importer' does not support '.png'.", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures switching an overlapping texture format to an explicit importer override reloads with that importer instead of serving stale cached bytes.
+        /// </summary>
+        [Fact]
+        public void TryLoadTextureAsset_WhenTextureImporterOverrideChangesForSharedExtension_ReimportsWithTheSelectedImporter() {
+            string sourcePath = WriteSourceTexture("shared-override.tga");
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterTextureImporter(new TextureImporterRegistration("pfim", new ConfigurableTextureImporter(new byte[] { 1, 2, 3, 4 }), new[] { ".tga" }));
+            manager.RegisterTextureImporter(new TextureImporterRegistration("magick", new ConfigurableTextureImporter(new byte[] { 9, 8, 7, 6 }), new[] { ".tga" }));
+
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out TextureAsset initialAsset));
+            Assert.Equal(new byte[] { 1, 2, 3, 4 }, initialAsset.Colors);
+
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            settings.Importer.ImporterId = "magick";
+            manager.SaveImportSettings(sourcePath, settings);
+
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out TextureAsset overriddenAsset));
+            Assert.Equal(new byte[] { 9, 8, 7, 6 }, overriddenAsset.Colors);
+        }
+
+        /// <summary>
         /// Creates an import manager configured with the deterministic test texture importer.
         /// </summary>
         /// <returns>Configured asset import manager.</returns>
