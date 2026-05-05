@@ -174,8 +174,17 @@ namespace helengine.editor {
         /// Initializes a new build-settings dialog.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
-        public BuildSettingsDialog(FontAsset font) : base("BuildSettingsDialog", "Build Platforms", font, PanelWidth, PanelHeight, HeaderHeight) {
-            DialogMinimumSize = new int2(PanelWidth, PanelHeight);
+        public BuildSettingsDialog(FontAsset font) : this(font, EditorUiMetrics.Default) {
+        }
+
+        /// <summary>
+        /// Initializes a new build-settings dialog using one shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for labels and buttons.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
+        public BuildSettingsDialog(FontAsset font, EditorUiMetrics metrics)
+            : base("BuildSettingsDialog", "Build Platforms", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
+            SetDialogMinimumSize(PanelWidth, PanelHeight);
 
             PlatformLabelHosts = new List<EditorEntity>(8);
             PlatformLabelTexts = new List<TextComponent>(8);
@@ -210,7 +219,7 @@ namespace helengine.editor {
             };
             DialogPanelRoot.AddChild(CancelButtonHost);
 
-            CancelButton = new ButtonComponent("Cancel", CancelButtonSize, DialogFont, HandleCancelClicked, 0f);
+            CancelButton = new ButtonComponent("Cancel", GetCancelButtonSize(), DialogFont, HandleCancelClicked, 0f);
             CancelButtonHost.AddComponent(CancelButton);
             CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
@@ -221,7 +230,7 @@ namespace helengine.editor {
             };
             DialogPanelRoot.AddChild(SaveButtonHost);
 
-            SaveButton = new ButtonComponent("Save", SaveButtonSize, DialogFont, HandleSaveClicked, 0f);
+            SaveButton = new ButtonComponent("Save", GetSaveButtonSize(), DialogFont, HandleSaveClicked, 0f);
             SaveButtonHost.AddComponent(SaveButton);
             SaveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
@@ -407,7 +416,7 @@ namespace helengine.editor {
             DialogPanelRoot.AddChild(checkBoxHost);
             PlatformCheckBoxHosts.Add(checkBoxHost);
 
-            CheckBoxComponent checkBox = new CheckBoxComponent(CheckBoxSize, DialogFont, isChecked);
+            CheckBoxComponent checkBox = new CheckBoxComponent(GetCheckBoxSize(), DialogFont, isChecked);
             checkBoxHost.AddComponent(checkBox);
             checkBox.SetRenderOrders(DialogTextOrder, DialogTextOrder);
             PlatformCheckBoxes.Add(checkBox);
@@ -509,21 +518,21 @@ namespace helengine.editor {
         /// Positions each visible platform row.
         /// </summary>
         void LayoutPlatformRows() {
-            int rowsTop = PanelPadding + HeaderHeight + SectionSpacing + TableHeaderHeight + SectionSpacing;
-            int nameColumnX = PanelPadding;
-            int statusColumnX = nameColumnX + PlatformNameColumnWidth + TableColumnSpacing;
-            int enabledColumnX = statusColumnX + PlatformStatusColumnWidth + TableColumnSpacing;
-            int checkBoxX = enabledColumnX + Math.Max(0, (PlatformEnabledColumnWidth - CheckBoxSize.X) / 2);
-            int labelYAdjust = Math.Max(0, (PlatformRowHeight - GetDialogLineHeight()) / 2);
-            int statusYAdjust = Math.Max(0, (PlatformRowHeight - GetDialogLineHeight()) / 2);
-            int checkBoxYAdjust = Math.Max(0, (PlatformRowHeight - CheckBoxSize.Y) / 2);
+            int rowsTop = GetPanelPadding() + GetHeaderHeight() + GetSectionSpacing() + GetTableHeaderHeight() + GetSectionSpacing();
+            int nameColumnX = GetPanelPadding();
+            int statusColumnX = nameColumnX + GetPlatformNameColumnWidth() + GetTableColumnSpacing();
+            int enabledColumnX = statusColumnX + GetPlatformStatusColumnWidth() + GetTableColumnSpacing();
+            int checkBoxX = enabledColumnX + Math.Max(0, (GetPlatformEnabledColumnWidth() - GetCheckBoxSize().X) / 2);
+            int labelYAdjust = Math.Max(0, (GetPlatformRowHeight() - GetDialogLineHeight()) / 2);
+            int statusYAdjust = Math.Max(0, (GetPlatformRowHeight() - GetDialogLineHeight()) / 2);
+            int checkBoxYAdjust = Math.Max(0, (GetPlatformRowHeight() - GetCheckBoxSize().Y) / 2);
 
             for (int index = 0; index < PlatformLabelHosts.Count; index++) {
-                int rowTop = rowsTop + (PlatformRowHeight * index);
+                int rowTop = rowsTop + (GetPlatformRowHeight() * index);
                 PlatformLabelHosts[index].Position = new float3(nameColumnX, rowTop + labelYAdjust, 0f);
-                PlatformLabelTexts[index].Size = new int2(PlatformNameColumnWidth, Math.Max(1, GetDialogLineHeight()));
+                PlatformLabelTexts[index].Size = new int2(GetPlatformNameColumnWidth(), Math.Max(1, GetDialogLineHeight()));
                 PlatformStatusHosts[index].Position = new float3(statusColumnX, rowTop + statusYAdjust, 0f);
-                PlatformStatusTexts[index].Size = new int2(PlatformStatusColumnWidth, Math.Max(1, GetDialogLineHeight()));
+                PlatformStatusTexts[index].Size = new int2(GetPlatformStatusColumnWidth(), Math.Max(1, GetDialogLineHeight()));
                 PlatformCheckBoxHosts[index].Position = new float3(checkBoxX, rowTop + checkBoxYAdjust, 0f);
             }
         }
@@ -532,26 +541,26 @@ namespace helengine.editor {
         /// Positions the fixed table header cells above the platform rows.
         /// </summary>
         void LayoutTableHeader() {
-            int headerTop = PanelPadding + HeaderHeight + SectionSpacing;
-            int nameColumnX = PanelPadding;
-            int statusColumnX = nameColumnX + PlatformNameColumnWidth + TableColumnSpacing;
-            int enabledColumnX = statusColumnX + PlatformStatusColumnWidth + TableColumnSpacing;
+            int headerTop = GetPanelPadding() + GetHeaderHeight() + GetSectionSpacing();
+            int nameColumnX = GetPanelPadding();
+            int statusColumnX = nameColumnX + GetPlatformNameColumnWidth() + GetTableColumnSpacing();
+            int enabledColumnX = statusColumnX + GetPlatformStatusColumnWidth() + GetTableColumnSpacing();
             int headerTextHeight = Math.Max(1, (int)Math.Ceiling(Math.Max(DialogFont.LineHeight, 1f)));
 
             PlatformHeaderHosts[0].Position = new float3(nameColumnX, headerTop, 0f);
-            PlatformHeaderTexts[0].Size = new int2(PlatformNameColumnWidth, headerTextHeight);
+            PlatformHeaderTexts[0].Size = new int2(GetPlatformNameColumnWidth(), headerTextHeight);
             PlatformHeaderHosts[1].Position = new float3(statusColumnX, headerTop, 0f);
-            PlatformHeaderTexts[1].Size = new int2(PlatformStatusColumnWidth, headerTextHeight);
+            PlatformHeaderTexts[1].Size = new int2(GetPlatformStatusColumnWidth(), headerTextHeight);
             PlatformHeaderHosts[2].Position = new float3(enabledColumnX, headerTop, 0f);
-            PlatformHeaderTexts[2].Size = new int2(PlatformEnabledColumnWidth, headerTextHeight);
+            PlatformHeaderTexts[2].Size = new int2(GetPlatformEnabledColumnWidth(), headerTextHeight);
         }
 
         /// <summary>
         /// Positions the validation and empty-state text.
         /// </summary>
         void LayoutStatus() {
-            int statusTop = DialogHeight - FooterHeight - 38;
-            StatusHost.Position = new float3(PanelPadding, statusTop, 0f);
+            int statusTop = DialogHeight - GetFooterHeight() - DialogMetrics.ScalePixels(38);
+            StatusHost.Position = new float3(GetPanelPadding(), statusTop, 0f);
         }
 
         /// <summary>
@@ -591,13 +600,117 @@ namespace helengine.editor {
         /// Positions the footer buttons.
         /// </summary>
         void LayoutButtons() {
-            int footerTop = DialogHeight - PanelPadding - FooterHeight;
-            int cancelX = DialogWidth - PanelPadding - SaveButtonSize.X - SectionSpacing - CancelButtonSize.X;
-            int saveX = DialogWidth - PanelPadding - SaveButtonSize.X;
-            int buttonY = footerTop + Math.Max(0, (FooterHeight - SaveButtonSize.Y) / 2);
+            int footerTop = DialogHeight - GetPanelPadding() - GetFooterHeight();
+            int cancelX = DialogWidth - GetPanelPadding() - GetSaveButtonSize().X - GetSectionSpacing() - GetCancelButtonSize().X;
+            int saveX = DialogWidth - GetPanelPadding() - GetSaveButtonSize().X;
+            int buttonY = footerTop + Math.Max(0, (GetFooterHeight() - GetSaveButtonSize().Y) / 2);
 
             CancelButtonHost.Position = new float3(cancelX, buttonY, 0f);
             SaveButtonHost.Position = new float3(saveX, buttonY, 0f);
+        }
+
+        /// <summary>
+        /// Gets the scaled panel padding used by the dialog layout.
+        /// </summary>
+        /// <returns>Scaled panel padding in pixels.</returns>
+        int GetPanelPadding() {
+            return DialogMetrics.ScalePixels(PanelPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing between dialog sections.
+        /// </summary>
+        /// <returns>Scaled section spacing in pixels.</returns>
+        int GetSectionSpacing() {
+            return DialogMetrics.ScalePixels(SectionSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled header height used by the dialog shell.
+        /// </summary>
+        /// <returns>Scaled dialog header height in pixels.</returns>
+        int GetHeaderHeight() {
+            return DialogMetrics.ScalePixels(HeaderHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled table-header height used above platform rows.
+        /// </summary>
+        /// <returns>Scaled table-header height in pixels.</returns>
+        int GetTableHeaderHeight() {
+            return DialogMetrics.ScalePixels(TableHeaderHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled width reserved for the platform-name column.
+        /// </summary>
+        /// <returns>Scaled platform-name column width in pixels.</returns>
+        int GetPlatformNameColumnWidth() {
+            return DialogMetrics.ScalePixels(PlatformNameColumnWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled width reserved for the platform-status column.
+        /// </summary>
+        /// <returns>Scaled platform-status column width in pixels.</returns>
+        int GetPlatformStatusColumnWidth() {
+            return DialogMetrics.ScalePixels(PlatformStatusColumnWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled width reserved for the enabled column.
+        /// </summary>
+        /// <returns>Scaled enabled-column width in pixels.</returns>
+        int GetPlatformEnabledColumnWidth() {
+            return DialogMetrics.ScalePixels(PlatformEnabledColumnWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled horizontal gap used between fixed table columns.
+        /// </summary>
+        /// <returns>Scaled table-column spacing in pixels.</returns>
+        int GetTableColumnSpacing() {
+            return DialogMetrics.ScalePixels(TableColumnSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled height reserved for each platform row.
+        /// </summary>
+        /// <returns>Scaled platform-row height in pixels.</returns>
+        int GetPlatformRowHeight() {
+            return DialogMetrics.ScalePixels(PlatformRowHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled footer height used by the dialog layout.
+        /// </summary>
+        /// <returns>Scaled footer height in pixels.</returns>
+        int GetFooterHeight() {
+            return DialogMetrics.ScalePixels(FooterHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled size used for the cancel button.
+        /// </summary>
+        /// <returns>Scaled cancel-button size.</returns>
+        int2 GetCancelButtonSize() {
+            return new int2(DialogMetrics.ScalePixels(CancelButtonSize.X), DialogMetrics.ScalePixels(CancelButtonSize.Y));
+        }
+
+        /// <summary>
+        /// Gets the scaled size used for the save button.
+        /// </summary>
+        /// <returns>Scaled save-button size.</returns>
+        int2 GetSaveButtonSize() {
+            return new int2(DialogMetrics.ScalePixels(SaveButtonSize.X), DialogMetrics.ScalePixels(SaveButtonSize.Y));
+        }
+
+        /// <summary>
+        /// Gets the scaled size used for each platform checkbox.
+        /// </summary>
+        /// <returns>Scaled checkbox size.</returns>
+        int2 GetCheckBoxSize() {
+            return new int2(DialogMetrics.ScalePixels(CheckBoxSize.X), DialogMetrics.ScalePixels(CheckBoxSize.Y));
         }
 
         /// <summary>
