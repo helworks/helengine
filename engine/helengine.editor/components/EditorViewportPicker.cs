@@ -193,7 +193,7 @@ namespace helengine.editor {
 
             ushort pickLayerMask = layerMask;
             if (pickMode == PickModeSelection) {
-                pickLayerMask |= EditorLayerMasks.SceneCameraVisuals;
+                pickLayerMask |= EditorLayerMasks.SceneCameraVisuals | EditorLayerMasks.SceneCanvasPlane;
             }
 
             CameraComponent sourceCamera = GetSourceCameraForMode(pickMode);
@@ -251,21 +251,21 @@ namespace helengine.editor {
         /// <param name="pickId">Pick identifier read from the picker target.</param>
         void ResolveSelectionPick(int pickId) {
             if (pickId == 0) {
-                if (!ShouldClearSelectionForMissedPick()) {
-                    return;
-                }
-
-                EditorSelectionService.ClearSelection();
+                ClearSelectionIfAllowed();
                 return;
             }
 
             if (!PickEntitiesById.TryGetValue(pickId, out Entity entity)) {
-                if (!ShouldClearSelectionForMissedPick()) {
+                ClearSelectionIfAllowed();
+                return;
+            }
+
+            if (IsCanvasPlaneEntity(entity)) {
+                entity = ResolveCanvasPlaneSelection();
+                if (entity == null) {
+                    ClearSelectionIfAllowed();
                     return;
                 }
-
-                EditorSelectionService.ClearSelection();
-                return;
             }
 
             string label = GetEntityLabel(entity);
@@ -358,7 +358,7 @@ namespace helengine.editor {
                 if ((drawable.Parent.LayerMask & layerMask) == 0) {
                     continue;
                 }
-                if (pickMode == PickModeSelection && !EditorViewportSceneSelectionFilter.ShouldIncludeDrawableForSelection(drawable)) {
+                if (pickMode == PickModeSelection && !ShouldIncludeDrawableForSelection(drawable)) {
                     continue;
                 }
 
@@ -383,13 +383,15 @@ namespace helengine.editor {
                 if ((drawable.Parent.LayerMask & PickerCamera.LayerMask) == 0) {
                     continue;
                 }
-                if (pickMode == PickModeSelection && !EditorViewportSceneSelectionFilter.ShouldIncludeDrawableForSelection(drawable)) {
+                if (pickMode == PickModeSelection && !ShouldIncludeDrawableForSelection(drawable)) {
                     continue;
                 }
 
                 Entity selectedEntity;
                 if (pickMode == PickModeHoverAxis) {
                     selectedEntity = ResolveTransformHandleEntity(drawable.Parent);
+                } else if (IsCanvasPlaneEntity(drawable.Parent)) {
+                    selectedEntity = drawable.Parent;
                 } else {
                     selectedEntity = EditorViewportSceneSelectionFilter.ResolveSelectableEntity(drawable.Parent);
                 }
@@ -712,6 +714,80 @@ namespace helengine.editor {
             }
 
             return IsPointerInsideViewport(PendingPointer, PendingViewport);
+        }
+
+        /// <summary>
+        /// Clears the current scene selection when the originating pick request still represents a valid viewport click.
+        /// </summary>
+        void ClearSelectionIfAllowed() {
+            if (!ShouldClearSelectionForMissedPick()) {
+                return;
+            }
+
+            EditorSelectionService.ClearSelection();
+        }
+
+        /// <summary>
+        /// Determines whether one drawable should participate in scene selection, including the editor canvas plane bridge.
+        /// </summary>
+        /// <param name="drawable">Drawable candidate to evaluate.</param>
+        /// <returns>True when the drawable should be selectable through the picker.</returns>
+        bool ShouldIncludeDrawableForSelection(IDrawable3D drawable) {
+            if (drawable == null) {
+                return false;
+            }
+
+            return EditorViewportSceneSelectionFilter.ShouldIncludeDrawableForSelection(drawable) ||
+                   IsCanvasPlaneEntity(drawable.Parent);
+        }
+
+        /// <summary>
+        /// Resolves the current plane hit into a selectable 2D scene entity using the simulated canvas hit-test path.
+        /// </summary>
+        /// <returns>Selectable 2D scene entity under the pointer, or null when the plane region is empty.</returns>
+        Entity ResolveCanvasPlaneSelection() {
+            EditorViewportCanvasPlanePreviewComponent previewComponent = FindCanvasPlanePreviewComponent();
+            if (previewComponent == null) {
+                return null;
+            }
+
+            return EditorViewportCanvasPlaneSelectionService.ResolveSelectableEntityAtPointer(
+                previewComponent,
+                PickerEntity,
+                PendingViewport,
+                PendingPointer);
+        }
+
+        /// <summary>
+        /// Determines whether one entity is the internal world-space canvas preview plane.
+        /// </summary>
+        /// <param name="entity">Entity candidate to evaluate.</param>
+        /// <returns>True when the entity matches the current canvas preview plane.</returns>
+        bool IsCanvasPlaneEntity(Entity entity) {
+            EditorViewportCanvasPlanePreviewComponent previewComponent = FindCanvasPlanePreviewComponent();
+            if (previewComponent == null) {
+                return false;
+            }
+
+            return ReferenceEquals(previewComponent.PlaneEntity, entity);
+        }
+
+        /// <summary>
+        /// Finds the canvas preview component attached to the same scene-camera entity that owns the picker.
+        /// </summary>
+        /// <returns>Canvas preview component when available; otherwise null.</returns>
+        EditorViewportCanvasPlanePreviewComponent FindCanvasPlanePreviewComponent() {
+            if (Parent == null || Parent.Components == null) {
+                return null;
+            }
+
+            for (int componentIndex = 0; componentIndex < Parent.Components.Count; componentIndex++) {
+                if (Parent.Components[componentIndex] is EditorViewportCanvasPlanePreviewComponent previewComponent) {
+                    return previewComponent;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
