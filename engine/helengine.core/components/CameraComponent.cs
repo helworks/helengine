@@ -19,6 +19,16 @@ namespace helengine {
         CameraRenderSettings RenderSettingsValue;
 
         /// <summary>
+        /// Cached near clip-plane distance used for perspective projection creation.
+        /// </summary>
+        float NearPlaneDistanceValue;
+
+        /// <summary>
+        /// Cached far clip-plane distance used for perspective projection creation.
+        /// </summary>
+        float FarPlaneDistanceValue;
+
+        /// <summary>
         /// 2D render list for this camera.
         /// </summary>
         RenderList2D renderList2D;
@@ -34,6 +44,8 @@ namespace helengine {
         public CameraComponent() {
             LayerMask = 0b11111111;
             Viewport = new float4(0, 0, 1, 1);
+            NearPlaneDistanceValue = 0.1f;
+            FarPlaneDistanceValue = 100f;
             ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
             RenderSettings = new CameraRenderSettings();
 
@@ -62,6 +74,25 @@ namespace helengine {
         /// Gets or sets the viewport rectangle.
         /// </summary>
         public float4 Viewport { get; set; }
+
+        /// <summary>
+        /// Gets or sets the near clip-plane distance used for perspective projection creation.
+        /// </summary>
+        public float NearPlaneDistance {
+            get { return NearPlaneDistanceValue; }
+            set {
+                NearPlaneDistanceValue = CameraProjectionUtils.ClampNearPlaneDistance(value, FarPlaneDistanceValue);
+                FarPlaneDistanceValue = CameraProjectionUtils.ClampFarPlaneDistance(NearPlaneDistanceValue, FarPlaneDistanceValue);
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the far clip-plane distance used for perspective projection creation.
+        /// </summary>
+        public float FarPlaneDistance {
+            get { return FarPlaneDistanceValue; }
+            set { FarPlaneDistanceValue = CameraProjectionUtils.ClampFarPlaneDistance(NearPlaneDistanceValue, value); }
+        }
 
         /// <summary>
         /// Gets or sets the render target that receives this camera's output; null renders to the main back buffer.

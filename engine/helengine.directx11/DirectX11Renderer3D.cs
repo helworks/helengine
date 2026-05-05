@@ -722,8 +722,7 @@ namespace helengine.directx11 {
             float4 viewport = camera.Viewport;
             context.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
 
-            float4x4 projection;
-            float4x4.CreatePerspectiveFieldOfView((float)Math.PI / 4.0f, (viewport.Z / viewport.W), 0.1f, 100f, out projection);
+            float4x4 projection = CameraProjectionUtils.CreatePerspectiveProjection(camera, (float)Math.PI / 4.0f, viewport.Z / viewport.W);
 
             float4x4.Multiply(ref view, ref projection, out currentViewProjection);
 
@@ -857,8 +856,7 @@ namespace helengine.directx11 {
             float4 viewport = camera.Viewport;
             deviceContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
 
-            float4x4 projection;
-            float4x4.CreatePerspectiveFieldOfView((float)Math.PI / 4.0f, (viewport.Z / viewport.W), 0.1f, 100f, out projection);
+            float4x4 projection = CameraProjectionUtils.CreatePerspectiveProjection(camera, (float)Math.PI / 4.0f, viewport.Z / viewport.W);
 
             float4x4.Multiply(ref view, ref projection, out currentViewProjection);
 

@@ -95,17 +95,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the viewport declares dedicated state used by the grid toolbar toggle.
+        /// Ensures the viewport declares dedicated state used by the settings toolbar button.
         /// </summary>
         [Fact]
-        public void EditorViewport_DefinesDedicatedGridToolbarMembers() {
-            FieldInfo focusTargetField = typeof(EditorViewport).GetField("GridButtonFocusTarget", BindingFlags.Instance | BindingFlags.NonPublic);
-            FieldInfo backgroundField = typeof(EditorViewport).GetField("GridButtonBackground", BindingFlags.Instance | BindingFlags.NonPublic);
-            FieldInfo interactableField = typeof(EditorViewport).GetField("GridButtonInteractable", BindingFlags.Instance | BindingFlags.NonPublic);
+        public void EditorViewport_DefinesDedicatedSettingsToolbarMembers() {
+            FieldInfo focusTargetField = typeof(EditorViewport).GetField("SettingsButtonFocusTarget", BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo backgroundField = typeof(EditorViewport).GetField("SettingsButtonBackground", BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo interactableField = typeof(EditorViewport).GetField("SettingsButtonInteractable", BindingFlags.Instance | BindingFlags.NonPublic);
 
             Assert.NotNull(focusTargetField);
             Assert.NotNull(backgroundField);
             Assert.NotNull(interactableField);
+        }
+
+        /// <summary>
+        /// Ensures the settings button is positioned near the right edge of the toolbar instead of inline with the left tool cluster.
+        /// </summary>
+        [Fact]
+        public void LayoutToolbar_WhenViewportIsSized_RightAlignsSettingsButton() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            viewport.Size = new int2(640, 360);
+
+            InvokePrivateMethod(viewport, "UpdateViewport");
+
+            EditorEntity settingsButtonRoot = GetPrivateField<EditorEntity>(viewport, "SettingsButtonRoot");
+            Assert.True(settingsButtonRoot.Position.X > 560f, "Expected the settings button to sit near the right edge of a 640px toolbar.");
         }
 
         /// <summary>
@@ -199,6 +214,20 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Invokes one non-public instance method with no arguments.
+        /// </summary>
+        /// <param name="target">Object that owns the method.</param>
+        /// <param name="methodName">Name of the method to invoke.</param>
+        void InvokePrivateMethod(object target, string methodName) {
+            MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (method == null) {
+                throw new InvalidOperationException("Expected private method was not found.");
+            }
+
+            method.Invoke(target, Array.Empty<object>());
+        }
+
+        /// <summary>
         /// Creates a deterministic font asset for viewport toolbar labels.
         /// </summary>
         /// <returns>Font asset with basic glyph metrics.</returns>
@@ -248,6 +277,7 @@ namespace helengine.editor.tests {
         /// <returns>Toolbar icon set backed by deterministic test textures.</returns>
         EditorViewportToolbarIconSet CreateToolbarIcons() {
             return new EditorViewportToolbarIconSet(
+                CreateIconTexture(),
                 CreateIconTexture(),
                 CreateIconTexture(),
                 CreateIconTexture(),
