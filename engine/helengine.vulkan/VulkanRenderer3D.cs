@@ -571,8 +571,7 @@ namespace helengine.vulkan {
             float3 cameraTarget = cameraPos + cameraForward;
             float4x4.CreateLookAt(ref cameraPos, ref cameraTarget, ref cameraUp, out view);
 
-            float4x4 projection;
-            float4x4.CreatePerspectiveFieldOfView((float)(Math.PI / 4.0), (float)aspectRatio, 0.1f, 100f, out projection);
+            float4x4 projection = CameraProjectionUtils.CreatePerspectiveProjection(camera, (float)(Math.PI / 4.0), (float)aspectRatio);
             ApplyVulkanProjectionAdjustments(ref projection);
             float4x4.Multiply(ref view, ref projection, out currentViewProjection);
 
