@@ -136,7 +136,7 @@ namespace helengine.editor {
             DialogPanelRoot.AddChild(SourceComboHost);
 
             SourceComboBox = new ComboBoxComponent(GetSourceComboBoxSize(), DialogFont, Array.Empty<string>(), -1);
-            SourceComboBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder, RenderOrder2D.ModalBackground, RenderOrder2D.ModalForeground);
+            ConfigureDialogComboBox(SourceComboBox);
             SourceComboHost.AddComponent(SourceComboBox);
 
             CopyButtonHost = new EditorEntity {

@@ -54,6 +54,16 @@ namespace helengine {
         public const byte ModalForeground = 240;
 
         /// <summary>
+        /// Background order for modal popups that must stay above ordinary modal controls.
+        /// </summary>
+        public const byte ModalOverlayBackground = 244;
+
+        /// <summary>
+        /// Foreground order for modal popups that must stay above ordinary modal controls.
+        /// </summary>
+        public const byte ModalOverlayForeground = 246;
+
+        /// <summary>
         /// Highest modal order used by modal-specific input surfaces.
         /// </summary>
         public const byte ModalInput = 248;

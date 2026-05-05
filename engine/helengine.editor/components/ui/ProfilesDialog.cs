@@ -210,7 +210,7 @@ namespace helengine.editor {
             DialogPanelRoot.AddChild(PlatformComboBoxHost);
             PlatformComboBox = new ComboBoxComponent(GetPlatformComboBoxSize(), DialogFontValue, Array.Empty<string>(), -1);
             PlatformComboBox.SelectionChanged += HandlePlatformSelectionChanged;
-            PlatformComboBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder, RenderOrder2D.ModalBackground, RenderOrder2D.ModalForeground);
+            ConfigureDialogComboBox(PlatformComboBox);
             PlatformComboBoxHost.AddComponent(PlatformComboBox);
 
             int settingValueWidth = GetSettingValueWidth();

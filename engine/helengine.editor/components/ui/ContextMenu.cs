@@ -10,7 +10,7 @@ namespace helengine.editor {
         /// <summary>
         /// Spacing between rows in pixels.
         /// </summary>
-        public const int RowSpacing = 4;
+        public const int RowSpacing = 0;
         /// <summary>
         /// Horizontal padding inside the menu.
         /// </summary>

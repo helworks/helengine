@@ -369,7 +369,7 @@ namespace helengine.editor {
                     break;
                 case PlatformSettingKind.Choice:
                     ComboBox = new ComboBoxComponent(new int2(valueColumnWidth, EditorPlatformSettingsSection.RowHeight), font, setting.AllowedValues ?? Array.Empty<string>(), ResolveChoiceIndex(setting.AllowedValues, value, setting.DefaultValue));
-                    ComboBox.SetRenderOrders(panelOrder, textOrder, RenderOrder2D.ModalBackground, RenderOrder2D.ModalForeground);
+                    ComboBox.UseModalPresentation();
                     ComboBox.SelectionChanged += HandleComboBoxSelectionChanged;
                     ControlHost.AddComponent(ComboBox);
                     break;

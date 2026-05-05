@@ -1,3 +1,4 @@
+using System.Reflection;
 using helengine.editor.tests.testing;
 using Xunit;
 
@@ -50,11 +51,38 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the modal presentation shortcut applies the dedicated modal popup render band.
+        /// </summary>
+        [Fact]
+        public void ComboBoxComponent_UseModalPresentation_AppliesModalPopupRenderOrders() {
+            ComboBoxComponent comboBox = new ComboBoxComponent(new int2(180, 28), CreateFont(), new[] { "One", "Two" }, 0);
+
+            comboBox.UseModalPresentation();
+
+            Assert.Equal(RenderOrder2D.ModalBackground, GetPrivateField<byte>(comboBox, "backgroundOrder"));
+            Assert.Equal(RenderOrder2D.ModalForeground, GetPrivateField<byte>(comboBox, "textOrder"));
+            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(comboBox, "listBackgroundOrder"));
+            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(comboBox, "listTextOrder"));
+        }
+
+        /// <summary>
         /// Initializes the core services required by keyboard-focus tests.
         /// </summary>
         void InitializeCore() {
             Core core = new Core();
             core.Initialize(null, new TestRenderManager2D(), new TestInputBackend());
+        }
+
+        /// <summary>
+        /// Reads one non-public instance field and casts it to the requested type.
+        /// </summary>
+        /// <typeparam name="T">Expected field type.</typeparam>
+        /// <param name="target">Object that owns the field.</param>
+        /// <param name="fieldName">Name of the field to read.</param>
+        /// <returns>Field value cast to the requested type.</returns>
+        T GetPrivateField<T>(object target, string fieldName) {
+            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            return Assert.IsType<T>(field.GetValue(target));
         }
 
         /// <summary>

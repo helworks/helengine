@@ -180,7 +180,7 @@ namespace helengine.editor {
             ScaleModeComboBoxHost = CreateDialogHost();
             DialogPanelRoot.AddChild(ScaleModeComboBoxHost);
             ScaleModeComboBox = new ComboBoxComponent(GetFieldSize(), DialogFont, ScaleModeItems, 0);
-            ScaleModeComboBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder, DialogPanelOrder, DialogTextOrder);
+            ConfigureDialogComboBox(ScaleModeComboBox);
             ScaleModeComboBox.SelectionChanged += HandleScaleModeSelectionChanged;
             ScaleModeComboBoxHost.AddComponent(ScaleModeComboBox);
 
@@ -192,7 +192,7 @@ namespace helengine.editor {
             ScalePercentComboBoxHost = CreateDialogHost();
             DialogPanelRoot.AddChild(ScalePercentComboBoxHost);
             ScalePercentComboBox = new ComboBoxComponent(GetFieldSize(), DialogFont, ScalePercentItems, 1);
-            ScalePercentComboBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder, DialogPanelOrder, DialogTextOrder);
+            ConfigureDialogComboBox(ScalePercentComboBox);
             ScalePercentComboBoxHost.AddComponent(ScalePercentComboBox);
 
             ApplyButtonHost = CreateDialogHost();

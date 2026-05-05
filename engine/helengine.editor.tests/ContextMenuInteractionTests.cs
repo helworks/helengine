@@ -1,3 +1,4 @@
+using System.Reflection;
 using helengine.editor.tests.testing;
 using Xunit;
 
@@ -102,6 +103,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures adjacent visible menu rows are laid out flush with no vertical gap between their strips.
+        /// </summary>
+        [Fact]
+        public void Show_WhenMultipleRowsAreVisible_LaysOutMenuStripsWithoutGaps() {
+            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            menu.Show(
+                new[] {
+                    new ContextMenuItem("Open", HandleMenuItemActivated),
+                    new ContextMenuItem("Open", HandleMenuItemActivated)
+                },
+                new int2(40, 24),
+                new int2(320, 240));
+
+            List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(menu, "Rows");
+            ContextMenuRow firstRow = rows[0];
+            ContextMenuRow secondRow = rows[1];
+
+            Assert.Equal(firstRow.Entity.Position.Y + ContextMenu.RowHeight, secondRow.Entity.Position.Y);
+        }
+
+        /// <summary>
         /// Advances the input system by one frame using the supplied mouse state.
         /// </summary>
         /// <param name="mouseState">Mouse state to expose for the next frame.</param>
@@ -145,6 +167,18 @@ namespace helengine.editor.tests {
         /// </summary>
         void HandleMenuItemActivated() {
             ActivationCount++;
+        }
+
+        /// <summary>
+        /// Reads one non-public instance field and casts it to the requested type.
+        /// </summary>
+        /// <typeparam name="T">Expected field type.</typeparam>
+        /// <param name="target">Object that owns the field.</param>
+        /// <param name="fieldName">Name of the field to read.</param>
+        /// <returns>Field value cast to the requested type.</returns>
+        T GetPrivateField<T>(object target, string fieldName) {
+            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            return Assert.IsType<T>(field.GetValue(target));
         }
 
         /// <summary>

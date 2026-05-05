@@ -53,6 +53,22 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the preferences dialog routes combo-box drop-down content through the modal overlay render band.
+        /// </summary>
+        [Fact]
+        public void Constructor_WhenComboBoxesAreCreated_UsesModalOverlayRenderOrdersForDropdowns() {
+            EditorPreferencesDialog dialog = new EditorPreferencesDialog(CreateFont(), new EditorUiMetrics(1d));
+
+            ComboBoxComponent scaleModeComboBox = GetPrivateField<ComboBoxComponent>(dialog, "ScaleModeComboBox");
+            ComboBoxComponent scalePercentComboBox = GetPrivateField<ComboBoxComponent>(dialog, "ScalePercentComboBox");
+
+            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(scaleModeComboBox, "listBackgroundOrder"));
+            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(scaleModeComboBox, "listTextOrder"));
+            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(scalePercentComboBox, "listBackgroundOrder"));
+            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(scalePercentComboBox, "listTextOrder"));
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>

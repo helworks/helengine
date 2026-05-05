@@ -41,7 +41,7 @@ namespace helengine.editor {
         /// <summary>
         /// Vertical gap between component rows.
         /// </summary>
-        public const int RowSpacing = ContextMenu.RowSpacing;
+        public const int RowSpacing = 4;
 
         /// <summary>
         /// Height used by the footer Add button.

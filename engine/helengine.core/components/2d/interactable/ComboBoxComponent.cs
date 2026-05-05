@@ -231,6 +231,20 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Applies the standard docked-panel presentation used by editor and runtime tool panels.
+        /// </summary>
+        public void UsePanelPresentation() {
+            SetRenderOrders(RenderOrder2D.PanelSurface, RenderOrder2D.PanelForeground, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+        }
+
+        /// <summary>
+        /// Applies the modal presentation used by dialog-hosted combo boxes and keeps the drop-down above other modal controls.
+        /// </summary>
+        public void UseModalPresentation() {
+            SetRenderOrders(RenderOrder2D.ModalBackground, RenderOrder2D.ModalForeground, RenderOrder2D.ModalOverlayBackground, RenderOrder2D.ModalOverlayForeground);
+        }
+
+        /// <summary>
         /// Gets the selected item text.
         /// </summary>
         public string SelectedItem {
@@ -309,10 +323,7 @@ namespace helengine {
             base.ComponentAdded(entity);
 
             if (!hasRenderOrderOverrides) {
-                backgroundOrder = RenderOrder2D.PanelSurface;
-                textOrder = RenderOrder2D.PanelForeground;
-                listBackgroundOrder = RenderOrder2D.OverlayBackground;
-                listTextOrder = RenderOrder2D.OverlayForeground;
+                UsePanelPresentation();
             }
 
             background = new RoundedRectComponent();

@@ -602,6 +602,18 @@ namespace helengine.editor {
         protected RoundedRectComponent DialogPanelBackground => PanelBackground;
 
         /// <summary>
+        /// Applies the shared modal render-order configuration used by combo boxes hosted inside the dialog.
+        /// </summary>
+        /// <param name="comboBox">Combo box whose control and drop-down visuals should be layered for modal presentation.</param>
+        protected void ConfigureDialogComboBox(ComboBoxComponent comboBox) {
+            if (comboBox == null) {
+                throw new ArgumentNullException(nameof(comboBox));
+            }
+
+            comboBox.UseModalPresentation();
+        }
+
+        /// <summary>
         /// Reapplies shared dialog shell font and metrics after a live UI scale change.
         /// </summary>
         /// <param name="font">Updated font used by the dialog shell.</param>
