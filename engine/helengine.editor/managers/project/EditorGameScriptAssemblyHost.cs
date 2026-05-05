@@ -13,17 +13,22 @@ namespace helengine.editor {
         /// <summary>
         /// Currently loaded collectible context for the active script assembly.
         /// </summary>
-        EditorCollectibleScriptAssemblyLoadContext CurrentLoadContext;
+        Dictionary<string, EditorCollectibleScriptAssemblyLoadContext> CurrentLoadContextsByModuleId;
 
         /// <summary>
-        /// Currently loaded scripting assembly used for reflection-based discovery.
+        /// Currently loaded scripting assemblies used for reflection-based discovery.
         /// </summary>
-        Assembly CurrentAssembly;
+        Dictionary<string, Assembly> CurrentAssembliesByModuleId;
 
         /// <summary>
-        /// Snapshot directory that backs the currently loaded collectible context.
+        /// Snapshot root directory that backs the currently loaded collectible contexts.
         /// </summary>
-        string CurrentSnapshotDirectoryPath;
+        string CurrentSnapshotRootDirectoryPath;
+
+        /// <summary>
+        /// Shared script type resolver backed by the currently loaded module assemblies.
+        /// </summary>
+        ScriptTypeResolver ScriptTypeResolverValue;
 
         /// <summary>
         /// Initializes one assembly host rooted under the supplied project directory.
@@ -37,62 +42,69 @@ namespace helengine.editor {
             SnapshotRootPath = Path.Combine(Path.GetFullPath(projectRootPath), "user_settings", "script_snapshots");
             DeleteDirectoryIfPresent(SnapshotRootPath);
             Directory.CreateDirectory(SnapshotRootPath);
+            CurrentLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
+            CurrentAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
+            ScriptTypeResolverValue = new ScriptTypeResolver();
         }
 
         /// <summary>
-        /// Reloads the current script assembly by copying the build output into a snapshot and loading it.
+        /// Gets the shared script type resolver backed by the currently loaded module assemblies.
         /// </summary>
-        /// <param name="sourceOutputDirectoryPath">Absolute path to the fresh build output directory.</param>
-        /// <param name="mainAssemblyPath">Absolute path to the main scripting assembly inside the build output.</param>
-        public void Reload(string sourceOutputDirectoryPath, string mainAssemblyPath) {
-            if (string.IsNullOrWhiteSpace(sourceOutputDirectoryPath)) {
-                throw new ArgumentException("Source output directory path must be provided.", nameof(sourceOutputDirectoryPath));
+        public IScriptTypeResolver ScriptTypeResolver => ScriptTypeResolverValue;
+
+        /// <summary>
+        /// Reloads the current scripting assemblies by copying each build output into a snapshot and loading it.
+        /// </summary>
+        /// <param name="assemblies">Descriptors for the freshly built module assemblies.</param>
+        public void Reload(IReadOnlyList<ScriptAssemblyDescriptor> assemblies) {
+            if (assemblies == null) {
+                throw new ArgumentNullException(nameof(assemblies));
             }
-            if (string.IsNullOrWhiteSpace(mainAssemblyPath)) {
-                throw new ArgumentException("Main assembly path must be provided.", nameof(mainAssemblyPath));
-            }
-            if (!Directory.Exists(sourceOutputDirectoryPath)) {
-                throw new DirectoryNotFoundException($"Script build output directory '{sourceOutputDirectoryPath}' does not exist.");
-            }
-            if (!File.Exists(mainAssemblyPath)) {
-                throw new FileNotFoundException($"Script assembly '{mainAssemblyPath}' was not produced.", mainAssemblyPath);
+            if (assemblies.Count == 0) {
+                throw new InvalidOperationException("At least one script assembly descriptor must be provided.");
             }
 
-            string snapshotDirectoryPath = Path.Combine(SnapshotRootPath, Guid.NewGuid().ToString("N"));
-            CopyDirectory(sourceOutputDirectoryPath, snapshotDirectoryPath);
+            ValidateAssemblies(assemblies);
 
-            string snapshotAssemblyPath = Path.Combine(snapshotDirectoryPath, Path.GetFileName(mainAssemblyPath));
-            EditorCollectibleScriptAssemblyLoadContext nextLoadContext = null;
-            EditorCollectibleScriptAssemblyLoadContext previousLoadContext = CurrentLoadContext;
-            string previousSnapshotDirectoryPath = CurrentSnapshotDirectoryPath;
+            string snapshotRootDirectoryPath = Path.Combine(SnapshotRootPath, Guid.NewGuid().ToString("N"));
+            Dictionary<string, EditorCollectibleScriptAssemblyLoadContext> nextLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, Assembly> nextAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
+            ScriptTypeResolver nextScriptTypeResolver = new ScriptTypeResolver();
+            Dictionary<string, EditorCollectibleScriptAssemblyLoadContext> previousLoadContextsByModuleId = CurrentLoadContextsByModuleId;
+            Dictionary<string, Assembly> previousAssembliesByModuleId = CurrentAssembliesByModuleId;
+            string previousSnapshotRootDirectoryPath = CurrentSnapshotRootDirectoryPath;
             try {
-                nextLoadContext = new EditorCollectibleScriptAssemblyLoadContext(snapshotAssemblyPath);
-                Assembly nextAssembly = nextLoadContext.LoadFromAssemblyPath(snapshotAssemblyPath);
+                for (int index = 0; index < assemblies.Count; index++) {
+                    ScriptAssemblyDescriptor descriptor = assemblies[index];
+                    string moduleSnapshotDirectoryPath = Path.Combine(snapshotRootDirectoryPath, descriptor.ModuleId);
+                    CopyDirectory(descriptor.OutputDirectoryPath, moduleSnapshotDirectoryPath);
 
-                CurrentAssembly = null;
-                CurrentLoadContext = null;
-                CurrentSnapshotDirectoryPath = null;
-
-                if (previousLoadContext != null) {
-                    WeakReference previousLoadContextReference = BeginUnload(previousLoadContext);
-                    previousLoadContext = null;
-                    WaitForUnload(previousLoadContextReference);
-                    DeleteDirectoryIfPresent(previousSnapshotDirectoryPath);
+                    string snapshotAssemblyPath = Path.Combine(moduleSnapshotDirectoryPath, Path.GetFileName(descriptor.AssemblyPath));
+                    EditorCollectibleScriptAssemblyLoadContext nextLoadContext = new EditorCollectibleScriptAssemblyLoadContext(snapshotAssemblyPath);
+                    Assembly nextAssembly = nextLoadContext.LoadFromAssemblyPath(snapshotAssemblyPath);
+                    nextLoadContextsByModuleId.Add(descriptor.ModuleId, nextLoadContext);
+                    nextAssembliesByModuleId.Add(descriptor.ModuleId, nextAssembly);
+                    nextScriptTypeResolver.Register(descriptor.ModuleId, nextAssembly);
                 }
 
-                CurrentAssembly = nextAssembly;
-                CurrentLoadContext = nextLoadContext;
-                CurrentSnapshotDirectoryPath = snapshotDirectoryPath;
+                CurrentLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
+                CurrentAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
+                CurrentSnapshotRootDirectoryPath = null;
+
+                UnloadContexts(previousLoadContextsByModuleId);
+                DeleteDirectoryIfPresent(previousSnapshotRootDirectoryPath);
+
+                CurrentLoadContextsByModuleId = nextLoadContextsByModuleId;
+                CurrentAssembliesByModuleId = nextAssembliesByModuleId;
+                CurrentSnapshotRootDirectoryPath = snapshotRootDirectoryPath;
+                ScriptTypeResolverValue = nextScriptTypeResolver;
             } catch {
-                if (nextLoadContext != null) {
-                    WeakReference nextLoadContextReference = BeginUnload(nextLoadContext);
-                    nextLoadContext = null;
-                    WaitForUnload(nextLoadContextReference);
-                    DeleteDirectoryIfPresent(snapshotDirectoryPath);
-                }
-
-                CurrentLoadContext = previousLoadContext;
-                CurrentSnapshotDirectoryPath = previousSnapshotDirectoryPath;
+                UnloadContexts(nextLoadContextsByModuleId);
+                DeleteDirectoryIfPresent(snapshotRootDirectoryPath);
+                CurrentLoadContextsByModuleId = previousLoadContextsByModuleId;
+                CurrentAssembliesByModuleId = previousAssembliesByModuleId;
+                CurrentSnapshotRootDirectoryPath = previousSnapshotRootDirectoryPath;
+                ScriptTypeResolverValue = BuildResolver(previousAssembliesByModuleId);
                 throw;
             }
         }
@@ -101,21 +113,20 @@ namespace helengine.editor {
         /// Releases the current collectible context when the host is disposed.
         /// </summary>
         public void Dispose() {
-            if (CurrentLoadContext == null) {
+            if (CurrentLoadContextsByModuleId.Count == 0) {
                 return;
             }
 
             try {
-                WeakReference loadContextReference = BeginUnload(CurrentLoadContext);
-                CurrentLoadContext = null;
-                WaitForUnload(loadContextReference);
-                DeleteDirectoryIfPresent(CurrentSnapshotDirectoryPath);
+                UnloadContexts(CurrentLoadContextsByModuleId);
+                DeleteDirectoryIfPresent(CurrentSnapshotRootDirectoryPath);
             } catch {
             }
 
-            CurrentLoadContext = null;
-            CurrentSnapshotDirectoryPath = null;
-            CurrentAssembly = null;
+            CurrentLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
+            CurrentAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
+            CurrentSnapshotRootDirectoryPath = null;
+            ScriptTypeResolverValue = new ScriptTypeResolver();
         }
 
         /// <summary>
@@ -127,11 +138,40 @@ namespace helengine.editor {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
-            if (CurrentAssembly == null) {
+            if (CurrentAssembliesByModuleId.Count == 0) {
                 return Array.Empty<EditorComponentAddDescriptor>();
             }
 
-            return EditorScriptComponentCatalog.BuildDescriptors(CurrentAssembly);
+            List<EditorComponentAddDescriptor> descriptors = new List<EditorComponentAddDescriptor>();
+            foreach (Assembly assembly in CurrentAssembliesByModuleId.Values) {
+                descriptors.AddRange(EditorScriptComponentCatalog.BuildDescriptors(assembly));
+            }
+
+            descriptors.Sort((left, right) => string.Compare(left.DisplayName, right.DisplayName, StringComparison.Ordinal));
+            return descriptors;
+        }
+
+        /// <summary>
+        /// Validates the supplied script assembly descriptors before loading begins.
+        /// </summary>
+        /// <param name="assemblies">Descriptors to validate.</param>
+        void ValidateAssemblies(IReadOnlyList<ScriptAssemblyDescriptor> assemblies) {
+            HashSet<string> moduleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < assemblies.Count; index++) {
+                ScriptAssemblyDescriptor descriptor = assemblies[index];
+                if (descriptor == null) {
+                    throw new InvalidOperationException("Script assembly descriptors must not contain null entries.");
+                }
+                if (!moduleIds.Add(descriptor.ModuleId)) {
+                    throw new InvalidOperationException($"Script assembly descriptor '{descriptor.ModuleId}' was supplied more than once.");
+                }
+                if (!Directory.Exists(descriptor.OutputDirectoryPath)) {
+                    throw new DirectoryNotFoundException($"Script build output directory '{descriptor.OutputDirectoryPath}' does not exist.");
+                }
+                if (!File.Exists(descriptor.AssemblyPath)) {
+                    throw new FileNotFoundException($"Script assembly '{descriptor.AssemblyPath}' was not produced.", descriptor.AssemblyPath);
+                }
+            }
         }
 
         /// <summary>
@@ -199,6 +239,46 @@ namespace helengine.editor {
             if (loadContextReference.IsAlive) {
                 throw new InvalidOperationException("The previous scripting assembly could not be unloaded.");
             }
+        }
+
+        /// <summary>
+        /// Unloads all collectible contexts tracked in the supplied dictionary.
+        /// </summary>
+        /// <param name="loadContextsByModuleId">Load contexts keyed by module id.</param>
+        void UnloadContexts(Dictionary<string, EditorCollectibleScriptAssemblyLoadContext> loadContextsByModuleId) {
+            if (loadContextsByModuleId == null || loadContextsByModuleId.Count == 0) {
+                return;
+            }
+
+            List<WeakReference> references = new List<WeakReference>(loadContextsByModuleId.Count);
+            foreach (EditorCollectibleScriptAssemblyLoadContext loadContext in loadContextsByModuleId.Values) {
+                WeakReference loadContextReference = BeginUnload(loadContext);
+                if (loadContextReference != null) {
+                    references.Add(loadContextReference);
+                }
+            }
+
+            for (int index = 0; index < references.Count; index++) {
+                WaitForUnload(references[index]);
+            }
+        }
+
+        /// <summary>
+        /// Builds one script resolver from the supplied module assembly table.
+        /// </summary>
+        /// <param name="assembliesByModuleId">Loaded assemblies keyed by module id.</param>
+        /// <returns>Resolver populated with the supplied assemblies.</returns>
+        ScriptTypeResolver BuildResolver(Dictionary<string, Assembly> assembliesByModuleId) {
+            if (assembliesByModuleId == null) {
+                throw new ArgumentNullException(nameof(assembliesByModuleId));
+            }
+
+            ScriptTypeResolver resolver = new ScriptTypeResolver();
+            foreach (KeyValuePair<string, Assembly> entry in assembliesByModuleId) {
+                resolver.Register(entry.Key, entry.Value);
+            }
+
+            return resolver;
         }
     }
 }

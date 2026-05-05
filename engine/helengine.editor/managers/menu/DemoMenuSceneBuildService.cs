@@ -16,8 +16,9 @@ namespace helengine.editor {
         /// <summary>
         /// Initializes a new demo menu scene build service.
         /// </summary>
-        public DemoMenuSceneBuildService() {
-            ProviderResolver = new MenuDefinitionProviderResolver();
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
+        public DemoMenuSceneBuildService(IScriptTypeResolver scriptTypeResolver = null) {
+            ProviderResolver = new MenuDefinitionProviderResolver(scriptTypeResolver);
             SceneAssetFactory = new DemoMenuSceneAssetFactory();
         }
 

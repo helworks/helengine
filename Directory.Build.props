@@ -13,6 +13,7 @@
   <PropertyGroup Condition="
     $([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('\engine\'))
     Or $([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('/engine/'))">
+    <BuildInParallel>false</BuildInParallel>
     <UseCommonOutputDirectory Condition="
       !$([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('.tests\'))
       And !$([System.String]::Copy('$(MSBuildProjectFullPath)').Contains('.tests/'))">true</UseCommonOutputDirectory>

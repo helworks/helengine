@@ -14,11 +14,24 @@ namespace helengine.editor {
         readonly Dictionary<string, IComponentPersistenceDescriptor> DescriptorsByTypeId;
 
         /// <summary>
+        /// Optional shared script type resolver used for loaded gameplay modules.
+        /// </summary>
+        readonly IScriptTypeResolver ScriptTypeResolver;
+
+        /// <summary>
+        /// Automatic reflected fallback used for eligible scripted components without explicit descriptors.
+        /// </summary>
+        readonly AutomaticScriptComponentPersistenceDescriptor AutomaticDescriptor;
+
+        /// <summary>
         /// Initializes empty descriptor lookup tables.
         /// </summary>
-        public ComponentPersistenceRegistry() {
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
+        public ComponentPersistenceRegistry(IScriptTypeResolver scriptTypeResolver = null) {
             DescriptorsByComponentType = new Dictionary<Type, IComponentPersistenceDescriptor>();
             DescriptorsByTypeId = new Dictionary<string, IComponentPersistenceDescriptor>(StringComparer.Ordinal);
+            ScriptTypeResolver = scriptTypeResolver;
+            AutomaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder(), scriptTypeResolver);
         }
 
         /// <summary>
@@ -58,6 +71,10 @@ namespace helengine.editor {
 
             Type componentType = component.GetType();
             if (!DescriptorsByComponentType.TryGetValue(componentType, out IComponentPersistenceDescriptor descriptor)) {
+                if (IsEligibleScriptComponentType(componentType)) {
+                    return AutomaticDescriptor;
+                }
+
                 throw new InvalidOperationException($"No scene persistence descriptor is registered for '{componentType.Name}'.");
             }
 
@@ -75,10 +92,52 @@ namespace helengine.editor {
             }
 
             if (!DescriptorsByTypeId.TryGetValue(componentTypeId, out IComponentPersistenceDescriptor descriptor)) {
+                Type componentType = ResolveComponentType(componentTypeId);
+                if (IsEligibleScriptComponentType(componentType)) {
+                    return AutomaticDescriptor;
+                }
+
                 throw new InvalidOperationException($"No scene persistence descriptor is registered for '{componentTypeId}'.");
             }
 
             return descriptor;
+        }
+
+        /// <summary>
+        /// Returns whether one component type is eligible for automatic reflected script-component persistence.
+        /// </summary>
+        /// <param name="componentType">Component type to inspect.</param>
+        /// <returns>True when the type is a non-engine scripted component.</returns>
+        bool IsEligibleScriptComponentType(Type componentType) {
+            if (componentType == null) {
+                return false;
+            }
+            if (!typeof(Component).IsAssignableFrom(componentType)) {
+                return false;
+            }
+
+            return componentType.Assembly != typeof(Component).Assembly;
+        }
+
+        /// <summary>
+        /// Resolves one serialized component type id to its runtime type when it is not explicitly registered.
+        /// </summary>
+        /// <param name="componentTypeId">Serialized component type id to resolve.</param>
+        /// <returns>Resolved runtime component type.</returns>
+        Type ResolveComponentType(string componentTypeId) {
+            if (string.IsNullOrWhiteSpace(componentTypeId)) {
+                throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
+            }
+
+            Type componentType = Type.GetType(componentTypeId, false);
+            if (componentType == null && ScriptTypeResolver != null) {
+                componentType = ScriptTypeResolver.Resolve(componentTypeId);
+            }
+            if (componentType == null) {
+                throw new InvalidOperationException($"No scene persistence descriptor is registered for '{componentTypeId}'.");
+            }
+
+            return componentType;
         }
     }
 }

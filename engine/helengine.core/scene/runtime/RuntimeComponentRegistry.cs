@@ -80,10 +80,39 @@ namespace helengine {
             }
 
             if (!DeserializersByTypeId.TryGetValue(componentTypeId, out IRuntimeComponentDeserializer deserializer)) {
-                throw new InvalidOperationException($"Player builds do not support serialized component type '{componentTypeId}' yet.");
+                deserializer = TryCreateAutomaticScriptComponentDeserializer(componentTypeId);
+                if (deserializer == null) {
+                    throw new InvalidOperationException($"Player builds do not support serialized component type '{componentTypeId}' yet.");
+                }
+
+                DeserializersByTypeId.Add(componentTypeId, deserializer);
             }
 
             return deserializer;
+        }
+
+        /// <summary>
+        /// Creates one automatic scripted runtime deserializer when the serialized type id resolves to an eligible scripted component type.
+        /// </summary>
+        /// <param name="componentTypeId">Serialized component type id to inspect.</param>
+        /// <returns>Automatic scripted runtime deserializer when the type id is eligible; otherwise null.</returns>
+        IRuntimeComponentDeserializer TryCreateAutomaticScriptComponentDeserializer(string componentTypeId) {
+            if (string.IsNullOrWhiteSpace(componentTypeId)) {
+                return null;
+            }
+
+            Type componentType = Type.GetType(componentTypeId, false);
+            if (componentType == null) {
+                return null;
+            }
+            if (!typeof(Component).IsAssignableFrom(componentType)) {
+                return null;
+            }
+            if (componentType.Assembly == typeof(Component).Assembly) {
+                return null;
+            }
+
+            return new AutomaticScriptComponentRuntimeDeserializer(componentTypeId, componentType);
         }
     }
 }

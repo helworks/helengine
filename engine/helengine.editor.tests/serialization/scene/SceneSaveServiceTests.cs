@@ -233,6 +233,45 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures eligible scripted components round-trip through the automatic reflected editor persistence fallback.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenSceneContainsEligibleScriptComponent_RoundTripsThroughAutomaticFallback() {
+            EditorEntity entity = CreateUserEntity("Scripted", float3.Zero, float3.One, float4.Identity);
+            TestScriptSerializableComponent component = new TestScriptSerializableComponent {
+                DisplayName = "Runtime Widget",
+                Visible = true,
+                SortOrder = 9
+            };
+            entity.AddComponent(component);
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "ScriptedRoundTrip.helen");
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneComponentAssetRecord record = Assert.Single(Assert.Single(asset.RootEntities).Components);
+            Assert.Equal(
+                AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestScriptSerializableComponent)),
+                record.ComponentTypeId);
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
+
+            EditorEntity loadedEntity = Assert.Single(loadedRoots);
+            TestScriptSerializableComponent loadedComponent = Assert.IsType<TestScriptSerializableComponent>(
+                Assert.Single(loadedEntity.Components, loadedComponent => loadedComponent is TestScriptSerializableComponent));
+            Assert.Equal("Runtime Widget", loadedComponent.DisplayName);
+            Assert.True(loadedComponent.Visible);
+            Assert.Equal(9, loadedComponent.SortOrder);
+        }
+
+        /// <summary>
         /// Ensures camera entities persist only the camera component and rebuild the hidden editor visual when loaded.
         /// </summary>
         [Fact]

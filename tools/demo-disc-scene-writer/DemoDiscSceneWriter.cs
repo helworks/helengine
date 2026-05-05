@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using helengine.editor;
-using helengine.projectfile;
 
 namespace helengine.demo_disc_scene_writer {
     /// <summary>
@@ -14,6 +13,16 @@ namespace helengine.demo_disc_scene_writer {
         /// Scene id used by the generated menu scene.
         /// </summary>
         const string MenuSceneId = "Scenes/DemoDiscMainMenu.helen";
+
+        /// <summary>
+        /// Project-relative folder that owns the generated demo-disc menu source files.
+        /// </summary>
+        const string MenuCodeFolderPath = "assets/codebase/menu";
+
+        /// <summary>
+        /// Root gameplay module id used when no authored folder-scoped module owns the generated menu code.
+        /// </summary>
+        const string DefaultMenuModuleId = "gameplay";
 
         /// <summary>
         /// Curated playable scene ids packaged by the demo-disc build.
@@ -69,11 +78,12 @@ namespace helengine.demo_disc_scene_writer {
                 throw new InvalidOperationException($"User settings root was not found: {userSettingsRootPath}");
             }
 
-            string providerTypeName = ResolveProviderTypeName(fullProjectRootPath);
+            string owningModuleId = ResolveOwningModuleId(fullProjectRootPath);
+            string providerTypeName = BuildProviderTypeName(owningModuleId);
             WriteMenuSourceFiles(assetsRootPath);
             WriteMenuFonts(assetsRootPath);
             WriteMenuSceneAsset(assetsRootPath, providerTypeName);
-            UpdateBuildConfig(Path.Combine(userSettingsRootPath, "build_config.json"));
+            UpdateBuildConfig(Path.Combine(userSettingsRootPath, "build_config.json"), owningModuleId);
         }
 
         /// <summary>
@@ -127,7 +137,12 @@ namespace helengine.demo_disc_scene_writer {
         /// Updates the city build configuration so the menu scene starts first and all curated scenes are packaged.
         /// </summary>
         /// <param name="buildConfigPath">Build-config document path.</param>
-        void UpdateBuildConfig(string buildConfigPath) {
+        /// <param name="owningModuleId">Authored module id that owns the generated menu code.</param>
+        void UpdateBuildConfig(string buildConfigPath, string owningModuleId) {
+            if (string.IsNullOrWhiteSpace(owningModuleId)) {
+                throw new ArgumentException("Owning module id must be provided.", nameof(owningModuleId));
+            }
+
             JsonNode rootNode = JsonNode.Parse(File.ReadAllText(buildConfigPath)) ?? throw new InvalidOperationException("Build config JSON could not be parsed.");
             JsonArray platforms = rootNode["platforms"]?.AsArray() ?? throw new InvalidOperationException("Build config is missing the platforms array.");
             JsonObject windowsPlatform = FindWindowsPlatform(platforms);
@@ -145,7 +160,7 @@ namespace helengine.demo_disc_scene_writer {
 
             windowsPlatform["selectedSceneIds"] = selectedSceneIds;
             windowsPlatform["sceneOrders"] = sceneOrders;
-            windowsPlatform["selectedCodeModuleIds"] = new JsonArray("gameplay");
+            windowsPlatform["selectedCodeModuleIds"] = new JsonArray(owningModuleId);
             rootNode["queueItems"] = new JsonArray();
 
             JsonSerializerOptions serializerOptions = new JsonSerializerOptions {
@@ -176,72 +191,92 @@ namespace helengine.demo_disc_scene_writer {
         }
 
         /// <summary>
-        /// Resolves the assembly-qualified menu provider type name that matches the editor script-build output.
+        /// Builds the assembly-qualified menu provider type name that matches the owning script module.
         /// </summary>
-        /// <param name="projectRootPath">Absolute project root path.</param>
+        /// <param name="owningModuleId">Authored module id that owns the generated menu code.</param>
         /// <returns>Assembly-qualified provider type name persisted into the generated menu scene.</returns>
-        string ResolveProviderTypeName(string projectRootPath) {
-            string projectAssemblyName = ResolveProjectAssemblyName(projectRootPath);
-            return $"city.menu.DemoDiscMenuDefinitionProvider, {projectAssemblyName}";
+        string BuildProviderTypeName(string owningModuleId) {
+            if (string.IsNullOrWhiteSpace(owningModuleId)) {
+                throw new ArgumentException("Owning module id must be provided.", nameof(owningModuleId));
+            }
+
+            return $"city.menu.DemoDiscMenuDefinitionProvider, {owningModuleId}";
         }
 
         /// <summary>
-        /// Resolves the generated script assembly name the editor will use for the supplied project.
+        /// Resolves the authored module id that owns the generated menu source files.
         /// </summary>
         /// <param name="projectRootPath">Absolute project root path.</param>
-        /// <returns>Sanitized project assembly name used by the editor scripting solution.</returns>
-        string ResolveProjectAssemblyName(string projectRootPath) {
+        /// <returns>Authored module id that owns the generated menu code.</returns>
+        string ResolveOwningModuleId(string projectRootPath) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
 
-            string projectFilePath = Path.Combine(projectRootPath, "project.heproj");
-            if (!File.Exists(projectFilePath)) {
-                throw new InvalidOperationException($"Project file was not found: {projectFilePath}");
+            EditorCodeModuleManifestDocument manifestDocument = new EditorCodeModuleManifestService(projectRootPath).Load();
+            string normalizedMenuFolderPath = NormalizeRelativePath(MenuCodeFolderPath);
+            string owningModuleId = DefaultMenuModuleId;
+            int owningModuleDepth = 0;
+            for (int index = 0; index < manifestDocument.Modules.Length; index++) {
+                EditorCodeModuleManifestEntry module = manifestDocument.Modules[index];
+                if (!OwnsFolderPath(module.FolderPath, normalizedMenuFolderPath)) {
+                    continue;
+                }
+
+                int moduleDepth = GetFolderDepth(module.FolderPath);
+                if (moduleDepth < owningModuleDepth) {
+                    continue;
+                }
+
+                owningModuleId = module.ModuleId;
+                owningModuleDepth = moduleDepth;
             }
 
-            ProjectFileReadResult readResult = new ProjectFileReader().ReadAsync(projectFilePath).GetAwaiter().GetResult();
-            if (!readResult.Succeeded || readResult.Document == null) {
-                throw new InvalidOperationException($"Project file '{projectFilePath}' could not be read for menu provider generation.");
-            }
-            if (string.IsNullOrWhiteSpace(readResult.Document.Name)) {
-                throw new InvalidOperationException($"Project file '{projectFilePath}' must declare a project name.");
-            }
-
-            string projectAssemblyName = SanitizeProjectIdentifier(readResult.Document.Name);
-            if (string.IsNullOrWhiteSpace(projectAssemblyName)) {
-                throw new InvalidOperationException($"Project name '{readResult.Document.Name}' did not produce a valid script assembly name.");
-            }
-
-            return projectAssemblyName;
+            return owningModuleId;
         }
 
         /// <summary>
-        /// Converts one project name into the assembly identifier used by the editor-generated scripting solution.
+        /// Returns whether one authored code-module folder owns the supplied descendant folder path.
         /// </summary>
-        /// <param name="projectName">Original project display name.</param>
-        /// <returns>Sanitized assembly identifier.</returns>
-        string SanitizeProjectIdentifier(string projectName) {
-            if (string.IsNullOrWhiteSpace(projectName)) {
-                throw new ArgumentException("Project name must be provided.", nameof(projectName));
+        /// <param name="moduleFolderPath">Project-relative authored code-module folder path.</param>
+        /// <param name="candidateFolderPath">Project-relative folder path to inspect.</param>
+        /// <returns>True when the module folder owns the candidate folder path.</returns>
+        static bool OwnsFolderPath(string moduleFolderPath, string candidateFolderPath) {
+            if (string.IsNullOrWhiteSpace(moduleFolderPath) || string.IsNullOrWhiteSpace(candidateFolderPath)) {
+                return false;
+            }
+            if (string.Equals(moduleFolderPath, candidateFolderPath, StringComparison.OrdinalIgnoreCase)) {
+                return true;
             }
 
-            StringBuilder builder = new StringBuilder(projectName.Length);
-            for (int index = 0; index < projectName.Length; index++) {
-                char character = projectName[index];
-                if (char.IsLetterOrDigit(character)) {
-                    builder.Append(character);
-                } else {
-                    builder.Append('_');
-                }
+            string moduleFolderPrefix = moduleFolderPath.TrimEnd('/') + "/";
+            return candidateFolderPath.StartsWith(moduleFolderPrefix, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Returns the authored folder depth used to prefer the most specific owning module boundary.
+        /// </summary>
+        /// <param name="folderPath">Normalized project-relative folder path.</param>
+        /// <returns>Folder depth measured in path segments.</returns>
+        static int GetFolderDepth(string folderPath) {
+            if (string.IsNullOrWhiteSpace(folderPath)) {
+                return 0;
             }
 
-            string sanitizedValue = builder.ToString().Trim('_');
-            while (sanitizedValue.Contains("__", StringComparison.Ordinal)) {
-                sanitizedValue = sanitizedValue.Replace("__", "_", StringComparison.Ordinal);
+            return folderPath.Split('/', StringSplitOptions.RemoveEmptyEntries).Length;
+        }
+
+        /// <summary>
+        /// Normalizes one project-relative path to the forward-slash form used by code-module manifests.
+        /// </summary>
+        /// <param name="relativePath">Project-relative path to normalize.</param>
+        /// <returns>Normalized manifest-style relative path.</returns>
+        static string NormalizeRelativePath(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
             }
 
-            return sanitizedValue;
+            return relativePath.Replace('\\', '/').TrimEnd('/');
         }
 
         /// <summary>

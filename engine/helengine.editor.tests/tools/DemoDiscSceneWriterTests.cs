@@ -2,6 +2,7 @@ using helengine.demo_disc_scene_writer;
 using helengine.editor.tests.testing;
 using helengine.files;
 using Xunit;
+using System.Text.Json.Nodes;
 
 namespace helengine.editor.tests.tools {
     /// <summary>
@@ -97,28 +98,42 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
-        /// Ensures the baked menu root persists a provider type name that matches the editor script assembly name.
+        /// Ensures the baked menu root persists the root gameplay module assembly name when no authored module boundary owns the menu code.
         /// </summary>
         [Fact]
-        public void WriteAll_WhenMenuSceneIsGenerated_UsesTheProjectAssemblyNameForTheProviderType() {
+        public void WriteAll_WhenMenuCodeLivesOutsideManifestBoundary_UsesGameplayAssemblyName() {
             DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
 
             writer.WriteAll(ProjectRootPath);
 
-            SceneAsset sceneAsset;
-            string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "DemoDiscMainMenu.helen");
-            using (FileStream stream = File.OpenRead(scenePath)) {
-                sceneAsset = Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
-            }
+            Assert.Equal("city.menu.DemoDiscMenuDefinitionProvider, gameplay", ReadProviderTypeName());
+            Assert.Equal(new[] { "gameplay" }, ReadSelectedCodeModuleIds());
+        }
 
-            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
-            SceneComponentAssetRecord menuRecord = Assert.Single(menuEntity.Components, component => component.ComponentTypeId == DemoMenuBuildComponent.SerializedComponentTypeId);
-            DemoMenuBuildComponentPersistenceDescriptor descriptor = new DemoMenuBuildComponentPersistenceDescriptor();
+        /// <summary>
+        /// Ensures the baked menu root persists the authored owning module assembly name when one folder-scoped module boundary owns the generated menu code.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuCodeLivesInsideManifestBoundary_UsesOwningModuleAssemblyName() {
+            string menuModuleRootPath = Path.Combine(ProjectRootPath, "assets", "codebase", "menu");
+            Directory.CreateDirectory(menuModuleRootPath);
+            File.WriteAllText(Path.Combine(menuModuleRootPath, "code.module.json"), """
+{
+  "moduleId": "gameplay.menu",
+  "dependencyModuleIds": [
+    "gameplay"
+  ],
+  "loadScopes": [
+    "always-loaded"
+  ]
+}
+""");
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
 
-            DemoMenuBuildComponent menuHostComponent = Assert.IsType<DemoMenuBuildComponent>(
-                descriptor.DeserializeComponent(menuRecord, null, new TestSceneAssetReferenceResolver()));
+            writer.WriteAll(ProjectRootPath);
 
-            Assert.Equal("city.menu.DemoDiscMenuDefinitionProvider, Neon_City", menuHostComponent.ProviderTypeName);
+            Assert.Equal("city.menu.DemoDiscMenuDefinitionProvider, gameplay.menu", ReadProviderTypeName());
+            Assert.Equal(new[] { "gameplay.menu" }, ReadSelectedCodeModuleIds());
         }
 
         /// <summary>
@@ -169,6 +184,42 @@ namespace helengine.editor.tests.tools {
                 RenderList2DInitialCapacity = 4
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+        }
+
+        /// <summary>
+        /// Reads the persisted provider type name from the generated demo-disc menu build component.
+        /// </summary>
+        /// <returns>Persisted provider type name.</returns>
+        string ReadProviderTypeName() {
+            SceneAsset sceneAsset;
+            string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "DemoDiscMainMenu.helen");
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                sceneAsset = Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneComponentAssetRecord menuRecord = Assert.Single(menuEntity.Components, component => component.ComponentTypeId == DemoMenuBuildComponent.SerializedComponentTypeId);
+            DemoMenuBuildComponentPersistenceDescriptor descriptor = new DemoMenuBuildComponentPersistenceDescriptor();
+            DemoMenuBuildComponent menuHostComponent = Assert.IsType<DemoMenuBuildComponent>(
+                descriptor.DeserializeComponent(menuRecord, null, new TestSceneAssetReferenceResolver()));
+            return menuHostComponent.ProviderTypeName;
+        }
+
+        /// <summary>
+        /// Reads the selected Windows code-module ids from the generated build config.
+        /// </summary>
+        /// <returns>Selected Windows code-module ids.</returns>
+        string[] ReadSelectedCodeModuleIds() {
+            JsonNode rootNode = JsonNode.Parse(File.ReadAllText(Path.Combine(ProjectRootPath, "user_settings", "build_config.json")))
+                ?? throw new InvalidOperationException("Build config JSON could not be parsed.");
+            JsonArray platforms = rootNode["platforms"]?.AsArray()
+                ?? throw new InvalidOperationException("Build config is missing the platforms array.");
+            JsonObject windowsPlatform = Assert.IsType<JsonObject>(Assert.Single(
+                platforms,
+                platformNode => string.Equals(platformNode?["platformId"]?.GetValue<string>(), "windows", StringComparison.OrdinalIgnoreCase)));
+            JsonArray selectedCodeModuleIdsNode = windowsPlatform["selectedCodeModuleIds"]?.AsArray()
+                ?? throw new InvalidOperationException("Build config is missing selected code-module ids.");
+            return [.. selectedCodeModuleIdsNode.Select(moduleIdNode => moduleIdNode?.GetValue<string>() ?? string.Empty)];
         }
     }
 }

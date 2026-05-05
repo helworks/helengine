@@ -23,6 +23,22 @@ namespace helengine.editor.tests.menu {
         }
 
         /// <summary>
+        /// Ensures the resolver can instantiate one provider from a loaded script module through the shared script resolver.
+        /// </summary>
+        [Fact]
+        public void Resolve_WhenProviderTypeLivesInLoadedScriptModule_ReturnsProviderInstance() {
+            ScriptTypeResolver scriptTypeResolver = new ScriptTypeResolver();
+            scriptTypeResolver.Register("gameplay", typeof(TestMenuDefinitionProvider).Assembly);
+            MenuDefinitionProviderResolver resolver = new MenuDefinitionProviderResolver(scriptTypeResolver);
+
+            IMenuDefinitionProvider provider = resolver.Resolve(typeof(TestMenuDefinitionProvider).FullName + ", gameplay");
+            MenuDefinition definition = provider.CreateMenuDefinition();
+
+            Assert.IsType<TestMenuDefinitionProvider>(provider);
+            Assert.Equal("Demo Disc", definition.Title);
+        }
+
+        /// <summary>
         /// Ensures missing provider types fail with a clear error.
         /// </summary>
         [Fact]

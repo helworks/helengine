@@ -4,11 +4,15 @@ namespace helengine.editor {
     /// </summary>
     public interface IEditorScriptAssemblyHost : IDisposable {
         /// <summary>
-        /// Reloads the current scripting assembly from one newly built output directory.
+        /// Gets the shared script type resolver backed by the currently loaded module assemblies.
         /// </summary>
-        /// <param name="sourceOutputDirectoryPath">Absolute path to the fresh build output directory.</param>
-        /// <param name="mainAssemblyPath">Absolute path to the main scripting assembly inside the build output.</param>
-        void Reload(string sourceOutputDirectoryPath, string mainAssemblyPath);
+        IScriptTypeResolver ScriptTypeResolver { get; }
+
+        /// <summary>
+        /// Reloads the current scripting assemblies from the newly built module descriptors.
+        /// </summary>
+        /// <param name="assemblies">Descriptors for the freshly built module assemblies.</param>
+        void Reload(IReadOnlyList<ScriptAssemblyDescriptor> assemblies);
 
         /// <summary>
         /// Returns the addable component descriptors discovered from the currently loaded scripting assembly.

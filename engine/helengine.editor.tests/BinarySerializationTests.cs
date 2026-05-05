@@ -92,6 +92,7 @@ namespace helengine.editor.tests {
         public void AssetSerializer_SceneAsset_WritesHeleHeaderAndRoundTrips() {
             SceneAsset asset = new SceneAsset {
                 Id = "Scenes/TestScene.helen",
+                Physics3DSceneFeatureFlags = 1234u,
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = "root-entity",
@@ -128,7 +129,9 @@ namespace helengine.editor.tests {
             Assert.Equal(EditorAssetBinarySerializer.FormatId, header.FormatId);
             Assert.Equal((ushort)EditorAssetBinarySerializer.RecordKind, header.RecordKind);
             Assert.Equal((ushort)EditorAssetBinaryValueKind.SceneAsset, header.ValueKind);
+            Assert.Equal(EditorAssetBinarySerializer.CurrentVersion, header.Version);
             Assert.Equal("Scenes/TestScene.helen", deserialized.Id);
+            Assert.Equal(1234u, deserialized.Physics3DSceneFeatureFlags);
             Assert.Single(deserialized.RootEntities);
             Assert.Equal("root-entity", deserialized.RootEntities[0].Id);
             Assert.Equal(new float3(1f, 2f, 3f), deserialized.RootEntities[0].LocalPosition);
@@ -136,6 +139,25 @@ namespace helengine.editor.tests {
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, deserialized.RootEntities[0].Components[0].Payload);
             Assert.Equal("child-entity", deserialized.RootEntities[0].Children[0].Id);
             Assert.Equal("Child", deserialized.RootEntities[0].Children[0].Name);
+        }
+
+        /// <summary>
+        /// Ensures scene assets round-trip the version-five physics feature flags through the editor asset serializer.
+        /// </summary>
+        [Fact]
+        public void SerializeSceneAsset_WhenPhysicsFlagsArePresent_RoundTripsVersionFivePayload() {
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = "scene-id",
+                Physics3DSceneFeatureFlags = 1234u,
+                RootEntities = Array.Empty<SceneEntityAsset>()
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            EditorAssetBinarySerializer.Serialize(stream, sceneAsset);
+            stream.Position = 0;
+
+            SceneAsset deserialized = Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
+            Assert.Equal(1234u, deserialized.Physics3DSceneFeatureFlags);
         }
 
         /// <summary>

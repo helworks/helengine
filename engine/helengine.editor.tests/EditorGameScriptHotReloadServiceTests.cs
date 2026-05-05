@@ -42,8 +42,10 @@ namespace helengine.editor.tests {
 
             Assert.True(result.Succeeded);
             Assert.Equal(Path.Combine(TempProjectRootPath, "SkyRider.sln"), buildTool.SolutionPath);
-            Assert.Equal(solutionService.GeneratedOutputDirectoryPath, assemblyHost.SourceOutputDirectoryPath);
-            Assert.Equal(solutionService.GeneratedOutputAssemblyPath, assemblyHost.MainAssemblyPath);
+            Assert.Single(assemblyHost.Assemblies);
+            Assert.Equal("gameplay", assemblyHost.Assemblies[0].ModuleId);
+            Assert.Equal(solutionService.GeneratedOutputDirectoryPath, assemblyHost.Assemblies[0].OutputDirectoryPath);
+            Assert.Equal(solutionService.GeneratedOutputAssemblyPath, assemblyHost.Assemblies[0].AssemblyPath);
             Assert.Equal(1, assemblyHost.ReloadCount);
             Assert.True(File.Exists(solutionService.GeneratedSolutionFilePath));
             Assert.True(File.Exists(solutionService.GeneratedProjectFilePath));
@@ -104,28 +106,34 @@ namespace helengine.editor.tests {
         /// </summary>
         sealed class TestScriptAssemblyHost : IEditorScriptAssemblyHost {
             /// <summary>
+            /// Initializes one fake host with a shared script resolver.
+            /// </summary>
+            public TestScriptAssemblyHost() {
+                ScriptTypeResolver = new ScriptTypeResolver();
+                Assemblies = [];
+            }
+
+            /// <summary>
             /// Gets the number of reload requests received by the fake host.
             /// </summary>
             public int ReloadCount { get; private set; }
 
             /// <summary>
-            /// Gets the source output directory path passed to the fake host.
+            /// Gets the shared script type resolver surfaced by the fake host.
             /// </summary>
-            public string SourceOutputDirectoryPath { get; private set; }
+            public IScriptTypeResolver ScriptTypeResolver { get; }
 
             /// <summary>
-            /// Gets the main assembly path passed to the fake host.
+            /// Gets the assembly descriptors passed to the fake host.
             /// </summary>
-            public string MainAssemblyPath { get; private set; }
+            public IReadOnlyList<ScriptAssemblyDescriptor> Assemblies { get; private set; }
 
             /// <summary>
             /// Reloads the fake host state without touching the filesystem.
             /// </summary>
-            /// <param name="sourceOutputDirectoryPath">Absolute path to the fresh build output directory.</param>
-            /// <param name="mainAssemblyPath">Absolute path to the main scripting assembly.</param>
-            public void Reload(string sourceOutputDirectoryPath, string mainAssemblyPath) {
-                SourceOutputDirectoryPath = sourceOutputDirectoryPath;
-                MainAssemblyPath = mainAssemblyPath;
+            /// <param name="assemblies">Descriptors for the freshly built module assemblies.</param>
+            public void Reload(IReadOnlyList<ScriptAssemblyDescriptor> assemblies) {
+                Assemblies = assemblies;
                 ReloadCount++;
             }
 

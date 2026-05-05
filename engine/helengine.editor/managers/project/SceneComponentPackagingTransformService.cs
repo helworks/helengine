@@ -193,6 +193,16 @@ namespace helengine.editor {
         readonly string SelectedGraphicsProfileId;
 
         /// <summary>
+        /// Reflected scripted-component schema builder used for automatic scripted payload rewrites.
+        /// </summary>
+        readonly ScriptComponentReflectionSchemaBuilder ScriptComponentSchemaBuilder;
+
+        /// <summary>
+        /// Automatic scripted-component descriptor used to interpret editor tagged payloads before packaging.
+        /// </summary>
+        readonly AutomaticScriptComponentPersistenceDescriptor AutomaticScriptComponentDescriptor;
+
+        /// <summary>
         /// Initializes one shared scene-component transform service.
         /// </summary>
         /// <param name="assetsRootPath">Absolute source assets root path.</param>
@@ -229,6 +239,8 @@ namespace helengine.editor {
             MaterialBuilder = materialBuilder;
             SelectedBuildProfileId = selectedBuildProfileId ?? string.Empty;
             SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
+            ScriptComponentSchemaBuilder = new ScriptComponentReflectionSchemaBuilder();
+            AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder);
         }
 
         /// <summary>
@@ -306,8 +318,59 @@ namespace helengine.editor {
                 return true;
             }
 
+            if (IsAutomaticScriptComponentTypeId(record.ComponentTypeId)) {
+                transformedRecord = RewriteAutomaticScriptComponentRecord(record);
+                return true;
+            }
+
             transformedRecord = null;
             return false;
+        }
+
+        /// <summary>
+        /// Returns whether one serialized component type id identifies an eligible scripted component that should be rewritten into packaged ordinal form.
+        /// </summary>
+        /// <param name="componentTypeId">Serialized component type id to inspect.</param>
+        /// <returns>True when the component type id identifies an eligible scripted component.</returns>
+        bool IsAutomaticScriptComponentTypeId(string componentTypeId) {
+            if (string.IsNullOrWhiteSpace(componentTypeId)) {
+                return false;
+            }
+
+            Type componentType = Type.GetType(componentTypeId, false);
+            if (componentType == null) {
+                return false;
+            }
+            if (!typeof(Component).IsAssignableFrom(componentType)) {
+                return false;
+            }
+
+            return componentType.Assembly != typeof(Component).Assembly;
+        }
+
+        /// <summary>
+        /// Rewrites one named editor scripted-component payload into the strict packaged ordinal payload shape.
+        /// </summary>
+        /// <param name="record">Serialized scripted-component record to rewrite.</param>
+        /// <returns>Rewritten scripted-component record.</returns>
+        SceneComponentAssetRecord RewriteAutomaticScriptComponentRecord(SceneComponentAssetRecord record) {
+            Component component = AutomaticScriptComponentDescriptor.DeserializeComponent(record, null, null);
+            ScriptComponentReflectionSchema schema = ScriptComponentSchemaBuilder.Build(component.GetType());
+
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+            writer.WriteInt32(schema.Members.Count);
+            for (int index = 0; index < schema.Members.Count; index++) {
+                ScriptComponentReflectionMember member = schema.Members[index];
+                AutomaticScriptComponentPersistenceDescriptor.WriteSupportedValue(writer, member.ValueType, member.GetValue(component));
+            }
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = record.ComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = stream.ToArray()
+            };
         }
 
         /// <summary>

@@ -1,4 +1,5 @@
 using helengine.editor;
+using helengine.editor.tests.testing;
 using Xunit;
 
 namespace helengine.editor.tests.serialization.scene {
@@ -19,6 +20,22 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.Same(descriptor, registry.GetDescriptor(meshComponent));
             Assert.Same(descriptor, registry.GetDescriptor(descriptor.ComponentTypeId));
+        }
+
+        /// <summary>
+        /// Ensures eligible scripted components without explicit descriptors resolve through the automatic reflected fallback.
+        /// </summary>
+        [Fact]
+        public void GetDescriptor_WhenScriptComponentHasNoExplicitDescriptor_ReturnsAutomaticFallback() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            TestScriptSerializableComponent component = new TestScriptSerializableComponent();
+
+            IComponentPersistenceDescriptor descriptorByComponent = registry.GetDescriptor(component);
+            IComponentPersistenceDescriptor descriptorByTypeId = registry.GetDescriptor(
+                AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestScriptSerializableComponent)));
+
+            Assert.IsType<AutomaticScriptComponentPersistenceDescriptor>(descriptorByComponent);
+            Assert.Same(descriptorByComponent, descriptorByTypeId);
         }
 
         /// <summary>

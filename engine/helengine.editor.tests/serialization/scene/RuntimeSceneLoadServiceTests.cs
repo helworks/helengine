@@ -272,6 +272,57 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures packaged runtime scene loading materializes eligible scripted components through the ordinal automatic fallback path.
+        /// </summary>
+        [Fact]
+        public void Load_WhenPackagedSceneContainsEligibleScriptComponent_MaterializesTheComponent() {
+            string projectRootPath = Path.Combine(TempRootPath, "scripted-project");
+            string scenePath = Path.Combine(projectRootPath, "assets", "Scenes", "Scripted.helen");
+            string buildRootPath = Path.Combine(TempRootPath, "scripted-build");
+            Directory.CreateDirectory(Path.Combine(projectRootPath, "assets", "Scenes"));
+            Directory.CreateDirectory(buildRootPath);
+
+            EditorEntity entity = CreateUserEntity("Scripted");
+            entity.AddComponent(new TestScriptSerializableComponent {
+                DisplayName = "Packaged Widget",
+                Visible = true,
+                SortOrder = 14
+            });
+
+            SceneSaveService saveService = new SceneSaveService(projectRootPath, new ComponentPersistenceRegistry());
+            saveService.Save(scenePath);
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                projectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                CreateFont());
+            packager.Package(new[] { "Scenes/Scripted.helen" }, buildRootPath);
+
+            SceneAsset sceneAsset;
+            string packagedScenePath = Path.Combine(
+                buildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            using (FileStream packagedSceneStream = File.OpenRead(packagedScenePath)) {
+                sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            }
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                buildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            Entity loadedRoot = Assert.Single(loadedRoots);
+            TestScriptSerializableComponent component = Assert.IsType<TestScriptSerializableComponent>(
+                Assert.Single(loadedRoot.Components, loadedComponent => loadedComponent is TestScriptSerializableComponent));
+
+            Assert.Equal("Packaged Widget", component.DisplayName);
+            Assert.True(component.Visible);
+            Assert.Equal(14, component.SortOrder);
+        }
+
+        /// <summary>
         /// Ensures packaged runtime scene loading materializes the authored light component families through the default runtime registry.
         /// </summary>
         [Fact]
@@ -571,6 +622,21 @@ namespace helengine.editor.tests.serialization.scene {
 
             using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, sceneAsset);
+        }
+
+        /// <summary>
+        /// Creates one editor-authored scene entity configured for packaging tests.
+        /// </summary>
+        /// <param name="name">Display name assigned to the entity.</param>
+        /// <returns>Configured editor scene entity.</returns>
+        EditorEntity CreateUserEntity(string name) {
+            return new EditorEntity {
+                Name = name,
+                LayerMask = EditorLayerMasks.SceneObjects,
+                LocalPosition = float3.Zero,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity
+            };
         }
     }
 }

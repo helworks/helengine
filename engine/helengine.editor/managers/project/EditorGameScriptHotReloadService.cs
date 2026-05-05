@@ -42,9 +42,16 @@ namespace helengine.editor {
                     return buildResult;
                 }
 
-                AssemblyHost.Reload(
-                    GameSolutionService.GeneratedOutputDirectoryPath,
-                    GameSolutionService.GeneratedOutputAssemblyPath);
+                List<ScriptAssemblyDescriptor> assemblies = new List<ScriptAssemblyDescriptor>(GameSolutionService.GeneratedModuleProjects.Count);
+                for (int index = 0; index < GameSolutionService.GeneratedModuleProjects.Count; index++) {
+                    EditorGeneratedCodeModuleProject moduleProject = GameSolutionService.GeneratedModuleProjects[index];
+                    assemblies.Add(new ScriptAssemblyDescriptor(
+                        moduleProject.ModuleId,
+                        moduleProject.OutputDirectoryPath,
+                        Path.Combine(moduleProject.OutputDirectoryPath, moduleProject.ModuleId + ".dll")));
+                }
+
+                AssemblyHost.Reload(assemblies);
 
                 return EditorBuildExecutionResult.Success($"Scripts hot-reloaded: {GameSolutionService.GeneratedOutputAssemblyPath}");
             } catch (Exception ex) {

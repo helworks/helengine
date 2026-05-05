@@ -18,7 +18,7 @@ namespace helengine.files {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 4;
+        public const byte CurrentVersion = 5;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -122,6 +122,8 @@ namespace helengine.files {
                 return EditorAssetBinaryValueKind.TextAsset;
             } else if (asset is MaterialAsset) {
                 return EditorAssetBinaryValueKind.MaterialAsset;
+            } else if (asset is Ps2MaterialAsset) {
+                return EditorAssetBinaryValueKind.Ps2MaterialAsset;
             } else if (asset is SceneAsset) {
                 return EditorAssetBinaryValueKind.SceneAsset;
             }
@@ -150,6 +152,9 @@ namespace helengine.files {
             } else if (asset is MaterialAsset materialAsset) {
                 WriteMaterialAsset(writer, materialAsset);
                 return;
+            } else if (asset is Ps2MaterialAsset ps2MaterialAsset) {
+                WritePs2MaterialAsset(writer, ps2MaterialAsset);
+                return;
             } else if (asset is SceneAsset sceneAsset) {
                 WriteSceneAsset(writer, sceneAsset);
                 return;
@@ -176,6 +181,8 @@ namespace helengine.files {
                     return ReadTextAsset(reader);
                 case EditorAssetBinaryValueKind.MaterialAsset:
                     return ReadMaterialAsset(reader);
+                case EditorAssetBinaryValueKind.Ps2MaterialAsset:
+                    return ReadPs2MaterialAsset(reader);
                 case EditorAssetBinaryValueKind.SceneAsset:
                     return ReadSceneAsset(reader, version);
                 default:
@@ -296,6 +303,50 @@ namespace helengine.files {
         }
 
         /// <summary>
+        /// Writes a PS2 material asset payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">PS2 material asset to serialize.</param>
+        static void WritePs2MaterialAsset(EngineBinaryWriter writer, Ps2MaterialAsset asset) {
+            writer.WriteString(asset.Id);
+            writer.WriteString(asset.RendererFamilyId);
+            writer.WriteInt32((int)asset.LightingMode);
+            writer.WriteInt32((int)asset.AlphaMode);
+            writer.WriteInt32((int)asset.RenderClass);
+            writer.WriteString(asset.TextureRelativePath);
+            writer.WriteByte(asset.DoubleSided ? (byte)1 : (byte)0);
+            writer.WriteByte(asset.CastShadows ? (byte)1 : (byte)0);
+            writer.WriteByte(asset.UseVertexColor ? (byte)1 : (byte)0);
+            writer.WriteByte(asset.ExpensiveModeAllowed ? (byte)1 : (byte)0);
+            writer.WriteSingle(asset.Roughness);
+            writer.WriteSingle(asset.SpecularStrength);
+            writer.WriteSingle(asset.EmissiveStrength);
+        }
+
+        /// <summary>
+        /// Reads a PS2 material asset payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized PS2 material asset.</returns>
+        static Ps2MaterialAsset ReadPs2MaterialAsset(EngineBinaryReader reader) {
+            return new Ps2MaterialAsset {
+                Id = reader.ReadString(),
+                RendererFamilyId = reader.ReadString(),
+                LightingMode = (Ps2MaterialLightingMode)reader.ReadInt32(),
+                AlphaMode = (Ps2MaterialAlphaMode)reader.ReadInt32(),
+                RenderClass = (Ps2RenderClass)reader.ReadInt32(),
+                TextureRelativePath = reader.ReadString(),
+                DoubleSided = reader.ReadByte() != 0,
+                CastShadows = reader.ReadByte() != 0,
+                UseVertexColor = reader.ReadByte() != 0,
+                ExpensiveModeAllowed = reader.ReadByte() != 0,
+                Roughness = reader.ReadSingle(),
+                SpecularStrength = reader.ReadSingle(),
+                EmissiveStrength = reader.ReadSingle()
+            };
+        }
+
+        /// <summary>
         /// Writes a scene asset payload.
         /// </summary>
         /// <param name="writer">Destination writer for the payload.</param>
@@ -304,6 +355,7 @@ namespace helengine.files {
             writer.WriteString(asset.Id);
             writer.WriteArray(asset.RootEntities, WriteSceneEntityAsset);
             writer.WriteArray(asset.AssetReferences, WriteSceneAssetReference);
+            writer.WriteUInt32(asset.Physics3DSceneFeatureFlags);
         }
 
         /// <summary>
@@ -317,7 +369,10 @@ namespace helengine.files {
                 RootEntities = ReadSceneEntityAssetArray(reader, version) ?? Array.Empty<SceneEntityAsset>(),
                 AssetReferences = version >= 4
                     ? ReadSceneAssetReferenceArray(reader) ?? Array.Empty<SceneAssetReference>()
-                    : Array.Empty<SceneAssetReference>()
+                    : Array.Empty<SceneAssetReference>(),
+                Physics3DSceneFeatureFlags = version >= 5
+                    ? reader.ReadUInt32()
+                    : 0u
             };
         }
 
