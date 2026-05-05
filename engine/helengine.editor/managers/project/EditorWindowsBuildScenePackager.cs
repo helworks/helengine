@@ -49,6 +49,26 @@ namespace helengine.editor {
         const string TextComponentTypeId = "helengine.TextComponent";
 
         /// <summary>
+        /// Stable serialized component id for 3D rigid-body components.
+        /// </summary>
+        const string RigidBody3DComponentTypeId = "helengine.RigidBody3DComponent";
+
+        /// <summary>
+        /// Stable serialized component id for 3D box collider components.
+        /// </summary>
+        const string BoxCollider3DComponentTypeId = "helengine.BoxCollider3DComponent";
+
+        /// <summary>
+        /// Stable serialized component id for 3D kinematic-motion components.
+        /// </summary>
+        const string KinematicMotion3DComponentTypeId = "helengine.KinematicMotion3DComponent";
+
+        /// <summary>
+        /// Stable serialized component id for 3D character-controller components.
+        /// </summary>
+        const string CharacterController3DComponentTypeId = "helengine.CharacterController3DComponent";
+
+        /// <summary>
         /// Runtime scene layer used by the current Windows player loader for materialized entities.
         /// </summary>
         const ushort RuntimeSceneLayerMask = 0b00000001;
@@ -490,6 +510,7 @@ namespace helengine.editor {
             }
 
             sceneAsset.AssetReferences = rewrittenAssetReferences.ToArray();
+            sceneAsset.Physics3DSceneFeatureFlags = (uint)PhysicsSceneFeatureAnalyzer3D.Analyze(sceneAsset);
         }
 
         /// <summary>
@@ -695,6 +716,26 @@ namespace helengine.editor {
                     TextComponentTypeId,
                     PlatformComponentCompatibilityKind.Transform,
                     "Text component font references are rewritten during packaging.",
+                    string.Empty),
+                new PlatformComponentCompatibilityDefinition(
+                    RigidBody3DComponentTypeId,
+                    PlatformComponentCompatibilityKind.PassThrough,
+                    "3D rigid-body components are emitted unchanged for the current runtime loader.",
+                    string.Empty),
+                new PlatformComponentCompatibilityDefinition(
+                    BoxCollider3DComponentTypeId,
+                    PlatformComponentCompatibilityKind.PassThrough,
+                    "3D box collider components are emitted unchanged for the current runtime loader.",
+                    string.Empty),
+                new PlatformComponentCompatibilityDefinition(
+                    KinematicMotion3DComponentTypeId,
+                    PlatformComponentCompatibilityKind.PassThrough,
+                    "3D kinematic motion components are emitted unchanged for the current runtime loader.",
+                    string.Empty),
+                new PlatformComponentCompatibilityDefinition(
+                    CharacterController3DComponentTypeId,
+                    PlatformComponentCompatibilityKind.PassThrough,
+                    "3D character-controller components are emitted unchanged for the current runtime loader.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
                     "helengine.RoundedRectComponent",

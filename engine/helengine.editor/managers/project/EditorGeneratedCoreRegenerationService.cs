@@ -8,7 +8,7 @@ namespace helengine.editor {
     /// <summary>
     /// Regenerates the shared native source tree for core and portable input before platform builds run.
     /// </summary>
-    public sealed class EditorGeneratedCoreRegenerationService {
+    public class EditorGeneratedCoreRegenerationService {
         /// <summary>
         /// Loads the HelEngine repository root for local source builds.
         /// </summary>
@@ -28,13 +28,15 @@ namespace helengine.editor {
         /// <param name="codegenProfile">Selected codegen profile metadata.</param>
         /// <param name="selectedCodegenOptionValues">Selected codegen option values persisted by the editor.</param>
         /// <param name="generatedCoreRootPath">Absolute output root for the fresh generated-core tree.</param>
+        /// <param name="additionalPreprocessorSymbols">Scene-derived and platform-derived preprocessor symbols that should be forwarded to code generation.</param>
         /// <param name="cancellationToken">Cancellation token that can stop regeneration cooperatively.</param>
-        public void Regenerate(
+        public virtual void Regenerate(
             PlatformDefinition platformDefinition,
             PlatformCodegenProfileDefinition codegenProfile,
             IReadOnlyDictionary<string, string> selectedCodegenOptionValues,
             string generatedCoreRootPath,
             string codegenToolPath,
+            IReadOnlyList<string> additionalPreprocessorSymbols,
             CancellationToken cancellationToken) {
             if (platformDefinition == null) {
                 throw new ArgumentNullException(nameof(platformDefinition));
@@ -47,6 +49,9 @@ namespace helengine.editor {
             }
             if (string.IsNullOrWhiteSpace(codegenToolPath)) {
                 throw new ArgumentException("Codegen tool path must be provided.", nameof(codegenToolPath));
+            }
+            if (additionalPreprocessorSymbols == null) {
+                throw new ArgumentNullException(nameof(additionalPreprocessorSymbols));
             }
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core output root must be provided.", nameof(generatedCoreRootPath));
@@ -85,6 +90,9 @@ namespace helengine.editor {
             Directory.CreateDirectory(generatedCoreOutputRoot);
             try {
                 IReadOnlyList<string> portableInputPreprocessorSymbols = ResolvePortableInputPreprocessorSymbols(platformDefinition);
+                IReadOnlyList<string> combinedPreprocessorSymbols = CombineAdditionalPreprocessorSymbols(
+                    portableInputPreprocessorSymbols,
+                    additionalPreprocessorSymbols);
                 RegenerateProject(
                     fullCodegenToolPath,
                     helengineCoreProjectPath,
@@ -92,7 +100,7 @@ namespace helengine.editor {
                     platformDefinition,
                     codegenProfile,
                     selectedCodegenOptionValues,
-                    portableInputPreprocessorSymbols,
+                    combinedPreprocessorSymbols,
                     logBuilder,
                     cancellationToken);
                 RegenerateProject(
@@ -102,7 +110,7 @@ namespace helengine.editor {
                     platformDefinition,
                     codegenProfile,
                     selectedCodegenOptionValues,
-                    portableInputPreprocessorSymbols,
+                    combinedPreprocessorSymbols,
                     logBuilder,
                     cancellationToken);
                 MergeGeneratedSourceTree(portableInputOutputRoot, generatedCoreOutputRoot);
@@ -266,6 +274,28 @@ namespace helengine.editor {
             }
 
             return ["HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION"];
+        }
+
+        /// <summary>
+        /// Combines multiple preprocessor symbol sources into one ordered unique list.
+        /// </summary>
+        /// <param name="firstSymbols">Primary symbol source.</param>
+        /// <param name="secondSymbols">Secondary symbol source.</param>
+        /// <returns>Ordered unique symbol list.</returns>
+        internal static IReadOnlyList<string> CombineAdditionalPreprocessorSymbols(
+            IReadOnlyList<string> firstSymbols,
+            IReadOnlyList<string> secondSymbols) {
+            if (firstSymbols == null) {
+                throw new ArgumentNullException(nameof(firstSymbols));
+            }
+            if (secondSymbols == null) {
+                throw new ArgumentNullException(nameof(secondSymbols));
+            }
+
+            List<string> combinedSymbols = new List<string>();
+            AddUniqueSymbols(combinedSymbols, firstSymbols);
+            AddUniqueSymbols(combinedSymbols, secondSymbols);
+            return combinedSymbols;
         }
 
         /// <summary>
@@ -1031,6 +1061,31 @@ namespace helengine.editor {
             }
 
             return symbols.Count > 0 ? string.Join(';', symbols) : string.Empty;
+        }
+
+        /// <summary>
+        /// Adds unique symbols from one ordered source list into one mutable destination list.
+        /// </summary>
+        /// <param name="symbols">Destination list receiving unique symbols.</param>
+        /// <param name="symbolsToAdd">Ordered source symbols.</param>
+        static void AddUniqueSymbols(List<string> symbols, IReadOnlyList<string> symbolsToAdd) {
+            if (symbols == null) {
+                throw new ArgumentNullException(nameof(symbols));
+            }
+            if (symbolsToAdd == null) {
+                throw new ArgumentNullException(nameof(symbolsToAdd));
+            }
+
+            for (int index = 0; index < symbolsToAdd.Count; index++) {
+                string symbol = symbolsToAdd[index];
+                if (string.IsNullOrWhiteSpace(symbol)) {
+                    continue;
+                }
+
+                if (!symbols.Contains(symbol, StringComparer.OrdinalIgnoreCase)) {
+                    symbols.Add(symbol);
+                }
+            }
         }
 
         /// <summary>

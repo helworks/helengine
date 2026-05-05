@@ -118,6 +118,7 @@ namespace helengine.editor.tests {
             Assert.Equal("cooked/fonts/default.hefont", packagedScene.AssetReferences[0].RelativePath);
             Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "fonts", "default.hefont")));
 
+            InitializeRuntimeCore(BuildRootPath);
             ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
 
@@ -216,6 +217,7 @@ namespace helengine.editor.tests {
                 packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
             }
 
+            InitializeRuntimeCore(BuildRootPath);
             ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
@@ -349,6 +351,7 @@ namespace helengine.editor.tests {
             string packagedFontPath = Path.Combine(BuildRootPath, "cooked", "fonts", "default.hefont");
             Assert.True(File.Exists(packagedFontPath));
 
+            InitializeRuntimeCore(BuildRootPath);
             ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
             RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
 
@@ -414,6 +417,253 @@ namespace helengine.editor.tests {
 
             Assert.Contains("This platform does not support the component.", ex.Message);
             Assert.Contains("Remove the component before building.", ex.Message);
+        }
+
+        /// <summary>
+        /// Ensures the default scene packager preserves the current pass-through physics records required by the 3D box-body runtime.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsPhysics3DBoxBody_PreservesPhysicsComponentRecords() {
+            string sceneId = "Scenes/PhysicsBoxes.helen";
+            string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "ground-entity",
+                        Name = "Ground",
+                        LocalPosition = new float3(0f, -0.5f, 0f),
+                        LocalScale = new float3(8f, 1f, 8f),
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.RigidBody3DComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteRigidBody3DComponentPayload(BodyKind3D.Static, false)
+                            },
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.BoxCollider3DComponent",
+                                ComponentIndex = 1,
+                                Payload = WriteBoxCollider3DComponentPayload(new float3(8f, 1f, 8f))
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = "box-entity",
+                        Name = "Box",
+                        LocalPosition = new float3(0f, 2f, 0f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.RigidBody3DComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteRigidBody3DComponentPayload(BodyKind3D.Dynamic, true)
+                            },
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.BoxCollider3DComponent",
+                                ComponentIndex = 1,
+                                Payload = WriteBoxCollider3DComponentPayload(new float3(1f, 1f, 1f))
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            using (FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, sceneAsset);
+            }
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = Path.Combine(BuildRootPath, EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            using FileStream packagedSceneStream = File.OpenRead(packagedScenePath);
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+
+            Assert.Contains(packagedScene.RootEntities[0].Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
+            Assert.Contains(packagedScene.RootEntities[0].Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
+            Assert.Contains(packagedScene.RootEntities[1].Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
+            Assert.Contains(packagedScene.RootEntities[1].Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
+            Assert.Equal((uint)PhysicsSceneFeatureFlags3D.BoxBoxContact, packagedScene.Physics3DSceneFeatureFlags);
+        }
+
+        /// <summary>
+        /// Ensures the default scene packager preserves the current pass-through physics records required by the runtime kinematic-motion path.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsPhysics3DKinematicMotion_PreservesPhysicsComponentRecords() {
+            string sceneId = "Scenes/PhysicsKinematic.helen";
+            string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "kinematic-entity",
+                        Name = "KinematicPusher",
+                        LocalPosition = new float3(-2f, 0.5f, 0f),
+                        LocalScale = new float3(1.5f, 1f, 1.5f),
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.RigidBody3DComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteRigidBody3DComponentPayload(BodyKind3D.Kinematic, false)
+                            },
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.BoxCollider3DComponent",
+                                ComponentIndex = 1,
+                                Payload = WriteBoxCollider3DComponentPayload(new float3(1.5f, 1f, 1.5f))
+                            },
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.KinematicMotion3DComponent",
+                                ComponentIndex = 2,
+                                Payload = WriteKinematicMotion3DComponentPayload(new float3(-2f, 0.5f, 0f), new float3(0.5f, 0.5f, 0f), 1d, true)
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            using (FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, sceneAsset);
+            }
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = Path.Combine(BuildRootPath, EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            using FileStream packagedSceneStream = File.OpenRead(packagedScenePath);
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
+
+            Assert.Contains(packagedRoot.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
+            Assert.Contains(packagedRoot.Components, component => string.Equals(component.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
+            Assert.Contains(packagedRoot.Components, component => string.Equals(component.ComponentTypeId, "helengine.KinematicMotion3DComponent", StringComparison.Ordinal));
+            Assert.Equal((uint)PhysicsSceneFeatureFlags3D.KinematicMotion, packagedScene.Physics3DSceneFeatureFlags);
+        }
+
+        /// <summary>
+        /// Ensures the default scene packager preserves the current pass-through physics records required by the runtime character-controller path.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsPhysics3DCharacterController_PreservesPhysicsComponentRecords() {
+            string sceneId = "Scenes/PhysicsCharacterController.helen";
+            string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "ground-entity",
+                        Name = "Ground",
+                        LocalPosition = new float3(0f, -0.5f, 0f),
+                        LocalScale = new float3(8f, 1f, 8f),
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.RigidBody3DComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteRigidBody3DComponentPayload(BodyKind3D.Static, false)
+                            },
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.BoxCollider3DComponent",
+                                ComponentIndex = 1,
+                                Payload = WriteBoxCollider3DComponentPayload(new float3(8f, 1f, 8f))
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = "controller-entity",
+                        Name = "Controller",
+                        LocalPosition = new float3(0f, 1f, 0f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.CharacterController3DComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteCharacterController3DComponentPayload(new float3(1f, 0f, 0f), 4.5d, 1d, 0.4d, 0.25d)
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            using (FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, sceneAsset);
+            }
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = Path.Combine(BuildRootPath, EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            using FileStream packagedSceneStream = File.OpenRead(packagedScenePath);
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+
+            Assert.Contains(packagedScene.RootEntities[1].Components, component => string.Equals(component.ComponentTypeId, "helengine.CharacterController3DComponent", StringComparison.Ordinal));
+            Assert.Equal(
+                (uint)(PhysicsSceneFeatureFlags3D.CharacterController | PhysicsSceneFeatureFlags3D.CharacterControllerBodySupport),
+                packagedScene.Physics3DSceneFeatureFlags);
+        }
+
+        /// <summary>
+        /// Ensures trigger colliders propagate the compact scene-feature flag used by runtime trigger dispatch.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsPhysics3DTriggerCollider_WritesPhysics3DFeatureFlags() {
+            string sceneId = "Scenes/PhysicsTrigger.helen";
+            string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "trigger-entity",
+                        Name = "Trigger",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.RigidBody3DComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteRigidBody3DComponentPayload(BodyKind3D.Static, false)
+                            },
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.BoxCollider3DComponent",
+                                ComponentIndex = 1,
+                                Payload = WriteBoxCollider3DComponentPayload(new float3(3f, 2f, 3f), true)
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            using (FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, sceneAsset);
+            }
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = Path.Combine(BuildRootPath, EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            using FileStream packagedSceneStream = File.OpenRead(packagedScenePath);
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+
+            Assert.Equal((uint)PhysicsSceneFeatureFlags3D.TriggerEvents, packagedScene.Physics3DSceneFeatureFlags);
         }
 
         /// <summary>
@@ -529,6 +779,17 @@ namespace helengine.editor.tests {
                 ProviderId = "editor",
                 AssetId = "ui-font"
             };
+        }
+
+        /// <summary>
+        /// Initializes one runtime core instance for packaged-content loading against the current build root.
+        /// </summary>
+        /// <param name="contentRootPath">Packaged content root that should back the runtime content manager.</param>
+        void InitializeRuntimeCore(string contentRootPath) {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = contentRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
         }
 
         /// <summary>
@@ -753,6 +1014,90 @@ namespace helengine.editor.tests {
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(textComponent, 0, saveState);
             return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one serialized rigid-body component payload used by scene-packager tests.
+        /// </summary>
+        /// <param name="bodyKind">Rigid-body participation mode to encode.</param>
+        /// <param name="useGravity">True when gravity should be enabled.</param>
+        /// <returns>Serialized rigid-body component payload.</returns>
+        byte[] WriteRigidBody3DComponentPayload(BodyKind3D bodyKind, bool useGravity) {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteByte((byte)bodyKind);
+            writer.WriteByte(useGravity ? (byte)1 : (byte)0);
+            writer.WriteSingle(1f);
+            writer.WriteSingle(1f);
+            writer.WriteFloat3(float3.Zero);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one serialized box-collider component payload used by scene-packager tests.
+        /// </summary>
+        /// <param name="size">Full collider size to encode.</param>
+        /// <param name="isTrigger">True when the collider should be encoded as a trigger.</param>
+        /// <returns>Serialized box-collider component payload.</returns>
+        byte[] WriteBoxCollider3DComponentPayload(float3 size, bool isTrigger = false) {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(2);
+            writer.WriteFloat3(size);
+            writer.WriteUInt16(1);
+            writer.WriteUInt16(ushort.MaxValue);
+            writer.WriteByte(isTrigger ? (byte)1 : (byte)0);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one serialized kinematic-motion component payload used by scene-packager tests.
+        /// </summary>
+        /// <param name="startLocalPosition">Motion path start position.</param>
+        /// <param name="endLocalPosition">Motion path end position.</param>
+        /// <param name="travelDurationSeconds">One-way travel duration in seconds.</param>
+        /// <param name="pingPong">True when the path should reverse at the end.</param>
+        /// <returns>Serialized kinematic-motion component payload.</returns>
+        byte[] WriteKinematicMotion3DComponentPayload(
+            float3 startLocalPosition,
+            float3 endLocalPosition,
+            double travelDurationSeconds,
+            bool pingPong) {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteFloat3(startLocalPosition);
+            writer.WriteFloat3(endLocalPosition);
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(travelDurationSeconds));
+            writer.WriteByte(pingPong ? (byte)1 : (byte)0);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one serialized character-controller component payload used by scene-packager tests.
+        /// </summary>
+        /// <param name="desiredMoveDirection">Desired move direction to encode.</param>
+        /// <param name="moveSpeed">Horizontal move speed in world units per second.</param>
+        /// <param name="gravityScale">Gravity multiplier used by the controller.</param>
+        /// <param name="stepHeight">Maximum upward snap height used while climbing support surfaces.</param>
+        /// <param name="groundSnapDistance">Maximum downward snap distance used to keep the controller grounded.</param>
+        /// <returns>Serialized character-controller component payload.</returns>
+        byte[] WriteCharacterController3DComponentPayload(
+            float3 desiredMoveDirection,
+            double moveSpeed,
+            double gravityScale,
+            double stepHeight,
+            double groundSnapDistance) {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteFloat3(desiredMoveDirection);
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(moveSpeed));
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(gravityScale));
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(stepHeight));
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(groundSnapDistance));
+            return stream.ToArray();
         }
 
         /// <summary>

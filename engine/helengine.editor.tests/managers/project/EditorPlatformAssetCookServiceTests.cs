@@ -65,8 +65,10 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
                 Array.Empty<helengine.baseplatform.Definitions.PlatformBuildProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformGraphicsProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformAssetRequirementDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformMaterialSchemaDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformComponentCompatibilityDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformCodegenProfileDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformStorageProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformMediaProfileDefinition>()),
             new[] { startupSceneId, secondarySceneId },
             BuildRootPath,
@@ -75,10 +77,12 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.Equal(startupSceneId, manifest.StartupSceneId);
         Assert.Contains(manifest.CookedArtifacts, artifact => artifact.RelativePath.EndsWith(".hasset", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(manifest.CookedArtifacts, artifact => artifact.RelativePath.EndsWith(".obj", StringComparison.OrdinalIgnoreCase));
-        Assert.True(File.Exists(Path.Combine(BuildRootPath, "scenes", "main.hasset")));
-        Assert.False(File.Exists(Path.Combine(BuildRootPath, "scenes", "startup.hasset")));
+        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "main.hasset")));
+        Assert.False(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "startup.hasset")));
         Assert.True(File.Exists(Path.Combine(BuildRootPath, "scenes", "Scenes", "Level01.hasset")));
         Assert.False(File.Exists(Path.Combine(BuildRootPath, "Models", "Sponza.obj")));
+        Assert.Contains(manifest.Scenes[0].ResolvedMetadata, entry => entry.Key == PlatformBuildSceneMetadataKeys.CookedRelativePath);
+        Assert.Contains(manifest.Scenes[0].ResolvedMetadata, entry => entry.Key == PlatformBuildSceneMetadataKeys.Physics3DSceneFeatureFlags && entry.Value == "0");
     }
 
     /// <summary>

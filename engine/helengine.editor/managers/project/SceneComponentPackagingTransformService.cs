@@ -422,12 +422,11 @@ namespace helengine.editor {
         /// <param name="record">Serialized camera component record to rewrite.</param>
         /// <returns>Rewritten camera component record.</returns>
         SceneComponentAssetRecord RewriteCameraComponentRecord(SceneComponentAssetRecord record) {
-            CameraComponent cameraComponent = new CameraComponent();
-            byte cameraDrawOrder = cameraComponent.CameraDrawOrder;
-            ushort layerMask = cameraComponent.LayerMask;
-            float4 viewport = cameraComponent.Viewport;
-            CameraClearSettings clearSettings = cameraComponent.ClearSettings;
-            CameraRenderSettings renderSettings = new CameraRenderSettings(cameraComponent.RenderSettings);
+            byte cameraDrawOrder = 0;
+            ushort layerMask = 0b11111111;
+            float4 viewport = new float4(0f, 0f, 1f, 1f);
+            CameraClearSettings clearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1f, false, 0);
+            CameraRenderSettings renderSettings = new CameraRenderSettings();
 
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
             if (reader.TryGetFieldReader("CameraDrawOrder", out EngineBinaryReader cameraDrawOrderReader)) {

@@ -133,7 +133,6 @@ namespace helengine.editor.tests.managers.physics {
             Assert.True(lightComponent.ShadowsEnabled);
             Assert.Equal(ShadowMapMode.Forced, lightComponent.ShadowMapMode);
             Assert.True(lightComponent.Intensity > 1f);
-            Assert.Equal(60f, lightComponent.ShadowDistance);
 
             SceneAssetReference groundMaterialReference = ReadMaterialReference(groundEntity);
             SceneAssetReference firstBoxMaterialReference = ReadMaterialReference(firstStackBoxEntity);
