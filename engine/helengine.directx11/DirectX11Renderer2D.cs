@@ -114,7 +114,15 @@ namespace helengine.directx11 {
             ConfigureSpritePipeline(spriteInputLayout);
 
             float4 viewport = camera.Viewport;
-            float4x4.CreateOrthographicOffCenter(0, viewport.Z, -viewport.W, 0, -10, 10, out projectionMatrix2D);
+            Device.ImmediateContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
+            float4x4.CreateOrthographicOffCenter(
+                viewport.X,
+                viewport.X + viewport.Z,
+                -(viewport.Y + viewport.W),
+                -viewport.Y,
+                -10,
+                10,
+                out projectionMatrix2D);
 
             IRenderQueue2D renderQueue = camera.RenderQueue2D;
             renderQueue.VisitOrdered(this);

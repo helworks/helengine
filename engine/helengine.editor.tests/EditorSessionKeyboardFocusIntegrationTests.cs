@@ -57,6 +57,7 @@ namespace helengine.editor.tests {
                 SceneHierarchyPanel sceneHierarchyPanel = GetPrivateField<SceneHierarchyPanel>(session, "sceneHierarchyPanel");
                 PropertiesPanel propertiesPanel = GetPrivateField<PropertiesPanel>(session, "propertiesPanel");
                 IReadOnlyList<DockableEntity> dockOrder = dockingManager.Layout.GetVisibleDockablesInTraversalOrder();
+                CameraComponent hierarchyContentCamera = GetPrivateField<CameraComponent>(sceneHierarchyPanel, "contentCameraComponent");
 
                 Assert.Equal(896, mainViewport.Size.X);
                 Assert.Equal(384, sceneHierarchyPanel.Size.X);
@@ -79,6 +80,10 @@ namespace helengine.editor.tests {
                 Assert.Equal(2, rightSideDockCount);
                 Assert.Contains(sceneHierarchyPanel, dockOrder);
                 Assert.Contains(propertiesPanel, dockOrder);
+                Assert.Equal(sceneHierarchyPanel.Position.X, hierarchyContentCamera.Viewport.X);
+                Assert.Equal(sceneHierarchyPanel.Position.Y + sceneHierarchyPanel.TitleBarHeightPixels, hierarchyContentCamera.Viewport.Y);
+                Assert.Equal(sceneHierarchyPanel.Size.X, hierarchyContentCamera.Viewport.Z);
+                Assert.Equal(sceneHierarchyPanel.Size.Y, hierarchyContentCamera.Viewport.W);
             } finally {
                 session.Dispose();
             }

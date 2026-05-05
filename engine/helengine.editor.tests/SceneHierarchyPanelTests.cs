@@ -228,6 +228,87 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Scene Hierarchy row visuals render on the dedicated hierarchy content layer instead of the shared editor UI layer.
+        /// </summary>
+        [Fact]
+        public void RefreshHierarchy_AssignsVisibleRowsToTheHierarchyContentLayer() {
+            EditorEntity entity = new EditorEntity {
+                Name = "Layered Hierarchy Entity"
+            };
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+                Position = new float3(24f, 32f, 0f),
+                Size = new int2(320, 176)
+            };
+
+            panel.RefreshHierarchy();
+
+            List<SceneHierarchyRow> rows = GetPrivateField<List<SceneHierarchyRow>>(panel, "rows");
+            SceneHierarchyRow row = null;
+            for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++) {
+                SceneHierarchyRow candidate = rows[rowIndex];
+                if (candidate.Entity.Enabled && ReferenceEquals(candidate.NodeEntity, entity)) {
+                    row = candidate;
+                    break;
+                }
+            }
+
+            Assert.NotNull(row);
+            Assert.Equal(EditorLayerMasks.SceneHierarchyContent, row.Entity.LayerMask);
+            Assert.Equal(EditorLayerMasks.SceneHierarchyContent, row.ArrowHost.LayerMask);
+            Assert.Equal(EditorLayerMasks.SceneHierarchyContent, row.LabelHost.LayerMask);
+        }
+
+        /// <summary>
+        /// Ensures the Scene Hierarchy content camera viewport matches the panel body below the title bar.
+        /// </summary>
+        [Fact]
+        public void RefreshHierarchy_ConfiguresContentCameraViewportToMatchPanelBody() {
+            new EditorEntity {
+                Name = "Viewport Hierarchy Entity"
+            };
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+                Position = new float3(40f, 64f, 0f),
+                Size = new int2(320, 176)
+            };
+
+            panel.RefreshHierarchy();
+
+            CameraComponent contentCamera = GetPrivateField<CameraComponent>(panel, "contentCameraComponent");
+
+            Assert.Equal(40f, contentCamera.Viewport.X);
+            Assert.Equal(64f + DockableEntity.TitleBarHeight, contentCamera.Viewport.Y);
+            Assert.Equal(320f, contentCamera.Viewport.Z);
+            Assert.Equal(176f, contentCamera.Viewport.W);
+        }
+
+        /// <summary>
+        /// Ensures rows outside the visible Scene Hierarchy viewport are not hit by pointer resolution.
+        /// </summary>
+        [Fact]
+        public void UpdateContextMenuInput_WhenPointerTargetsClippedOverflow_DoesNotResolveAHiddenRow() {
+            for (int entityIndex = 0; entityIndex < 20; entityIndex++) {
+                new EditorEntity {
+                    Name = $"Hierarchy {entityIndex}"
+                };
+            }
+
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+                Position = new float3(32f, 40f, 0f),
+                Size = new int2(320, 176)
+            };
+
+            panel.RefreshHierarchy();
+
+            bool resolved = TryGetRowAtScreenPoint(
+                panel,
+                new int2(48, 40 + DockableEntity.TitleBarHeight + 220),
+                out SceneHierarchyRow row);
+
+            Assert.False(resolved);
+            Assert.Null(row);
+        }
+
+        /// <summary>
         /// Creates a small font asset that can satisfy hierarchy label layout in tests.
         /// </summary>
         /// <returns>Font asset with basic glyph metrics for the current test.</returns>
@@ -335,6 +416,24 @@ namespace helengine.editor.tests {
         T GetPrivateField<T>(object instance, string fieldName) {
             FieldInfo field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
             return (T)field.GetValue(instance);
+        }
+
+        /// <summary>
+        /// Invokes the private row-hit helper using reflection and returns the resolved row state.
+        /// </summary>
+        /// <param name="panel">Panel that owns the private hit-test helper.</param>
+        /// <param name="pointer">Screen-space pointer coordinate to test.</param>
+        /// <param name="row">Resolved row when one was found.</param>
+        /// <returns>True when the private helper resolved a visible row.</returns>
+        bool TryGetRowAtScreenPoint(SceneHierarchyPanel panel, int2 pointer, out SceneHierarchyRow row) {
+            MethodInfo method = typeof(SceneHierarchyPanel).GetMethod("TryGetRowAtScreenPoint", BindingFlags.Instance | BindingFlags.NonPublic);
+            object[] arguments = new object[] {
+                pointer,
+                null
+            };
+            bool resolved = (bool)method.Invoke(panel, arguments);
+            row = (SceneHierarchyRow)arguments[1];
+            return resolved;
         }
 
         /// <summary>

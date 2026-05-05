@@ -27,5 +27,10 @@ namespace helengine.editor {
         /// Layer mask used by editor-only camera visual children.
         /// </summary>
         public const ushort SceneCameraVisuals = 0b0000100000000000;
+
+        /// <summary>
+        /// Layer mask used by Scene Hierarchy row visuals rendered inside the hierarchy viewport.
+        /// </summary>
+        public const ushort SceneHierarchyContent = 0b0000010000000000;
     }
 }

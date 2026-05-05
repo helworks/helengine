@@ -16,6 +16,18 @@ namespace helengine.editor {
         FontAsset font;
         readonly EditorEntity contentRoot;
         /// <summary>
+        /// Hidden entity that owns the Scene Hierarchy content camera.
+        /// </summary>
+        readonly EditorEntity contentCameraEntity;
+        /// <summary>
+        /// Camera that renders only the Scene Hierarchy row layer inside the panel body viewport.
+        /// </summary>
+        readonly CameraComponent contentCameraComponent;
+        /// <summary>
+        /// Root entity that owns scrollable hierarchy row content rendered by the content camera.
+        /// </summary>
+        readonly EditorEntity scrollContentRoot;
+        /// <summary>
         /// Scroll controller that pages through hierarchy rows inside the panel viewport.
         /// </summary>
         readonly ScrollComponent scrollComponent;
@@ -84,6 +96,22 @@ namespace helengine.editor {
             contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
             AddChild(contentRoot);
 
+            contentCameraEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.SceneHierarchyContent
+            };
+            contentCameraComponent = new CameraComponent {
+                LayerMask = EditorLayerMasks.SceneHierarchyContent,
+                CameraDrawOrder = 255,
+                ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), false, 1.0f, false, 0)
+            };
+            contentCameraEntity.AddComponent(contentCameraComponent);
+
+            scrollContentRoot = new EditorEntity();
+            scrollContentRoot.LayerMask = EditorLayerMasks.SceneHierarchyContent;
+            scrollContentRoot.Position = float3.Zero;
+            contentRoot.AddChild(scrollContentRoot);
+
             scrollComponent = new ScrollComponent();
             scrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
             scrollComponent.ScrollOffsetChanged += HandleScrollOffsetChanged;
@@ -103,6 +131,8 @@ namespace helengine.editor {
             AddComponent(new SceneHierarchyPanelUpdater(this));
             isInitialized = true;
             RefreshHierarchy();
+            UpdateContentViewport();
+            UpdateScrollContentPosition();
         }
 
         /// <summary>
@@ -136,6 +166,8 @@ namespace helengine.editor {
             scrollComponent.ItemCount = nodes.Count;
             scrollComponent.ClampScrollOffset();
             LayoutRows();
+            UpdateContentViewport();
+            UpdateScrollContentPosition();
         }
 
         /// <summary>
@@ -170,6 +202,7 @@ namespace helengine.editor {
 
             LayoutRows();
             hierarchyContextMenu.UpdateLayout(GetContextMenuHostSize());
+            UpdateContentViewport();
         }
 
         /// <summary>
@@ -178,6 +211,8 @@ namespace helengine.editor {
         protected override void HandleUiMetricsApplied() {
             MinSize = new int2(UiMetrics.ScalePixels(220), UiMetrics.ScalePixels(160));
             contentRoot.Position = new float3(0f, TitleBarHeightPixels, 0.05f);
+            UpdateContentViewport();
+            UpdateScrollContentPosition();
         }
 
         /// <summary>
@@ -299,7 +334,7 @@ namespace helengine.editor {
                 row.IsExpanded = node.IsExpanded;
                 row.IsSelectable = true;
                 row.IsSceneRoot = false;
-                row.Entity.Position = new float3(0, i * rowHeight, 0.1f);
+                row.Entity.Position = new float3(0, nodeIndex * rowHeight, 0.1f);
                 row.IsSelected = node.Entity == EditorSelectionService.SelectedEntity;
 
                 bool alternate = nodeIndex % 2 == 1;
@@ -375,7 +410,7 @@ namespace helengine.editor {
         /// <returns>Newly created row elements.</returns>
         SceneHierarchyRow CreateRow() {
             var rowEntity = new EditorEntity();
-            rowEntity.LayerMask = LayerMask;
+            rowEntity.LayerMask = EditorLayerMasks.SceneHierarchyContent;
             rowEntity.Position = float3.Zero;
 
             var background = new SpriteComponent();
@@ -389,7 +424,7 @@ namespace helengine.editor {
             rowEntity.AddComponent(interactable);
 
             var arrowHost = new EditorEntity();
-            arrowHost.LayerMask = LayerMask;
+            arrowHost.LayerMask = EditorLayerMasks.SceneHierarchyContent;
             arrowHost.Position = new float3(GetRowPaddingLeftPixels(), 2, 0.2f);
             rowEntity.AddChild(arrowHost);
 
@@ -402,7 +437,7 @@ namespace helengine.editor {
             arrowHost.AddComponent(arrow);
 
             var labelHost = new EditorEntity();
-            labelHost.LayerMask = LayerMask;
+            labelHost.LayerMask = EditorLayerMasks.SceneHierarchyContent;
             labelHost.Position = new float3(8, 2, 0.2f);
             rowEntity.AddChild(labelHost);
 
@@ -443,7 +478,7 @@ namespace helengine.editor {
 
             EditorKeyboardFocusService.RegisterTarget(row.FocusTarget);
             interactable.CursorEvent += (pos, delta, state) => HandleRowCursor(row, pos, state);
-            contentRoot.AddChild(rowEntity);
+            scrollContentRoot.AddChild(rowEntity);
             return row;
         }
 
@@ -789,6 +824,11 @@ namespace helengine.editor {
         /// <param name="row">Resolved row when one is found.</param>
         /// <returns>True when a visible hierarchy row was found.</returns>
         bool TryGetRowAtScreenPoint(int2 pointer, out SceneHierarchyRow row) {
+            if (!IsPointerInsideContent(pointer)) {
+                row = null;
+                return false;
+            }
+
             for (int i = 0; i < rows.Count; i++) {
                 SceneHierarchyRow candidate = rows[i];
                 if (!candidate.Entity.Enabled || candidate.NodeEntity == null) {
@@ -830,6 +870,10 @@ namespace helengine.editor {
         /// <param name="point">Screen point to evaluate.</param>
         /// <returns>True when the point lies inside the row bounds.</returns>
         bool ContainsHierarchyRowPoint(SceneHierarchyRow row, int2 point) {
+            if (!IsPointerInsideContent(point)) {
+                return false;
+            }
+
             float3 position = row.Entity.Position;
             int rowWidth = Math.Max(Size.X, MinSize.X);
             return point.X >= position.X &&
@@ -844,6 +888,7 @@ namespace helengine.editor {
         /// <param name="scrollComponent">Scroll controller that raised the change notification.</param>
         /// <param name="scrollOffset">Current visible node offset.</param>
         void HandleScrollOffsetChanged(ScrollComponent scrollComponent, int scrollOffset) {
+            UpdateScrollContentPosition();
             LayoutRows();
         }
 
@@ -853,6 +898,24 @@ namespace helengine.editor {
         /// <returns>Scaled row height in pixels.</returns>
         int GetRowHeightPixels() {
             return UiMetrics.ScalePixels(RowHeight);
+        }
+
+        /// <summary>
+        /// Updates the content camera viewport to match the current panel body rectangle.
+        /// </summary>
+        void UpdateContentViewport() {
+            float viewportX = Position.X;
+            float viewportY = Position.Y + TitleBarHeightPixels;
+            float viewportWidth = Math.Max(1, Size.X);
+            float viewportHeight = Math.Max(1, Size.Y);
+            contentCameraComponent.Viewport = new float4(viewportX, viewportY, viewportWidth, viewportHeight);
+        }
+
+        /// <summary>
+        /// Updates the scroll-content root position from the current item scroll offset.
+        /// </summary>
+        void UpdateScrollContentPosition() {
+            scrollContentRoot.Position = new float3(0f, -(scrollComponent.ScrollOffset * GetRowHeightPixels()), 0.1f);
         }
 
         /// <summary>
