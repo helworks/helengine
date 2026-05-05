@@ -169,9 +169,9 @@ namespace helengine.editor {
         /// </summary>
         bool SettingsButtonKeyboardFocusState;
         /// <summary>
-        /// Tracks whether the viewport settings overlay shell is currently open.
+        /// Overlay component that hosts viewport-specific settings controls.
         /// </summary>
-        bool IsSettingsOverlayOpen;
+        EditorViewportSettingsOverlayComponent SettingsOverlayComponent;
         /// <summary>
         /// Snap slots shown by the toolbar.
         /// </summary>
@@ -357,6 +357,7 @@ namespace helengine.editor {
 
             InitializeToolButtons();
             InitializeSettingsButton();
+            InitializeSettingsOverlay();
             InitializeSnapControls();
             AddComponent(new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight, false));
             ToolMode = EditorViewportToolService.GetToolMode(Camera);
@@ -485,8 +486,22 @@ namespace helengine.editor {
             SettingsButtonHoverState = false;
             SettingsButtonPressedState = false;
             SettingsButtonKeyboardFocusState = false;
-            IsSettingsOverlayOpen = false;
             UpdateSettingsButtonVisuals();
+        }
+
+        /// <summary>
+        /// Initializes the viewport settings overlay component and wires it to the toolbar settings button.
+        /// </summary>
+        void InitializeSettingsOverlay() {
+            SettingsOverlayComponent = new EditorViewportSettingsOverlayComponent(
+                Camera,
+                Font,
+                LayerMask,
+                SetGridVisible,
+                IsGridVisible);
+            SettingsOverlayComponent.OpenStateChanged += HandleSettingsOverlayOpenStateChanged;
+            AddComponent(SettingsOverlayComponent);
+            SettingsOverlayComponent.SetSettingsButtonFocusTarget(SettingsButtonFocusTarget);
         }
 
         /// <summary>
@@ -893,7 +908,7 @@ namespace helengine.editor {
 
             if (SettingsButtonPressedState) {
                 SettingsButtonBackground.Color = ThemeManager.Colors.AccentTertiary;
-            } else if (IsSettingsOverlayOpen) {
+            } else if (IsSettingsOverlayOpen()) {
                 SettingsButtonBackground.Color = ThemeManager.Colors.AccentPrimary;
             } else if (SettingsButtonKeyboardFocusState || SettingsButtonHoverState) {
                 SettingsButtonBackground.Color = ThemeManager.Colors.AccentSecondary;
@@ -901,7 +916,7 @@ namespace helengine.editor {
                 SettingsButtonBackground.Color = ThemeManager.Colors.SurfaceInput;
             }
 
-            if (IsSettingsOverlayOpen || SettingsButtonHoverState || SettingsButtonPressedState || SettingsButtonKeyboardFocusState) {
+            if (IsSettingsOverlayOpen() || SettingsButtonHoverState || SettingsButtonPressedState || SettingsButtonKeyboardFocusState) {
                 SettingsButtonIcon.Color = new byte4(255, 255, 255, 255);
             } else {
                 SettingsButtonIcon.Color = new byte4(255, 255, 255, 224);
@@ -1305,6 +1320,12 @@ namespace helengine.editor {
                 SettingsButtonBackground.Size = new int2(ToolButtonWidth, ToolButtonHeight);
                 SettingsButtonInteractable.Size = new int2(ToolButtonWidth, ToolButtonHeight);
                 LayoutToolButtonIcon(SettingsButtonIcon, ToolButtonWidth, ToolButtonHeight, ToolButtonIconSize, ToolButtonIconSize);
+                if (SettingsOverlayComponent != null) {
+                    SettingsOverlayComponent.SetAnchorPosition(
+                        ToolbarRoot.Position.X + settingsButtonX,
+                        ToolbarRoot.Position.Y + buttonY + ToolButtonHeight + 4f,
+                        ToolButtonWidth);
+                }
             }
 
             LayoutSnapControls(buttonY);
@@ -1594,8 +1615,23 @@ namespace helengine.editor {
         /// Toggles the viewport settings overlay shell state.
         /// </summary>
         void ToggleSettingsOverlay() {
-            IsSettingsOverlayOpen = !IsSettingsOverlayOpen;
-            UpdateSettingsButtonVisuals();
+            if (SettingsOverlayComponent == null) {
+                return;
+            }
+
+            if (SettingsOverlayComponent.IsOpen) {
+                SettingsOverlayComponent.Close(SettingsButtonFocusTarget);
+            } else {
+                SettingsOverlayComponent.Open();
+            }
+        }
+
+        /// <summary>
+        /// Returns true when the viewport settings overlay is currently open.
+        /// </summary>
+        /// <returns>True when the overlay is open.</returns>
+        bool IsSettingsOverlayOpen() {
+            return SettingsOverlayComponent != null && SettingsOverlayComponent.IsOpen;
         }
 
         /// <summary>
@@ -1638,6 +1674,14 @@ namespace helengine.editor {
             int blockerX = (int)Math.Round(Position.X + ToolbarRoot.Position.X);
             int blockerY = (int)Math.Round(Position.Y + ToolbarRoot.Position.Y);
             EditorInputCaptureService.SetBlocker(ToolbarInputBlockerOwner, new int2(blockerX, blockerY), blockerSize);
+        }
+
+        /// <summary>
+        /// Refreshes settings-button visuals when the overlay open state changes.
+        /// </summary>
+        /// <param name="isOpen">True when the overlay became open; false when it closed.</param>
+        void HandleSettingsOverlayOpenStateChanged(bool isOpen) {
+            UpdateSettingsButtonVisuals();
         }
     }
 }

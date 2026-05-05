@@ -1,42 +1,32 @@
 using System.Reflection;
-using System.Runtime.CompilerServices;
+using helengine.editor.tests.testing;
 using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies viewport-local grid toggle behavior without requiring a live rendering backend.
+    /// Verifies viewport-local grid toggle behavior through the viewport settings overlay.
     /// </summary>
     public class EditorViewportGridToggleTests {
         /// <summary>
-        /// Ensures the dedicated grid toolbar target toggles only the scene-grid layer and keeps button visuals in sync.
+        /// Ensures the overlay grid toggle target adds and removes only the scene-grid layer.
         /// </summary>
         [Fact]
-        public void HandleGridButtonCursor_WhenHoveredPressedAndReleased_TogglesViewportGridVisibility() {
+        public void ActivateOverlayGridToggle_WhenPressed_TogglesViewportGridVisibility() {
+            InitializeCore();
             EditorViewport viewport = CreateViewportForGridTesting((ushort)(EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneGizmo));
-            SpriteComponent background = GetPrivateField<SpriteComponent>(viewport, "GridButtonBackground");
-            SpriteComponent icon = GetPrivateField<SpriteComponent>(viewport, "GridButtonIcon");
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+            EditorFocusTarget settingsTarget = GetPrivateField<EditorFocusTarget>(viewport, "SettingsButtonFocusTarget");
 
-            InvokePrivateMethod(viewport, "HandleGridButtonCursor", PointerInteraction.Hover);
-            InvokePrivateMethod(viewport, "HandleGridButtonCursor", PointerInteraction.Press);
-            InvokePrivateMethod(viewport, "HandleGridButtonCursor", PointerInteraction.Release);
+            settingsTarget.ActivateFromKey(Keys.Enter);
+            overlayComponent.GridToggleFocusTarget.ActivateFromKey(Keys.Space);
 
             Assert.Equal(
                 (ushort)(EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneGizmo | EditorLayerMasks.SceneGrid),
                 viewport.Camera.LayerMask);
-            Assert.Equal(ThemeManager.Colors.AccentPrimary, background.Color);
-            Assert.Equal(new byte4(255, 255, 255, 255), icon.Color);
 
-            InvokePrivateMethod(viewport, "HandleGridButtonCursor", PointerInteraction.Press);
-            InvokePrivateMethod(viewport, "HandleGridButtonCursor", PointerInteraction.Release);
+            overlayComponent.GridToggleFocusTarget.ActivateFromKey(Keys.Enter);
 
             Assert.Equal((ushort)(EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneGizmo), viewport.Camera.LayerMask);
-            Assert.Equal(ThemeManager.Colors.AccentSecondary, background.Color);
-            Assert.Equal(new byte4(255, 255, 255, 255), icon.Color);
-
-            InvokePrivateMethod(viewport, "HandleGridButtonCursor", PointerInteraction.Leave);
-
-            Assert.Equal(ThemeManager.Colors.SurfaceInput, background.Color);
-            Assert.Equal(new byte4(255, 255, 255, 224), icon.Color);
         }
 
         /// <summary>
@@ -44,6 +34,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SetGridVisible_WhenCalled_PreservesNonGridViewportLayers() {
+            InitializeCore();
             EditorViewport viewport = CreateViewportForGridTesting((ushort)(EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneGizmo));
 
             InvokePrivateMethod(viewport, "SetGridVisible", true);
@@ -56,23 +47,121 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Creates one partially initialized viewport containing only the state required by grid-toggle methods.
+        /// Initializes the minimal core services required by viewport overlay tests.
+        /// </summary>
+        void InitializeCore() {
+            TestInputBackend inputManager = new TestInputBackend();
+            Core core = new Core();
+            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager);
+            EditorKeyboardFocusService.Reset();
+            TransformGizmoSnapSettingsService.ResetDefaults();
+        }
+
+        /// <summary>
+        /// Creates one viewport instance with deterministic toolbar assets and the requested camera layer mask.
         /// </summary>
         /// <param name="initialLayerMask">Initial camera layer mask assigned to the viewport.</param>
         /// <returns>Viewport prepared for isolated grid-toggle testing.</returns>
         EditorViewport CreateViewportForGridTesting(ushort initialLayerMask) {
-            EditorViewport viewport = (EditorViewport)RuntimeHelpers.GetUninitializedObject(typeof(EditorViewport));
-            CameraComponent camera = (CameraComponent)RuntimeHelpers.GetUninitializedObject(typeof(CameraComponent));
+            EditorEntity cameraEntity = new EditorEntity();
+            CameraComponent camera = new CameraComponent();
             camera.LayerMask = initialLayerMask;
+            cameraEntity.AddComponent(camera);
 
-            SetPrivateField(viewport, "<Camera>k__BackingField", camera);
-            SetPrivateField(viewport, "GridButtonBackground", new SpriteComponent());
-            SetPrivateField(viewport, "GridButtonIcon", new SpriteComponent());
-            SetPrivateField(viewport, "GridButtonHoverState", false);
-            SetPrivateField(viewport, "GridButtonPressedState", false);
-            SetPrivateField(viewport, "GridButtonKeyboardFocusState", false);
-
+            EditorViewport viewport = new EditorViewport(
+                camera,
+                CreateFont(),
+                CreateFont(),
+                CreateToolbarIcons());
+            viewport.Position = new float3(20f, 20f, 0f);
+            viewport.Size = new int2(400, 280);
             return viewport;
+        }
+
+        /// <summary>
+        /// Creates a deterministic font asset for overlay tests.
+        /// </summary>
+        /// <returns>Font asset with basic glyph metrics.</returns>
+        FontAsset CreateFont() {
+            Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
+                ['C'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['F'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['G'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['N'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['P'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['R'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['+'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
+                ['-'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
+                ['.'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
+                ['0'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['1'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['2'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['3'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['4'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['5'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['6'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['7'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['8'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['9'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['c'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
+                ['d'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['e'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['g'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['i'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
+                ['l'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
+                ['n'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['o'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['p'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['r'] = new FontChar(new float4(0f, 0f, 6f, 12f), 0f, 6f, 0f, 0f),
+                ['s'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
+                ['t'] = new FontChar(new float4(0f, 0f, 5f, 12f), 0f, 5f, 0f, 0f),
+                ['u'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['v'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['x'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['y'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['z'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)
+            };
+
+            return new FontAsset(
+                new FontInfo("Test", 16, 4f),
+                new TestRuntimeTexture {
+                    Width = 64,
+                    Height = 64
+                },
+                characters,
+                16f,
+                64,
+                64);
+        }
+
+        /// <summary>
+        /// Creates a minimal toolbar icon set for overlay tests.
+        /// </summary>
+        /// <returns>Toolbar icon set backed by deterministic test textures.</returns>
+        EditorViewportToolbarIconSet CreateToolbarIcons() {
+            return new EditorViewportToolbarIconSet(
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture());
+        }
+
+        /// <summary>
+        /// Creates one deterministic runtime texture used by toolbar icons.
+        /// </summary>
+        /// <returns>Runtime texture with a stable size.</returns>
+        RuntimeTexture CreateIconTexture() {
+            return new TestRuntimeTexture {
+                Width = 16,
+                Height = 16
+            };
         }
 
         /// <summary>
@@ -90,21 +179,6 @@ namespace helengine.editor.tests {
 
             object value = field.GetValue(target);
             return Assert.IsType<T>(value);
-        }
-
-        /// <summary>
-        /// Assigns one non-public instance field to a provided value.
-        /// </summary>
-        /// <param name="target">Object that owns the field.</param>
-        /// <param name="fieldName">Name of the field to assign.</param>
-        /// <param name="value">Value assigned to the field.</param>
-        void SetPrivateField(object target, string fieldName, object value) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            if (field == null) {
-                throw new InvalidOperationException("Expected private field was not found.");
-            }
-
-            field.SetValue(target, value);
         }
 
         /// <summary>
