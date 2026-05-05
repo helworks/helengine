@@ -485,6 +485,18 @@ namespace helengine.editor {
                 return contents.Replace("int2 *pointer = input->GetMousePosition();", "int2 pointer = input->GetMousePosition();");
             }
 
+            if (string.Equals(fileName, "InputSystem.cpp", StringComparison.OrdinalIgnoreCase)) {
+                string updatedContents = contents.Replace(
+                    "pointer.get_DeltaX() += pointerWrapDeltaOffset.X;",
+                    "pointer.set_DeltaX(pointer.get_DeltaX() + pointerWrapDeltaOffset.X);",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "pointer.get_DeltaY() += pointerWrapDeltaOffset.Y;",
+                    "pointer.set_DeltaY(pointer.get_DeltaY() + pointerWrapDeltaOffset.Y);",
+                    StringComparison.Ordinal);
+                return updatedContents;
+            }
+
             if (string.Equals(fileName, "DemoMenuBuildComponent.cpp", StringComparison.OrdinalIgnoreCase)) {
                 string updatedContents = Regex.Replace(
                     contents,
@@ -513,6 +525,10 @@ namespace helengine.editor {
                     "InputGamepadState DemoMenuBuildComponent::ReadPrimaryGamepadState()",
                     StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace(
+                    "return nullptr;    }\nreturn Core::get_Instance()->get_Input()->GetGamepadState(0);}",
+                    "return InputGamepadState();    }\nreturn Core::get_Instance()->get_Input()->GetGamepadState(0);}",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
                     "bool DemoMenuBuildComponent::WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button)",
                     "bool DemoMenuBuildComponent::WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button)",
                     StringComparison.Ordinal);
@@ -527,6 +543,12 @@ namespace helengine.editor {
                     "InputGamepadState* PreviousGamepadState;",
                     "InputGamepadState PreviousGamepadState;",
                     StringComparison.Ordinal);
+                if (!updatedContents.Contains("class DemoMenuSelectedDescriptionComponent;")) {
+                    updatedContents = updatedContents.Replace(
+                        "class DemoMenuItemComponent;",
+                        "class DemoMenuItemComponent;\nclass DemoMenuSelectedDescriptionComponent;",
+                        StringComparison.Ordinal);
+                }
                 updatedContents = updatedContents.Replace(
                     "InputGamepadState* ReadPrimaryGamepadState();",
                     "InputGamepadState ReadPrimaryGamepadState();",
@@ -852,6 +874,16 @@ namespace helengine.editor {
             }
 
             string unitySourcePath = Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp");
+            string[] excludedUnitySourceRelativePaths = new[] {
+                "RendererBackendCapabilityProfile.cpp",
+                "RuntimeMaterialLightingModel.cpp",
+                "Ps2MaterialAlphaMode.cpp",
+                "Ps2MaterialAsset.cpp",
+                "Ps2MaterialLightingMode.cpp",
+                "Ps2RenderClass.cpp",
+                "runtime/runtime_startup_manifest.cpp",
+                "runtime/runtime_code_module_manifest.cpp"
+            };
             List<string> sourceFiles = new();
             string[] discoveredFiles = Directory.GetFiles(generatedCoreRootPath, "*.cpp", SearchOption.AllDirectories);
             for (int index = 0; index < discoveredFiles.Length; index++) {
@@ -870,6 +902,18 @@ namespace helengine.editor {
             unityBuilder.AppendLine();
             for (int index = 0; index < sourceFiles.Count; index++) {
                 string relativePath = Path.GetRelativePath(generatedCoreRootPath, sourceFiles[index]).Replace('\\', '/');
+                bool excludedSource = false;
+                for (int excludeIndex = 0; excludeIndex < excludedUnitySourceRelativePaths.Length; excludeIndex++) {
+                    if (string.Equals(relativePath, excludedUnitySourceRelativePaths[excludeIndex], StringComparison.OrdinalIgnoreCase)) {
+                        excludedSource = true;
+                        break;
+                    }
+                }
+
+                if (excludedSource) {
+                    continue;
+                }
+
                 unityBuilder.Append("#include \"");
                 unityBuilder.Append(relativePath);
                 unityBuilder.AppendLine("\"");

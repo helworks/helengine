@@ -1,4 +1,5 @@
 using helengine.files;
+using helengine.editor;
 
 namespace helengine.demo_disc_scene_writer {
     /// <summary>
@@ -47,6 +48,16 @@ namespace helengine.demo_disc_scene_writer {
         const ushort SceneObjectsLayerMask = 0b0100000000000000;
 
         /// <summary>
+        /// Stable save-state slot name used for serialized mesh model references.
+        /// </summary>
+        const string MeshModelReferenceName = "Model";
+
+        /// <summary>
+        /// Stable save-state slot name used for serialized mesh material references.
+        /// </summary>
+        const string MeshMaterialReferenceName = "Material";
+
+        /// <summary>
         /// Scene id written into the committed point-shadow smoke scene asset.
         /// </summary>
         const string PointShadowSceneId = "Scenes/rendering/point-shadow.helen";
@@ -62,6 +73,47 @@ namespace helengine.demo_disc_scene_writer {
         /// Scene id written into the committed directional-shadow lab scene asset.
         /// </summary>
         const string DirectionalShadowLabSceneId = "Scenes/rendering/directional-shadow-lab.helen";
+
+        /// Descriptor used to serialize authored mesh payloads for committed editor scenes.
+        /// </summary>
+        readonly MeshComponentPersistenceDescriptor MeshDescriptor;
+
+        /// <summary>
+        /// Descriptor used to serialize authored point-light payloads for committed editor scenes.
+        /// </summary>
+        readonly PointLightComponentPersistenceDescriptor PointLightDescriptor;
+
+        /// <summary>
+        /// Descriptor used to serialize authored spot-light payloads for committed editor scenes.
+        /// </summary>
+        readonly SpotLightComponentPersistenceDescriptor SpotLightDescriptor;
+
+        /// <summary>
+        /// Descriptor used to serialize authored directional-light payloads for committed editor scenes.
+        /// </summary>
+        readonly DirectionalLightComponentPersistenceDescriptor DirectionalLightDescriptor;
+
+        /// <summary>
+        /// Placeholder runtime model used only to satisfy authored mesh serialization before stable asset references are applied.
+        /// </summary>
+        readonly AuthoringPlaceholderRuntimeModel PlaceholderModel;
+
+        /// <summary>
+        /// Placeholder runtime material used only to satisfy authored mesh serialization before stable asset references are applied.
+        /// </summary>
+        readonly RuntimeMaterial PlaceholderMaterial;
+
+        /// <summary>
+        /// Initializes the committed rendering scene writer with the persistence descriptors required for authored editor-scene output.
+        /// </summary>
+        public RenderingSceneWriter() {
+            MeshDescriptor = new MeshComponentPersistenceDescriptor();
+            PointLightDescriptor = new PointLightComponentPersistenceDescriptor();
+            SpotLightDescriptor = new SpotLightComponentPersistenceDescriptor();
+            DirectionalLightDescriptor = new DirectionalLightComponentPersistenceDescriptor();
+            PlaceholderModel = new AuthoringPlaceholderRuntimeModel();
+            PlaceholderMaterial = new RuntimeMaterial();
+        }
 
         /// <summary>
         /// Writes the committed rendering smoke scenes into the supplied project root.
@@ -859,28 +911,31 @@ namespace helengine.demo_disc_scene_writer {
         /// </summary>
         /// <returns>Serialized camera component payload.</returns>
         byte[] WriteCameraPayload() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
-            writer.WriteByte(0);
-            writer.WriteUInt16(SceneObjectsLayerMask);
-            writer.WriteSingle(0f);
-            writer.WriteSingle(0f);
-            writer.WriteSingle(1280f);
-            writer.WriteSingle(720f);
-            writer.WriteByte(1);
-            writer.WriteSingle(0.06f);
-            writer.WriteSingle(0.06f);
-            writer.WriteSingle(0.09f);
-            writer.WriteSingle(1f);
-            writer.WriteByte(1);
-            writer.WriteSingle(1f);
-            writer.WriteByte(0);
-            writer.WriteByte(0);
-            writer.WriteByte((byte)DepthPrepassMode.Auto);
-            writer.WriteSingle(60f);
-            writer.WriteByte((byte)PostProcessTier.Disabled);
-            return stream.ToArray();
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField("CameraDrawOrder", fieldWriter => fieldWriter.WriteByte(0));
+            writer.WriteField("LayerMask", fieldWriter => fieldWriter.WriteUInt16(SceneObjectsLayerMask));
+            writer.WriteField("Viewport", fieldWriter => fieldWriter.WriteFloat4(new float4(0f, 0f, 1280f, 720f)));
+            writer.WriteField(
+                "ClearSettings",
+                fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraClearSettings(
+                    fieldWriter,
+                    new CameraClearSettings(
+                        true,
+                        new float4(0.06f, 0.06f, 0.09f, 1f),
+                        true,
+                        1f,
+                        false,
+                        0)));
+            writer.WriteField(
+                "RenderSettings",
+                fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraRenderSettings(
+                    fieldWriter,
+                    new CameraRenderSettings {
+                        DepthPrepassMode = DepthPrepassMode.Auto,
+                        ShadowDistance = 60f,
+                        PostProcessTier = PostProcessTier.Disabled
+                    }));
+            return writer.BuildPayload();
         }
 
         /// <summary>
@@ -896,13 +951,15 @@ namespace helengine.demo_disc_scene_writer {
                 throw new ArgumentNullException(nameof(materialReference));
             }
 
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            WriteSceneAssetReference(writer, modelReference);
-            WriteSceneAssetReference(writer, materialReference);
-            writer.WriteByte(0);
-            return stream.ToArray();
+            MeshComponent meshComponent = new MeshComponent {
+                Model = PlaceholderModel,
+                Material = PlaceholderMaterial,
+                RenderOrder3D = 0
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(MeshModelReferenceName, modelReference);
+            saveState.SetAssetReference(MeshMaterialReferenceName, materialReference);
+            return MeshDescriptor.SerializeComponent(meshComponent, 0, saveState).Payload;
         }
 
         /// <summary>
@@ -920,12 +977,7 @@ namespace helengine.demo_disc_scene_writer {
                 ShadowStrength = 1f,
                 Range = range
             };
-
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WritePointLight(writer, lightComponent);
-            return stream.ToArray();
+            return PointLightDescriptor.SerializeComponent(lightComponent, 0, null).Payload;
         }
 
         /// <summary>
@@ -947,12 +999,7 @@ namespace helengine.demo_disc_scene_writer {
                 InnerConeAngleDegrees = innerConeAngleDegrees,
                 OuterConeAngleDegrees = outerConeAngleDegrees
             };
-
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteSpotLight(writer, lightComponent);
-            return stream.ToArray();
+            return SpotLightDescriptor.SerializeComponent(lightComponent, 0, null).Payload;
         }
 
         /// <summary>
@@ -970,12 +1017,7 @@ namespace helengine.demo_disc_scene_writer {
                 ShadowStrength = 1f,
                 ShadowDistance = shadowDistance
             };
-
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteDirectionalLight(writer, lightComponent);
-            return stream.ToArray();
+            return DirectionalLightDescriptor.SerializeComponent(lightComponent, 0, null).Payload;
         }
 
         /// <summary>

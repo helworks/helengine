@@ -215,14 +215,50 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void Load_WhenSceneContainsBakedDemoMenu_MaterializesTheComponent() {
+            string projectRootPath = Path.Combine(TempRootPath, "menu-project");
+            string assetsRootPath = Path.Combine(projectRootPath, "assets");
+            string buildRootPath = Path.Combine(TempRootPath, "menu-build");
+            Directory.CreateDirectory(assetsRootPath);
+            Directory.CreateDirectory(buildRootPath);
+
+            string titleFontPath = Path.Combine(assetsRootPath, "Fonts", "DemoDiscTitle.hefont");
+            Directory.CreateDirectory(Path.GetDirectoryName(titleFontPath));
+            using (FileStream titleFontStream = new FileStream(titleFontPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                FontAssetBinarySerializer.Serialize(titleFontStream, CreateFont());
+            }
+
+            string bodyFontPath = Path.Combine(assetsRootPath, "Fonts", "DemoDiscBody.hefont");
+            Directory.CreateDirectory(Path.GetDirectoryName(bodyFontPath));
+            using (FileStream bodyFontStream = new FileStream(bodyFontPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                FontAssetBinarySerializer.Serialize(bodyFontStream, CreateFont());
+            }
+
+            SceneAsset authoredSceneAsset = BuildDemoMenuSceneAsset();
+            string authoredScenePath = Path.Combine(assetsRootPath, "Scenes", "TestMenu.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(authoredScenePath));
+            using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
+            }
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                projectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                CreateFont());
+            packager.Package(new[] { "Scenes/TestMenu.helen" }, buildRootPath);
+
+            SceneAsset sceneAsset;
+            string packagedScenePath = Path.Combine(
+                buildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            using (FileStream packagedSceneStream = File.OpenRead(packagedScenePath)) {
+                sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            }
+
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 Core.Instance.ContentManager,
-                TempRootPath,
+                buildRootPath,
                 ShaderCompileTarget.DirectX11);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
-            WriteFontAsset("Fonts/DemoDiscTitle.hefont", CreateFont());
-            WriteFontAsset("Fonts/DemoDiscBody.hefont", CreateFont());
-            SceneAsset sceneAsset = BuildDemoMenuSceneAsset();
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
             Assert.Equal(2, loadedRoots.Count);

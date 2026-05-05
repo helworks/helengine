@@ -1,8 +1,13 @@
 namespace helengine.editor {
     /// <summary>
-    /// Persists point light component authored values inside scene files.
+    /// Persists point light component authored values inside tolerant editor scene payloads.
     /// </summary>
     public class PointLightComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
+        /// <summary>
+        /// Stable tagged field name used for point light range persistence.
+        /// </summary>
+        const string RangeFieldName = "Range";
+
         /// <summary>
         /// Gets the concrete runtime component type handled by the descriptor.
         /// </summary>
@@ -30,15 +35,13 @@ namespace helengine.editor {
             }
 
             PointLightComponent lightComponent = (PointLightComponent)component;
-
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WritePointLight(writer, lightComponent);
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            LightComponentTaggedFieldEncoding.WriteCommonFields(writer, lightComponent);
+            writer.WriteField(RangeFieldName, fieldWriter => fieldWriter.WriteSingle(lightComponent.Range));
             return new SceneComponentAssetRecord {
                 ComponentTypeId = ComponentTypeId,
                 ComponentIndex = componentIndex,
-                Payload = stream.ToArray()
+                Payload = writer.BuildPayload()
             };
         }
 
@@ -56,14 +59,16 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Point light descriptor cannot deserialize '{record.ComponentTypeId}'.");
             }
 
-            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != LightComponentScenePayloadSerializer.CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported point light payload version '{version}'.");
+            PointLightComponent lightComponent = new PointLightComponent();
+            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
+            LightComponentTaggedFieldEncoding.ReadCommonFields(reader, lightComponent);
+            if (reader.TryGetFieldReader(RangeFieldName, out EngineBinaryReader rangeReader)) {
+                using (rangeReader) {
+                    lightComponent.Range = rangeReader.ReadSingle();
+                }
             }
 
-            return LightComponentScenePayloadSerializer.ReadPointLight(reader);
+            return lightComponent;
         }
     }
 }

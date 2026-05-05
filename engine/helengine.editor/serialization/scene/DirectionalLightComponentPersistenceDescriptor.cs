@@ -1,8 +1,13 @@
 namespace helengine.editor {
     /// <summary>
-    /// Persists directional light component authored values inside scene files.
+    /// Persists directional light component authored values inside tolerant editor scene payloads.
     /// </summary>
     public class DirectionalLightComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
+        /// <summary>
+        /// Stable tagged field name used for directional light shadow-distance persistence.
+        /// </summary>
+        const string ShadowDistanceFieldName = "ShadowDistance";
+
         /// <summary>
         /// Gets the concrete runtime component type handled by the descriptor.
         /// </summary>
@@ -30,15 +35,14 @@ namespace helengine.editor {
             }
 
             DirectionalLightComponent lightComponent = (DirectionalLightComponent)component;
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            LightComponentTaggedFieldEncoding.WriteCommonFields(writer, lightComponent);
+            writer.WriteField(ShadowDistanceFieldName, fieldWriter => fieldWriter.WriteSingle(lightComponent.ShadowDistance));
 
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteDirectionalLight(writer, lightComponent);
             return new SceneComponentAssetRecord {
                 ComponentTypeId = ComponentTypeId,
                 ComponentIndex = componentIndex,
-                Payload = stream.ToArray()
+                Payload = writer.BuildPayload()
             };
         }
 
@@ -56,14 +60,16 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Directional light descriptor cannot deserialize '{record.ComponentTypeId}'.");
             }
 
-            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != LightComponentScenePayloadSerializer.CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported directional light payload version '{version}'.");
+            DirectionalLightComponent lightComponent = new DirectionalLightComponent();
+            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
+            LightComponentTaggedFieldEncoding.ReadCommonFields(reader, lightComponent);
+            if (reader.TryGetFieldReader(ShadowDistanceFieldName, out EngineBinaryReader shadowDistanceReader)) {
+                using (shadowDistanceReader) {
+                    lightComponent.ShadowDistance = shadowDistanceReader.ReadSingle();
+                }
             }
 
-            return LightComponentScenePayloadSerializer.ReadDirectionalLight(reader);
+            return lightComponent;
         }
     }
 }

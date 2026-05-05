@@ -1,8 +1,23 @@
 namespace helengine.editor {
     /// <summary>
-    /// Persists spot light component authored values inside scene files.
+    /// Persists spot light component authored values inside tolerant editor scene payloads.
     /// </summary>
     public class SpotLightComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
+        /// <summary>
+        /// Stable tagged field name used for spot light range persistence.
+        /// </summary>
+        const string RangeFieldName = "Range";
+
+        /// <summary>
+        /// Stable tagged field name used for spot light inner-cone persistence.
+        /// </summary>
+        const string InnerConeAngleDegreesFieldName = "InnerConeAngleDegrees";
+
+        /// <summary>
+        /// Stable tagged field name used for spot light outer-cone persistence.
+        /// </summary>
+        const string OuterConeAngleDegreesFieldName = "OuterConeAngleDegrees";
+
         /// <summary>
         /// Gets the concrete runtime component type handled by the descriptor.
         /// </summary>
@@ -30,15 +45,15 @@ namespace helengine.editor {
             }
 
             SpotLightComponent lightComponent = (SpotLightComponent)component;
-
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
-            LightComponentScenePayloadSerializer.WriteSpotLight(writer, lightComponent);
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            LightComponentTaggedFieldEncoding.WriteCommonFields(writer, lightComponent);
+            writer.WriteField(RangeFieldName, fieldWriter => fieldWriter.WriteSingle(lightComponent.Range));
+            writer.WriteField(InnerConeAngleDegreesFieldName, fieldWriter => fieldWriter.WriteSingle(lightComponent.InnerConeAngleDegrees));
+            writer.WriteField(OuterConeAngleDegreesFieldName, fieldWriter => fieldWriter.WriteSingle(lightComponent.OuterConeAngleDegrees));
             return new SceneComponentAssetRecord {
                 ComponentTypeId = ComponentTypeId,
                 ComponentIndex = componentIndex,
-                Payload = stream.ToArray()
+                Payload = writer.BuildPayload()
             };
         }
 
@@ -56,14 +71,26 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Spot light descriptor cannot deserialize '{record.ComponentTypeId}'.");
             }
 
-            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != LightComponentScenePayloadSerializer.CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported spot light payload version '{version}'.");
+            SpotLightComponent lightComponent = new SpotLightComponent();
+            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
+            LightComponentTaggedFieldEncoding.ReadCommonFields(reader, lightComponent);
+            if (reader.TryGetFieldReader(RangeFieldName, out EngineBinaryReader rangeReader)) {
+                using (rangeReader) {
+                    lightComponent.Range = rangeReader.ReadSingle();
+                }
+            }
+            if (reader.TryGetFieldReader(InnerConeAngleDegreesFieldName, out EngineBinaryReader innerConeAngleDegreesReader)) {
+                using (innerConeAngleDegreesReader) {
+                    lightComponent.InnerConeAngleDegrees = innerConeAngleDegreesReader.ReadSingle();
+                }
+            }
+            if (reader.TryGetFieldReader(OuterConeAngleDegreesFieldName, out EngineBinaryReader outerConeAngleDegreesReader)) {
+                using (outerConeAngleDegreesReader) {
+                    lightComponent.OuterConeAngleDegrees = outerConeAngleDegreesReader.ReadSingle();
+                }
             }
 
-            return LightComponentScenePayloadSerializer.ReadSpotLight(reader);
+            return lightComponent;
         }
     }
 }

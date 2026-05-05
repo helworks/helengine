@@ -41,12 +41,10 @@ namespace helengine.editor {
                 return storedReference;
             }
             if (Core.Instance != null && Core.Instance.DefaultFontAsset != null && ReferenceEquals(font, Core.Instance.DefaultFontAsset)) {
-                if (saveState == null) {
-                    throw new InvalidOperationException($"{componentName} requires scene save metadata before it can be serialized.");
-                }
-
                 SceneAssetReference editorFontReference = BuildEditorFontReference();
-                saveState.SetAssetReference(FontReferenceName, editorFontReference);
+                if (saveState != null) {
+                    saveState.SetAssetReference(FontReferenceName, editorFontReference);
+                }
 
                 return editorFontReference;
             }

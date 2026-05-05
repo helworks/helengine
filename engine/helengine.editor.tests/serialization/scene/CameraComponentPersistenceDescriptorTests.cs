@@ -91,6 +91,42 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures missing tagged fields leave render settings at their component defaults during editor scene load.
+        /// </summary>
+        [Fact]
+        public void Deserialize_WhenTaggedPayloadOmitsRenderSettings_KeepsDefaultRenderSettings() {
+            InitializeCore();
+            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField("CameraDrawOrder", fieldWriter => fieldWriter.WriteByte(9));
+            writer.WriteField("LayerMask", fieldWriter => fieldWriter.WriteUInt16(EditorLayerMasks.SceneObjects));
+            writer.WriteField("Viewport", fieldWriter => fieldWriter.WriteFloat4(new float4(10f, 20f, 30f, 40f)));
+            writer.WriteField("ClearSettings", fieldWriter => {
+                fieldWriter.WriteByte(1);
+                fieldWriter.WriteFloat4(new float4(0.2f, 0.3f, 0.4f, 1f));
+                fieldWriter.WriteByte(1);
+                fieldWriter.WriteSingle(0.5f);
+                fieldWriter.WriteByte(0);
+                fieldWriter.WriteByte(0);
+            });
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = descriptor.ComponentTypeId,
+                ComponentIndex = 0,
+                Payload = writer.BuildPayload()
+            };
+
+            CameraComponent loadedCamera = Assert.IsType<CameraComponent>(descriptor.DeserializeComponent(record, null, new TestSceneAssetReferenceResolver()));
+            CameraComponent defaultCamera = new CameraComponent();
+
+            Assert.Equal((byte)9, loadedCamera.CameraDrawOrder);
+            Assert.Equal(EditorLayerMasks.SceneObjects, loadedCamera.LayerMask);
+            Assert.Equal(new float4(10f, 20f, 30f, 40f), loadedCamera.Viewport);
+            Assert.Equal(defaultCamera.RenderSettings.DepthPrepassMode, loadedCamera.RenderSettings.DepthPrepassMode);
+            Assert.Equal(defaultCamera.RenderSettings.ShadowDistance, loadedCamera.RenderSettings.ShadowDistance);
+            Assert.Equal(defaultCamera.RenderSettings.PostProcessTier, loadedCamera.RenderSettings.PostProcessTier);
+        }
+
+        /// <summary>
         /// Initializes a core instance so camera components can allocate their render queues during the test.
         /// </summary>
         void InitializeCore() {

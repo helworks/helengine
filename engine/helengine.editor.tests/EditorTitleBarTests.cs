@@ -28,6 +28,17 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the default host title-bar height uses the reduced chrome target.
+        /// </summary>
+        [Fact]
+        public void Constructor_UsesReducedDefaultTitleBarHeight() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+
+            Assert.Equal(22, titleBar.Height);
+        }
+
+        /// <summary>
         /// Ensures the main title text uses a high-contrast color against the dark title-bar surface.
         /// </summary>
         [Fact]
@@ -60,10 +71,10 @@ namespace helengine.editor.tests {
             SpriteComponent iconSprite = GetPrivateField<SpriteComponent>(titleBar, "IconSprite");
 
             Assert.NotNull(iconEntity);
-            Assert.Equal(6f, iconEntity.Position.X);
-            Assert.Equal(6f, iconEntity.Position.Y);
+            Assert.Equal(4f, iconEntity.Position.X);
+            Assert.Equal(4f, iconEntity.Position.Y);
             Assert.Same(iconTexture, iconSprite.Texture);
-            Assert.Equal(new int2(24, 24), iconSprite.Size);
+            Assert.Equal(new int2(14, 14), iconSprite.Size);
         }
 
         /// <summary>
@@ -83,10 +94,10 @@ namespace helengine.editor.tests {
             EditorEntity iconEntity = GetPrivateField<EditorEntity>(titleBar, "IconEntity");
             SpriteComponent iconSprite = GetPrivateField<SpriteComponent>(titleBar, "IconSprite");
 
-            Assert.Equal(54, titleBar.Height);
-            Assert.Equal(9f, iconEntity.Position.X);
-            Assert.Equal(9f, iconEntity.Position.Y);
-            Assert.Equal(new int2(36, 36), iconSprite.Size);
+            Assert.Equal(33, titleBar.Height);
+            Assert.Equal(6f, iconEntity.Position.X);
+            Assert.Equal(6f, iconEntity.Position.Y);
+            Assert.Equal(new int2(21, 21), iconSprite.Size);
         }
 
         /// <summary>

@@ -1,8 +1,13 @@
 namespace helengine.editor {
     /// <summary>
-    /// Persists one baked demo menu panel metadata component.
+    /// Persists one baked demo menu panel metadata component inside tolerant editor scene payloads.
     /// </summary>
     public class DemoMenuPanelComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
+        /// <summary>
+        /// Stable tagged field name used for menu panel-id persistence.
+        /// </summary>
+        const string PanelIdFieldName = "PanelId";
+
         /// <summary>
         /// Gets the concrete runtime component type handled by the descriptor.
         /// </summary>
@@ -21,15 +26,13 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Demo menu panel descriptor received an unsupported component type.");
             }
 
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(DemoMenuPanelComponent.CurrentVersion);
-            writer.WriteString(demoMenuPanelComponent.PanelId);
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField(PanelIdFieldName, fieldWriter => fieldWriter.WriteString(demoMenuPanelComponent.PanelId));
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = ComponentTypeId,
                 ComponentIndex = componentIndex,
-                Payload = stream.ToArray()
+                Payload = writer.BuildPayload()
             };
         }
 
@@ -37,16 +40,15 @@ namespace helengine.editor {
         /// Deserializes one scene record back into a baked demo menu panel metadata component.
         /// </summary>
         public Component DeserializeComponent(SceneComponentAssetRecord record, EntitySaveComponent saveComponent, ISceneAssetReferenceResolver referenceResolver) {
-            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != DemoMenuPanelComponent.CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported demo menu panel component payload version '{version}'.");
+            DemoMenuPanelComponent component = new DemoMenuPanelComponent();
+            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
+            if (reader.TryGetFieldReader(PanelIdFieldName, out EngineBinaryReader panelIdReader)) {
+                using (panelIdReader) {
+                    component.PanelId = panelIdReader.ReadString();
+                }
             }
 
-            return new DemoMenuPanelComponent {
-                PanelId = reader.ReadString()
-            };
+            return component;
         }
     }
 }

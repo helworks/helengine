@@ -87,7 +87,7 @@ namespace helengine.editor.tests {
             TextComponent[] snapLabelModifierTexts = GetPrivateField<TextComponent[]>(mainViewport, "SnapLabelModifierTexts");
             TextComponent[] snapValueTexts = GetPrivateField<TextComponent[]>(mainViewport, "SnapValueTexts");
 
-            Assert.Equal(54, titleBar.Height);
+            Assert.Equal(33, titleBar.Height);
             Assert.Equal(new int2(540, 330), GetDialogMinimumSize(preferencesDialog));
             Assert.Equal(scaledMetrics.DockTitleBarHeight, assetBrowserPanel.TitleBarHeightPixels);
             Assert.Equal(scaledMetrics.DockTitleBarHeight, mainViewport.TitleBarHeightPixels);

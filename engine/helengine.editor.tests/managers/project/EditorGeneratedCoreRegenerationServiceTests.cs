@@ -402,7 +402,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         string sourcePath = Path.Combine(generatedCoreRootPath, "DemoMenuBuildComponent.cpp");
         File.WriteAllText(
             headerPath,
-            "class DemoMenuBuildComponent {\n"
+            "class DemoMenuItemComponent;\n"
+            + "class DemoMenuBuildComponent {\n"
             + "    InputGamepadState* PreviousGamepadState;\n"
             + "    InputGamepadState* ReadPrimaryGamepadState();\n"
             + "    bool WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button);\n"
@@ -433,6 +434,73 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated input-system source rewrites pointer delta mutations into setter-based assignments.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_input_system_pointer_delta_assignments() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-input-system-pointer-deltas");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string sourcePath = Path.Combine(generatedCoreRootPath, "InputSystem.cpp");
+        File.WriteAllText(
+            sourcePath,
+            "pointer.get_DeltaX() += pointerWrapDeltaOffset.X;\n"
+            + "pointer.get_DeltaY() += pointerWrapDeltaOffset.Y;\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedSource = File.ReadAllText(sourcePath);
+        Assert.Contains("pointer.set_DeltaX(pointer.get_DeltaX() + pointerWrapDeltaOffset.X);", normalizedSource);
+        Assert.Contains("pointer.set_DeltaY(pointer.get_DeltaY() + pointerWrapDeltaOffset.Y);", normalizedSource);
+    }
+
+    /// <summary>
+    /// Verifies generated demo menu source keeps gamepad reads value-typed and preserves pointer-based component lookups.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_demo_menu_component_template_arguments() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-demo-menu-component-template-arguments");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string headerPath = Path.Combine(generatedCoreRootPath, "DemoMenuBuildComponent.hpp");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "DemoMenuBuildComponent.cpp");
+        File.WriteAllText(
+            headerPath,
+            "class DemoMenuBuildComponent {\n"
+            + "    InputGamepadState* PreviousGamepadState;\n"
+            + "    InputGamepadState* ReadPrimaryGamepadState();\n"
+            + "    bool WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button);\n"
+            + "};\n");
+        File.WriteAllText(
+            sourcePath,
+            "CollectEntitiesWithComponent<DemoMenuItemComponent*>(panelEntity, itemEntities);\n"
+            + "DemoMenuItemComponent *itemComponent = FindRequiredComponent<DemoMenuItemComponent*>(itemEntity);\n"
+            + "RoundedRectComponent *backgroundComponent = FindRequiredComponent<RoundedRectComponent*>(itemEntity);\n"
+            + "CollectEntitiesWithComponent<DemoMenuPanelComponent*>(generatedRootEntity, panelEntities);\n"
+            + "DemoMenuPanelComponent *panelComponent = FindRequiredComponent<DemoMenuPanelComponent*>(panelEntity);\n"
+            + "CollectEntitiesWithComponent<DemoMenuSelectedDescriptionComponent*>(panelEntity, markerEntities);\n"
+            + "return FindRequiredComponent<TextComponent*>((*markerEntities)[0]);\n"
+            + "InputGamepadState DemoMenuBuildComponent::ReadPrimaryGamepadState()\n"
+            + "{\n"
+            + "    if (Core::get_Instance() == nullptr || Core::get_Instance()->get_Input() == nullptr)\n"
+            + "    {\n"
+            + "return nullptr;    }\n"
+            + "return Core::get_Instance()->get_Input()->GetGamepadState(0);}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedHeader = File.ReadAllText(headerPath);
+        string normalizedSource = File.ReadAllText(sourcePath);
+        Assert.Contains("InputGamepadState ReadPrimaryGamepadState();", normalizedHeader);
+        Assert.Contains("CollectEntitiesWithComponent<DemoMenuItemComponent*>(panelEntity, itemEntities);", normalizedSource);
+        Assert.Contains("DemoMenuItemComponent *itemComponent = FindRequiredComponent<DemoMenuItemComponent*>(itemEntity);", normalizedSource);
+        Assert.Contains("RoundedRectComponent *backgroundComponent = FindRequiredComponent<RoundedRectComponent*>(itemEntity);", normalizedSource);
+        Assert.Contains("CollectEntitiesWithComponent<DemoMenuPanelComponent*>(generatedRootEntity, panelEntities);", normalizedSource);
+        Assert.Contains("DemoMenuPanelComponent *panelComponent = FindRequiredComponent<DemoMenuPanelComponent*>(panelEntity);", normalizedSource);
+        Assert.Contains("CollectEntitiesWithComponent<DemoMenuSelectedDescriptionComponent*>(panelEntity, markerEntities);", normalizedSource);
+        Assert.Contains("return FindRequiredComponent<TextComponent*>((*markerEntities)[0]);", normalizedSource);
+        Assert.Contains("return InputGamepadState();", normalizedSource);
+    }
+
+    /// <summary>
     /// Verifies generated feature-manifest headers include every runtime feature emitted by the generated manifest body.
     /// </summary>
     [Fact]
@@ -460,6 +528,30 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("    ReflectionLikeRuntime,", normalizedHeader);
         Assert.Contains("    RuntimeJson,", normalizedHeader);
         Assert.Contains("    TextProcessing", normalizedHeader);
+    }
+
+    /// <summary>
+    /// Verifies unity translation regeneration excludes the separately linked bridge and profile sources.
+    /// </summary>
+    [Fact]
+    public void Rewrite_unity_translation_unit_excludes_bridge_sources() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "rewrite-unity-exclusions");
+        Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "runtime"));
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// foo\n");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "RendererBackendCapabilityProfile.cpp"), "// profile\n");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "Ps2MaterialAsset.cpp"), "// material\n");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_startup_manifest.cpp"), "// startup\n");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_code_module_manifest.cpp"), "// code module\n");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"), "// old unity\n");
+
+        EditorGeneratedCoreRegenerationService.RewriteUnityTranslationUnit(generatedCoreRootPath);
+
+        string unitySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"));
+        Assert.Contains("#include \"Foo.cpp\"", unitySource);
+        Assert.DoesNotContain("RendererBackendCapabilityProfile.cpp", unitySource);
+        Assert.DoesNotContain("Ps2MaterialAsset.cpp", unitySource);
+        Assert.DoesNotContain("runtime/runtime_startup_manifest.cpp", unitySource);
+        Assert.DoesNotContain("runtime/runtime_code_module_manifest.cpp", unitySource);
     }
 
     /// <summary>

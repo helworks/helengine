@@ -1,20 +1,32 @@
 namespace helengine.editor {
     /// <summary>
-    /// Persists mesh component asset references and render order inside scene files.
+    /// Persists mesh component asset references and render order inside tolerant editor scene payloads.
     /// </summary>
     public class MeshComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
         /// <summary>
-        /// Current payload version for serialized mesh component records.
+        /// Stable tagged field name used for mesh model-reference persistence.
         /// </summary>
-        const byte CurrentVersion = 1;
+        const string ModelReferenceFieldName = "ModelReference";
+
+        /// <summary>
+        /// Stable tagged field name used for mesh material-reference persistence.
+        /// </summary>
+        const string MaterialReferenceFieldName = "MaterialReference";
+
         /// <summary>
         /// Stable save-state slot name used for mesh model references.
         /// </summary>
         const string ModelReferenceName = "Model";
+
         /// <summary>
         /// Stable save-state slot name used for mesh material references.
         /// </summary>
         const string MaterialReferenceName = "Material";
+
+        /// <summary>
+        /// Stable tagged field name used for mesh render-order persistence.
+        /// </summary>
+        const string RenderOrder3DFieldName = "RenderOrder3D";
 
         /// <summary>
         /// Gets the concrete runtime component type handled by the descriptor.
@@ -46,18 +58,15 @@ namespace helengine.editor {
 
             SceneAssetReference modelReference = ResolveRequiredAssetReference(meshComponent.Model, saveState, ModelReferenceName);
             SceneAssetReference materialReference = ResolveRequiredAssetReference(meshComponent.Material, saveState, MaterialReferenceName);
-
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(CurrentVersion);
-            WriteOptionalReference(writer, modelReference);
-            WriteOptionalReference(writer, materialReference);
-            writer.WriteByte(meshComponent.RenderOrder3D);
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField(ModelReferenceFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(fieldWriter, modelReference));
+            writer.WriteField(MaterialReferenceFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(fieldWriter, materialReference));
+            writer.WriteField(RenderOrder3DFieldName, fieldWriter => fieldWriter.WriteByte(meshComponent.RenderOrder3D));
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = ComponentTypeId,
                 ComponentIndex = componentIndex,
-                Payload = stream.ToArray()
+                Payload = writer.BuildPayload()
             };
         }
 
@@ -82,32 +91,35 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Mesh component descriptor cannot deserialize '{record.ComponentTypeId}'.");
             }
 
-            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported mesh component payload version '{version}'.");
-            }
-
-            SceneAssetReference modelReference = ReadOptionalReference(reader);
-            SceneAssetReference materialReference = ReadOptionalReference(reader);
-            byte renderOrder3D = reader.ReadByte();
-
-            MeshComponent meshComponent = new MeshComponent {
-                RenderOrder3D = renderOrder3D
-            };
-
-            if (modelReference != null) {
-                meshComponent.Model = referenceResolver.ResolveModel(modelReference);
-                if (saveComponent != null) {
-                    saveComponent.SetAssetReference(meshComponent, ModelReferenceName, modelReference);
+            MeshComponent meshComponent = new MeshComponent();
+            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
+            if (reader.TryGetFieldReader(ModelReferenceFieldName, out EngineBinaryReader modelReferenceReader)) {
+                using (modelReferenceReader) {
+                    SceneAssetReference modelReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(modelReferenceReader);
+                    if (modelReference != null) {
+                        meshComponent.Model = referenceResolver.ResolveModel(modelReference);
+                        if (saveComponent != null) {
+                            saveComponent.SetAssetReference(meshComponent, ModelReferenceName, modelReference);
+                        }
+                    }
                 }
             }
 
-            if (materialReference != null) {
-                meshComponent.Material = referenceResolver.ResolveMaterial(materialReference);
-                if (saveComponent != null) {
-                    saveComponent.SetAssetReference(meshComponent, MaterialReferenceName, materialReference);
+            if (reader.TryGetFieldReader(MaterialReferenceFieldName, out EngineBinaryReader materialReferenceReader)) {
+                using (materialReferenceReader) {
+                    SceneAssetReference materialReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(materialReferenceReader);
+                    if (materialReference != null) {
+                        meshComponent.Material = referenceResolver.ResolveMaterial(materialReference);
+                        if (saveComponent != null) {
+                            saveComponent.SetAssetReference(meshComponent, MaterialReferenceName, materialReference);
+                        }
+                    }
+                }
+            }
+
+            if (reader.TryGetFieldReader(RenderOrder3DFieldName, out EngineBinaryReader renderOrder3DReader)) {
+                using (renderOrder3DReader) {
+                    meshComponent.RenderOrder3D = renderOrder3DReader.ReadByte();
                 }
             }
 
@@ -130,49 +142,6 @@ namespace helengine.editor {
             }
 
             return reference;
-        }
-
-        /// <summary>
-        /// Writes one optional scene asset reference to the component payload.
-        /// </summary>
-        /// <param name="writer">Destination writer receiving the payload.</param>
-        /// <param name="reference">Optional stable scene asset reference.</param>
-        void WriteOptionalReference(EngineBinaryWriter writer, SceneAssetReference reference) {
-            if (writer == null) {
-                throw new ArgumentNullException(nameof(writer));
-            }
-
-            writer.WriteByte(reference == null ? (byte)0 : (byte)1);
-            if (reference == null) {
-                return;
-            }
-
-            writer.WriteInt32((int)reference.SourceKind);
-            writer.WriteString(reference.RelativePath);
-            writer.WriteString(reference.ProviderId);
-            writer.WriteString(reference.AssetId);
-        }
-
-        /// <summary>
-        /// Reads one optional scene asset reference from the component payload.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the reference payload.</param>
-        /// <returns>Stable scene asset reference when present; otherwise null.</returns>
-        SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            if (reader.ReadByte() == 0) {
-                return null;
-            }
-
-            return new SceneAssetReference {
-                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
-                RelativePath = reader.ReadString(),
-                ProviderId = reader.ReadString(),
-                AssetId = reader.ReadString()
-            };
         }
     }
 }

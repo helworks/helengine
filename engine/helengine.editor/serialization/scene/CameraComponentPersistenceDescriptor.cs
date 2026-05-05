@@ -1,12 +1,32 @@
 namespace helengine.editor {
     /// <summary>
-    /// Persists camera component render settings inside scene files.
+    /// Persists camera component render settings inside tolerant editor scene payloads.
     /// </summary>
     public class CameraComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
         /// <summary>
-        /// Current payload version for serialized camera component records.
+        /// Stable tagged field name used for camera draw order persistence.
         /// </summary>
-        const byte CurrentVersion = 2;
+        const string CameraDrawOrderFieldName = "CameraDrawOrder";
+
+        /// <summary>
+        /// Stable tagged field name used for camera layer-mask persistence.
+        /// </summary>
+        const string LayerMaskFieldName = "LayerMask";
+
+        /// <summary>
+        /// Stable tagged field name used for camera viewport persistence.
+        /// </summary>
+        const string ViewportFieldName = "Viewport";
+
+        /// <summary>
+        /// Stable tagged field name used for camera clear-settings persistence.
+        /// </summary>
+        const string ClearSettingsFieldName = "ClearSettings";
+
+        /// <summary>
+        /// Stable tagged field name used for camera render-settings persistence.
+        /// </summary>
+        const string RenderSettingsFieldName = "RenderSettings";
 
         /// <summary>
         /// Gets the concrete runtime component type handled by the descriptor.
@@ -50,19 +70,17 @@ namespace helengine.editor {
                 renderSettings = new CameraRenderSettings(suppressionState.RenderSettings);
             }
 
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(CurrentVersion);
-            writer.WriteByte(cameraDrawOrder);
-            writer.WriteUInt16(layerMask);
-            WriteFloat4(writer, viewport);
-            WriteClearSettings(writer, clearSettings);
-            WriteRenderSettings(writer, renderSettings);
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField(CameraDrawOrderFieldName, fieldWriter => fieldWriter.WriteByte(cameraDrawOrder));
+            writer.WriteField(LayerMaskFieldName, fieldWriter => fieldWriter.WriteUInt16(layerMask));
+            writer.WriteField(ViewportFieldName, fieldWriter => fieldWriter.WriteFloat4(viewport));
+            writer.WriteField(ClearSettingsFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraClearSettings(fieldWriter, clearSettings));
+            writer.WriteField(RenderSettingsFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraRenderSettings(fieldWriter, renderSettings));
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = ComponentTypeId,
                 ComponentIndex = componentIndex,
-                Payload = stream.ToArray()
+                Payload = writer.BuildPayload()
             };
         }
 
@@ -84,129 +102,40 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Camera component descriptor cannot deserialize '{record.ComponentTypeId}'.");
             }
 
-            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != 1 && version != CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
+            CameraComponent cameraComponent = new CameraComponent();
+            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
+
+            if (reader.TryGetFieldReader(CameraDrawOrderFieldName, out EngineBinaryReader cameraDrawOrderReader)) {
+                using (cameraDrawOrderReader) {
+                    cameraComponent.CameraDrawOrder = cameraDrawOrderReader.ReadByte();
+                }
             }
 
-            CameraComponent cameraComponent = new CameraComponent {
-                CameraDrawOrder = reader.ReadByte(),
-                LayerMask = reader.ReadUInt16(),
-                Viewport = ReadFloat4(reader),
-                ClearSettings = ReadClearSettings(reader)
-            };
-            if (version >= 2) {
-                cameraComponent.RenderSettings = ReadRenderSettings(reader);
+            if (reader.TryGetFieldReader(LayerMaskFieldName, out EngineBinaryReader layerMaskReader)) {
+                using (layerMaskReader) {
+                    cameraComponent.LayerMask = layerMaskReader.ReadUInt16();
+                }
+            }
+
+            if (reader.TryGetFieldReader(ViewportFieldName, out EngineBinaryReader viewportReader)) {
+                using (viewportReader) {
+                    cameraComponent.Viewport = viewportReader.ReadFloat4();
+                }
+            }
+
+            if (reader.TryGetFieldReader(ClearSettingsFieldName, out EngineBinaryReader clearSettingsReader)) {
+                using (clearSettingsReader) {
+                    cameraComponent.ClearSettings = SceneComponentBinaryFieldEncoding.ReadCameraClearSettings(clearSettingsReader);
+                }
+            }
+
+            if (reader.TryGetFieldReader(RenderSettingsFieldName, out EngineBinaryReader renderSettingsReader)) {
+                using (renderSettingsReader) {
+                    cameraComponent.RenderSettings = SceneComponentBinaryFieldEncoding.ReadCameraRenderSettings(renderSettingsReader);
+                }
             }
 
             return cameraComponent;
-        }
-
-        /// <summary>
-        /// Writes one `float4` value into the camera payload.
-        /// </summary>
-        /// <param name="writer">Destination writer receiving the payload.</param>
-        /// <param name="value">Vector value to write.</param>
-        static void WriteFloat4(EngineBinaryWriter writer, float4 value) {
-            if (writer == null) {
-                throw new ArgumentNullException(nameof(writer));
-            }
-
-            writer.WriteSingle(value.X);
-            writer.WriteSingle(value.Y);
-            writer.WriteSingle(value.Z);
-            writer.WriteSingle(value.W);
-        }
-
-        /// <summary>
-        /// Reads one `float4` value from the camera payload.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the vector payload.</param>
-        /// <returns>Decoded `float4` value.</returns>
-        static float4 ReadFloat4(EngineBinaryReader reader) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            return new float4(
-                reader.ReadSingle(),
-                reader.ReadSingle(),
-                reader.ReadSingle(),
-                reader.ReadSingle());
-        }
-
-        /// <summary>
-        /// Writes one clear-settings payload into the camera record.
-        /// </summary>
-        /// <param name="writer">Destination writer receiving the payload.</param>
-        /// <param name="settings">Clear settings to serialize.</param>
-        static void WriteClearSettings(EngineBinaryWriter writer, CameraClearSettings settings) {
-            if (writer == null) {
-                throw new ArgumentNullException(nameof(writer));
-            }
-
-            writer.WriteByte(settings.ClearColorEnabled ? (byte)1 : (byte)0);
-            WriteFloat4(writer, settings.ClearColor);
-            writer.WriteByte(settings.ClearDepthEnabled ? (byte)1 : (byte)0);
-            writer.WriteSingle(settings.ClearDepth);
-            writer.WriteByte(settings.ClearStencilEnabled ? (byte)1 : (byte)0);
-            writer.WriteByte(settings.ClearStencil);
-        }
-
-        /// <summary>
-        /// Reads one clear-settings payload from the camera record.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the clear-settings payload.</param>
-        /// <returns>Decoded camera clear settings.</returns>
-        static CameraClearSettings ReadClearSettings(EngineBinaryReader reader) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            return new CameraClearSettings(
-                reader.ReadByte() != 0,
-                ReadFloat4(reader),
-                reader.ReadByte() != 0,
-                reader.ReadSingle(),
-                reader.ReadByte() != 0,
-                reader.ReadByte());
-        }
-
-        /// <summary>
-        /// Writes one render-settings payload into the camera record.
-        /// </summary>
-        /// <param name="writer">Destination writer receiving the payload.</param>
-        /// <param name="settings">Render settings to serialize.</param>
-        static void WriteRenderSettings(EngineBinaryWriter writer, CameraRenderSettings settings) {
-            if (writer == null) {
-                throw new ArgumentNullException(nameof(writer));
-            }
-            if (settings == null) {
-                throw new ArgumentNullException(nameof(settings));
-            }
-
-            writer.WriteByte((byte)settings.DepthPrepassMode);
-            writer.WriteSingle(settings.ShadowDistance);
-            writer.WriteByte((byte)settings.PostProcessTier);
-        }
-
-        /// <summary>
-        /// Reads one render-settings payload from the camera record.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the render-settings payload.</param>
-        /// <returns>Decoded camera render settings.</returns>
-        static CameraRenderSettings ReadRenderSettings(EngineBinaryReader reader) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            return new CameraRenderSettings {
-                DepthPrepassMode = (DepthPrepassMode)reader.ReadByte(),
-                ShadowDistance = reader.ReadSingle(),
-                PostProcessTier = (PostProcessTier)reader.ReadByte()
-            };
         }
     }
 }

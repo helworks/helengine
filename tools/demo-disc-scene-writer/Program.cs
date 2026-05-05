@@ -23,6 +23,8 @@ namespace helengine.demo_disc_scene_writer {
                     string renderingProjectRootPath = ResolveRenderingProjectRootPath(args);
                     RenderingSceneWriter renderingSceneWriter = new RenderingSceneWriter();
                     renderingSceneWriter.WriteAll(renderingProjectRootPath);
+                    ExistingRenderingSceneTaggedMigrator migrator = new ExistingRenderingSceneTaggedMigrator();
+                    migrator.MigrateAll(renderingProjectRootPath);
                     Console.WriteLine("Rendering smoke scenes were written successfully.");
                     return 0;
                 }

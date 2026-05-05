@@ -8,7 +8,6 @@ namespace helengine.editor {
         /// </summary>
         const byte RuntimeLayerMask = 0b00000001;
 
-        /// <summary>
         /// Descriptor used to serialize baked demo menu root metadata.
         /// </summary>
         readonly DemoMenuBuildComponentPersistenceDescriptor DemoMenuBuildDescriptor;
@@ -117,32 +116,35 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Serialized camera component record.</returns>
         SceneComponentAssetRecord BuildCameraComponentRecord() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
-            writer.WriteByte(0);
-            writer.WriteUInt16(1);
-            writer.WriteSingle(0f);
-            writer.WriteSingle(0f);
-            writer.WriteSingle(DemoMenuLayout.CanvasWidth);
-            writer.WriteSingle(DemoMenuLayout.CanvasHeight);
-            writer.WriteByte(1);
-            writer.WriteSingle(0.11764706f);
-            writer.WriteSingle(0.06666667f);
-            writer.WriteSingle(0.16078432f);
-            writer.WriteSingle(1f);
-            writer.WriteByte(1);
-            writer.WriteSingle(1f);
-            writer.WriteByte(1);
-            writer.WriteByte(1);
-            writer.WriteByte((byte)DepthPrepassMode.Auto);
-            writer.WriteSingle(50f);
-            writer.WriteByte((byte)PostProcessTier.High);
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField("CameraDrawOrder", fieldWriter => fieldWriter.WriteByte(0));
+            writer.WriteField("LayerMask", fieldWriter => fieldWriter.WriteUInt16(1));
+            writer.WriteField("Viewport", fieldWriter => fieldWriter.WriteFloat4(new float4(0f, 0f, DemoMenuLayout.CanvasWidth, DemoMenuLayout.CanvasHeight)));
+            writer.WriteField(
+                "ClearSettings",
+                fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraClearSettings(
+                    fieldWriter,
+                    new CameraClearSettings(
+                        true,
+                        new float4(0.11764706f, 0.06666667f, 0.16078432f, 1f),
+                        true,
+                        1f,
+                        true,
+                        1)));
+            writer.WriteField(
+                "RenderSettings",
+                fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraRenderSettings(
+                    fieldWriter,
+                    new CameraRenderSettings {
+                        DepthPrepassMode = DepthPrepassMode.Auto,
+                        ShadowDistance = 50f,
+                        PostProcessTier = PostProcessTier.High
+                    }));
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.CameraComponent",
                 ComponentIndex = 0,
-                Payload = stream.ToArray()
+                Payload = writer.BuildPayload()
             };
         }
 

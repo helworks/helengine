@@ -87,5 +87,35 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(lightComponent.InnerConeAngleDegrees, loadedLight.InnerConeAngleDegrees);
             Assert.Equal(lightComponent.OuterConeAngleDegrees, loadedLight.OuterConeAngleDegrees);
         }
+
+        /// <summary>
+        /// Ensures unknown tagged fields do not block directional light deserialization in editor scenes.
+        /// </summary>
+        [Fact]
+        public void DirectionalLightDescriptor_WhenTaggedPayloadContainsUnknownField_IgnoresTheField() {
+            DirectionalLightComponentPersistenceDescriptor descriptor = new DirectionalLightComponentPersistenceDescriptor();
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField("Color", fieldWriter => fieldWriter.WriteFloat4(new float4(0.25f, 0.5f, 0.75f, 1f)));
+            writer.WriteField("Intensity", fieldWriter => fieldWriter.WriteSingle(3.5f));
+            writer.WriteField("ShadowsEnabled", fieldWriter => fieldWriter.WriteByte(1));
+            writer.WriteField("ShadowMapMode", fieldWriter => fieldWriter.WriteByte((byte)ShadowMapMode.Forced));
+            writer.WriteField("ShadowStrength", fieldWriter => fieldWriter.WriteSingle(0.65f));
+            writer.WriteField("ShadowDistance", fieldWriter => fieldWriter.WriteSingle(72f));
+            writer.WriteField("FutureField", fieldWriter => fieldWriter.WriteString("ignored"));
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = descriptor.ComponentTypeId,
+                ComponentIndex = 0,
+                Payload = writer.BuildPayload()
+            };
+
+            DirectionalLightComponent loadedLight = Assert.IsType<DirectionalLightComponent>(descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Equal(new float4(0.25f, 0.5f, 0.75f, 1f), loadedLight.Color);
+            Assert.Equal(3.5f, loadedLight.Intensity);
+            Assert.True(loadedLight.ShadowsEnabled);
+            Assert.Equal(ShadowMapMode.Forced, loadedLight.ShadowMapMode);
+            Assert.Equal(0.65f, loadedLight.ShadowStrength);
+            Assert.Equal(72f, loadedLight.ShadowDistance);
+        }
     }
 }

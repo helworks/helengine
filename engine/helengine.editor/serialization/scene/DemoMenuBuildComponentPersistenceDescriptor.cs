@@ -1,8 +1,18 @@
 namespace helengine.editor {
     /// <summary>
-    /// Persists the baked demo menu root metadata stored on one scene entity.
+    /// Persists the baked demo menu root metadata stored on one scene entity inside tolerant editor scene payloads.
     /// </summary>
     public class DemoMenuBuildComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
+        /// <summary>
+        /// Stable tagged field name used for menu provider-type persistence.
+        /// </summary>
+        const string ProviderTypeNameFieldName = "ProviderTypeName";
+
+        /// <summary>
+        /// Stable tagged field name used for initial-panel id persistence.
+        /// </summary>
+        const string InitialPanelIdFieldName = "InitialPanelId";
+
         /// <summary>
         /// Gets the concrete runtime component type handled by the descriptor.
         /// </summary>
@@ -21,16 +31,14 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Demo menu build descriptor received an unsupported component type.");
             }
 
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(DemoMenuBuildComponent.CurrentVersion);
-            writer.WriteString(demoMenuBuildComponent.ProviderTypeName);
-            writer.WriteString(demoMenuBuildComponent.InitialPanelId);
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField(ProviderTypeNameFieldName, fieldWriter => fieldWriter.WriteString(demoMenuBuildComponent.ProviderTypeName));
+            writer.WriteField(InitialPanelIdFieldName, fieldWriter => fieldWriter.WriteString(demoMenuBuildComponent.InitialPanelId));
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = ComponentTypeId,
                 ComponentIndex = componentIndex,
-                Payload = stream.ToArray()
+                Payload = writer.BuildPayload()
             };
         }
 
@@ -42,17 +50,20 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Demo menu build descriptor cannot deserialize '{record.ComponentTypeId}'.");
             }
 
-            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != DemoMenuBuildComponent.CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported demo menu build component payload version '{version}'.");
+            DemoMenuBuildComponent component = new DemoMenuBuildComponent();
+            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
+            if (reader.TryGetFieldReader(ProviderTypeNameFieldName, out EngineBinaryReader providerTypeNameReader)) {
+                using (providerTypeNameReader) {
+                    component.ProviderTypeName = providerTypeNameReader.ReadString();
+                }
+            }
+            if (reader.TryGetFieldReader(InitialPanelIdFieldName, out EngineBinaryReader initialPanelIdReader)) {
+                using (initialPanelIdReader) {
+                    component.InitialPanelId = initialPanelIdReader.ReadString();
+                }
             }
 
-            return new DemoMenuBuildComponent {
-                ProviderTypeName = reader.ReadString(),
-                InitialPanelId = reader.ReadString()
-            };
+            return component;
         }
     }
 }
