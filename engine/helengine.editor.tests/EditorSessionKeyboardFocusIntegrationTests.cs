@@ -231,21 +231,28 @@ namespace helengine.editor.tests {
             sceneCameraEntity.AddComponent(gizmoCameraComponent);
             mainViewport = new EditorViewport(sceneCameraComponent, font, font, CreateToolbarIcons());
             mainViewport.Size = new int2(640, 360);
-
-            firstSecondaryDock = CreateDock("Hierarchy", font, out firstSecondaryTarget);
-            secondSecondaryDock = CreateDock("Browser", font, out secondSecondaryTarget);
+            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(font);
+            PropertiesPanel propertiesPanel = new PropertiesPanel(font, core.GetContentManager());
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(font, TempProjectRootPath);
+            firstSecondaryDock = propertiesPanel;
+            secondSecondaryDock = assetBrowserPanel;
+            firstSecondaryTarget = CreateFocusTarget(propertiesPanel);
+            secondSecondaryTarget = CreateFocusTarget(assetBrowserPanel);
 
             EditorKeyboardFocusService.RegisterGroup(mainViewport);
-            EditorKeyboardFocusService.RegisterGroup(firstSecondaryDock);
-            EditorKeyboardFocusService.RegisterGroup(secondSecondaryDock);
+            EditorKeyboardFocusService.RegisterGroup(sceneHierarchyPanel);
+            EditorKeyboardFocusService.RegisterGroup(propertiesPanel);
+            EditorKeyboardFocusService.RegisterGroup(assetBrowserPanel);
 
             dockingManager = new DockingManager();
             dockingManager.Layout.Add(mainViewport);
-            dockingManager.Layout.Add(firstSecondaryDock);
-            dockingManager.Layout.Add(secondSecondaryDock);
+            dockingManager.Layout.Add(sceneHierarchyPanel);
+            dockingManager.Layout.Add(propertiesPanel);
+            dockingManager.Layout.Add(assetBrowserPanel);
             dockingManager.Layout.DockAsRoot(mainViewport);
-            dockingManager.Layout.DockRelative(firstSecondaryDock, mainViewport, DockInsertDirection.Left, 0.3f);
-            dockingManager.Layout.DockRelative(secondSecondaryDock, mainViewport, DockInsertDirection.Bottom, 0.7f);
+            dockingManager.Layout.DockRelative(sceneHierarchyPanel, mainViewport, DockInsertDirection.Right, 0.7f);
+            dockingManager.Layout.DockRelative(propertiesPanel, sceneHierarchyPanel, DockInsertDirection.Fill, 0.75f);
+            dockingManager.Layout.DockRelative(assetBrowserPanel, mainViewport, DockInsertDirection.Bottom, 0.7f);
 
             var keyboardFocusEntity = new EditorEntity {
                 InternalEntity = true,
@@ -258,6 +265,11 @@ namespace helengine.editor.tests {
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
 
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
+            EditorGameSolutionService gameSolutionService = new EditorGameSolutionService(TempProjectRootPath, "KeyboardFocus", new EditorVisualStudioLauncher());
+            EditorGameScriptHotReloadService scriptHotReloadService = new EditorGameScriptHotReloadService(
+                gameSolutionService,
+                new EditorDotNetScriptBuildTool(),
+                new EditorGameScriptAssemblyHost(TempProjectRootPath));
             SetPrivateField(session, "core", core);
             SetPrivateField(session, "titleBar", new EditorTitleBar(font, 1280, 720, "Keyboard Focus"));
             SetPrivateField(session, "dockingManager", dockingManager);
@@ -265,32 +277,37 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "uiCameraComponent", uiCameraComponent);
             SetPrivateField(session, "sceneCameraComponent", sceneCameraComponent);
             SetPrivateField(session, "gizmoCameraComponent", gizmoCameraComponent);
-            SetPrivateField(session, "assetBrowserPanel", new AssetBrowserPanel(font, TempProjectRootPath));
-            SetPrivateField(session, "propertiesPanel", new PropertiesPanel(font, core.GetContentManager()));
+            SetPrivateField(session, "assetBrowserPanel", assetBrowserPanel);
+            SetPrivateField(session, "propertiesPanel", propertiesPanel);
             SetPrivateField(session, "loggerPanel", new LoggerPanel(font));
+            SetPrivateField(session, "sceneHierarchyPanel", sceneHierarchyPanel);
             SetPrivateField(session, "assetPickerModal", new AssetPickerModal(font, TempProjectRootPath));
             SetPrivateField(session, "saveFileDialog", new SaveFileDialog(font, TempProjectRootPath));
             SetPrivateField(session, "openFileDialog", new OpenFileDialog(font, TempProjectRootPath));
+            SetPrivateField(session, "reparentEntityDialog", new ReparentEntityDialog(font));
+            SetPrivateField(session, "buildSettingsDialog", new BuildSettingsDialog(font));
+            SetPrivateField(session, "profilesDialog", new ProfilesDialog(font));
+            SetPrivateField(session, "buildDialog", new BuildDialog(font));
+            SetPrivateField(session, "buildDialogCopySettingsDialog", new BuildDialogCopySettingsDialog(font));
             SetPrivateField(session, "unsavedChangesDialog", new UnsavedChangesDialog(font));
+            SetPrivateField(session, "gameSolutionService", gameSolutionService);
+            SetPrivateField(session, "scriptHotReloadService", scriptHotReloadService);
             SetPrivateField(session, "shaderModuleManager", CreateShaderModuleManager());
 
             return session;
         }
 
         /// <summary>
-        /// Creates a dockable panel with one registered default focus target.
+        /// Creates one registered default focus target for an existing dockable panel.
         /// </summary>
-        /// <param name="title">Dock title used for diagnostics.</param>
-        /// <param name="font">Font used by the dock title bar.</param>
-        /// <param name="focusTarget">Created default focus target for the dock.</param>
-        /// <returns>Configured dockable entity.</returns>
-        DockableEntity CreateDock(string title, FontAsset font, out EditorFocusTarget focusTarget) {
-            DockableEntity dock = new DockableEntity(font) {
-                Title = title
-            };
-            dock.Size = new int2(280, 220);
+        /// <param name="dock">Dock that should own the created target.</param>
+        /// <returns>Registered focus target for the supplied dock.</returns>
+        EditorFocusTarget CreateFocusTarget(DockableEntity dock) {
+            if (dock == null) {
+                throw new ArgumentNullException(nameof(dock));
+            }
 
-            focusTarget = new EditorFocusTarget(
+            EditorFocusTarget focusTarget = new EditorFocusTarget(
                 dock,
                 0,
                 true,
@@ -301,7 +318,7 @@ namespace helengine.editor.tests {
                 key => { });
             EditorKeyboardFocusService.RegisterTarget(focusTarget);
 
-            return dock;
+            return focusTarget;
         }
 
         /// <summary>
@@ -509,6 +526,7 @@ namespace helengine.editor.tests {
         /// <returns>Toolbar icon set backed by deterministic test textures.</returns>
         EditorViewportToolbarIconSet CreateToolbarIcons() {
             return new EditorViewportToolbarIconSet(
+                CreateIconTexture(),
                 CreateIconTexture(),
                 CreateIconTexture(),
                 CreateIconTexture(),

@@ -10,6 +10,7 @@ namespace helengine.editor {
         /// <param name="rotateIcon">Texture used by the rotate tool button.</param>
         /// <param name="scaleIcon">Texture used by the scale tool button.</param>
         /// <param name="gridIcon">Texture used by the viewport grid toggle button.</param>
+        /// <param name="settingsIcon">Texture used by the viewport settings button.</param>
         /// <param name="snapIncreaseIcon">Texture used by the snap increase button.</param>
         /// <param name="snapDecreaseIcon">Texture used by the snap decrease button.</param>
         /// <param name="magnetIcon">Texture used by snap-slot labels to indicate snapping.</param>
@@ -20,6 +21,7 @@ namespace helengine.editor {
             RuntimeTexture rotateIcon,
             RuntimeTexture scaleIcon,
             RuntimeTexture gridIcon,
+            RuntimeTexture settingsIcon,
             RuntimeTexture snapIncreaseIcon,
             RuntimeTexture snapDecreaseIcon,
             RuntimeTexture magnetIcon,
@@ -29,6 +31,7 @@ namespace helengine.editor {
             RotateIcon = rotateIcon ?? throw new ArgumentNullException(nameof(rotateIcon));
             ScaleIcon = scaleIcon ?? throw new ArgumentNullException(nameof(scaleIcon));
             GridIcon = gridIcon ?? throw new ArgumentNullException(nameof(gridIcon));
+            SettingsIcon = settingsIcon ?? throw new ArgumentNullException(nameof(settingsIcon));
             SnapIncreaseIcon = snapIncreaseIcon ?? throw new ArgumentNullException(nameof(snapIncreaseIcon));
             SnapDecreaseIcon = snapDecreaseIcon ?? throw new ArgumentNullException(nameof(snapDecreaseIcon));
             MagnetIcon = magnetIcon ?? throw new ArgumentNullException(nameof(magnetIcon));
@@ -52,6 +55,10 @@ namespace helengine.editor {
         /// Gets the texture used by the viewport grid toggle button.
         /// </summary>
         public RuntimeTexture GridIcon { get; }
+        /// <summary>
+        /// Gets the texture used by the viewport settings button.
+        /// </summary>
+        public RuntimeTexture SettingsIcon { get; }
         /// <summary>
         /// Gets the texture used by the snap increase button.
         /// </summary>

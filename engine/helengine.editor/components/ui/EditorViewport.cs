@@ -137,37 +137,41 @@ namespace helengine.editor {
         /// </summary>
         readonly bool[] ToolButtonKeyboardFocusStates;
         /// <summary>
-        /// Root entity for the viewport grid toggle button.
+        /// Root entity for the viewport settings button.
         /// </summary>
-        EditorEntity GridButtonRoot;
+        EditorEntity SettingsButtonRoot;
         /// <summary>
-        /// Background sprite for the viewport grid toggle button.
+        /// Background sprite for the viewport settings button.
         /// </summary>
-        SpriteComponent GridButtonBackground;
+        SpriteComponent SettingsButtonBackground;
         /// <summary>
-        /// Icon sprite for the viewport grid toggle button.
+        /// Icon sprite for the viewport settings button.
         /// </summary>
-        SpriteComponent GridButtonIcon;
+        SpriteComponent SettingsButtonIcon;
         /// <summary>
-        /// Interactable region for the viewport grid toggle button.
+        /// Interactable region for the viewport settings button.
         /// </summary>
-        InteractableComponent GridButtonInteractable;
+        InteractableComponent SettingsButtonInteractable;
         /// <summary>
-        /// Focus target bound to the viewport grid toggle button.
+        /// Focus target bound to the viewport settings button.
         /// </summary>
-        EditorFocusTarget GridButtonFocusTarget;
+        EditorFocusTarget SettingsButtonFocusTarget;
         /// <summary>
-        /// Tracks hover state for the viewport grid toggle button.
+        /// Tracks hover state for the viewport settings button.
         /// </summary>
-        bool GridButtonHoverState;
+        bool SettingsButtonHoverState;
         /// <summary>
-        /// Tracks pressed state for the viewport grid toggle button.
+        /// Tracks pressed state for the viewport settings button.
         /// </summary>
-        bool GridButtonPressedState;
+        bool SettingsButtonPressedState;
         /// <summary>
-        /// Tracks keyboard-focus state for the viewport grid toggle button.
+        /// Tracks keyboard-focus state for the viewport settings button.
         /// </summary>
-        bool GridButtonKeyboardFocusState;
+        bool SettingsButtonKeyboardFocusState;
+        /// <summary>
+        /// Tracks whether the viewport settings overlay shell is currently open.
+        /// </summary>
+        bool IsSettingsOverlayOpen;
         /// <summary>
         /// Snap slots shown by the toolbar.
         /// </summary>
@@ -352,7 +356,7 @@ namespace helengine.editor {
             ToolbarRoot.AddComponent(ToolbarBackground);
 
             InitializeToolButtons();
-            InitializeGridButton();
+            InitializeSettingsButton();
             InitializeSnapControls();
             AddComponent(new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight, false));
             ToolMode = EditorViewportToolService.GetToolMode(Camera);
@@ -424,9 +428,9 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Initializes the viewport grid toggle button.
+        /// Initializes the viewport settings button.
         /// </summary>
-        void InitializeGridButton() {
+        void InitializeSettingsButton() {
             EditorEntity buttonRoot = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = float3.Zero
@@ -447,7 +451,7 @@ namespace helengine.editor {
             buttonRoot.AddChild(iconHost);
 
             SpriteComponent buttonIcon = new SpriteComponent {
-                Texture = ToolbarIcons.GridIcon,
+                Texture = ToolbarIcons.SettingsIcon,
                 Color = new byte4(255, 255, 255, 224),
                 Size = new int2(ToolButtonIconSize, ToolButtonIconSize),
                 RenderOrder2D = ToolbarForegroundOrder
@@ -457,31 +461,32 @@ namespace helengine.editor {
             InteractableComponent buttonInteractable = new InteractableComponent {
                 Size = new int2(ToolButtonWidth, ToolButtonHeight)
             };
-            buttonInteractable.CursorEvent += (pos, delta, state) => HandleGridButtonCursor(state);
+            buttonInteractable.CursorEvent += (pos, delta, state) => HandleSettingsButtonCursor(state);
             buttonRoot.AddComponent(buttonInteractable);
 
-            GridButtonFocusTarget = new EditorFocusTarget(
+            SettingsButtonFocusTarget = new EditorFocusTarget(
                 ToolbarFocusGroup,
                 ToolModes.Length,
                 false,
                 () => Enabled && buttonRoot.Enabled,
-                ContainsGridButtonPoint,
+                ContainsSettingsButtonPoint,
                 isFocused => {
-                    GridButtonKeyboardFocusState = isFocused;
-                    UpdateGridButtonVisuals();
+                    SettingsButtonKeyboardFocusState = isFocused;
+                    UpdateSettingsButtonVisuals();
                 },
                 key => key == Keys.Enter || key == Keys.Space,
-                key => ToggleGridVisibility());
-            EditorKeyboardFocusService.RegisterTarget(GridButtonFocusTarget);
+                key => ToggleSettingsOverlay());
+            EditorKeyboardFocusService.RegisterTarget(SettingsButtonFocusTarget);
 
-            GridButtonRoot = buttonRoot;
-            GridButtonBackground = buttonBackground;
-            GridButtonIcon = buttonIcon;
-            GridButtonInteractable = buttonInteractable;
-            GridButtonHoverState = false;
-            GridButtonPressedState = false;
-            GridButtonKeyboardFocusState = false;
-            UpdateGridButtonVisuals();
+            SettingsButtonRoot = buttonRoot;
+            SettingsButtonBackground = buttonBackground;
+            SettingsButtonIcon = buttonIcon;
+            SettingsButtonInteractable = buttonInteractable;
+            SettingsButtonHoverState = false;
+            SettingsButtonPressedState = false;
+            SettingsButtonKeyboardFocusState = false;
+            IsSettingsOverlayOpen = false;
+            UpdateSettingsButtonVisuals();
         }
 
         /// <summary>
@@ -774,27 +779,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Handles pointer interaction state updates for the viewport grid toggle button.
+        /// Handles pointer interaction state updates for the viewport settings button.
         /// </summary>
         /// <param name="interaction">Pointer interaction state.</param>
-        void HandleGridButtonCursor(PointerInteraction interaction) {
+        void HandleSettingsButtonCursor(PointerInteraction interaction) {
             switch (interaction) {
                 case PointerInteraction.Hover:
-                    GridButtonHoverState = true;
+                    SettingsButtonHoverState = true;
                     break;
                 case PointerInteraction.Press:
-                    GridButtonPressedState = true;
+                    SettingsButtonPressedState = true;
                     break;
                 case PointerInteraction.Release:
-                    bool shouldToggle = GridButtonPressedState && GridButtonHoverState;
-                    GridButtonPressedState = false;
+                    bool shouldToggle = SettingsButtonPressedState && SettingsButtonHoverState;
+                    SettingsButtonPressedState = false;
                     if (shouldToggle) {
-                        ToggleGridVisibility();
+                        ToggleSettingsOverlay();
                     }
                     break;
                 case PointerInteraction.Leave:
-                    GridButtonHoverState = false;
-                    GridButtonPressedState = false;
+                    SettingsButtonHoverState = false;
+                    SettingsButtonPressedState = false;
                     break;
                 case PointerInteraction.None:
                     break;
@@ -802,7 +807,7 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Pointer interaction state is not supported.");
             }
 
-            UpdateGridButtonVisuals();
+            UpdateSettingsButtonVisuals();
         }
 
         /// <summary>
@@ -879,28 +884,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies visual state to the viewport grid toggle button.
+        /// Applies visual state to the viewport settings button.
         /// </summary>
-        void UpdateGridButtonVisuals() {
-            if (GridButtonBackground == null || GridButtonIcon == null) {
+        void UpdateSettingsButtonVisuals() {
+            if (SettingsButtonBackground == null || SettingsButtonIcon == null) {
                 return;
             }
 
-            bool isActive = IsGridVisible();
-            if (GridButtonPressedState) {
-                GridButtonBackground.Color = ThemeManager.Colors.AccentTertiary;
-            } else if (isActive) {
-                GridButtonBackground.Color = ThemeManager.Colors.AccentPrimary;
-            } else if (GridButtonKeyboardFocusState || GridButtonHoverState) {
-                GridButtonBackground.Color = ThemeManager.Colors.AccentSecondary;
+            if (SettingsButtonPressedState) {
+                SettingsButtonBackground.Color = ThemeManager.Colors.AccentTertiary;
+            } else if (IsSettingsOverlayOpen) {
+                SettingsButtonBackground.Color = ThemeManager.Colors.AccentPrimary;
+            } else if (SettingsButtonKeyboardFocusState || SettingsButtonHoverState) {
+                SettingsButtonBackground.Color = ThemeManager.Colors.AccentSecondary;
             } else {
-                GridButtonBackground.Color = ThemeManager.Colors.SurfaceInput;
+                SettingsButtonBackground.Color = ThemeManager.Colors.SurfaceInput;
             }
 
-            if (isActive || GridButtonHoverState || GridButtonPressedState || GridButtonKeyboardFocusState) {
-                GridButtonIcon.Color = new byte4(255, 255, 255, 255);
+            if (IsSettingsOverlayOpen || SettingsButtonHoverState || SettingsButtonPressedState || SettingsButtonKeyboardFocusState) {
+                SettingsButtonIcon.Color = new byte4(255, 255, 255, 255);
             } else {
-                GridButtonIcon.Color = new byte4(255, 255, 255, 224);
+                SettingsButtonIcon.Color = new byte4(255, 255, 255, 224);
             }
         }
 
@@ -1089,7 +1093,7 @@ namespace helengine.editor {
         /// <param name="isActive">True when the nested group is active.</param>
         void HandleSubviewGroupActiveChanged(bool isActive) {
             UpdateToolButtonVisuals();
-            UpdateGridButtonVisuals();
+            UpdateSettingsButtonVisuals();
             UpdateSnapButtonVisuals();
         }
 
@@ -1194,19 +1198,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns true when the provided screen point lies inside the viewport grid toggle button.
+        /// Returns true when the provided screen point lies inside the viewport settings button.
         /// </summary>
         /// <param name="point">Screen point to evaluate.</param>
-        /// <returns>True when the point lies inside the grid button bounds.</returns>
-        bool ContainsGridButtonPoint(int2 point) {
-            if (GridButtonRoot == null || GridButtonInteractable == null) {
+        /// <returns>True when the point lies inside the settings button bounds.</returns>
+        bool ContainsSettingsButtonPoint(int2 point) {
+            if (SettingsButtonRoot == null || SettingsButtonInteractable == null) {
                 return false;
             }
 
-            int left = (int)Math.Round(Position.X + ToolbarRoot.Position.X + GridButtonRoot.Position.X);
-            int top = (int)Math.Round(Position.Y + ToolbarRoot.Position.Y + GridButtonRoot.Position.Y);
-            int width = GridButtonInteractable.Size.X;
-            int height = GridButtonInteractable.Size.Y;
+            int left = (int)Math.Round(Position.X + ToolbarRoot.Position.X + SettingsButtonRoot.Position.X);
+            int top = (int)Math.Round(Position.Y + ToolbarRoot.Position.Y + SettingsButtonRoot.Position.Y);
+            int width = SettingsButtonInteractable.Size.X;
+            int height = SettingsButtonInteractable.Size.Y;
             return point.X >= left &&
                    point.X < left + width &&
                    point.Y >= top &&
@@ -1293,12 +1297,14 @@ namespace helengine.editor {
                 LayoutToolButtonIcon(buttonIcon, ToolButtonWidth, ToolButtonHeight, ToolButtonIconSize, ToolButtonIconSize);
             }
 
-            if (GridButtonRoot != null && GridButtonBackground != null && GridButtonIcon != null && GridButtonInteractable != null) {
-                float gridButtonX = ToolbarPadding + ToolModes.Length * (ToolButtonWidth + ToolbarButtonSpacing);
-                GridButtonRoot.Position = new float3(gridButtonX, buttonY, 0.1f);
-                GridButtonBackground.Size = new int2(ToolButtonWidth, ToolButtonHeight);
-                GridButtonInteractable.Size = new int2(ToolButtonWidth, ToolButtonHeight);
-                LayoutToolButtonIcon(GridButtonIcon, ToolButtonWidth, ToolButtonHeight, ToolButtonIconSize, ToolButtonIconSize);
+            if (SettingsButtonRoot != null && SettingsButtonBackground != null && SettingsButtonIcon != null && SettingsButtonInteractable != null) {
+                float settingsButtonX = Math.Max(
+                    ToolbarPadding,
+                    toolbarWidth - ToolbarPadding - ToolButtonWidth);
+                SettingsButtonRoot.Position = new float3(settingsButtonX, buttonY, 0.1f);
+                SettingsButtonBackground.Size = new int2(ToolButtonWidth, ToolButtonHeight);
+                SettingsButtonInteractable.Size = new int2(ToolButtonWidth, ToolButtonHeight);
+                LayoutToolButtonIcon(SettingsButtonIcon, ToolButtonWidth, ToolButtonHeight, ToolButtonIconSize, ToolButtonIconSize);
             }
 
             LayoutSnapControls(buttonY);
@@ -1477,7 +1483,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="buttonY">Top offset shared by value boxes and adjustment buttons.</param>
         void LayoutSnapControls(float buttonY) {
-            double currentX = ToolbarPadding + ((ToolModes.Length + 1) * (ToolButtonWidth + ToolbarButtonSpacing));
+            double currentX = ToolbarPadding + (ToolModes.Length * (ToolButtonWidth + ToolbarButtonSpacing));
             currentX -= ToolbarButtonSpacing;
             currentX += SnapGroupSpacing;
 
@@ -1585,6 +1591,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Toggles the viewport settings overlay shell state.
+        /// </summary>
+        void ToggleSettingsOverlay() {
+            IsSettingsOverlayOpen = !IsSettingsOverlayOpen;
+            UpdateSettingsButtonVisuals();
+        }
+
+        /// <summary>
         /// Sets scene-grid visibility for this viewport camera.
         /// </summary>
         /// <param name="isVisible">True to include the scene-grid layer; false to hide it.</param>
@@ -1601,7 +1615,6 @@ namespace helengine.editor {
             }
 
             Camera.LayerMask = layerMask;
-            UpdateGridButtonVisuals();
         }
 
         /// <summary>
