@@ -374,39 +374,28 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one tagged editor mesh payload into the strict runtime mesh payload shape.
+        /// Rewrites one serialized mesh payload into the strict runtime mesh payload shape.
         /// </summary>
         /// <param name="record">Serialized mesh component record to rewrite.</param>
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
         /// <returns>Rewritten mesh component record.</returns>
         SceneComponentAssetRecord RewriteMeshComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
-            MeshComponent meshComponent = new MeshComponent();
-            SceneAssetReference modelReference = null;
-            SceneAssetReference materialReference = null;
-            byte renderOrder3D = meshComponent.RenderOrder3D;
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != MeshComponentPayloadVersion) {
+                throw new InvalidOperationException($"Unsupported mesh component payload version '{version}'.");
+            }
 
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-            if (reader.TryGetFieldReader("ModelReference", out EngineBinaryReader modelReferenceReader)) {
-                using (modelReferenceReader) {
-                    modelReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(modelReferenceReader);
-                }
-            }
-            if (reader.TryGetFieldReader("MaterialReference", out EngineBinaryReader materialReferenceReader)) {
-                using (materialReferenceReader) {
-                    materialReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(materialReferenceReader);
-                }
-            }
-            if (reader.TryGetFieldReader("RenderOrder3D", out EngineBinaryReader renderOrder3DReader)) {
-                using (renderOrder3DReader) {
-                    renderOrder3D = renderOrder3DReader.ReadByte();
-                }
-            }
+            SceneAssetReference modelReference = RewriteModelReference(ReadOptionalReference(reader), buildRootPath);
+            SceneAssetReference materialReference = RewriteMaterialReference(ReadOptionalReference(reader), buildRootPath);
+            byte renderOrder3D = reader.ReadByte();
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(MeshComponentPayloadVersion);
-            WriteOptionalReference(writer, RewriteModelReference(modelReference, buildRootPath));
-            WriteOptionalReference(writer, RewriteMaterialReference(materialReference, buildRootPath));
+            WriteOptionalReference(writer, modelReference);
+            WriteOptionalReference(writer, materialReference);
             writer.WriteByte(renderOrder3D);
 
             return new SceneComponentAssetRecord {
@@ -417,43 +406,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one tagged editor camera payload into the strict runtime camera payload shape.
+        /// Rewrites one serialized camera payload into the strict runtime camera payload shape.
         /// </summary>
         /// <param name="record">Serialized camera component record to rewrite.</param>
         /// <returns>Rewritten camera component record.</returns>
         SceneComponentAssetRecord RewriteCameraComponentRecord(SceneComponentAssetRecord record) {
-            byte cameraDrawOrder = 0;
-            ushort layerMask = 0b11111111;
-            float4 viewport = new float4(0f, 0f, 1f, 1f);
-            CameraClearSettings clearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1f, false, 0);
-            CameraRenderSettings renderSettings = new CameraRenderSettings();
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != 1 && version != CameraComponentPayloadVersion) {
+                throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
+            }
 
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-            if (reader.TryGetFieldReader("CameraDrawOrder", out EngineBinaryReader cameraDrawOrderReader)) {
-                using (cameraDrawOrderReader) {
-                    cameraDrawOrder = cameraDrawOrderReader.ReadByte();
-                }
-            }
-            if (reader.TryGetFieldReader("LayerMask", out EngineBinaryReader layerMaskReader)) {
-                using (layerMaskReader) {
-                    layerMask = layerMaskReader.ReadUInt16();
-                }
-            }
-            if (reader.TryGetFieldReader("Viewport", out EngineBinaryReader viewportReader)) {
-                using (viewportReader) {
-                    viewport = viewportReader.ReadFloat4();
-                }
-            }
-            if (reader.TryGetFieldReader("ClearSettings", out EngineBinaryReader clearSettingsReader)) {
-                using (clearSettingsReader) {
-                    clearSettings = SceneComponentBinaryFieldEncoding.ReadCameraClearSettings(clearSettingsReader);
-                }
-            }
-            if (reader.TryGetFieldReader("RenderSettings", out EngineBinaryReader renderSettingsReader)) {
-                using (renderSettingsReader) {
-                    renderSettings = SceneComponentBinaryFieldEncoding.ReadCameraRenderSettings(renderSettingsReader);
-                }
-            }
+            byte cameraDrawOrder = reader.ReadByte();
+            ushort layerMask = reader.ReadUInt16();
+            float4 viewport = ReadFloat4(reader);
+            CameraClearSettings clearSettings = ReadClearSettings(reader);
+            CameraRenderSettings renderSettings = version >= 2 ? ReadRenderSettings(reader) : new CameraRenderSettings();
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -472,41 +441,24 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one tagged editor FPS payload into the strict runtime FPS payload shape.
+        /// Rewrites one serialized FPS payload into the strict runtime FPS payload shape.
         /// </summary>
         /// <param name="record">Serialized FPS component record to rewrite.</param>
         /// <returns>Rewritten FPS component record.</returns>
         SceneComponentAssetRecord RewriteFPSComponentRecord(SceneComponentAssetRecord record) {
-            FPSComponent fpsComponent = new FPSComponent();
-            SceneAssetReference fontReference = FontAssetScenePersistenceSupport.BuildEditorFontReference();
-            double refreshIntervalSeconds = fpsComponent.RefreshIntervalSeconds;
-            int2 padding = fpsComponent.Padding;
-            byte renderOrder2D = fpsComponent.RenderOrder2D;
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != FPSComponentPayloadVersion && version != 1) {
+                throw new InvalidOperationException($"Unsupported FPS component payload version '{version}'.");
+            }
 
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-            if (reader.TryGetFieldReader("FontReference", out EngineBinaryReader fontReferenceReader)) {
-                using (fontReferenceReader) {
-                    SceneAssetReference storedReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(fontReferenceReader);
-                    if (storedReference != null) {
-                        fontReference = storedReference;
-                    }
-                }
-            }
-            if (reader.TryGetFieldReader("RefreshIntervalSeconds", out EngineBinaryReader refreshIntervalReader)) {
-                using (refreshIntervalReader) {
-                    refreshIntervalSeconds = BitConverter.Int64BitsToDouble(refreshIntervalReader.ReadInt64());
-                }
-            }
-            if (reader.TryGetFieldReader("Padding", out EngineBinaryReader paddingReader)) {
-                using (paddingReader) {
-                    padding = paddingReader.ReadInt2();
-                }
-            }
-            if (reader.TryGetFieldReader("RenderOrder2D", out EngineBinaryReader renderOrder2DReader)) {
-                using (renderOrder2DReader) {
-                    renderOrder2D = renderOrder2DReader.ReadByte();
-                }
-            }
+            SceneAssetReference fontReference = version >= 2
+                ? FontAssetScenePersistenceSupport.ReadOptionalReference(reader)
+                : FontAssetScenePersistenceSupport.BuildEditorFontReference();
+            double refreshIntervalSeconds = BitConverter.Int64BitsToDouble(reader.ReadInt64());
+            int2 padding = reader.ReadInt2();
+            byte renderOrder2D = reader.ReadByte();
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -524,77 +476,28 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one tagged editor text payload into the strict runtime text payload shape.
+        /// Rewrites one serialized text payload into the strict runtime text payload shape.
         /// </summary>
         /// <param name="record">Serialized text component record to rewrite.</param>
         /// <returns>Rewritten text component record.</returns>
         SceneComponentAssetRecord RewriteTextComponentRecord(SceneComponentAssetRecord record) {
-            TextComponent textComponent = new TextComponent();
-            SceneAssetReference fontReference = FontAssetScenePersistenceSupport.BuildEditorFontReference();
-            string text = textComponent.Text;
-            bool wrapText = textComponent.WrapText;
-            int2 size = textComponent.Size;
-            byte4 color = textComponent.Color;
-            float4 sourceRect = textComponent.SourceRect;
-            float rotation = textComponent.Rotation;
-            byte renderOrder2D = textComponent.RenderOrder2D;
-            byte layerMask = textComponent.LayerMask;
-            bool selectionEnabled = textComponent.SelectionEnabled;
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != TextComponentPayloadVersion) {
+                throw new InvalidOperationException($"Unsupported text component payload version '{version}'.");
+            }
 
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-            if (reader.TryGetFieldReader("FontReference", out EngineBinaryReader fontReferenceReader)) {
-                using (fontReferenceReader) {
-                    SceneAssetReference storedReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(fontReferenceReader);
-                    if (storedReference != null) {
-                        fontReference = storedReference;
-                    }
-                }
-            }
-            if (reader.TryGetFieldReader("Text", out EngineBinaryReader textReader)) {
-                using (textReader) {
-                    text = textReader.ReadString();
-                }
-            }
-            if (reader.TryGetFieldReader("WrapText", out EngineBinaryReader wrapTextReader)) {
-                using (wrapTextReader) {
-                    wrapText = wrapTextReader.ReadByte() != 0;
-                }
-            }
-            if (reader.TryGetFieldReader("Size", out EngineBinaryReader sizeReader)) {
-                using (sizeReader) {
-                    size = sizeReader.ReadInt2();
-                }
-            }
-            if (reader.TryGetFieldReader("Color", out EngineBinaryReader colorReader)) {
-                using (colorReader) {
-                    color = SceneComponentBinaryFieldEncoding.ReadByte4(colorReader);
-                }
-            }
-            if (reader.TryGetFieldReader("SourceRect", out EngineBinaryReader sourceRectReader)) {
-                using (sourceRectReader) {
-                    sourceRect = sourceRectReader.ReadFloat4();
-                }
-            }
-            if (reader.TryGetFieldReader("Rotation", out EngineBinaryReader rotationReader)) {
-                using (rotationReader) {
-                    rotation = rotationReader.ReadSingle();
-                }
-            }
-            if (reader.TryGetFieldReader("RenderOrder2D", out EngineBinaryReader renderOrder2DReader)) {
-                using (renderOrder2DReader) {
-                    renderOrder2D = renderOrder2DReader.ReadByte();
-                }
-            }
-            if (reader.TryGetFieldReader("LayerMask", out EngineBinaryReader layerMaskReader)) {
-                using (layerMaskReader) {
-                    layerMask = layerMaskReader.ReadByte();
-                }
-            }
-            if (reader.TryGetFieldReader("SelectionEnabled", out EngineBinaryReader selectionEnabledReader)) {
-                using (selectionEnabledReader) {
-                    selectionEnabled = selectionEnabledReader.ReadByte() != 0;
-                }
-            }
+            SceneAssetReference fontReference = FontAssetScenePersistenceSupport.ReadOptionalReference(reader);
+            string text = reader.ReadString();
+            bool wrapText = reader.ReadByte() != 0;
+            int2 size = reader.ReadInt2();
+            byte4 color = FontAssetScenePersistenceSupport.ReadByte4(reader);
+            float4 sourceRect = reader.ReadFloat4();
+            float rotation = reader.ReadSingle();
+            byte renderOrder2D = reader.ReadByte();
+            byte layerMask = reader.ReadByte();
+            bool selectionEnabled = reader.ReadByte() != 0;
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -618,83 +521,44 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one tagged editor rounded-rectangle payload into the strict runtime payload shape.
+        /// Rewrites one serialized rounded-rectangle payload into the strict runtime payload shape.
         /// </summary>
         /// <param name="record">Serialized rounded rectangle component record to rewrite.</param>
         /// <returns>Rewritten rounded rectangle component record.</returns>
         SceneComponentAssetRecord RewriteRoundedRectComponentRecord(SceneComponentAssetRecord record) {
-            RoundedRectComponent roundedRectComponent = new RoundedRectComponent();
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-            if (reader.TryGetFieldReader("RenderOrder2D", out EngineBinaryReader renderOrder2DReader)) {
-                using (renderOrder2DReader) {
-                    roundedRectComponent.RenderOrder2D = renderOrder2DReader.ReadByte();
-                }
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != 1) {
+                throw new InvalidOperationException($"Unsupported rounded rectangle component payload version '{version}'.");
             }
-            if (reader.TryGetFieldReader("LayerMask", out EngineBinaryReader layerMaskReader)) {
-                using (layerMaskReader) {
-                    roundedRectComponent.LayerMask = layerMaskReader.ReadByte();
-                }
-            }
-            if (reader.TryGetFieldReader("Corners", out EngineBinaryReader cornersReader)) {
-                using (cornersReader) {
-                    roundedRectComponent.Corners = (RoundedRectCorners)cornersReader.ReadInt32();
-                }
-            }
-            if (reader.TryGetFieldReader("Rotation", out EngineBinaryReader rotationReader)) {
-                using (rotationReader) {
-                    roundedRectComponent.Rotation = rotationReader.ReadSingle();
-                }
-            }
-            if (reader.TryGetFieldReader("Color", out EngineBinaryReader colorReader)) {
-                using (colorReader) {
-                    roundedRectComponent.Color = SceneComponentBinaryFieldEncoding.ReadByte4(colorReader);
-                }
-            }
-            if (reader.TryGetFieldReader("SourceRect", out EngineBinaryReader sourceRectReader)) {
-                using (sourceRectReader) {
-                    roundedRectComponent.SourceRect = sourceRectReader.ReadFloat4();
-                }
-            }
-            if (reader.TryGetFieldReader("Size", out EngineBinaryReader sizeReader)) {
-                using (sizeReader) {
-                    roundedRectComponent.Size = sizeReader.ReadInt2();
-                }
-            }
-            if (reader.TryGetFieldReader("Radius", out EngineBinaryReader radiusReader)) {
-                using (radiusReader) {
-                    roundedRectComponent.Radius = radiusReader.ReadSingle();
-                }
-            }
-            if (reader.TryGetFieldReader("BorderThickness", out EngineBinaryReader borderThicknessReader)) {
-                using (borderThicknessReader) {
-                    roundedRectComponent.BorderThickness = borderThicknessReader.ReadSingle();
-                }
-            }
-            if (reader.TryGetFieldReader("FillColor", out EngineBinaryReader fillColorReader)) {
-                using (fillColorReader) {
-                    roundedRectComponent.FillColor = SceneComponentBinaryFieldEncoding.ReadByte4(fillColorReader);
-                }
-            }
-            if (reader.TryGetFieldReader("BorderColor", out EngineBinaryReader borderColorReader)) {
-                using (borderColorReader) {
-                    roundedRectComponent.BorderColor = SceneComponentBinaryFieldEncoding.ReadByte4(borderColorReader);
-                }
-            }
+
+            byte renderOrder2D = reader.ReadByte();
+            byte layerMask = reader.ReadByte();
+            RoundedRectCorners corners = (RoundedRectCorners)reader.ReadInt32();
+            float rotation = reader.ReadSingle();
+            byte4 color = FontAssetScenePersistenceSupport.ReadByte4(reader);
+            float4 sourceRect = reader.ReadFloat4();
+            int2 size = reader.ReadInt2();
+            float radius = reader.ReadSingle();
+            float borderThickness = reader.ReadSingle();
+            byte4 fillColor = FontAssetScenePersistenceSupport.ReadByte4(reader);
+            byte4 borderColor = FontAssetScenePersistenceSupport.ReadByte4(reader);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
-            writer.WriteByte(roundedRectComponent.RenderOrder2D);
-            writer.WriteByte(roundedRectComponent.LayerMask);
-            writer.WriteInt32((int)roundedRectComponent.Corners);
-            writer.WriteSingle(roundedRectComponent.Rotation);
-            SceneComponentBinaryFieldEncoding.WriteByte4(writer, roundedRectComponent.Color);
-            writer.WriteFloat4(roundedRectComponent.SourceRect);
-            writer.WriteInt2(roundedRectComponent.Size);
-            writer.WriteSingle(roundedRectComponent.Radius);
-            writer.WriteSingle(roundedRectComponent.BorderThickness);
-            SceneComponentBinaryFieldEncoding.WriteByte4(writer, roundedRectComponent.FillColor);
-            SceneComponentBinaryFieldEncoding.WriteByte4(writer, roundedRectComponent.BorderColor);
+            writer.WriteByte(renderOrder2D);
+            writer.WriteByte(layerMask);
+            writer.WriteInt32((int)corners);
+            writer.WriteSingle(rotation);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, color);
+            writer.WriteFloat4(sourceRect);
+            writer.WriteInt2(size);
+            writer.WriteSingle(radius);
+            writer.WriteSingle(borderThickness);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, fillColor);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, borderColor);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = RoundedRectComponentTypeId,
@@ -704,19 +568,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one tagged editor directional-light payload into the strict runtime light payload shape.
+        /// Rewrites one serialized directional-light payload into the strict runtime light payload shape.
         /// </summary>
         /// <param name="record">Serialized directional light component record to rewrite.</param>
         /// <returns>Rewritten directional light component record.</returns>
         SceneComponentAssetRecord RewriteDirectionalLightComponentRecord(SceneComponentAssetRecord record) {
-            DirectionalLightComponent lightComponent = new DirectionalLightComponent();
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-            LightComponentTaggedFieldEncoding.ReadCommonFields(reader, lightComponent);
-            if (reader.TryGetFieldReader("ShadowDistance", out EngineBinaryReader shadowDistanceReader)) {
-                using (shadowDistanceReader) {
-                    lightComponent.ShadowDistance = shadowDistanceReader.ReadSingle();
-                }
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != LightComponentScenePayloadSerializer.CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported directional light payload version '{version}'.");
             }
+
+            DirectionalLightComponent lightComponent = LightComponentScenePayloadSerializer.ReadDirectionalLight(reader);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -731,19 +595,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one tagged editor point-light payload into the strict runtime light payload shape.
+        /// Rewrites one serialized point-light payload into the strict runtime light payload shape.
         /// </summary>
         /// <param name="record">Serialized point light component record to rewrite.</param>
         /// <returns>Rewritten point light component record.</returns>
         SceneComponentAssetRecord RewritePointLightComponentRecord(SceneComponentAssetRecord record) {
-            PointLightComponent lightComponent = new PointLightComponent();
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-            LightComponentTaggedFieldEncoding.ReadCommonFields(reader, lightComponent);
-            if (reader.TryGetFieldReader("Range", out EngineBinaryReader rangeReader)) {
-                using (rangeReader) {
-                    lightComponent.Range = rangeReader.ReadSingle();
-                }
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != LightComponentScenePayloadSerializer.CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported point light payload version '{version}'.");
             }
+
+            PointLightComponent lightComponent = LightComponentScenePayloadSerializer.ReadPointLight(reader);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -758,29 +622,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one tagged editor spot-light payload into the strict runtime light payload shape.
+        /// Rewrites one serialized spot-light payload into the strict runtime light payload shape.
         /// </summary>
         /// <param name="record">Serialized spot light component record to rewrite.</param>
         /// <returns>Rewritten spot light component record.</returns>
         SceneComponentAssetRecord RewriteSpotLightComponentRecord(SceneComponentAssetRecord record) {
-            SpotLightComponent lightComponent = new SpotLightComponent();
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-            LightComponentTaggedFieldEncoding.ReadCommonFields(reader, lightComponent);
-            if (reader.TryGetFieldReader("Range", out EngineBinaryReader rangeReader)) {
-                using (rangeReader) {
-                    lightComponent.Range = rangeReader.ReadSingle();
-                }
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != LightComponentScenePayloadSerializer.CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported spot light payload version '{version}'.");
             }
-            if (reader.TryGetFieldReader("InnerConeAngleDegrees", out EngineBinaryReader innerConeAngleReader)) {
-                using (innerConeAngleReader) {
-                    lightComponent.InnerConeAngleDegrees = innerConeAngleReader.ReadSingle();
-                }
-            }
-            if (reader.TryGetFieldReader("OuterConeAngleDegrees", out EngineBinaryReader outerConeAngleReader)) {
-                using (outerConeAngleReader) {
-                    lightComponent.OuterConeAngleDegrees = outerConeAngleReader.ReadSingle();
-                }
-            }
+
+            SpotLightComponent lightComponent = LightComponentScenePayloadSerializer.ReadSpotLight(reader);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -795,29 +649,26 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one tagged editor demo-menu root payload into the strict runtime menu payload shape.
+        /// Rewrites one serialized demo-menu root payload into the strict runtime menu payload shape.
         /// </summary>
         /// <param name="record">Serialized demo-menu root component record to rewrite.</param>
         /// <returns>Rewritten demo-menu root component record.</returns>
         SceneComponentAssetRecord RewriteDemoMenuBuildComponentRecord(SceneComponentAssetRecord record) {
-            DemoMenuBuildComponent component = new DemoMenuBuildComponent();
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-            if (reader.TryGetFieldReader("ProviderTypeName", out EngineBinaryReader providerTypeNameReader)) {
-                using (providerTypeNameReader) {
-                    component.ProviderTypeName = providerTypeNameReader.ReadString();
-                }
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != DemoMenuBuildComponent.CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported demo menu build component payload version '{version}'.");
             }
-            if (reader.TryGetFieldReader("InitialPanelId", out EngineBinaryReader initialPanelIdReader)) {
-                using (initialPanelIdReader) {
-                    component.InitialPanelId = initialPanelIdReader.ReadString();
-                }
-            }
+
+            string providerTypeName = reader.ReadString();
+            string initialPanelId = reader.ReadString();
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(DemoMenuBuildComponent.CurrentVersion);
-            writer.WriteString(component.ProviderTypeName);
-            writer.WriteString(component.InitialPanelId);
+            writer.WriteString(providerTypeName);
+            writer.WriteString(initialPanelId);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = DemoMenuBuildComponent.SerializedComponentTypeId,
@@ -827,23 +678,24 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one tagged editor demo-menu panel payload into the strict runtime menu payload shape.
+        /// Rewrites one serialized demo-menu panel payload into the strict runtime menu payload shape.
         /// </summary>
         /// <param name="record">Serialized demo-menu panel component record to rewrite.</param>
         /// <returns>Rewritten demo-menu panel component record.</returns>
         SceneComponentAssetRecord RewriteDemoMenuPanelComponentRecord(SceneComponentAssetRecord record) {
-            DemoMenuPanelComponent component = new DemoMenuPanelComponent();
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-            if (reader.TryGetFieldReader("PanelId", out EngineBinaryReader panelIdReader)) {
-                using (panelIdReader) {
-                    component.PanelId = panelIdReader.ReadString();
-                }
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != DemoMenuPanelComponent.CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported demo menu panel component payload version '{version}'.");
             }
+
+            string panelId = reader.ReadString();
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(DemoMenuPanelComponent.CurrentVersion);
-            writer.WriteString(component.PanelId);
+            writer.WriteString(panelId);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = DemoMenuPanelComponent.SerializedComponentTypeId,
@@ -853,71 +705,40 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one tagged editor demo-menu item payload into the strict runtime menu payload shape.
+        /// Rewrites one serialized demo-menu item payload into the strict runtime menu payload shape.
         /// </summary>
         /// <param name="record">Serialized demo-menu item component record to rewrite.</param>
         /// <returns>Rewritten demo-menu item component record.</returns>
         SceneComponentAssetRecord RewriteDemoMenuItemComponentRecord(SceneComponentAssetRecord record) {
-            DemoMenuItemComponent component = new DemoMenuItemComponent();
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
-            if (reader.TryGetFieldReader("PanelId", out EngineBinaryReader panelIdReader)) {
-                using (panelIdReader) {
-                    component.PanelId = panelIdReader.ReadString();
-                }
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != DemoMenuItemComponent.CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported demo menu item component payload version '{version}'.");
             }
-            if (reader.TryGetFieldReader("ItemId", out EngineBinaryReader itemIdReader)) {
-                using (itemIdReader) {
-                    component.ItemId = itemIdReader.ReadString();
-                }
-            }
-            if (reader.TryGetFieldReader("Description", out EngineBinaryReader descriptionReader)) {
-                using (descriptionReader) {
-                    component.Description = descriptionReader.ReadString();
-                }
-            }
-            if (reader.TryGetFieldReader("ActionKind", out EngineBinaryReader actionKindReader)) {
-                using (actionKindReader) {
-                    component.ActionKind = (MenuActionKind)actionKindReader.ReadByte();
-                }
-            }
-            if (reader.TryGetFieldReader("TargetId", out EngineBinaryReader targetIdReader)) {
-                using (targetIdReader) {
-                    component.TargetId = targetIdReader.ReadString();
-                }
-            }
-            if (reader.TryGetFieldReader("IdleFillColor", out EngineBinaryReader idleFillColorReader)) {
-                using (idleFillColorReader) {
-                    component.IdleFillColor = SceneComponentBinaryFieldEncoding.ReadByte4(idleFillColorReader);
-                }
-            }
-            if (reader.TryGetFieldReader("IdleBorderColor", out EngineBinaryReader idleBorderColorReader)) {
-                using (idleBorderColorReader) {
-                    component.IdleBorderColor = SceneComponentBinaryFieldEncoding.ReadByte4(idleBorderColorReader);
-                }
-            }
-            if (reader.TryGetFieldReader("SelectedFillColor", out EngineBinaryReader selectedFillColorReader)) {
-                using (selectedFillColorReader) {
-                    component.SelectedFillColor = SceneComponentBinaryFieldEncoding.ReadByte4(selectedFillColorReader);
-                }
-            }
-            if (reader.TryGetFieldReader("SelectedBorderColor", out EngineBinaryReader selectedBorderColorReader)) {
-                using (selectedBorderColorReader) {
-                    component.SelectedBorderColor = SceneComponentBinaryFieldEncoding.ReadByte4(selectedBorderColorReader);
-                }
-            }
+
+            string panelId = reader.ReadString();
+            string itemId = reader.ReadString();
+            string description = reader.ReadString();
+            MenuActionKind actionKind = (MenuActionKind)reader.ReadByte();
+            string targetId = reader.ReadString();
+            byte4 idleFillColor = FontAssetScenePersistenceSupport.ReadByte4(reader);
+            byte4 idleBorderColor = FontAssetScenePersistenceSupport.ReadByte4(reader);
+            byte4 selectedFillColor = FontAssetScenePersistenceSupport.ReadByte4(reader);
+            byte4 selectedBorderColor = FontAssetScenePersistenceSupport.ReadByte4(reader);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(DemoMenuItemComponent.CurrentVersion);
-            writer.WriteString(component.PanelId);
-            writer.WriteString(component.ItemId);
-            writer.WriteString(component.Description);
-            writer.WriteByte((byte)component.ActionKind);
-            writer.WriteString(component.TargetId);
-            SceneComponentBinaryFieldEncoding.WriteByte4(writer, component.IdleFillColor);
-            SceneComponentBinaryFieldEncoding.WriteByte4(writer, component.IdleBorderColor);
-            SceneComponentBinaryFieldEncoding.WriteByte4(writer, component.SelectedFillColor);
-            SceneComponentBinaryFieldEncoding.WriteByte4(writer, component.SelectedBorderColor);
+            writer.WriteString(panelId);
+            writer.WriteString(itemId);
+            writer.WriteString(description);
+            writer.WriteByte((byte)actionKind);
+            writer.WriteString(targetId);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, idleFillColor);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, idleBorderColor);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, selectedFillColor);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, selectedBorderColor);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = DemoMenuItemComponent.SerializedComponentTypeId,
@@ -927,11 +748,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one tagged editor selected-description marker payload into the strict runtime marker payload shape.
+        /// Rewrites one serialized selected-description marker payload into the strict runtime marker payload shape.
         /// </summary>
         /// <param name="record">Serialized selected-description marker component record to rewrite.</param>
         /// <returns>Rewritten selected-description marker component record.</returns>
         SceneComponentAssetRecord RewriteDemoMenuSelectedDescriptionComponentRecord(SceneComponentAssetRecord record) {
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != DemoMenuSelectedDescriptionComponent.CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported demo menu selected-description component payload version '{version}'.");
+            }
+
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(DemoMenuSelectedDescriptionComponent.CurrentVersion);
