@@ -15,9 +15,7 @@ namespace helengine.editor {
         /// <summary>
         /// Extensions treated as image assets.
         /// </summary>
-        readonly HashSet<string> imageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tga", ".dds"
-        };
+        readonly HashSet<string> imageExtensions = new HashSet<string>(TextureImportFormatCatalog.AllTextureExtensions, StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Extensions treated as 3D model assets.

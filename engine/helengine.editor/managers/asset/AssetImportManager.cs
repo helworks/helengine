@@ -44,6 +44,11 @@ namespace helengine.editor {
         readonly Dictionary<string, string> defaultTextureImportersByExtension;
 
         /// <summary>
+        /// Texture importer identifiers keyed by extension.
+        /// </summary>
+        readonly Dictionary<string, List<string>> textureImporterIdsByExtension;
+
+        /// <summary>
         /// Registered text importers keyed by identifier.
         /// </summary>
         readonly Dictionary<string, ITextImporter> textImportersById;
@@ -97,6 +102,7 @@ namespace helengine.editor {
             importRootPrefix = importRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
             textureImportersById = new Dictionary<string, ITextureImporter>(StringComparer.OrdinalIgnoreCase);
             defaultTextureImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            textureImporterIdsByExtension = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             textImportersById = new Dictionary<string, ITextImporter>(StringComparer.OrdinalIgnoreCase);
             defaultTextImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             ModelImportersById = new Dictionary<string, IModelImporter>(StringComparer.OrdinalIgnoreCase);
@@ -151,7 +157,7 @@ namespace helengine.editor {
             AssetContentManager.RegisterProcessor(
                 registration.ImporterId,
                 new TextureImporterContentProcessor(registration.Importer),
-                registration.Extensions);
+                Array.Empty<string>());
             string[] extensions = registration.Extensions;
             for (int i = 0; i < extensions.Length; i++) {
                 string extension = NormalizeExtension(extensions[i]);
@@ -163,6 +169,7 @@ namespace helengine.editor {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a model importer.");
                 }
 
+                RegisterTextureImporterExtension(extension, registration.ImporterId);
                 if (!defaultTextureImportersByExtension.ContainsKey(extension)) {
                     defaultTextureImportersByExtension[extension] = registration.ImporterId;
                 }
@@ -308,8 +315,8 @@ namespace helengine.editor {
             }
 
             string normalized = NormalizeExtension(extension);
-            if (defaultTextureImportersByExtension.ContainsKey(normalized)) {
-                return GetTextureImporterIds();
+            if (textureImporterIdsByExtension.TryGetValue(normalized, out List<string> textureImporterIds)) {
+                return new List<string>(textureImporterIds);
             }
 
             if (defaultTextImportersByExtension.ContainsKey(normalized)) {
@@ -334,7 +341,7 @@ namespace helengine.editor {
             }
 
             string normalized = NormalizeExtension(extension);
-            return defaultTextureImportersByExtension.ContainsKey(normalized);
+            return textureImporterIdsByExtension.ContainsKey(normalized);
         }
 
         /// <summary>
@@ -389,6 +396,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a model importer.");
             }
 
+            EnsureTextureImporterSupportsExtension(normalized, importerId);
             defaultTextureImportersByExtension[normalized] = importerId;
         }
 
@@ -1173,6 +1181,59 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Records that one texture importer supports one file extension.
+        /// </summary>
+        /// <param name="extension">Normalized file extension.</param>
+        /// <param name="importerId">Importer identifier that supports the extension.</param>
+        void RegisterTextureImporterExtension(string extension, string importerId) {
+            if (string.IsNullOrWhiteSpace(extension)) {
+                throw new ArgumentException("Extension must be provided.", nameof(extension));
+            }
+
+            if (string.IsNullOrWhiteSpace(importerId)) {
+                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
+            }
+
+            List<string> importerIds;
+            if (!textureImporterIdsByExtension.TryGetValue(extension, out importerIds)) {
+                importerIds = new List<string>();
+                textureImporterIdsByExtension.Add(extension, importerIds);
+            }
+
+            if (!importerIds.Contains(importerId, StringComparer.OrdinalIgnoreCase)) {
+                importerIds.Add(importerId);
+            }
+        }
+
+        /// <summary>
+        /// Ensures the supplied texture importer has been registered for the requested file extension.
+        /// </summary>
+        /// <param name="extension">Normalized file extension.</param>
+        /// <param name="importerId">Importer identifier to validate.</param>
+        void EnsureTextureImporterSupportsExtension(string extension, string importerId) {
+            if (string.IsNullOrWhiteSpace(extension)) {
+                throw new ArgumentException("Extension must be provided.", nameof(extension));
+            }
+
+            if (string.IsNullOrWhiteSpace(importerId)) {
+                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
+            }
+
+            List<string> importerIds;
+            if (!textureImporterIdsByExtension.TryGetValue(extension, out importerIds)) {
+                throw new InvalidOperationException($"No texture importers are registered for '{extension}'.");
+            }
+
+            for (int index = 0; index < importerIds.Count; index++) {
+                if (string.Equals(importerIds[index], importerId, StringComparison.OrdinalIgnoreCase)) {
+                    return;
+                }
+            }
+
+            throw new InvalidOperationException($"Texture importer '{importerId}' does not support '{extension}'.");
+        }
+
+        /// <summary>
         /// Retrieves a text importer by identifier.
         /// </summary>
         /// <param name="importerId">Identifier of the importer.</param>
@@ -1284,6 +1345,10 @@ namespace helengine.editor {
             }
 
             if (!IsModelSourceForAssetId(sourcePath, settings)) {
+                if (ShouldUseTextureImporterQualifiedAssetId(sourcePath, settings)) {
+                    return BuildImporterQualifiedAssetId(sourceChecksum, settings.Importer.ImporterId);
+                }
+
                 return sourceChecksum;
             }
 
@@ -1296,6 +1361,58 @@ namespace helengine.editor {
                 settings.Importer.ImporterId ?? string.Empty, "\n",
                 platformId, "\n",
                 flipWindingFlag);
+            byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
+            byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
+            return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Determines whether texture cache identity must include the selected importer id for one overlapping texture format.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Resolved import settings for the source file.</param>
+        /// <returns>True when the texture cache identity must include the importer id.</returns>
+        bool ShouldUseTextureImporterQualifiedAssetId(string sourcePath, AssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (settings.Importer == null) {
+                throw new InvalidOperationException("Import settings must include importer settings.");
+            } else if (string.IsNullOrWhiteSpace(settings.Importer.ImporterId)) {
+                throw new InvalidOperationException("Import settings must specify an importer id.");
+            }
+
+            if (!IsTextureImporterRegistered(settings.Importer.ImporterId)) {
+                return false;
+            }
+
+            string normalizedExtension = NormalizeExtension(Path.GetExtension(sourcePath));
+            List<string> importerIds;
+            if (!textureImporterIdsByExtension.TryGetValue(normalizedExtension, out importerIds)) {
+                return false;
+            }
+
+            return importerIds.Count > 1;
+        }
+
+        /// <summary>
+        /// Builds one importer-qualified asset identifier for overlapping non-model importers.
+        /// </summary>
+        /// <param name="sourceChecksum">Checksum of the source file contents.</param>
+        /// <param name="importerId">Identifier of the importer selected for the source file.</param>
+        /// <returns>Processed asset identifier for the importer-qualified configuration.</returns>
+        string BuildImporterQualifiedAssetId(string sourceChecksum, string importerId) {
+            if (string.IsNullOrWhiteSpace(sourceChecksum)) {
+                throw new ArgumentException("Source checksum must be provided.", nameof(sourceChecksum));
+            } else if (string.IsNullOrWhiteSpace(importerId)) {
+                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
+            }
+
+            string identity = string.Concat(
+                "importer", "\n",
+                sourceChecksum, "\n",
+                importerId);
             byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
             byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
             return Convert.ToHexString(hashBytes).ToLowerInvariant();

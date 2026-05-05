@@ -4,11 +4,6 @@ namespace helengine.editor {
     /// </summary>
     public static class EditorToolbarIconLoader {
         /// <summary>
-        /// Shared PNG content processor used to decode built-in editor toolbar icons without mutating the shared content manager configuration.
-        /// </summary>
-        static readonly TextureImporterContentProcessor ToolbarIconContentProcessor = new TextureImporterContentProcessor(new GDITextureImporter());
-
-        /// <summary>
         /// Root-relative path for the translate toolbar icon.
         /// </summary>
         static readonly string TranslateIconPath = Path.Combine("content", "icons", "toolbar", "transform.png");
@@ -126,7 +121,7 @@ namespace helengine.editor {
             }
 
             string absoluteFilePath = ResolveApplicationContentPath(applicationRootPath, filePath);
-            TextureAsset textureAsset = content.Load(absoluteFilePath, ToolbarIconContentProcessor);
+            TextureAsset textureAsset = LoadToolbarTextureAsset(absoluteFilePath);
             return Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
         }
 
@@ -145,6 +140,57 @@ namespace helengine.editor {
             }
 
             return Path.GetFullPath(Path.Combine(applicationRootPath, filePath));
+        }
+
+        /// <summary>
+        /// Loads one built-in toolbar texture from disk without routing through the asset importer pipeline.
+        /// </summary>
+        /// <param name="absoluteFilePath">Absolute file path to the built-in PNG file.</param>
+        /// <returns>Decoded texture asset in RGBA byte order.</returns>
+        static TextureAsset LoadToolbarTextureAsset(string absoluteFilePath) {
+            if (string.IsNullOrWhiteSpace(absoluteFilePath)) {
+                throw new ArgumentException("Toolbar icon path must be provided.", nameof(absoluteFilePath));
+            }
+
+            using System.Drawing.Bitmap sourceBitmap = new System.Drawing.Bitmap(absoluteFilePath);
+            int width = sourceBitmap.Width;
+            int height = sourceBitmap.Height;
+            if (width > ushort.MaxValue || height > ushort.MaxValue) {
+                throw new InvalidOperationException("Texture dimensions exceed supported limits.");
+            }
+
+            System.Drawing.Rectangle bounds = new System.Drawing.Rectangle(0, 0, width, height);
+            using System.Drawing.Bitmap bitmap = sourceBitmap.Clone(bounds, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            System.Drawing.Imaging.BitmapData data = bitmap.LockBits(bounds, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            try {
+                int bytesPerPixel = 4;
+                int rowLength = width * bytesPerPixel;
+                byte[] colors = new byte[width * height * bytesPerPixel];
+                byte[] rowData = new byte[rowLength];
+
+                for (int y = 0; y < height; y++) {
+                    IntPtr rowPointer = IntPtr.Add(data.Scan0, y * data.Stride);
+                    System.Runtime.InteropServices.Marshal.Copy(rowPointer, rowData, 0, rowLength);
+
+                    int rowOffset = y * rowLength;
+                    for (int x = 0; x < width; x++) {
+                        int sourceIndex = x * bytesPerPixel;
+                        int destinationIndex = rowOffset + sourceIndex;
+                        colors[destinationIndex] = rowData[sourceIndex + 2];
+                        colors[destinationIndex + 1] = rowData[sourceIndex + 1];
+                        colors[destinationIndex + 2] = rowData[sourceIndex];
+                        colors[destinationIndex + 3] = rowData[sourceIndex + 3];
+                    }
+                }
+
+                return new TextureAsset {
+                    Width = (ushort)width,
+                    Height = (ushort)height,
+                    Colors = colors
+                };
+            } finally {
+                bitmap.UnlockBits(data);
+            }
         }
     }
 }

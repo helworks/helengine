@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\helengine.editor\helengine.editor.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.editor.windows\helengine.editor.windows.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\..\helengine.ui\helengine.editor.app\helengine.editor.app.csproj" SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+</Project>

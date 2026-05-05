@@ -17,5 +17,17 @@
 
   <ItemGroup>
     <ProjectReference Include="..\helengine.editor.windows\helengine.editor.windows.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.editor.windows.gdiimporter\helengine.editor.windows.gdiimporter.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.editor.windows.pfimimporter\helengine.editor.windows.pfimimporter.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.editor.windows.magickimporter\helengine.editor.windows.magickimporter.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\helengine.editor.windows.importerprobe\helengine.editor.windows.importerprobe.csproj" SkipGetTargetFrameworkProperties="true" />
+    <ProjectReference Include="..\..\helengine.ui\helengine.editor.app\helengine.editor.app.csproj" SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="content\textures\PfimTextureImporterTests.cs" />
+    <Compile Remove="content\textures\MagickTextureImporterTests.cs" />
+    <Compile Remove="content\textures\TextureImporterFixtureData.cs" />
+    <Compile Remove="content\textures\MagickFixtureEncoder.cs" />
   </ItemGroup>
 </Project>
