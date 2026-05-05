@@ -787,6 +787,7 @@ namespace helengine.editor {
 
             Type targetType = row.Property.PropertyType;
             if (!TryParseScalar(field.Text, targetType, out object parsed)) {
+                UpdateScalarField(row, row.ScalarCache);
                 return;
             }
 

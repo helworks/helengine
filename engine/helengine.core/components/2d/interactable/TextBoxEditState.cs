@@ -51,7 +51,17 @@ namespace helengine {
         /// </summary>
         public int CursorPosition {
             get { return CursorPositionValue; }
-            set { CursorPositionValue = ClampCursor(value); }
+            set {
+                CursorPositionValue = ClampCursor(value);
+                SelectionAnchorPositionValue = CursorPositionValue;
+            }
+        }
+
+        /// <summary>
+        /// Gets the fixed selection anchor position used while extending a selection range.
+        /// </summary>
+        public int SelectionAnchorPosition {
+            get { return SelectionAnchorPositionValue; }
         }
 
         /// <summary>
@@ -102,6 +112,7 @@ namespace helengine {
             }
 
             CursorPositionValue = Math.Max(0, CursorPositionValue - 1);
+            SelectionAnchorPositionValue = CursorPositionValue;
         }
 
         /// <summary>
@@ -115,6 +126,7 @@ namespace helengine {
             }
 
             CursorPositionValue = Math.Min(TextValue.Length, CursorPositionValue + 1);
+            SelectionAnchorPositionValue = CursorPositionValue;
         }
 
         /// <summary>
@@ -131,6 +143,7 @@ namespace helengine {
 
             TextValue = TextValue.Remove(CursorPositionValue - 1, 1);
             CursorPositionValue--;
+            SelectionAnchorPositionValue = CursorPositionValue;
         }
 
         /// <summary>
@@ -147,6 +160,7 @@ namespace helengine {
 
             TextValue = TextValue.Remove(CursorPositionValue, 1);
             CursorPositionValue = ClampCursor(CursorPositionValue);
+            SelectionAnchorPositionValue = CursorPositionValue;
         }
 
         /// <summary>

@@ -35,6 +35,21 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures backspace collapses the caret after deleting a trailing character so a second backspace can remove the previous character.
+        /// </summary>
+        [Fact]
+        public void Backspace_WhenDeletingTrailingDecimalDigit_DoesNotLeaveGhostSelection() {
+            TextBoxEditState state = new TextBoxEditState("2.0");
+
+            state.Backspace();
+            state.Backspace();
+
+            Assert.Equal("2", state.Text);
+            Assert.Equal(1, state.CursorPosition);
+            Assert.False(state.HasSelection);
+        }
+
+        /// <summary>
         /// Ensures delete removes the character immediately after the caret.
         /// </summary>
         [Fact]
@@ -46,6 +61,21 @@ namespace helengine.editor.tests {
 
             Assert.Equal("ac", state.Text);
             Assert.Equal(1, state.CursorPosition);
+        }
+
+        /// <summary>
+        /// Ensures delete collapses the caret after removing one character without leaving a stale selection range behind.
+        /// </summary>
+        [Fact]
+        public void Delete_WhenRemovingOneCharacter_DoesNotLeaveGhostSelection() {
+            TextBoxEditState state = new TextBoxEditState("2.0");
+
+            state.CursorPosition = 1;
+            state.Delete();
+
+            Assert.Equal("20", state.Text);
+            Assert.Equal(1, state.CursorPosition);
+            Assert.False(state.HasSelection);
         }
 
         /// <summary>
@@ -75,6 +105,33 @@ namespace helengine.editor.tests {
 
             Assert.Equal("a", state.Text);
             Assert.Equal(1, state.CursorPosition);
+        }
+
+        /// <summary>
+        /// Ensures moving the caret left without an active selection keeps the selection collapsed at the new caret position.
+        /// </summary>
+        [Fact]
+        public void MoveCursorLeft_WithoutSelection_KeepsSelectionCollapsed() {
+            TextBoxEditState state = new TextBoxEditState("abc");
+
+            state.MoveCursorLeft();
+
+            Assert.Equal(2, state.CursorPosition);
+            Assert.False(state.HasSelection);
+        }
+
+        /// <summary>
+        /// Ensures moving the caret right without an active selection keeps the selection collapsed at the new caret position.
+        /// </summary>
+        [Fact]
+        public void MoveCursorRight_WithoutSelection_KeepsSelectionCollapsed() {
+            TextBoxEditState state = new TextBoxEditState("abc");
+
+            state.SetCursorToStart();
+            state.MoveCursorRight();
+
+            Assert.Equal(1, state.CursorPosition);
+            Assert.False(state.HasSelection);
         }
     }
 }

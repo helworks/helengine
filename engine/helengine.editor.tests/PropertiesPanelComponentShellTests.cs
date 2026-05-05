@@ -440,6 +440,58 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures submitting invalid scalar text keeps the authored component value and restores the last valid field text.
+        /// </summary>
+        [Fact]
+        public void HandleScalarSubmitted_WhenTextIsInvalid_RestoresLastValidTextWithoutChangingTheValue() {
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Light"
+            };
+            DirectionalLightComponent light = new DirectionalLightComponent {
+                Intensity = 2f
+            };
+            entity.AddComponent(light);
+
+            view.ShowComponents(entity);
+
+            ComponentPropertyRow intensityRow = FindScalarRow(view, nameof(LightComponent.Intensity));
+            intensityRow.ScalarField.Text = string.Empty;
+
+            InvokePrivate(view, "HandleScalarSubmitted", intensityRow.ScalarField);
+
+            Assert.Equal(2f, light.Intensity);
+            Assert.Equal("2", intensityRow.ScalarField.Text);
+            Assert.Equal("2", intensityRow.ScalarCache);
+        }
+
+        /// <summary>
+        /// Ensures losing focus with invalid scalar text rolls the field back to the last valid value instead of leaving invalid text visible.
+        /// </summary>
+        [Fact]
+        public void ScalarField_WhenBlurredWithInvalidText_RestoresLastValidTextWithoutChangingTheValue() {
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Light"
+            };
+            DirectionalLightComponent light = new DirectionalLightComponent {
+                Intensity = 2f
+            };
+            entity.AddComponent(light);
+
+            view.ShowComponents(entity);
+
+            ComponentPropertyRow intensityRow = FindScalarRow(view, nameof(LightComponent.Intensity));
+            intensityRow.ScalarField.IsFocused = true;
+            intensityRow.ScalarField.Text = "-";
+            intensityRow.ScalarField.IsFocused = false;
+
+            Assert.Equal(2f, light.Intensity);
+            Assert.Equal("2", intensityRow.ScalarField.Text);
+            Assert.Equal("2", intensityRow.ScalarCache);
+        }
+
+        /// <summary>
         /// Ensures confirming removal deletes the component and keeps the entity selected.
         /// </summary>
         [Fact]
@@ -492,6 +544,20 @@ namespace helengine.editor.tests {
             entity.AddComponent(new MeshComponent());
             entity.AddComponent(new CameraComponent());
             return entity;
+        }
+
+        /// <summary>
+        /// Finds one scalar property row by bound property name.
+        /// </summary>
+        /// <param name="view">View that owns the active property rows.</param>
+        /// <param name="propertyName">Property name to locate.</param>
+        /// <returns>Matching scalar row.</returns>
+        ComponentPropertyRow FindScalarRow(ComponentPropertiesView view, string propertyName) {
+            List<ComponentPropertyRow> rows = GetPrivateField<List<ComponentPropertyRow>>(view, "ActiveRows");
+            return Assert.Single(
+                rows,
+                row => row.Kind == ComponentPropertyRowKind.Scalar
+                    && string.Equals(row.Property?.Name, propertyName, StringComparison.Ordinal));
         }
 
         /// <summary>

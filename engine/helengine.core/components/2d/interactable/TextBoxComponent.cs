@@ -318,7 +318,7 @@ namespace helengine {
                 isSelectingText = true;
                 UpdateTextDisplay();
             } else if (state == PointerInteraction.Hover && isSelectingText) {
-                EditState.CursorPosition = ResolveCursorPositionFromClick(relPos.X);
+                EditState.SetSelection(EditState.SelectionAnchorPosition, ResolveCursorPositionFromClick(relPos.X));
                 UpdateTextDisplay();
             } else if (state == PointerInteraction.Release) {
                 isSelectingText = false;
