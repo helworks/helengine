@@ -27,5 +27,10 @@ namespace helengine.editor {
         /// Layer mask used by editor-only camera visual children.
         /// </summary>
         public const ushort SceneCameraVisuals = 0b0000100000000000;
+
+        /// <summary>
+        /// Layer mask used by the world-space 2D canvas preview plane.
+        /// </summary>
+        public const ushort SceneCanvasPlane = 0b0000010000000000;
     }
 }

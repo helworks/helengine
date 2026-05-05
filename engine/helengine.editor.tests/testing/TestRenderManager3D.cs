@@ -87,7 +87,12 @@ namespace helengine.editor.tests.testing {
             }
 
             BuiltMaterialAssetsValue.Add(materialAsset);
-            return new TestRuntimeMaterial();
+            var material = new TestRuntimeMaterial();
+            material.SetLayout(MaterialLayoutBuilder.Build(materialAsset, shaderAsset));
+            material.LightingModel = RuntimeMaterialLightingModel.MetalRoughPbr;
+            material.SupportsNormalMapping = !string.IsNullOrWhiteSpace(materialAsset.NormalTextureAssetId);
+            material.SupportsEmissive = !string.IsNullOrWhiteSpace(materialAsset.EmissiveTextureAssetId);
+            return material;
         }
     }
 }
