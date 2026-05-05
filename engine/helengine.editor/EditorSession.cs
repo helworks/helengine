@@ -478,9 +478,9 @@ namespace helengine.editor {
             dockingManager = new DockingManager();
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
-            assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath);
-            mainViewport = new EditorViewport(sceneCameraComponent, uiFont, snapModifierFont, toolbarIcons);
-            propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService);
+            assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics);
+            mainViewport = new EditorViewport(sceneCameraComponent, uiFont, snapModifierFont, toolbarIcons, CurrentUiMetrics);
+            propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
             previewPanel = new PreviewPanel(uiFont, CurrentUiMetrics);
             EditorKeyboardFocusService.RegisterGroup(sceneHierarchyPanel);
@@ -816,6 +816,15 @@ namespace helengine.editor {
             }
             if (sceneHierarchyPanel != null) {
                 sceneHierarchyPanel.ApplyUiMetrics(uiFont, metrics);
+            }
+            if (assetBrowserPanel != null) {
+                assetBrowserPanel.ApplyUiMetrics(uiFont, metrics);
+            }
+            if (mainViewport != null) {
+                mainViewport.ApplyUiMetrics(uiFont, snapModifierFont, metrics);
+            }
+            if (propertiesPanel != null) {
+                propertiesPanel.ApplyUiMetrics(uiFont, metrics);
             }
             if (loggerPanel != null) {
                 loggerPanel.ApplyUiMetrics(uiFont, metrics);

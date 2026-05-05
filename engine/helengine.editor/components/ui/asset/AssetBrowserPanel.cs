@@ -19,7 +19,7 @@ namespace helengine.editor {
         /// <summary>
         /// Font used to render toolbar and row labels.
         /// </summary>
-        readonly FontAsset Font;
+        FontAsset Font;
         /// <summary>
         /// Root entity hosting the content below the title bar.
         /// </summary>
@@ -63,10 +63,20 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels.</param>
         /// <param name="projectPath">Path to the project root.</param>
-        public AssetBrowserPanel(FontAsset font, string projectPath) : base(font) {
+        public AssetBrowserPanel(FontAsset font, string projectPath)
+            : this(font, projectPath, EditorUiMetrics.Default) {
+        }
+
+        /// <summary>
+        /// Initializes a new asset browser panel for the provided project path using the supplied scaled dock metrics.
+        /// </summary>
+        /// <param name="font">Font used for labels.</param>
+        /// <param name="projectPath">Path to the project root.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar and browser content.</param>
+        public AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics) : base(font, metrics) {
             Font = font;
             Title = "Assets";
-            MinSize = new int2(260, 180);
+            MinSize = new int2(UiMetrics.ScalePixels(260), UiMetrics.ScalePixels(180));
 
             byte toolbarOrder = RenderOrder2D.PanelSurface;
             byte rowBackgroundOrder = RenderOrder2D.PanelSurface;
@@ -75,12 +85,13 @@ namespace helengine.editor {
 
             ContentRoot = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = new float3(0, TitleBarHeight, 0.05f)
+                Position = new float3(0, TitleBarHeightPixels, 0.05f)
             };
             AddChild(ContentRoot);
 
             BrowserView = new AssetBrowserView(
                 Font,
+                UiMetrics,
                 projectPath,
                 LayerMask,
                 toolbarOrder,
@@ -133,6 +144,34 @@ namespace helengine.editor {
             BrowserView.UpdateLayout(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y));
             AssetContextMenu.UpdateLayout(GetContextMenuHostSize());
             FileTemplateMenu.UpdateLayout(GetContextMenuHostSize());
+        }
+
+        /// <summary>
+        /// Reapplies scaled dock metrics after one live UI scale change.
+        /// </summary>
+        /// <param name="font">Updated dock title and browser font.</param>
+        /// <param name="metrics">Updated scaled editor UI metrics.</param>
+        public override void ApplyUiMetrics(FontAsset font, EditorUiMetrics metrics) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+
+            Font = font;
+            base.ApplyUiMetrics(font, metrics);
+            BrowserView.ApplyUiMetrics(font, metrics);
+        }
+
+        /// <summary>
+        /// Updates scaled content offsets after the shared dock title-bar metrics change.
+        /// </summary>
+        protected override void HandleUiMetricsApplied() {
+            MinSize = new int2(UiMetrics.ScalePixels(260), UiMetrics.ScalePixels(180));
+            ContentRoot.Position = new float3(0f, TitleBarHeightPixels, 0.05f);
+            if (!IsInitialized) {
+                return;
+            }
+
+            BrowserView.UpdateLayout(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y));
         }
 
         /// <summary>
@@ -292,7 +331,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Menu host size in pixels.</returns>
         int2 GetContextMenuHostSize() {
-            return new int2(Size.X, Size.Y + TitleBarHeight);
+            return new int2(Size.X, Size.Y + TitleBarHeightPixels);
         }
 
         /// <summary>
@@ -302,7 +341,7 @@ namespace helengine.editor {
         /// <returns>True when the pointer is within the content area.</returns>
         bool IsPointerInsideContent(int2 pointer) {
             float left = Position.X;
-            float top = Position.Y + TitleBarHeight;
+            float top = Position.Y + TitleBarHeightPixels;
             float right = left + Size.X;
             float bottom = top + Size.Y;
 

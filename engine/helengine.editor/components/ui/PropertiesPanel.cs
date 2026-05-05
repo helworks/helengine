@@ -290,7 +290,20 @@ namespace helengine.editor {
         /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
         /// <param name="modalHost">Shared root entity used to host screen-wide dialogs.</param>
         /// <param name="scriptComponentCatalogProvider">Provider used to discover components from the current game script assembly.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorEntity modalHost, IEditorScriptComponentCatalogProvider scriptComponentCatalogProvider) : base(font) {
+        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorEntity modalHost, IEditorScriptComponentCatalogProvider scriptComponentCatalogProvider)
+            : this(font, contentManager, fileSystemModelResolver, modalHost, scriptComponentCatalogProvider, EditorUiMetrics.Default) {
+        }
+
+        /// <summary>
+        /// Initializes a new properties panel with the provided font, modal host, script component provider, and shared dock metrics.
+        /// </summary>
+        /// <param name="font">Font used for the title bar.</param>
+        /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
+        /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
+        /// <param name="modalHost">Shared root entity used to host screen-wide dialogs.</param>
+        /// <param name="scriptComponentCatalogProvider">Provider used to discover components from the current game script assembly.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar.</param>
+        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorEntity modalHost, IEditorScriptComponentCatalogProvider scriptComponentCatalogProvider, EditorUiMetrics metrics) : base(font, metrics) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -306,13 +319,13 @@ namespace helengine.editor {
             ScriptComponentCatalogProvider = scriptComponentCatalogProvider;
             AddComponentButtonWidth = Math.Max(128, (int)Math.Ceiling(font.MeasureTight("Add Component").Width) + AddComponentButtonPadding);
             Title = "Properties";
-            MinSize = new int2(220, 160);
+            MinSize = new int2(UiMetrics.ScalePixels(220), UiMetrics.ScalePixels(160));
 
             textOrder = RenderOrder2D.PanelForeground;
 
             contentRoot = new EditorEntity();
             contentRoot.LayerMask = LayerMask;
-            contentRoot.Position = new float3(0, TitleBarHeight, 0.05f);
+            contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
             AddChild(contentRoot);
 
             lineHosts = new List<EditorEntity>(6);
@@ -644,6 +657,23 @@ namespace helengine.editor {
             }
 
             LayoutLines();
+        }
+
+        /// <summary>
+        /// Reapplies scaled dock metrics after one live UI scale change.
+        /// </summary>
+        /// <param name="font">Updated dock title font.</param>
+        /// <param name="metrics">Updated scaled editor UI metrics.</param>
+        public override void ApplyUiMetrics(FontAsset font, EditorUiMetrics metrics) {
+            base.ApplyUiMetrics(font, metrics);
+        }
+
+        /// <summary>
+        /// Updates scaled content offsets after the shared dock title-bar metrics change.
+        /// </summary>
+        protected override void HandleUiMetricsApplied() {
+            MinSize = new int2(UiMetrics.ScalePixels(220), UiMetrics.ScalePixels(160));
+            contentRoot.Position = new float3(0f, TitleBarHeightPixels, 0.05f);
         }
 
         /// <summary>

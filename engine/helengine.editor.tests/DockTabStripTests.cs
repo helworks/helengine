@@ -37,6 +37,46 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a tab strip reuses the active dock's updated font and stays exactly one pixel shorter than the scaled title bar after one live UI scale change.
+        /// </summary>
+        [Fact]
+        public void UpdateTabs_WhenDockMetricsChange_UsesUpdatedFontAndTitleBarRelativeTabHeight() {
+            InitializeCore();
+
+            FontAsset initialFont = CreateFont(16f);
+            FontAsset scaledFont = CreateFont(24f);
+            EditorUiMetrics initialMetrics = new EditorUiMetrics(1d);
+            EditorUiMetrics scaledMetrics = new EditorUiMetrics(1.5d);
+            DockTabStrip strip = new DockTabStrip(initialFont, initialMetrics, HandleTabSelected);
+            DockableEntity first = new DockableEntity(initialFont, initialMetrics);
+            DockableEntity second = new DockableEntity(initialFont, initialMetrics);
+
+            first.Title = "First";
+            second.Title = "Second";
+
+            strip.UpdateTabs(
+                new[] { first, second },
+                0,
+                float3.Zero,
+                640,
+                0b1000000000000000);
+
+            first.ApplyUiMetrics(scaledFont, scaledMetrics);
+            second.ApplyUiMetrics(scaledFont, scaledMetrics);
+            strip.UpdateTabs(
+                new[] { first, second },
+                0,
+                float3.Zero,
+                640,
+                0b1000000000000000);
+
+            List<DockTabEntry> tabs = GetPrivateField<List<DockTabEntry>>(strip, "tabs");
+
+            Assert.Same(scaledFont, tabs[0].Label.Font);
+            Assert.Equal(scaledMetrics.DockTitleBarHeight - 1, tabs[0].Background.Size.Y);
+        }
+
+        /// <summary>
         /// Clears shared keyboard-focus state after each test.
         /// </summary>
         public void Dispose() {
@@ -57,6 +97,15 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Font asset used by the tab strip created in this test.</returns>
         FontAsset CreateFont() {
+            return CreateFont(16f);
+        }
+
+        /// <summary>
+        /// Creates a deterministic font asset for dock-tab layout tests using the provided line height.
+        /// </summary>
+        /// <param name="lineHeight">Line height exposed by the created font.</param>
+        /// <returns>Font asset used by the tab strip created in this test.</returns>
+        FontAsset CreateFont(float lineHeight) {
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
                 ['F'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['S'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
@@ -78,7 +127,7 @@ namespace helengine.editor.tests {
                     Height = 64
                 },
                 characters,
-                16f,
+                lineHeight,
                 64,
                 64);
         }

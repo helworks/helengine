@@ -24,13 +24,9 @@ namespace helengine.editor {
         /// </summary>
         const int SliderValueSpacing = 8;
         /// <summary>
-        /// Height of the grid-toggle button row.
+        /// Height of the grid-toggle row, which matches the standard overlay control height.
         /// </summary>
-        const int GridToggleButtonHeight = 24;
-        /// <summary>
-        /// Width of the grid-toggle button region.
-        /// </summary>
-        const int GridToggleButtonWidth = 68;
+        const int GridToggleRowHeight = EditorPlatformSettingsSection.RowHeight;
         /// <summary>
         /// Height reserved for one section label.
         /// </summary>
@@ -106,25 +102,21 @@ namespace helengine.editor {
         /// </summary>
         RoundedRectComponent OverlayBackground;
         /// <summary>
+        /// Transparent hit area that lets the full overlay panel receive pointer input without closing.
+        /// </summary>
+        InteractableComponent OverlayBackgroundInteractable;
+        /// <summary>
         /// Label text for the grid row.
         /// </summary>
         TextComponent GridToggleLabelText;
         /// <summary>
-        /// Root entity for the grid-toggle button.
+        /// Host entity for the grid-toggle checkbox.
         /// </summary>
-        EditorEntity GridToggleButtonRoot;
+        EditorEntity GridToggleCheckBoxHost;
         /// <summary>
-        /// Background surface for the grid-toggle button.
+        /// Checkbox used to render and toggle the grid visibility state.
         /// </summary>
-        RoundedRectComponent GridToggleButtonBackground;
-        /// <summary>
-        /// Text shown inside the grid-toggle button.
-        /// </summary>
-        TextComponent GridToggleButtonText;
-        /// <summary>
-        /// Interactable region for the grid-toggle button.
-        /// </summary>
-        InteractableComponent GridToggleButtonInteractable;
+        CheckBoxComponent GridToggleCheckBox;
         /// <summary>
         /// Label text for the near-plane slider row.
         /// </summary>
@@ -162,7 +154,7 @@ namespace helengine.editor {
         /// </summary>
         EditorFocusGroup OverlayFocusGroup;
         /// <summary>
-        /// Focus target for the grid-toggle button.
+        /// Focus target for the grid-toggle checkbox.
         /// </summary>
         EditorFocusTarget GridToggleFocusTargetInternal;
         /// <summary>
@@ -201,18 +193,6 @@ namespace helengine.editor {
         /// Width of the settings button used to align the overlay to the right edge.
         /// </summary>
         int AnchorWidth;
-        /// <summary>
-        /// Tracks whether the pointer is hovering the grid-toggle button.
-        /// </summary>
-        bool GridToggleHoverState;
-        /// <summary>
-        /// Tracks whether the grid-toggle button is currently pressed.
-        /// </summary>
-        bool GridTogglePressedState;
-        /// <summary>
-        /// Tracks whether keyboard focus currently targets the grid-toggle button.
-        /// </summary>
-        bool GridToggleKeyboardFocusState;
         /// <summary>
         /// Tracks whether the pointer is hovering the close button.
         /// </summary>
@@ -437,6 +417,10 @@ namespace helengine.editor {
                 return;
             }
 
+            if (EditorInputCaptureService.IsPointerBlocked(screenPoint, owner => ReferenceEquals(owner, InputBlockerOwner))) {
+                return;
+            }
+
             if (ContainsOverlayPoint(screenPoint)) {
                 return;
             }
@@ -495,10 +479,16 @@ namespace helengine.editor {
                 RenderOrder2D = RenderOrder2D.OverlayBackground
             };
             OverlayRoot.AddComponent(OverlayBackground);
+
+            OverlayBackgroundInteractable = new InteractableComponent {
+                Size = new int2(PanelWidth, PanelHeight),
+                HoverCursor = PointerCursorKind.Default
+            };
+            OverlayRoot.AddComponent(OverlayBackgroundInteractable);
         }
 
         /// <summary>
-        /// Creates the grid-toggle label, button chrome, and pointer wiring.
+        /// Creates the grid-toggle label and default checkbox control.
         /// </summary>
         void CreateGridToggleRow() {
             EditorEntity labelRoot = CreateChildRoot();
@@ -508,41 +498,18 @@ namespace helengine.editor {
                 Font = Font,
                 Text = "Grid",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(120, GridToggleButtonHeight),
+                Size = new int2(120, GridToggleRowHeight),
                 RenderOrder2D = RenderOrder2D.OverlayForeground
             };
             labelRoot.AddComponent(GridToggleLabelText);
 
-            GridToggleButtonRoot = CreateChildRoot();
-            OverlayRoot.AddChild(GridToggleButtonRoot);
+            GridToggleCheckBoxHost = CreateChildRoot();
+            OverlayRoot.AddChild(GridToggleCheckBoxHost);
 
-            GridToggleButtonBackground = new RoundedRectComponent {
-                Size = new int2(GridToggleButtonWidth, GridToggleButtonHeight),
-                Radius = 4f,
-                BorderThickness = 1f,
-                FillColor = ThemeManager.Colors.SurfaceInput,
-                BorderColor = ThemeManager.Colors.SurfacePrimary,
-                RenderOrder2D = RenderOrder2D.OverlayBackground
-            };
-            GridToggleButtonRoot.AddComponent(GridToggleButtonBackground);
-
-            EditorEntity textRoot = CreateChildRoot();
-            GridToggleButtonRoot.AddChild(textRoot);
-
-            GridToggleButtonText = new TextComponent {
-                Font = Font,
-                Text = "no",
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(GridToggleButtonWidth, GridToggleButtonHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
-            };
-            textRoot.AddComponent(GridToggleButtonText);
-
-            GridToggleButtonInteractable = new InteractableComponent {
-                Size = new int2(GridToggleButtonWidth, GridToggleButtonHeight)
-            };
-            GridToggleButtonInteractable.CursorEvent += (position, delta, interaction) => HandleGridToggleCursor(interaction);
-            GridToggleButtonRoot.AddComponent(GridToggleButtonInteractable);
+            GridToggleCheckBox = new CheckBoxComponent(EditorPlatformSettingsSection.CheckBoxSize, Font);
+            GridToggleCheckBox.CheckedChanged += (component, isChecked) => HandleGridToggleCheckedChanged(isChecked);
+            GridToggleCheckBox.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            GridToggleCheckBoxHost.AddComponent(GridToggleCheckBox);
         }
 
         /// <summary>
@@ -673,7 +640,7 @@ namespace helengine.editor {
                 OverlayFocusGroup,
                 0,
                 false,
-                () => IsOpen && GridToggleButtonRoot.Enabled,
+                () => IsOpen && GridToggleCheckBoxHost != null && GridToggleCheckBoxHost.Enabled,
                 ContainsGridTogglePoint,
                 HandleGridToggleFocusedChanged,
                 CanActivateButtonWithKey,
@@ -746,9 +713,12 @@ namespace helengine.editor {
             float panelX = ResolvePanelLeft();
             OverlayRoot.Position = new float3(panelX, AnchorY, 0.45f);
             OverlayBackground.Size = new int2(PanelWidth, PanelHeight);
+            if (OverlayBackgroundInteractable != null) {
+                OverlayBackgroundInteractable.Size = new int2(PanelWidth, PanelHeight);
+            }
 
             int gridRowY = PanelPadding;
-            int nearLabelY = gridRowY + GridToggleButtonHeight + SectionSpacing;
+            int nearLabelY = gridRowY + GridToggleRowHeight + SectionSpacing;
             int nearSliderY = nearLabelY + SectionLabelHeight + SectionLabelSpacing;
             int farLabelY = nearSliderY + SliderHeight + SectionSpacing;
             int farSliderY = farLabelY + SectionLabelHeight + SectionLabelSpacing;
@@ -761,25 +731,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Positions the grid label and button on the first row.
+        /// Positions the grid label and checkbox on the first row.
         /// </summary>
         /// <param name="gridRowY">Top coordinate of the grid row inside the overlay.</param>
         void LayoutGridRow(int gridRowY) {
-            if (GridToggleLabelText == null || GridToggleButtonRoot == null || GridToggleButtonBackground == null || GridToggleButtonInteractable == null) {
+            if (GridToggleLabelText == null || GridToggleCheckBoxHost == null || GridToggleCheckBox == null) {
                 return;
             }
 
+            float rowInsetY = (GridToggleRowHeight - EditorPlatformSettingsSection.CheckBoxSize.Y) / 2f;
+
             if (GridToggleLabelText.Parent != null) {
-                GridToggleLabelText.Parent.Position = new float3(PanelPadding, gridRowY + 3f, 0.1f);
-            }
-            if (GridToggleButtonText != null && GridToggleButtonText.Parent != null) {
-                GridToggleButtonText.Parent.Position = new float3(0f, 3f, 0.1f);
+                GridToggleLabelText.Parent.Position = new float3(PanelPadding, gridRowY + rowInsetY, 0.1f);
             }
 
-            int buttonX = PanelWidth - PanelPadding - GridToggleButtonWidth;
-            GridToggleButtonRoot.Position = new float3(buttonX, gridRowY, 0.1f);
-            GridToggleButtonBackground.Size = new int2(GridToggleButtonWidth, GridToggleButtonHeight);
-            GridToggleButtonInteractable.Size = new int2(GridToggleButtonWidth, GridToggleButtonHeight);
+            int checkboxX = PanelWidth - PanelPadding - EditorPlatformSettingsSection.CheckBoxSize.X;
+            GridToggleCheckBoxHost.Position = new float3(checkboxX, gridRowY + rowInsetY, 0.1f);
         }
 
         /// <summary>
@@ -831,34 +798,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Handles pointer interaction updates for the grid-toggle button.
-        /// </summary>
-        /// <param name="interaction">Pointer interaction state.</param>
-        void HandleGridToggleCursor(PointerInteraction interaction) {
-            if (interaction == PointerInteraction.Hover) {
-                GridToggleHoverState = true;
-            } else if (interaction == PointerInteraction.Press) {
-                GridToggleHoverState = true;
-                GridTogglePressedState = true;
-            } else if (interaction == PointerInteraction.Release) {
-                bool shouldToggle = GridTogglePressedState && GridToggleHoverState;
-                GridTogglePressedState = false;
-                if (shouldToggle) {
-                    ToggleGridVisibility();
-                }
-            } else if (interaction == PointerInteraction.Leave) {
-                GridToggleHoverState = false;
-                GridTogglePressedState = false;
-            } else if (interaction == PointerInteraction.None) {
-                return;
-            } else {
-                throw new InvalidOperationException("Pointer interaction state is not supported.");
-            }
-
-            UpdateGridToggleVisuals();
-        }
-
-        /// <summary>
         /// Handles pointer interaction updates for the close button.
         /// </summary>
         /// <param name="interaction">Pointer interaction state.</param>
@@ -887,12 +826,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies keyboard-focus styling to the grid-toggle target.
+        /// Preserves the grid-toggle focus target wiring without changing checkbox visuals.
         /// </summary>
-        /// <param name="isFocused">True when keyboard focus currently targets the grid-toggle button.</param>
+        /// <param name="isFocused">True when keyboard focus currently targets the grid-toggle checkbox.</param>
         void HandleGridToggleFocusedChanged(bool isFocused) {
-            GridToggleKeyboardFocusState = isFocused;
-            UpdateGridToggleVisuals();
+        }
+
+        /// <summary>
+        /// Applies a checked-state change from the grid checkbox to the viewport grid visibility.
+        /// </summary>
+        /// <param name="isChecked">True when the checkbox should show the grid.</param>
+        void HandleGridToggleCheckedChanged(bool isChecked) {
+            SetGridVisibleAction(isChecked);
         }
 
         /// <summary>
@@ -946,7 +891,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Toggles viewport grid visibility from keyboard activation.
+        /// Toggles viewport grid visibility from keyboard activation of the checkbox row.
         /// </summary>
         /// <param name="key">Activation key routed by the focus service.</param>
         void ActivateGridToggleFromKey(Keys key) {
@@ -1026,7 +971,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Synchronizes overlay button text, slider positions, and numeric readouts from the camera state.
+        /// Synchronizes overlay control state, slider positions, and numeric readouts from the camera state.
         /// </summary>
         void SynchronizeFromCamera() {
             IsSynchronizingState = true;
@@ -1041,34 +986,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Updates the grid-toggle button text and colors from current grid and interaction state.
+        /// Synchronizes the grid-toggle checkbox state from the current viewport grid visibility.
         /// </summary>
         void UpdateGridToggleVisuals() {
-            if (GridToggleButtonBackground == null || GridToggleButtonText == null) {
+            if (GridToggleCheckBox == null) {
                 return;
             }
 
-            bool isGridVisible = IsGridVisibleResolver();
-            GridToggleButtonText.Text = isGridVisible ? "yes" : "no";
-            if (GridTogglePressedState) {
-                GridToggleButtonBackground.FillColor = ThemeManager.Colors.AccentTertiary;
-                GridToggleButtonBackground.BorderColor = ThemeManager.Colors.AccentTertiary;
-            } else if (isGridVisible) {
-                GridToggleButtonBackground.FillColor = ThemeManager.Colors.AccentPrimary;
-                GridToggleButtonBackground.BorderColor = ThemeManager.Colors.AccentPrimary;
-            } else if (GridToggleKeyboardFocusState || GridToggleHoverState) {
-                GridToggleButtonBackground.FillColor = ThemeManager.Colors.AccentSecondary;
-                GridToggleButtonBackground.BorderColor = ThemeManager.Colors.AccentSecondary;
-            } else {
-                GridToggleButtonBackground.FillColor = ThemeManager.Colors.SurfaceInput;
-                GridToggleButtonBackground.BorderColor = ThemeManager.Colors.SurfacePrimary;
-            }
-
-            if (isGridVisible || GridToggleHoverState || GridTogglePressedState || GridToggleKeyboardFocusState) {
-                GridToggleButtonText.Color = new byte4(255, 255, 255, 255);
-            } else {
-                GridToggleButtonText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            }
+            GridToggleCheckBox.IsChecked = IsGridVisibleResolver();
         }
 
         /// <summary>
@@ -1110,11 +1035,16 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Toggles the viewport grid by delegating to the owning viewport state handler.
+        /// Flips the grid checkbox state and forwards the new value to the viewport grid handler.
         /// </summary>
         void ToggleGridVisibility() {
-            SetGridVisibleAction(!IsGridVisibleResolver());
-            UpdateGridToggleVisuals();
+            if (GridToggleCheckBox == null) {
+                return;
+            }
+
+            bool isChecked = !IsGridVisibleResolver();
+            SetGridVisibleAction(isChecked);
+            GridToggleCheckBox.IsChecked = isChecked;
         }
 
         /// <summary>
@@ -1135,12 +1065,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns true when the supplied point lies inside the grid-toggle button.
+        /// Returns true when the supplied point lies inside the grid-toggle checkbox.
         /// </summary>
         /// <param name="point">Screen point to evaluate.</param>
-        /// <returns>True when the point lies inside the grid-toggle button.</returns>
+        /// <returns>True when the point lies inside the grid-toggle checkbox.</returns>
         bool ContainsGridTogglePoint(int2 point) {
-            return ContainsChildPoint(GridToggleButtonRoot, GridToggleButtonWidth, GridToggleButtonHeight, point);
+            return ContainsChildPoint(GridToggleCheckBoxHost, EditorPlatformSettingsSection.CheckBoxSize.X, EditorPlatformSettingsSection.CheckBoxSize.Y, point);
         }
 
         /// <summary>
@@ -1183,8 +1113,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            int left = (int)Math.Round(OwnerViewport.Position.X + OverlayRoot.Position.X + child.Position.X);
-            int top = (int)Math.Round(OwnerViewport.Position.Y + OverlayRoot.Position.Y + child.Position.Y);
+            int left = (int)Math.Round(child.Position.X);
+            int top = (int)Math.Round(child.Position.Y);
             return point.X >= left &&
                    point.X < left + width &&
                    point.Y >= top &&
@@ -1201,8 +1131,8 @@ namespace helengine.editor {
             }
 
             return new int2(
-                (int)Math.Round(OwnerViewport.Position.X + OverlayRoot.Position.X),
-                (int)Math.Round(OwnerViewport.Position.Y + OverlayRoot.Position.Y));
+                (int)Math.Round(OverlayRoot.Position.X),
+                (int)Math.Round(OverlayRoot.Position.Y));
         }
 
         /// <summary>

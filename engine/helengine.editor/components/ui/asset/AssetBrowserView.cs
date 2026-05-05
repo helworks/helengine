@@ -35,12 +35,20 @@ namespace helengine.editor {
         /// <summary>
         /// Fixed size for the toolbar up button.
         /// </summary>
-        static readonly int2 UpButtonSize = new int2(64, 22);
+        const int UpButtonWidth = 64;
+        /// <summary>
+        /// Height of the toolbar up button.
+        /// </summary>
+        const int UpButtonHeight = 22;
 
         /// <summary>
         /// Font used for toolbar and row labels.
         /// </summary>
-        readonly FontAsset Font;
+        FontAsset Font;
+        /// <summary>
+        /// Shared scaled metrics used to size the browser toolbar and rows.
+        /// </summary>
+        EditorUiMetrics Metrics;
         /// <summary>
         /// Asset-browser data source that merges filesystem and generated entries.
         /// </summary>
@@ -160,15 +168,56 @@ namespace helengine.editor {
             byte iconBackgroundOrder,
             byte textOrder,
             bool includeGeneratedEntries = true,
+            IFocusGroup focusGroup = null)
+            : this(
+                font,
+                EditorUiMetrics.Default,
+                projectPath,
+                layerMask,
+                toolbarOrder,
+                rowBackgroundOrder,
+                iconBackgroundOrder,
+                textOrder,
+                includeGeneratedEntries,
+                focusGroup) {
+        }
+
+        /// <summary>
+        /// Initializes a new asset browser view using the provided scaled UI metrics.
+        /// </summary>
+        /// <param name="font">Font used for labels.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the browser toolbar and rows.</param>
+        /// <param name="projectPath">Path to the project root.</param>
+        /// <param name="layerMask">Layer mask for all entities in the view.</param>
+        /// <param name="toolbarOrder">Render order for toolbar backgrounds.</param>
+        /// <param name="rowBackgroundOrder">Render order for row backgrounds.</param>
+        /// <param name="iconBackgroundOrder">Render order for icon backgrounds.</param>
+        /// <param name="textOrder">Render order for text labels.</param>
+        /// <param name="includeGeneratedEntries">True to include generated-provider roots and entries.</param>
+        /// <param name="focusGroup">Dock focus group that owns the browser controls, or null for non-traversable modal uses.</param>
+        public AssetBrowserView(
+            FontAsset font,
+            EditorUiMetrics metrics,
+            string projectPath,
+            ushort layerMask,
+            byte toolbarOrder,
+            byte rowBackgroundOrder,
+            byte iconBackgroundOrder,
+            byte textOrder,
+            bool includeGeneratedEntries = true,
             IFocusGroup focusGroup = null) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
+            }
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
             }
             if (string.IsNullOrWhiteSpace(projectPath)) {
                 throw new ArgumentException("Project path must be provided.", nameof(projectPath));
             }
 
             Font = font;
+            Metrics = metrics;
             DataSource = new AssetBrowserDataSource(projectPath, includeGeneratedEntries);
             ToolbarOrder = toolbarOrder;
             RowBackgroundOrder = rowBackgroundOrder;
@@ -200,7 +249,7 @@ namespace helengine.editor {
             };
             ToolbarRoot.AddChild(UpButtonHost);
 
-            UpButton = new ButtonComponent("Up", UpButtonSize, font, NavigateUp, 0f);
+            UpButton = new ButtonComponent("Up", GetUpButtonSize(), font, NavigateUp, 0f);
             UpButtonHost.AddComponent(UpButton);
             UpButton.FocusGroup = focusGroup;
             UpButton.TabIndex = 0;
@@ -312,6 +361,35 @@ namespace helengine.editor {
             Size = new int2(safeWidth, safeHeight);
             LayoutToolbar();
             LayoutRows();
+        }
+
+        /// <summary>
+        /// Reapplies scaled fonts and geometry after one live UI scale change.
+        /// </summary>
+        /// <param name="font">Updated browser font.</param>
+        /// <param name="metrics">Updated scaled editor UI metrics.</param>
+        public void ApplyUiMetrics(FontAsset font, EditorUiMetrics metrics) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
+            }
+
+            Font = font;
+            Metrics = metrics;
+            PathText.Font = font;
+            UpButton.Font = font;
+            UpButton.SetSize(GetUpButtonSize());
+
+            for (int rowIndex = 0; rowIndex < Rows.Count; rowIndex++) {
+                AssetBrowserRow row = Rows[rowIndex];
+                row.IconText.Font = font;
+                row.Label.Font = font;
+            }
+
+            UpdatePathText();
+            UpdateLayout(Math.Max(1, Size.X), Math.Max(1, Size.Y));
         }
 
         /// <summary>
@@ -441,13 +519,13 @@ namespace helengine.editor {
                 Font = Font,
                 Text = string.Empty,
                 Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(100, RowHeight),
+                Size = new int2(100, GetRowHeightPixels()),
                 RenderOrder2D = TextOrder
             };
             labelHost.AddComponent(label);
 
             var interactable = new InteractableComponent {
-                Size = new int2(Size.X, RowHeight)
+                Size = new int2(Size.X, GetRowHeightPixels())
             };
             rowEntity.AddComponent(interactable);
 
@@ -478,17 +556,21 @@ namespace helengine.editor {
         /// </summary>
         void LayoutToolbar() {
             int rowWidth = Math.Max(1, Size.X);
-            ToolbarBackground.Size = new int2(rowWidth, ToolbarHeight);
+            int toolbarHeight = GetToolbarHeightPixels();
+            int2 upButtonSize = GetUpButtonSize();
+            int toolbarPadding = GetToolbarPaddingPixels();
+            int toolbarSpacing = GetToolbarSpacingPixels();
+            ToolbarBackground.Size = new int2(rowWidth, toolbarHeight);
 
-            float buttonY = MathF.Round((ToolbarHeight - UpButtonSize.Y) * 0.5f);
-            UpButtonHost.Position = new float3(ToolbarPadding, buttonY, 0.2f);
+            float buttonY = MathF.Round((toolbarHeight - upButtonSize.Y) * 0.5f);
+            UpButtonHost.Position = new float3(toolbarPadding, buttonY, 0.2f);
 
-            float pathX = ToolbarPadding + UpButtonSize.X + ToolbarSpacing;
+            float pathX = toolbarPadding + upButtonSize.X + toolbarSpacing;
             var pathMetrics = Font.MeasureTight(PathText.Text);
-            float pathY = GetTextTopOffset(ToolbarHeight, pathMetrics);
+            float pathY = GetTextTopOffset(toolbarHeight, pathMetrics);
             PathTextHost.Position = new float3(pathX, pathY, 0.2f);
 
-            int pathWidth = Math.Max(0, rowWidth - (int)pathX - ToolbarPadding);
+            int pathWidth = Math.Max(0, rowWidth - (int)pathX - toolbarPadding);
             PathText.Size = new int2(pathWidth, (int)MathF.Ceiling(pathMetrics.Height));
         }
 
@@ -499,6 +581,11 @@ namespace helengine.editor {
             EnsureRowCount(Entries.Count);
 
             int rowWidth = Math.Max(1, Size.X);
+            int toolbarHeight = GetToolbarHeightPixels();
+            int rowHeight = GetRowHeightPixels();
+            int iconSize = GetIconSizePixels();
+            int iconPadding = GetIconPaddingPixels();
+            int labelPadding = GetLabelPaddingPixels();
 
             for (int i = 0; i < Rows.Count; i++) {
                 var row = Rows[i];
@@ -518,7 +605,7 @@ namespace helengine.editor {
                 var entry = Entries[i];
                 row.Entity.Enabled = true;
                 row.Entry = entry;
-                row.Entity.Position = new float3(0, ToolbarHeight + i * RowHeight, 0.1f);
+                row.Entity.Position = new float3(0, toolbarHeight + i * rowHeight, 0.1f);
 
                 bool alternate = i % 2 == 1;
                 byte4 baseColor = alternate ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
@@ -526,14 +613,14 @@ namespace helengine.editor {
                 row.IsSelected = string.Equals(entry.RelativePath, SelectedRelativePath, StringComparison.OrdinalIgnoreCase);
                 UpdateRowBackground(row, baseColor);
 
-                row.Background.Size = new int2(rowWidth, RowHeight);
-                row.Interactable.Size = new int2(rowWidth, RowHeight);
+                row.Background.Size = new int2(rowWidth, rowHeight);
+                row.Interactable.Size = new int2(rowWidth, rowHeight);
 
-                float iconY = MathF.Round((RowHeight - IconSize) * 0.5f);
+                float iconY = MathF.Round((rowHeight - iconSize) * 0.5f);
                 if (row.IconBackground.Parent != null) {
-                    row.IconBackground.Parent.Position = new float3(IconPadding, iconY, 0.2f);
+                    row.IconBackground.Parent.Position = new float3(iconPadding, iconY, 0.2f);
                 }
-                row.IconBackground.Size = new int2(IconSize, IconSize);
+                row.IconBackground.Size = new int2(iconSize, iconSize);
 
                 GetIconForEntry(entry, out var iconColor, out var iconLabel, out var iconTextColor);
                 row.IconBackground.Color = iconColor;
@@ -541,27 +628,27 @@ namespace helengine.editor {
                 row.IconText.Color = iconTextColor;
 
                 var iconMetrics = Font.MeasureTight(iconLabel);
-                float iconTextX = MathF.Round((IconSize - iconMetrics.Width) * 0.5f);
-                float iconTextY = GetTextTopOffset(IconSize, iconMetrics);
+                float iconTextX = MathF.Round((iconSize - iconMetrics.Width) * 0.5f);
+                float iconTextY = GetTextTopOffset(iconSize, iconMetrics);
                 if (row.IconText.Parent != null) {
                     row.IconText.Parent.Position = new float3(iconTextX, iconTextY, 0.1f);
                 }
                 row.IconText.Size = new int2((int)MathF.Ceiling(iconMetrics.Width), (int)MathF.Ceiling(iconMetrics.Height));
 
-                float labelX = IconPadding + IconSize + LabelPadding;
+                float labelX = iconPadding + iconSize + labelPadding;
                 string labelText = entry.IsDirectory ? $"{entry.Name}/" : entry.Name;
                 var labelMetrics = Font.MeasureTight(labelText);
-                float labelY = GetTextTopOffset(RowHeight, labelMetrics);
+                float labelY = GetTextTopOffset(rowHeight, labelMetrics);
                 if (row.Label.Parent != null) {
                     row.Label.Parent.Position = new float3(labelX, labelY, 0.2f);
                 }
                 row.Label.Text = labelText;
                 row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
-                row.Label.Size = new int2(Math.Max(0, rowWidth - (int)labelX - LabelPadding), (int)MathF.Ceiling(labelMetrics.Height));
+                row.Label.Size = new int2(Math.Max(0, rowWidth - (int)labelX - labelPadding), (int)MathF.Ceiling(labelMetrics.Height));
             }
 
-            int listHeight = Math.Max(0, Size.Y - ToolbarHeight);
-            ListHitHost.Position = new float3(0f, ToolbarHeight, 0.05f);
+            int listHeight = Math.Max(0, Size.Y - toolbarHeight);
+            ListHitHost.Position = new float3(0f, toolbarHeight, 0.05f);
             ListHitInteractable.Size = new int2(rowWidth, listHeight);
         }
 
@@ -715,7 +802,71 @@ namespace helengine.editor {
             return point.X >= position.X &&
                    point.X < position.X + Math.Max(1, Size.X) &&
                    point.Y >= position.Y &&
-                   point.Y < position.Y + RowHeight;
+                   point.Y < position.Y + GetRowHeightPixels();
+        }
+
+        /// <summary>
+        /// Gets the scaled height used by each asset-browser row.
+        /// </summary>
+        /// <returns>Scaled row height in pixels.</returns>
+        int GetRowHeightPixels() {
+            return Metrics.ScalePixels(RowHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled height used by the browser toolbar.
+        /// </summary>
+        /// <returns>Scaled toolbar height in pixels.</returns>
+        int GetToolbarHeightPixels() {
+            return Metrics.ScalePixels(ToolbarHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled square icon size used in each row.
+        /// </summary>
+        /// <returns>Scaled icon size in pixels.</returns>
+        int GetIconSizePixels() {
+            return Metrics.ScalePixels(IconSize);
+        }
+
+        /// <summary>
+        /// Gets the scaled left padding used for row icons.
+        /// </summary>
+        /// <returns>Scaled icon padding in pixels.</returns>
+        int GetIconPaddingPixels() {
+            return Metrics.ScalePixels(IconPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing used between row icons and labels.
+        /// </summary>
+        /// <returns>Scaled label padding in pixels.</returns>
+        int GetLabelPaddingPixels() {
+            return Metrics.ScalePixels(LabelPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled toolbar padding used around controls.
+        /// </summary>
+        /// <returns>Scaled toolbar padding in pixels.</returns>
+        int GetToolbarPaddingPixels() {
+            return Metrics.ScalePixels(ToolbarPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing used between toolbar items.
+        /// </summary>
+        /// <returns>Scaled toolbar item spacing in pixels.</returns>
+        int GetToolbarSpacingPixels() {
+            return Metrics.ScalePixels(ToolbarSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled size used by the toolbar up button.
+        /// </summary>
+        /// <returns>Scaled toolbar button size.</returns>
+        int2 GetUpButtonSize() {
+            return new int2(Metrics.ScalePixels(UpButtonWidth), Metrics.ScalePixels(UpButtonHeight));
         }
 
         /// <summary>

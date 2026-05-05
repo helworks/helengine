@@ -48,11 +48,11 @@ namespace helengine.editor {
         /// <summary>
         /// Font used to render tab labels.
         /// </summary>
-        readonly FontAsset font;
+        FontAsset font;
         /// <summary>
         /// Shared scaled metrics used to size the tab strip chrome.
         /// </summary>
-        readonly EditorUiMetrics Metrics;
+        EditorUiMetrics Metrics;
 
         /// <summary>
         /// Collection of tab entries and their visuals.
@@ -153,6 +153,8 @@ namespace helengine.editor {
             activeIndex = Math.Clamp(currentActiveIndex, 0, dockables.Count - 1);
 
             DockableEntity activeDock = dockables[activeIndex];
+            font = activeDock.TitleFont;
+            Metrics = activeDock.UiMetrics;
             EnsureTabCount(dockables, layerMask, activeDock);
 
             float x = GetTabStripPadding();
@@ -164,6 +166,7 @@ namespace helengine.editor {
                 entry.Root.Enabled = true;
                 entry.Root.LayerMask = layerMask;
                 entry.LabelHost.LayerMask = layerMask;
+                entry.Label.Font = font;
                 entry.FocusTarget.FocusGroup = activeDock;
                 entry.FocusTarget.TabIndex = i;
                 entry.FocusTarget.IsDefaultTarget = false;
@@ -409,7 +412,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Scaled tab height in pixels.</returns>
         int GetTabHeightPixels() {
-            return Metrics.ScalePixels(TabHeight);
+            return Math.Max(1, Metrics.DockTitleBarHeight - 1);
         }
 
         /// <summary>

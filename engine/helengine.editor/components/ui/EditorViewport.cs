@@ -71,11 +71,11 @@ namespace helengine.editor {
         /// <summary>
         /// Font used by toolbar text content such as value readouts.
         /// </summary>
-        readonly FontAsset Font;
+        FontAsset Font;
         /// <summary>
         /// Font used by the snap modifier labels so CTRL and SHIFT remain readable in the toolbar.
         /// </summary>
-        readonly FontAsset SnapModifierFont;
+        FontAsset SnapModifierFont;
         /// <summary>
         /// Runtime textures used by the toolbar controls on this viewport.
         /// </summary>
@@ -277,7 +277,19 @@ namespace helengine.editor {
         /// <param name="snapModifierFont">Font used by the snap modifier labels.</param>
         /// <param name="toolbarIcons">Runtime toolbar icon textures used by the transform and snap buttons.</param>
         public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons)
-            : base(font) {
+            : this(camera, font, snapModifierFont, toolbarIcons, EditorUiMetrics.Default) {
+        }
+
+        /// <summary>
+        /// Initializes a new dockable viewport and binds it to the provided camera using the supplied scaled dock metrics.
+        /// </summary>
+        /// <param name="camera">Camera rendering into the viewport.</param>
+        /// <param name="font">Font used by the base dockable entity title bar.</param>
+        /// <param name="snapModifierFont">Font used by the snap modifier labels.</param>
+        /// <param name="toolbarIcons">Runtime toolbar icon textures used by the transform and snap buttons.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar.</param>
+        public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons, EditorUiMetrics metrics)
+            : base(font, metrics) {
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             Font = font ?? throw new ArgumentNullException(nameof(font));
             SnapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
@@ -393,6 +405,43 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnSizeChanged() {
             base.OnSizeChanged();
+            UpdateViewport();
+        }
+
+        /// <summary>
+        /// Reapplies scaled dock metrics after one live UI scale change.
+        /// </summary>
+        /// <param name="font">Updated dock title font.</param>
+        /// <param name="metrics">Updated scaled editor UI metrics.</param>
+        public override void ApplyUiMetrics(FontAsset font, EditorUiMetrics metrics) {
+            base.ApplyUiMetrics(font, metrics);
+        }
+
+        /// <summary>
+        /// Reapplies scaled dock metrics and viewport-toolbar fonts after one live UI scale change.
+        /// </summary>
+        /// <param name="font">Updated dock title and toolbar value font.</param>
+        /// <param name="snapModifierFont">Updated snap modifier font used by CTRL and SHIFT labels.</param>
+        /// <param name="metrics">Updated scaled editor UI metrics.</param>
+        public void ApplyUiMetrics(FontAsset font, FontAsset snapModifierFont, EditorUiMetrics metrics) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+            if (snapModifierFont == null) {
+                throw new ArgumentNullException(nameof(snapModifierFont));
+            }
+
+            Font = font;
+            SnapModifierFont = snapModifierFont;
+            base.ApplyUiMetrics(font, metrics);
+            UpdateToolbarTextFonts();
+            LayoutToolbar();
+        }
+
+        /// <summary>
+        /// Refreshes viewport-local layout after the shared dock title-bar metrics change.
+        /// </summary>
+        protected override void HandleUiMetricsApplied() {
             UpdateViewport();
         }
 
@@ -669,6 +718,23 @@ namespace helengine.editor {
 
             CreateSnapToolbarButton(slotIndex, true, ToolbarIcons.GetSnapButtonIcon(true));
             CreateSnapToolbarButton(slotIndex, false, ToolbarIcons.GetSnapButtonIcon(false));
+        }
+
+        /// <summary>
+        /// Reassigns the current scaled toolbar fonts to the existing snap labels and value readouts.
+        /// </summary>
+        void UpdateToolbarTextFonts() {
+            for (int slotIndex = 0; slotIndex < SnapSlots.Length; slotIndex++) {
+                TextComponent modifierText = SnapLabelModifierTexts[slotIndex];
+                if (modifierText != null) {
+                    modifierText.Font = SnapModifierFont;
+                }
+
+                TextComponent valueText = SnapValueTexts[slotIndex];
+                if (valueText != null) {
+                    valueText.Font = Font;
+                }
+            }
         }
 
         /// <summary>
@@ -1175,8 +1241,8 @@ namespace helengine.editor {
         /// <param name="point">Screen point to evaluate.</param>
         /// <returns>True when the point lies inside the toolbar bounds.</returns>
         bool ContainsToolbarPoint(int2 point) {
-            int left = (int)Math.Round(Position.X + ToolbarRoot.Position.X);
-            int top = (int)Math.Round(Position.Y + ToolbarRoot.Position.Y);
+            int left = (int)Math.Round(ToolbarRoot.Position.X);
+            int top = (int)Math.Round(ToolbarRoot.Position.Y);
             int width = ToolbarBackground.Size.X;
             int height = ToolbarBackground.Size.Y;
             return point.X >= left &&
@@ -1202,8 +1268,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            int left = (int)Math.Round(Position.X + ToolbarRoot.Position.X + buttonRoot.Position.X);
-            int top = (int)Math.Round(Position.Y + ToolbarRoot.Position.Y + buttonRoot.Position.Y);
+            int left = (int)Math.Round(buttonRoot.Position.X);
+            int top = (int)Math.Round(buttonRoot.Position.Y);
             int width = buttonInteractable.Size.X;
             int height = buttonInteractable.Size.Y;
             return point.X >= left &&
@@ -1222,8 +1288,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            int left = (int)Math.Round(Position.X + ToolbarRoot.Position.X + SettingsButtonRoot.Position.X);
-            int top = (int)Math.Round(Position.Y + ToolbarRoot.Position.Y + SettingsButtonRoot.Position.Y);
+            int left = (int)Math.Round(SettingsButtonRoot.Position.X);
+            int top = (int)Math.Round(SettingsButtonRoot.Position.Y);
             int width = SettingsButtonInteractable.Size.X;
             int height = SettingsButtonInteractable.Size.Y;
             return point.X >= left &&
@@ -1254,8 +1320,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            int left = (int)Math.Round(Position.X + ToolbarRoot.Position.X + buttonRoot.Position.X);
-            int top = (int)Math.Round(Position.Y + ToolbarRoot.Position.Y + buttonRoot.Position.Y);
+            int left = (int)Math.Round(buttonRoot.Position.X);
+            int top = (int)Math.Round(buttonRoot.Position.Y);
             int width = buttonInteractable.Size.X;
             int height = buttonInteractable.Size.Y;
             return point.X >= left &&
@@ -1279,7 +1345,7 @@ namespace helengine.editor {
 
             float viewportWidth = Math.Max(1f, Size.X);
             float viewportHeight = Math.Max(1f, Size.Y - ToolbarHeight);
-            float viewportTop = Position.Y + TitleBarHeight + ToolbarHeight;
+            float viewportTop = Position.Y + TitleBarHeightPixels + ToolbarHeight;
             Camera.Viewport = new float4(Position.X, viewportTop, viewportWidth, viewportHeight);
             LayoutToolbar();
             RefreshInputBlockers();
@@ -1290,7 +1356,7 @@ namespace helengine.editor {
         /// </summary>
         void LayoutToolbar() {
             float toolbarX = 0f;
-            float toolbarY = TitleBarHeight;
+            float toolbarY = TitleBarHeightPixels;
             ToolbarRoot.Position = new float3(toolbarX, toolbarY, 0.2f);
 
             int toolbarWidth = GetToolbarWidth();
@@ -1322,8 +1388,8 @@ namespace helengine.editor {
                 LayoutToolButtonIcon(SettingsButtonIcon, ToolButtonWidth, ToolButtonHeight, ToolButtonIconSize, ToolButtonIconSize);
                 if (SettingsOverlayComponent != null) {
                     SettingsOverlayComponent.SetAnchorPosition(
-                        ToolbarRoot.Position.X + settingsButtonX,
-                        ToolbarRoot.Position.Y + buttonY + ToolButtonHeight + 4f,
+                        ToolbarRoot.LocalPosition.X + settingsButtonX,
+                        ToolbarRoot.LocalPosition.Y + buttonY + ToolButtonHeight,
                         ToolButtonWidth);
                 }
             }
@@ -1671,8 +1737,8 @@ namespace helengine.editor {
                 return;
             }
 
-            int blockerX = (int)Math.Round(Position.X + ToolbarRoot.Position.X);
-            int blockerY = (int)Math.Round(Position.Y + ToolbarRoot.Position.Y);
+            int blockerX = (int)Math.Round(ToolbarRoot.Position.X);
+            int blockerY = (int)Math.Round(ToolbarRoot.Position.Y);
             EditorInputCaptureService.SetBlocker(ToolbarInputBlockerOwner, new int2(blockerX, blockerY), blockerSize);
         }
 

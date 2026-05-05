@@ -782,7 +782,7 @@ namespace helengine.editor {
                 }
 
                 DockableEntity active = Entity;
-                tabStrip.UpdateTabs(tabs, activeTabIndex, new float3(left, top + active.UiMetrics.ScalePixels(1), z), width, active.LayerMask);
+                tabStrip.UpdateTabs(tabs, activeTabIndex, new float3(left, top + 1f, z), width, active.LayerMask);
             }
 
             /// <summary>

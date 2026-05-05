@@ -55,6 +55,30 @@ namespace helengine.editor.tests.managers.dock {
         }
 
         /// <summary>
+        /// Ensures tabbed dock strips stay pinned one pixel below the title-bar top and remain one pixel shorter than the scaled title bar.
+        /// </summary>
+        [Fact]
+        public void Layout_WhenTabbedPanelUsesScaledMetrics_PinsTabStripToOnePixelSeparator() {
+            InitializeCore();
+            EditorUiMetrics scaledMetrics = new EditorUiMetrics(1.5d);
+            DockLayoutEngine layout = new DockLayoutEngine();
+            DockableEntity first = CreateDock("First", scaledMetrics);
+            DockableEntity second = CreateDock("Second", scaledMetrics);
+
+            layout.DockAsRoot(first);
+            layout.DockRelative(second, first, DockInsertDirection.Fill);
+            layout.Layout(new int2(800, 600));
+
+            object rootNode = GetPrivateField<object>(layout, "root");
+            object tabStrip = GetPrivateField<object>(rootNode, "tabStrip");
+            float3 stripPosition = Assert.IsType<float3>(GetPublicPropertyValue(tabStrip, "Position"));
+            List<DockTabEntry> tabs = GetPrivateField<List<DockTabEntry>>(tabStrip, "tabs");
+
+            Assert.Equal(first.Position.Y + 1f, stripPosition.Y, 3);
+            Assert.Equal(first.TitleBarHeightPixels - 1, tabs[0].Background.Size.Y);
+        }
+
+        /// <summary>
         /// Clears shared keyboard-focus state after each test.
         /// </summary>
         public void Dispose() {
@@ -76,7 +100,17 @@ namespace helengine.editor.tests.managers.dock {
         /// <param name="title">Title shown by the dock.</param>
         /// <returns>Configured dockable entity.</returns>
         DockableEntity CreateDock(string title) {
-            DockableEntity dock = new DockableEntity(CreateFont());
+            return CreateDock(title, EditorUiMetrics.Default);
+        }
+
+        /// <summary>
+        /// Creates a dockable entity with the supplied title and scaled metrics.
+        /// </summary>
+        /// <param name="title">Title shown by the dock.</param>
+        /// <param name="metrics">Scaled dock metrics applied to the entity.</param>
+        /// <returns>Configured dockable entity.</returns>
+        DockableEntity CreateDock(string title, EditorUiMetrics metrics) {
+            DockableEntity dock = new DockableEntity(CreateFont(), metrics);
             dock.Title = title;
             return dock;
         }
@@ -94,6 +128,46 @@ namespace helengine.editor.tests.managers.dock {
             object value = field.GetValue(null);
             List<IFocusTarget> targets = Assert.IsType<List<IFocusTarget>>(value);
             return targets.Count;
+        }
+
+        /// <summary>
+        /// Reads one private instance field and returns its raw value.
+        /// </summary>
+        /// <typeparam name="T">Requested field value type.</typeparam>
+        /// <param name="target">Object containing the field.</param>
+        /// <param name="fieldName">Exact field name to read.</param>
+        /// <returns>Field value cast to the requested type.</returns>
+        T GetPrivateField<T>(object target, string fieldName) {
+            if (target == null) {
+                throw new ArgumentNullException(nameof(target));
+            }
+
+            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (field == null) {
+                throw new InvalidOperationException("Expected private field was not found.");
+            }
+
+            object value = field.GetValue(target);
+            return Assert.IsAssignableFrom<T>(value);
+        }
+
+        /// <summary>
+        /// Reads one public property value from the provided instance.
+        /// </summary>
+        /// <param name="target">Object containing the property.</param>
+        /// <param name="propertyName">Exact property name to read.</param>
+        /// <returns>Raw property value.</returns>
+        object GetPublicPropertyValue(object target, string propertyName) {
+            if (target == null) {
+                throw new ArgumentNullException(nameof(target));
+            }
+
+            PropertyInfo property = target.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
+            if (property == null) {
+                throw new InvalidOperationException("Expected property was not found.");
+            }
+
+            return property.GetValue(target);
         }
 
         /// <summary>

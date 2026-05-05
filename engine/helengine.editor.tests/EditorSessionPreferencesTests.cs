@@ -30,6 +30,8 @@ namespace helengine.editor.tests {
         /// Deletes temporary test state after each test.
         /// </summary>
         public void Dispose() {
+            EditorKeyboardFocusService.Reset();
+            EditorInputCaptureService.Reset();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -52,27 +54,56 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures applying one new UI scale updates the reusable title-bar and preferences-dialog chrome in place.
+        /// Ensures applying one new UI scale updates the reusable title-bar, dialogs, viewport chrome, and properties panel offsets in place.
         /// </summary>
         [Fact]
-        public void ApplyUiScale_WhenCalled_UpdatesScaledTitleBarAndPreferencesDialogChrome() {
+        public void ApplyUiScale_WhenCalled_UpdatesScaledEditorChromeIncludingViewportAndPropertiesPanel() {
             EditorUiMetrics initialMetrics = new EditorUiMetrics(1d);
             EditorUiMetrics scaledMetrics = new EditorUiMetrics(1.5d);
             EditorSession session = CreateSessionForPreferences(initialMetrics);
+            FontAsset scaledUiFont = CreateFont(18f);
+            FontAsset scaledSnapModifierFont = CreateFont(23f);
 
             InvokePrivate(
                 session,
                 "ApplyUiScale",
                 new EditorUiScaleSettings(EditorUiScaleMode.Override, 150),
                 scaledMetrics,
-                CreateFont(18f),
-                CreateFont(23f));
+                scaledUiFont,
+                scaledSnapModifierFont);
 
             EditorTitleBar titleBar = GetPrivateField<EditorTitleBar>(session, "titleBar");
             EditorPreferencesDialog preferencesDialog = GetPrivateField<EditorPreferencesDialog>(session, "preferencesDialog");
+            AssetBrowserPanel assetBrowserPanel = GetPrivateField<AssetBrowserPanel>(session, "assetBrowserPanel");
+            EditorViewport mainViewport = GetPrivateField<EditorViewport>(session, "mainViewport");
+            PropertiesPanel propertiesPanel = GetPrivateField<PropertiesPanel>(session, "propertiesPanel");
+            AssetBrowserView browserView = GetPrivateField<AssetBrowserView>(assetBrowserPanel, "BrowserView");
+            EditorEntity toolbarRoot = GetPrivateField<EditorEntity>(mainViewport, "ToolbarRoot");
+            EditorEntity contentRoot = GetPrivateField<EditorEntity>(propertiesPanel, "contentRoot");
+            EditorEntity assetContentRoot = GetPrivateField<EditorEntity>(assetBrowserPanel, "ContentRoot");
+            SpriteComponent assetToolbarBackground = GetPrivateField<SpriteComponent>(browserView, "ToolbarBackground");
+            TextComponent pathText = GetPrivateField<TextComponent>(browserView, "PathText");
+            ButtonComponent upButton = GetPrivateField<ButtonComponent>(browserView, "UpButton");
+            TextComponent[] snapLabelModifierTexts = GetPrivateField<TextComponent[]>(mainViewport, "SnapLabelModifierTexts");
+            TextComponent[] snapValueTexts = GetPrivateField<TextComponent[]>(mainViewport, "SnapValueTexts");
 
             Assert.Equal(54, titleBar.Height);
             Assert.Equal(new int2(540, 330), GetDialogMinimumSize(preferencesDialog));
+            Assert.Equal(scaledMetrics.DockTitleBarHeight, assetBrowserPanel.TitleBarHeightPixels);
+            Assert.Equal(scaledMetrics.DockTitleBarHeight, mainViewport.TitleBarHeightPixels);
+            Assert.Equal(scaledMetrics.DockTitleBarHeight, propertiesPanel.TitleBarHeightPixels);
+            Assert.Equal(scaledMetrics.DockTitleBarHeight, assetContentRoot.LocalPosition.Y, 3);
+            Assert.Equal(scaledMetrics.DockTitleBarHeight, toolbarRoot.LocalPosition.Y, 3);
+            Assert.Equal(scaledMetrics.DockTitleBarHeight, contentRoot.LocalPosition.Y, 3);
+            Assert.Equal(scaledMetrics.ScalePixels(28), assetToolbarBackground.Size.Y);
+            Assert.Same(scaledUiFont, pathText.Font);
+            Assert.Same(scaledUiFont, upButton.Font);
+            Assert.Equal(new int2(scaledMetrics.ScalePixels(64), scaledMetrics.ScalePixels(22)), upButton.Size);
+            Assert.Equal(42f + scaledMetrics.DockTitleBarHeight + 24f, mainViewport.Camera.Viewport.Y, 3);
+            Assert.Same(scaledSnapModifierFont, snapLabelModifierTexts[0].Font);
+            Assert.Same(scaledSnapModifierFont, snapLabelModifierTexts[1].Font);
+            Assert.Same(scaledUiFont, snapValueTexts[0].Font);
+            Assert.Same(scaledUiFont, snapValueTexts[1].Font);
         }
 
         /// <summary>
@@ -92,8 +123,61 @@ namespace helengine.editor.tests {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             SetPrivateField(session, "titleBar", new EditorTitleBar(CreateFont(), metrics, 1280, 720, "Hel"));
             SetPrivateField(session, "preferencesDialog", new EditorPreferencesDialog(CreateFont(), metrics));
+            SetPrivateField(session, "assetBrowserPanel", CreateAssetBrowserPanel(metrics));
+            SetPrivateField(session, "mainViewport", CreateViewport(metrics));
+            SetPrivateField(session, "propertiesPanel", CreatePropertiesPanel(metrics));
             SetPrivateField(session, "CurrentUiScaleSettings", new EditorUiScaleSettings(EditorUiScaleMode.Auto, 100));
+            SetPrivateField(session, "CurrentUiMetrics", metrics);
             return session;
+        }
+
+        /// <summary>
+        /// Creates one asset browser panel configured with the supplied dock metrics.
+        /// </summary>
+        /// <param name="metrics">Scaled dock metrics used by the asset browser panel.</param>
+        /// <returns>Asset browser panel instance configured for preferences tests.</returns>
+        AssetBrowserPanel CreateAssetBrowserPanel(EditorUiMetrics metrics) {
+            Directory.CreateDirectory(Path.Combine(TempRootPath, "assets"));
+
+            AssetBrowserPanel panel = new AssetBrowserPanel(CreateFont(), TempRootPath, metrics);
+            panel.Size = new int2(500, 240);
+            return panel;
+        }
+
+        /// <summary>
+        /// Creates one viewport configured with deterministic toolbar assets and the supplied dock metrics.
+        /// </summary>
+        /// <param name="metrics">Scaled dock metrics used by the viewport.</param>
+        /// <returns>Viewport instance configured for preferences tests.</returns>
+        EditorViewport CreateViewport(EditorUiMetrics metrics) {
+            EditorEntity cameraEntity = new EditorEntity();
+            CameraComponent camera = new CameraComponent();
+            cameraEntity.AddComponent(camera);
+
+            EditorViewport viewport = new EditorViewport(
+                camera,
+                CreateFont(),
+                CreateFont(),
+                CreateToolbarIcons(),
+                metrics);
+            viewport.Position = new float3(18f, 42f, 0f);
+            viewport.Size = new int2(640, 360);
+            return viewport;
+        }
+
+        /// <summary>
+        /// Creates one properties panel configured with the supplied dock metrics.
+        /// </summary>
+        /// <param name="metrics">Scaled dock metrics used by the properties panel.</param>
+        /// <returns>Properties panel instance configured for preferences tests.</returns>
+        PropertiesPanel CreatePropertiesPanel(EditorUiMetrics metrics) {
+            return new PropertiesPanel(
+                CreateFont(),
+                new ContentManager(TempRootPath),
+                null,
+                new EditorEntity(),
+                null,
+                metrics);
         }
 
         /// <summary>
@@ -138,6 +222,35 @@ namespace helengine.editor.tests {
         int2 GetDialogMinimumSize(EditorDialogBase dialog) {
             PropertyInfo property = typeof(EditorDialogBase).GetProperty("DialogMinimumSize", BindingFlags.Instance | BindingFlags.NonPublic);
             return Assert.IsType<int2>(property.GetValue(dialog));
+        }
+
+        /// <summary>
+        /// Creates deterministic toolbar icon textures for viewport tests.
+        /// </summary>
+        /// <returns>Toolbar icon set with stable texture sizes.</returns>
+        EditorViewportToolbarIconSet CreateToolbarIcons() {
+            return new EditorViewportToolbarIconSet(
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture(),
+                CreateIconTexture());
+        }
+
+        /// <summary>
+        /// Creates one deterministic runtime texture used by viewport toolbar icons.
+        /// </summary>
+        /// <returns>Runtime texture with a stable size.</returns>
+        RuntimeTexture CreateIconTexture() {
+            return new TestRuntimeTexture {
+                Width = 16,
+                Height = 16
+            };
         }
 
         /// <summary>

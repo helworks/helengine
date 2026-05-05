@@ -1,4 +1,6 @@
 using System.Reflection;
+using helengine;
+using helengine.editor;
 using helengine.editor.tests.testing;
 using Xunit;
 
@@ -58,6 +60,98 @@ namespace helengine.editor.tests {
             Assert.Same(
                 overlayComponent.CloseButtonFocusTarget,
                 GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+        }
+
+        /// <summary>
+        /// Ensures the settings overlay opens directly below the settings button instead of leaving a vertical gap.
+        /// </summary>
+        [Fact]
+        public void LayoutToolbar_WhenViewportIsSized_AnchorsSettingsOverlayDirectlyBelowSettingsButton() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            viewport.Size = new int2(640, 360);
+
+            InvokePrivateMethod(viewport, "UpdateViewport");
+
+            EditorEntity toolbarRoot = GetPrivateField<EditorEntity>(viewport, "ToolbarRoot");
+            EditorEntity settingsButtonRoot = GetPrivateField<EditorEntity>(viewport, "SettingsButtonRoot");
+            InteractableComponent settingsButtonInteractable = GetPrivateField<InteractableComponent>(viewport, "SettingsButtonInteractable");
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+            EditorEntity overlayRoot = GetPrivateField<EditorEntity>(overlayComponent, "OverlayRoot");
+
+            float expectedOverlayY = toolbarRoot.LocalPosition.Y + settingsButtonRoot.LocalPosition.Y + settingsButtonInteractable.Size.Y;
+            Assert.Equal(expectedOverlayY, overlayRoot.LocalPosition.Y, 3);
+        }
+
+        /// <summary>
+        /// Ensures the grid row uses the shared checkbox control instead of a custom button implementation.
+        /// </summary>
+        [Fact]
+        public void GridToggleRow_WhenOverlayIsCreated_UsesCheckBoxComponent() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+
+            _ = GetPrivateField<CheckBoxComponent>(overlayComponent, "GridToggleCheckBox");
+        }
+
+        /// <summary>
+        /// Ensures the overlay background itself owns a full-panel interactable hit area.
+        /// </summary>
+        [Fact]
+        public void OverlayBackground_WhenOverlayIsCreated_UsesFullPanelInteractable() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+
+            RoundedRectComponent overlayBackground = GetPrivateField<RoundedRectComponent>(overlayComponent, "OverlayBackground");
+            InteractableComponent overlayBackgroundInteractable = GetPrivateField<InteractableComponent>(overlayComponent, "OverlayBackgroundInteractable");
+
+            Assert.Equal(overlayBackground.Size.X, overlayBackgroundInteractable.Size.X);
+            Assert.Equal(overlayBackground.Size.Y, overlayBackgroundInteractable.Size.Y);
+        }
+
+        /// <summary>
+        /// Ensures clicking the empty overlay background does not close the settings panel.
+        /// </summary>
+        [Fact]
+        public void HandleOutsidePointerPressed_WhenClickFallsInsideBackgroundKeepsOverlayOpen() {
+            InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+            EditorFocusTarget settingsTarget = GetPrivateField<EditorFocusTarget>(viewport, "SettingsButtonFocusTarget");
+            EditorEntity overlayRoot = GetPrivateField<EditorEntity>(overlayComponent, "OverlayRoot");
+
+            settingsTarget.ActivateFromKey(Keys.Enter);
+            int2 insideBackgroundPoint = new int2(
+                (int)Math.Round(overlayRoot.Position.X + 4f),
+                (int)Math.Round(overlayRoot.Position.Y + 4f));
+            overlayComponent.HandleOutsidePointerPressed(insideBackgroundPoint, settingsTarget);
+
+            Assert.True(overlayComponent.IsOpen);
+        }
+
+        /// <summary>
+        /// Ensures the live overlay update path keeps the panel open when the pointer press lands inside the grid row.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPointerPressesInsideGridRow_KeepsOverlayOpen() {
+            TestInputBackend inputManager = InitializeCore();
+            EditorViewport viewport = CreateViewport();
+            EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
+            EditorFocusTarget settingsTarget = GetPrivateField<EditorFocusTarget>(viewport, "SettingsButtonFocusTarget");
+            EditorEntity overlayRoot = GetPrivateField<EditorEntity>(overlayComponent, "OverlayRoot");
+
+            settingsTarget.ActivateFromKey(Keys.Enter);
+
+            int pointerX = (int)Math.Round(overlayRoot.Position.X + 16f);
+            int pointerY = (int)Math.Round(overlayRoot.Position.Y + 16f);
+            AdvanceInputFrame(inputManager, CreateMouseState(pointerX, pointerY, ButtonState.Released));
+            overlayComponent.Update();
+            AdvanceInputFrame(inputManager, CreateMouseState(pointerX, pointerY, ButtonState.Pressed));
+            overlayComponent.Update();
+
+            Assert.True(overlayComponent.IsOpen);
         }
 
         /// <summary>
@@ -180,12 +274,13 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Initializes the core services required by overlay tests.
         /// </summary>
-        void InitializeCore() {
+        TestInputBackend InitializeCore() {
             TestInputBackend inputManager = new TestInputBackend();
             Core core = new Core();
             core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager);
             EditorKeyboardFocusService.Reset();
             TransformGizmoSnapSettingsService.ResetDefaults();
+            return inputManager;
         }
 
         /// <summary>
@@ -230,6 +325,31 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Invokes one non-public instance method on the supplied target.
+        /// </summary>
+        /// <param name="target">Object that owns the method.</param>
+        /// <param name="methodName">Name of the method to invoke.</param>
+        void InvokePrivateMethod(object target, string methodName) {
+            MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (method == null) {
+                throw new InvalidOperationException("Expected private method was not found.");
+            }
+
+            method.Invoke(target, null);
+        }
+
+        /// <summary>
+        /// Advances one input frame using the supplied mouse state.
+        /// </summary>
+        /// <param name="inputManager">Input backend receiving the frame.</param>
+        /// <param name="mouseState">Mouse state to expose for the frame.</param>
+        void AdvanceInputFrame(TestInputBackend inputManager, MouseState mouseState) {
+            inputManager.SetMouseState(mouseState);
+            inputManager.EarlyUpdate();
+            inputManager.Update();
+        }
+
+        /// <summary>
         /// Reads one non-public static field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>
@@ -244,6 +364,25 @@ namespace helengine.editor.tests {
 
             object value = field.GetValue(null);
             return Assert.IsAssignableFrom<T>(value);
+        }
+
+        /// <summary>
+        /// Creates one mouse state with the supplied left-button state.
+        /// </summary>
+        /// <param name="x">Pointer X coordinate in window pixels.</param>
+        /// <param name="y">Pointer Y coordinate in window pixels.</param>
+        /// <param name="leftButtonState">State applied to the left mouse button.</param>
+        /// <returns>Mouse state used by overlay pointer tests.</returns>
+        MouseState CreateMouseState(int x, int y, ButtonState leftButtonState) {
+            return new MouseState(
+                x,
+                y,
+                0,
+                leftButtonState,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released);
         }
 
         /// <summary>
