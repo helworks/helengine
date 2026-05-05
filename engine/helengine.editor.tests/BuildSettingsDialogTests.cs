@@ -205,6 +205,19 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures scaled metrics resize the shared dialog shell immediately during construction.
+        /// </summary>
+        [Fact]
+        public void Constructor_WithScaledMetrics_UsesScaledHeaderAndPanelSize() {
+            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont(), new EditorUiMetrics(1.5));
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            SpriteComponent headerBackground = GetPrivateField<SpriteComponent>(dialog, "HeaderBackground");
+
+            Assert.Equal(new int2(630, 354), panelBackground.Size);
+            Assert.Equal(48, headerBackground.Size.Y);
+        }
+
+        /// <summary>
         /// Ensures the title bar touches the panel borders instead of using inset chrome.
         /// </summary>
         [Fact]
@@ -244,6 +257,32 @@ namespace helengine.editor.tests {
             Assert.Equal(BuildSettingsDialog.PanelWidth - closeButtonBackground.Size.X, closeButtonHost.LocalPosition.X);
             Assert.Equal(0f, closeButtonHost.LocalPosition.Y);
             Assert.Equal(BuildSettingsDialog.HeaderHeight, closeButtonBackground.Size.Y);
+        }
+
+        /// <summary>
+        /// Ensures scaled metrics reposition footer chrome using scaled panel, padding, and button sizes.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_WithScaledMetrics_UsesScaledDialogChrome() {
+            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont(), new EditorUiMetrics(1.5));
+            dialog.Show(
+                CreateAvailablePlatforms("windows"),
+                new List<string> {
+                    "windows"
+                });
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity cancelButtonHost = GetPrivateField<EditorEntity>(dialog, "CancelButtonHost");
+            EditorEntity saveButtonHost = GetPrivateField<EditorEntity>(dialog, "SaveButtonHost");
+            ButtonComponent cancelButton = cancelButtonHost.Components.OfType<ButtonComponent>().Single();
+            ButtonComponent saveButton = saveButtonHost.Components.OfType<ButtonComponent>().Single();
+
+            Assert.Equal(new int2(132, 33), cancelButton.Size);
+            Assert.Equal(new int2(132, 33), saveButton.Size);
+            Assert.Equal(327f, cancelButtonHost.LocalPosition.X);
+            Assert.Equal(474f, saveButtonHost.LocalPosition.X);
+            Assert.Equal(292f, cancelButtonHost.LocalPosition.Y);
+            Assert.Equal(292f, saveButtonHost.LocalPosition.Y);
         }
 
         /// <summary>

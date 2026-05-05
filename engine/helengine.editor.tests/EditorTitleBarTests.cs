@@ -67,6 +67,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures scaled metrics enlarge the title-bar header and icon placement consistently.
+        /// </summary>
+        [Fact]
+        public void Constructor_WithScaledMetrics_UsesScaledTitleBarHeaderAndIconSize() {
+            InitializeCore();
+            RuntimeTexture iconTexture = new TestRuntimeTexture {
+                Width = 128,
+                Height = 128
+            };
+            EditorUiMetrics metrics = new EditorUiMetrics(1.5);
+
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), metrics, 1280, 720, "Main Editor Title", iconTexture);
+
+            EditorEntity iconEntity = GetPrivateField<EditorEntity>(titleBar, "IconEntity");
+            SpriteComponent iconSprite = GetPrivateField<SpriteComponent>(titleBar, "IconSprite");
+
+            Assert.Equal(54, titleBar.Height);
+            Assert.Equal(9f, iconEntity.Position.X);
+            Assert.Equal(9f, iconEntity.Position.Y);
+            Assert.Equal(new int2(36, 36), iconSprite.Size);
+        }
+
+        /// <summary>
         /// Ensures the main File menu renders above docked panel content and labels.
         /// </summary>
         [Fact]

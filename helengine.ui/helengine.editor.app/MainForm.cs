@@ -64,6 +64,10 @@ namespace helengine.editor.app {
         /// Renderer driving the editor render loop.
         /// </summary>
         RenderManager3D renderer3D;
+        /// <summary>
+        /// Controller that resolves persisted editor UI scale settings against the current monitor DPI.
+        /// </summary>
+        EditorUiScaleController uiScaleController;
 
         /// <summary>
         /// Gets a value indicating whether border-resize behavior remains enabled for the current window state.
@@ -114,6 +118,9 @@ namespace helengine.editor.app {
             EditorCore core = new EditorCore(null);
             string projectRootPath = ResolveProjectRootPath(projectPath);
             string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
+            uiScaleController = new EditorUiScaleController(new EditorPreferencesService(ResolveEditorPreferencesRootPath()));
+            EditorUiScaleSettings initialUiScaleSettings = uiScaleController.Load();
+            EditorUiMetrics initialUiMetrics = uiScaleController.ResolveMetrics(DeviceDpi);
 
             string rendererBackend = Environment.GetEnvironmentVariable(RendererBackendEnvironmentVariable, EnvironmentVariableTarget.Process);
             bool useVulkan = false;
@@ -148,8 +155,8 @@ namespace helengine.editor.app {
             int renderHeight = Math.Max(1, ClientSize.Height);
             renderer3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
-            FontAsset uiFont = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
-            FontAsset snapModifierFont = GDIFontProcessor.ImportFont(new Font("Consolas", 15, FontStyle.Bold, GraphicsUnit.Pixel));
+            FontAsset uiFont = CreateUiFont(initialUiMetrics);
+            FontAsset snapModifierFont = CreateSnapModifierFont(initialUiMetrics);
             ContentManager contentManager = core.ContentManager;
             EditorViewportToolbarIconSet toolbarIcons = EditorToolbarIconLoader.LoadDefaultToolbarIcons(contentManager, AppContext.BaseDirectory);
             RuntimeTexture titleBarIcon = EditorToolbarIconLoader.LoadTitleBarIcon(contentManager, AppContext.BaseDirectory);
@@ -157,6 +164,8 @@ namespace helengine.editor.app {
             editorSession = new EditorSession(
                 core,
                 projectPath,
+                initialUiScaleSettings,
+                initialUiMetrics,
                 uiFont,
                 snapModifierFont,
                 renderer3D,
@@ -171,6 +180,7 @@ namespace helengine.editor.app {
 
             editorSession.TitleChanged += SetWindowTitle;
             editorSession.CloseRequested += HandleEditorSessionCloseRequested;
+            editorSession.UiScaleSettingsChanged += HandleUiScaleSettingsChanged;
             TitleBarWindowAdapter.Attach(editorSession.TitleBar, this, () => ToggleMaximizeState());
             SetWindowTitle(editorSession.WindowTitle);
 
@@ -282,6 +292,45 @@ namespace helengine.editor.app {
         }
 
         /// <summary>
+        /// Resolves the editor-global preferences root directory used to persist host-independent editor settings.
+        /// </summary>
+        /// <returns>Absolute preferences root directory path.</returns>
+        string ResolveEditorPreferencesRootPath() {
+            string applicationDataRoot = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            if (string.IsNullOrWhiteSpace(applicationDataRoot)) {
+                throw new InvalidOperationException("Application data root path is required to store editor preferences.");
+            }
+
+            return Path.Combine(applicationDataRoot, "helengine", "editor");
+        }
+
+        /// <summary>
+        /// Creates the editor UI font for the supplied scaled editor metrics.
+        /// </summary>
+        /// <param name="metrics">Scaled editor UI metrics resolved for the current host DPI state.</param>
+        /// <returns>Font asset used for editor UI chrome and panel text.</returns>
+        FontAsset CreateUiFont(EditorUiMetrics metrics) {
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
+            }
+
+            return GDIFontProcessor.ImportFont(new Font("Consolas", metrics.UiFontPixelSize, FontStyle.Regular, GraphicsUnit.Pixel));
+        }
+
+        /// <summary>
+        /// Creates the viewport snap-modifier font for the supplied scaled editor metrics.
+        /// </summary>
+        /// <param name="metrics">Scaled editor UI metrics resolved for the current host DPI state.</param>
+        /// <returns>Font asset used for viewport snap-modifier labels.</returns>
+        FontAsset CreateSnapModifierFont(EditorUiMetrics metrics) {
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
+            }
+
+            return GDIFontProcessor.ImportFont(new Font("Consolas", metrics.SnapModifierFontPixelSize, FontStyle.Bold, GraphicsUnit.Pixel));
+        }
+
+        /// <summary>
         /// Stops the editor loop and disposes engine resources when the window closes.
         /// </summary>
         /// <param name="e">Event data.</param>
@@ -290,7 +339,23 @@ namespace helengine.editor.app {
 
             closed = true;
             editorSession.CloseRequested -= HandleEditorSessionCloseRequested;
+            editorSession.UiScaleSettingsChanged -= HandleUiScaleSettingsChanged;
             editorSession.Dispose();
+        }
+
+        /// <summary>
+        /// Reapplies the current editor UI scale when the host monitor DPI changes and the editor is following monitor DPI automatically.
+        /// </summary>
+        /// <param name="e">DPI-change event data supplied by WinForms.</param>
+        protected override void OnDpiChanged(DpiChangedEventArgs e) {
+            base.OnDpiChanged(e);
+            if (!initialized || uiScaleController == null || editorSession == null) {
+                return;
+            }
+
+            if (uiScaleController.ShouldReapplyForMonitorDpiChange()) {
+                ReapplyCurrentUiScale();
+            }
         }
 
         /// <summary>
@@ -367,6 +432,31 @@ namespace helengine.editor.app {
         void HandleEditorSessionCloseRequested() {
             allowSessionDrivenClose = true;
             Close();
+        }
+
+        /// <summary>
+        /// Persists one newly confirmed editor UI scale selection and reapplies the effective UI scale live.
+        /// </summary>
+        /// <param name="settings">Validated editor UI scale settings confirmed by the user.</param>
+        void HandleUiScaleSettingsChanged(EditorUiScaleSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            uiScaleController.ApplyUserSelection(settings);
+            ReapplyCurrentUiScale();
+        }
+
+        /// <summary>
+        /// Reloads persisted editor UI scale settings, rebuilds scaled fonts, and reapplies the current metrics to the active session.
+        /// </summary>
+        void ReapplyCurrentUiScale() {
+            EditorUiScaleSettings settings = uiScaleController.Load();
+            EditorUiMetrics metrics = uiScaleController.ResolveMetrics(DeviceDpi);
+            FontAsset uiFont = CreateUiFont(metrics);
+            FontAsset snapModifierFont = CreateSnapModifierFont(metrics);
+            editorSession.ApplyUiScale(settings, metrics, uiFont, snapModifierFont);
+            UpdateMinimumWindowSize();
         }
 
         /// <summary>

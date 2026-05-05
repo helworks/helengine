@@ -21,7 +21,7 @@ namespace helengine.editor {
         /// <summary>
         /// Font used to render log text.
         /// </summary>
-        readonly FontAsset font;
+        FontAsset font;
         /// <summary>
         /// Render order used for row backgrounds.
         /// </summary>
@@ -70,17 +70,25 @@ namespace helengine.editor {
         /// Initializes a new logger panel with the provided font.
         /// </summary>
         /// <param name="font">Font used for log text.</param>
-        public LoggerPanel(FontAsset font) : base(font) {
+        public LoggerPanel(FontAsset font) : this(font, EditorUiMetrics.Default) {
+        }
+
+        /// <summary>
+        /// Initializes a new logger panel with the provided font and shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for log text.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dock chrome and rows.</param>
+        public LoggerPanel(FontAsset font, EditorUiMetrics metrics) : base(font, metrics) {
             this.font = font;
             Title = "Logger";
-            MinSize = new int2(260, 160);
+            MinSize = new int2(metrics.ScalePixels(260), metrics.ScalePixels(160));
 
             rowBackgroundOrder = RenderOrder2D.PanelSurface;
             textOrder = RenderOrder2D.PanelForeground;
 
             contentRoot = new EditorEntity();
             contentRoot.LayerMask = LayerMask;
-            contentRoot.Position = new float3(0, TitleBarHeight, 0.05f);
+            contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
             AddChild(contentRoot);
 
             entries = new List<LogEntry>(MaxEntries);
@@ -126,6 +134,24 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Reapplies scaled dock metrics after one live UI scale change.
+        /// </summary>
+        /// <param name="font">Updated dock title and row font.</param>
+        /// <param name="metrics">Updated scaled editor UI metrics.</param>
+        public override void ApplyUiMetrics(FontAsset font, EditorUiMetrics metrics) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+
+            this.font = font;
+            base.ApplyUiMetrics(font, metrics);
+
+            for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++) {
+                rows[rowIndex].Label.Font = font;
+            }
+        }
+
+        /// <summary>
         /// Handles new log messages by enqueueing them for display.
         /// </summary>
         /// <param name="entry">Log entry that was recorded.</param>
@@ -157,6 +183,14 @@ namespace helengine.editor {
             }
 
             LayoutRows();
+        }
+
+        /// <summary>
+        /// Updates scaled logger content offsets after the shared dock chrome metrics change.
+        /// </summary>
+        protected override void HandleUiMetricsApplied() {
+            MinSize = new int2(UiMetrics.ScalePixels(260), UiMetrics.ScalePixels(160));
+            contentRoot.Position = new float3(0f, TitleBarHeightPixels, 0.05f);
         }
 
         /// <summary>
@@ -192,14 +226,14 @@ namespace helengine.editor {
 
             var labelHost = new EditorEntity();
             labelHost.LayerMask = LayerMask;
-            labelHost.Position = new float3(RowPadding, 2, 0.2f);
+            labelHost.Position = new float3(GetRowPaddingPixels(), 2, 0.2f);
             rowEntity.AddChild(labelHost);
 
             var text = new TextComponent();
             text.Font = font;
             text.Text = string.Empty;
             text.Color = ThemeManager.Colors.InputForegroundPrimary;
-            text.Size = new int2(100, RowHeight);
+            text.Size = new int2(100, GetRowHeightPixels());
             text.RenderOrder2D = textOrder;
             labelHost.AddComponent(text);
 
@@ -216,7 +250,7 @@ namespace helengine.editor {
 
             int rowWidth = Math.Max(Size.X, MinSize.X);
             float lineHeight = (float)Math.Max(font.LineHeight, 1.0);
-            float verticalOffset = (float)Math.Round((RowHeight - lineHeight) * 0.5, MidpointRounding.AwayFromZero);
+            float verticalOffset = (float)Math.Round((GetRowHeightPixels() - lineHeight) * 0.5, MidpointRounding.AwayFromZero);
 
             for (int i = 0; i < rows.Count; i++) {
                 LoggerPanelRow row = rows[i];
@@ -227,17 +261,33 @@ namespace helengine.editor {
 
                 LogEntry entry = entries[i];
                 row.Entity.Enabled = true;
-                row.Entity.Position = new float3(0, i * RowHeight, 0.1f);
-                row.Background.Size = new int2(rowWidth, RowHeight);
+                row.Entity.Position = new float3(0, i * GetRowHeightPixels(), 0.1f);
+                row.Background.Size = new int2(rowWidth, GetRowHeightPixels());
 
                 bool alternate = i % 2 == 1;
                 row.Background.Color = alternate ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
 
-                row.LabelHost.Position = new float3(RowPadding, verticalOffset, 0.2f);
-                row.Label.Size = new int2(Math.Max(0, rowWidth - (RowPadding * 2)), (int)Math.Ceiling(lineHeight));
+                row.LabelHost.Position = new float3(GetRowPaddingPixels(), verticalOffset, 0.2f);
+                row.Label.Size = new int2(Math.Max(0, rowWidth - (GetRowPaddingPixels() * 2)), (int)Math.Ceiling(lineHeight));
                 row.Label.Color = ResolveTextColor(entry.Level);
                 row.Label.Text = FormatEntry(entry);
             }
+        }
+
+        /// <summary>
+        /// Gets the scaled row height used by the logger rows.
+        /// </summary>
+        /// <returns>Scaled logger row height in pixels.</returns>
+        int GetRowHeightPixels() {
+            return UiMetrics.ScalePixels(RowHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled horizontal padding used by log text.
+        /// </summary>
+        /// <returns>Scaled log-row padding in pixels.</returns>
+        int GetRowPaddingPixels() {
+            return UiMetrics.ScalePixels(RowPadding);
         }
 
         /// <summary>

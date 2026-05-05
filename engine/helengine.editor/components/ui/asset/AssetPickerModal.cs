@@ -71,7 +71,11 @@ namespace helengine.editor {
         /// <summary>
         /// Font used for header and list labels.
         /// </summary>
-        readonly FontAsset Font;
+        FontAsset Font;
+        /// <summary>
+        /// Shared scaled metrics used to size the picker shell and spacing.
+        /// </summary>
+        EditorUiMetrics Metrics;
         /// <summary>
         /// Root entity hosting the fullscreen modal backdrop.
         /// </summary>
@@ -182,16 +186,30 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels.</param>
         /// <param name="projectPath">Path to the project root.</param>
-        public AssetPickerModal(FontAsset font, string projectPath) {
+        public AssetPickerModal(FontAsset font, string projectPath)
+            : this(font, EditorUiMetrics.Default, projectPath) {
+        }
+
+        /// <summary>
+        /// Initializes a new asset picker modal for the provided project path using one shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for labels.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the picker.</param>
+        /// <param name="projectPath">Path to the project root.</param>
+        public AssetPickerModal(FontAsset font, EditorUiMetrics metrics, string projectPath) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
+            }
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
             }
             if (string.IsNullOrWhiteSpace(projectPath)) {
                 throw new ArgumentException("Project path must be provided.", nameof(projectPath));
             }
 
             Font = font;
-            PanelSize = new int2(MinPanelWidth, MinPanelHeight);
+            Metrics = metrics;
+            PanelSize = new int2(GetMinimumPanelWidthPixels(), GetMinimumPanelHeightPixels());
 
             LayerMask = 0b1000000000000000;
             InternalEntity = true;
@@ -308,7 +326,7 @@ namespace helengine.editor {
             };
             HeaderRoot.AddChild(CloseButtonHost);
 
-            CloseButton = new ButtonComponent("X", CloseButtonSize, font, Hide, 0f);
+            CloseButton = new ButtonComponent("X", GetCloseButtonSize(), font, Hide, 0f);
             CloseButtonHost.AddComponent(CloseButton);
             CloseButton.SetRenderOrders(TextOrder, TextOrder);
 
@@ -399,10 +417,10 @@ namespace helengine.editor {
             int height = Math.Max(1, windowHeight);
             HostSize = new int2(width, height);
 
-            int maxWidth = Math.Max(MinPanelWidth, width - PanelPadding * 2);
-            int maxHeight = Math.Max(MinPanelHeight, height - PanelPadding * 2);
-            int panelWidth = Math.Min(MaxPanelWidth, maxWidth);
-            int panelHeight = Math.Min(MaxPanelHeight, maxHeight);
+            int maxWidth = Math.Max(GetMinimumPanelWidthPixels(), width - GetPanelPaddingPixels() * 2);
+            int maxHeight = Math.Max(GetMinimumPanelHeightPixels(), height - GetPanelPaddingPixels() * 2);
+            int panelWidth = Math.Min(GetMaximumPanelWidthPixels(), maxWidth);
+            int panelHeight = Math.Min(GetMaximumPanelHeightPixels(), maxHeight);
             panelWidth = Math.Min(panelWidth, width);
             panelHeight = Math.Min(panelHeight, height);
 
@@ -435,12 +453,12 @@ namespace helengine.editor {
         /// Updates the backdrop geometry so the host title-bar buttons remain clickable.
         /// </summary>
         void UpdateBackdrop() {
-            int topWidth = Math.Max(0, HostSize.X - HostTitleBarButtonGapWidth);
+            int topWidth = Math.Max(0, HostSize.X - GetHostTitleBarButtonGapWidthPixels());
             BackdropTopRoot.Position = float3.Zero;
-            BackdropTopSurface.Size = new int2(topWidth, EditorTitleBar.HeightPixels);
-            BackdropTopInteractable.Size = new int2(topWidth, EditorTitleBar.HeightPixels);
-            BackdropBodyRoot.Position = new float3(0f, EditorTitleBar.HeightPixels, 0f);
-            int bodyHeight = Math.Max(0, HostSize.Y - EditorTitleBar.HeightPixels);
+            BackdropTopSurface.Size = new int2(topWidth, Metrics.HostTitleBarHeight);
+            BackdropTopInteractable.Size = new int2(topWidth, Metrics.HostTitleBarHeight);
+            BackdropBodyRoot.Position = new float3(0f, Metrics.HostTitleBarHeight, 0f);
+            int bodyHeight = Math.Max(0, HostSize.Y - Metrics.HostTitleBarHeight);
             BackdropBodySurface.Size = new int2(HostSize.X, bodyHeight);
             BackdropBodyInteractable.Size = new int2(HostSize.X, bodyHeight);
         }
@@ -450,19 +468,19 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="panelWidth">Panel width for sizing.</param>
         void LayoutHeader(int panelWidth) {
-            int headerWidth = Math.Max(0, panelWidth - PanelPadding * 2);
-            HeaderRoot.Position = new float3(PanelPadding, PanelPadding, 0.2f);
-            HeaderBackground.Size = new int2(headerWidth, HeaderHeight);
-            HeaderInteractable.Size = new int2(headerWidth, HeaderHeight);
+            int headerWidth = Math.Max(0, panelWidth - GetPanelPaddingPixels() * 2);
+            HeaderRoot.Position = new float3(GetPanelPaddingPixels(), GetPanelPaddingPixels(), 0.2f);
+            HeaderBackground.Size = new int2(headerWidth, GetHeaderHeightPixels());
+            HeaderInteractable.Size = new int2(headerWidth, GetHeaderHeightPixels());
 
-            int closeButtonY = (int)Math.Round((HeaderHeight - CloseButtonSize.Y) * 0.5);
-            int closeButtonX = Math.Max(HeaderButtonSpacing, headerWidth - CloseButtonSize.X - HeaderButtonSpacing);
+            int closeButtonY = (int)Math.Round((GetHeaderHeightPixels() - GetCloseButtonSize().Y) * 0.5);
+            int closeButtonX = Math.Max(GetHeaderButtonSpacingPixels(), headerWidth - GetCloseButtonSize().X - GetHeaderButtonSpacingPixels());
             CloseButtonHost.Position = new float3(closeButtonX, closeButtonY, 0.2f);
 
             var headerMetrics = Font.MeasureTight(HeaderText.Text);
-            float headerTextY = GetTextTopOffset(HeaderHeight, headerMetrics);
-            HeaderHost.Position = new float3(HeaderPadding, headerTextY, 0.2f);
-            int textWidth = Math.Max(0, closeButtonX - HeaderPadding - HeaderButtonSpacing);
+            float headerTextY = GetTextTopOffset(GetHeaderHeightPixels(), headerMetrics);
+            HeaderHost.Position = new float3(GetHeaderPaddingPixels(), headerTextY, 0.2f);
+            int textWidth = Math.Max(0, closeButtonX - GetHeaderPaddingPixels() - GetHeaderButtonSpacingPixels());
             HeaderText.Size = new int2(textWidth, (int)Math.Ceiling(headerMetrics.Height));
         }
 
@@ -472,10 +490,10 @@ namespace helengine.editor {
         /// <param name="panelWidth">Panel width for sizing.</param>
         /// <param name="panelHeight">Panel height for sizing.</param>
         void LayoutBrowserView(int panelWidth, int panelHeight) {
-            int contentWidth = Math.Max(0, panelWidth - PanelPadding * 2);
-            int contentHeight = Math.Max(0, panelHeight - PanelPadding - HeaderHeight - SectionSpacing - PanelPadding);
+            int contentWidth = Math.Max(0, panelWidth - GetPanelPaddingPixels() * 2);
+            int contentHeight = Math.Max(0, panelHeight - GetPanelPaddingPixels() - GetHeaderHeightPixels() - GetSectionSpacingPixels() - GetPanelPaddingPixels());
 
-            BrowserView.Entity.Position = new float3(PanelPadding, PanelPadding + HeaderHeight + SectionSpacing, 0.2f);
+            BrowserView.Entity.Position = new float3(GetPanelPaddingPixels(), GetPanelPaddingPixels() + GetHeaderHeightPixels() + GetSectionSpacingPixels(), 0.2f);
             BrowserView.UpdateLayout(contentWidth, contentHeight);
         }
 
@@ -547,13 +565,13 @@ namespace helengine.editor {
         /// <param name="pos">Pointer position relative to the header.</param>
         /// <returns>True if the pointer is over the close button area.</returns>
         bool IsPointerOverCloseButton(int2 pos) {
-            int headerWidth = Math.Max(0, PanelSize.X - PanelPadding * 2);
-            int closeButtonX = Math.Max(HeaderButtonSpacing, headerWidth - CloseButtonSize.X - HeaderButtonSpacing);
-            int closeButtonY = (int)Math.Round((HeaderHeight - CloseButtonSize.Y) * 0.5);
+            int headerWidth = Math.Max(0, PanelSize.X - GetPanelPaddingPixels() * 2);
+            int closeButtonX = Math.Max(GetHeaderButtonSpacingPixels(), headerWidth - GetCloseButtonSize().X - GetHeaderButtonSpacingPixels());
+            int closeButtonY = (int)Math.Round((GetHeaderHeightPixels() - GetCloseButtonSize().Y) * 0.5);
             return pos.X >= closeButtonX &&
-                   pos.X <= closeButtonX + CloseButtonSize.X &&
+                   pos.X <= closeButtonX + GetCloseButtonSize().X &&
                    pos.Y >= closeButtonY &&
-                   pos.Y <= closeButtonY + CloseButtonSize.Y;
+                   pos.Y <= closeButtonY + GetCloseButtonSize().Y;
         }
 
         /// <summary>
@@ -593,6 +611,96 @@ namespace helengine.editor {
             if (callback != null) {
                 callback(entry);
             }
+        }
+
+        /// <summary>
+        /// Gets the scaled minimum panel width.
+        /// </summary>
+        /// <returns>Scaled minimum panel width in pixels.</returns>
+        int GetMinimumPanelWidthPixels() {
+            return Metrics.ScalePixels(MinPanelWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled minimum panel height.
+        /// </summary>
+        /// <returns>Scaled minimum panel height in pixels.</returns>
+        int GetMinimumPanelHeightPixels() {
+            return Metrics.ScalePixels(MinPanelHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled maximum panel width.
+        /// </summary>
+        /// <returns>Scaled maximum panel width in pixels.</returns>
+        int GetMaximumPanelWidthPixels() {
+            return Metrics.ScalePixels(MaxPanelWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled maximum panel height.
+        /// </summary>
+        /// <returns>Scaled maximum panel height in pixels.</returns>
+        int GetMaximumPanelHeightPixels() {
+            return Metrics.ScalePixels(MaxPanelHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled panel padding.
+        /// </summary>
+        /// <returns>Scaled panel padding in pixels.</returns>
+        int GetPanelPaddingPixels() {
+            return Metrics.ScalePixels(PanelPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled section spacing between the header and browser content.
+        /// </summary>
+        /// <returns>Scaled section spacing in pixels.</returns>
+        int GetSectionSpacingPixels() {
+            return Metrics.ScalePixels(SectionSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled header height.
+        /// </summary>
+        /// <returns>Scaled header height in pixels.</returns>
+        int GetHeaderHeightPixels() {
+            return Metrics.ScalePixels(HeaderHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled header padding used before the title text begins.
+        /// </summary>
+        /// <returns>Scaled header padding in pixels.</returns>
+        int GetHeaderPaddingPixels() {
+            return Metrics.ScalePixels(HeaderPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing preserved between the title text and close button.
+        /// </summary>
+        /// <returns>Scaled header button spacing in pixels.</returns>
+        int GetHeaderButtonSpacingPixels() {
+            return Metrics.ScalePixels(HeaderButtonSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled reserved width for the host window control cluster.
+        /// </summary>
+        /// <returns>Scaled reserved host title-bar button width in pixels.</returns>
+        int GetHostTitleBarButtonGapWidthPixels() {
+            return Metrics.ScalePixels(HostTitleBarButtonGapWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled close-button size.
+        /// </summary>
+        /// <returns>Scaled close-button size.</returns>
+        int2 GetCloseButtonSize() {
+            return new int2(
+                Metrics.ScalePixels(CloseButtonSize.X),
+                Metrics.ScalePixels(CloseButtonSize.Y));
         }
     }
 }

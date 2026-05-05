@@ -90,6 +90,43 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures scaled metrics resize the build dialog scene list and footer buttons.
+        /// </summary>
+        [Fact]
+        public void Show_WithScaledMetrics_UsesScaledSceneListAndFooterButtons() {
+            EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
+            BuildDialog dialog = new BuildDialog(CreateFont(), metrics);
+
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ]
+                });
+            dialog.UpdateLayout(1280, 720);
+
+            RoundedRectComponent sceneListBackground = GetPrivateField<RoundedRectComponent>(dialog, "SceneListBackground");
+            ButtonComponent copySettingsButton = GetPrivateField<ButtonComponent>(dialog, "CopySettingsButton");
+            ButtonComponent browseOutputFolderButton = GetPrivateField<ButtonComponent>(dialog, "BrowseOutputFolderButton");
+            ButtonComponent buildQueueButton = GetPrivateField<ButtonComponent>(dialog, "BuildQueueButton");
+
+            Assert.Equal(metrics.ScalePixels(BuildDialog.PanelWidth - BuildDialog.QueueColumnWidth - (BuildDialog.PanelPadding * 3)), sceneListBackground.Size.X);
+            Assert.Equal(metrics.ScalePixels(BuildDialog.FooterButtonHeight), copySettingsButton.Size.Y);
+            Assert.Equal(metrics.ScalePixels(BuildDialog.FooterButtonHeight), browseOutputFolderButton.Size.Y);
+            Assert.Equal(metrics.ScalePixels(BuildDialog.FooterButtonHeight), buildQueueButton.Size.Y);
+        }
+
+        /// <summary>
         /// Ensures inactive platform tabs use the shared tab component defaults and the active tab stays selected.
         /// </summary>
         [Fact]

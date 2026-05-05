@@ -130,7 +130,7 @@ namespace helengine.editor.tests {
             ContextMenu buildMenu = GetPrivateField<ContextMenu>(titleBar, "BuildMenu");
             List<ContextMenuItem> activeItems = GetPrivateField<List<ContextMenuItem>>(buildMenu, "ActiveItems");
 
-            activeItems[1].Action();
+            activeItems[2].Action();
 
             Assert.True(raised);
             Assert.False(buildMenu.IsVisible);
@@ -150,7 +150,7 @@ namespace helengine.editor.tests {
             ContextMenu buildMenu = GetPrivateField<ContextMenu>(titleBar, "BuildMenu");
             List<ContextMenuItem> activeItems = GetPrivateField<List<ContextMenuItem>>(buildMenu, "ActiveItems");
 
-            activeItems[2].Action();
+            activeItems[3].Action();
 
             Assert.True(raised);
             Assert.False(buildMenu.IsVisible);
@@ -170,7 +170,7 @@ namespace helengine.editor.tests {
             ContextMenu buildMenu = GetPrivateField<ContextMenu>(titleBar, "BuildMenu");
             List<ContextMenuItem> activeItems = GetPrivateField<List<ContextMenuItem>>(buildMenu, "ActiveItems");
 
-            activeItems[3].Action();
+            activeItems[4].Action();
 
             Assert.True(raised);
             Assert.False(buildMenu.IsVisible);

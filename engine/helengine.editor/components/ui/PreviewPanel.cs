@@ -37,24 +37,32 @@ namespace helengine.editor {
         /// Initializes a new preview panel with the provided font.
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
-        public PreviewPanel(FontAsset font) : base(font) {
+        public PreviewPanel(FontAsset font) : this(font, EditorUiMetrics.Default) {
+        }
+
+        /// <summary>
+        /// Initializes a new preview panel with the provided font and shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for the title bar.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dock chrome and padding.</param>
+        public PreviewPanel(FontAsset font, EditorUiMetrics metrics) : base(font, metrics) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
 
             Title = "Preview";
-            MinSize = new int2(220, 160);
+            MinSize = new int2(metrics.ScalePixels(220), metrics.ScalePixels(160));
 
             spriteOrder = RenderOrder2D.PanelForeground;
 
             contentRoot = new EditorEntity();
             contentRoot.LayerMask = LayerMask;
-            contentRoot.Position = new float3(0, TitleBarHeight, 0.05f);
+            contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
             AddChild(contentRoot);
 
             textureHost = new EditorEntity();
             textureHost.LayerMask = LayerMask;
-            textureHost.Position = new float3(ContentPadding, ContentPadding, 0.2f);
+            textureHost.Position = new float3(GetContentPaddingPixels(), GetContentPaddingPixels(), 0.2f);
             contentRoot.AddChild(textureHost);
 
             textureSprite = new SpriteComponent();
@@ -72,6 +80,15 @@ namespace helengine.editor {
         /// Gets the current preview source, when one is bound.
         /// </summary>
         public IPreviewSource ActivePreviewSource => ActivePreviewSourceValue;
+
+        /// <summary>
+        /// Reapplies scaled dock metrics after one live UI scale change.
+        /// </summary>
+        /// <param name="font">Updated dock title font.</param>
+        /// <param name="metrics">Updated scaled editor UI metrics.</param>
+        public override void ApplyUiMetrics(FontAsset font, EditorUiMetrics metrics) {
+            base.ApplyUiMetrics(font, metrics);
+        }
 
         /// <summary>
         /// Displays one texture asset through a texture preview source.
@@ -152,6 +169,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Updates scaled preview content offsets after the shared dock chrome metrics change.
+        /// </summary>
+        protected override void HandleUiMetricsApplied() {
+            MinSize = new int2(UiMetrics.ScalePixels(220), UiMetrics.ScalePixels(160));
+            contentRoot.Position = new float3(0f, TitleBarHeightPixels, 0.05f);
+            textureHost.Position = new float3(GetContentPaddingPixels(), GetContentPaddingPixels(), 0.2f);
+        }
+
+        /// <summary>
         /// Lays out the preview sprite within the panel.
         /// </summary>
         void LayoutPreview() {
@@ -174,8 +200,8 @@ namespace helengine.editor {
             int targetWidth = Math.Max(1, (int)Math.Round(sourceWidth * scale));
             int targetHeight = Math.Max(1, (int)Math.Round(sourceHeight * scale));
 
-            int offsetX = ContentPadding + (availableWidth - targetWidth) / 2;
-            int offsetY = ContentPadding + (availableHeight - targetHeight) / 2;
+            int offsetX = GetContentPaddingPixels() + (availableWidth - targetWidth) / 2;
+            int offsetY = GetContentPaddingPixels() + (availableHeight - targetHeight) / 2;
 
             textureHost.Position = new float3(offsetX, offsetY, 0.2f);
             textureSprite.Size = new int2(targetWidth, targetHeight);
@@ -196,8 +222,16 @@ namespace helengine.editor {
         /// <returns>Usable preview content size in pixels.</returns>
         int2 GetContentSize() {
             return new int2(
-                Math.Max(1, Size.X - ContentPadding * 2),
-                Math.Max(1, Size.Y - TitleBarHeight - ContentPadding * 2));
+                Math.Max(1, Size.X - GetContentPaddingPixels() * 2),
+                Math.Max(1, Size.Y - TitleBarHeightPixels - GetContentPaddingPixels() * 2));
+        }
+
+        /// <summary>
+        /// Gets the scaled content padding used around the preview texture.
+        /// </summary>
+        /// <returns>Scaled preview content padding in pixels.</returns>
+        int GetContentPaddingPixels() {
+            return UiMetrics.ScalePixels(ContentPadding);
         }
     }
 }

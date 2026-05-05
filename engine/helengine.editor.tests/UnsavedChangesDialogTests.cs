@@ -192,6 +192,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures scaled metrics resize the message block and footer group.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_WithScaledMetrics_UsesScaledMessageAndFooterLayout() {
+            EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont(), metrics);
+            dialog.Show();
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity messageHost = GetPrivateField<EditorEntity>(dialog, "MessageHost");
+            TextComponent messageText = GetPrivateField<TextComponent>(dialog, "MessageText");
+            SpriteComponent footerBoundsSurface = GetPrivateField<SpriteComponent>(dialog, "FooterBoundsSurface");
+
+            Assert.Equal(metrics.ScalePixels(UnsavedChangesDialog.PanelPadding + UnsavedChangesDialog.HeaderHeight + UnsavedChangesDialog.SectionSpacing), (int)Math.Round(messageHost.LocalPosition.Y));
+            Assert.Equal(metrics.ScalePixels(UnsavedChangesDialog.PanelWidth - (UnsavedChangesDialog.PanelPadding * 2)), messageText.Size.X);
+            Assert.Equal(
+                new int2(
+                    metrics.ScalePixels(88 + 104 + 88 + (8 * 2)),
+                    metrics.ScalePixels(UnsavedChangesDialog.FooterHeight)),
+                footerBoundsSurface.Size);
+        }
+
+        /// <summary>
         /// Ensures the close button fills the title-bar height and touches the right edge.
         /// </summary>
         [Fact]

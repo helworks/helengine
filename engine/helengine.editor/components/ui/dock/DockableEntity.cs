@@ -21,9 +21,13 @@ namespace helengine.editor {
         /// </summary>
         static readonly byte4 PanelOutlineColor = new byte4(255, 255, 255, 72);
         /// <summary>
+        /// Shared scaled metrics used to size the dockable chrome.
+        /// </summary>
+        EditorUiMetrics Metrics;
+        /// <summary>
         /// Font used by the dockable title bar.
         /// </summary>
-        readonly FontAsset font;
+        FontAsset font;
         /// <summary>
         /// Render order for panel background surfaces.
         /// </summary>
@@ -73,7 +77,24 @@ namespace helengine.editor {
         /// Initializes a new dockable entity with title bar, content area, and interaction handlers.
         /// </summary>
         /// <param name="font">Font used to render the title text.</param>
-        public DockableEntity(FontAsset font) {
+        public DockableEntity(FontAsset font)
+            : this(font, EditorUiMetrics.Default) {
+        }
+
+        /// <summary>
+        /// Initializes a new dockable entity with title bar, content area, and interaction handlers using one shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used to render the title text.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dock chrome.</param>
+        public DockableEntity(FontAsset font, EditorUiMetrics metrics) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
+            }
+
+            Metrics = metrics;
             this.font = font;
             backgroundOrder = RenderOrder2D.PanelBackground;
             surfaceOrder = RenderOrder2D.PanelSurface;
@@ -91,7 +112,7 @@ namespace helengine.editor {
             AddComponent(titleBar);
 
             titleBarText = new EditorEntity();
-            titleBarText.Position = new float3(8, 5, 0);
+            titleBarText.Position = new float3(Metrics.ScalePixels(8), GetTitleTextTopOffset(), 0);
             titleBarText.LayerMask = LayerMask;
             AddChild(titleBarText);
             TextComponent titleComponent = new TextComponent();
@@ -103,7 +124,7 @@ namespace helengine.editor {
             titleTextComponent = titleComponent;
 
             EditorEntity sceneViewArea = new EditorEntity();
-            sceneViewArea.Position = new float3(0, TitleBarHeight, 0);
+            sceneViewArea.Position = new float3(0, TitleBarHeightPixels, 0);
             sceneViewArea.LayerMask = LayerMask;
             AddChild(sceneViewArea);
             areaSprite = new SpriteComponent();
@@ -121,7 +142,7 @@ namespace helengine.editor {
             AddComponent(panelOutline);
 
             titleBarInteractivity = new InteractableComponent();
-            titleBarInteractivity.Size = new int2(300, TitleBarHeight);
+            titleBarInteractivity.Size = new int2(300, TitleBarHeightPixels);
             titleBarInteractivity.CursorEvent += TitleBarInteractivity_CursorEvent;
             AddComponent(titleBarInteractivity);
 
@@ -136,12 +157,12 @@ namespace helengine.editor {
             get { return size; }
             set {
                 size = value;
-                titleBar.Size = new int2(value.X, TitleBarHeight);
+                titleBar.Size = new int2(value.X, TitleBarHeightPixels);
                 areaSprite.Size = new int2(value.X, value.Y);
-                panelOutline.Size = new int2(value.X, value.Y + TitleBarHeight);
+                panelOutline.Size = new int2(value.X, value.Y + TitleBarHeightPixels);
                 if (titleBarInteractivity != null) {
                     titleBarInteractivity.Size = titleBarInteractableEnabled
-                        ? new int2(value.X, TitleBarHeight)
+                        ? new int2(value.X, TitleBarHeightPixels)
                         : new int2(0, 0);
                 }
                 OnSizeChanged();
@@ -190,6 +211,43 @@ namespace helengine.editor {
         /// Gets the font used by the dockable title bar.
         /// </summary>
         public FontAsset TitleFont => font;
+
+        /// <summary>
+        /// Gets the shared scaled metrics used by the dockable chrome.
+        /// </summary>
+        public EditorUiMetrics UiMetrics => Metrics;
+
+        /// <summary>
+        /// Gets the scaled title-bar height currently used by this dockable instance.
+        /// </summary>
+        public int TitleBarHeightPixels => Metrics.DockTitleBarHeight;
+
+        /// <summary>
+        /// Reapplies the shared dock font and metrics after one live UI scale change.
+        /// </summary>
+        /// <param name="font">Updated title font used by the dock chrome.</param>
+        /// <param name="metrics">Updated scaled editor UI metrics used by the dock chrome.</param>
+        public virtual void ApplyUiMetrics(FontAsset font, EditorUiMetrics metrics) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
+            }
+
+            this.font = font;
+            Metrics = metrics;
+
+            if (titleTextComponent != null) {
+                titleTextComponent.Font = font;
+            }
+            if (titleBarText != null) {
+                titleBarText.Position = new float3(Metrics.ScalePixels(8), GetTitleTextTopOffset(), 0f);
+            }
+
+            HandleUiMetricsApplied();
+            Size = size;
+        }
 
         /// <summary>
         /// Gets the root dock group that owns this group.
@@ -260,6 +318,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Allows subclasses to update their own scaled content after the shared dock chrome metrics change.
+        /// </summary>
+        protected virtual void HandleUiMetricsApplied() {
+        }
+
+        /// <summary>
         /// Updates the content background color for the dockable panel body.
         /// </summary>
         /// <param name="color">Color to apply to the content background.</param>
@@ -287,7 +351,7 @@ namespace helengine.editor {
             titleBarInteractableEnabled = enabled;
             if (titleBarInteractivity != null) {
                 titleBarInteractivity.Size = enabled
-                    ? new int2(size.X, TitleBarHeight)
+                    ? new int2(size.X, TitleBarHeightPixels)
                     : new int2(0, 0);
             }
         }
@@ -333,11 +397,20 @@ namespace helengine.editor {
             int left = (int)Math.Round(Position.X);
             int top = (int)Math.Round(Position.Y);
             int width = Size.X;
-            int height = Size.Y + TitleBarHeight;
+            int height = Size.Y + TitleBarHeightPixels;
             return point.X >= left &&
                    point.X < left + width &&
                    point.Y >= top &&
                    point.Y < top + height;
+        }
+
+        /// <summary>
+        /// Computes the top offset needed to center the dock title text inside the scaled title bar.
+        /// </summary>
+        /// <returns>Scaled top offset for the dock title text.</returns>
+        float GetTitleTextTopOffset() {
+            float lineHeight = Math.Max(font.LineHeight, 1f);
+            return (TitleBarHeightPixels - lineHeight) * 0.5f;
         }
 
         /// <summary>

@@ -118,6 +118,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures scaled metrics resize the platform selector, settings sections, and footer buttons.
+        /// </summary>
+        [Fact]
+        public void Show_WithScaledMetrics_UsesScaledSelectorAndFooterLayout() {
+            EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
+            ProfilesDialog dialog = new ProfilesDialog(CreateFont(), metrics);
+            EditorProfileSettingsDocument document = CreateProfileDocument();
+
+            dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
+            dialog.UpdateLayout(1280, 720);
+
+            EditorEntity platformComboBoxHost = GetPrivateField<EditorEntity>(dialog, "PlatformComboBoxHost");
+            ComboBoxComponent platformComboBox = GetPrivateField<ComboBoxComponent>(dialog, "PlatformComboBox");
+            EditorPlatformSettingsSection buildSettingsSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "BuildSettingsSection");
+            ButtonComponent saveButton = GetPrivateField<ButtonComponent>(dialog, "SaveButton");
+            ButtonComponent cancelButton = GetPrivateField<ButtonComponent>(dialog, "CancelButton");
+
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.PanelPadding + ProfilesDialog.LabelColumnWidth + 12), (int)Math.Round(platformComboBoxHost.LocalPosition.X));
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding), (int)Math.Round(platformComboBoxHost.LocalPosition.Y));
+            Assert.Equal(new int2(metrics.ScalePixels(ProfilesDialog.PlatformComboBoxWidth), metrics.ScalePixels(ProfilesDialog.FieldRowHeight)), platformComboBox.Size);
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + ProfilesDialog.FieldRowHeight + ProfilesDialog.SectionSpacing), (int)Math.Round(buildSettingsSection.Root.LocalPosition.Y));
+            Assert.Equal(new int2(metrics.ScalePixels(88), metrics.ScalePixels(22)), saveButton.Size);
+            Assert.Equal(new int2(metrics.ScalePixels(88), metrics.ScalePixels(22)), cancelButton.Size);
+        }
+
+        /// <summary>
         /// Ensures confirming the dialog raises the current platform and edited document.
         /// </summary>
         [Fact]

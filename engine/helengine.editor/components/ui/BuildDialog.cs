@@ -426,7 +426,16 @@ namespace helengine.editor {
         /// Initializes one build dialog with a shared modal shell and build-planning controls.
         /// </summary>
         /// <param name="font">Font used for dialog labels and controls.</param>
-        public BuildDialog(FontAsset font) : base("BuildDialog", "Build", font, PanelWidth, PanelHeight, HeaderHeight) {
+        public BuildDialog(FontAsset font) : this(font, EditorUiMetrics.Default) {
+        }
+
+        /// <summary>
+        /// Initializes one build dialog with one shared metrics source.
+        /// </summary>
+        /// <param name="font">Font used for dialog labels and controls.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
+        public BuildDialog(FontAsset font, EditorUiMetrics metrics) : base("BuildDialog", "Build", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
+            SetDialogMinimumSize(PanelWidth, PanelHeight);
             PlatformTabHosts = new List<EditorEntity>(8);
             PlatformTabs = new List<TabComponent>(8);
             MapLabelHosts = new List<EditorEntity>(16);
@@ -446,7 +455,7 @@ namespace helengine.editor {
 
             BuildColumnRoot = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = new float3(PanelPadding, HeaderHeight + PanelPadding, 0.1f),
+                Position = new float3(GetPanelPaddingPixels(), GetDialogContentTop(), 0.1f),
                 InternalEntity = true
             };
             DialogPanelRoot.AddChild(BuildColumnRoot);
@@ -471,7 +480,7 @@ namespace helengine.editor {
 
             QueueColumnRoot = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = new float3(PanelWidth - QueueColumnWidth - PanelPadding, HeaderHeight + PanelPadding, 0.1f),
+                Position = new float3(GetQueueColumnLeft(), GetDialogContentTop(), 0.1f),
                 InternalEntity = true
             };
             DialogPanelRoot.AddChild(QueueColumnRoot);
@@ -489,7 +498,7 @@ namespace helengine.editor {
                 BorderThickness = 2f,
                 Radius = 0f,
                 RenderOrder2D = DialogPanelOrder,
-                Size = new int2(QueueColumnWidth, 1)
+                Size = new int2(GetQueueColumnWidthPixels(), 1)
             };
             QueueSectionRoot.AddComponent(QueueListBackground);
 
@@ -499,13 +508,13 @@ namespace helengine.editor {
                 BorderThickness = 0f,
                 Radius = 6f,
                 RenderOrder2D = DialogPanelOrder,
-                Size = new int2(QueueColumnWidth, QueueHeaderHeight)
+                Size = new int2(GetQueueColumnWidthPixels(), GetQueueHeaderHeightPixels())
             };
             QueueSectionRoot.AddComponent(QueueHeaderBackground);
 
             QueueHeaderTextHost = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = new float3(QueueListPadding, 6f, 0.1f),
+                Position = new float3(GetQueueListPaddingPixels(), DialogMetrics.ScalePixels(6), 0.1f),
                 InternalEntity = true
             };
             QueueSectionRoot.AddChild(QueueHeaderTextHost);
@@ -520,7 +529,7 @@ namespace helengine.editor {
 
             QueueItemsRoot = new EditorEntity {
                 LayerMask = LayerMask,
-                Position = new float3(0f, QueueHeaderHeight + QueueListPadding, 0.1f),
+                Position = new float3(0f, GetQueueHeaderHeightPixels() + GetQueueListPaddingPixels(), 0.1f),
                 InternalEntity = true
             };
             QueueSectionRoot.AddChild(QueueItemsRoot);
@@ -551,7 +560,7 @@ namespace helengine.editor {
             };
             BuildColumnRoot.AddChild(CopySettingsButtonHost);
 
-            CopySettingsButton = new ButtonComponent("Copy settings from...", new int2(GetBuildColumnWidth(), FooterButtonHeight), DialogFont, HandleCopySettingsButtonClicked);
+            CopySettingsButton = new ButtonComponent("Copy settings from...", new int2(GetBuildColumnWidth(), GetFooterButtonHeightPixels()), DialogFont, HandleCopySettingsButtonClicked);
             CopySettingsButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CopySettingsButtonHost.AddComponent(CopySettingsButton);
 
@@ -600,12 +609,12 @@ namespace helengine.editor {
             };
             BuildColumnRoot.AddChild(CodeModuleFieldHost);
 
-            OutputDirectoryField = new TextBoxComponent(new int2(GetOutputFieldWidth(), OutputFieldHeight), DialogFont, "Select an output folder");
+            OutputDirectoryField = new TextBoxComponent(new int2(GetOutputFieldWidth(), GetOutputFieldHeightPixels()), DialogFont, "Select an output folder");
             OutputDirectoryField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             OutputDirectoryField.TextChanged += HandleOutputDirectoryFieldTextChanged;
             OutputFieldHost.AddComponent(OutputDirectoryField);
 
-            CodeModuleField = new TextBoxComponent(new int2(GetOutputFieldWidth(), OutputFieldHeight), DialogFont, "Comma-separated code modules");
+            CodeModuleField = new TextBoxComponent(new int2(GetOutputFieldWidth(), GetOutputFieldHeightPixels()), DialogFont, "Comma-separated code modules");
             CodeModuleField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CodeModuleField.TextChanged += HandleCodeModuleFieldTextChanged;
             CodeModuleFieldHost.AddComponent(CodeModuleField);
@@ -628,7 +637,7 @@ namespace helengine.editor {
             };
             BuildColumnRoot.AddChild(BrowseOutputFolderButtonHost);
 
-            BrowseOutputFolderButton = new ButtonComponent("Browse", new int2(BrowseButtonWidth, FooterButtonHeight), DialogFont, HandleBrowseOutputFolderClicked);
+            BrowseOutputFolderButton = new ButtonComponent("Browse", new int2(GetBrowseButtonWidthPixels(), GetFooterButtonHeightPixels()), DialogFont, HandleBrowseOutputFolderClicked);
             BrowseOutputFolderButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             BrowseOutputFolderButtonHost.AddComponent(BrowseOutputFolderButton);
 
@@ -639,7 +648,7 @@ namespace helengine.editor {
             };
             QueueColumnRoot.AddChild(AddToBuildButtonHost);
 
-            AddToBuildButton = new ButtonComponent("Add to Build", new int2(FooterButtonWidth, FooterButtonHeight), DialogFont, HandleAddToBuildClicked);
+            AddToBuildButton = new ButtonComponent("Add to Build", new int2(GetFooterButtonWidthPixels(), GetFooterButtonHeightPixels()), DialogFont, HandleAddToBuildClicked);
             AddToBuildButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             AddToBuildButtonHost.AddComponent(AddToBuildButton);
 
@@ -650,7 +659,7 @@ namespace helengine.editor {
             };
             QueueColumnRoot.AddChild(BuildQueueButtonHost);
 
-            BuildQueueButton = new ButtonComponent("Build Queue", new int2(FooterButtonWidth, FooterButtonHeight), DialogFont, HandleBuildQueueRequested);
+            BuildQueueButton = new ButtonComponent("Build Queue", new int2(GetFooterButtonWidthPixels(), GetFooterButtonHeightPixels()), DialogFont, HandleBuildQueueRequested);
             BuildQueueButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             BuildQueueButtonHost.AddComponent(BuildQueueButton);
 
@@ -699,7 +708,7 @@ namespace helengine.editor {
                 BorderThickness = 1f,
                 Radius = 4f,
                 RenderOrder2D = DialogPanelOrder,
-                Size = new int2(1, BuildLogsProgressBarHeight)
+                Size = new int2(1, GetBuildLogsProgressBarHeightPixels())
             };
             BuildLogsProgressTrackHost.AddComponent(BuildLogsProgressTrack);
 
@@ -1339,7 +1348,7 @@ namespace helengine.editor {
 
             BuildLogsScrollComponent.VisibleItemCount = visibleLineCount;
             BuildLogsScrollComponent.Size = new int2(GetBuildLogsTextViewportWidth(), GetBuildLogsTextViewportHeight());
-            BuildLogsText.Size = new int2(GetBuildLogsTextViewportWidth(), Math.Max(BuildLogLineHeight, GetBuildLogsTextViewportHeight()));
+            BuildLogsText.Size = new int2(GetBuildLogsTextViewportWidth(), Math.Max(GetBuildLogLineHeightPixels(), GetBuildLogsTextViewportHeight()));
             BuildLogsText.Text = BuildBuildLogText(buildLogLines, BuildLogsScrollComponent.ScrollOffset, visibleLineCount);
         }
 
@@ -1396,27 +1405,27 @@ namespace helengine.editor {
         /// Anchors the copy-settings button, output-folder, and add-to-build controls to the lower portion of the left column.
         /// </summary>
         void LayoutLowerLeftControls() {
-            int outputFieldY = LegacyContentHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8 - 16 - OutputFieldHeight;
-            int addButtonY = outputFieldY + OutputFieldHeight + 16 + 18 + 16;
-            int outputLabelY = outputFieldY - 20;
-            int codeModuleFieldY = outputLabelY - 16 - OutputFieldHeight;
-            int codeModuleLabelY = codeModuleFieldY - 20;
-            int copySettingsButtonY = codeModuleLabelY - 16 - FooterButtonHeight;
-            int debugBuildY = outputFieldY + OutputFieldHeight + 16;
-            int sceneListTop = PlatformTabHeight + SceneListTopMargin;
-            int sceneListHeight = Math.Max(1, copySettingsButtonY - 12 - sceneListTop);
+            int outputFieldY = GetLegacyContentHeightPixels() - GetHeaderHeightPixels() - GetPanelPaddingPixels() - GetFooterButtonHeightPixels() - DialogMetrics.ScalePixels(8) - DialogMetrics.ScalePixels(16) - GetOutputFieldHeightPixels();
+            int addButtonY = outputFieldY + GetOutputFieldHeightPixels() + DialogMetrics.ScalePixels(16) + DialogMetrics.ScalePixels(18) + DialogMetrics.ScalePixels(16);
+            int outputLabelY = outputFieldY - DialogMetrics.ScalePixels(20);
+            int codeModuleFieldY = outputLabelY - DialogMetrics.ScalePixels(16) - GetOutputFieldHeightPixels();
+            int codeModuleLabelY = codeModuleFieldY - DialogMetrics.ScalePixels(20);
+            int copySettingsButtonY = codeModuleLabelY - DialogMetrics.ScalePixels(16) - GetFooterButtonHeightPixels();
+            int debugBuildY = outputFieldY + GetOutputFieldHeightPixels() + DialogMetrics.ScalePixels(16);
+            int sceneListTop = GetPlatformTabHeightPixels() + GetSceneListTopMarginPixels();
+            int sceneListHeight = Math.Max(1, copySettingsButtonY - DialogMetrics.ScalePixels(12) - sceneListTop);
 
             SceneListRoot.Position = new float3(SceneListShakeOffsetX, sceneListTop, 0.1f);
             SceneListBackground.Size = new int2(GetBuildColumnWidth(), sceneListHeight);
             CopySettingsButtonHost.Position = new float3(0f, copySettingsButtonY, 0.1f);
-            CopySettingsButton.SetSize(new int2(GetBuildColumnWidth(), FooterButtonHeight));
+            CopySettingsButton.SetSize(new int2(GetBuildColumnWidth(), GetFooterButtonHeightPixels()));
             OutputLabelHost.Position = new float3(0f, outputLabelY, 0.1f);
             OutputFieldHost.Position = new float3(OutputDirectoryField.CurrentShakeOffsetX, outputFieldY, 0.1f);
             CodeModuleLabelHost.Position = new float3(0f, codeModuleLabelY, 0.1f);
             CodeModuleFieldHost.Position = new float3(CodeModuleField.CurrentShakeOffsetX, codeModuleFieldY, 0.1f);
-            BrowseOutputFolderButtonHost.Position = new float3(GetOutputFieldWidth() + 8f, outputFieldY, 0.1f);
-            DebugBuildLabelHost.Position = new float3(24f, debugBuildY, 0.1f);
-            DebugBuildCheckBoxHost.Position = new float3(0f, debugBuildY - 2, 0.1f);
+            BrowseOutputFolderButtonHost.Position = new float3(GetOutputFieldWidth() + DialogMetrics.ScalePixels(8), outputFieldY, 0.1f);
+            DebugBuildLabelHost.Position = new float3(DialogMetrics.ScalePixels(24), debugBuildY, 0.1f);
+            DebugBuildCheckBoxHost.Position = new float3(0f, debugBuildY - DialogMetrics.ScalePixels(2), 0.1f);
             AddToBuildButtonHost.Position = new float3(0f, addButtonY, 0.1f);
         }
 
@@ -1472,11 +1481,11 @@ namespace helengine.editor {
         /// Applies the static layout for the queue button based on the current panel geometry.
         /// </summary>
         void LayoutStaticControls() {
-            int buildQueueButtonY = LegacyContentHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 8;
+            int buildQueueButtonY = GetLegacyContentHeightPixels() - GetHeaderHeightPixels() - GetPanelPaddingPixels() - GetFooterButtonHeightPixels() - DialogMetrics.ScalePixels(8);
             AddToBuildButtonHost.Position = new float3(0f, buildQueueButtonY, 0.1f);
-            BuildQueueButtonHost.Position = new float3(FooterButtonWidth + 8f, buildQueueButtonY, 0.1f);
-            QueueListBackground.Size = new int2(QueueColumnWidth, GetQueueSectionHeight());
-            QueueHeaderBackground.Size = new int2(QueueColumnWidth, QueueHeaderHeight);
+            BuildQueueButtonHost.Position = new float3(GetFooterButtonWidthPixels() + DialogMetrics.ScalePixels(8), buildQueueButtonY, 0.1f);
+            QueueListBackground.Size = new int2(GetQueueColumnWidthPixels(), GetQueueSectionHeight());
+            QueueHeaderBackground.Size = new int2(GetQueueColumnWidthPixels(), GetQueueHeaderHeightPixels());
             LayoutQueueSection();
             LayoutBuildLogsSection();
         }
@@ -1485,7 +1494,7 @@ namespace helengine.editor {
         /// Positions and sizes the queue viewport and its pooled rows.
         /// </summary>
         void LayoutQueueSection() {
-            int queueRowsTopY = QueueHeaderHeight + QueueListPadding;
+            int queueRowsTopY = GetQueueHeaderHeightPixels() + GetQueueListPaddingPixels();
 
             QueueItemsRoot.Position = new float3(0f, queueRowsTopY, 0.1f);
             QueueScrollComponent.Size = new int2(GetQueueRowsViewportWidth(), GetQueueRowsViewportHeight());
@@ -1497,27 +1506,27 @@ namespace helengine.editor {
         /// Positions and sizes the build-log section beneath the existing controls.
         /// </summary>
         void LayoutBuildLogsSection() {
-            int buildLogsTopY = LegacyContentHeight;
-            int buildLogsWidth = PanelWidth - (PanelPadding * 2);
-            int buildLogsInnerWidth = buildLogsWidth - (BuildLogsPadding * 2);
-            int progressTrackY = BuildLogsPadding + BuildLogsTitleHeight + 6;
+            int buildLogsTopY = GetLegacyContentHeightPixels();
+            int buildLogsWidth = DialogWidth - (GetPanelPaddingPixels() * 2);
+            int buildLogsInnerWidth = buildLogsWidth - (GetBuildLogsPaddingPixels() * 2);
+            int progressTrackY = GetBuildLogsPaddingPixels() + GetBuildLogsTitleHeightPixels() + DialogMetrics.ScalePixels(6);
             int progressTrackWidth = buildLogsInnerWidth;
-            int progressFillWidth = GetBuildLogProgressFillWidth(Math.Max(0, progressTrackWidth - 2));
-            int logTextY = progressTrackY + BuildLogsProgressBarHeight + 10;
-            int logTextHeight = Math.Max(1, BuildLogsSectionHeight - logTextY - BuildLogsPadding);
+            int progressFillWidth = GetBuildLogProgressFillWidth(Math.Max(0, progressTrackWidth - (DialogMetrics.ScalePixels(1) * 2)));
+            int logTextY = progressTrackY + GetBuildLogsProgressBarHeightPixels() + DialogMetrics.ScalePixels(10);
+            int logTextHeight = Math.Max(1, GetBuildLogsSectionHeightPixels() - logTextY - GetBuildLogsPaddingPixels());
 
-            BuildLogsRoot.Position = new float3(PanelPadding, buildLogsTopY, 0.1f);
-            BuildLogsBackground.Size = new int2(buildLogsWidth, BuildLogsSectionHeight);
+            BuildLogsRoot.Position = new float3(GetPanelPaddingPixels(), buildLogsTopY, 0.1f);
+            BuildLogsBackground.Size = new int2(buildLogsWidth, GetBuildLogsSectionHeightPixels());
 
-            BuildLogsTitleHost.Position = new float3(BuildLogsPadding, BuildLogsPadding, 0.1f);
-            BuildLogsTitleText.Size = new int2(buildLogsInnerWidth, BuildLogsTitleHeight);
+            BuildLogsTitleHost.Position = new float3(GetBuildLogsPaddingPixels(), GetBuildLogsPaddingPixels(), 0.1f);
+            BuildLogsTitleText.Size = new int2(buildLogsInnerWidth, GetBuildLogsTitleHeightPixels());
 
-            BuildLogsProgressTrackHost.Position = new float3(BuildLogsPadding, progressTrackY, 0.1f);
-            BuildLogsProgressTrack.Size = new int2(progressTrackWidth, BuildLogsProgressBarHeight);
-            BuildLogsProgressFillHost.Position = new float3(1f, 1f, 0.1f);
-            BuildLogsProgressFill.Size = new int2(progressFillWidth, BuildLogsProgressBarHeight - 2);
+            BuildLogsProgressTrackHost.Position = new float3(GetBuildLogsPaddingPixels(), progressTrackY, 0.1f);
+            BuildLogsProgressTrack.Size = new int2(progressTrackWidth, GetBuildLogsProgressBarHeightPixels());
+            BuildLogsProgressFillHost.Position = new float3(DialogMetrics.ScalePixels(1), DialogMetrics.ScalePixels(1), 0.1f);
+            BuildLogsProgressFill.Size = new int2(progressFillWidth, Math.Max(1, GetBuildLogsProgressBarHeightPixels() - (DialogMetrics.ScalePixels(1) * 2)));
 
-            BuildLogsTextHost.Position = new float3(BuildLogsPadding, logTextY, 0.1f);
+            BuildLogsTextHost.Position = new float3(GetBuildLogsPaddingPixels(), logTextY, 0.1f);
             BuildLogsScrollComponent.Size = new int2(GetBuildLogsTextViewportWidth(), logTextHeight);
             BuildLogsScrollComponent.VisibleItemCount = GetBuildLogVisibleLineCount();
             UpdateBuildLogsText(null);
@@ -1988,7 +1997,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Width available for build-planning controls.</returns>
         int GetBuildColumnWidth() {
-            return PanelWidth - QueueColumnWidth - (PanelPadding * 3);
+            return DialogWidth - GetQueueColumnWidthPixels() - (GetPanelPaddingPixels() * 3);
         }
 
         /// <summary>
@@ -1996,7 +2005,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Width available for one queue row.</returns>
         int GetQueueCardWidth() {
-            return QueueColumnWidth - 4;
+            return GetQueueColumnWidthPixels() - DialogMetrics.ScalePixels(4);
         }
 
         /// <summary>
@@ -2004,7 +2013,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Height used by one queue row.</returns>
         int GetQueueCardHeight() {
-            return QueueRowHeight;
+            return DialogMetrics.ScalePixels(QueueRowHeight);
         }
 
         /// <summary>
@@ -2012,7 +2021,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Width available for the status line.</returns>
         int GetQueueCardTextWidth() {
-            return Math.Max(1, GetQueueCardWidth() - (QueueCardTextPadding * 2) - QueueCardRemoveButtonWidth - QueueCardTextButtonGap);
+            return Math.Max(1, GetQueueCardWidth() - (GetQueueCardTextPaddingPixels() * 2) - GetQueueCardRemoveButtonWidthPixels() - GetQueueCardTextButtonGapPixels());
         }
 
         /// <summary>
@@ -2074,7 +2083,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Height available for the queue section chrome and cards.</returns>
         int GetQueueSectionHeight() {
-            return LegacyContentHeight - HeaderHeight - PanelPadding - FooterButtonHeight - 20;
+            return GetLegacyContentHeightPixels() - GetHeaderHeightPixels() - GetPanelPaddingPixels() - GetFooterButtonHeightPixels() - DialogMetrics.ScalePixels(20);
         }
 
         /// <summary>
@@ -2082,7 +2091,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Width available for the output-folder text box.</returns>
         int GetOutputFieldWidth() {
-            return GetBuildColumnWidth() - BrowseButtonWidth - 8;
+            return GetBuildColumnWidth() - GetBrowseButtonWidthPixels() - DialogMetrics.ScalePixels(8);
         }
 
         /// <summary>
@@ -2098,7 +2107,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Height available for visible queue rows.</returns>
         int GetQueueRowsViewportHeight() {
-            return Math.Max(1, GetQueueSectionHeight() - QueueHeaderHeight - QueueListPadding);
+            return Math.Max(1, GetQueueSectionHeight() - GetQueueHeaderHeightPixels() - GetQueueListPaddingPixels());
         }
 
         /// <summary>
@@ -2114,7 +2123,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Width available for visible build-log lines.</returns>
         int GetBuildLogsTextViewportWidth() {
-            return PanelWidth - (PanelPadding * 2) - (BuildLogsPadding * 2);
+            return DialogWidth - (GetPanelPaddingPixels() * 2) - (GetBuildLogsPaddingPixels() * 2);
         }
 
         /// <summary>
@@ -2122,9 +2131,9 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Height available for visible build-log lines.</returns>
         int GetBuildLogsTextViewportHeight() {
-            int progressTrackY = BuildLogsPadding + BuildLogsTitleHeight + 6;
-            int logTextY = progressTrackY + BuildLogsProgressBarHeight + 10;
-            return Math.Max(1, BuildLogsSectionHeight - logTextY - BuildLogsPadding);
+            int progressTrackY = GetBuildLogsPaddingPixels() + GetBuildLogsTitleHeightPixels() + DialogMetrics.ScalePixels(6);
+            int logTextY = progressTrackY + GetBuildLogsProgressBarHeightPixels() + DialogMetrics.ScalePixels(10);
+            return Math.Max(1, GetBuildLogsSectionHeightPixels() - logTextY - GetBuildLogsPaddingPixels());
         }
 
         /// <summary>
@@ -2132,7 +2141,183 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Visible build-log line count.</returns>
         int GetBuildLogVisibleLineCount() {
-            return Math.Max(1, GetBuildLogsTextViewportHeight() / BuildLogLineHeight);
+            return Math.Max(1, GetBuildLogsTextViewportHeight() / GetBuildLogLineHeightPixels());
+        }
+
+        /// <summary>
+        /// Gets the scaled panel padding used by the dialog.
+        /// </summary>
+        /// <returns>Scaled panel padding in pixels.</returns>
+        int GetPanelPaddingPixels() {
+            return DialogMetrics.ScalePixels(PanelPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled top offset used by the dialog content columns.
+        /// </summary>
+        /// <returns>Scaled content top offset in pixels.</returns>
+        int GetDialogContentTop() {
+            return GetHeaderHeightPixels() + GetPanelPaddingPixels();
+        }
+
+        /// <summary>
+        /// Gets the scaled header height used by the dialog.
+        /// </summary>
+        /// <returns>Scaled header height in pixels.</returns>
+        int GetHeaderHeightPixels() {
+            return DialogMetrics.ScalePixels(HeaderHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled queue-column width.
+        /// </summary>
+        /// <returns>Scaled queue-column width in pixels.</returns>
+        int GetQueueColumnWidthPixels() {
+            return DialogMetrics.ScalePixels(QueueColumnWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled queue-column left position.
+        /// </summary>
+        /// <returns>Scaled queue-column left position in pixels.</returns>
+        int GetQueueColumnLeft() {
+            return DialogWidth - GetQueueColumnWidthPixels() - GetPanelPaddingPixels();
+        }
+
+        /// <summary>
+        /// Gets the scaled footer button width.
+        /// </summary>
+        /// <returns>Scaled footer button width in pixels.</returns>
+        int GetFooterButtonWidthPixels() {
+            return DialogMetrics.ScalePixels(FooterButtonWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled footer button height.
+        /// </summary>
+        /// <returns>Scaled footer button height in pixels.</returns>
+        int GetFooterButtonHeightPixels() {
+            return DialogMetrics.ScalePixels(FooterButtonHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled output-field height.
+        /// </summary>
+        /// <returns>Scaled output-field height in pixels.</returns>
+        int GetOutputFieldHeightPixels() {
+            return DialogMetrics.ScalePixels(OutputFieldHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled browse-button width.
+        /// </summary>
+        /// <returns>Scaled browse-button width in pixels.</returns>
+        int GetBrowseButtonWidthPixels() {
+            return DialogMetrics.ScalePixels(BrowseButtonWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled queue-header height.
+        /// </summary>
+        /// <returns>Scaled queue-header height in pixels.</returns>
+        int GetQueueHeaderHeightPixels() {
+            return DialogMetrics.ScalePixels(QueueHeaderHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled queue-list padding.
+        /// </summary>
+        /// <returns>Scaled queue-list padding in pixels.</returns>
+        int GetQueueListPaddingPixels() {
+            return DialogMetrics.ScalePixels(QueueListPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled scene-list top margin.
+        /// </summary>
+        /// <returns>Scaled scene-list top margin in pixels.</returns>
+        int GetSceneListTopMarginPixels() {
+            return DialogMetrics.ScalePixels(SceneListTopMargin);
+        }
+
+        /// <summary>
+        /// Gets the scaled platform-tab height.
+        /// </summary>
+        /// <returns>Scaled platform-tab height in pixels.</returns>
+        int GetPlatformTabHeightPixels() {
+            return DialogMetrics.ScalePixels(PlatformTabHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled queue-card remove-button width.
+        /// </summary>
+        /// <returns>Scaled remove-button width in pixels.</returns>
+        int GetQueueCardRemoveButtonWidthPixels() {
+            return DialogMetrics.ScalePixels(QueueCardRemoveButtonWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled queue-card text padding.
+        /// </summary>
+        /// <returns>Scaled queue-card text padding in pixels.</returns>
+        int GetQueueCardTextPaddingPixels() {
+            return DialogMetrics.ScalePixels(QueueCardTextPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled queue-card text/button gap.
+        /// </summary>
+        /// <returns>Scaled queue-card text/button gap in pixels.</returns>
+        int GetQueueCardTextButtonGapPixels() {
+            return DialogMetrics.ScalePixels(QueueCardTextButtonGap);
+        }
+
+        /// <summary>
+        /// Gets the scaled legacy content height.
+        /// </summary>
+        /// <returns>Scaled legacy content height in pixels.</returns>
+        int GetLegacyContentHeightPixels() {
+            return DialogMetrics.ScalePixels(LegacyContentHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled build-log section height.
+        /// </summary>
+        /// <returns>Scaled build-log section height in pixels.</returns>
+        int GetBuildLogsSectionHeightPixels() {
+            return DialogMetrics.ScalePixels(BuildLogsSectionHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled build-log padding.
+        /// </summary>
+        /// <returns>Scaled build-log padding in pixels.</returns>
+        int GetBuildLogsPaddingPixels() {
+            return DialogMetrics.ScalePixels(BuildLogsPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled build-log title height.
+        /// </summary>
+        /// <returns>Scaled build-log title height in pixels.</returns>
+        int GetBuildLogsTitleHeightPixels() {
+            return DialogMetrics.ScalePixels(BuildLogsTitleHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled build-log progress-bar height.
+        /// </summary>
+        /// <returns>Scaled progress-bar height in pixels.</returns>
+        int GetBuildLogsProgressBarHeightPixels() {
+            return DialogMetrics.ScalePixels(BuildLogsProgressBarHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled build-log line height.
+        /// </summary>
+        /// <returns>Scaled build-log line height in pixels.</returns>
+        int GetBuildLogLineHeightPixels() {
+            return DialogMetrics.ScalePixels(BuildLogLineHeight);
         }
 
         /// <summary>

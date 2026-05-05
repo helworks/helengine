@@ -75,7 +75,23 @@ namespace helengine.editor {
         /// <summary>
         /// Font used by shared dialog title-bar content.
         /// </summary>
-        readonly FontAsset Font;
+        FontAsset Font;
+        /// <summary>
+        /// Shared scaled metrics used to size the dialog shell.
+        /// </summary>
+        EditorUiMetrics Metrics;
+        /// <summary>
+        /// Unscaled base width used to rebuild the dialog shell when metrics change.
+        /// </summary>
+        readonly int BaseDialogWidth;
+        /// <summary>
+        /// Unscaled base height used to rebuild the dialog shell when metrics change.
+        /// </summary>
+        readonly int BaseDialogHeight;
+        /// <summary>
+        /// Unscaled base header height used to rebuild the dialog shell when metrics change.
+        /// </summary>
+        readonly int BaseDialogHeaderHeight;
 
         /// <summary>
         /// Render order used for dialog panel surfaces.
@@ -260,7 +276,7 @@ namespace helengine.editor {
         /// <summary>
         /// Height of the dialog title bar.
         /// </summary>
-        int DialogHeaderHeight { get; }
+        int DialogHeaderHeight { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether the dialog exposes resize grips.
@@ -291,7 +307,21 @@ namespace helengine.editor {
         /// <param name="dialogWidth">Fixed panel width for the dialog.</param>
         /// <param name="dialogHeight">Fixed panel height for the dialog.</param>
         /// <param name="dialogHeaderHeight">Fixed title-bar height for the dialog.</param>
-        protected EditorDialogBase(string dialogName, string dialogTitle, FontAsset font, int dialogWidth, int dialogHeight, int dialogHeaderHeight) {
+        protected EditorDialogBase(string dialogName, string dialogTitle, FontAsset font, int dialogWidth, int dialogHeight, int dialogHeaderHeight)
+            : this(dialogName, dialogTitle, font, EditorUiMetrics.Default, dialogWidth, dialogHeight, dialogHeaderHeight) {
+        }
+
+        /// <summary>
+        /// Initializes the shared dialog shell for one concrete editor dialog using one shared metrics source.
+        /// </summary>
+        /// <param name="dialogName">Entity name used to identify the dialog in the editor tree.</param>
+        /// <param name="dialogTitle">Title text shown in the header.</param>
+        /// <param name="font">Font used by the dialog chrome.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dialog shell.</param>
+        /// <param name="dialogWidth">Unscaled panel width for the dialog.</param>
+        /// <param name="dialogHeight">Unscaled panel height for the dialog.</param>
+        /// <param name="dialogHeaderHeight">Unscaled title-bar height for the dialog.</param>
+        protected EditorDialogBase(string dialogName, string dialogTitle, FontAsset font, EditorUiMetrics metrics, int dialogWidth, int dialogHeight, int dialogHeaderHeight) {
             if (string.IsNullOrWhiteSpace(dialogName)) {
                 throw new ArgumentException("A dialog name is required.", nameof(dialogName));
             }
@@ -301,13 +331,20 @@ namespace helengine.editor {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
+            }
 
             Font = font;
-            DialogWidth = dialogWidth;
-            DialogHeight = dialogHeight;
-            DialogHeaderHeight = dialogHeaderHeight;
+            Metrics = metrics;
+            BaseDialogWidth = dialogWidth;
+            BaseDialogHeight = dialogHeight;
+            BaseDialogHeaderHeight = dialogHeaderHeight;
+            DialogWidth = Metrics.ScalePixels(dialogWidth);
+            DialogHeight = Metrics.ScalePixels(dialogHeight);
+            DialogHeaderHeight = Metrics.ScalePixels(dialogHeaderHeight);
             DialogIsResizable = true;
-            DialogMinimumSize = new int2(240, 160);
+            DialogMinimumSize = new int2(Metrics.ScalePixels(240), Metrics.ScalePixels(160));
             PanelOrder = RenderOrder2D.ModalBackground;
             TextOrder = RenderOrder2D.ModalForeground;
 
@@ -428,11 +465,11 @@ namespace helengine.editor {
                 Texture = TextureUtils.PixelTexture,
                 Color = ThemeManager.Colors.AccentQuaternary,
                 RenderOrder2D = TextOrder,
-                Size = new int2(1, DialogHeaderHeight)
+                Size = new int2(GetDialogSeparatorWidth(), DialogHeaderHeight)
             };
             CloseButtonHost.AddComponent(CloseButtonSeparator);
 
-            CloseButton = new ButtonComponent("X", new int2(CloseButtonWidth, DialogHeaderHeight), font, HandleCloseClicked, 0f);
+            CloseButton = new ButtonComponent("X", new int2(GetCloseButtonWidthPixels(), DialogHeaderHeight), font, HandleCloseClicked, 0f);
             CloseButtonHost.AddComponent(CloseButton);
             CloseButton.SetRenderOrders(TextOrder, TextOrder);
             CloseButton.UseHoverOnlyBackground();
@@ -451,13 +488,13 @@ namespace helengine.editor {
                 Texture = TextureUtils.PixelTexture,
                 Color = new byte4(0, 0, 0, 0),
                 RenderOrder2D = RenderOrder2D.ModalInput,
-                Size = new int2(ResizeGripSize, ResizeGripSize)
+                Size = new int2(GetResizeGripSizePixels(), GetResizeGripSizePixels())
             };
             ResizeTopLeftHost.AddComponent(ResizeTopLeftSurface);
 
             ResizeTopLeftInteractable = new InteractableComponent {
                 HoverCursor = PointerCursorKind.ResizeNorthWestSouthEast,
-                Size = new int2(ResizeGripSize, ResizeGripSize)
+                Size = new int2(GetResizeGripSizePixels(), GetResizeGripSizePixels())
             };
             ResizeTopLeftInteractable.CursorEvent += HandleTopLeftResizeCursor;
             ResizeTopLeftHost.AddComponent(ResizeTopLeftInteractable);
@@ -474,13 +511,13 @@ namespace helengine.editor {
                 Texture = TextureUtils.PixelTexture,
                 Color = new byte4(0, 0, 0, 0),
                 RenderOrder2D = RenderOrder2D.ModalInput,
-                Size = new int2(ResizeGripSize, ResizeGripSize)
+                Size = new int2(GetResizeGripSizePixels(), GetResizeGripSizePixels())
             };
             ResizeBottomLeftHost.AddComponent(ResizeBottomLeftSurface);
 
             ResizeBottomLeftInteractable = new InteractableComponent {
                 HoverCursor = PointerCursorKind.ResizeNorthEastSouthWest,
-                Size = new int2(ResizeGripSize, ResizeGripSize)
+                Size = new int2(GetResizeGripSizePixels(), GetResizeGripSizePixels())
             };
             ResizeBottomLeftInteractable.CursorEvent += HandleBottomLeftResizeCursor;
             ResizeBottomLeftHost.AddComponent(ResizeBottomLeftInteractable);
@@ -497,13 +534,13 @@ namespace helengine.editor {
                 Texture = TextureUtils.PixelTexture,
                 Color = new byte4(0, 0, 0, 0),
                 RenderOrder2D = RenderOrder2D.ModalInput,
-                Size = new int2(ResizeGripSize, ResizeGripSize)
+                Size = new int2(GetResizeGripSizePixels(), GetResizeGripSizePixels())
             };
             ResizeBottomRightHost.AddComponent(ResizeBottomRightSurface);
 
             ResizeBottomRightInteractable = new InteractableComponent {
                 HoverCursor = PointerCursorKind.ResizeNorthWestSouthEast,
-                Size = new int2(ResizeGripSize, ResizeGripSize)
+                Size = new int2(GetResizeGripSizePixels(), GetResizeGripSizePixels())
             };
             ResizeBottomRightInteractable.CursorEvent += HandleBottomRightResizeCursor;
             ResizeBottomRightHost.AddComponent(ResizeBottomRightInteractable);
@@ -540,6 +577,11 @@ namespace helengine.editor {
         protected FontAsset DialogFont => Font;
 
         /// <summary>
+        /// Gets the shared scaled metrics used by the dialog shell.
+        /// </summary>
+        protected EditorUiMetrics DialogMetrics => Metrics;
+
+        /// <summary>
         /// Gets the render order used for panel surfaces.
         /// </summary>
         protected byte DialogPanelOrder => PanelOrder;
@@ -558,6 +600,30 @@ namespace helengine.editor {
         /// Gets the rounded panel background rendered behind the dialog content.
         /// </summary>
         protected RoundedRectComponent DialogPanelBackground => PanelBackground;
+
+        /// <summary>
+        /// Reapplies shared dialog shell font and metrics after a live UI scale change.
+        /// </summary>
+        /// <param name="font">Updated font used by the dialog shell.</param>
+        /// <param name="metrics">Updated scaled metrics used by the dialog shell.</param>
+        protected void ApplyDialogMetrics(FontAsset font, EditorUiMetrics metrics) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+            if (metrics == null) {
+                throw new ArgumentNullException(nameof(metrics));
+            }
+
+            Font = font;
+            Metrics = metrics;
+            DialogWidth = Metrics.ScalePixels(BaseDialogWidth);
+            DialogHeight = Metrics.ScalePixels(BaseDialogHeight);
+            DialogHeaderHeight = Metrics.ScalePixels(BaseDialogHeaderHeight);
+            TitleText.Font = font;
+            TitleText.Size = new int2(TitleText.Size.X, Math.Max(1, (int)Math.Ceiling(Math.Max(font.LineHeight, 1f))));
+            SetDialogMinimumSize(240, 160);
+            UpdateDialogChromeLayout();
+        }
 
         /// <summary>
         /// Gets the mutable host size used to center and clamp the dialog.
@@ -620,12 +686,12 @@ namespace helengine.editor {
         /// </summary>
         protected void UpdateDialogBackdrop() {
             BackdropRoot.Position = float3.Zero;
-            int topWidth = Math.Max(0, HostSize.X - HostTitleBarButtonGapWidth);
+            int topWidth = Math.Max(0, HostSize.X - GetHostTitleBarButtonGapWidth());
             BackdropTopRoot.Position = float3.Zero;
-            BackdropTopSurface.Size = new int2(topWidth, EditorTitleBar.HeightPixels);
-            BackdropTopInteractable.Size = new int2(topWidth, EditorTitleBar.HeightPixels);
-            BackdropBodyRoot.Position = new float3(0f, EditorTitleBar.HeightPixels, 0f);
-            int bodyHeight = Math.Max(0, HostSize.Y - EditorTitleBar.HeightPixels);
+            BackdropTopSurface.Size = new int2(topWidth, Metrics.HostTitleBarHeight);
+            BackdropTopInteractable.Size = new int2(topWidth, Metrics.HostTitleBarHeight);
+            BackdropBodyRoot.Position = new float3(0f, Metrics.HostTitleBarHeight, 0f);
+            int bodyHeight = Math.Max(0, HostSize.Y - Metrics.HostTitleBarHeight);
             BackdropBodySurface.Size = new int2(HostSize.X, bodyHeight);
             BackdropBodyInteractable.Size = new int2(HostSize.X, bodyHeight);
             UpdateDialogInputBlockers(topWidth, bodyHeight);
@@ -668,14 +734,14 @@ namespace helengine.editor {
         /// Registers a pointer blocker that covers the modal host area while the dialog is visible.
         /// </summary>
         void UpdateDialogInputBlockers(int topWidth, int bodyHeight) {
-            if (topWidth > 0 && EditorTitleBar.HeightPixels > 0) {
-                EditorInputCaptureService.SetBlocker(BackdropTopRoot, int2.Zero, new int2(topWidth, EditorTitleBar.HeightPixels));
+            if (topWidth > 0 && Metrics.HostTitleBarHeight > 0) {
+                EditorInputCaptureService.SetBlocker(BackdropTopRoot, int2.Zero, new int2(topWidth, Metrics.HostTitleBarHeight));
             } else {
                 EditorInputCaptureService.ClearBlocker(BackdropTopRoot);
             }
 
             if (HostSize.X > 0 && bodyHeight > 0) {
-                EditorInputCaptureService.SetBlocker(BackdropBodyRoot, new int2(0, EditorTitleBar.HeightPixels), new int2(HostSize.X, bodyHeight));
+                EditorInputCaptureService.SetBlocker(BackdropBodyRoot, new int2(0, Metrics.HostTitleBarHeight), new int2(HostSize.X, bodyHeight));
             } else {
                 EditorInputCaptureService.ClearBlocker(BackdropBodyRoot);
             }
@@ -737,14 +803,14 @@ namespace helengine.editor {
             HeaderBackground.Size = new int2(DialogWidth, DialogHeaderHeight);
             HeaderInteractable.Size = new int2(DialogWidth, DialogHeaderHeight);
 
-            int closeButtonX = DialogWidth - CloseButtonWidth;
+            int closeButtonX = DialogWidth - GetCloseButtonWidthPixels();
             CloseButtonHost.Position = new float3(closeButtonX, 0f, 0.2f);
-            CloseButtonSeparator.Size = new int2(1, DialogHeaderHeight);
+            CloseButtonSeparator.Size = new int2(GetDialogSeparatorWidth(), DialogHeaderHeight);
 
             FontTightMetrics titleMetrics = Font.MeasureTight(TitleText.Text);
             float titleY = GetTextTopOffset(DialogHeaderHeight, titleMetrics);
-            TitleHost.Position = new float3(HeaderPadding, titleY, 0.2f);
-            int textWidth = Math.Max(1, closeButtonX - HeaderPadding - HeaderButtonSpacing);
+            TitleHost.Position = new float3(GetHeaderPaddingPixels(), titleY, 0.2f);
+            int textWidth = Math.Max(1, closeButtonX - GetHeaderPaddingPixels() - GetHeaderButtonSpacingPixels());
             TitleText.Size = new int2(textWidth, Math.Max(1, (int)Math.Ceiling(titleMetrics.Height)));
             UpdateResizeGripLayout();
         }
@@ -763,20 +829,21 @@ namespace helengine.editor {
                 return;
             }
 
-            int gripOffsetX = Math.Max(0, DialogWidth - ResizeGripSize);
-            int gripOffsetY = Math.Max(0, DialogHeight - ResizeGripSize);
+            int gripSize = GetResizeGripSizePixels();
+            int gripOffsetX = Math.Max(0, DialogWidth - gripSize);
+            int gripOffsetY = Math.Max(0, DialogHeight - gripSize);
 
             ResizeTopLeftHost.Position = new float3(0f, 0f, 0.3f);
-            ResizeTopLeftSurface.Size = new int2(ResizeGripSize, ResizeGripSize);
-            ResizeTopLeftInteractable.Size = new int2(ResizeGripSize, ResizeGripSize);
+            ResizeTopLeftSurface.Size = new int2(gripSize, gripSize);
+            ResizeTopLeftInteractable.Size = new int2(gripSize, gripSize);
 
             ResizeBottomLeftHost.Position = new float3(0f, gripOffsetY, 0.3f);
-            ResizeBottomLeftSurface.Size = new int2(ResizeGripSize, ResizeGripSize);
-            ResizeBottomLeftInteractable.Size = new int2(ResizeGripSize, ResizeGripSize);
+            ResizeBottomLeftSurface.Size = new int2(gripSize, gripSize);
+            ResizeBottomLeftInteractable.Size = new int2(gripSize, gripSize);
 
             ResizeBottomRightHost.Position = new float3(gripOffsetX, gripOffsetY, 0.3f);
-            ResizeBottomRightSurface.Size = new int2(ResizeGripSize, ResizeGripSize);
-            ResizeBottomRightInteractable.Size = new int2(ResizeGripSize, ResizeGripSize);
+            ResizeBottomRightSurface.Size = new int2(gripSize, gripSize);
+            ResizeBottomRightInteractable.Size = new int2(gripSize, gripSize);
         }
 
         /// <summary>
@@ -953,11 +1020,68 @@ namespace helengine.editor {
         /// <param name="pos">Pointer position relative to the title bar.</param>
         /// <returns>True when the pointer overlaps the close button chrome.</returns>
         bool IsPointerOverCloseButton(int2 pos) {
-            int closeButtonX = DialogWidth - CloseButtonWidth;
+            int closeButtonX = DialogWidth - GetCloseButtonWidthPixels();
             return pos.X >= closeButtonX &&
-                   pos.X <= closeButtonX + CloseButtonWidth &&
+                   pos.X <= closeButtonX + GetCloseButtonWidthPixels() &&
                    pos.Y >= 0 &&
                    pos.Y <= DialogHeaderHeight;
+        }
+
+        /// <summary>
+        /// Sets the dialog minimum size using unscaled base dimensions.
+        /// </summary>
+        /// <param name="baseWidth">Unscaled minimum width.</param>
+        /// <param name="baseHeight">Unscaled minimum height.</param>
+        protected void SetDialogMinimumSize(int baseWidth, int baseHeight) {
+            DialogMinimumSize = new int2(Metrics.ScalePixels(baseWidth), Metrics.ScalePixels(baseHeight));
+        }
+
+        /// <summary>
+        /// Gets the scaled width used by the shared close button chrome.
+        /// </summary>
+        /// <returns>Scaled close-button width in pixels.</returns>
+        int GetCloseButtonWidthPixels() {
+            return Metrics.ScalePixels(CloseButtonWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled square size used by the resize grips.
+        /// </summary>
+        /// <returns>Scaled resize-grip size in pixels.</returns>
+        int GetResizeGripSizePixels() {
+            return Metrics.ScalePixels(ResizeGripSize);
+        }
+
+        /// <summary>
+        /// Gets the scaled separator width used inside the dialog header.
+        /// </summary>
+        /// <returns>Scaled separator width in pixels.</returns>
+        int GetDialogSeparatorWidth() {
+            return Metrics.ScalePixels(1);
+        }
+
+        /// <summary>
+        /// Gets the scaled header padding used before the title text begins.
+        /// </summary>
+        /// <returns>Scaled header padding in pixels.</returns>
+        int GetHeaderPaddingPixels() {
+            return Metrics.ScalePixels(HeaderPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing preserved between the title text and the close button chrome.
+        /// </summary>
+        /// <returns>Scaled header button spacing in pixels.</returns>
+        int GetHeaderButtonSpacingPixels() {
+            return Metrics.ScalePixels(HeaderButtonSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled reserved width for the host window control cluster.
+        /// </summary>
+        /// <returns>Scaled reserved host title-bar button width in pixels.</returns>
+        int GetHostTitleBarButtonGapWidth() {
+            return Metrics.ScalePixels(HostTitleBarButtonGapWidth);
         }
 
         /// <summary>
