@@ -6,8 +6,7 @@ namespace helengine {
         /// <summary>
         /// Current payload version shared by all serialized light component records.
         /// </summary>
-        public const byte CurrentVersion = 1;
-
+        public const byte CurrentVersion = 2;
         /// <summary>
         /// Writes the shared directional-light payload fields into the supplied writer.
         /// </summary>
@@ -21,6 +20,7 @@ namespace helengine {
             }
 
             WriteCommonLightFields(writer, lightComponent);
+            writer.WriteSingle(lightComponent.ShadowDistance);
         }
 
         /// <summary>
@@ -35,6 +35,7 @@ namespace helengine {
 
             DirectionalLightComponent lightComponent = new DirectionalLightComponent();
             ReadCommonLightFields(reader, lightComponent);
+            lightComponent.ShadowDistance = reader.ReadSingle();
             return lightComponent;
         }
 
@@ -176,5 +177,6 @@ namespace helengine {
                 reader.ReadSingle(),
                 reader.ReadSingle());
         }
+
     }
 }

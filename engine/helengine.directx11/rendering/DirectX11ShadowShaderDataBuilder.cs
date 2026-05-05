@@ -188,9 +188,10 @@ namespace helengine.directx11 {
             float4x4 view;
             float4x4 projection;
             if (light.LightType == LightType.Directional) {
+                DirectionalLightComponent directionalLight = (DirectionalLightComponent)light;
                 float3 rotatedForward = LightDirectionUtility.GetEntityForwardDirection(entity);
                 float3 lightDirection = Normalize(new float3(-rotatedForward.X, -rotatedForward.Y, -rotatedForward.Z));
-                float shadowDistance = (float)Math.Max(1.0, camera.RenderSettings.ShadowDistance);
+                float shadowDistance = (float)Math.Max(1.0, directionalLight.ShadowDistance);
                 float3 target = camera.Parent.Position;
                 float3 lightPosition = target + (lightDirection * (float)(shadowDistance * 0.5));
                 float3 up = Math.Abs(float3.Dot(lightDirection, DefaultUp)) > 0.99f ? new float3(0f, 0f, 1f) : DefaultUp;

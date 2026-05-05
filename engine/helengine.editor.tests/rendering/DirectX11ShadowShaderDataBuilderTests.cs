@@ -119,6 +119,30 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures directional shadow projection size follows the authored light shadow distance instead of the camera shadow distance.
+        /// </summary>
+        [Fact]
+        public void BuildShadowViewProjectionMatrix_WhenDirectionalLightOverridesCameraDistance_UsesLightShadowDistance() {
+            InitializeCore();
+            CameraComponent camera = CreateCamera();
+            camera.RenderSettings.ShadowDistance = 10f;
+
+            Entity directionalEntity = CreateEntity(new float3(0f, 0f, 0f));
+            DirectionalLightComponent directionalLight = new DirectionalLightComponent {
+                ShadowDistance = 80f
+            };
+            directionalEntity.AddComponent(directionalLight);
+            RenderFrameLightSubmission directionalSubmission = new RenderFrameLightSubmission(directionalLight, 10);
+            DirectX11ShadowAtlasAllocation allocation = new DirectX11ShadowAtlasAllocation(directionalSubmission, 0, 0, 1024, 1024);
+            DirectX11ShadowShaderDataBuilder builder = new DirectX11ShadowShaderDataBuilder();
+
+            float4x4 lightViewProjection = builder.BuildShadowViewProjectionMatrix(camera, allocation);
+            float3 clipPoint = TransformPointToNormalizedDeviceCoordinates(new float3(30f, 0f, 5f), lightViewProjection);
+
+            Assert.InRange(Math.Abs(clipPoint.X), 0f, 1f);
+        }
+
+        /// <summary>
         /// Ensures the point-shadow cube Z faces align with the engine forward convention instead of mirroring across the light.
         /// </summary>
         [Fact]

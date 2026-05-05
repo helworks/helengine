@@ -17,7 +17,8 @@ namespace helengine.editor.tests.serialization.scene {
                 Intensity = 3.5f,
                 ShadowsEnabled = true,
                 ShadowMapMode = ShadowMapMode.Forced,
-                ShadowStrength = 0.65f
+                ShadowStrength = 0.65f,
+                ShadowDistance = 72f
             };
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(lightComponent, 0, null);
@@ -28,6 +29,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(lightComponent.ShadowsEnabled, loadedLight.ShadowsEnabled);
             Assert.Equal(lightComponent.ShadowMapMode, loadedLight.ShadowMapMode);
             Assert.Equal(lightComponent.ShadowStrength, loadedLight.ShadowStrength);
+            Assert.Equal(lightComponent.ShadowDistance, loadedLight.ShadowDistance);
         }
 
         /// <summary>

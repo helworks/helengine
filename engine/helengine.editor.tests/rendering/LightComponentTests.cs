@@ -15,6 +15,7 @@ namespace helengine.editor.tests.rendering {
             Assert.Equal(LightType.Directional, lightComponent.LightType);
             Assert.True(lightComponent.ShadowsEnabled);
             Assert.Equal(ShadowMapMode.Auto, lightComponent.ShadowMapMode);
+            Assert.Equal(50f, lightComponent.ShadowDistance);
         }
 
         /// <summary>

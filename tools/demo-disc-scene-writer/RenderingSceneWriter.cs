@@ -667,7 +667,8 @@ namespace helengine.demo_disc_scene_writer {
                     "DirectionalShadowLabLight",
                     new float3(0f, 12f, 0f),
                     directionalLightOrientation,
-                    2.8f)
+                    2.8f,
+                    60f)
             };
         }
 
@@ -806,13 +807,15 @@ namespace helengine.demo_disc_scene_writer {
         /// <param name="localPosition">Local position assigned to the entity.</param>
         /// <param name="localOrientation">Local orientation assigned to the entity.</param>
         /// <param name="intensity">Authored directional-light intensity.</param>
+        /// <param name="shadowDistance">Authored directional-light shadow cutoff distance.</param>
         /// <returns>Serialized directional-light entity.</returns>
         SceneEntityAsset CreateDirectionalLightEntity(
             string id,
             string name,
             float3 localPosition,
             float4 localOrientation,
-            float intensity) {
+            float intensity,
+            float shadowDistance) {
             return new SceneEntityAsset {
                 Id = id,
                 Name = name,
@@ -823,7 +826,7 @@ namespace helengine.demo_disc_scene_writer {
                     new SceneComponentAssetRecord {
                         ComponentTypeId = DirectionalLightComponentTypeId,
                         ComponentIndex = 0,
-                        Payload = WriteDirectionalLightPayload(intensity)
+                        Payload = WriteDirectionalLightPayload(intensity, shadowDistance)
                     }
                 },
                 Children = Array.Empty<SceneEntityAsset>()
@@ -956,14 +959,16 @@ namespace helengine.demo_disc_scene_writer {
         /// Writes one serialized directional-light component payload.
         /// </summary>
         /// <param name="intensity">Authored directional-light intensity.</param>
+        /// <param name="shadowDistance">Authored directional-light shadow cutoff distance.</param>
         /// <returns>Serialized directional-light component payload.</returns>
-        byte[] WriteDirectionalLightPayload(float intensity) {
+        byte[] WriteDirectionalLightPayload(float intensity, float shadowDistance) {
             DirectionalLightComponent lightComponent = new DirectionalLightComponent {
                 Color = new float4(1f, 0.96f, 0.90f, 1f),
                 Intensity = intensity,
                 ShadowsEnabled = true,
                 ShadowMapMode = ShadowMapMode.Forced,
-                ShadowStrength = 1f
+                ShadowStrength = 1f,
+                ShadowDistance = shadowDistance
             };
 
             using MemoryStream stream = new MemoryStream();

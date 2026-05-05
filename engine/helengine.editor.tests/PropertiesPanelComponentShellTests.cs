@@ -440,6 +440,34 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures directional light shadow distance is surfaced as an editable scalar row and updates the target light.
+        /// </summary>
+        [Fact]
+        public void ShowComponents_WhenDirectionalLightContainsShadowDistance_UsesScalarRowAndUpdatesTheLight() {
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Light"
+            };
+            DirectionalLightComponent light = new DirectionalLightComponent {
+                ShadowDistance = 64f
+            };
+            entity.AddComponent(light);
+
+            view.ShowComponents(entity);
+
+            ComponentPropertyRow shadowDistanceRow = FindScalarRow(view, nameof(DirectionalLightComponent.ShadowDistance));
+
+            Assert.Equal(ComponentPropertyRowKind.Scalar, shadowDistanceRow.Kind);
+            Assert.Equal("64", shadowDistanceRow.ScalarField.Text);
+
+            shadowDistanceRow.ScalarField.Text = "96";
+            InvokePrivate(view, "HandleScalarSubmitted", shadowDistanceRow.ScalarField);
+
+            Assert.Equal(96f, light.ShadowDistance);
+            Assert.Equal("96", shadowDistanceRow.ScalarField.Text);
+        }
+
+        /// <summary>
         /// Ensures submitting invalid scalar text keeps the authored component value and restores the last valid field text.
         /// </summary>
         [Fact]

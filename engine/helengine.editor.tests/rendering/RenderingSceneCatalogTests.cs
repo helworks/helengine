@@ -154,15 +154,20 @@ namespace helengine.editor.tests.rendering {
         public void SceneCatalog_WhenLoadingDirectionalShadowLab_IncludesCameraDirectionalLightAndOutdoorDebugLayout() {
             SceneAsset sceneAsset = LoadSceneAsset("directional-shadow-lab.helen");
             SceneComponentAssetRecord cameraRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.CameraComponent");
+            SceneComponentAssetRecord directionalLightRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.DirectionalLightComponent");
             CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            DirectionalLightComponentPersistenceDescriptor lightDescriptor = new DirectionalLightComponentPersistenceDescriptor();
             CameraComponent cameraComponent = (CameraComponent)descriptor.DeserializeComponent(cameraRecord, null, null);
+            DirectionalLightComponent directionalLightComponent = (DirectionalLightComponent)lightDescriptor.DeserializeComponent(directionalLightRecord, null, null);
 
             Assert.NotNull(cameraRecord);
+            Assert.NotNull(directionalLightRecord);
             Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.DirectionalLightComponent"));
             Assert.True(CountComponents(sceneAsset.RootEntities, "helengine.MeshComponent") >= 8);
             Assert.Equal(DepthPrepassMode.Auto, cameraComponent.RenderSettings.DepthPrepassMode);
             Assert.Equal(60f, cameraComponent.RenderSettings.ShadowDistance);
             Assert.Equal(PostProcessTier.Disabled, cameraComponent.RenderSettings.PostProcessTier);
+            Assert.Equal(60f, directionalLightComponent.ShadowDistance);
         }
 
         /// <summary>

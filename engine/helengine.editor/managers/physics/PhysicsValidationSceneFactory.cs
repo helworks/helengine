@@ -1028,7 +1028,8 @@ namespace helengine.editor {
                 Intensity = 2.35f,
                 ShadowsEnabled = true,
                 ShadowMapMode = ShadowMapMode.Forced,
-                ShadowStrength = 0.95f
+                ShadowStrength = 0.95f,
+                ShadowDistance = 60f
             };
 
             using MemoryStream stream = new MemoryStream();
