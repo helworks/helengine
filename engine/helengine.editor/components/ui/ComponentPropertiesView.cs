@@ -783,6 +783,10 @@ namespace helengine.editor {
                 return null;
             }
 
+            if (TryGetSuppressedCameraPropertyValue(row, out object suppressedValue)) {
+                return suppressedValue;
+            }
+
             return row.Property.GetValue(row.TargetComponent);
         }
 
@@ -1294,11 +1298,52 @@ namespace helengine.editor {
                 && string.Equals(row.CustomEditorTypeId, CameraClearSettingsPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
                 CameraClearSettings settings = ReadCameraClearSettings(row);
                 settings = WriteCameraClearSettingsNestedValue(row, settings, value);
-                row.Property.SetValue(row.TargetComponent, settings);
+                if (!TrySetSuppressedCameraPropertyValue(row, settings)) {
+                    row.Property.SetValue(row.TargetComponent, settings);
+                }
+                return;
+            }
+
+            if (TrySetSuppressedCameraPropertyValue(row, value)) {
                 return;
             }
 
             row.Property.SetValue(row.TargetComponent, value);
+        }
+
+        /// <summary>
+        /// Attempts to resolve one authored suppressed-camera property value for a row.
+        /// </summary>
+        /// <param name="row">Row being read.</param>
+        /// <param name="value">Authored property value when suppression metadata owns the property.</param>
+        /// <returns>True when the row resolves through suppression metadata; otherwise false.</returns>
+        bool TryGetSuppressedCameraPropertyValue(ComponentPropertyRow row, out object value) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (row.TargetComponent is CameraComponent cameraComponent) {
+                return EditorSceneCameraSuppressionService.TryGetAuthoredPropertyValue(cameraComponent, row.Property.Name, out value);
+            }
+
+            value = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Attempts to write one authored suppressed-camera property value for a row.
+        /// </summary>
+        /// <param name="row">Row being updated.</param>
+        /// <param name="value">Authored property value to store.</param>
+        /// <returns>True when the row writes through suppression metadata; otherwise false.</returns>
+        bool TrySetSuppressedCameraPropertyValue(ComponentPropertyRow row, object value) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (row.TargetComponent is CameraComponent cameraComponent) {
+                return EditorSceneCameraSuppressionService.TrySetAuthoredPropertyValue(cameraComponent, row.Property.Name, value);
+            }
+
+            return false;
         }
 
         /// <summary>

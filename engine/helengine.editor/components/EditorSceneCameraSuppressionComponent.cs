@@ -4,6 +4,11 @@ namespace helengine {
     /// </summary>
     public class EditorSceneCameraSuppressionComponent : Component, IEditorHiddenComponent {
         /// <summary>
+        /// Cached authored render settings preserved while the live scene camera remains suppressed in the editor.
+        /// </summary>
+        CameraRenderSettings RenderSettingsValue;
+
+        /// <summary>
         /// Initializes a new hidden suppression-state component from authored camera settings.
         /// </summary>
         /// <param name="cameraDrawOrder">Authored camera draw order.</param>
@@ -25,32 +30,35 @@ namespace helengine {
             LayerMask = layerMask;
             Viewport = viewport;
             ClearSettings = clearSettings;
-            RenderSettings = new CameraRenderSettings(renderSettings);
+            RenderSettingsValue = new CameraRenderSettings(renderSettings);
         }
 
         /// <summary>
-        /// Gets the authored camera draw order captured before editor suppression was applied.
+        /// Gets or sets the authored camera draw order captured before editor suppression was applied.
         /// </summary>
-        public byte CameraDrawOrder { get; }
+        public byte CameraDrawOrder { get; set; }
 
         /// <summary>
-        /// Gets the authored camera layer mask captured before editor suppression was applied.
+        /// Gets or sets the authored camera layer mask captured before editor suppression was applied.
         /// </summary>
-        public ushort LayerMask { get; }
+        public ushort LayerMask { get; set; }
 
         /// <summary>
-        /// Gets the authored camera viewport captured before editor suppression was applied.
+        /// Gets or sets the authored camera viewport captured before editor suppression was applied.
         /// </summary>
-        public float4 Viewport { get; }
+        public float4 Viewport { get; set; }
 
         /// <summary>
-        /// Gets the authored camera clear settings captured before editor suppression was applied.
+        /// Gets or sets the authored camera clear settings captured before editor suppression was applied.
         /// </summary>
-        public CameraClearSettings ClearSettings { get; }
+        public CameraClearSettings ClearSettings { get; set; }
 
         /// <summary>
-        /// Gets the authored camera render settings captured before editor suppression was applied.
+        /// Gets or sets the authored camera render settings captured before editor suppression was applied.
         /// </summary>
-        public CameraRenderSettings RenderSettings { get; }
+        public CameraRenderSettings RenderSettings {
+            get { return RenderSettingsValue; }
+            set { RenderSettingsValue = value ?? throw new ArgumentNullException(nameof(value)); }
+        }
     }
 }

@@ -158,6 +158,34 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures editing clear-color state on one suppressed scene camera updates authored suppression data without unsuppressing the live runtime camera.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenSuppressedCameraClearColorEnabledChanges_KeepsTheLiveCameraSuppressed() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity();
+            CameraComponent camera = new CameraComponent();
+            camera.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 1f), true, 1f, false, 0);
+            entity.AddComponent(camera);
+            EditorSceneCameraSuppressionService.AttachAndSuppress(entity);
+
+            panel.ShowEntityProperties(entity);
+
+            ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            ComponentPropertyRow clearSettingsRow = GetSingleRow(view, "Clear Settings");
+            InvokeNestedSectionToggle(view, clearSettingsRow);
+
+            ComponentPropertyRow clearColorEnabledRow = GetSingleRow(view, "Clear Color Enabled");
+            MethodInfo checkedChangedMethod = typeof(ComponentPropertiesView).GetMethod("HandleBooleanCheckedChanged", BindingFlags.Instance | BindingFlags.NonPublic);
+            checkedChangedMethod.Invoke(view, new object[] { clearColorEnabledRow.CheckBoxField, true });
+
+            EditorSceneCameraSuppressionComponent suppressionState = EditorSceneCameraSuppressionService.GetSuppressionState(camera);
+            Assert.NotNull(suppressionState);
+            Assert.False(camera.ClearSettings.ClearColorEnabled);
+            Assert.True(suppressionState.ClearSettings.ClearColorEnabled);
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>
