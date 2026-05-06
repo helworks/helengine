@@ -176,26 +176,39 @@ namespace helengine.editor {
         /// </summary>
         void ApplyMirroredState() {
             byte cameraDrawOrder;
-            ushort layerMask;
+            ushort sourceLayerMask;
             CameraClearSettings clearSettings;
             CameraRenderSettings renderSettings;
             if (suppressionState != null) {
                 cameraDrawOrder = suppressionState.CameraDrawOrder;
-                layerMask = suppressionState.LayerMask;
+                sourceLayerMask = suppressionState.LayerMask;
                 clearSettings = suppressionState.ClearSettings;
                 renderSettings = suppressionState.RenderSettings;
             } else {
                 cameraDrawOrder = sourceCameraComponent.CameraDrawOrder;
-                layerMask = sourceCameraComponent.LayerMask;
+                sourceLayerMask = sourceCameraComponent.LayerMask;
                 clearSettings = sourceCameraComponent.ClearSettings;
                 renderSettings = sourceCameraComponent.RenderSettings;
             }
 
             previewCameraComponent.CameraDrawOrder = cameraDrawOrder;
-            previewCameraComponent.LayerMask = layerMask;
+            previewCameraComponent.LayerMask = ResolvePreviewLayerMask(sourceLayerMask);
             previewCameraComponent.ClearSettings = clearSettings;
             previewCameraComponent.RenderSettings = new CameraRenderSettings(renderSettings);
             previewCameraComponent.Viewport = BuildPreviewViewport();
+        }
+
+        /// <summary>
+        /// Resolves the preview layer mask so editor-loaded scene cameras can still see authored scene objects.
+        /// </summary>
+        /// <param name="sourceLayerMask">Authored layer mask mirrored from the selected camera.</param>
+        /// <returns>Layer mask that should be applied to the preview camera.</returns>
+        ushort ResolvePreviewLayerMask(ushort sourceLayerMask) {
+            if (sourceEntity is EditorEntity) {
+                return EditorLayerMasks.SceneObjects;
+            }
+
+            return sourceLayerMask;
         }
 
         /// <summary>
