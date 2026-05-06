@@ -192,6 +192,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures source font files import into cached font assets through the shared import manager.
+        /// </summary>
+        [Fact]
+        public void TryLoadFontAsset_WhenSourceFontExists_ImportsAndCachesFontAsset() {
+            string sourcePath = WriteSourceFont("demo-title.ttf");
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" }));
+
+            bool loaded = manager.TryLoadFontAsset(sourcePath, out FontAsset asset);
+
+            Assert.True(loaded);
+            Assert.NotNull(asset);
+
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            string outputPath = Path.Combine(CacheRootPath, settings.Importer.AssetId);
+            Assert.True(File.Exists(outputPath));
+        }
+
+        /// <summary>
         /// Creates an import manager configured with the deterministic test texture importer.
         /// </summary>
         /// <returns>Configured asset import manager.</returns>
@@ -208,6 +228,21 @@ namespace helengine.editor.tests {
         /// <param name="fileName">Source file name to create inside the assets folder.</param>
         /// <returns>Absolute path to the source file.</returns>
         string WriteSourceTexture(string fileName) {
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new ArgumentException("File name must be provided.", nameof(fileName));
+            }
+
+            string sourcePath = Path.Combine(AssetsRootPath, fileName);
+            File.WriteAllBytes(sourcePath, new byte[] { 1, 2, 3, 4 });
+            return sourcePath;
+        }
+
+        /// <summary>
+        /// Writes a minimal source font file for importer tests.
+        /// </summary>
+        /// <param name="fileName">Source file name to create inside the assets folder.</param>
+        /// <returns>Absolute path to the source file.</returns>
+        string WriteSourceFont(string fileName) {
             if (string.IsNullOrWhiteSpace(fileName)) {
                 throw new ArgumentException("File name must be provided.", nameof(fileName));
             }

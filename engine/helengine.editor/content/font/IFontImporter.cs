@@ -7,7 +7,7 @@ namespace helengine.editor {
         /// Imports the representation of a font from a stream.
         /// </summary>
         /// <param name="stream">Stream containing font data.</param>
-        /// <returns>Imported <see cref="ModelAsset"/> for the font.</returns>
+        /// <returns>Imported <see cref="FontAsset"/> for the font.</returns>
         FontAsset ImportFont(Stream stream);
     }
 }

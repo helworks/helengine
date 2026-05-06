@@ -54,9 +54,19 @@ namespace helengine.editor {
         readonly Dictionary<string, ITextImporter> textImportersById;
 
         /// <summary>
+        /// Registered font importers keyed by identifier.
+        /// </summary>
+        readonly Dictionary<string, IFontImporter> fontImportersById;
+
+        /// <summary>
         /// Default text importer identifiers keyed by extension.
         /// </summary>
         readonly Dictionary<string, string> defaultTextImportersByExtension;
+
+        /// <summary>
+        /// Default font importer identifiers keyed by extension.
+        /// </summary>
+        readonly Dictionary<string, string> defaultFontImportersByExtension;
 
         /// <summary>
         /// Registered model importers keyed by identifier.
@@ -104,7 +114,9 @@ namespace helengine.editor {
             defaultTextureImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             textureImporterIdsByExtension = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             textImportersById = new Dictionary<string, ITextImporter>(StringComparer.OrdinalIgnoreCase);
+            fontImportersById = new Dictionary<string, IFontImporter>(StringComparer.OrdinalIgnoreCase);
             defaultTextImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            defaultFontImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             ModelImportersById = new Dictionary<string, IModelImporter>(StringComparer.OrdinalIgnoreCase);
             DefaultModelImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             fileHasher = new AssetFileHasher();
@@ -149,6 +161,10 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for text assets.");
             }
 
+            if (fontImportersById.ContainsKey(registration.ImporterId)) {
+                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for font assets.");
+            }
+
             if (ModelImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for model assets.");
             }
@@ -163,6 +179,10 @@ namespace helengine.editor {
                 string extension = NormalizeExtension(extensions[i]);
                 if (defaultTextImportersByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a text importer.");
+                }
+
+                if (defaultFontImportersByExtension.ContainsKey(extension)) {
+                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a font importer.");
                 }
 
                 if (DefaultModelImportersByExtension.ContainsKey(extension)) {
@@ -193,6 +213,10 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for texture assets.");
             }
 
+            if (fontImportersById.ContainsKey(registration.ImporterId)) {
+                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for font assets.");
+            }
+
             if (ModelImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for model assets.");
             }
@@ -209,12 +233,67 @@ namespace helengine.editor {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a texture importer.");
                 }
 
+                if (defaultFontImportersByExtension.ContainsKey(extension)) {
+                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a font importer.");
+                }
+
                 if (DefaultModelImportersByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a model importer.");
                 }
 
                 if (!defaultTextImportersByExtension.ContainsKey(extension)) {
                     defaultTextImportersByExtension[extension] = registration.ImporterId;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Registers a font importer and records its supported extensions.
+        /// </summary>
+        /// <param name="registration">Importer registration data.</param>
+        public void RegisterFontImporter(FontImporterRegistration registration) {
+            if (registration == null) {
+                throw new ArgumentNullException(nameof(registration));
+            }
+
+            if (fontImportersById.ContainsKey(registration.ImporterId)) {
+                throw new InvalidOperationException($"Font importer '{registration.ImporterId}' is already registered.");
+            }
+
+            if (textureImportersById.ContainsKey(registration.ImporterId)) {
+                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for texture assets.");
+            }
+
+            if (textImportersById.ContainsKey(registration.ImporterId)) {
+                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for text assets.");
+            }
+
+            if (ModelImportersById.ContainsKey(registration.ImporterId)) {
+                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for model assets.");
+            }
+
+            fontImportersById.Add(registration.ImporterId, registration.Importer);
+            AssetContentManager.RegisterProcessor(
+                registration.ImporterId,
+                new FontImporterContentProcessor(registration.Importer),
+                registration.Extensions);
+            string[] extensions = registration.Extensions;
+            for (int i = 0; i < extensions.Length; i++) {
+                string extension = NormalizeExtension(extensions[i]);
+                if (defaultTextureImportersByExtension.ContainsKey(extension)) {
+                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a texture importer.");
+                }
+
+                if (defaultTextImportersByExtension.ContainsKey(extension)) {
+                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a text importer.");
+                }
+
+                if (DefaultModelImportersByExtension.ContainsKey(extension)) {
+                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a model importer.");
+                }
+
+                if (!defaultFontImportersByExtension.ContainsKey(extension)) {
+                    defaultFontImportersByExtension[extension] = registration.ImporterId;
                 }
             }
         }
@@ -240,6 +319,10 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for text assets.");
             }
 
+            if (fontImportersById.ContainsKey(registration.ImporterId)) {
+                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for font assets.");
+            }
+
             ModelImportersById.Add(registration.ImporterId, registration.Importer);
             AssetContentManager.RegisterProcessor(
                 registration.ImporterId,
@@ -254,6 +337,10 @@ namespace helengine.editor {
 
                 if (defaultTextImportersByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a text importer.");
+                }
+
+                if (defaultFontImportersByExtension.ContainsKey(extension)) {
+                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a font importer.");
                 }
 
                 if (!DefaultModelImportersByExtension.ContainsKey(extension)) {
@@ -283,6 +370,20 @@ namespace helengine.editor {
         public IReadOnlyList<string> GetTextImporterIds() {
             List<string> ids = new List<string>(textImportersById.Count);
             foreach (string importerId in textImportersById.Keys) {
+                ids.Add(importerId);
+            }
+
+            ids.Sort(StringComparer.OrdinalIgnoreCase);
+            return ids;
+        }
+
+        /// <summary>
+        /// Gets the identifiers of all registered font importers.
+        /// </summary>
+        /// <returns>Ordered list of importer identifiers.</returns>
+        public IReadOnlyList<string> GetFontImporterIds() {
+            List<string> ids = new List<string>(fontImportersById.Count);
+            foreach (string importerId in fontImportersById.Keys) {
                 ids.Add(importerId);
             }
 
@@ -323,6 +424,10 @@ namespace helengine.editor {
                 return GetTextImporterIds();
             }
 
+            if (defaultFontImportersByExtension.ContainsKey(normalized)) {
+                return GetFontImporterIds();
+            }
+
             if (DefaultModelImportersByExtension.ContainsKey(normalized)) {
                 return GetModelImporterIds();
             }
@@ -356,6 +461,20 @@ namespace helengine.editor {
 
             string normalized = NormalizeExtension(extension);
             return defaultTextImportersByExtension.ContainsKey(normalized);
+        }
+
+        /// <summary>
+        /// Checks whether the extension maps to a font importer.
+        /// </summary>
+        /// <param name="extension">File extension to evaluate.</param>
+        /// <returns>True when the extension maps to a font importer.</returns>
+        public bool IsFontExtension(string extension) {
+            if (string.IsNullOrWhiteSpace(extension)) {
+                return false;
+            }
+
+            string normalized = NormalizeExtension(extension);
+            return defaultFontImportersByExtension.ContainsKey(normalized);
         }
 
         /// <summary>
@@ -396,6 +515,10 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a model importer.");
             }
 
+            if (defaultFontImportersByExtension.ContainsKey(normalized)) {
+                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a font importer.");
+            }
+
             EnsureTextureImporterSupportsExtension(normalized, importerId);
             defaultTextureImportersByExtension[normalized] = importerId;
         }
@@ -418,6 +541,10 @@ namespace helengine.editor {
             string normalized = NormalizeExtension(extension);
             if (defaultTextureImportersByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a texture importer.");
+            }
+
+            if (defaultFontImportersByExtension.ContainsKey(normalized)) {
+                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a font importer.");
             }
 
             if (DefaultModelImportersByExtension.ContainsKey(normalized)) {
@@ -445,6 +572,10 @@ namespace helengine.editor {
             string normalized = NormalizeExtension(extension);
             if (defaultTextureImportersByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a texture importer.");
+            }
+
+            if (defaultFontImportersByExtension.ContainsKey(normalized)) {
+                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a font importer.");
             }
 
             if (defaultTextImportersByExtension.ContainsKey(normalized)) {
@@ -520,6 +651,40 @@ namespace helengine.editor {
             EnsureDirectoryForFile(outputPath);
             using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, asset);
+            }
+
+            SaveImportSettings(sourcePath, settings);
+            return asset;
+        }
+
+        /// <summary>
+        /// Imports a font asset from a source file and writes it to disk.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the font source file.</param>
+        /// <returns>Imported <see cref="FontAsset"/> instance.</returns>
+        public FontAsset ImportFont(string sourcePath) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            if (!File.Exists(sourcePath)) {
+                throw new FileNotFoundException("Font source file was not found.", sourcePath);
+            }
+
+            AssetImportSettings settings = LoadOrCreateImportSettings(sourcePath);
+            EnsureImportSettingsValid(settings);
+
+            EnsureFontImporterExists(settings.Importer.ImporterId);
+            FontAsset asset = AssetContentManager.Load<FontAsset>(sourcePath, settings.Importer.ImporterId);
+
+            if (asset == null) {
+                throw new InvalidOperationException($"Font importer '{settings.Importer.ImporterId}' did not return an asset.");
+            }
+
+            string outputPath = GetFontAssetPath(settings.Importer.AssetId);
+            EnsureDirectoryForFile(outputPath);
+            using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                FontAssetBinarySerializer.Serialize(stream, asset);
             }
 
             SaveImportSettings(sourcePath, settings);
@@ -777,6 +942,46 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Loads a font asset for a source file, importing it when needed.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the font source file.</param>
+        /// <param name="asset">Loaded font asset when available.</param>
+        /// <returns>True when the source can be resolved to a font asset.</returns>
+        public bool TryLoadFontAsset(string sourcePath, out FontAsset asset) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            if (!File.Exists(sourcePath)) {
+                throw new FileNotFoundException("Font source file was not found.", sourcePath);
+            }
+
+            AssetImportSettings settings;
+            if (!TryLoadOrCreateImportSettings(sourcePath, out settings)) {
+                asset = null;
+                return false;
+            }
+
+            if (!IsFontImporterRegistered(settings.Importer.ImporterId)) {
+                asset = null;
+                return false;
+            }
+
+            string outputPath = GetFontAssetPath(settings.Importer.AssetId);
+            if (!File.Exists(outputPath)) {
+                asset = ImportFont(sourcePath);
+                return true;
+            }
+
+            if (TryLoadCachedFontAsset(outputPath, out asset)) {
+                return true;
+            }
+
+            asset = ImportFont(sourcePath);
+            return true;
+        }
+
+        /// <summary>
         /// Loads a model asset for a source file, importing it when needed.
         /// </summary>
         /// <param name="sourcePath">Absolute path to the model source file.</param>
@@ -864,6 +1069,32 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Text cache file '{outputPath}' did not contain a TextAsset payload.");
+        }
+
+        /// <summary>
+        /// Attempts to load a cached font asset.
+        /// </summary>
+        /// <param name="outputPath">Absolute path to the cached font asset.</param>
+        /// <param name="asset">Loaded font asset when the cache file exists and contains the expected payload type.</param>
+        /// <returns>True when the cached asset was loaded successfully.</returns>
+        bool TryLoadCachedFontAsset(string outputPath, out FontAsset asset) {
+            if (string.IsNullOrWhiteSpace(outputPath)) {
+                throw new ArgumentException("Output path must be provided.", nameof(outputPath));
+            }
+
+            asset = null;
+            if (!File.Exists(outputPath)) {
+                return false;
+            }
+
+            try {
+                using FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                asset = FontAssetBinarySerializer.Deserialize(stream);
+                return true;
+            } catch {
+                asset = null;
+                return false;
+            }
         }
 
         /// <summary>
@@ -1076,12 +1307,28 @@ namespace helengine.editor {
             string normalized = NormalizeExtension(extension);
             string textureImporterId;
             string textImporterId;
+            string fontImporterId;
             string modelImporterId;
             bool hasTexture = defaultTextureImportersByExtension.TryGetValue(normalized, out textureImporterId);
             bool hasText = defaultTextImportersByExtension.TryGetValue(normalized, out textImporterId);
+            bool hasFont = defaultFontImportersByExtension.TryGetValue(normalized, out fontImporterId);
             bool hasModel = DefaultModelImportersByExtension.TryGetValue(normalized, out modelImporterId);
 
-            if ((hasTexture && hasText) || (hasTexture && hasModel) || (hasText && hasModel)) {
+            int typeCount = 0;
+            if (hasTexture) {
+                typeCount++;
+            }
+            if (hasText) {
+                typeCount++;
+            }
+            if (hasFont) {
+                typeCount++;
+            }
+            if (hasModel) {
+                typeCount++;
+            }
+
+            if (typeCount > 1) {
                 throw new InvalidOperationException($"Multiple importer types are registered for '{normalized}'.");
             }
 
@@ -1091,6 +1338,10 @@ namespace helengine.editor {
 
             if (hasText) {
                 return textImporterId;
+            }
+
+            if (hasFont) {
+                return fontImporterId;
             }
 
             if (hasModel) {
@@ -1115,12 +1366,28 @@ namespace helengine.editor {
             string normalized = NormalizeExtension(extension);
             string textureImporterId;
             string textImporterId;
+            string fontImporterId;
             string modelImporterId;
             bool hasTexture = defaultTextureImportersByExtension.TryGetValue(normalized, out textureImporterId);
             bool hasText = defaultTextImportersByExtension.TryGetValue(normalized, out textImporterId);
+            bool hasFont = defaultFontImportersByExtension.TryGetValue(normalized, out fontImporterId);
             bool hasModel = DefaultModelImportersByExtension.TryGetValue(normalized, out modelImporterId);
 
-            if ((hasTexture && hasText) || (hasTexture && hasModel) || (hasText && hasModel)) {
+            int typeCount = 0;
+            if (hasTexture) {
+                typeCount++;
+            }
+            if (hasText) {
+                typeCount++;
+            }
+            if (hasFont) {
+                typeCount++;
+            }
+            if (hasModel) {
+                typeCount++;
+            }
+
+            if (typeCount > 1) {
                 throw new InvalidOperationException($"Multiple importer types are registered for '{normalized}'.");
             }
 
@@ -1131,6 +1398,11 @@ namespace helengine.editor {
 
             if (hasText) {
                 importerId = textImporterId;
+                return true;
+            }
+
+            if (hasFont) {
+                importerId = fontImporterId;
                 return true;
             }
 
@@ -1248,12 +1520,36 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Retrieves a font importer by identifier.
+        /// </summary>
+        /// <param name="importerId">Identifier of the importer.</param>
+        /// <returns>Importer implementation.</returns>
+        IFontImporter GetFontImporter(string importerId) {
+            IFontImporter importer;
+            if (fontImportersById.TryGetValue(importerId, out importer)) {
+                return importer;
+            }
+
+            throw new InvalidOperationException($"Font importer '{importerId}' is not registered.");
+        }
+
+        /// <summary>
         /// Ensures a text importer is registered.
         /// </summary>
         /// <param name="importerId">Identifier to verify.</param>
         void EnsureTextImporterExists(string importerId) {
             if (!textImportersById.ContainsKey(importerId)) {
                 throw new InvalidOperationException($"Text importer '{importerId}' is not registered.");
+            }
+        }
+
+        /// <summary>
+        /// Ensures a font importer is registered.
+        /// </summary>
+        /// <param name="importerId">Identifier to verify.</param>
+        void EnsureFontImporterExists(string importerId) {
+            if (!fontImportersById.ContainsKey(importerId)) {
+                throw new InvalidOperationException($"Font importer '{importerId}' is not registered.");
             }
         }
 
@@ -1268,6 +1564,19 @@ namespace helengine.editor {
             }
 
             return textImportersById.ContainsKey(importerId);
+        }
+
+        /// <summary>
+        /// Checks whether a font importer is registered.
+        /// </summary>
+        /// <param name="importerId">Identifier to verify.</param>
+        /// <returns>True when a matching importer is registered.</returns>
+        bool IsFontImporterRegistered(string importerId) {
+            if (string.IsNullOrWhiteSpace(importerId)) {
+                return false;
+            }
+
+            return fontImportersById.ContainsKey(importerId);
         }
 
         /// <summary>
@@ -1569,6 +1878,19 @@ namespace helengine.editor {
         /// <param name="assetId">Asset identifier used in the file name.</param>
         /// <returns>Absolute path to the serialized asset file.</returns>
         string GetTextAssetPath(string assetId) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Asset id must be provided.", nameof(assetId));
+            }
+
+            return Path.Combine(importRootPath, assetId);
+        }
+
+        /// <summary>
+        /// Builds the output path for an imported font asset.
+        /// </summary>
+        /// <param name="assetId">Asset identifier used in the file name.</param>
+        /// <returns>Absolute path to the serialized asset file.</returns>
+        string GetFontAssetPath(string assetId) {
             if (string.IsNullOrWhiteSpace(assetId)) {
                 throw new ArgumentException("Asset id must be provided.", nameof(assetId));
             }
