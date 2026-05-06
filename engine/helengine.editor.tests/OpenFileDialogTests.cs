@@ -465,17 +465,19 @@ namespace helengine.editor.tests {
         /// <param name="width">Viewport width in pixels.</param>
         /// <param name="height">Viewport height in pixels.</param>
         void CreateUiCamera(int width, int height) {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity sharedCameraEntity = new EditorEntity {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
 
-            CameraComponent camera = new CameraComponent {
+            CameraComponent sharedCamera = new CameraComponent {
                 LayerMask = EditorLayerMasks.EditorUi,
-                CameraDrawOrder = 255,
+                CameraDrawOrder = EditorUiCameraDrawOrders.SharedUi,
                 Viewport = new float4(0f, 0f, width, height)
             };
-            cameraEntity.AddComponent(camera);
+            sharedCameraEntity.AddComponent(sharedCamera);
+
+            CreateModalCamera(width, height);
         }
 
         /// <summary>
@@ -486,12 +488,12 @@ namespace helengine.editor.tests {
         void CreateModalCamera(int width, int height) {
             EditorEntity cameraEntity = new EditorEntity {
                 InternalEntity = true,
-                LayerMask = 0b1000000000000000
+                LayerMask = EditorLayerMasks.EditorModalUi
             };
 
             CameraComponent camera = new CameraComponent {
-                LayerMask = 0b1000000000000000,
-                CameraDrawOrder = 255,
+                LayerMask = EditorLayerMasks.EditorModalUi,
+                CameraDrawOrder = EditorUiCameraDrawOrders.ModalUi,
                 Viewport = new float4(0f, 0f, width, height)
             };
             cameraEntity.AddComponent(camera);

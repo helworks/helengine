@@ -151,6 +151,28 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures one later camera on a different editor UI layer does not prevent hit testing against visible controls rendered by an earlier shared UI camera.
+        /// </summary>
+        [Fact]
+        public void Update_WhenTopmostCameraUsesAnotherLayer_StillHitsVisibleInteractableOnSharedUiCamera() {
+            TestInputBackend input = InitializeCore();
+            CreateUiCamera(320, 240, EditorLayerMasks.EditorUi, EditorUiCameraDrawOrders.SharedUi);
+            CreateUiCamera(320, 240, EditorLayerMasks.PropertiesPanelContent, EditorUiCameraDrawOrders.PanelContent);
+
+            InteractableComponent interactable = CreateInteractableEntity(
+                new float3(24f, 24f, 0f),
+                new int2(80, 40),
+                220,
+                EditorLayerMasks.EditorUi);
+
+            input.SetMouseState(new MouseState(40, 40, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            input.EarlyUpdate();
+            input.Update();
+
+            Assert.Same(interactable, Core.Instance.PointerInteractionSystem.Hovering);
+        }
+
+        /// <summary>
         /// Ensures the shared input layer leaves edge positions unchanged when pointer wrapping is disabled.
         /// </summary>
         [Fact]
@@ -225,14 +247,25 @@ namespace helengine.editor.tests {
         /// <param name="width">Viewport width in pixels.</param>
         /// <param name="height">Viewport height in pixels.</param>
         void CreateUiCamera(int width, int height) {
+            CreateUiCamera(width, height, EditorLayerMasks.EditorUi, 255);
+        }
+
+        /// <summary>
+        /// Creates one UI camera using the supplied layer mask and draw order.
+        /// </summary>
+        /// <param name="width">Viewport width in pixels.</param>
+        /// <param name="height">Viewport height in pixels.</param>
+        /// <param name="layerMask">Layer mask rendered by the camera.</param>
+        /// <param name="drawOrder">Draw order assigned to the camera.</param>
+        void CreateUiCamera(int width, int height, ushort layerMask, byte drawOrder) {
             EditorEntity cameraEntity = new EditorEntity {
                 InternalEntity = true,
-                LayerMask = EditorLayerMasks.EditorUi
+                LayerMask = layerMask
             };
 
             CameraComponent camera = new CameraComponent {
-                LayerMask = EditorLayerMasks.EditorUi,
-                CameraDrawOrder = 255,
+                LayerMask = layerMask,
+                CameraDrawOrder = drawOrder,
                 Viewport = new float4(0f, 0f, width, height)
             };
             cameraEntity.AddComponent(camera);
@@ -246,9 +279,21 @@ namespace helengine.editor.tests {
         /// <param name="renderOrder">Render order assigned to the visible surface.</param>
         /// <returns>Interactable component used for pointer routing.</returns>
         InteractableComponent CreateInteractableEntity(float3 position, int2 size, byte renderOrder) {
+            return CreateInteractableEntity(position, size, renderOrder, EditorLayerMasks.EditorUi);
+        }
+
+        /// <summary>
+        /// Creates one visible interactable entity with the supplied layout, render order, and layer mask.
+        /// </summary>
+        /// <param name="position">Top-left position in window coordinates.</param>
+        /// <param name="size">Interactable size in pixels.</param>
+        /// <param name="renderOrder">Render order assigned to the visible surface.</param>
+        /// <param name="layerMask">Layer mask assigned to the entity.</param>
+        /// <returns>Interactable component used for pointer routing.</returns>
+        InteractableComponent CreateInteractableEntity(float3 position, int2 size, byte renderOrder, ushort layerMask) {
             EditorEntity entity = new EditorEntity {
                 InternalEntity = true,
-                LayerMask = EditorLayerMasks.EditorUi,
+                LayerMask = layerMask,
                 Position = position
             };
 

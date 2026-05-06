@@ -155,6 +155,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity uiCameraEntity;
         /// <summary>
+        /// Modal UI camera entity used for dialog-shell rendering above panel-content cameras.
+        /// </summary>
+        readonly EditorEntity modalUiCameraEntity;
+        /// <summary>
         /// Scene camera entity used for 3D rendering.
         /// </summary>
         readonly EditorEntity sceneCameraEntity;
@@ -162,6 +166,10 @@ namespace helengine.editor {
         /// UI camera component.
         /// </summary>
         readonly CameraComponent uiCameraComponent;
+        /// <summary>
+        /// Modal UI camera component.
+        /// </summary>
+        readonly CameraComponent modalUiCameraComponent;
         /// <summary>
         /// Scene camera component.
         /// </summary>
@@ -436,9 +444,18 @@ namespace helengine.editor {
             uiCameraEntity.Position = new float3(0, 3, -8);
             uiCameraComponent = new CameraComponent();
             uiCameraComponent.LayerMask = EditorLayerMasks.EditorUi;
-            uiCameraComponent.CameraDrawOrder = EditorUiCameraDrawOrders.ModalUi;
+            uiCameraComponent.CameraDrawOrder = EditorUiCameraDrawOrders.SharedUi;
             uiCameraComponent.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), false, 1.0f, false, 0);
             uiCameraEntity.AddComponent(uiCameraComponent);
+
+            modalUiCameraEntity = new EditorEntity();
+            modalUiCameraEntity.InternalEntity = true;
+            modalUiCameraEntity.Position = new float3(0, 3, -8);
+            modalUiCameraComponent = new CameraComponent();
+            modalUiCameraComponent.LayerMask = EditorLayerMasks.EditorModalUi;
+            modalUiCameraComponent.CameraDrawOrder = EditorUiCameraDrawOrders.ModalUi;
+            modalUiCameraComponent.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), false, 1.0f, false, 0);
+            modalUiCameraEntity.AddComponent(modalUiCameraComponent);
 
             sceneCameraEntity = new EditorEntity();
             sceneCameraEntity.InternalEntity = true;
@@ -793,6 +810,7 @@ namespace helengine.editor {
 
             titleBar.UpdateLayout(width, height);
             uiCameraComponent.Viewport = new float4(0, 0, width, height);
+            modalUiCameraComponent.Viewport = new float4(0, 0, width, height);
 
             int availableHeight = Math.Max(0, height - titleBar.Height);
             dockingManager.Layout.Layout(new int2(width, availableHeight), new float3(0, titleBar.Height, 0));

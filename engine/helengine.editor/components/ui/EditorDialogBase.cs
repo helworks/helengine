@@ -353,7 +353,7 @@ namespace helengine.editor {
             PanelOrder = RenderOrder2D.ModalBackground;
             TextOrder = RenderOrder2D.ModalForeground;
 
-            LayerMask = 0b1000000000000000;
+            LayerMask = EditorLayerMasks.EditorModalUi;
             InternalEntity = true;
             Name = dialogName;
             Enabled = false;

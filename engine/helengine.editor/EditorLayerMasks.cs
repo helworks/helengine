@@ -9,6 +9,11 @@ namespace helengine.editor {
         public const ushort EditorUi = 0b1000000000000000;
 
         /// <summary>
+        /// Layer mask used by modal dialog shells and their shared fullscreen backdrops.
+        /// </summary>
+        public const ushort EditorModalUi = 0b0000000001000000;
+
+        /// <summary>
         /// Layer mask used by scene objects authored by the user.
         /// </summary>
         public const ushort SceneObjects = 0b0100000000000000;

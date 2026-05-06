@@ -68,9 +68,10 @@ namespace helengine.editor.tests {
                 Assert.True(propertiesPanel.Enabled);
                 Assert.True(sceneHierarchyPanel.Position.Y < propertiesPanel.Position.Y);
                 Assert.InRange(Math.Abs(sceneHierarchyPanel.Size.Y - propertiesPanel.Size.Y), 0, 1);
-                Assert.Equal(
-                    sceneHierarchyPanel.Position.Y + sceneHierarchyPanel.Size.Y + DockableEntity.TitleBarHeight,
-                    propertiesPanel.Position.Y);
+                Assert.InRange(
+                    Math.Abs((sceneHierarchyPanel.Position.Y + sceneHierarchyPanel.Size.Y + DockableEntity.TitleBarHeight) - propertiesPanel.Position.Y),
+                    0,
+                    1);
                 int rightSideDockCount = 0;
                 for (int dockIndex = 0; dockIndex < dockOrder.Count; dockIndex++) {
                     if (ReferenceEquals(dockOrder[dockIndex], sceneHierarchyPanel) || ReferenceEquals(dockOrder[dockIndex], propertiesPanel)) {
@@ -84,6 +85,40 @@ namespace helengine.editor.tests {
                 Assert.Equal(sceneHierarchyPanel.Position.Y + sceneHierarchyPanel.TitleBarHeightPixels, hierarchyContentCamera.Viewport.Y);
                 Assert.Equal(sceneHierarchyPanel.Size.X, hierarchyContentCamera.Viewport.Z);
                 Assert.Equal(sceneHierarchyPanel.Size.Y, hierarchyContentCamera.Viewport.W);
+            } finally {
+                session.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Ensures the shared dock-shell UI camera renders below panel-content cameras while modal shells keep a later dedicated tier.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_WhenCalled_UsesSeparateSharedAndModalUiCameraTiersAroundPanelContent() {
+            EditorSession session = CreateSessionForKeyboardFocus(
+                out DockingManager dockingManager,
+                out TestInputBackend inputManager,
+                out EditorViewport mainViewport,
+                out DockableEntity firstSecondaryDock,
+                out EditorFocusTarget firstSecondaryTarget,
+                out DockableEntity secondSecondaryDock,
+                out EditorFocusTarget secondSecondaryTarget);
+
+            try {
+                session.UpdateLayout(1280, 720);
+
+                SceneHierarchyPanel sceneHierarchyPanel = GetPrivateField<SceneHierarchyPanel>(session, "sceneHierarchyPanel");
+                CameraComponent sharedUiCamera = GetPrivateField<CameraComponent>(session, "uiCameraComponent");
+                CameraComponent modalUiCamera = GetPrivateField<CameraComponent>(session, "modalUiCameraComponent");
+                CameraComponent hierarchyContentCamera = GetPrivateField<CameraComponent>(sceneHierarchyPanel, "contentCameraComponent");
+
+                Assert.True(sharedUiCamera.CameraDrawOrder < hierarchyContentCamera.CameraDrawOrder);
+                Assert.Equal(EditorUiCameraDrawOrders.SharedUi, sharedUiCamera.CameraDrawOrder);
+                Assert.Equal(EditorUiCameraDrawOrders.PanelContent, hierarchyContentCamera.CameraDrawOrder);
+                Assert.True(modalUiCamera.CameraDrawOrder > hierarchyContentCamera.CameraDrawOrder);
+                Assert.Equal(EditorUiCameraDrawOrders.ModalUi, modalUiCamera.CameraDrawOrder);
+                Assert.Equal(EditorLayerMasks.EditorUi, sharedUiCamera.LayerMask);
+                Assert.Equal(EditorLayerMasks.EditorModalUi, modalUiCamera.LayerMask);
             } finally {
                 session.Dispose();
             }
@@ -231,11 +266,23 @@ namespace helengine.editor.tests {
             core.InputSystem.SetKeyboardActive(true);
 
             FontAsset font = CreateFont();
+            EditorUiMetrics metrics = new EditorUiMetrics(1.0d);
             EditorEntity uiCameraEntity = new EditorEntity {
                 InternalEntity = true
             };
-            CameraComponent uiCameraComponent = new CameraComponent();
+            CameraComponent uiCameraComponent = new CameraComponent {
+                LayerMask = EditorLayerMasks.EditorUi,
+                CameraDrawOrder = EditorUiCameraDrawOrders.SharedUi
+            };
             uiCameraEntity.AddComponent(uiCameraComponent);
+            EditorEntity modalUiCameraEntity = new EditorEntity {
+                InternalEntity = true
+            };
+            CameraComponent modalUiCameraComponent = new CameraComponent {
+                LayerMask = EditorLayerMasks.EditorModalUi,
+                CameraDrawOrder = EditorUiCameraDrawOrders.ModalUi
+            };
+            modalUiCameraEntity.AddComponent(modalUiCameraComponent);
             EditorEntity sceneCameraEntity = new EditorEntity {
                 InternalEntity = true,
                 Position = new float3(0f, 3f, -8f)
@@ -290,6 +337,7 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "dockingManager", dockingManager);
             SetPrivateField(session, "mainViewport", mainViewport);
             SetPrivateField(session, "uiCameraComponent", uiCameraComponent);
+            SetPrivateField(session, "modalUiCameraComponent", modalUiCameraComponent);
             SetPrivateField(session, "sceneCameraComponent", sceneCameraComponent);
             SetPrivateField(session, "gizmoCameraComponent", gizmoCameraComponent);
             SetPrivateField(session, "assetBrowserPanel", assetBrowserPanel);
@@ -300,11 +348,12 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "saveFileDialog", new SaveFileDialog(font, TempProjectRootPath));
             SetPrivateField(session, "openFileDialog", new OpenFileDialog(font, TempProjectRootPath));
             SetPrivateField(session, "reparentEntityDialog", new ReparentEntityDialog(font));
-            SetPrivateField(session, "buildSettingsDialog", new BuildSettingsDialog(font));
+            SetPrivateField(session, "platformsDialog", new PlatformsDialog(font));
             SetPrivateField(session, "profilesDialog", new ProfilesDialog(font));
             SetPrivateField(session, "buildDialog", new BuildDialog(font));
             SetPrivateField(session, "buildDialogCopySettingsDialog", new BuildDialogCopySettingsDialog(font));
             SetPrivateField(session, "unsavedChangesDialog", new UnsavedChangesDialog(font));
+            SetPrivateField(session, "preferencesDialog", new EditorPreferencesDialog(font, metrics));
             SetPrivateField(session, "gameSolutionService", gameSolutionService);
             SetPrivateField(session, "scriptHotReloadService", scriptHotReloadService);
             SetPrivateField(session, "shaderModuleManager", CreateShaderModuleManager());

@@ -4,12 +4,17 @@ namespace helengine.editor {
     /// </summary>
     public static class EditorUiCameraDrawOrders {
         /// <summary>
+        /// Draw order used by the shared editor UI camera that renders dock chrome and non-modal controls.
+        /// </summary>
+        public const byte SharedUi = 252;
+
+        /// <summary>
         /// Draw order used by panel-owned secondary UI content cameras.
         /// </summary>
         public const byte PanelContent = 253;
 
         /// <summary>
-        /// Draw order used by the shared editor UI camera that renders modal dialogs.
+        /// Draw order used by the dedicated modal UI camera that renders dialog shells above panel content.
         /// </summary>
         public const byte ModalUi = 254;
 

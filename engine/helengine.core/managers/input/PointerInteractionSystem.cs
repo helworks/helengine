@@ -63,13 +63,6 @@ namespace helengine {
 
             int mouseX = Input.GetMouseX();
             int mouseY = Input.GetMouseY();
-            ICamera topCamera = GetTopmostCameraAt(mouseX, mouseY);
-
-            if (topCamera != null) {
-                float4 viewport = topCamera.Viewport;
-                mouseX -= (int)viewport.X;
-                mouseY -= (int)viewport.Y;
-            }
 
             if (Highlighted != null) {
                 int pointerX;
@@ -92,15 +85,13 @@ namespace helengine {
                 return;
             }
 
-            IInteractable2D hit = null;
-            if (topCamera != null) {
-                hit = PointerInteractableHitResolver.ResolveTopInteractableAt(
-                    interactables,
-                    drawables2D,
-                    topCamera,
-                    Input.GetMouseX(),
-                    Input.GetMouseY());
-            }
+            ResolveTopInteractableAt(
+                interactables,
+                drawables2D,
+                Input.GetMouseX(),
+                Input.GetMouseY(),
+                out IInteractable2D hit,
+                out ICamera hitCamera);
 
             bool hoveringChanged = hit != Hovering;
             if (hoveringChanged && Hovering != null) {
@@ -120,7 +111,7 @@ namespace helengine {
 
             int currentPointerX;
             int currentPointerY;
-            PointerInteractableHitResolver.GetRelativePointerForInteractable(Hovering, Input.GetMouseX(), Input.GetMouseY(), topCamera, out currentPointerX, out currentPointerY);
+            PointerInteractableHitResolver.GetRelativePointerForInteractable(Hovering, Input.GetMouseX(), Input.GetMouseY(), hitCamera, out currentPointerX, out currentPointerY);
             int currentDeltaX = Input.GetMouseDeltaX();
             int currentDeltaY = Input.GetMouseDeltaY();
             if (interaction == PointerInteraction.Press) {
@@ -131,7 +122,7 @@ namespace helengine {
                 }
 
                 Highlighted = Hovering;
-                capturedCamera = topCamera;
+                capturedCamera = hitCamera;
                 int2 pressPointer = new int2(currentPointerX, currentPointerY);
                 int2 pressDelta = new int2(currentDeltaX, currentDeltaY);
                 Hovering.OnCursor(pressPointer, pressDelta, PointerInteraction.Press);
@@ -143,21 +134,53 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Finds the topmost camera that contains one pointer coordinate.
+        /// Resolves the top-most interactable across all cameras that cover one pointer coordinate.
         /// </summary>
+        /// <param name="interactables">Registered interactables considered for the hit test.</param>
+        /// <param name="drawables2D">Registered drawables used to evaluate per-camera visual order.</param>
         /// <param name="x">Pointer X coordinate in window space.</param>
         /// <param name="y">Pointer Y coordinate in window space.</param>
-        /// <returns>Topmost matching camera, or null when none covers the point.</returns>
-        ICamera GetTopmostCameraAt(int x, int y) {
+        /// <param name="hitInteractable">Receives the top-most interactable, or null when nothing matches.</param>
+        /// <param name="hitCamera">Receives the camera that owns the winning hit, or null when nothing matches.</param>
+        void ResolveTopInteractableAt(
+            List<IInteractable2D> interactables,
+            List<IDrawable2D> drawables2D,
+            int x,
+            int y,
+            out IInteractable2D hitInteractable,
+            out ICamera hitCamera) {
             List<ICamera> cameras = Core.ObjectManager.Cameras;
-            for (int i = cameras.Count - 1; i >= 0; i--) {
+            hitInteractable = null;
+            hitCamera = null;
+            byte winningDrawOrder = 0;
+            int winningCameraIndex = -1;
+
+            for (int i = 0; i < cameras.Count; i++) {
                 ICamera camera = cameras[i];
-                if (camera.Viewport.Contains(x, y)) {
-                    return camera;
+                if (!camera.Viewport.Contains(x, y)) {
+                    continue;
+                }
+
+                IInteractable2D candidateInteractable = PointerInteractableHitResolver.ResolveTopInteractableAt(
+                    interactables,
+                    drawables2D,
+                    camera,
+                    x,
+                    y);
+                if (candidateInteractable == null) {
+                    continue;
+                }
+
+                byte candidateDrawOrder = camera.CameraDrawOrder;
+                if (hitInteractable == null ||
+                    candidateDrawOrder > winningDrawOrder ||
+                    (candidateDrawOrder == winningDrawOrder && i > winningCameraIndex)) {
+                    hitInteractable = candidateInteractable;
+                    hitCamera = camera;
+                    winningDrawOrder = candidateDrawOrder;
+                    winningCameraIndex = i;
                 }
             }
-
-            return null;
         }
 
         /// <summary>
@@ -172,7 +195,31 @@ namespace helengine {
                 return null;
             }
 
-            return GetTopmostCameraAt(x, y);
+            List<ICamera> cameras = Core.ObjectManager.Cameras;
+            ICamera matchedCamera = null;
+            byte winningDrawOrder = 0;
+            int winningCameraIndex = -1;
+
+            for (int i = 0; i < cameras.Count; i++) {
+                ICamera camera = cameras[i];
+                if (!camera.Viewport.Contains(x, y)) {
+                    continue;
+                }
+                if ((interactable.Parent.LayerMask & camera.LayerMask) == 0) {
+                    continue;
+                }
+
+                byte candidateDrawOrder = camera.CameraDrawOrder;
+                if (matchedCamera == null ||
+                    candidateDrawOrder > winningDrawOrder ||
+                    (candidateDrawOrder == winningDrawOrder && i > winningCameraIndex)) {
+                    matchedCamera = camera;
+                    winningDrawOrder = candidateDrawOrder;
+                    winningCameraIndex = i;
+                }
+            }
+
+            return matchedCamera;
         }
 
         /// <summary>
