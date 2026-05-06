@@ -77,13 +77,13 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures activating Build Settings raises the public command event.
+        /// Ensures activating Platforms raises the public command event.
         /// </summary>
         [Fact]
-        public void BuildMenu_WhenBuildSettingsActivated_RaisesBuildSettingsRequested() {
+        public void BuildMenu_WhenPlatformsActivated_RaisesPlatformsRequested() {
             EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
             bool raised = false;
-            titleBar.BuildSettingsRequested += () => raised = true;
+            titleBar.PlatformsRequested += () => raised = true;
 
             InvokePrivate(titleBar, "ToggleBuildMenu");
 

@@ -514,6 +514,10 @@ namespace helengine.editor {
         /// </summary>
         public event Action BuildSettingsRequested;
         /// <summary>
+        /// Raised when the user selects the Platforms command.
+        /// </summary>
+        public event Action PlatformsRequested;
+        /// <summary>
         /// Raised when the user selects the Build command.
         /// </summary>
         public event Action BuildRequested;
@@ -613,7 +617,7 @@ namespace helengine.editor {
         /// <returns>Immutable collection of Build menu items.</returns>
         IReadOnlyList<ContextMenuItem> BuildBuildMenuItems() {
             return new ContextMenuItem[] {
-                new ContextMenuItem("Platforms...", RaiseBuildSettingsRequested),
+                new ContextMenuItem("Platforms...", RaisePlatformsRequested),
                 new ContextMenuItem("Profiles...", RaiseProfilesRequested),
                 new ContextMenuItem("Build...", RaiseBuildRequested),
                 new ContextMenuItem("Build Scripts...", RaiseBuildScriptsRequested),
@@ -1261,6 +1265,19 @@ namespace helengine.editor {
         /// </summary>
         void RaiseBuildSettingsRequested() {
             HideMenus();
+            if (BuildSettingsRequested != null) {
+                BuildSettingsRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Platforms command event while also forwarding the legacy Build Settings event during migration.
+        /// </summary>
+        void RaisePlatformsRequested() {
+            HideMenus();
+            if (PlatformsRequested != null) {
+                PlatformsRequested();
+            }
             if (BuildSettingsRequested != null) {
                 BuildSettingsRequested();
             }
