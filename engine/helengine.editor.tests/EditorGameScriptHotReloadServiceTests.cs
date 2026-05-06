@@ -70,6 +70,33 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the hot-reload service forwards contributed menu items surfaced by the loaded editor assemblies.
+        /// </summary>
+        [Fact]
+        public void GetAvailableEditorMenuItems_WhenAssembliesAreLoaded_ForwardsContributedMenusFromTheAssemblyHost() {
+            EditorGameSolutionService solutionService = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+            TestScriptBuildTool buildTool = new TestScriptBuildTool(EditorBuildExecutionResult.Success("ok"));
+            TestScriptAssemblyHost assemblyHost = new TestScriptAssemblyHost {
+                AvailableEditorMenuItems = [
+                    new EditorMenuItemDescriptor(
+                        "demo",
+                        "Demo",
+                        100,
+                        "demo.regenerate-main-menu",
+                        "Regenerate Main Menu...",
+                        100,
+                        "menu.regenerate-demo-disc-main-menu")
+                ]
+            };
+            EditorGameScriptHotReloadService service = new EditorGameScriptHotReloadService(solutionService, buildTool, assemblyHost);
+
+            IReadOnlyList<EditorMenuItemDescriptor> items = service.GetAvailableEditorMenuItems();
+
+            EditorMenuItemDescriptor item = Assert.Single(items);
+            Assert.Equal("demo.regenerate-main-menu", item.MenuItemId);
+        }
+
+        /// <summary>
         /// Minimal build tool used to verify scripting hot-reload orchestration without invoking `dotnet`.
         /// </summary>
         sealed class TestScriptBuildTool : IEditorScriptBuildTool {
@@ -130,6 +157,11 @@ namespace helengine.editor.tests {
             public IReadOnlyList<EditorScriptAssemblyDescriptor> Assemblies { get; private set; }
 
             /// <summary>
+            /// Gets or sets the contributed editor menu items surfaced by the fake host.
+            /// </summary>
+            public IReadOnlyList<EditorMenuItemDescriptor> AvailableEditorMenuItems { get; set; } = Array.Empty<EditorMenuItemDescriptor>();
+
+            /// <summary>
             /// Reloads the fake host state without touching the filesystem.
             /// </summary>
             /// <param name="assemblies">Descriptors for the freshly built module assemblies.</param>
@@ -160,7 +192,7 @@ namespace helengine.editor.tests {
             /// </summary>
             /// <returns>Empty editor menu item descriptor list.</returns>
             public IReadOnlyList<EditorMenuItemDescriptor> GetAvailableEditorMenuItems() {
-                return Array.Empty<EditorMenuItemDescriptor>();
+                return AvailableEditorMenuItems;
             }
 
             /// <summary>

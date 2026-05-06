@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Builds the generated scripting solution and reloads the resulting game assembly.
     /// </summary>
-    public sealed class EditorGameScriptHotReloadService : IDisposable, IEditorScriptComponentCatalogProvider, IEditorProjectCommandCatalogProvider {
+    public sealed class EditorGameScriptHotReloadService : IDisposable, IEditorScriptComponentCatalogProvider, IEditorProjectCommandCatalogProvider, IEditorProjectMenuCatalogProvider {
         /// <summary>
         /// Generator used to rewrite the script solution before each build.
         /// </summary>
@@ -68,6 +68,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Gets the current script type resolver backed by the loaded script assemblies.
+        /// </summary>
+        public IScriptTypeResolver ScriptTypeResolver => AssemblyHost.ScriptTypeResolver;
+
+        /// <summary>
         /// Returns the addable script components discovered from the current loaded assembly.
         /// </summary>
         /// <param name="entity">Entity that will receive one selected component.</param>
@@ -82,6 +87,14 @@ namespace helengine.editor {
         /// <returns>Discovered project-authored editor commands.</returns>
         public IReadOnlyList<EditorProjectCommandDescriptor> GetAvailableEditorCommands() {
             return AssemblyHost.GetAvailableEditorCommands();
+        }
+
+        /// <summary>
+        /// Returns the project-authored editor menu items discovered from the current loaded editor assemblies.
+        /// </summary>
+        /// <returns>Discovered project-authored editor menu item descriptors.</returns>
+        public IReadOnlyList<EditorMenuItemDescriptor> GetAvailableEditorMenuItems() {
+            return AssemblyHost.GetAvailableEditorMenuItems();
         }
     }
 }

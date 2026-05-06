@@ -104,6 +104,28 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures duplicate contributed menu item ids fail fast during reload-time catalog rebuild.
+        /// </summary>
+        [Fact]
+        public void Reload_WhenEditorAssemblyContainsDuplicateMenuItemIds_ThrowsInvalidOperationException() {
+            string gameplayAssemblyPath = WriteModuleAssembly("gameplay");
+            string editorAssemblyPath = WriteModuleAssembly("menu.tools");
+            Environment.SetEnvironmentVariable(DuplicateTestEditorMenuItemProvider.EnabledEnvironmentVariableName, "1");
+
+            try {
+                using EditorGameScriptAssemblyHost host = new EditorGameScriptAssemblyHost(ProjectRootPath);
+                host.Reload([
+                    CreateAssemblyDescriptor("gameplay", gameplayAssemblyPath, EditorCodeModuleKind.Runtime),
+                    CreateAssemblyDescriptor("menu.tools", editorAssemblyPath, EditorCodeModuleKind.Editor)
+                ]);
+                InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => host.GetAvailableEditorMenuItems());
+                Assert.Contains("demo.regenerate-main-menu", exception.Message, StringComparison.Ordinal);
+            } finally {
+                Environment.SetEnvironmentVariable(DuplicateTestEditorMenuItemProvider.EnabledEnvironmentVariableName, null);
+            }
+        }
+
+        /// <summary>
         /// Copies the current test assembly into one generated-module output directory and returns the copied path.
         /// </summary>
         /// <param name="moduleId">Module id that owns the copied assembly.</param>

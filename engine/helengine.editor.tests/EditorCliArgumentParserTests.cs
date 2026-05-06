@@ -16,6 +16,15 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures editor-command mode is not reported when no editor-command flag is supplied.
+        /// </summary>
+        [Fact]
+        public void IsEditorCommandModeRequested_WhenCommandFlagMissing_ReturnsFalse() {
+            Assert.False(EditorCliArgumentParser.IsEditorCommandModeRequested(Array.Empty<string>()));
+            Assert.False(EditorCliArgumentParser.IsEditorCommandModeRequested(["--project", "project.heproj"]));
+        }
+
+        /// <summary>
         /// Ensures inline argument syntax parses into one build request.
         /// </summary>
         [Fact]
@@ -71,6 +80,40 @@ namespace helengine.editor.tests {
             Assert.False(parsed);
             Assert.Null(options);
             Assert.Equal("Build mode requires a target platform supplied through `--build`.", errorMessage);
+        }
+
+        /// <summary>
+        /// Ensures inline argument syntax parses into one editor-command request.
+        /// </summary>
+        [Fact]
+        public void TryParseEditorCommandOptions_WhenInlineArgumentsProvided_ReturnsParsedOptions() {
+            bool parsed = EditorCliArgumentParser.TryParseEditorCommandOptions(
+                [
+                    "--project=C:/dev/helengine/sample.heproj",
+                    "--editor-command=menu.regenerate-demo-disc-main-menu"
+                ],
+                out EditorCliCommandOptions options,
+                out string errorMessage);
+
+            Assert.True(parsed);
+            Assert.Equal(string.Empty, errorMessage);
+            Assert.Equal("C:/dev/helengine/sample.heproj", options.ProjectPath);
+            Assert.Equal("menu.regenerate-demo-disc-main-menu", options.CommandId);
+        }
+
+        /// <summary>
+        /// Ensures missing required editor-command arguments fail explicitly.
+        /// </summary>
+        [Fact]
+        public void TryParseEditorCommandOptions_WhenRequiredArgumentsAreMissing_ReturnsFalse() {
+            bool parsed = EditorCliArgumentParser.TryParseEditorCommandOptions(
+                ["--project", "project.heproj"],
+                out EditorCliCommandOptions options,
+                out string errorMessage);
+
+            Assert.False(parsed);
+            Assert.Null(options);
+            Assert.Equal("Editor command mode requires a command id supplied through `--editor-command`.", errorMessage);
         }
     }
 }

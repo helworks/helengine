@@ -221,7 +221,6 @@ namespace helengine.editor {
             projectBuilder.AppendLine("    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>");
             projectBuilder.AppendLine("    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>");
             projectBuilder.AppendLine($"    <BaseIntermediateOutputPath>{EscapeXml(intermediateRootPath)}{Path.DirectorySeparatorChar}</BaseIntermediateOutputPath>");
-            projectBuilder.AppendLine($"    <MSBuildProjectExtensionsPath>{EscapeXml(intermediateRootPath)}{Path.DirectorySeparatorChar}</MSBuildProjectExtensionsPath>");
             projectBuilder.AppendLine("  </PropertyGroup>");
             projectBuilder.AppendLine("  <ItemGroup>");
 

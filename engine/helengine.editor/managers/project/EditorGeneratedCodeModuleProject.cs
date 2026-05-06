@@ -8,8 +8,10 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="moduleId">Stable code-module id and CLR assembly name.</param>
         /// <param name="sourceFolderPath">Project-relative source folder path owned by the module.</param>
+        /// <param name="dependencyModuleIds">Stable module ids referenced by the authored module manifest.</param>
         /// <param name="nestedSourceFolderPaths">Project-relative nested module folders excluded from this project's glob.</param>
         /// <param name="projectFilePath">Absolute generated project file path.</param>
+        /// <param name="generatedGlobalUsingsFilePath">Absolute path to the generated global-usings file emitted for the project.</param>
         /// <param name="baseIntermediateOutputPath">Absolute base intermediate output path.</param>
         /// <param name="baseOutputPath">Absolute base output path.</param>
         /// <param name="outputDirectoryPath">Absolute final output directory path for the module DLL.</param>
@@ -18,8 +20,10 @@ namespace helengine.editor {
         public EditorGeneratedCodeModuleProject(
             string moduleId,
             string sourceFolderPath,
+            IReadOnlyList<string> dependencyModuleIds,
             IReadOnlyList<string> nestedSourceFolderPaths,
             string projectFilePath,
+            string generatedGlobalUsingsFilePath,
             string baseIntermediateOutputPath,
             string baseOutputPath,
             string outputDirectoryPath,
@@ -34,8 +38,14 @@ namespace helengine.editor {
             if (nestedSourceFolderPaths == null) {
                 throw new ArgumentNullException(nameof(nestedSourceFolderPaths));
             }
+            if (dependencyModuleIds == null) {
+                throw new ArgumentNullException(nameof(dependencyModuleIds));
+            }
             if (string.IsNullOrWhiteSpace(projectFilePath)) {
                 throw new ArgumentException("Project file path must be provided.", nameof(projectFilePath));
+            }
+            if (string.IsNullOrWhiteSpace(generatedGlobalUsingsFilePath)) {
+                throw new ArgumentException("Generated global usings file path must be provided.", nameof(generatedGlobalUsingsFilePath));
             }
             if (string.IsNullOrWhiteSpace(baseIntermediateOutputPath)) {
                 throw new ArgumentException("Base intermediate output path must be provided.", nameof(baseIntermediateOutputPath));
@@ -49,8 +59,10 @@ namespace helengine.editor {
 
             ModuleId = moduleId;
             SourceFolderPath = sourceFolderPath;
+            DependencyModuleIds = dependencyModuleIds;
             NestedSourceFolderPaths = nestedSourceFolderPaths;
             ProjectFilePath = projectFilePath;
+            GeneratedGlobalUsingsFilePath = generatedGlobalUsingsFilePath;
             BaseIntermediateOutputPath = baseIntermediateOutputPath;
             BaseOutputPath = baseOutputPath;
             OutputDirectoryPath = outputDirectoryPath;
@@ -69,6 +81,11 @@ namespace helengine.editor {
         public string SourceFolderPath { get; }
 
         /// <summary>
+        /// Gets the stable module ids referenced by the authored module manifest.
+        /// </summary>
+        public IReadOnlyList<string> DependencyModuleIds { get; }
+
+        /// <summary>
         /// Gets the project-relative nested module folders excluded from this project's compile glob.
         /// </summary>
         public IReadOnlyList<string> NestedSourceFolderPaths { get; }
@@ -77,6 +94,11 @@ namespace helengine.editor {
         /// Gets the absolute generated project file path.
         /// </summary>
         public string ProjectFilePath { get; }
+
+        /// <summary>
+        /// Gets the absolute path to the generated global-usings file emitted for the project.
+        /// </summary>
+        public string GeneratedGlobalUsingsFilePath { get; }
 
         /// <summary>
         /// Gets the absolute base intermediate output path for the generated project.
