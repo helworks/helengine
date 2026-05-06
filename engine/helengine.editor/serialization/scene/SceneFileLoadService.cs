@@ -40,8 +40,8 @@ namespace helengine.editor {
         /// Loads one `.helen` scene file from disk.
         /// </summary>
         /// <param name="fullPath">Absolute path to the scene file.</param>
-        /// <returns>Loaded root editor entities.</returns>
-        public IReadOnlyList<EditorEntity> Load(string fullPath) {
+        /// <returns>Loaded editor scene document.</returns>
+        public LoadedEditorSceneDocument Load(string fullPath) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Scene path must be provided.", nameof(fullPath));
             }
@@ -60,8 +60,12 @@ namespace helengine.editor {
                 }
 
                 IReadOnlyList<EditorEntity> loadedRoots = SceneLoadService.Load(sceneAsset);
-                SetRootsEnabled(loadedRoots, false);
-                return loadedRoots;
+                EditorEntity[] rootEntityArray = loadedRoots.ToArray();
+                SetRootsEnabled(rootEntityArray, false);
+                return new LoadedEditorSceneDocument {
+                    RootEntities = rootEntityArray,
+                    SceneSettings = sceneAsset.SceneSettings
+                };
             } catch (Exception ex) {
                 CleanupFailedLoad(existingEntities);
                 throw new InvalidOperationException($"Scene load failed: {ex.Message}", ex);

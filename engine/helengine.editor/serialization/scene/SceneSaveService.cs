@@ -47,11 +47,26 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fullPath">Absolute path where the scene file should be written.</param>
         public void Save(string fullPath) {
+            Save(fullPath, new SceneSettingsAsset());
+        }
+
+        /// <summary>
+        /// Saves the current editor scene to one `.helen` file on disk using the supplied scene-level settings.
+        /// </summary>
+        /// <param name="fullPath">Absolute path where the scene file should be written.</param>
+        /// <param name="sceneSettings">Scene-level settings that should be persisted with the scene.</param>
+        public void Save(string fullPath, SceneSettingsAsset sceneSettings) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Scene path must be provided.", nameof(fullPath));
             }
+            if (sceneSettings == null) {
+                throw new ArgumentNullException(nameof(sceneSettings));
+            }
+            if (sceneSettings.CanvasProfile == null) {
+                throw new InvalidOperationException("Scene settings must include a canvas profile.");
+            }
 
-            SceneAsset asset = BuildSceneAsset(fullPath);
+            SceneAsset asset = BuildSceneAsset(fullPath, sceneSettings);
             string directoryPath = Path.GetDirectoryName(fullPath);
             if (string.IsNullOrWhiteSpace(directoryPath)) {
                 throw new InvalidOperationException("Scene path does not include a writable directory.");
@@ -66,8 +81,9 @@ namespace helengine.editor {
         /// Builds a scene asset payload for the current editor scene.
         /// </summary>
         /// <param name="fullPath">Absolute path where the scene will be stored.</param>
+        /// <param name="sceneSettings">Scene-level settings that should be persisted with the scene.</param>
         /// <returns>Serialized scene asset payload.</returns>
-        SceneAsset BuildSceneAsset(string fullPath) {
+        SceneAsset BuildSceneAsset(string fullPath, SceneSettingsAsset sceneSettings) {
             string sceneId = BuildSceneId(fullPath);
             List<SceneEntityAsset> rootEntities = new List<SceneEntityAsset>();
             List<SceneAssetReference> assetReferences = new List<SceneAssetReference>();
@@ -93,7 +109,8 @@ namespace helengine.editor {
             return new SceneAsset {
                 Id = sceneId,
                 RootEntities = rootEntities.ToArray(),
-                AssetReferences = assetReferences.ToArray()
+                AssetReferences = assetReferences.ToArray(),
+                SceneSettings = CloneSceneSettings(sceneSettings)
             };
         }
 
@@ -260,6 +277,27 @@ namespace helengine.editor {
                 reference.ProviderId ?? string.Empty,
                 "|",
                 reference.AssetId ?? string.Empty);
+        }
+
+        /// <summary>
+        /// Creates a detached copy of one scene settings payload before it is serialized.
+        /// </summary>
+        /// <param name="sceneSettings">Scene settings that should be copied.</param>
+        /// <returns>Detached scene settings copy.</returns>
+        static SceneSettingsAsset CloneSceneSettings(SceneSettingsAsset sceneSettings) {
+            if (sceneSettings == null) {
+                throw new ArgumentNullException(nameof(sceneSettings));
+            }
+            if (sceneSettings.CanvasProfile == null) {
+                throw new InvalidOperationException("Scene settings must include a canvas profile.");
+            }
+
+            return new SceneSettingsAsset {
+                CanvasProfile = new SceneCanvasProfile {
+                    Width = sceneSettings.CanvasProfile.Width,
+                    Height = sceneSettings.CanvasProfile.Height
+                }
+            };
         }
     }
 }

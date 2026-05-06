@@ -18,7 +18,7 @@ namespace helengine.files {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 5;
+        public const byte CurrentVersion = 6;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -537,6 +537,7 @@ namespace helengine.files {
             writer.WriteArray(asset.RootEntities, WriteSceneEntityAsset);
             writer.WriteArray(asset.AssetReferences, WriteSceneAssetReference);
             writer.WriteUInt32(asset.Physics3DSceneFeatureFlags);
+            WriteSceneSettingsAsset(writer, asset.SceneSettings);
         }
 
         /// <summary>
@@ -553,7 +554,52 @@ namespace helengine.files {
                     : Array.Empty<SceneAssetReference>(),
                 Physics3DSceneFeatureFlags = version >= 5
                     ? reader.ReadUInt32()
-                    : 0u
+                    : 0u,
+                SceneSettings = version >= 6
+                    ? ReadSceneSettingsAsset(reader)
+                    : new SceneSettingsAsset()
+            };
+        }
+
+        /// <summary>
+        /// Writes scene-level settings persisted by the editor scene asset format.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="sceneSettings">Scene settings to serialize.</param>
+        static void WriteSceneSettingsAsset(EngineBinaryWriter writer, SceneSettingsAsset sceneSettings) {
+            WriteSceneCanvasProfile(writer, sceneSettings.CanvasProfile);
+        }
+
+        /// <summary>
+        /// Reads scene-level settings persisted by the editor scene asset format.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the scene settings payload.</param>
+        /// <returns>Deserialized scene settings.</returns>
+        static SceneSettingsAsset ReadSceneSettingsAsset(EngineBinaryReader reader) {
+            return new SceneSettingsAsset {
+                CanvasProfile = ReadSceneCanvasProfile(reader)
+            };
+        }
+
+        /// <summary>
+        /// Writes one authored scene canvas profile.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="canvasProfile">Canvas profile to serialize.</param>
+        static void WriteSceneCanvasProfile(EngineBinaryWriter writer, SceneCanvasProfile canvasProfile) {
+            writer.WriteInt32(canvasProfile.Width);
+            writer.WriteInt32(canvasProfile.Height);
+        }
+
+        /// <summary>
+        /// Reads one authored scene canvas profile.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the canvas profile payload.</param>
+        /// <returns>Deserialized scene canvas profile.</returns>
+        static SceneCanvasProfile ReadSceneCanvasProfile(EngineBinaryReader reader) {
+            return new SceneCanvasProfile {
+                Width = reader.ReadInt32(),
+                Height = reader.ReadInt32()
             };
         }
 

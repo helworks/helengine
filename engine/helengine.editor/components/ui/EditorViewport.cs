@@ -173,6 +173,10 @@ namespace helengine.editor {
         /// </summary>
         EditorViewportSettingsOverlayComponent SettingsOverlayComponent;
         /// <summary>
+        /// Scene-owned canvas profile state used by viewport previews.
+        /// </summary>
+        readonly EditorSceneCanvasProfileState SceneCanvasProfileStateValue;
+        /// <summary>
         /// Viewport-local simulated canvas settings used by the world-space 2D preview plane.
         /// </summary>
         readonly EditorViewportCanvasPreviewSettings CanvasPreviewSettingsValue;
@@ -281,7 +285,7 @@ namespace helengine.editor {
         /// <param name="snapModifierFont">Font used by the snap modifier labels.</param>
         /// <param name="toolbarIcons">Runtime toolbar icon textures used by the transform and snap buttons.</param>
         public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons)
-            : this(camera, font, snapModifierFont, toolbarIcons, EditorUiMetrics.Default) {
+            : this(camera, font, snapModifierFont, toolbarIcons, new EditorSceneCanvasProfileState(), EditorUiMetrics.Default) {
         }
 
         /// <summary>
@@ -293,11 +297,25 @@ namespace helengine.editor {
         /// <param name="toolbarIcons">Runtime toolbar icon textures used by the transform and snap buttons.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar.</param>
         public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons, EditorUiMetrics metrics)
+            : this(camera, font, snapModifierFont, toolbarIcons, new EditorSceneCanvasProfileState(), metrics) {
+        }
+
+        /// <summary>
+        /// Initializes a new dockable viewport and binds it to the provided camera using one shared scene canvas state and scaled dock metrics.
+        /// </summary>
+        /// <param name="camera">Camera rendering into the viewport.</param>
+        /// <param name="font">Font used by the base dockable entity title bar.</param>
+        /// <param name="snapModifierFont">Font used by the snap modifier labels.</param>
+        /// <param name="toolbarIcons">Runtime toolbar icon textures used by the transform and snap buttons.</param>
+        /// <param name="sceneCanvasProfileState">Scene-owned canvas profile used by viewport previews.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar.</param>
+        public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons, EditorSceneCanvasProfileState sceneCanvasProfileState, EditorUiMetrics metrics)
             : base(font, metrics) {
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             Font = font ?? throw new ArgumentNullException(nameof(font));
             SnapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
             ToolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
+            SceneCanvasProfileStateValue = sceneCanvasProfileState ?? throw new ArgumentNullException(nameof(sceneCanvasProfileState));
             CanvasPreviewSettingsValue = new EditorViewportCanvasPreviewSettings();
             Title = "Viewport";
             SetContentBackgroundColor(new byte4(0, 0, 0, 0));
@@ -386,6 +404,10 @@ namespace helengine.editor {
         /// Gets the camera used to render into this viewport.
         /// </summary>
         public CameraComponent Camera { get; private set; }
+        /// <summary>
+        /// Gets the shared scene-owned canvas profile state used by viewport previews.
+        /// </summary>
+        public EditorSceneCanvasProfileState SceneCanvasProfileState => SceneCanvasProfileStateValue;
         /// <summary>
         /// Gets the viewport-local simulated canvas settings used by the world-space 2D preview plane.
         /// </summary>

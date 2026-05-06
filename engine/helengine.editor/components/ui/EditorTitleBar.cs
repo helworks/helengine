@@ -502,6 +502,10 @@ namespace helengine.editor {
         /// </summary>
         public event Action PreferencesRequested;
         /// <summary>
+        /// Raised when the user selects the Scene Settings file-menu command.
+        /// </summary>
+        public event Action SceneSettingsRequested;
+        /// <summary>
         /// Raised when the user selects the Add Empty command.
         /// </summary>
         public event Action AddEmptyRequested;
@@ -634,6 +638,7 @@ namespace helengine.editor {
                 new ContextMenuItem("Open Map...", RaiseOpenMapRequested),
                 new ContextMenuItem("Save Map", RaiseSaveMapRequested),
                 new ContextMenuItem("Save Map As...", RaiseSaveMapAsRequested),
+                new ContextMenuItem("Scene Settings...", RaiseSceneSettingsRequested),
                 new ContextMenuItem("Preferences...", RaisePreferencesRequested)
             };
         }
@@ -1415,6 +1420,16 @@ namespace helengine.editor {
             HideMenus();
             if (PreferencesRequested != null) {
                 PreferencesRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Scene Settings command event.
+        /// </summary>
+        void RaiseSceneSettingsRequested() {
+            HideMenus();
+            if (SceneSettingsRequested != null) {
+                SceneSettingsRequested();
             }
         }
 

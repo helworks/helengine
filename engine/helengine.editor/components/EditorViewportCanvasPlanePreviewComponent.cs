@@ -8,7 +8,11 @@ namespace helengine.editor {
         /// </summary>
         readonly CameraComponent SceneCamera;
         /// <summary>
-        /// Viewport-local simulated canvas settings that define target size and plane scale.
+        /// Scene-owned canvas profile that defines target size and plane scale.
+        /// </summary>
+        readonly EditorSceneCanvasProfileState SceneCanvasProfileState;
+        /// <summary>
+        /// Viewport-local preview settings that define pixel density for the plane.
         /// </summary>
         readonly EditorViewportCanvasPreviewSettings Settings;
         /// <summary>
@@ -61,15 +65,31 @@ namespace helengine.editor {
         /// Initializes a new preview component for one scene viewport camera and simulated canvas settings source.
         /// </summary>
         /// <param name="sceneCamera">Scene viewport camera that will render the world-space preview plane.</param>
+        /// <param name="sceneCanvasProfileState">Scene-owned canvas profile state.</param>
+        /// <param name="settings">Viewport-local simulated canvas settings.</param>
+        /// <param name="render3D">Renderer used to allocate preview resources.</param>
+        public EditorViewportCanvasPlanePreviewComponent(
+            CameraComponent sceneCamera,
+            EditorSceneCanvasProfileState sceneCanvasProfileState,
+            EditorViewportCanvasPreviewSettings settings,
+            RenderManager3D render3D) {
+            SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
+            SceneCanvasProfileState = sceneCanvasProfileState ?? throw new ArgumentNullException(nameof(sceneCanvasProfileState));
+            Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            Render3D = render3D ?? throw new ArgumentNullException(nameof(render3D));
+        }
+
+        /// <summary>
+        /// Initializes a new preview component for one scene viewport camera and default scene canvas state.
+        /// </summary>
+        /// <param name="sceneCamera">Scene viewport camera that will render the world-space preview plane.</param>
         /// <param name="settings">Viewport-local simulated canvas settings.</param>
         /// <param name="render3D">Renderer used to allocate preview resources.</param>
         public EditorViewportCanvasPlanePreviewComponent(
             CameraComponent sceneCamera,
             EditorViewportCanvasPreviewSettings settings,
-            RenderManager3D render3D) {
-            SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
-            Settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            Render3D = render3D ?? throw new ArgumentNullException(nameof(render3D));
+            RenderManager3D render3D)
+            : this(sceneCamera, new EditorSceneCanvasProfileState(), settings, render3D) {
         }
 
         /// <summary>
@@ -157,7 +177,7 @@ namespace helengine.editor {
                 CameraDrawOrder = SceneCamera.CameraDrawOrder,
                 LayerMask = EditorLayerMasks.SceneObjects,
                 ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0),
-                Viewport = new float4(0f, 0f, Settings.CanvasWidth, Settings.CanvasHeight)
+                Viewport = new float4(0f, 0f, SceneCanvasProfileState.CanvasWidth, SceneCanvasProfileState.CanvasHeight)
             };
         }
 
@@ -165,8 +185,8 @@ namespace helengine.editor {
         /// Rebuilds the preview render target when the simulated canvas size changes.
         /// </summary>
         void EnsureRenderTargetMatchesSettings() {
-            int nextCanvasWidth = Math.Max(1, Settings.CanvasWidth);
-            int nextCanvasHeight = Math.Max(1, Settings.CanvasHeight);
+            int nextCanvasWidth = Math.Max(1, SceneCanvasProfileState.CanvasWidth);
+            int nextCanvasHeight = Math.Max(1, SceneCanvasProfileState.CanvasHeight);
             int nextPixelsPerWorldUnit = Math.Max(1, Settings.PixelsPerWorldUnit);
             bool sizeChanged = PreviewRenderTargetValue == null ||
                                nextCanvasWidth != CurrentCanvasWidth ||

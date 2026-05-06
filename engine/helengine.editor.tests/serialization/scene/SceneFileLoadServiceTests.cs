@@ -44,11 +44,13 @@ namespace helengine.editor.tests.serialization.scene {
             string scenePath = SaveSceneAsset("Loaded.helen", "Loaded Cube", modelReference, materialReference);
             SceneFileLoadService loadService = CreateLoadService(modelReference, materialReference);
 
-            IReadOnlyList<EditorEntity> loaded = loadService.Load(scenePath);
+            LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
 
-            EditorEntity root = Assert.Single(loaded);
+            EditorEntity root = Assert.Single(loaded.RootEntities);
             Assert.Equal("Loaded Cube", root.Name);
             Assert.False(root.Enabled);
+            Assert.Equal(SceneCanvasProfile.DefaultWidth, loaded.SceneSettings.CanvasProfile.Width);
+            Assert.Equal(SceneCanvasProfile.DefaultHeight, loaded.SceneSettings.CanvasProfile.Height);
         }
 
         /// <summary>
@@ -96,15 +98,37 @@ namespace helengine.editor.tests.serialization.scene {
             string scenePath = SaveBakedMenuSceneAsset("MenuRoot.helen", "city.menu.DemoDiscMenuDefinitionProvider, city");
             SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, CreateDemoMenuPersistenceRegistry(), resolver);
 
-            IReadOnlyList<EditorEntity> loaded = loadService.Load(scenePath);
+            LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
 
-            Assert.Equal(2, loaded.Count);
-            EditorEntity root = Assert.Single(loaded, entity => entity.Components.Any(component => component is MenuComponent));
+            Assert.Equal(2, loaded.RootEntities.Length);
+            EditorEntity root = Assert.Single(loaded.RootEntities, entity => entity.Components.Any(component => component is MenuComponent));
             MenuComponent demoMenuBuildComponent = Assert.IsType<MenuComponent>(Assert.Single(root.Components, component => component is MenuComponent));
             Assert.Equal("city.menu.DemoDiscMenuDefinitionProvider, city", demoMenuBuildComponent.ProviderTypeName);
             Assert.False(demoMenuBuildComponent.IsInitialized);
             Assert.Single(root.Children);
             Assert.NotEmpty(root.Children[0].Children);
+        }
+
+        /// <summary>
+        /// Ensures scene loading returns the authored scene canvas profile stored in the scene file.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneFileContainsCustomCanvasProfile_ReturnsSceneSettings() {
+            SceneAssetReference modelReference = CreateGeneratedModelReference();
+            SceneAssetReference materialReference = CreateGeneratedMaterialReference();
+            SceneSettingsAsset sceneSettings = new SceneSettingsAsset {
+                CanvasProfile = new SceneCanvasProfile {
+                    Width = 1600,
+                    Height = 900
+                }
+            };
+            string scenePath = SaveSceneAsset("CanvasProfile.helen", "Loaded Cube", modelReference, materialReference, sceneSettings);
+            SceneFileLoadService loadService = CreateLoadService(modelReference, materialReference);
+
+            LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
+
+            Assert.Equal(1600, loaded.SceneSettings.CanvasProfile.Width);
+            Assert.Equal(900, loaded.SceneSettings.CanvasProfile.Height);
         }
 
         /// <summary>
@@ -155,6 +179,19 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="materialReference">Material reference persisted with the mesh component.</param>
         /// <returns>Absolute path to the written `.helen` file.</returns>
         string SaveSceneAsset(string fileName, string entityName, SceneAssetReference modelReference, SceneAssetReference materialReference) {
+            return SaveSceneAsset(fileName, entityName, modelReference, materialReference, new SceneSettingsAsset());
+        }
+
+        /// <summary>
+        /// Saves one scene file containing a single mesh-backed user entity and explicit scene settings.
+        /// </summary>
+        /// <param name="fileName">Scene file name to write.</param>
+        /// <param name="entityName">Name assigned to the saved root entity.</param>
+        /// <param name="modelReference">Model reference persisted with the mesh component.</param>
+        /// <param name="materialReference">Material reference persisted with the mesh component.</param>
+        /// <param name="sceneSettings">Scene-level settings that should be persisted.</param>
+        /// <returns>Absolute path to the written `.helen` file.</returns>
+        string SaveSceneAsset(string fileName, string entityName, SceneAssetReference modelReference, SceneAssetReference materialReference, SceneSettingsAsset sceneSettings) {
             EditorEntity root = new EditorEntity {
                 Name = entityName,
                 LayerMask = EditorLayerMasks.SceneObjects
@@ -170,7 +207,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, CreatePersistenceRegistry());
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", fileName);
-            saveService.Save(scenePath);
+            saveService.Save(scenePath, sceneSettings);
             root.Enabled = false;
             Core.Instance.ObjectManager.RemoveEntity(root);
             return scenePath;

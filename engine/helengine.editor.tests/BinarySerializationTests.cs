@@ -93,6 +93,12 @@ namespace helengine.editor.tests {
             SceneAsset asset = new SceneAsset {
                 Id = "Scenes/TestScene.helen",
                 Physics3DSceneFeatureFlags = 1234u,
+                SceneSettings = new SceneSettingsAsset {
+                    CanvasProfile = new SceneCanvasProfile {
+                        Width = 1920,
+                        Height = 1080
+                    }
+                },
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = "root-entity",
@@ -132,6 +138,8 @@ namespace helengine.editor.tests {
             Assert.Equal(EditorAssetBinarySerializer.CurrentVersion, header.Version);
             Assert.Equal("Scenes/TestScene.helen", deserialized.Id);
             Assert.Equal(1234u, deserialized.Physics3DSceneFeatureFlags);
+            Assert.Equal(1920, deserialized.SceneSettings.CanvasProfile.Width);
+            Assert.Equal(1080, deserialized.SceneSettings.CanvasProfile.Height);
             Assert.Single(deserialized.RootEntities);
             Assert.Equal("root-entity", deserialized.RootEntities[0].Id);
             Assert.Equal(new float3(1f, 2f, 3f), deserialized.RootEntities[0].LocalPosition);
@@ -149,6 +157,12 @@ namespace helengine.editor.tests {
             SceneAsset sceneAsset = new SceneAsset {
                 Id = "scene-id",
                 Physics3DSceneFeatureFlags = 1234u,
+                SceneSettings = new SceneSettingsAsset {
+                    CanvasProfile = new SceneCanvasProfile {
+                        Width = 1600,
+                        Height = 900
+                    }
+                },
                 RootEntities = Array.Empty<SceneEntityAsset>()
             };
 
@@ -158,6 +172,36 @@ namespace helengine.editor.tests {
 
             SceneAsset deserialized = Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
             Assert.Equal(1234u, deserialized.Physics3DSceneFeatureFlags);
+            Assert.Equal(1600, deserialized.SceneSettings.CanvasProfile.Width);
+            Assert.Equal(900, deserialized.SceneSettings.CanvasProfile.Height);
+        }
+
+        /// <summary>
+        /// Ensures legacy version-five scene assets receive default scene settings when the payload omits them.
+        /// </summary>
+        [Fact]
+        public void DeserializeSceneAsset_WhenVersionFivePayloadOmitsSceneSettings_UsesDefaultCanvasProfile() {
+            using MemoryStream stream = new MemoryStream();
+            EngineBinaryHeader header = new EngineBinaryHeader(
+                EngineBinaryEndianness.LittleEndian,
+                5,
+                EditorAssetBinarySerializer.FormatId,
+                (ushort)EditorAssetBinarySerializer.RecordKind,
+                (ushort)EditorAssetBinaryValueKind.SceneAsset);
+            EngineBinaryHeaderSerializer.Write(stream, header);
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian, true)) {
+                writer.WriteString("scene-id");
+                writer.WriteArray(Array.Empty<SceneEntityAsset>(), static (arrayWriter, entity) => throw new InvalidOperationException($"Unexpected legacy entity payload write for '{entity.Id}'.")); 
+                writer.WriteArray(Array.Empty<SceneAssetReference>(), static (arrayWriter, reference) => throw new InvalidOperationException($"Unexpected legacy reference payload write for '{reference.AssetId}'.")); 
+                writer.WriteUInt32(55u);
+            }
+
+            stream.Position = 0;
+            SceneAsset deserialized = Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
+
+            Assert.Equal(55u, deserialized.Physics3DSceneFeatureFlags);
+            Assert.Equal(SceneCanvasProfile.DefaultWidth, deserialized.SceneSettings.CanvasProfile.Width);
+            Assert.Equal(SceneCanvasProfile.DefaultHeight, deserialized.SceneSettings.CanvasProfile.Height);
         }
 
         /// <summary>
