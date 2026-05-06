@@ -55,6 +55,8 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the draw order for the camera.
         /// </summary>
+        [EditorPropertyDisplayName("Draw Order")]
+        [EditorPropertyOrder(0)]
         public byte CameraDrawOrder {
             get { return cameraDrawOrder; }
             set {
@@ -73,11 +75,14 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the viewport rectangle.
         /// </summary>
+        [EditorPropertyHidden]
         public float4 Viewport { get; set; }
 
         /// <summary>
         /// Gets or sets the near clip-plane distance used for perspective projection creation.
         /// </summary>
+        [EditorPropertyDisplayName("Near Plane Distance")]
+        [EditorPropertyOrder(2)]
         public float NearPlaneDistance {
             get { return NearPlaneDistanceValue; }
             set {
@@ -89,6 +94,8 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the far clip-plane distance used for perspective projection creation.
         /// </summary>
+        [EditorPropertyDisplayName("Far Plane Distance")]
+        [EditorPropertyOrder(3)]
         public float FarPlaneDistance {
             get { return FarPlaneDistanceValue; }
             set { FarPlaneDistanceValue = CameraProjectionUtils.ClampFarPlaneDistance(NearPlaneDistanceValue, value); }
@@ -97,16 +104,19 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the render target that receives this camera's output; null renders to the main back buffer.
         /// </summary>
+        [EditorPropertyHidden]
         public RenderTarget RenderTarget { get; set; }
 
         /// <summary>
         /// Gets or sets the clear settings applied before this camera renders.
         /// </summary>
+        [EditorPropertyHidden]
         public CameraClearSettings ClearSettings { get; set; }
 
         /// <summary>
         /// Gets or sets the authored render intent used by planning and backend execution.
         /// </summary>
+        [EditorPropertyHidden]
         public CameraRenderSettings RenderSettings {
             get { return RenderSettingsValue; }
             set { RenderSettingsValue = value ?? throw new ArgumentNullException(nameof(value)); }
@@ -115,16 +125,20 @@ namespace helengine {
         /// <summary>
         /// Gets the 2D render queue registered for this camera.
         /// </summary>
+        [EditorPropertyHidden]
         public IRenderQueue2D RenderQueue2D { get { return renderList2D; } }
 
         /// <summary>
         /// Gets the 3D render queue registered for this camera.
         /// </summary>
+        [EditorPropertyHidden]
         public IRenderQueue3D RenderQueue3D { get { return renderList3D; } }
 
         /// <summary>
         /// Gets or sets the layer mask this camera renders.
         /// </summary>
+        [EditorPropertyDisplayName("Layer Mask")]
+        [EditorPropertyOrder(1)]
         public ushort LayerMask {
             get { return layerMask; }
             set {
