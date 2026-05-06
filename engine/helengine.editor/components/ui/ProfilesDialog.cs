@@ -436,6 +436,7 @@ namespace helengine.editor {
             IsInitializingSelection = false;
             LoadSelectedPlatformIntoFields(CurrentPlatformId);
             RefreshTabVisibility();
+            ShowDialogImmediately();
         }
 
         /// <summary>
@@ -472,12 +473,6 @@ namespace helengine.editor {
             if (!UpdateDialogFrame(windowWidth, windowHeight)) {
                 return;
             }
-
-            LayoutPlatformSelector();
-            LayoutTabs();
-            LayoutSettingsSections();
-            LayoutStatus();
-            LayoutButtons();
         }
 
         /// <summary>
@@ -942,6 +937,17 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnCloseRequested() {
             HandleCancelClicked();
+        }
+
+        /// <summary>
+        /// Repositions the dialog content whenever the shared modal shell position or size changes.
+        /// </summary>
+        protected override void HandleDialogLayoutChanged() {
+            LayoutPlatformSelector();
+            LayoutTabs();
+            LayoutSettingsSections();
+            LayoutStatus();
+            LayoutButtons();
         }
 
         /// <summary>

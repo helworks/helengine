@@ -64,6 +64,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures platform rows are parented under the modal content root and positioned immediately during Show.
+        /// </summary>
+        [Fact]
+        public void Show_WhenOpened_ParentsPlatformRowsUnderDialogContentRootAndLaysThemOutImmediately() {
+            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+
+            dialog.Show(
+                new List<AvailablePlatformDescriptor> {
+                    new AvailablePlatformDescriptor("windows", "Windows", isInstalled: true),
+                    new AvailablePlatformDescriptor("ps2", "PlayStation 2", isInstalled: false)
+                },
+                new List<string> {
+                    "windows"
+                });
+
+            EditorEntity dialogContentRoot = GetProtectedProperty<EditorEntity>(dialog, "DialogContentRoot");
+            List<EditorEntity> platformCheckBoxHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformCheckBoxHosts");
+            List<EditorEntity> platformLabelHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformLabelHosts");
+
+            Assert.All(platformCheckBoxHosts, host => Assert.Same(dialogContentRoot, host.Parent));
+            Assert.All(platformLabelHosts, host => Assert.Same(dialogContentRoot, host.Parent));
+            Assert.All(platformCheckBoxHosts, host => Assert.NotEqual(float3.Zero, host.LocalPosition));
+            Assert.All(platformLabelHosts, host => Assert.NotEqual(float3.Zero, host.LocalPosition));
+        }
+
+        /// <summary>
         /// Ensures each platform row renders a dedicated status column instead of embedding installation state in the platform name.
         /// </summary>
         [Fact]
@@ -452,6 +478,28 @@ namespace helengine.editor.tests {
         T GetPrivateField<T>(object target, string fieldName) {
             FieldInfo field = FindPrivateField(target.GetType(), fieldName);
             return Assert.IsType<T>(field.GetValue(target));
+        }
+
+        /// <summary>
+        /// Reads one inherited non-public or protected instance property and casts it to the requested type.
+        /// </summary>
+        /// <typeparam name="T">Expected property type.</typeparam>
+        /// <param name="target">Object that owns the property.</param>
+        /// <param name="propertyName">Name of the property to read.</param>
+        /// <returns>Property value cast to the requested type.</returns>
+        T GetProtectedProperty<T>(object target, string propertyName) {
+            Type currentType = target.GetType();
+
+            while (currentType != null) {
+                PropertyInfo property = currentType.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.NonPublic);
+                if (property != null) {
+                    return Assert.IsType<T>(property.GetValue(target));
+                }
+
+                currentType = currentType.BaseType;
+            }
+
+            throw new InvalidOperationException($"Property '{propertyName}' was not found on type '{target.GetType().FullName}'.");
         }
 
         /// <summary>

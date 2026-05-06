@@ -79,6 +79,25 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the selector, tab chrome, and active content hosts are positioned immediately during Show.
+        /// </summary>
+        [Fact]
+        public void Show_WhenOpened_PositionsSelectorTabsAndActiveContentImmediately() {
+            ProfilesDialog dialog = new ProfilesDialog(CreateFont());
+            EditorProfileSettingsDocument document = CreateProfileDocument();
+
+            dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
+
+            EditorEntity platformComboBoxHost = GetPrivateField<EditorEntity>(dialog, "PlatformComboBoxHost");
+            EditorEntity buildTabButtonHost = GetPrivateField<EditorEntity>(dialog, "BuildTabButtonHost");
+            EditorEntity buildContentHost = GetPrivateField<EditorEntity>(dialog, "BuildContentHost");
+
+            Assert.NotEqual(float3.Zero, platformComboBoxHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, buildTabButtonHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, buildContentHost.LocalPosition);
+        }
+
+        /// <summary>
         /// Ensures switching profile tabs keeps draft edits local until Save is pressed.
         /// </summary>
         [Fact]

@@ -259,6 +259,7 @@ namespace helengine.editor {
 
             RebuildPlatformRows(availablePlatforms, supportedPlatforms);
             ApplyEmptyPlatformMessage();
+            ShowDialogImmediately();
         }
 
         /// <summary>
@@ -283,10 +284,6 @@ namespace helengine.editor {
             if (!UpdateDialogFrame(windowWidth, windowHeight)) {
                 return;
             }
-            LayoutPlatformRows();
-            LayoutTableHeader();
-            LayoutStatus();
-            LayoutButtons();
         }
 
         /// <summary>
@@ -718,6 +715,16 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnCloseRequested() {
             HandleCancelClicked();
+        }
+
+        /// <summary>
+        /// Repositions the dialog content whenever the shared modal shell position or size changes.
+        /// </summary>
+        protected override void HandleDialogLayoutChanged() {
+            LayoutPlatformRows();
+            LayoutTableHeader();
+            LayoutStatus();
+            LayoutButtons();
         }
     }
 }
