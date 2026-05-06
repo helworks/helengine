@@ -85,6 +85,35 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures confirming the preferences dialog does not overwrite the scene camera clear color with the editor theme background.
+        /// </summary>
+        [Fact]
+        public void HandlePreferencesDialogConfirmed_WhenInvoked_DoesNotMutateSceneCameraClearColor() {
+            EditorSession session = CreateSessionForPreferences();
+            CameraComponent sceneCameraComponent = GetPrivateField<CameraComponent>(session, "sceneCameraComponent");
+            CameraClearSettings originalClearSettings = new CameraClearSettings(
+                true,
+                new float4(0.11f, 0.22f, 0.33f, 1f),
+                true,
+                1f,
+                false,
+                0);
+            sceneCameraComponent.ClearSettings = originalClearSettings;
+
+            InvokePrivate(
+                session,
+                "HandlePreferencesDialogConfirmed",
+                new EditorPreferencesSettings(
+                    new EditorUiScaleSettings(EditorUiScaleMode.Auto, 100),
+                    "dark"));
+
+            Assert.Equal(originalClearSettings.ClearColorEnabled, sceneCameraComponent.ClearSettings.ClearColorEnabled);
+            Assert.Equal(originalClearSettings.ClearColor, sceneCameraComponent.ClearSettings.ClearColor);
+            Assert.Equal(originalClearSettings.ClearDepthEnabled, sceneCameraComponent.ClearSettings.ClearDepthEnabled);
+            Assert.Equal(originalClearSettings.ClearDepth, sceneCameraComponent.ClearSettings.ClearDepth);
+        }
+
+        /// <summary>
         /// Ensures canceling the preferences workflow leaves the current theme unchanged.
         /// </summary>
         [Fact]
@@ -170,10 +199,12 @@ namespace helengine.editor.tests {
         /// <returns>Editor session configured for isolated preferences tests.</returns>
         EditorSession CreateSessionForPreferences(EditorUiMetrics metrics) {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
+            EditorViewport mainViewport = CreateViewport(metrics);
             SetPrivateField(session, "titleBar", new EditorTitleBar(CreateFont(), metrics, 1280, 720, "Hel"));
             SetPrivateField(session, "preferencesDialog", new EditorPreferencesDialog(CreateFont(), metrics));
             SetPrivateField(session, "assetBrowserPanel", CreateAssetBrowserPanel(metrics));
-            SetPrivateField(session, "mainViewport", CreateViewport(metrics));
+            SetPrivateField(session, "mainViewport", mainViewport);
+            SetPrivateField(session, "sceneCameraComponent", mainViewport.Camera);
             SetPrivateField(session, "propertiesPanel", CreatePropertiesPanel(metrics));
             SetPrivateField(session, "CurrentUiScaleSettings", new EditorUiScaleSettings(EditorUiScaleMode.Auto, 100));
             SetPrivateField(session, "CurrentThemeId", EditorThemeCatalog.DefaultThemeId);

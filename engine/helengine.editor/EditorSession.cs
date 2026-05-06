@@ -1842,29 +1842,6 @@ namespace helengine.editor {
 
             ThemeManager.SetTheme(theme.PaletteFactory());
             CurrentThemeId = theme.Id;
-            ApplySceneViewportBackground();
-        }
-
-        /// <summary>
-        /// Reapplies the active theme background color to the main scene viewport clear settings.
-        /// </summary>
-        void ApplySceneViewportBackground() {
-            if (sceneCameraComponent == null) {
-                return;
-            }
-
-            byte4 backgroundColor = ThemeManager.Current.Colors.BackgroundPrimary;
-            sceneCameraComponent.ClearSettings = new CameraClearSettings(
-                true,
-                new float4(
-                    backgroundColor.X / 255f,
-                    backgroundColor.Y / 255f,
-                    backgroundColor.Z / 255f,
-                    backgroundColor.W / 255f),
-                sceneCameraComponent.ClearSettings.ClearDepthEnabled,
-                sceneCameraComponent.ClearSettings.ClearDepth,
-                sceneCameraComponent.ClearSettings.ClearStencilEnabled,
-                sceneCameraComponent.ClearSettings.ClearStencil);
         }
 
         /// <summary>
