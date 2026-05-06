@@ -275,6 +275,46 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Add to Build preserves a selected scene that is outside the current visible scene-list viewport.
+        /// </summary>
+        [Fact]
+        public void HandleAddToBuildClicked_WhenSelectedSceneIsOutsideVisibleViewport_PreservesHiddenSelection() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialogAddRequest raisedRequest = null;
+            IReadOnlyList<string> sceneIds = CreateSceneIds(18);
+            dialog.AddRequested += request => raisedRequest = request;
+
+            dialog.Show(
+                ["windows"],
+                sceneIds,
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/Map14.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows"
+                        }
+                    ]
+                });
+
+            List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
+
+            Assert.DoesNotContain("Scenes/Map14.helen", mapLabelTexts.Select(label => label.Text));
+
+            InvokePrivate(dialog, "HandleAddToBuildClicked");
+
+            Assert.NotNull(raisedRequest);
+            Assert.Equal(
+                [
+                    "Scenes/Map14.helen"
+                ],
+                raisedRequest.SelectedSceneIds);
+        }
+
+        /// <summary>
         /// Ensures switching to another platform restores that platform's saved debug-build value.
         /// </summary>
         [Fact]
