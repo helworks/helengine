@@ -176,6 +176,45 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
+        /// Ensures the generated demo-disc assets author source font files instead of committed cooked-font blobs.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuFontsAreGenerated_WritesSourceFontsAndSourceThemeReferences() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+            string fontsRootPath = Path.Combine(ProjectRootPath, "assets", "Fonts");
+
+            Directory.CreateDirectory(fontsRootPath);
+            File.WriteAllText(Path.Combine(fontsRootPath, "DemoDiscTitle.hefont"), "legacy");
+            File.WriteAllText(Path.Combine(fontsRootPath, "DemoDiscBody.hefont"), "legacy");
+
+            writer.WriteAll(ProjectRootPath);
+
+            string titleFontPath = Path.Combine(fontsRootPath, "DemoDiscTitle.ttf");
+            string bodyFontPath = Path.Combine(fontsRootPath, "DemoDiscBody.ttf");
+            string themeSource = File.ReadAllText(Path.Combine(ProjectRootPath, "assets", "codebase", "menu", "DemoDiscMenuTheme.cs"));
+
+            Assert.True(File.Exists(titleFontPath));
+            Assert.True(File.Exists(bodyFontPath));
+            Assert.False(File.Exists(Path.Combine(fontsRootPath, "DemoDiscTitle.hefont")));
+            Assert.False(File.Exists(Path.Combine(fontsRootPath, "DemoDiscBody.hefont")));
+            Assert.Contains("Fonts/DemoDiscTitle.ttf", themeSource, StringComparison.Ordinal);
+            Assert.Contains("Fonts/DemoDiscBody.ttf", themeSource, StringComparison.Ordinal);
+            Assert.DoesNotContain(".hefont", themeSource, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the generated build configuration no longer includes the stale missing sandbox scene entry.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenBuildConfigIsGenerated_DoesNotIncludeLegacyMissingSandboxScene() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            Assert.DoesNotContain("NewScene.helen", ReadSelectedSceneIds(), StringComparer.Ordinal);
+        }
+
+        /// <summary>
         /// Initializes a core instance so camera components can allocate their render queues during deserialization.
         /// </summary>
         void InitializeCore() {
@@ -220,6 +259,23 @@ namespace helengine.editor.tests.tools {
             JsonArray selectedCodeModuleIdsNode = windowsPlatform["selectedCodeModuleIds"]?.AsArray()
                 ?? throw new InvalidOperationException("Build config is missing selected code-module ids.");
             return [.. selectedCodeModuleIdsNode.Select(moduleIdNode => moduleIdNode?.GetValue<string>() ?? string.Empty)];
+        }
+
+        /// <summary>
+        /// Reads the selected Windows scene ids from the generated build config.
+        /// </summary>
+        /// <returns>Selected Windows scene ids.</returns>
+        string[] ReadSelectedSceneIds() {
+            JsonNode rootNode = JsonNode.Parse(File.ReadAllText(Path.Combine(ProjectRootPath, "user_settings", "build_config.json")))
+                ?? throw new InvalidOperationException("Build config JSON could not be parsed.");
+            JsonArray platforms = rootNode["platforms"]?.AsArray()
+                ?? throw new InvalidOperationException("Build config is missing the platforms array.");
+            JsonObject windowsPlatform = Assert.IsType<JsonObject>(Assert.Single(
+                platforms,
+                platformNode => string.Equals(platformNode?["platformId"]?.GetValue<string>(), "windows", StringComparison.OrdinalIgnoreCase)));
+            JsonArray selectedSceneIdsNode = windowsPlatform["selectedSceneIds"]?.AsArray()
+                ?? throw new InvalidOperationException("Build config is missing selected scene ids.");
+            return [.. selectedSceneIdsNode.Select(sceneIdNode => sceneIdNode?.GetValue<string>() ?? string.Empty)];
         }
     }
 }

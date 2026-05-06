@@ -1,4 +1,3 @@
-using System.Drawing;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -29,7 +28,6 @@ namespace helengine.demo_disc_scene_writer {
         /// </summary>
         static readonly string[] CuratedSceneIds = new[] {
             MenuSceneId,
-            "NewScene.helen",
             "scenes/physics/test_scene_dynamic_stack_boxes.helen",
             "scenes/physics/test_scene_dynamic_sphere_ramp.helen",
             "scenes/physics/test_scene_character_steps.helen",
@@ -41,7 +39,7 @@ namespace helengine.demo_disc_scene_writer {
         };
 
         /// <summary>
-        /// Font writer used to build packaged menu fonts.
+        /// Font writer used to copy authored source fonts into the generated project.
         /// </summary>
         readonly DemoDiscFontWriter FontWriter;
 
@@ -99,14 +97,30 @@ namespace helengine.demo_disc_scene_writer {
         }
 
         /// <summary>
-        /// Writes the packaged title and body fonts consumed by the generated menu definition.
+        /// Writes the authored title and body source fonts consumed by the generated menu definition.
         /// </summary>
         /// <param name="assetsRootPath">Assets root path inside the city project.</param>
         void WriteMenuFonts(string assetsRootPath) {
             string fontsRootPath = Path.Combine(assetsRootPath, "Fonts");
             Directory.CreateDirectory(fontsRootPath);
-            FontWriter.WriteFont(Path.Combine(fontsRootPath, "DemoDiscTitle.hefont"), "Georgia", 34f, FontStyle.Bold);
-            FontWriter.WriteFont(Path.Combine(fontsRootPath, "DemoDiscBody.hefont"), "Trebuchet MS", 18f, FontStyle.Regular);
+            DeleteLegacyCookedFont(Path.Combine(fontsRootPath, "DemoDiscTitle.hefont"));
+            DeleteLegacyCookedFont(Path.Combine(fontsRootPath, "DemoDiscBody.hefont"));
+            FontWriter.WriteFont(Path.Combine(fontsRootPath, "DemoDiscTitle.ttf"), "georgiab.ttf");
+            FontWriter.WriteFont(Path.Combine(fontsRootPath, "DemoDiscBody.ttf"), "trebuc.ttf");
+        }
+
+        /// <summary>
+        /// Deletes one legacy demo-disc cooked-font asset so regenerated projects only author source fonts.
+        /// </summary>
+        /// <param name="legacyCookedFontPath">Legacy cooked-font path to delete when present.</param>
+        void DeleteLegacyCookedFont(string legacyCookedFontPath) {
+            if (string.IsNullOrWhiteSpace(legacyCookedFontPath)) {
+                throw new ArgumentException("Legacy cooked font path must be provided.", nameof(legacyCookedFontPath));
+            }
+
+            if (File.Exists(legacyCookedFontPath)) {
+                File.Delete(legacyCookedFontPath);
+            }
         }
 
         /// <summary>
@@ -288,8 +302,8 @@ namespace helengine.demo_disc_scene_writer {
                 "Helengine Demo Disc",
                 "Lilac nights, bright experiments, and a little street grit.",
                 "main",
-                "Fonts/DemoDiscTitle.hefont",
-                "Fonts/DemoDiscBody.hefont",
+                "Fonts/DemoDiscTitle.ttf",
+                "Fonts/DemoDiscBody.ttf",
                 new byte4(30, 17, 41, 255),
                 new byte4(60, 41, 76, 232),
                 new byte4(135, 94, 163, 255),
@@ -333,7 +347,6 @@ namespace helengine.demo_disc_scene_writer {
         /// <returns>Curated scene-selection items.</returns>
         MenuItemDefinition[] CreateSceneSelectItems() {
             return new[] {
-                new MenuItemDefinition("scene-new-scene", "Neon Crossroads", "Loads the original city sandbox scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "NewScene.helen")),
                 new MenuItemDefinition("scene-stack-boxes", "Stack Boxes", "Physics stress test with stacked dynamic boxes.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "scenes/physics/test_scene_dynamic_stack_boxes.helen")),
                 new MenuItemDefinition("scene-ramp", "Sphere Ramp", "Dynamic sphere ramp test for broad motion and bounce.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "scenes/physics/test_scene_dynamic_sphere_ramp.helen")),
                 new MenuItemDefinition("scene-steps", "Character Steps", "Character controller step traversal test.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "scenes/physics/test_scene_character_steps.helen")),
@@ -363,7 +376,6 @@ namespace helengine.demo_disc_scene_writer {
             builder.AppendLine("        /// <returns>Curated scene menu items.</returns>");
             builder.AppendLine("        public MenuItemDefinition[] CreateSceneItems() {");
             builder.AppendLine("            return new[] {");
-            builder.AppendLine("                new MenuItemDefinition(\"scene-new-scene\", \"Neon Crossroads\", \"Loads the original city sandbox scene.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"NewScene.helen\")),");
             builder.AppendLine("                new MenuItemDefinition(\"scene-stack-boxes\", \"Stack Boxes\", \"Physics stress test with stacked dynamic boxes.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"scenes/physics/test_scene_dynamic_stack_boxes.helen\")),");
             builder.AppendLine("                new MenuItemDefinition(\"scene-ramp\", \"Sphere Ramp\", \"Dynamic sphere ramp test for broad motion and bounce.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"scenes/physics/test_scene_dynamic_sphere_ramp.helen\")),");
             builder.AppendLine("                new MenuItemDefinition(\"scene-steps\", \"Character Steps\", \"Character controller step traversal test.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"scenes/physics/test_scene_character_steps.helen\")),");
@@ -392,14 +404,14 @@ namespace helengine.demo_disc_scene_writer {
             builder.AppendLine("    /// </summary>");
             builder.AppendLine("    public sealed class DemoDiscMenuTheme {");
             builder.AppendLine("        /// <summary>");
-            builder.AppendLine("        /// Gets the packaged title font path.");
+            builder.AppendLine("        /// Gets the authored title font path.");
             builder.AppendLine("        /// </summary>");
-            builder.AppendLine("        public string TitleFontPath => \"Fonts/DemoDiscTitle.hefont\";");
+            builder.AppendLine("        public string TitleFontPath => \"Fonts/DemoDiscTitle.ttf\";");
             builder.AppendLine();
             builder.AppendLine("        /// <summary>");
-            builder.AppendLine("        /// Gets the packaged body font path.");
+            builder.AppendLine("        /// Gets the authored body font path.");
             builder.AppendLine("        /// </summary>");
-            builder.AppendLine("        public string BodyFontPath => \"Fonts/DemoDiscBody.hefont\";");
+            builder.AppendLine("        public string BodyFontPath => \"Fonts/DemoDiscBody.ttf\";");
             builder.AppendLine();
             builder.AppendLine("        /// <summary>");
             builder.AppendLine("        /// Gets the primary lilac background color.");
