@@ -58,6 +58,13 @@ namespace helengine.editor {
         };
 
         /// <summary>
+        /// Extensions treated as source font assets.
+        /// </summary>
+        readonly HashSet<string> fontExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+            ".ttf", ".otf"
+        };
+
+        /// <summary>
         /// Absolute path to the assets root on disk.
         /// </summary>
         string assetsRootPath;
@@ -326,6 +333,10 @@ namespace helengine.editor {
 
             if (configExtensions.Contains(extension)) {
                 return AssetEntryKind.Config;
+            }
+
+            if (fontExtensions.Contains(extension)) {
+                return AssetEntryKind.Font;
             }
 
             return AssetEntryKind.File;
