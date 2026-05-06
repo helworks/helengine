@@ -200,6 +200,61 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Returns the project-authored editor menu items discovered from the currently loaded editor module assemblies.
+        /// </summary>
+        /// <returns>Discovered editor menu item descriptors.</returns>
+        public IReadOnlyList<EditorMenuItemDescriptor> GetAvailableEditorMenuItems() {
+            if (CurrentAssembliesByModuleId.Count == 0) {
+                return Array.Empty<EditorMenuItemDescriptor>();
+            }
+
+            List<EditorMenuItemDescriptor> items = [];
+            foreach (KeyValuePair<string, Assembly> entry in CurrentAssembliesByModuleId) {
+                if (!CurrentModuleKindsByModuleId.TryGetValue(entry.Key, out EditorCodeModuleKind moduleKind)
+                    || moduleKind != EditorCodeModuleKind.Editor) {
+                    continue;
+                }
+
+                Type[] types = entry.Value.GetTypes();
+                for (int index = 0; index < types.Length; index++) {
+                    Type candidateType = types[index];
+                    if (candidateType.IsAbstract || !typeof(IEditorMenuItemProvider).IsAssignableFrom(candidateType)) {
+                        continue;
+                    }
+
+                    IEditorMenuItemProvider provider = (IEditorMenuItemProvider)(Activator.CreateInstance(candidateType)
+                        ?? throw new InvalidOperationException($"Editor menu item provider type '{candidateType.FullName}' could not be instantiated."));
+                    IReadOnlyList<EditorMenuItemDescriptor> providerItems = provider.GetMenuItems()
+                        ?? throw new InvalidOperationException($"Editor menu item provider type '{candidateType.FullName}' returned null.");
+                    for (int itemIndex = 0; itemIndex < providerItems.Count; itemIndex++) {
+                        items.Add(providerItems[itemIndex] ?? throw new InvalidOperationException($"Editor menu item provider type '{candidateType.FullName}' returned a null menu descriptor."));
+                    }
+                }
+            }
+
+            ValidateMenuItemDescriptors(items);
+            items.Sort(static (left, right) => {
+                int topLevelOrderComparison = left.TopLevelMenuOrder.CompareTo(right.TopLevelMenuOrder);
+                if (topLevelOrderComparison != 0) {
+                    return topLevelOrderComparison;
+                }
+
+                int topLevelLabelComparison = string.Compare(left.TopLevelMenuLabel, right.TopLevelMenuLabel, StringComparison.Ordinal);
+                if (topLevelLabelComparison != 0) {
+                    return topLevelLabelComparison;
+                }
+
+                int itemOrderComparison = left.MenuItemOrder.CompareTo(right.MenuItemOrder);
+                if (itemOrderComparison != 0) {
+                    return itemOrderComparison;
+                }
+
+                return string.Compare(left.MenuItemLabel, right.MenuItemLabel, StringComparison.Ordinal);
+            });
+            return items;
+        }
+
+        /// <summary>
         /// Validates the supplied script assembly descriptors before loading begins.
         /// </summary>
         /// <param name="assemblies">Descriptors to validate.</param>
@@ -219,6 +274,32 @@ namespace helengine.editor {
                 if (!File.Exists(descriptor.AssemblyPath)) {
                     throw new FileNotFoundException($"Script assembly '{descriptor.AssemblyPath}' was not produced.", descriptor.AssemblyPath);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Validates one fully materialized contributed menu item list.
+        /// </summary>
+        /// <param name="items">Contributed menu item descriptors to validate.</param>
+        void ValidateMenuItemDescriptors(IReadOnlyList<EditorMenuItemDescriptor> items) {
+            if (items == null) {
+                throw new ArgumentNullException(nameof(items));
+            }
+
+            Dictionary<string, EditorMenuItemDescriptor> itemsById = new Dictionary<string, EditorMenuItemDescriptor>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> topLevelLabelsById = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < items.Count; index++) {
+                EditorMenuItemDescriptor item = items[index];
+                if (!itemsById.TryAdd(item.MenuItemId, item)) {
+                    throw new InvalidOperationException($"Editor menu item id '{item.MenuItemId}' was contributed more than once.");
+                }
+
+                if (topLevelLabelsById.TryGetValue(item.TopLevelMenuId, out string existingLabel)
+                    && !string.Equals(existingLabel, item.TopLevelMenuLabel, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException($"Editor top-level menu id '{item.TopLevelMenuId}' was contributed with conflicting labels.");
+                }
+
+                topLevelLabelsById[item.TopLevelMenuId] = item.TopLevelMenuLabel;
             }
         }
 

@@ -71,10 +71,36 @@ namespace helengine.editor.tests.managers.project {
                 CreateAssemblyDescriptor("menu.tools", editorAssemblyPath, EditorCodeModuleKind.Editor)
             ]);
 
-            EditorProjectCommandDescriptor command = Assert.Single(host.GetAvailableEditorCommands());
+            IReadOnlyList<EditorProjectCommandDescriptor> commands = host.GetAvailableEditorCommands();
+            EditorProjectCommandDescriptor command = Assert.Single(
+                commands,
+                descriptor => string.Equals(descriptor.CommandId, "menu.regenerate-demo-disc-main-menu", StringComparison.Ordinal));
             Assert.Equal("menu.regenerate-demo-disc-main-menu", command.CommandId);
             Assert.Equal("Regenerate Demo Disc Main Menu", command.DisplayName);
             Assert.Equal("menu.tools", command.ModuleId);
+        }
+
+        /// <summary>
+        /// Ensures editor-only assemblies expose discovered contributed menu items while runtime assemblies do not.
+        /// </summary>
+        [Fact]
+        public void Reload_WhenEditorAssemblyContainsMenuProvider_ExposesContributedMenuItems() {
+            string gameplayAssemblyPath = WriteModuleAssembly("gameplay");
+            string editorAssemblyPath = WriteModuleAssembly("menu.tools");
+
+            using EditorGameScriptAssemblyHost host = new EditorGameScriptAssemblyHost(ProjectRootPath);
+            host.Reload([
+                CreateAssemblyDescriptor("gameplay", gameplayAssemblyPath, EditorCodeModuleKind.Runtime),
+                CreateAssemblyDescriptor("menu.tools", editorAssemblyPath, EditorCodeModuleKind.Editor)
+            ]);
+
+            EditorMenuItemDescriptor menuItem = Assert.Single(
+                host.GetAvailableEditorMenuItems(),
+                descriptor => string.Equals(descriptor.MenuItemId, "demo.regenerate-main-menu", StringComparison.Ordinal));
+            Assert.Equal("demo", menuItem.TopLevelMenuId);
+            Assert.Equal("Demo", menuItem.TopLevelMenuLabel);
+            Assert.Equal("Regenerate Main Menu...", menuItem.MenuItemLabel);
+            Assert.Equal("menu.regenerate-demo-disc-main-menu", menuItem.CommandId);
         }
 
         /// <summary>

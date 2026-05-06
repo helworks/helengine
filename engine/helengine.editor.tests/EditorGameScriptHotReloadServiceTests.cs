@@ -156,6 +156,14 @@ namespace helengine.editor.tests {
             }
 
             /// <summary>
+            /// Returns no editor menu items in the test harness.
+            /// </summary>
+            /// <returns>Empty editor menu item descriptor list.</returns>
+            public IReadOnlyList<EditorMenuItemDescriptor> GetAvailableEditorMenuItems() {
+                return Array.Empty<EditorMenuItemDescriptor>();
+            }
+
+            /// <summary>
             /// Disposes the fake host.
             /// </summary>
             public void Dispose() {

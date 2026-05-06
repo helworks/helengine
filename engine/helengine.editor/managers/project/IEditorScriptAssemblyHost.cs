@@ -26,5 +26,11 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Discovered project-authored editor commands.</returns>
         IReadOnlyList<EditorProjectCommandDescriptor> GetAvailableEditorCommands();
+
+        /// <summary>
+        /// Returns the editor menu items discovered from the currently loaded editor-only assemblies.
+        /// </summary>
+        /// <returns>Discovered project-authored editor menu items.</returns>
+        IReadOnlyList<EditorMenuItemDescriptor> GetAvailableEditorMenuItems();
     }
 }
