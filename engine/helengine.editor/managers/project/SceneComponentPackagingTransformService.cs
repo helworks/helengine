@@ -385,12 +385,12 @@ namespace helengine.editor {
             }
 
             if (string.Equals(record.ComponentTypeId, FPSComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteFPSComponentRecord(record);
+                transformedRecord = RewriteFPSComponentRecord(record, buildRootPath);
                 return true;
             }
 
             if (string.Equals(record.ComponentTypeId, TextComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteTextComponentRecord(record);
+                transformedRecord = RewriteTextComponentRecord(record, buildRootPath);
                 return true;
             }
 
@@ -558,7 +558,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="record">Serialized FPS component record to rewrite.</param>
         /// <returns>Rewritten FPS component record.</returns>
-        SceneComponentAssetRecord RewriteFPSComponentRecord(SceneComponentAssetRecord record) {
+        SceneComponentAssetRecord RewriteFPSComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
             using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
@@ -576,7 +576,7 @@ namespace helengine.editor {
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(FPSComponentPayloadVersion);
-            WriteOptionalReference(writer, RewriteFontReference(fontReference));
+            WriteOptionalReference(writer, RewriteFontReference(fontReference, buildRootPath));
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(refreshIntervalSeconds));
             writer.WriteInt2(padding);
             writer.WriteByte(renderOrder2D);
@@ -593,7 +593,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="record">Serialized text component record to rewrite.</param>
         /// <returns>Rewritten text component record.</returns>
-        SceneComponentAssetRecord RewriteTextComponentRecord(SceneComponentAssetRecord record) {
+        SceneComponentAssetRecord RewriteTextComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
             ReadTaggedTextComponentRecord(
                 record,
                 out SceneAssetReference fontReference,
@@ -610,7 +610,7 @@ namespace helengine.editor {
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(TextComponentPayloadVersion);
-            WriteOptionalReference(writer, RewriteFontReference(fontReference));
+            WriteOptionalReference(writer, RewriteFontReference(fontReference, buildRootPath));
             writer.WriteString(text);
             writer.WriteByte(wrapText ? (byte)1 : (byte)0);
             writer.WriteInt2(size);
@@ -1082,7 +1082,7 @@ namespace helengine.editor {
             }
         }
 
-        SceneAssetReference RewriteFontReference(SceneAssetReference reference) {
+        SceneAssetReference RewriteFontReference(SceneAssetReference reference, string buildRootPath) {
             if (reference == null) {
                 throw new InvalidOperationException("FPSComponent requires a font reference before packaging.");
             }
@@ -1099,8 +1099,7 @@ namespace helengine.editor {
             }
 
             if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                string relativePath = NormalizeRelativePath(reference.RelativePath);
-                return CreateFontFileReference(relativePath);
+                return RewriteFileSystemFontReference(reference, buildRootPath);
             }
 
             throw new InvalidOperationException($"Unsupported font reference source kind '{reference.SourceKind}'.");
@@ -1121,6 +1120,23 @@ namespace helengine.editor {
                 ProviderId = string.Empty,
                 AssetId = string.Empty
             };
+        }
+
+        /// <summary>
+        /// Rewrites one file-backed source font reference into a cooked packaged font reference.
+        /// </summary>
+        /// <param name="reference">Serialized font reference to rewrite.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Packaged file-backed font reference.</returns>
+        SceneAssetReference RewriteFileSystemFontReference(SceneAssetReference reference, string buildRootPath) {
+            string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
+            if (!AssetImportManager.TryLoadFontAsset(sourcePath, out FontAsset fontAsset) || fontAsset == null) {
+                throw new InvalidOperationException($"Font source '{reference.RelativePath}' could not be imported for packaging.");
+            }
+
+            string cookedRelativePath = BuildCookedFontRelativePath(reference.RelativePath);
+            WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), fontAsset);
+            return CreateFontFileReference(cookedRelativePath);
         }
 
         SceneAssetReference RewriteModelReference(SceneAssetReference reference, string buildRootPath) {
@@ -1367,6 +1383,17 @@ namespace helengine.editor {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
             string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hasset");
             return NormalizeRelativePath(Path.Combine("cooked", "imported", changedExtensionPath));
+        }
+
+        /// <summary>
+        /// Builds one cooked packaged-font relative path for an authored source-font reference.
+        /// </summary>
+        /// <param name="relativePath">Original project-relative source-font path.</param>
+        /// <returns>Cooked packaged-font relative path.</returns>
+        string BuildCookedFontRelativePath(string relativePath) {
+            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hefont");
+            return NormalizeRelativePath(Path.Combine("cooked", changedExtensionPath));
         }
 
         SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {

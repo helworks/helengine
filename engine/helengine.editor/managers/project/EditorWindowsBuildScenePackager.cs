@@ -560,6 +560,10 @@ namespace helengine.editor {
                     return CreateFileSystemReference(importedModelRelativePath);
                 }
 
+                if (AssetImportManager.IsFontExtension(fullExtension)) {
+                    return RewriteFileSystemFontReference(reference, buildRootPath);
+                }
+
                 string copiedRelativePath = NormalizeRelativePath(reference.RelativePath);
                 CopyFile(fullPath, Path.Combine(buildRootPath, copiedRelativePath));
                 return CreateFileSystemReference(copiedRelativePath);
@@ -920,8 +924,7 @@ namespace helengine.editor {
             }
 
             if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                string relativePath = NormalizeRelativePath(reference.RelativePath);
-                return CreateFileSystemReference(relativePath);
+                return RewriteFileSystemFontReference(reference, buildRootPath);
             }
 
             throw new InvalidOperationException($"Unsupported font reference source kind '{reference.SourceKind}'.");
@@ -1008,6 +1011,23 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Unsupported generated model asset id '{reference.AssetId}'.");
+        }
+
+        /// <summary>
+        /// Rewrites one file-backed source font reference into a cooked packaged font reference.
+        /// </summary>
+        /// <param name="reference">Serialized font reference to rewrite.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Packaged file-backed font reference.</returns>
+        SceneAssetReference RewriteFileSystemFontReference(SceneAssetReference reference, string buildRootPath) {
+            string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
+            if (!AssetImportManager.TryLoadFontAsset(sourcePath, out FontAsset fontAsset) || fontAsset == null) {
+                throw new InvalidOperationException($"Font source '{reference.RelativePath}' could not be imported for packaging.");
+            }
+
+            string cookedRelativePath = BuildCookedFontRelativePath(reference.RelativePath);
+            WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), fontAsset);
+            return CreateFileSystemReference(cookedRelativePath);
         }
 
         /// <summary>
@@ -1311,6 +1331,17 @@ namespace helengine.editor {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
             string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hasset");
             return NormalizeRelativePath(Path.Combine("cooked", "imported", changedExtensionPath));
+        }
+
+        /// <summary>
+        /// Builds one cooked packaged-font relative path for an authored source-font reference.
+        /// </summary>
+        /// <param name="relativePath">Original project-relative source-font path.</param>
+        /// <returns>Cooked packaged-font relative path.</returns>
+        string BuildCookedFontRelativePath(string relativePath) {
+            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hefont");
+            return NormalizeRelativePath(Path.Combine("cooked", changedExtensionPath));
         }
 
         /// <summary>

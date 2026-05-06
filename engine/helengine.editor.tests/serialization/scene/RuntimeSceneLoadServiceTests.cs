@@ -211,6 +211,75 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures packaged runtime scene loading resolves text components that were authored against source font files and cooked into packaged `.hefont` outputs.
+        /// </summary>
+        [Fact]
+        public void Load_WhenPackagedSceneUsesSourceFontReference_ResolvesCookedFontAsset() {
+            string projectRootPath = Path.Combine(TempRootPath, "source-font-project");
+            string assetsRootPath = Path.Combine(projectRootPath, "assets");
+            string buildRootPath = Path.Combine(TempRootPath, "source-font-build");
+            Directory.CreateDirectory(assetsRootPath);
+            Directory.CreateDirectory(buildRootPath);
+
+            WriteSourceFont(projectRootPath, "Fonts/DemoDiscTitle.ttf");
+
+            string authoredScenePath = Path.Combine(assetsRootPath, "Scenes", "TextScene.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(authoredScenePath));
+            SceneAsset authoredSceneAsset = new SceneAsset {
+                Id = "Scenes/TextScene.helen",
+                AssetReferences = new[] {
+                    CreateFileFontReference("Fonts/DemoDiscTitle.ttf")
+                },
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "root-entity",
+                        Name = "Root",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "Helengine.TextComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteTextComponentPayload(CreateFileFontReference("Fonts/DemoDiscTitle.ttf"))
+                            }
+                        }
+                    }
+                }
+            };
+            using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
+            }
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                projectRootPath,
+                new IAssetImporterRegistration[] {
+                    new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" })
+                },
+                CreateFont());
+            packager.Package(new[] { "Scenes/TextScene.helen" }, buildRootPath);
+
+            string packagedScenePath = Path.Combine(
+                buildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            SceneAsset sceneAsset;
+            using (FileStream packagedSceneStream = File.OpenRead(packagedScenePath)) {
+                sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            }
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                buildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            TextComponent textComponent = Assert.IsType<TextComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is TextComponent));
+
+            Assert.NotNull(textComponent.Font);
+            Assert.Equal("ImportedTestFont", textComponent.Font.FontInfo.Name);
+            Assert.True(File.Exists(Path.Combine(buildRootPath, "cooked", "Fonts", "DemoDiscTitle.hefont")));
+        }
+
+        /// <summary>
         /// Ensures packaged runtime scene loading materializes baked demo menu metadata and hierarchy through the default runtime registry.
         /// </summary>
         [Fact]
@@ -466,6 +535,57 @@ namespace helengine.editor.tests.serialization.scene {
             writer.WriteString("fonts/default.hefont");
             writer.WriteString(string.Empty);
             writer.WriteString(string.Empty);
+        }
+
+        /// <summary>
+        /// Creates one file-backed font reference for authored or packaged scene payloads.
+        /// </summary>
+        /// <param name="relativePath">Relative font path to encode.</param>
+        /// <returns>File-backed scene reference.</returns>
+        SceneAssetReference CreateFileFontReference(string relativePath) {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = relativePath,
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            };
+        }
+
+        /// <summary>
+        /// Writes one raw source font file into a test project assets folder.
+        /// </summary>
+        /// <param name="projectRootPath">Project root that owns the `assets` folder.</param>
+        /// <param name="relativePath">Project-relative source font path.</param>
+        void WriteSourceFont(string projectRootPath, string relativePath) {
+            string fullPath = Path.Combine(projectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+            File.WriteAllBytes(fullPath, new byte[] { 1, 2, 3, 4 });
+        }
+
+        /// <summary>
+        /// Writes one serialized text component payload using the supplied font asset reference.
+        /// </summary>
+        /// <param name="fontReference">Font reference to persist for the text component.</param>
+        /// <returns>Serialized text component payload.</returns>
+        byte[] WriteTextComponentPayload(SceneAssetReference fontReference) {
+            TextComponentPersistenceDescriptor descriptor = new TextComponentPersistenceDescriptor();
+            TextComponent textComponent = new TextComponent {
+                Font = CreateFont(),
+                Text = "Hello world",
+                WrapText = true,
+                Size = new int2(320, 64),
+                Color = new byte4(12, 34, 56, 78),
+                SourceRect = new float4(0.1f, 0.2f, 0.3f, 0.4f),
+                Rotation = 0.25f,
+                RenderOrder2D = 19,
+                LayerMask = 7,
+                SelectionEnabled = true
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference("Font", fontReference);
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(textComponent, 0, saveState);
+            return record.Payload;
         }
 
         /// <summary>
