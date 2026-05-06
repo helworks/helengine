@@ -61,6 +61,26 @@ namespace helengine.editor {
         public const int PlatformComboBoxWidth = 220;
 
         /// <summary>
+        /// Width reserved for each tab button.
+        /// </summary>
+        public const int TabButtonWidth = 120;
+
+        /// <summary>
+        /// Height reserved for each tab button.
+        /// </summary>
+        public const int TabButtonHeight = 22;
+
+        /// <summary>
+        /// Horizontal spacing between tab buttons.
+        /// </summary>
+        public const int TabButtonSpacing = 8;
+
+        /// <summary>
+        /// Vertical spacing between the tab row and active tab content.
+        /// </summary>
+        public const int TabContentSpacing = 12;
+
+        /// <summary>
         /// Fixed size used for the save button.
         /// </summary>
         static readonly int2 SaveButtonSize = new int2(88, 22);
@@ -101,14 +121,59 @@ namespace helengine.editor {
         readonly EditorPlatformSettingsSection BuildSettingsSection;
 
         /// <summary>
+        /// Host entity for the Build tab button.
+        /// </summary>
+        readonly EditorEntity BuildTabButtonHost;
+
+        /// <summary>
+        /// Button used to activate the Build tab.
+        /// </summary>
+        readonly ButtonComponent BuildTabButton;
+
+        /// <summary>
+        /// Host entity that owns the currently rendered Build tab content.
+        /// </summary>
+        readonly EditorEntity BuildContentHost;
+
+        /// <summary>
+        /// Host entity for the Graphics tab button.
+        /// </summary>
+        readonly EditorEntity GraphicsTabButtonHost;
+
+        /// <summary>
+        /// Button used to activate the Graphics tab.
+        /// </summary>
+        readonly ButtonComponent GraphicsTabButton;
+
+        /// <summary>
         /// Builder-defined graphics settings rendered for the active platform.
         /// </summary>
         readonly EditorPlatformSettingsSection GraphicsSettingsSection;
 
         /// <summary>
+        /// Host entity that owns the currently rendered Graphics tab content.
+        /// </summary>
+        readonly EditorEntity GraphicsContentHost;
+
+        /// <summary>
+        /// Host entity for the Codegen tab button.
+        /// </summary>
+        readonly EditorEntity CodegenTabButtonHost;
+
+        /// <summary>
+        /// Button used to activate the Codegen tab.
+        /// </summary>
+        readonly ButtonComponent CodegenTabButton;
+
+        /// <summary>
         /// Builder-defined codegen settings rendered for the active platform.
         /// </summary>
         readonly EditorPlatformSettingsSection CodegenSettingsSection;
+
+        /// <summary>
+        /// Host entity that owns the currently rendered Codegen tab content.
+        /// </summary>
+        readonly EditorEntity CodegenContentHost;
 
         /// <summary>
         /// Host entity for the status text.
@@ -156,9 +221,19 @@ namespace helengine.editor {
         EditorPlatformBuildSelectionModel ActivePlatformSelectionModel;
 
         /// <summary>
+        /// Resolves builder-provided metadata for any visible platform in the dialog.
+        /// </summary>
+        Func<string, EditorPlatformBuildSelectionModel> SelectionModelResolver;
+
+        /// <summary>
         /// Currently selected platform id being edited.
         /// </summary>
         string CurrentPlatformId;
+
+        /// <summary>
+        /// Zero-based index of the currently visible tab.
+        /// </summary>
+        int SelectedTabIndex;
 
         /// <summary>
         /// Tracks whether the platform selection is being updated by code instead of by the user.
@@ -213,9 +288,36 @@ namespace helengine.editor {
             ConfigureDialogComboBox(PlatformComboBox);
             PlatformComboBoxHost.AddComponent(PlatformComboBox);
 
+            BuildTabButtonHost = CreateTextHost();
+            DialogPanelRoot.AddChild(BuildTabButtonHost);
+            BuildTabButton = new ButtonComponent("Build", GetTabButtonSize(), DialogFontValue, HandleBuildTabClicked, 0f);
+            BuildTabButtonHost.AddComponent(BuildTabButton);
+            BuildTabButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
+
+            GraphicsTabButtonHost = CreateTextHost();
+            DialogPanelRoot.AddChild(GraphicsTabButtonHost);
+            GraphicsTabButton = new ButtonComponent("Graphics", GetTabButtonSize(), DialogFontValue, HandleGraphicsTabClicked, 0f);
+            GraphicsTabButtonHost.AddComponent(GraphicsTabButton);
+            GraphicsTabButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
+
+            CodegenTabButtonHost = CreateTextHost();
+            DialogPanelRoot.AddChild(CodegenTabButtonHost);
+            CodegenTabButton = new ButtonComponent("Codegen", GetTabButtonSize(), DialogFontValue, HandleCodegenTabClicked, 0f);
+            CodegenTabButtonHost.AddComponent(CodegenTabButton);
+            CodegenTabButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
+
+            BuildContentHost = CreateTextHost();
+            DialogPanelRoot.AddChild(BuildContentHost);
+
+            GraphicsContentHost = CreateTextHost();
+            DialogPanelRoot.AddChild(GraphicsContentHost);
+
+            CodegenContentHost = CreateTextHost();
+            DialogPanelRoot.AddChild(CodegenContentHost);
+
             int settingValueWidth = GetSettingValueWidth();
             BuildSettingsSection = new EditorPlatformSettingsSection(
-                DialogPanelRoot,
+                BuildContentHost,
                 LayerMask,
                 DialogFontValue,
                 DialogPanelOrder,
@@ -223,7 +325,7 @@ namespace helengine.editor {
                 GetLabelColumnWidth(),
                 settingValueWidth);
             GraphicsSettingsSection = new EditorPlatformSettingsSection(
-                DialogPanelRoot,
+                GraphicsContentHost,
                 LayerMask,
                 DialogFontValue,
                 DialogPanelOrder,
@@ -231,7 +333,7 @@ namespace helengine.editor {
                 GetLabelColumnWidth(),
                 settingValueWidth);
             CodegenSettingsSection = new EditorPlatformSettingsSection(
-                DialogPanelRoot,
+                CodegenContentHost,
                 LayerMask,
                 DialogFontValue,
                 DialogPanelOrder,
@@ -281,7 +383,7 @@ namespace helengine.editor {
         /// <param name="supportedPlatforms">Supported platform identifiers declared by the project.</param>
         /// <param name="activePlatformId">Platform currently being edited.</param>
         public void Show(EditorProfileSettingsDocument document, IReadOnlyList<string> supportedPlatforms, string activePlatformId) {
-            Show(document, supportedPlatforms, activePlatformId, null);
+            Show(document, supportedPlatforms, activePlatformId, (Func<string, EditorPlatformBuildSelectionModel>)null);
         }
 
         /// <summary>
@@ -292,6 +394,17 @@ namespace helengine.editor {
         /// <param name="activePlatformId">Platform currently being edited.</param>
         /// <param name="selectionModel">Builder-provided metadata for the active platform.</param>
         public void Show(EditorProfileSettingsDocument document, IReadOnlyList<string> supportedPlatforms, string activePlatformId, EditorPlatformBuildSelectionModel selectionModel) {
+            Show(document, supportedPlatforms, activePlatformId, selectionModel == null ? null : _ => selectionModel);
+        }
+
+        /// <summary>
+        /// Shows the dialog for the provided profile document and platform set.
+        /// </summary>
+        /// <param name="document">Mutable profile settings document for the current project.</param>
+        /// <param name="supportedPlatforms">Supported platform identifiers declared by the project.</param>
+        /// <param name="activePlatformId">Platform currently being edited.</param>
+        /// <param name="selectionModelResolver">Resolver that returns builder-provided metadata for any visible platform.</param>
+        public void Show(EditorProfileSettingsDocument document, IReadOnlyList<string> supportedPlatforms, string activePlatformId, Func<string, EditorPlatformBuildSelectionModel> selectionModelResolver) {
             if (document == null) {
                 throw new ArgumentNullException(nameof(document));
             }
@@ -303,9 +416,11 @@ namespace helengine.editor {
             }
 
             int activeIndex = ResolvePlatformIndex(supportedPlatforms, activePlatformId);
-            CurrentDocument = document;
+            CurrentDocument = CloneProfileSettingsDocument(document);
             CurrentPlatformId = supportedPlatforms[activeIndex];
-            ActivePlatformSelectionModel = selectionModel;
+            SelectionModelResolver = selectionModelResolver;
+            ActivePlatformSelectionModel = ResolveSelectionModelForPlatform(CurrentPlatformId);
+            SelectedTabIndex = 0;
 
             SupportedPlatformIds.Clear();
             for (int i = 0; i < supportedPlatforms.Count; i++) {
@@ -320,6 +435,7 @@ namespace helengine.editor {
             PlatformComboBox.SetItems(SupportedPlatformIds, activeIndex);
             IsInitializingSelection = false;
             LoadSelectedPlatformIntoFields(CurrentPlatformId);
+            RefreshTabVisibility();
         }
 
         /// <summary>
@@ -331,8 +447,17 @@ namespace helengine.editor {
             Enabled = false;
             StatusText.Text = string.Empty;
             CurrentDocument = null;
+            ActivePlatformSelectionModel = null;
+            SelectionModelResolver = null;
             CurrentPlatformId = string.Empty;
+            SelectedTabIndex = 0;
             SupportedPlatformIds.Clear();
+            BuildContentHost.Enabled = false;
+            GraphicsContentHost.Enabled = false;
+            CodegenContentHost.Enabled = false;
+            BuildTabButton.SetTargetFocused(false);
+            GraphicsTabButton.SetTargetFocused(false);
+            CodegenTabButton.SetTargetFocused(false);
         }
 
         /// <summary>
@@ -349,6 +474,7 @@ namespace helengine.editor {
             }
 
             LayoutPlatformSelector();
+            LayoutTabs();
             LayoutSettingsSections();
             LayoutStatus();
             LayoutButtons();
@@ -373,8 +499,30 @@ namespace helengine.editor {
             }
 
             CurrentPlatformId = platformId;
+            ActivePlatformSelectionModel = ResolveSelectionModelForPlatform(platformId);
             StatusText.Text = string.Empty;
             LoadSelectedPlatformIntoFields(platformId);
+        }
+
+        /// <summary>
+        /// Activates the Build tab.
+        /// </summary>
+        void HandleBuildTabClicked() {
+            SwitchTab(0);
+        }
+
+        /// <summary>
+        /// Activates the Graphics tab.
+        /// </summary>
+        void HandleGraphicsTabClicked() {
+            SwitchTab(1);
+        }
+
+        /// <summary>
+        /// Activates the Codegen tab.
+        /// </summary>
+        void HandleCodegenTabClicked() {
+            SwitchTab(2);
         }
 
         /// <summary>
@@ -399,6 +547,29 @@ namespace helengine.editor {
             if (CancelRequested != null) {
                 CancelRequested();
             }
+        }
+
+        /// <summary>
+        /// Switches the currently visible tab after validating the active controls.
+        /// </summary>
+        /// <param name="tabIndex">Zero-based tab index to activate.</param>
+        void SwitchTab(int tabIndex) {
+            if (tabIndex < 0 || tabIndex > 2) {
+                throw new ArgumentOutOfRangeException(nameof(tabIndex));
+            }
+            if (SelectedTabIndex == tabIndex) {
+                return;
+            }
+
+            if (!TryStoreCurrentPlatformFields(out string errorMessage)) {
+                StatusText.Text = errorMessage;
+                return;
+            }
+
+            SelectedTabIndex = tabIndex;
+            StatusText.Text = string.Empty;
+            LoadSelectedPlatformIntoFields(CurrentPlatformId);
+            RefreshTabVisibility();
         }
 
         /// <summary>
@@ -431,7 +602,20 @@ namespace helengine.editor {
                 codegenProfile != null ? $"Codegen Profile: {codegenProfile.DisplayName}" : "Codegen Profiles",
                 codegenProfile?.Settings,
                 platform.Codegen.SelectedOptionValues);
+            RefreshTabVisibility();
             LayoutSettingsSections();
+        }
+
+        /// <summary>
+        /// Updates visible tab content and selected-state visuals to match the active tab.
+        /// </summary>
+        void RefreshTabVisibility() {
+            BuildContentHost.Enabled = SelectedTabIndex == 0;
+            GraphicsContentHost.Enabled = SelectedTabIndex == 1;
+            CodegenContentHost.Enabled = SelectedTabIndex == 2;
+            BuildTabButton.SetTargetFocused(SelectedTabIndex == 0);
+            GraphicsTabButton.SetTargetFocused(SelectedTabIndex == 1);
+            CodegenTabButton.SetTargetFocused(SelectedTabIndex == 2);
         }
 
         /// <summary>
@@ -453,9 +637,11 @@ namespace helengine.editor {
             EditorPlatformProfileSettingsDocument platform = GetPlatformDocument(CurrentPlatformId);
             PlatformBuildProfileDefinition buildProfile = ResolveBuildProfile(platform);
             PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(platform, buildProfile);
+            PlatformCodegenProfileDefinition codegenProfile = ResolveCodegenProfile(platform, buildProfile);
 
             platform.Build.SelectedBuildProfileId = buildProfile?.ProfileId ?? platform.Build.SelectedBuildProfileId;
             platform.Graphics.SelectedGraphicsProfileId = graphicsProfile?.ProfileId ?? platform.Graphics.SelectedGraphicsProfileId;
+            platform.Codegen.SelectedCodegenProfileId = codegenProfile?.ProfileId ?? platform.Codegen.SelectedCodegenProfileId;
 
             if (!BuildSettingsSection.TryValidate(out errorMessage)) {
                 return false;
@@ -470,6 +656,19 @@ namespace helengine.editor {
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Resolves builder metadata for the supplied platform id using the current dialog resolver.
+        /// </summary>
+        /// <param name="platformId">Platform identifier whose builder metadata should be loaded.</param>
+        /// <returns>Builder-provided selection model, or null when unavailable.</returns>
+        EditorPlatformBuildSelectionModel ResolveSelectionModelForPlatform(string platformId) {
+            if (SelectionModelResolver == null || string.IsNullOrWhiteSpace(platformId)) {
+                return null;
+            }
+
+            return SelectionModelResolver(platformId);
         }
 
         /// <summary>
@@ -614,6 +813,71 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates a deep copy of one profile settings document for save-only commit semantics.
+        /// </summary>
+        /// <param name="document">Source document to clone.</param>
+        /// <returns>Deep copy of the supplied profile settings document.</returns>
+        EditorProfileSettingsDocument CloneProfileSettingsDocument(EditorProfileSettingsDocument document) {
+            if (document == null) {
+                throw new ArgumentNullException(nameof(document));
+            }
+
+            EditorProfileSettingsDocument clone = new EditorProfileSettingsDocument();
+            for (int index = 0; index < document.Platforms.Count; index++) {
+                clone.Platforms.Add(ClonePlatformDocument(document.Platforms[index]));
+            }
+
+            return clone;
+        }
+
+        /// <summary>
+        /// Creates a deep copy of one platform profile document.
+        /// </summary>
+        /// <param name="platform">Source platform profile to clone.</param>
+        /// <returns>Deep copy of the supplied platform profile.</returns>
+        EditorPlatformProfileSettingsDocument ClonePlatformDocument(EditorPlatformProfileSettingsDocument platform) {
+            if (platform == null) {
+                throw new InvalidOperationException("The profiles dialog requires normalized platform documents.");
+            }
+
+            EditorPlatformProfileSettingsDocument clone = new EditorPlatformProfileSettingsDocument {
+                PlatformId = platform.PlatformId,
+                Build = new EditorBuildProfileSettingsDocument {
+                    SelectedBuildProfileId = platform.Build?.SelectedBuildProfileId ?? string.Empty,
+                    SelectedOptionValues = CloneOptionValues(platform.Build?.SelectedOptionValues)
+                },
+                Graphics = new EditorGraphicsProfileSettingsDocument {
+                    SelectedGraphicsProfileId = platform.Graphics?.SelectedGraphicsProfileId ?? string.Empty,
+                    SelectedOptionValues = CloneOptionValues(platform.Graphics?.SelectedOptionValues)
+                },
+                Codegen = new EditorCodegenProfileSettingsDocument {
+                    SelectedCodegenProfileId = platform.Codegen?.SelectedCodegenProfileId ?? string.Empty,
+                    SelectedOptionValues = CloneOptionValues(platform.Codegen?.SelectedOptionValues)
+                }
+            };
+
+            return clone;
+        }
+
+        /// <summary>
+        /// Creates a shallow copy of one selected-option dictionary.
+        /// </summary>
+        /// <param name="values">Source option values to copy.</param>
+        /// <returns>Copied option-value dictionary.</returns>
+        Dictionary<string, string> CloneOptionValues(Dictionary<string, string> values) {
+            Dictionary<string, string> clone = [];
+            if (values == null) {
+                return clone;
+            }
+
+            foreach (KeyValuePair<string, string> pair in values) {
+                clone[pair.Key] = pair.Value;
+            }
+
+            return clone;
+        }
+
+        /// <summary>
         /// Positions the platform selector row.
         /// </summary>
         void LayoutPlatformSelector() {
@@ -623,19 +887,28 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Positions the builder-defined settings sections beneath the platform selector.
+        /// Positions the three tab buttons below the platform selector row.
+        /// </summary>
+        void LayoutTabs() {
+            float rowY = GetPlatformSelectorTop() + GetFieldRowHeightPixels() + GetSectionSpacingPixels();
+            BuildTabButtonHost.Position = new float3(GetPanelPaddingPixels(), rowY, 0.1f);
+            GraphicsTabButtonHost.Position = new float3(GetPanelPaddingPixels() + GetTabButtonWidthPixels() + GetTabButtonSpacingPixels(), rowY, 0.1f);
+            CodegenTabButtonHost.Position = new float3(GetPanelPaddingPixels() + ((GetTabButtonWidthPixels() + GetTabButtonSpacingPixels()) * 2f), rowY, 0.1f);
+        }
+
+        /// <summary>
+        /// Positions the builder-defined settings sections beneath the active tab row.
         /// </summary>
         void LayoutSettingsSections() {
-            float buildTopY = GetPlatformSelectorTop() + GetFieldRowHeightPixels() + GetSectionSpacingPixels();
-            BuildSettingsSection.Root.Position = new float3(GetPanelPaddingPixels(), buildTopY, 0.1f);
+            float contentTopY = GetPlatformSelectorTop() + GetFieldRowHeightPixels() + GetSectionSpacingPixels() + GetTabButtonHeightPixels() + GetTabContentSpacingPixels();
+            BuildContentHost.Position = new float3(GetPanelPaddingPixels(), contentTopY, 0.1f);
+            GraphicsContentHost.Position = new float3(GetPanelPaddingPixels(), contentTopY, 0.1f);
+            CodegenContentHost.Position = new float3(GetPanelPaddingPixels(), contentTopY, 0.1f);
+            BuildSettingsSection.Root.Position = float3.Zero;
             BuildSettingsSection.Layout();
-
-            float graphicsTopY = buildTopY + BuildSettingsSection.ContentHeight + GetSectionSpacingPixels();
-            GraphicsSettingsSection.Root.Position = new float3(GetPanelPaddingPixels(), graphicsTopY, 0.1f);
+            GraphicsSettingsSection.Root.Position = float3.Zero;
             GraphicsSettingsSection.Layout();
-
-            float codegenTopY = graphicsTopY + GraphicsSettingsSection.ContentHeight + GetSectionSpacingPixels();
-            CodegenSettingsSection.Root.Position = new float3(GetPanelPaddingPixels(), codegenTopY, 0.1f);
+            CodegenSettingsSection.Root.Position = float3.Zero;
             CodegenSettingsSection.Layout();
         }
 
@@ -643,7 +916,7 @@ namespace helengine.editor {
         /// Positions the status text above the footer.
         /// </summary>
         void LayoutStatus() {
-            float statusY = GetPlatformSelectorTop() + GetFieldRowHeightPixels() + GetSectionSpacingPixels() + BuildSettingsSection.ContentHeight + GetSectionSpacingPixels() + GraphicsSettingsSection.ContentHeight + GetSectionSpacingPixels() + CodegenSettingsSection.ContentHeight + GetStatusTopPadding();
+            float statusY = GetPlatformSelectorTop() + GetFieldRowHeightPixels() + GetSectionSpacingPixels() + GetTabButtonHeightPixels() + GetTabContentSpacingPixels() + GetActiveSectionContentHeight() + GetStatusTopPadding();
             float footerLimitY = DialogHeight - GetFooterHeightPixels() - GetFooterStatusBottomGap();
             if (statusY > footerLimitY) {
                 statusY = footerLimitY;
@@ -677,6 +950,21 @@ namespace helengine.editor {
         /// <returns>Scaled selector top position in pixels.</returns>
         float GetPlatformSelectorTop() {
             return DialogMetrics.ScalePixels(HeaderHeight + PanelPadding);
+        }
+
+        /// <summary>
+        /// Gets the currently visible section height used to place the status row.
+        /// </summary>
+        /// <returns>Content height of the active tab section.</returns>
+        float GetActiveSectionContentHeight() {
+            if (SelectedTabIndex == 1) {
+                return GraphicsSettingsSection.ContentHeight;
+            }
+            if (SelectedTabIndex == 2) {
+                return CodegenSettingsSection.ContentHeight;
+            }
+
+            return BuildSettingsSection.ContentHeight;
         }
 
         /// <summary>
@@ -728,6 +1016,38 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Gets the scaled tab button width.
+        /// </summary>
+        /// <returns>Scaled tab button width in pixels.</returns>
+        int GetTabButtonWidthPixels() {
+            return DialogMetrics.ScalePixels(TabButtonWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled tab button height.
+        /// </summary>
+        /// <returns>Scaled tab button height in pixels.</returns>
+        int GetTabButtonHeightPixels() {
+            return DialogMetrics.ScalePixels(TabButtonHeight);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing between tab buttons.
+        /// </summary>
+        /// <returns>Scaled tab-button spacing in pixels.</returns>
+        int GetTabButtonSpacingPixels() {
+            return DialogMetrics.ScalePixels(TabButtonSpacing);
+        }
+
+        /// <summary>
+        /// Gets the scaled spacing between the tab row and active tab content.
+        /// </summary>
+        /// <returns>Scaled tab-content spacing in pixels.</returns>
+        int GetTabContentSpacingPixels() {
+            return DialogMetrics.ScalePixels(TabContentSpacing);
+        }
+
+        /// <summary>
         /// Gets the scaled vertical offset applied to the platform label.
         /// </summary>
         /// <returns>Scaled label offset in pixels.</returns>
@@ -741,6 +1061,14 @@ namespace helengine.editor {
         /// <returns>Scaled footer button size.</returns>
         int2 GetFooterButtonSize() {
             return new int2(DialogMetrics.ScalePixels(SaveButtonSize.X), DialogMetrics.ScalePixels(SaveButtonSize.Y));
+        }
+
+        /// <summary>
+        /// Gets the scaled size of one tab button.
+        /// </summary>
+        /// <returns>Scaled tab button size.</returns>
+        int2 GetTabButtonSize() {
+            return new int2(GetTabButtonWidthPixels(), GetTabButtonHeightPixels());
         }
 
         /// <summary>

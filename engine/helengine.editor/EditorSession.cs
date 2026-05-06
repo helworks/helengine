@@ -1441,7 +1441,7 @@ namespace helengine.editor {
             string dialogPlatformId = ResolveVisiblePlatformId(visiblePlatformIds, ActiveProjectPlatform);
             EditorProfileSettingsDocument profileSettings = profileSettingsService.Load(visiblePlatformIds);
             buildDialogCopySettingsDialog.Hide();
-            profilesDialog.Show(profileSettings, visiblePlatformIds, dialogPlatformId, ResolvePlatformSelectionModel(dialogPlatformId));
+            profilesDialog.Show(profileSettings, visiblePlatformIds, dialogPlatformId, ResolvePlatformSelectionModel);
         }
 
         /// <summary>

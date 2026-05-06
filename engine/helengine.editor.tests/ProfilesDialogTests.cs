@@ -40,19 +40,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the dialog loads the active platform profile into the visible settings rows.
+        /// Ensures the dialog opens on the Build tab while keeping the other profile tabs hidden.
         /// </summary>
         [Fact]
-        public void Show_WhenActivePlatformIsProvided_LoadsThatPlatformProfileValues() {
+        public void Show_WhenOpened_ActivatesBuildTabAndLoadsTheCurrentPlatformRows() {
             ProfilesDialog dialog = new ProfilesDialog(CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
 
             dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
 
+            int selectedTabIndex = GetPrivateField<int>(dialog, "SelectedTabIndex");
+            EditorEntity buildContentHost = GetPrivateField<EditorEntity>(dialog, "BuildContentHost");
+            EditorEntity graphicsContentHost = GetPrivateField<EditorEntity>(dialog, "GraphicsContentHost");
+            EditorEntity codegenContentHost = GetPrivateField<EditorEntity>(dialog, "CodegenContentHost");
             EditorPlatformSettingsSection buildSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "BuildSettingsSection");
             EditorPlatformSettingsSection graphicsSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "GraphicsSettingsSection");
             EditorPlatformSettingsSection codegenSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "CodegenSettingsSection");
 
+            Assert.Equal(0, selectedTabIndex);
+            Assert.True(buildContentHost.Enabled);
+            Assert.False(graphicsContentHost.Enabled);
+            Assert.False(codegenContentHost.Enabled);
             Assert.Equal(2, buildSection.Items.Count);
             Assert.Equal(4, graphicsSection.Items.Count);
             Assert.Equal(3, codegenSection.Items.Count);
@@ -68,6 +76,38 @@ namespace helengine.editor.tests {
             Assert.True(codegenSection.Items[0].CheckBox.IsChecked);
             Assert.False(codegenSection.Items[1].CheckBox.IsChecked);
             Assert.True(codegenSection.Items[2].CheckBox.IsChecked);
+        }
+
+        /// <summary>
+        /// Ensures switching profile tabs keeps draft edits local until Save is pressed.
+        /// </summary>
+        [Fact]
+        public void Show_WhenTabsChange_KeepsDraftEditsOutOfTheSourceDocumentUntilSave() {
+            ProfilesDialog dialog = new ProfilesDialog(CreateFont());
+            EditorProfileSettingsDocument document = CreateProfileDocument();
+
+            dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
+
+            EditorPlatformSettingsSection buildSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "BuildSettingsSection");
+            EditorPlatformSettingsSection graphicsSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "GraphicsSettingsSection");
+            buildSection.Items[0].TextBox.Text = "75";
+            buildSection.Items[1].CheckBox.IsChecked = true;
+
+            InvokePrivate(dialog, "HandleGraphicsTabClicked");
+
+            Assert.Equal(1, GetPrivateField<int>(dialog, "SelectedTabIndex"));
+            Assert.Equal("50", document.Platforms[0].Build.SelectedOptionValues["texture-scale-percent"]);
+            Assert.Equal("false", document.Platforms[0].Build.SelectedOptionValues["shader-variant-pruning"]);
+
+            graphicsSection.Items[0].TextBox.Text = "1600";
+            graphicsSection.Items[1].TextBox.Text = "900";
+
+            InvokePrivate(dialog, "HandleBuildTabClicked");
+
+            Assert.Equal("75", buildSection.Items[0].TextBox.Text);
+            Assert.True(buildSection.Items[1].CheckBox.IsChecked);
+            Assert.Equal("1920", document.Platforms[0].Graphics.SelectedOptionValues["default-width"]);
+            Assert.Equal("1080", document.Platforms[0].Graphics.SelectedOptionValues["default-height"]);
         }
 
         /// <summary>
@@ -129,16 +169,24 @@ namespace helengine.editor.tests {
             dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
             dialog.UpdateLayout(1280, 720);
 
+            EditorEntity buildTabButtonHost = GetPrivateField<EditorEntity>(dialog, "BuildTabButtonHost");
+            EditorEntity buildContentHost = GetPrivateField<EditorEntity>(dialog, "BuildContentHost");
             EditorEntity platformComboBoxHost = GetPrivateField<EditorEntity>(dialog, "PlatformComboBoxHost");
             ComboBoxComponent platformComboBox = GetPrivateField<ComboBoxComponent>(dialog, "PlatformComboBox");
             EditorPlatformSettingsSection buildSettingsSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "BuildSettingsSection");
+            ButtonComponent buildTabButton = GetPrivateField<ButtonComponent>(dialog, "BuildTabButton");
             ButtonComponent saveButton = GetPrivateField<ButtonComponent>(dialog, "SaveButton");
             ButtonComponent cancelButton = GetPrivateField<ButtonComponent>(dialog, "CancelButton");
 
             Assert.Equal(metrics.ScalePixels(ProfilesDialog.PanelPadding + ProfilesDialog.LabelColumnWidth + 12), (int)Math.Round(platformComboBoxHost.LocalPosition.X));
             Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding), (int)Math.Round(platformComboBoxHost.LocalPosition.Y));
             Assert.Equal(new int2(metrics.ScalePixels(ProfilesDialog.PlatformComboBoxWidth), metrics.ScalePixels(ProfilesDialog.FieldRowHeight)), platformComboBox.Size);
-            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + ProfilesDialog.FieldRowHeight + ProfilesDialog.SectionSpacing), (int)Math.Round(buildSettingsSection.Root.LocalPosition.Y));
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.PanelPadding), (int)Math.Round(buildTabButtonHost.LocalPosition.X));
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + ProfilesDialog.FieldRowHeight + ProfilesDialog.SectionSpacing), (int)Math.Round(buildTabButtonHost.LocalPosition.Y));
+            Assert.Equal(new int2(metrics.ScalePixels(ProfilesDialog.TabButtonWidth), metrics.ScalePixels(ProfilesDialog.TabButtonHeight)), buildTabButton.Size);
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.PanelPadding), (int)Math.Round(buildContentHost.LocalPosition.X));
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + ProfilesDialog.FieldRowHeight + ProfilesDialog.SectionSpacing + ProfilesDialog.TabButtonHeight + ProfilesDialog.TabContentSpacing), (int)Math.Round(buildContentHost.LocalPosition.Y));
+            Assert.Equal(0, (int)Math.Round(buildSettingsSection.Root.LocalPosition.Y));
             Assert.Equal(new int2(metrics.ScalePixels(88), metrics.ScalePixels(22)), saveButton.Size);
             Assert.Equal(new int2(metrics.ScalePixels(88), metrics.ScalePixels(22)), cancelButton.Size);
         }
@@ -173,16 +221,25 @@ namespace helengine.editor.tests {
 
             Assert.NotNull(selection);
             Assert.Equal("windows", selection.ActivePlatformId);
-            Assert.Same(document, selection.ProfileSettingsDocument);
-            Assert.Equal("75", document.Platforms[0].Build.SelectedOptionValues["texture-scale-percent"]);
+            Assert.NotSame(document, selection.ProfileSettingsDocument);
+            Assert.Equal("50", document.Platforms[0].Build.SelectedOptionValues["texture-scale-percent"]);
             Assert.Equal("false", document.Platforms[0].Build.SelectedOptionValues["shader-variant-pruning"]);
-            Assert.Equal("1600", document.Platforms[0].Graphics.SelectedOptionValues["default-width"]);
-            Assert.Equal("900", document.Platforms[0].Graphics.SelectedOptionValues["default-height"]);
+            Assert.Equal("1920", document.Platforms[0].Graphics.SelectedOptionValues["default-width"]);
+            Assert.Equal("1080", document.Platforms[0].Graphics.SelectedOptionValues["default-height"]);
             Assert.Equal("false", document.Platforms[0].Graphics.SelectedOptionValues["vsync-enabled"]);
             Assert.Equal("true", document.Platforms[0].Graphics.SelectedOptionValues["fullscreen-enabled"]);
-            Assert.Equal("false", document.Platforms[0].Codegen.SelectedOptionValues["write-conversion-report"]);
-            Assert.Equal("true", document.Platforms[0].Codegen.SelectedOptionValues["include-project-defined-preprocessor-symbols"]);
-            Assert.Equal("false", document.Platforms[0].Codegen.SelectedOptionValues["load-native-runtime-metadata"]);
+            Assert.Equal("true", document.Platforms[0].Codegen.SelectedOptionValues["write-conversion-report"]);
+            Assert.Equal("false", document.Platforms[0].Codegen.SelectedOptionValues["include-project-defined-preprocessor-symbols"]);
+            Assert.Equal("true", document.Platforms[0].Codegen.SelectedOptionValues["load-native-runtime-metadata"]);
+            Assert.Equal("75", selection.ProfileSettingsDocument.Platforms[0].Build.SelectedOptionValues["texture-scale-percent"]);
+            Assert.Equal("false", selection.ProfileSettingsDocument.Platforms[0].Build.SelectedOptionValues["shader-variant-pruning"]);
+            Assert.Equal("1600", selection.ProfileSettingsDocument.Platforms[0].Graphics.SelectedOptionValues["default-width"]);
+            Assert.Equal("900", selection.ProfileSettingsDocument.Platforms[0].Graphics.SelectedOptionValues["default-height"]);
+            Assert.Equal("false", selection.ProfileSettingsDocument.Platforms[0].Graphics.SelectedOptionValues["vsync-enabled"]);
+            Assert.Equal("true", selection.ProfileSettingsDocument.Platforms[0].Graphics.SelectedOptionValues["fullscreen-enabled"]);
+            Assert.Equal("false", selection.ProfileSettingsDocument.Platforms[0].Codegen.SelectedOptionValues["write-conversion-report"]);
+            Assert.Equal("true", selection.ProfileSettingsDocument.Platforms[0].Codegen.SelectedOptionValues["include-project-defined-preprocessor-symbols"]);
+            Assert.Equal("false", selection.ProfileSettingsDocument.Platforms[0].Codegen.SelectedOptionValues["load-native-runtime-metadata"]);
         }
 
         /// <summary>
