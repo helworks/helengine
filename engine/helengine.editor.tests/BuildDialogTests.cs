@@ -1495,6 +1495,52 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the scene list allocates one trailing pooled row when the viewport clips into the next row.
+        /// </summary>
+        [Fact]
+        public void UpdateSceneListRowsLayout_WhenViewportClipsNextRow_RendersPartiallyVisibleTrailingRow() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            IReadOnlyList<string> sceneIds = CreateSceneIds(18);
+
+            dialog.Show(
+                ["windows"],
+                sceneIds,
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/Map00.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows"
+                        }
+                    ]
+                });
+
+            RoundedRectComponent sceneListBackground = GetPrivateField<RoundedRectComponent>(dialog, "SceneListBackground");
+            ScrollComponent sceneListScrollComponent = GetPrivateField<ScrollComponent>(dialog, "SceneListScrollComponent");
+
+            sceneListBackground.Size = new int2(
+                sceneListBackground.Size.X,
+                (BuildDialog.SceneListPadding * 2) + (BuildDialog.SceneRowHeight * 3) + (BuildDialog.SceneRowHeight / 2));
+            sceneListScrollComponent.VisibleItemCount = 0;
+
+            InvokePrivate(dialog, "UpdateSceneListRowsLayout");
+
+            List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
+
+            Assert.Equal(4, sceneListScrollComponent.VisibleItemCount);
+            Assert.Equal(4, mapLabelTexts.Count);
+            Assert.Equal("Scenes/Map03.helen", mapLabelTexts[^1].Text);
+
+            Assert.True(sceneListScrollComponent.ScrollTo(1));
+
+            Assert.Equal("Scenes/Map01.helen", mapLabelTexts[0].Text);
+            Assert.Equal("Scenes/Map04.helen", mapLabelTexts[^1].Text);
+        }
+
+        /// <summary>
         /// Ensures the build-log section also pages through content with its own scroll viewport.
         /// </summary>
         [Fact]
