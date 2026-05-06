@@ -60,11 +60,11 @@ namespace helengine.editor {
         /// <summary>
         /// Height reserved for each queued build row.
         /// </summary>
-        public const int QueueRowHeight = 56;
+        public const int QueueRowHeight = 80;
         /// <summary>
         /// Width reserved for the queue-row remove button.
         /// </summary>
-        public const int QueueCardRemoveButtonWidth = 28;
+        public const int QueueCardRemoveButtonWidth = 32;
         /// <summary>
         /// Height reserved for the queue section header bar.
         /// </summary>
@@ -1368,7 +1368,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>New queue row bundle.</returns>
         BuildDialogQueueRow CreateQueueRow() {
-            BuildDialogQueueRow row = new BuildDialogQueueRow(DialogFont, LayerMask, DialogPanelOrder, DialogTextOrder);
+            BuildDialogQueueRow row = new BuildDialogQueueRow(DialogFont, DialogMetrics, LayerMask, DialogPanelOrder, DialogTextOrder);
             row.RemoveRequested += HandleQueueRowRemoveRequested;
             QueueItemsRoot.AddChild(row.Root);
             return row;
