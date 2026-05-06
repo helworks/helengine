@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using helengine.editor.tests.testing;
+using helengine.platforms;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -138,15 +139,75 @@ namespace helengine.editor.tests {
             localSettingsService.SaveActivePlatform("android");
             manager.CurrentPlatformId = "android";
             manager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
+            WritePlatformManifest(
+                "1.0.0-custom",
+                [
+                    new AvailablePlatformDescriptor("android", "Android", string.Empty, "platforms/android", true),
+                    new AvailablePlatformDescriptor("windows", "Windows", string.Empty, "platforms/windows", true)
+                ],
+                ["android", "windows"]);
 
             SetPrivateField(session, "assetImportManager", manager);
             SetPrivateField(session, "propertiesPanel", panel);
             SetPrivateField(session, "ProjectSupportedPlatforms", supportedPlatforms);
             SetPrivateField(session, "ProjectLocalSettingsService", localSettingsService);
             SetPrivateField(session, "ActiveProjectPlatform", "android");
+            SetPrivateField(session, "RequiredEngineVersion", "1.0.0-custom");
             SetPrivateField(session, "SceneModelRefreshService", new EditorSceneModelRefreshService(new EditorFileSystemModelResolver(manager)));
+            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath), new WindowsLauncherInstallRootLocator()));
 
             return session;
+        }
+
+        /// <summary>
+        /// Writes one engine-level platform manifest for the current temporary toolchain root.
+        /// </summary>
+        /// <param name="engineVersion">Exact engine version whose platforms should be discoverable.</param>
+        /// <param name="platforms">Platform descriptors written into the manifest.</param>
+        /// <param name="installedPlatformIds">Platform identifiers whose install roots should exist on disk.</param>
+        void WritePlatformManifest(string engineVersion, IReadOnlyList<AvailablePlatformDescriptor> platforms, IReadOnlyList<string> installedPlatformIds) {
+            if (string.IsNullOrWhiteSpace(engineVersion)) {
+                throw new ArgumentException("Engine version must be provided.", nameof(engineVersion));
+            }
+            if (platforms == null) {
+                throw new ArgumentNullException(nameof(platforms));
+            }
+            if (installedPlatformIds == null) {
+                throw new ArgumentNullException(nameof(installedPlatformIds));
+            }
+
+            string sharedToolchainRootPath = TempProjectRootPath;
+            string manifestPath = Path.Combine(sharedToolchainRootPath, "platforms.json");
+            Directory.CreateDirectory(sharedToolchainRootPath);
+
+            List<string> manifestEntries = new List<string>(platforms.Count);
+            for (int index = 0; index < platforms.Count; index++) {
+                AvailablePlatformDescriptor platform = platforms[index];
+                manifestEntries.Add($$"""
+                {
+                  "engineVersion": "{{engineVersion}}",
+                  "platformId": "{{platform.Id}}",
+                  "displayName": "{{platform.DisplayName}}",
+                  "builderAssemblyPath": "{{platform.BuilderAssemblyPath}}",
+                  "playerSourceRootPath": "{{platform.PlayerSourceRootPath}}"
+                }
+                """);
+
+                if (installedPlatformIds.Contains(platform.Id)) {
+                    string resolvedPlayerSourceRootPath = Path.Combine(sharedToolchainRootPath, platform.PlayerSourceRootPath);
+                    Directory.CreateDirectory(resolvedPlayerSourceRootPath);
+                }
+            }
+
+            string json = """
+            {
+              "platforms": [
+            """ + string.Join(",\n", manifestEntries) + """
+              ]
+            }
+            """;
+
+            File.WriteAllText(manifestPath, json);
         }
 
         /// <summary>

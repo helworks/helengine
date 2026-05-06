@@ -62,12 +62,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Loads the active project platform, regenerating local settings when the stored value is missing or invalid.
+        /// Loads the active project platform, regenerating local settings only when no persisted choice exists.
         /// </summary>
-        /// <returns>Validated active platform identifier for the current project.</returns>
+        /// <returns>Persisted active platform identifier for the current project.</returns>
         public string LoadActivePlatform() {
             EditorProjectLocalSettingsDocument document = TryLoadDocument();
-            if (document != null && IsSupportedPlatform(document.ActivePlatform)) {
+            if (document != null && !string.IsNullOrWhiteSpace(document.ActivePlatform)) {
                 return document.ActivePlatform;
             }
 
@@ -85,12 +85,22 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Platform '{activePlatform}' is not supported by the current project.");
             }
 
+            WriteDocument(new EditorProjectLocalSettingsDocument {
+                ActivePlatform = activePlatform
+            });
+        }
+
+        /// <summary>
+        /// Writes one local settings document to the canonical user-settings path.
+        /// </summary>
+        /// <param name="document">Local settings document to persist.</param>
+        void WriteDocument(EditorProjectLocalSettingsDocument document) {
+            if (document == null) {
+                throw new ArgumentNullException(nameof(document));
+            }
+
             string settingsDirectoryPath = Path.GetDirectoryName(UserSettingsFilePath);
             Directory.CreateDirectory(settingsDirectoryPath);
-
-            EditorProjectLocalSettingsDocument document = new EditorProjectLocalSettingsDocument {
-                ActivePlatform = activePlatform
-            };
 
             string json = JsonSerializer.Serialize(document, JsonSerializerOptions);
             File.WriteAllText(UserSettingsFilePath, json);
@@ -111,8 +121,10 @@ namespace helengine.editor {
                 return null;
             }
 
-            if (IsSupportedPlatform(document.ActivePlatform)) {
-                SaveActivePlatform(document.ActivePlatform);
+            if (!string.IsNullOrWhiteSpace(document.ActivePlatform)) {
+                WriteDocument(new EditorProjectLocalSettingsDocument {
+                    ActivePlatform = document.ActivePlatform
+                });
             } else {
                 SaveActivePlatform(ResolveDefaultPlatform());
             }

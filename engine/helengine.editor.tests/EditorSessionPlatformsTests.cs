@@ -93,6 +93,58 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures switching the active project platform refreshes the host title suffix immediately.
+        /// </summary>
+        [Fact]
+        public void SetActiveProjectPlatform_WhenPlatformChanges_RefreshesWindowTitle() {
+            WritePlatformsSettingsFile("windows", "ps2");
+            WritePlatformManifest(
+                "1.0.0-custom",
+                [
+                    new AvailablePlatformDescriptor("windows", "Windows DirectX", string.Empty, "platforms/windows", true),
+                    new AvailablePlatformDescriptor("ps2", "PlayStation 2", string.Empty, "platforms/ps2", true)
+                ],
+                ["windows", "ps2"]);
+            EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, ["windows", "ps2"]);
+            localSettingsService.SaveActivePlatform("windows");
+            EditorSession session = CreateSession(["windows", "ps2"], localSettingsService, "windows");
+
+            session.SetActiveProjectPlatform("ps2");
+
+            Assert.Equal("helengine - project.heproj [PS2]", session.WindowTitle);
+        }
+
+        /// <summary>
+        /// Ensures one invalid persisted project platform forces the Platforms dialog to remain open until the user chooses a replacement.
+        /// </summary>
+        [Fact]
+        public void PromptForPlatformSelectionIfRequired_WhenActivePlatformIsUnavailable_ShowsPlatformsDialogWithoutImplicitFallback() {
+            WritePlatformsSettingsFile("windows", "ps2");
+            WritePlatformManifest(
+                "1.0.0-custom",
+                [
+                    new AvailablePlatformDescriptor("windows", "Windows DirectX", string.Empty, "platforms/windows", true),
+                    new AvailablePlatformDescriptor("ps2", "PlayStation 2", string.Empty, "platforms/ps2", true)
+                ],
+                ["windows"]);
+            EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, ["windows", "ps2"]);
+            localSettingsService.SaveActivePlatform("ps2");
+            EditorSession session = CreateSession(["windows", "ps2"], localSettingsService, "ps2");
+
+            InvokePrivate(session, "PromptForPlatformSelectionIfRequired");
+
+            PlatformsDialog dialog = GetPrivateField<PlatformsDialog>(session, "platformsDialog");
+            ComboBoxComponent activePlatformComboBox = GetPrivateField<ComboBoxComponent>(dialog, "ActivePlatformComboBox");
+            Assert.True(dialog.Enabled);
+            Assert.False(activePlatformComboBox.HasSelection);
+
+            InvokePrivate(session, "HandlePlatformsDialogCancelRequested");
+
+            Assert.True(dialog.Enabled);
+            Assert.False(activePlatformComboBox.HasSelection);
+        }
+
+        /// <summary>
         /// Creates one partially initialized editor session containing the collaborators used by project-platform handling.
         /// </summary>
         /// <param name="supportedPlatforms">Project-supported platforms for the test session.</param>
@@ -109,7 +161,9 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "ProjectSupportedPlatforms", supportedPlatforms);
             SetPrivateField(session, "ProjectLocalSettingsService", localSettingsService);
             SetPrivateField(session, "ActiveProjectPlatform", activePlatform);
+            SetPrivateField(session, "ProjectDisplayName", "project.heproj");
             SetPrivateField(session, "assetImportManager", assetImportManager);
+            SetPrivateField(session, "titleBar", new EditorTitleBar(CreateFont(), 1280, 720, "helengine - project.heproj [WINDOWS]"));
             SetPrivateField(session, "platformsDialog", new PlatformsDialog(CreateFont()));
             SetPrivateField(session, "projectPlatformsService", new EditorProjectPlatformsService(TempProjectRootPath));
             SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath), new WindowsLauncherInstallRootLocator()));

@@ -79,10 +79,10 @@ public sealed class EditorProjectLocalSettingsServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures unsupported stored platforms are silently replaced with the first supported platform.
+    /// Ensures unsupported stored platforms remain persisted so the editor session can force an explicit replacement.
     /// </summary>
     [Fact]
-    public void LoadActivePlatform_WhenStoredPlatformIsUnsupported_ReplacesSettingsWithFirstSupportedPlatform() {
+    public void LoadActivePlatform_WhenStoredPlatformIsUnsupported_ReturnsStoredValueWithoutRewritingIt() {
         WriteSettingsFile(
             """
             {
@@ -93,8 +93,8 @@ public sealed class EditorProjectLocalSettingsServiceTests : IDisposable {
 
         string activePlatform = service.LoadActivePlatform();
 
-        Assert.Equal("windows", activePlatform);
-        Assert.Equal("windows", ReadActivePlatformFromDisk());
+        Assert.Equal("ios", activePlatform);
+        Assert.Equal("ios", ReadActivePlatformFromDisk());
     }
 
     /// <summary>

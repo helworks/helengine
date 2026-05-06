@@ -616,6 +616,7 @@ namespace helengine.editor {
             sceneHierarchyPanel.RefreshHierarchy();
 
             UpdateLayout(renderWidth, renderHeight);
+            PromptForPlatformSelectionIfRequired();
         }
 
         /// <summary>
@@ -759,6 +760,7 @@ namespace helengine.editor {
             ProjectLocalSettingsService.SaveActivePlatform(platformId);
             ActiveProjectPlatform = platformId;
             assetImportManager.CurrentPlatformId = platformId;
+            RefreshWindowTitle();
         }
 
         /// <summary>
@@ -1419,6 +1421,11 @@ namespace helengine.editor {
         /// Cancels the Platforms workflow and hides the dialog.
         /// </summary>
         void HandlePlatformsDialogCancelRequested() {
+            if (!CanUseProjectPlatform(ActiveProjectPlatform)) {
+                HandlePlatformsRequested();
+                return;
+            }
+
             platformsDialog.Hide();
         }
 
@@ -2416,7 +2423,10 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Window title text shown by the editor host.</returns>
         string BuildWindowTitle() {
-            string title = $"helengine - {ProjectDisplayName}";
+            string platformSuffix = string.IsNullOrWhiteSpace(ActiveProjectPlatform)
+                ? string.Empty
+                : $" [{ActiveProjectPlatform.ToUpperInvariant()}]";
+            string title = $"helengine - {ProjectDisplayName}{platformSuffix}";
             if (string.IsNullOrWhiteSpace(CurrentScenePath)) {
                 return title;
             }
@@ -2649,6 +2659,36 @@ namespace helengine.editor {
             }
 
             return visiblePlatformIds[0];
+        }
+
+        /// <summary>
+        /// Returns true when the supplied platform is both project-supported and installed for the current engine.
+        /// </summary>
+        /// <param name="platformId">Platform identifier to validate.</param>
+        /// <returns>True when the platform can be used as the current project platform.</returns>
+        bool CanUseProjectPlatform(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                return false;
+            }
+
+            for (int index = 0; index < SupportedPlatforms.Count; index++) {
+                if (string.Equals(SupportedPlatforms[index], platformId, StringComparison.OrdinalIgnoreCase)) {
+                    return IsInstalledPlatform(platformId);
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Forces the Platforms workflow when the current persisted project platform is no longer usable.
+        /// </summary>
+        void PromptForPlatformSelectionIfRequired() {
+            if (CanUseProjectPlatform(ActiveProjectPlatform)) {
+                return;
+            }
+
+            HandlePlatformsRequested();
         }
 
         /// <summary>
