@@ -201,6 +201,30 @@ namespace helengine.editor {
         /// Automatic scripted-component descriptor used to interpret editor tagged payloads before packaging.
         /// </summary>
         readonly AutomaticScriptComponentPersistenceDescriptor AutomaticScriptComponentDescriptor;
+        /// <summary>
+        /// Camera descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
+        /// </summary>
+        readonly CameraComponentPersistenceDescriptor CameraComponentDescriptor;
+        /// <summary>
+        /// Rounded-rectangle descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
+        /// </summary>
+        readonly RoundedRectComponentPersistenceDescriptor RoundedRectComponentDescriptor;
+        /// <summary>
+        /// Demo menu root descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
+        /// </summary>
+        readonly DemoMenuBuildComponentPersistenceDescriptor DemoMenuBuildComponentDescriptor;
+        /// <summary>
+        /// Demo menu panel descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
+        /// </summary>
+        readonly DemoMenuPanelComponentPersistenceDescriptor DemoMenuPanelComponentDescriptor;
+        /// <summary>
+        /// Demo menu item descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
+        /// </summary>
+        readonly DemoMenuItemComponentPersistenceDescriptor DemoMenuItemComponentDescriptor;
+        /// <summary>
+        /// Demo menu selected-description descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
+        /// </summary>
+        readonly DemoMenuSelectedDescriptionComponentPersistenceDescriptor DemoMenuSelectedDescriptionComponentDescriptor;
 
         /// <summary>
         /// Initializes one shared scene-component transform service.
@@ -241,6 +265,12 @@ namespace helengine.editor {
             SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
             ScriptComponentSchemaBuilder = new ScriptComponentReflectionSchemaBuilder();
             AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder);
+            CameraComponentDescriptor = new CameraComponentPersistenceDescriptor();
+            RoundedRectComponentDescriptor = new RoundedRectComponentPersistenceDescriptor();
+            DemoMenuBuildComponentDescriptor = new DemoMenuBuildComponentPersistenceDescriptor();
+            DemoMenuPanelComponentDescriptor = new DemoMenuPanelComponentPersistenceDescriptor();
+            DemoMenuItemComponentDescriptor = new DemoMenuItemComponentPersistenceDescriptor();
+            DemoMenuSelectedDescriptionComponentDescriptor = new DemoMenuSelectedDescriptionComponentPersistenceDescriptor();
         }
 
         /// <summary>
@@ -411,27 +441,16 @@ namespace helengine.editor {
         /// <param name="record">Serialized camera component record to rewrite.</param>
         /// <returns>Rewritten camera component record.</returns>
         SceneComponentAssetRecord RewriteCameraComponentRecord(SceneComponentAssetRecord record) {
-            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != 1 && version != CameraComponentPayloadVersion) {
-                throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
-            }
-
-            byte cameraDrawOrder = reader.ReadByte();
-            ushort layerMask = reader.ReadUInt16();
-            float4 viewport = ReadFloat4(reader);
-            CameraClearSettings clearSettings = ReadClearSettings(reader);
-            CameraRenderSettings renderSettings = version >= 2 ? ReadRenderSettings(reader) : new CameraRenderSettings();
+            CameraComponent component = AssertCameraComponent(record);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(CameraComponentPayloadVersion);
-            writer.WriteByte(cameraDrawOrder);
-            writer.WriteUInt16(NormalizePackagedCameraLayerMask(layerMask));
-            WriteFloat4(writer, viewport);
-            WriteClearSettings(writer, clearSettings);
-            WriteRenderSettings(writer, renderSettings);
+            writer.WriteByte(component.CameraDrawOrder);
+            writer.WriteUInt16(NormalizePackagedCameraLayerMask(component.LayerMask));
+            WriteFloat4(writer, component.Viewport);
+            WriteClearSettings(writer, component.ClearSettings);
+            WriteRenderSettings(writer, component.RenderSettings ?? new CameraRenderSettings());
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = record.ComponentTypeId,
@@ -481,23 +500,18 @@ namespace helengine.editor {
         /// <param name="record">Serialized text component record to rewrite.</param>
         /// <returns>Rewritten text component record.</returns>
         SceneComponentAssetRecord RewriteTextComponentRecord(SceneComponentAssetRecord record) {
-            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != TextComponentPayloadVersion) {
-                throw new InvalidOperationException($"Unsupported text component payload version '{version}'.");
-            }
-
-            SceneAssetReference fontReference = FontAssetScenePersistenceSupport.ReadOptionalReference(reader);
-            string text = reader.ReadString();
-            bool wrapText = reader.ReadByte() != 0;
-            int2 size = reader.ReadInt2();
-            byte4 color = FontAssetScenePersistenceSupport.ReadByte4(reader);
-            float4 sourceRect = reader.ReadFloat4();
-            float rotation = reader.ReadSingle();
-            byte renderOrder2D = reader.ReadByte();
-            byte layerMask = reader.ReadByte();
-            bool selectionEnabled = reader.ReadByte() != 0;
+            ReadTaggedTextComponentRecord(
+                record,
+                out SceneAssetReference fontReference,
+                out string text,
+                out bool wrapText,
+                out int2 size,
+                out byte4 color,
+                out float4 sourceRect,
+                out float rotation,
+                out byte renderOrder2D,
+                out byte layerMask,
+                out bool selectionEnabled);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -526,39 +540,22 @@ namespace helengine.editor {
         /// <param name="record">Serialized rounded rectangle component record to rewrite.</param>
         /// <returns>Rewritten rounded rectangle component record.</returns>
         SceneComponentAssetRecord RewriteRoundedRectComponentRecord(SceneComponentAssetRecord record) {
-            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != 1) {
-                throw new InvalidOperationException($"Unsupported rounded rectangle component payload version '{version}'.");
-            }
-
-            byte renderOrder2D = reader.ReadByte();
-            byte layerMask = reader.ReadByte();
-            RoundedRectCorners corners = (RoundedRectCorners)reader.ReadInt32();
-            float rotation = reader.ReadSingle();
-            byte4 color = FontAssetScenePersistenceSupport.ReadByte4(reader);
-            float4 sourceRect = reader.ReadFloat4();
-            int2 size = reader.ReadInt2();
-            float radius = reader.ReadSingle();
-            float borderThickness = reader.ReadSingle();
-            byte4 fillColor = FontAssetScenePersistenceSupport.ReadByte4(reader);
-            byte4 borderColor = FontAssetScenePersistenceSupport.ReadByte4(reader);
+            RoundedRectComponent component = AssertRoundedRectComponent(record);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
-            writer.WriteByte(renderOrder2D);
-            writer.WriteByte(layerMask);
-            writer.WriteInt32((int)corners);
-            writer.WriteSingle(rotation);
-            FontAssetScenePersistenceSupport.WriteByte4(writer, color);
-            writer.WriteFloat4(sourceRect);
-            writer.WriteInt2(size);
-            writer.WriteSingle(radius);
-            writer.WriteSingle(borderThickness);
-            FontAssetScenePersistenceSupport.WriteByte4(writer, fillColor);
-            FontAssetScenePersistenceSupport.WriteByte4(writer, borderColor);
+            writer.WriteByte(component.RenderOrder2D);
+            writer.WriteByte(component.LayerMask);
+            writer.WriteInt32((int)component.Corners);
+            writer.WriteSingle(component.Rotation);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, component.Color);
+            writer.WriteFloat4(component.SourceRect);
+            writer.WriteInt2(component.Size);
+            writer.WriteSingle(component.Radius);
+            writer.WriteSingle(component.BorderThickness);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, component.FillColor);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, component.BorderColor);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = RoundedRectComponentTypeId,
@@ -654,21 +651,13 @@ namespace helengine.editor {
         /// <param name="record">Serialized demo-menu root component record to rewrite.</param>
         /// <returns>Rewritten demo-menu root component record.</returns>
         SceneComponentAssetRecord RewriteDemoMenuBuildComponentRecord(SceneComponentAssetRecord record) {
-            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != DemoMenuBuildComponent.CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported demo menu build component payload version '{version}'.");
-            }
-
-            string providerTypeName = reader.ReadString();
-            string initialPanelId = reader.ReadString();
+            DemoMenuBuildComponent component = AssertDemoMenuBuildComponent(record);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(DemoMenuBuildComponent.CurrentVersion);
-            writer.WriteString(providerTypeName);
-            writer.WriteString(initialPanelId);
+            writer.WriteString(component.ProviderTypeName);
+            writer.WriteString(component.InitialPanelId);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = DemoMenuBuildComponent.SerializedComponentTypeId,
@@ -683,19 +672,12 @@ namespace helengine.editor {
         /// <param name="record">Serialized demo-menu panel component record to rewrite.</param>
         /// <returns>Rewritten demo-menu panel component record.</returns>
         SceneComponentAssetRecord RewriteDemoMenuPanelComponentRecord(SceneComponentAssetRecord record) {
-            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != DemoMenuPanelComponent.CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported demo menu panel component payload version '{version}'.");
-            }
-
-            string panelId = reader.ReadString();
+            DemoMenuPanelComponent component = AssertDemoMenuPanelComponent(record);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(DemoMenuPanelComponent.CurrentVersion);
-            writer.WriteString(panelId);
+            writer.WriteString(component.PanelId);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = DemoMenuPanelComponent.SerializedComponentTypeId,
@@ -710,35 +692,20 @@ namespace helengine.editor {
         /// <param name="record">Serialized demo-menu item component record to rewrite.</param>
         /// <returns>Rewritten demo-menu item component record.</returns>
         SceneComponentAssetRecord RewriteDemoMenuItemComponentRecord(SceneComponentAssetRecord record) {
-            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != DemoMenuItemComponent.CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported demo menu item component payload version '{version}'.");
-            }
-
-            string panelId = reader.ReadString();
-            string itemId = reader.ReadString();
-            string description = reader.ReadString();
-            MenuActionKind actionKind = (MenuActionKind)reader.ReadByte();
-            string targetId = reader.ReadString();
-            byte4 idleFillColor = FontAssetScenePersistenceSupport.ReadByte4(reader);
-            byte4 idleBorderColor = FontAssetScenePersistenceSupport.ReadByte4(reader);
-            byte4 selectedFillColor = FontAssetScenePersistenceSupport.ReadByte4(reader);
-            byte4 selectedBorderColor = FontAssetScenePersistenceSupport.ReadByte4(reader);
+            DemoMenuItemComponent component = AssertDemoMenuItemComponent(record);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(DemoMenuItemComponent.CurrentVersion);
-            writer.WriteString(panelId);
-            writer.WriteString(itemId);
-            writer.WriteString(description);
-            writer.WriteByte((byte)actionKind);
-            writer.WriteString(targetId);
-            FontAssetScenePersistenceSupport.WriteByte4(writer, idleFillColor);
-            FontAssetScenePersistenceSupport.WriteByte4(writer, idleBorderColor);
-            FontAssetScenePersistenceSupport.WriteByte4(writer, selectedFillColor);
-            FontAssetScenePersistenceSupport.WriteByte4(writer, selectedBorderColor);
+            writer.WriteString(component.PanelId);
+            writer.WriteString(component.ItemId);
+            writer.WriteString(component.Description);
+            writer.WriteByte((byte)component.ActionKind);
+            writer.WriteString(component.TargetId);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, component.IdleFillColor);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, component.IdleBorderColor);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, component.SelectedFillColor);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, component.SelectedBorderColor);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = DemoMenuItemComponent.SerializedComponentTypeId,
@@ -753,12 +720,7 @@ namespace helengine.editor {
         /// <param name="record">Serialized selected-description marker component record to rewrite.</param>
         /// <returns>Rewritten selected-description marker component record.</returns>
         SceneComponentAssetRecord RewriteDemoMenuSelectedDescriptionComponentRecord(SceneComponentAssetRecord record) {
-            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != DemoMenuSelectedDescriptionComponent.CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported demo menu selected-description component payload version '{version}'.");
-            }
+            AssertDemoMenuSelectedDescriptionComponent(record);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -769,6 +731,181 @@ namespace helengine.editor {
                 ComponentIndex = record.ComponentIndex,
                 Payload = writeStream.ToArray()
             };
+        }
+
+        /// <summary>
+        /// Deserializes one tagged camera payload into its live component shape before packaged rewriting.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <returns>Deserialized camera component.</returns>
+        CameraComponent AssertCameraComponent(SceneComponentAssetRecord record) {
+            Component component = CameraComponentDescriptor.DeserializeComponent(record, null, null);
+            if (component is not CameraComponent cameraComponent) {
+                throw new InvalidOperationException("Camera component payload did not materialize correctly before packaging.");
+            }
+
+            return cameraComponent;
+        }
+
+        /// <summary>
+        /// Reads one tagged text payload into the runtime values needed for packaged rewriting.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <param name="fontReference">Resolved serialized font reference associated with the text component.</param>
+        /// <param name="text">Persisted text content.</param>
+        /// <param name="wrapText">Persisted wrap mode.</param>
+        /// <param name="size">Persisted layout size.</param>
+        /// <param name="color">Persisted glyph color.</param>
+        /// <param name="sourceRect">Persisted source rectangle.</param>
+        /// <param name="rotation">Persisted rotation.</param>
+        /// <param name="renderOrder2D">Persisted render order.</param>
+        /// <param name="layerMask">Persisted layer mask.</param>
+        /// <param name="selectionEnabled">Persisted selection flag.</param>
+        void ReadTaggedTextComponentRecord(
+            SceneComponentAssetRecord record,
+            out SceneAssetReference fontReference,
+            out string text,
+            out bool wrapText,
+            out int2 size,
+            out byte4 color,
+            out float4 sourceRect,
+            out float rotation,
+            out byte renderOrder2D,
+            out byte layerMask,
+            out bool selectionEnabled) {
+            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
+            fontReference = null;
+            text = string.Empty;
+            wrapText = false;
+            size = int2.Zero;
+            color = new byte4(255, 255, 255, 255);
+            sourceRect = new float4(0f, 0f, 1f, 1f);
+            rotation = 0f;
+            renderOrder2D = 0;
+            layerMask = 0;
+            selectionEnabled = false;
+
+            if (reader.TryGetFieldReader("FontReference", out EngineBinaryReader fontReferenceReader)) {
+                using (fontReferenceReader) {
+                    fontReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(fontReferenceReader);
+                }
+            }
+            if (reader.TryGetFieldReader("Text", out EngineBinaryReader textReader)) {
+                using (textReader) {
+                    text = textReader.ReadString();
+                }
+            }
+            if (reader.TryGetFieldReader("WrapText", out EngineBinaryReader wrapTextReader)) {
+                using (wrapTextReader) {
+                    wrapText = wrapTextReader.ReadByte() != 0;
+                }
+            }
+            if (reader.TryGetFieldReader("Size", out EngineBinaryReader sizeReader)) {
+                using (sizeReader) {
+                    size = sizeReader.ReadInt2();
+                }
+            }
+            if (reader.TryGetFieldReader("Color", out EngineBinaryReader colorReader)) {
+                using (colorReader) {
+                    color = SceneComponentBinaryFieldEncoding.ReadByte4(colorReader);
+                }
+            }
+            if (reader.TryGetFieldReader("SourceRect", out EngineBinaryReader sourceRectReader)) {
+                using (sourceRectReader) {
+                    sourceRect = sourceRectReader.ReadFloat4();
+                }
+            }
+            if (reader.TryGetFieldReader("Rotation", out EngineBinaryReader rotationReader)) {
+                using (rotationReader) {
+                    rotation = rotationReader.ReadSingle();
+                }
+            }
+            if (reader.TryGetFieldReader("RenderOrder2D", out EngineBinaryReader renderOrderReader)) {
+                using (renderOrderReader) {
+                    renderOrder2D = renderOrderReader.ReadByte();
+                }
+            }
+            if (reader.TryGetFieldReader("LayerMask", out EngineBinaryReader layerMaskReader)) {
+                using (layerMaskReader) {
+                    layerMask = layerMaskReader.ReadByte();
+                }
+            }
+            if (reader.TryGetFieldReader("SelectionEnabled", out EngineBinaryReader selectionEnabledReader)) {
+                using (selectionEnabledReader) {
+                    selectionEnabled = selectionEnabledReader.ReadByte() != 0;
+                }
+            }
+
+            if (fontReference == null) {
+                throw new InvalidOperationException("Text component payload did not provide a font reference before packaging.");
+            }
+        }
+
+        /// <summary>
+        /// Deserializes one tagged rounded-rectangle payload into its live component shape before packaged rewriting.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <returns>Deserialized rounded rectangle component.</returns>
+        RoundedRectComponent AssertRoundedRectComponent(SceneComponentAssetRecord record) {
+            Component component = RoundedRectComponentDescriptor.DeserializeComponent(record, null, null);
+            if (component is not RoundedRectComponent roundedRectComponent) {
+                throw new InvalidOperationException("Rounded rectangle component payload did not materialize correctly before packaging.");
+            }
+
+            return roundedRectComponent;
+        }
+
+        /// <summary>
+        /// Deserializes one tagged demo menu root payload into its live component shape before packaged rewriting.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <returns>Deserialized demo menu root component.</returns>
+        DemoMenuBuildComponent AssertDemoMenuBuildComponent(SceneComponentAssetRecord record) {
+            Component component = DemoMenuBuildComponentDescriptor.DeserializeComponent(record, null, null);
+            if (component is not DemoMenuBuildComponent demoMenuBuildComponent) {
+                throw new InvalidOperationException("Demo menu build component payload did not materialize correctly before packaging.");
+            }
+
+            return demoMenuBuildComponent;
+        }
+
+        /// <summary>
+        /// Deserializes one tagged demo menu panel payload into its live component shape before packaged rewriting.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <returns>Deserialized demo menu panel component.</returns>
+        DemoMenuPanelComponent AssertDemoMenuPanelComponent(SceneComponentAssetRecord record) {
+            Component component = DemoMenuPanelComponentDescriptor.DeserializeComponent(record, null, null);
+            if (component is not DemoMenuPanelComponent demoMenuPanelComponent) {
+                throw new InvalidOperationException("Demo menu panel component payload did not materialize correctly before packaging.");
+            }
+
+            return demoMenuPanelComponent;
+        }
+
+        /// <summary>
+        /// Deserializes one tagged demo menu item payload into its live component shape before packaged rewriting.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <returns>Deserialized demo menu item component.</returns>
+        DemoMenuItemComponent AssertDemoMenuItemComponent(SceneComponentAssetRecord record) {
+            Component component = DemoMenuItemComponentDescriptor.DeserializeComponent(record, null, null);
+            if (component is not DemoMenuItemComponent demoMenuItemComponent) {
+                throw new InvalidOperationException("Demo menu item component payload did not materialize correctly before packaging.");
+            }
+
+            return demoMenuItemComponent;
+        }
+
+        /// <summary>
+        /// Deserializes one tagged demo menu selected-description payload into its live component shape before packaged rewriting.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        void AssertDemoMenuSelectedDescriptionComponent(SceneComponentAssetRecord record) {
+            Component component = DemoMenuSelectedDescriptionComponentDescriptor.DeserializeComponent(record, null, null);
+            if (component is not DemoMenuSelectedDescriptionComponent) {
+                throw new InvalidOperationException("Demo menu selected-description component payload did not materialize correctly before packaging.");
+            }
         }
 
         SceneAssetReference RewriteFontReference(SceneAssetReference reference) {
