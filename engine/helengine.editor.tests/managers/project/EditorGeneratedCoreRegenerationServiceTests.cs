@@ -718,6 +718,28 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated editor-only inspector attribute sources are removed before runtime native compilation is normalized.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_removes_editor_only_attribute_sources() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-editor-only-attribute-sources");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "EditorPropertyDisplayNameAttribute.hpp"), "#include \"Attribute.hpp\"\n");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "EditorPropertyDisplayNameAttribute.cpp"), "#include \"EditorPropertyDisplayNameAttribute.hpp\"\n");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "EditorPropertyHiddenAttribute.hpp"), "#include \"Attribute.hpp\"\n");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "EditorPropertyOrderAttribute.hpp"), "#include \"Attribute.hpp\"\n");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// kept\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "EditorPropertyDisplayNameAttribute.hpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "EditorPropertyDisplayNameAttribute.cpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "EditorPropertyHiddenAttribute.hpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "EditorPropertyOrderAttribute.hpp")));
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "Foo.cpp")));
+    }
+
+    /// <summary>
     /// Verifies generated shader include resolvers include bundled directory helpers before calling Directory::Exists.
     /// </summary>
     [Fact]

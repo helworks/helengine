@@ -444,6 +444,7 @@ namespace helengine.editor {
                 return;
             }
 
+            RemoveEditorOnlyGeneratedSourceFiles(generatedCoreRootPath);
             IReadOnlyList<string> featureManifestEntries = LoadGeneratedFeatureManifestEntries(generatedCoreRootPath);
             string[] sourceFiles = Directory.GetFiles(generatedCoreRootPath, "*.*", SearchOption.AllDirectories);
             Array.Sort(sourceFiles, StringComparer.OrdinalIgnoreCase);
@@ -461,6 +462,39 @@ namespace helengine.editor {
                 string updatedContents = NormalizeGeneratedNativeSource(fileName, contents, featureManifestEntries);
                 if (!string.Equals(contents, updatedContents, StringComparison.Ordinal)) {
                     File.WriteAllText(sourceFilePath, updatedContents);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Deletes generated editor-only attribute sources that should never participate in runtime native builds.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute generated core output root.</param>
+        static void RemoveEditorOnlyGeneratedSourceFiles(string generatedCoreRootPath) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+
+            string[] editorOnlyTypeNames = [
+                "EditorPropertyDisplayNameAttribute",
+                "EditorPropertyHiddenAttribute",
+                "EditorPropertyOrderAttribute"
+            ];
+            string[] generatedExtensions = [
+                ".hpp",
+                ".cpp",
+                ".tpp"
+            ];
+
+            for (int typeIndex = 0; typeIndex < editorOnlyTypeNames.Length; typeIndex++) {
+                string typeName = editorOnlyTypeNames[typeIndex];
+                for (int extensionIndex = 0; extensionIndex < generatedExtensions.Length; extensionIndex++) {
+                    string generatedPath = Path.Combine(generatedCoreRootPath, typeName + generatedExtensions[extensionIndex]);
+                    if (!File.Exists(generatedPath)) {
+                        continue;
+                    }
+
+                    File.Delete(generatedPath);
                 }
             }
         }
