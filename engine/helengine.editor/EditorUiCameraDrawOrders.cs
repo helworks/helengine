@@ -6,11 +6,16 @@ namespace helengine.editor {
         /// <summary>
         /// Draw order used by panel-owned secondary UI content cameras.
         /// </summary>
-        public const byte PanelContent = 254;
+        public const byte PanelContent = 253;
 
         /// <summary>
         /// Draw order used by the shared editor UI camera that renders modal dialogs.
         /// </summary>
-        public const byte ModalUi = 255;
+        public const byte ModalUi = 254;
+
+        /// <summary>
+        /// Draw order used by clipped modal sub-viewports that must render above the dialog shell.
+        /// </summary>
+        public const byte ModalContent = 255;
     }
 }

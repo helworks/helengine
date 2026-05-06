@@ -34,6 +34,11 @@ namespace helengine.editor {
         public const ushort SceneHierarchyContent = 0b0000010000000000;
 
         /// <summary>
+        /// Layer mask used by clipped build-dialog scene-row content rendered inside the scene-list viewport.
+        /// </summary>
+        public const ushort BuildDialogSceneListContent = 0b0000000100000000;
+
+        /// <summary>
         /// Layer mask used by the world-space 2D canvas preview plane.
         /// </summary>
         public const ushort SceneCanvasPlane = 0b0000001000000000;

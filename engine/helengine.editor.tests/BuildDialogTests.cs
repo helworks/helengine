@@ -1858,6 +1858,89 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the build scene list renders through a dedicated clipped viewport that stays inside the bordered list surface.
+        /// </summary>
+        [Fact]
+        public void Show_CreatesClippedSceneListContentViewportInsideTheBorder() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                CreateSceneIds(24),
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/Map00.helen"
+                            ]
+                        }
+                    ]
+                });
+            dialog.UpdateLayout(1280, 900);
+
+            CameraComponent contentCamera = GetPrivateField<CameraComponent>(dialog, "SceneListContentCameraComponent");
+            RoundedRectComponent sceneListBackground = GetPrivateField<RoundedRectComponent>(dialog, "SceneListBackground");
+            EditorEntity buildColumnRoot = GetPrivateField<EditorEntity>(dialog, "BuildColumnRoot");
+            EditorEntity sceneListRoot = GetPrivateField<EditorEntity>(dialog, "SceneListRoot");
+            EditorEntity sceneListItemsRoot = GetPrivateField<EditorEntity>(dialog, "SceneListItemsRoot");
+            List<BuildDialogSceneRow> sceneRows = GetPrivateField<List<BuildDialogSceneRow>>(dialog, "SceneRows");
+            int2 panelPosition = GetPrivateField<int2>(dialog, "PanelPosition");
+            int borderInset = (int)Math.Ceiling(sceneListBackground.BorderThickness);
+
+            Assert.True(sceneRows.Count > 0);
+            Assert.Equal(0b0000000100000000, sceneListItemsRoot.LayerMask);
+            Assert.Equal(0b0000000100000000, sceneRows[0].Root.LayerMask);
+            Assert.Equal(0b0000000100000000, sceneRows[0].OrderHost.LayerMask);
+            Assert.Equal(0b0000000100000000, sceneRows[0].LabelHost.LayerMask);
+            Assert.Equal(0b0000000100000000, sceneRows[0].CheckBoxHost.LayerMask);
+            Assert.Equal(panelPosition.X + buildColumnRoot.LocalPosition.X + sceneListRoot.LocalPosition.X + borderInset, contentCamera.Viewport.X);
+            Assert.Equal(panelPosition.Y + buildColumnRoot.LocalPosition.Y + sceneListRoot.LocalPosition.Y + borderInset, contentCamera.Viewport.Y);
+            Assert.Equal(sceneListBackground.Size.X - (borderInset * 2), contentCamera.Viewport.Z);
+            Assert.Equal(sceneListBackground.Size.Y - (borderInset * 2), contentCamera.Viewport.W);
+        }
+
+        /// <summary>
+        /// Ensures the clipped build scene-list viewport tracks the dialog when the modal is repositioned.
+        /// </summary>
+        [Fact]
+        public void ApplyVisibleDialogState_WhenDialogMoves_RepositionsTheClippedSceneListViewport() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                CreateSceneIds(12),
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/Map00.helen"
+                            ]
+                        }
+                    ]
+                });
+            dialog.UpdateLayout(1280, 900);
+
+            CameraComponent contentCamera = GetPrivateField<CameraComponent>(dialog, "SceneListContentCameraComponent");
+            RoundedRectComponent sceneListBackground = GetPrivateField<RoundedRectComponent>(dialog, "SceneListBackground");
+            EditorEntity buildColumnRoot = GetPrivateField<EditorEntity>(dialog, "BuildColumnRoot");
+            EditorEntity sceneListRoot = GetPrivateField<EditorEntity>(dialog, "SceneListRoot");
+            int borderInset = (int)Math.Ceiling(sceneListBackground.BorderThickness);
+            float initialViewportX = contentCamera.Viewport.X;
+            float initialViewportY = contentCamera.Viewport.Y;
+
+            InvokePrivate(dialog, "HandleHeaderCursor", new int2(12, 12), new int2(0, 0), PointerInteraction.Press);
+            InvokePrivate(dialog, "HandleHeaderCursor", new int2(12, 12), new int2(32, 24), PointerInteraction.Hover);
+            InvokePrivate(dialog, "HandleHeaderCursor", new int2(12, 12), new int2(0, 0), PointerInteraction.Release);
+
+            Assert.Equal(initialViewportX + 32f, contentCamera.Viewport.X);
+            Assert.Equal(initialViewportY + 24f, contentCamera.Viewport.Y);
+            Assert.Equal(contentCamera.Viewport.X, sceneListRoot.Position.X + borderInset);
+            Assert.Equal(contentCamera.Viewport.Y, sceneListRoot.Position.Y + borderInset);
+        }
+
+        /// <summary>
         /// Ensures the lower-left controls stay within the dialog bounds even when many scenes are available.
         /// </summary>
         [Fact]
@@ -2155,6 +2238,17 @@ namespace helengine.editor.tests {
                 checkBox,
                 isChecked
             ]);
+        }
+
+        /// <summary>
+        /// Invokes one non-public instance method using the supplied argument list.
+        /// </summary>
+        /// <param name="target">Object that owns the method.</param>
+        /// <param name="methodName">Exact private method name.</param>
+        /// <param name="arguments">Arguments passed to the method.</param>
+        void InvokePrivate(object target, string methodName, params object[] arguments) {
+            MethodInfo method = FindPrivateMethod(target.GetType(), methodName);
+            method.Invoke(target, arguments);
         }
 
         /// <summary>

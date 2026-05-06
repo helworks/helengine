@@ -146,6 +146,14 @@ namespace helengine.editor {
         /// </summary>
         readonly RoundedRectComponent SceneListBackground;
         /// <summary>
+        /// Hidden entity that owns the clipped scene-list content camera.
+        /// </summary>
+        readonly EditorEntity SceneListContentCameraEntity;
+        /// <summary>
+        /// Camera that clips build scene rows to the bordered scene-list viewport.
+        /// </summary>
+        readonly CameraComponent SceneListContentCameraComponent;
+        /// <summary>
         /// Root entity that owns the virtualized visible scene rows inside the bordered scene list.
         /// </summary>
         readonly EditorEntity SceneListItemsRoot;
@@ -500,8 +508,19 @@ namespace helengine.editor {
             };
             SceneListRoot.AddComponent(SceneListBackground);
 
+            SceneListContentCameraEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.BuildDialogSceneListContent
+            };
+            SceneListContentCameraComponent = new CameraComponent {
+                LayerMask = EditorLayerMasks.BuildDialogSceneListContent,
+                CameraDrawOrder = EditorUiCameraDrawOrders.ModalContent,
+                ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), false, 1.0f, false, 0)
+            };
+            SceneListContentCameraEntity.AddComponent(SceneListContentCameraComponent);
+
             SceneListItemsRoot = new EditorEntity {
-                LayerMask = LayerMask,
+                LayerMask = EditorLayerMasks.BuildDialogSceneListContent,
                 Position = float3.Zero,
                 InternalEntity = true
             };
@@ -1555,7 +1574,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>New scene row bundle.</returns>
         BuildDialogSceneRow CreateSceneRow() {
-            BuildDialogSceneRow row = new BuildDialogSceneRow(DialogFont, DialogMetrics, LayerMask, DialogPanelOrder, DialogTextOrder);
+            BuildDialogSceneRow row = new BuildDialogSceneRow(DialogFont, DialogMetrics, EditorLayerMasks.BuildDialogSceneListContent, DialogPanelOrder, DialogTextOrder);
             row.OrderField.TextChanged += currentOrderField => HandleSceneOrderFieldChanged(row.SceneId, currentOrderField);
             row.OrderField.Submitted += currentOrderField => HandleSceneOrderFieldSubmitted(row.SceneId, currentOrderField);
             row.CheckBox.CheckedChanged += (checkBox, isChecked) => ApplySceneSelectionChanged(row.SceneId, checkBox, isChecked);
@@ -1631,6 +1650,7 @@ namespace helengine.editor {
             SceneListRoot.Position = new float3(SceneListShakeOffsetX, sceneListTop, 0.1f);
             SceneListBackground.Size = new int2(GetBuildColumnWidth(), sceneListHeight);
             SceneListItemsRoot.Position = float3.Zero;
+            UpdateSceneListContentViewport();
             SceneListScrollComponent.VisibleItemCount = GetSceneListVisibleRowCount();
             SceneListScrollComponent.Size = new int2(GetSceneListViewportWidth(), GetSceneListViewportHeight());
             SceneListScrollComponent.ClampScrollOffset();
@@ -2202,6 +2222,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Updates the clipped scene-list content viewport to match the current bordered scene-list interior.
+        /// </summary>
+        void UpdateSceneListContentViewport() {
+            int borderInset = GetSceneListViewportBorderInsetPixels();
+            float viewportX = SceneListRoot.Position.X + borderInset;
+            float viewportY = SceneListRoot.Position.Y + borderInset;
+            float viewportWidth = Math.Max(1, SceneListBackground.Size.X - (borderInset * 2));
+            float viewportHeight = Math.Max(1, SceneListBackground.Size.Y - (borderInset * 2));
+            SceneListContentCameraComponent.Viewport = new float4(viewportX, viewportY, viewportWidth, viewportHeight);
+        }
+
+        /// <summary>
         /// Starts a short horizontal shake on the scene-list container to highlight an invalid empty selection.
         /// </summary>
         void TriggerSceneListInvalidShake() {
@@ -2277,6 +2309,14 @@ namespace helengine.editor {
         /// <returns>Height available for visible scene rows.</returns>
         int GetSceneListViewportHeight() {
             return Math.Max(1, SceneListBackground.Size.Y);
+        }
+
+        /// <summary>
+        /// Gets the inset reserved for the scene-list border before clipped content begins.
+        /// </summary>
+        /// <returns>Border inset in pixels.</returns>
+        int GetSceneListViewportBorderInsetPixels() {
+            return Math.Max(0, (int)Math.Ceiling(SceneListBackground.BorderThickness));
         }
 
         /// <summary>
@@ -2781,6 +2821,13 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnCloseRequested() {
             HandleCancelRequested();
+        }
+
+        /// <summary>
+        /// Repositions the clipped scene-list viewport after the shared dialog shell moves or resizes.
+        /// </summary>
+        protected override void HandleDialogLayoutChanged() {
+            UpdateSceneListContentViewport();
         }
     }
 }

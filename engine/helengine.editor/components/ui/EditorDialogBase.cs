@@ -811,6 +811,13 @@ namespace helengine.editor {
             ApplyDialogPosition();
             UpdateDialogBackdrop();
             UpdateDialogChromeLayout();
+            HandleDialogLayoutChanged();
+        }
+
+        /// <summary>
+        /// Allows derived dialogs to react when the shell position or size has been applied for the current frame.
+        /// </summary>
+        protected virtual void HandleDialogLayoutChanged() {
         }
 
         /// <summary>
@@ -975,6 +982,7 @@ namespace helengine.editor {
             ClampDialogPosition();
             ApplyDialogPosition();
             UpdateDialogChromeLayout();
+            HandleDialogLayoutChanged();
         }
 
         /// <summary>
@@ -1015,6 +1023,7 @@ namespace helengine.editor {
                         PanelPosition = new int2(PanelPosition.X + delta.X, PanelPosition.Y + delta.Y);
                         ClampDialogPosition();
                         ApplyDialogPosition();
+                        HandleDialogLayoutChanged();
                     }
                     break;
                 case PointerInteraction.Release:
