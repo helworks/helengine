@@ -42,6 +42,7 @@ namespace helengine.editor.tests.testing {
         /// </summary>
         public void Update() {
             ResolveInputSystem().Update();
+            ResolvePointerInteractionSystem().Update();
         }
 
         /// <summary>

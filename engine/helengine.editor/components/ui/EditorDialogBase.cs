@@ -433,7 +433,7 @@ namespace helengine.editor {
             HeaderRoot.AddComponent(HeaderBackground);
 
             HeaderInteractable = new InteractableComponent {
-                Size = new int2(DialogWidth, DialogHeaderHeight)
+                Size = new int2(GetHeaderDragWidthPixels(), DialogHeaderHeight)
             };
             HeaderInteractable.CursorEvent += HandleHeaderCursor;
             HeaderRoot.AddComponent(HeaderInteractable);
@@ -813,7 +813,7 @@ namespace helengine.editor {
             PanelBackground.Size = new int2(DialogWidth, DialogHeight);
             HeaderRoot.Position = new float3(0f, 0f, 0.2f);
             HeaderBackground.Size = new int2(DialogWidth, DialogHeaderHeight);
-            HeaderInteractable.Size = new int2(DialogWidth, DialogHeaderHeight);
+            HeaderInteractable.Size = new int2(GetHeaderDragWidthPixels(), DialogHeaderHeight);
 
             int closeButtonX = DialogWidth - GetCloseButtonWidthPixels();
             CloseButtonHost.Position = new float3(closeButtonX, 0f, 0.2f);
@@ -1054,6 +1054,14 @@ namespace helengine.editor {
         /// <returns>Scaled close-button width in pixels.</returns>
         int GetCloseButtonWidthPixels() {
             return Metrics.ScalePixels(CloseButtonWidth);
+        }
+
+        /// <summary>
+        /// Gets the scaled width reserved for dragging the header without overlapping the close button.
+        /// </summary>
+        /// <returns>Scaled drag-region width in pixels.</returns>
+        int GetHeaderDragWidthPixels() {
+            return Math.Max(0, DialogWidth - GetCloseButtonWidthPixels());
         }
 
         /// <summary>

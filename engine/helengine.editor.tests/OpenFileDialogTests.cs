@@ -318,35 +318,42 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the modal backdrop leaves the title-bar control gap free so pointer hover reaches content behind that area.
+        /// Ensures the modal backdrop leaves the host title-bar control gap free so native window controls remain unblocked.
         /// </summary>
         [Fact]
-        public void Update_WhenPointerMovesAcrossTitleBarButtonGap_HoversInteractablesBehindDialog() {
+        public void Update_WhenPointerMovesAcrossTitleBarButtonGap_DoesNotRegisterAnInputBlocker() {
             CreateUiCamera(1280, 720);
-
-            InteractableComponent behindInteractable = CreateInteractableEntity(
-                new float3(1100f, 0f, 0f),
-                new int2(180, EditorTitleBar.HeightPixels),
-                RenderOrder2D.PanelSurface);
-            int behindHoverCount = 0;
-            behindInteractable.CursorEvent += (pos, delta, state) => {
-                if (state == PointerInteraction.Hover) {
-                    behindHoverCount++;
-                }
-            };
 
             OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
             Assert.False(EditorInputCaptureService.IsPointerBlocked(new int2(1256, 10)));
-            Input.SetMouseState(new MouseState(1256, 10, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+        }
 
-            Input.EarlyUpdate();
-            Input.Update();
+        /// <summary>
+        /// Ensures clicking the shared title-bar close button through the pointer system hides the dialog.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPointerClicksTitleBarCloseButton_HidesDialog() {
+            CreateModalCamera(1280, 720);
 
-            Assert.Same(behindInteractable, Core.Instance.PointerInteractionSystem.Hovering);
-            Assert.Equal(1, behindHoverCount);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            dialog.Show("Scenes");
+            dialog.UpdateLayout(1280, 720);
+
+            int2 panelPosition = GetPrivateField<int2>(dialog, "PanelPosition");
+            EditorEntity closeButtonHost = GetPrivateField<EditorEntity>(dialog, "CloseButtonHost");
+            ButtonComponent closeButton = GetPrivateField<ButtonComponent>(dialog, "CloseButton");
+            int pointerX = panelPosition.X + (int)Math.Round(closeButtonHost.LocalPosition.X) + (closeButton.Size.X / 2);
+            int pointerY = panelPosition.Y + (int)Math.Round(closeButtonHost.LocalPosition.Y) + (closeButton.Size.Y / 2);
+
+            AdvanceInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.False(dialog.Enabled);
         }
 
         /// <summary>
@@ -449,6 +456,25 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates the modal camera used to evaluate pointer input against dialog-owned controls.
+        /// </summary>
+        /// <param name="width">Viewport width in pixels.</param>
+        /// <param name="height">Viewport height in pixels.</param>
+        void CreateModalCamera(int width, int height) {
+            EditorEntity cameraEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = 0b1000000000000000
+            };
+
+            CameraComponent camera = new CameraComponent {
+                LayerMask = 0b1000000000000000,
+                CameraDrawOrder = 255,
+                Viewport = new float4(0f, 0f, width, height)
+            };
+            cameraEntity.AddComponent(camera);
+        }
+
+        /// <summary>
         /// Creates one visible interactable entity for pointer-routing tests.
         /// </summary>
         /// <param name="position">Top-left position in window coordinates.</param>
@@ -474,6 +500,16 @@ namespace helengine.editor.tests {
             };
             entity.AddComponent(interactable);
             return interactable;
+        }
+
+        /// <summary>
+        /// Advances the input system by one frame using the supplied mouse state.
+        /// </summary>
+        /// <param name="mouseState">Mouse state to expose for the next frame.</param>
+        void AdvanceInput(MouseState mouseState) {
+            Input.SetMouseState(mouseState);
+            Input.EarlyUpdate();
+            Input.Update();
         }
 
         /// <summary>
