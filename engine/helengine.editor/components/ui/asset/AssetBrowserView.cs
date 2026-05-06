@@ -918,6 +918,11 @@ namespace helengine.editor {
                     label = "CFG";
                     textColor = ThemeManager.Colors.TextOnAccent;
                     return;
+                case AssetEntryKind.Font:
+                    color = new byte4(114, 149, 255, 255);
+                    label = "FNT";
+                    textColor = ThemeManager.Colors.TextOnAccent;
+                    return;
                 case AssetEntryKind.Unknown:
                     color = ThemeManager.Colors.AccentSecondary;
                     label = "UNK";

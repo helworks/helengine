@@ -1,3 +1,4 @@
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
 using System.Reflection;
 
 namespace helengine {
@@ -63,3 +64,4 @@ namespace helengine {
         }
     }
 }
+#endif

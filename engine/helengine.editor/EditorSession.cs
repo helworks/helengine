@@ -486,12 +486,13 @@ namespace helengine.editor {
 
             dockingManager = new DockingManager();
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
+            EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics);
             mainViewport = new EditorViewport(sceneCameraComponent, uiFont, snapModifierFont, toolbarIcons, CurrentUiMetrics);
             canvasPlanePreviewComponent = new EditorViewportCanvasPlanePreviewComponent(sceneCameraComponent, mainViewport.CanvasPreviewSettings, render3D);
             sceneCameraEntity.AddComponent(canvasPlanePreviewComponent);
-            propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics);
+            propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
             previewPanel = new PreviewPanel(uiFont, CurrentUiMetrics);
             EditorKeyboardFocusService.RegisterGroup(sceneHierarchyPanel);
@@ -542,7 +543,7 @@ namespace helengine.editor {
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
                 persistenceRegistry,
-                new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver));
+                new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver));
             CurrentScenePath = string.Empty;
             PendingOpenScenePath = string.Empty;
             PendingSceneTransition = SceneTransitionKind.None;

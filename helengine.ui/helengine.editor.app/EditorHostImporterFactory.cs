@@ -14,9 +14,11 @@ namespace helengine.editor.app {
         public static IReadOnlyList<IAssetImporterRegistration> CreateDefault() {
             string[] textExtensions = new[] { ".txt" };
             string[] modelExtensions = new[] { ".fbx", ".obj", ".gltf", ".glb", ".dae", ".3ds" };
+            string[] fontExtensions = new[] { ".ttf", ".otf" };
             List<IAssetImporterRegistration> registrations = new List<IAssetImporterRegistration>(EditorHostTextureImporterFactory.CreateDefault());
             registrations.AddRange(new IAssetImporterRegistration[] {
                 new TextImporterRegistration("text", new TextImporter(), textExtensions),
+                new FontImporterRegistration("gdi-font", new GdiFontImporter(), fontExtensions),
                 new ModelImporterRegistration(
                     "assimp",
                     new LazyModelImporter(new AssemblyModelImporterFactory("helengine.editor.assimp", "helengine.editor.assimp.HelengineAssimpImporter")),

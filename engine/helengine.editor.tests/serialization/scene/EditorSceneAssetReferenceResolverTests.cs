@@ -85,6 +85,29 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures filesystem-backed source font references resolve through the imported font cache instead of loading raw source bytes as a packaged font.
+        /// </summary>
+        [Fact]
+        public void ResolveFont_WhenReferenceIsSourceFont_UsesImportedFontAsset() {
+            string fontPath = Path.Combine(TempProjectRootPath, "assets", "Fonts", "DemoDiscTitle.ttf");
+            Directory.CreateDirectory(Path.GetDirectoryName(fontPath));
+            File.WriteAllBytes(fontPath, new byte[] { 1, 2, 3, 4 });
+            AssetImportManager assetImportManager = CreateAssetImportManager();
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
+                new ContentManager(TempProjectRootPath),
+                TempProjectRootPath,
+                new EditorFileSystemModelResolver(assetImportManager),
+                new EditorFileSystemFontResolver(assetImportManager));
+
+            FontAsset font = resolver.ResolveFont(new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "Fonts/DemoDiscTitle.ttf"
+            });
+
+            Assert.Equal("ImportedTestFont", font.FontInfo.Name);
+        }
+
+        /// <summary>
         /// Creates one asset import manager that can import `.obj` source files for the current resolver test project.
         /// </summary>
         /// <returns>Configured asset import manager.</returns>
@@ -92,6 +115,7 @@ namespace helengine.editor.tests.serialization.scene {
             ContentManager contentManager = new ContentManager(Path.Combine(TempProjectRootPath, "assets"));
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
+            assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" }));
             return assetImportManager;
         }
     }

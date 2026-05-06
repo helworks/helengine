@@ -77,7 +77,7 @@ namespace helengine.editor {
         /// <summary>
         /// Extension used for font assets.
         /// </summary>
-        const string FontExtension = ".hefont";
+        static readonly string[] FontExtensions = new[] { ".ttf", ".otf" };
 
         /// <summary>
         /// Font used for labels and values.
@@ -95,6 +95,10 @@ namespace helengine.editor {
         /// Resolves file-system model source files through the processed model cache.
         /// </summary>
         readonly EditorFileSystemModelResolver FileSystemModelResolver;
+        /// <summary>
+        /// Resolves file-system font source files through the imported font cache.
+        /// </summary>
+        readonly EditorFileSystemFontResolver FileSystemFontResolver;
         /// <summary>
         /// Root entity that hosts the component property rows.
         /// </summary>
@@ -158,7 +162,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for row labels.</param>
         /// <param name="contentManager">Content manager used to load serialized assets.</param>
-        public ComponentPropertiesView(FontAsset font, ContentManager contentManager) : this(font, contentManager, null) { }
+        public ComponentPropertiesView(FontAsset font, ContentManager contentManager) : this(font, contentManager, null, null) { }
 
         /// <summary>
         /// Initializes a new component properties view with support for file-system model source resolution.
@@ -166,7 +170,18 @@ namespace helengine.editor {
         /// <param name="font">Font used for row labels.</param>
         /// <param name="contentManager">Content manager used to load serialized assets.</param>
         /// <param name="fileSystemModelResolver">Resolver that imports or loads processed model assets for file-system model sources.</param>
-        public ComponentPropertiesView(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver) {
+        public ComponentPropertiesView(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver)
+            : this(font, contentManager, fileSystemModelResolver, null) {
+        }
+
+        /// <summary>
+        /// Initializes a new component properties view with support for file-system model and font source resolution.
+        /// </summary>
+        /// <param name="font">Font used for row labels.</param>
+        /// <param name="contentManager">Content manager used to load serialized assets.</param>
+        /// <param name="fileSystemModelResolver">Resolver that imports or loads processed model assets for file-system model sources.</param>
+        /// <param name="fileSystemFontResolver">Resolver that imports or loads processed font assets for file-system font sources.</param>
+        public ComponentPropertiesView(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorFileSystemFontResolver fileSystemFontResolver) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -178,6 +193,7 @@ namespace helengine.editor {
             AssetContentManager = contentManager;
             AssetReferenceFactory = new SceneAssetReferenceFactory();
             FileSystemModelResolver = fileSystemModelResolver;
+            FileSystemFontResolver = fileSystemFontResolver;
             RootEntity = new EditorEntity();
             RootEntity.LayerMask = 0b1000000000000000;
             RootEntity.Position = float3.Zero;
@@ -936,7 +952,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Font row to update.</param>
         void RequestFontPick(ComponentPropertyRow row) {
-            EditorAssetPickerService.RequestPick(entry => HandleFontPicked(row, entry), FontExtension);
+            EditorAssetPickerService.RequestPick(entry => HandleFontPicked(row, entry));
         }
 
         /// <summary>
@@ -1029,6 +1045,10 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Selected asset is not a font.");
             }
 
+            if (FileSystemFontResolver != null) {
+                return FileSystemFontResolver.ResolveFontAsset(entry.FullPath);
+            }
+
             return AssetContentManager.Load<FontAsset>(entry.FullPath, RuntimeContentProcessorIds.FontAsset);
         }
 
@@ -1081,7 +1101,13 @@ namespace helengine.editor {
                 return false;
             }
 
-            return string.Equals(extension, FontExtension, StringComparison.OrdinalIgnoreCase);
+            for (int index = 0; index < FontExtensions.Length; index++) {
+                if (string.Equals(extension, FontExtensions[index], StringComparison.OrdinalIgnoreCase)) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

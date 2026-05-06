@@ -36,6 +36,10 @@ namespace helengine.editor {
         /// </summary>
         Config,
         /// <summary>
+        /// Represents a source font file.
+        /// </summary>
+        Font,
+        /// <summary>
         /// Represents a file with an unknown or missing extension.
         /// </summary>
         Unknown,

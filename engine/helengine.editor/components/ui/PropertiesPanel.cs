@@ -263,7 +263,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager) : this(font, contentManager, null, new EditorEntity(), null) { }
+        public PropertiesPanel(FontAsset font, ContentManager contentManager) : this(font, contentManager, null, new EditorEntity(), null, EditorUiMetrics.Default, null) { }
 
         /// <summary>
         /// Initializes a new properties panel with the provided font.
@@ -271,7 +271,7 @@ namespace helengine.editor {
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
         /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver) : this(font, contentManager, fileSystemModelResolver, new EditorEntity(), null) { }
+        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver) : this(font, contentManager, fileSystemModelResolver, new EditorEntity(), null, EditorUiMetrics.Default, null) { }
 
         /// <summary>
         /// Initializes a new properties panel with the provided font and modal host.
@@ -280,7 +280,7 @@ namespace helengine.editor {
         /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
         /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
         /// <param name="modalHost">Shared root entity used to host screen-wide dialogs.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorEntity modalHost) : this(font, contentManager, fileSystemModelResolver, modalHost, null) { }
+        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorEntity modalHost) : this(font, contentManager, fileSystemModelResolver, modalHost, null, EditorUiMetrics.Default, null) { }
 
         /// <summary>
         /// Initializes a new properties panel with the provided font, modal host, and script component provider.
@@ -291,7 +291,7 @@ namespace helengine.editor {
         /// <param name="modalHost">Shared root entity used to host screen-wide dialogs.</param>
         /// <param name="scriptComponentCatalogProvider">Provider used to discover components from the current game script assembly.</param>
         public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorEntity modalHost, IEditorScriptComponentCatalogProvider scriptComponentCatalogProvider)
-            : this(font, contentManager, fileSystemModelResolver, modalHost, scriptComponentCatalogProvider, EditorUiMetrics.Default) {
+            : this(font, contentManager, fileSystemModelResolver, modalHost, scriptComponentCatalogProvider, EditorUiMetrics.Default, null) {
         }
 
         /// <summary>
@@ -303,7 +303,14 @@ namespace helengine.editor {
         /// <param name="modalHost">Shared root entity used to host screen-wide dialogs.</param>
         /// <param name="scriptComponentCatalogProvider">Provider used to discover components from the current game script assembly.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorEntity modalHost, IEditorScriptComponentCatalogProvider scriptComponentCatalogProvider, EditorUiMetrics metrics) : base(font, metrics) {
+        public PropertiesPanel(
+            FontAsset font,
+            ContentManager contentManager,
+            EditorFileSystemModelResolver fileSystemModelResolver,
+            EditorEntity modalHost,
+            IEditorScriptComponentCatalogProvider scriptComponentCatalogProvider,
+            EditorUiMetrics metrics,
+            EditorFileSystemFontResolver fileSystemFontResolver = null) : base(font, metrics) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -350,10 +357,10 @@ namespace helengine.editor {
             TransformRoot.Position = new float3(0, 0, 0.2f);
             contentRoot.AddChild(TransformRoot);
 
-            if (fileSystemModelResolver == null) {
+            if (fileSystemModelResolver == null && fileSystemFontResolver == null) {
                 ComponentView = new ComponentPropertiesView(font, contentManager);
             } else {
-                ComponentView = new ComponentPropertiesView(font, contentManager, fileSystemModelResolver);
+                ComponentView = new ComponentPropertiesView(font, contentManager, fileSystemModelResolver, fileSystemFontResolver);
             }
             ComponentView.RemoveRequested += HandleComponentRemoveRequested;
             contentRoot.AddChild(ComponentView.Root);

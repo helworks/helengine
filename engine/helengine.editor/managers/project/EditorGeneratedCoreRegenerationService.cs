@@ -270,10 +270,18 @@ namespace helengine.editor {
             }
 
             if (string.Equals(platformDefinition.PlatformId, "windows", StringComparison.OrdinalIgnoreCase)) {
-                return ["HELENGINE_INPUT_KEYBOARD", "HELENGINE_INPUT_MOUSE", "HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION"];
+                return [
+                    "HELENGINE_INPUT_KEYBOARD",
+                    "HELENGINE_INPUT_MOUSE",
+                    "HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION",
+                    "HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION"
+                ];
             }
 
-            return ["HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION"];
+            return [
+                "HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION",
+                "HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION"
+            ];
         }
 
         /// <summary>
@@ -610,6 +618,11 @@ namespace helengine.editor {
                 return InsertPathChangeExtensionDeclaration(contents);
             }
 
+            if (string.Equals(fileName, "number.hpp", StringComparison.OrdinalIgnoreCase)
+                && !contents.Contains("static bool IsNaN(float value)", StringComparison.Ordinal)) {
+                return InsertNativeNumberFiniteHelpers(contents);
+            }
+
             if (string.Equals(fileName, "path.cpp", StringComparison.OrdinalIgnoreCase)
                 && !contents.Contains("Path::ChangeExtension", StringComparison.Ordinal)) {
                 return InsertPathChangeExtensionImplementation(contents);
@@ -644,6 +657,11 @@ namespace helengine.editor {
             if (string.Equals(fileName, "action.tpp", StringComparison.OrdinalIgnoreCase)
                 && !contents.Contains("Action<TArgs...>::Action(TCallable f) : func(f) {}", StringComparison.Ordinal)) {
                 return InsertActionCallableSupportImplementation(contents);
+            }
+
+            if (string.Equals(fileName, "AnimationPlayerComponent.cpp", StringComparison.OrdinalIgnoreCase)
+                && contents.Contains("double wrapped = time % duration;", StringComparison.Ordinal)) {
+                return RewriteAnimationPlayerFloatingPointModulo(contents);
             }
 
             return contents;
@@ -712,6 +730,41 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Inserts the missing native finite-check helpers required by transpiled `double.IsNaN` and `double.IsInfinity` calls.
+        /// </summary>
+        /// <param name="contents">Current native number support contents.</param>
+        /// <returns>Updated native number support contents.</returns>
+        static string InsertNativeNumberFiniteHelpers(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("static bool IsNaN(float value)", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            string helperMethods = "    static bool IsNaN(float value) {" + newline
+                + "        return std::isnan(value);" + newline
+                + "    }" + newline + newline
+                + "    static bool IsNaN(double value) {" + newline
+                + "        return std::isnan(value);" + newline
+                + "    }" + newline + newline
+                + "    static bool IsInfinity(float value) {" + newline
+                + "        return std::isinf(value);" + newline
+                + "    }" + newline + newline
+                + "    static bool IsInfinity(double value) {" + newline
+                + "        return std::isinf(value);" + newline
+                + "    }" + newline + newline;
+
+            if (contents.Contains("    static bool IsPositiveInfinity(float value)", StringComparison.Ordinal)) {
+                return contents.Replace("    static bool IsPositiveInfinity(float value)", helperMethods + "    static bool IsPositiveInfinity(float value)", StringComparison.Ordinal);
+            }
+
+            if (contents.Contains("};", StringComparison.Ordinal)) {
+                return contents.Replace("};", helperMethods + "};", StringComparison.Ordinal);
+            }
+
+            return contents + newline + helperMethods;
+        }
+
+        /// <summary>
         /// Upgrades bundled native Action support to store arbitrary callables needed by captured generated lambdas.
         /// </summary>
         /// <param name="contents">Current action header contents.</param>
@@ -771,6 +824,28 @@ namespace helengine.editor {
                 "    return static_cast<bool>(func);",
                 StringComparison.Ordinal);
 
+            return updatedContents;
+        }
+
+        /// <summary>
+        /// Rewrites floating-point modulo in generated animation looping code into a valid `std::fmod` call for C++.
+        /// </summary>
+        /// <param name="contents">Current generated animation-player source contents.</param>
+        /// <returns>Updated animation-player source contents.</returns>
+        static string RewriteAnimationPlayerFloatingPointModulo(string contents) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            string updatedContents = contents;
+            if (!updatedContents.Contains("#include <cmath>", StringComparison.Ordinal)) {
+                updatedContents = InsertIncludeAfterOwnHeader(updatedContents, "#include <cmath>");
+            }
+
+            updatedContents = updatedContents.Replace(
+                "double wrapped = time % duration;",
+                "double wrapped = std::fmod(static_cast<double>(time), duration);",
+                StringComparison.Ordinal);
             return updatedContents;
         }
 
@@ -905,12 +980,6 @@ namespace helengine.editor {
 
             string unitySourcePath = Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp");
             string[] excludedUnitySourceRelativePaths = new[] {
-                "RendererBackendCapabilityProfile.cpp",
-                "RuntimeMaterialLightingModel.cpp",
-                "Ps2MaterialAlphaMode.cpp",
-                "Ps2MaterialAsset.cpp",
-                "Ps2MaterialLightingMode.cpp",
-                "Ps2RenderClass.cpp",
                 "runtime/runtime_startup_manifest.cpp",
                 "runtime/runtime_code_module_manifest.cpp"
             };

@@ -26,6 +26,10 @@ namespace helengine.editor {
         /// Resolves file-system model source files through the processed model cache.
         /// </summary>
         readonly EditorFileSystemModelResolver FileSystemModelResolver;
+        /// <summary>
+        /// Resolves file-system font source files through the imported font cache.
+        /// </summary>
+        readonly EditorFileSystemFontResolver FileSystemFontResolver;
 
         /// <summary>
         /// Initializes a new runtime asset resolver for scene loading.
@@ -66,6 +70,38 @@ namespace helengine.editor {
             AssetsRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "assets"));
             AssetContentManager = assetContentManager;
             FileSystemModelResolver = fileSystemModelResolver;
+        }
+
+        /// <summary>
+        /// Initializes a new runtime asset resolver for scene loading with support for file-system model and font source resolution.
+        /// </summary>
+        /// <param name="assetContentManager">Content manager used to load file-backed assets.</param>
+        /// <param name="projectRootPath">Project root that owns the assets folder.</param>
+        /// <param name="fileSystemModelResolver">Resolver that imports or loads processed model assets for file-system model sources.</param>
+        /// <param name="fileSystemFontResolver">Resolver that imports or loads processed font assets for file-system font sources.</param>
+        public EditorSceneAssetReferenceResolver(
+            ContentManager assetContentManager,
+            string projectRootPath,
+            EditorFileSystemModelResolver fileSystemModelResolver,
+            EditorFileSystemFontResolver fileSystemFontResolver) {
+            if (assetContentManager == null) {
+                throw new ArgumentNullException(nameof(assetContentManager));
+            }
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+            if (fileSystemModelResolver == null) {
+                throw new ArgumentNullException(nameof(fileSystemModelResolver));
+            }
+            if (fileSystemFontResolver == null) {
+                throw new ArgumentNullException(nameof(fileSystemFontResolver));
+            }
+
+            string fullProjectRootPath = Path.GetFullPath(projectRootPath);
+            AssetsRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "assets"));
+            AssetContentManager = assetContentManager;
+            FileSystemModelResolver = fileSystemModelResolver;
+            FileSystemFontResolver = fileSystemFontResolver;
         }
 
         /// <summary>
@@ -202,6 +238,10 @@ namespace helengine.editor {
         /// <returns>Runtime font asset built from the packaged font asset.</returns>
         FontAsset ResolveFileSystemFont(SceneAssetReference reference) {
             string fullPath = ResolveFileSystemAssetPath(reference);
+            if (FileSystemFontResolver != null) {
+                return FileSystemFontResolver.ResolveFontAsset(fullPath);
+            }
+
             return AssetContentManager.Load<FontAsset>(fullPath, RuntimeContentProcessorIds.FontAsset);
         }
 

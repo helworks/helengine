@@ -415,7 +415,7 @@ namespace helengine.editor {
             ReferencedShaderAssetIds = new List<string>();
             ReferencedShaderAssetIdsSet = new HashSet<string>(StringComparer.Ordinal);
             PlatformId = string.IsNullOrWhiteSpace(targetPlatformId) ? "windows" : targetPlatformId;
-            ComponentCompatibilitiesByTypeId = BuildCompatibilityLookup(platformDefinition?.ComponentCompatibilities ?? CreateDefaultComponentCompatibilities());
+            ComponentCompatibilitiesByTypeId = BuildEffectiveCompatibilityLookup(platformDefinition?.ComponentCompatibilities);
             TransformService = new SceneComponentPackagingTransformService(
                 AssetsRootPath,
                 ProjectContentManager,
@@ -560,6 +560,10 @@ namespace helengine.editor {
                     return CreateFileSystemReference(importedModelRelativePath);
                 }
 
+                if (AssetImportManager.IsFontExtension(fullExtension)) {
+                    return RewriteFileSystemFontReference(reference, buildRootPath);
+                }
+
                 string copiedRelativePath = NormalizeRelativePath(reference.RelativePath);
                 CopyFile(fullPath, Path.Combine(buildRootPath, copiedRelativePath));
                 return CreateFileSystemReference(copiedRelativePath);
@@ -643,16 +647,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds a lookup table from the builder-provided compatibility metadata.
+        /// Builds one compatibility lookup that preserves the built-in defaults while allowing builder-provided entries to override them.
         /// </summary>
-        /// <param name="componentCompatibilities">Builder-provided compatibility entries.</param>
+        /// <param name="componentCompatibilities">Optional builder-provided compatibility entries.</param>
         /// <returns>Case-insensitive compatibility lookup.</returns>
-        static Dictionary<string, PlatformComponentCompatibilityDefinition> BuildCompatibilityLookup(
+        static Dictionary<string, PlatformComponentCompatibilityDefinition> BuildEffectiveCompatibilityLookup(
             IReadOnlyList<PlatformComponentCompatibilityDefinition> componentCompatibilities) {
             Dictionary<string, PlatformComponentCompatibilityDefinition> lookup =
                 new Dictionary<string, PlatformComponentCompatibilityDefinition>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> builderCompatibilityTypeIds =
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            PlatformComponentCompatibilityDefinition[] defaultCompatibilities = CreateDefaultComponentCompatibilities();
+            for (int index = 0; index < defaultCompatibilities.Length; index++) {
+                PlatformComponentCompatibilityDefinition compatibility = defaultCompatibilities[index];
+                lookup.Add(compatibility.ComponentTypeId, compatibility);
+            }
+
             if (componentCompatibilities == null) {
-                throw new ArgumentNullException(nameof(componentCompatibilities));
+                return lookup;
             }
 
             for (int index = 0; index < componentCompatibilities.Count; index++) {
@@ -660,11 +673,11 @@ namespace helengine.editor {
                 if (compatibility == null) {
                     throw new InvalidOperationException("Platform compatibility metadata must not contain null entries.");
                 }
-                if (lookup.ContainsKey(compatibility.ComponentTypeId)) {
+                if (!builderCompatibilityTypeIds.Add(compatibility.ComponentTypeId)) {
                     throw new InvalidOperationException($"Platform compatibility metadata already contains an entry for '{compatibility.ComponentTypeId}'.");
                 }
 
-                lookup.Add(compatibility.ComponentTypeId, compatibility);
+                lookup[compatibility.ComponentTypeId] = compatibility;
             }
 
             return lookup;
@@ -920,8 +933,7 @@ namespace helengine.editor {
             }
 
             if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                string relativePath = NormalizeRelativePath(reference.RelativePath);
-                return CreateFileSystemReference(relativePath);
+                return RewriteFileSystemFontReference(reference, buildRootPath);
             }
 
             throw new InvalidOperationException($"Unsupported font reference source kind '{reference.SourceKind}'.");
@@ -1008,6 +1020,23 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Unsupported generated model asset id '{reference.AssetId}'.");
+        }
+
+        /// <summary>
+        /// Rewrites one file-backed source font reference into a cooked packaged font reference.
+        /// </summary>
+        /// <param name="reference">Serialized font reference to rewrite.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Packaged file-backed font reference.</returns>
+        SceneAssetReference RewriteFileSystemFontReference(SceneAssetReference reference, string buildRootPath) {
+            string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
+            if (!AssetImportManager.TryLoadFontAsset(sourcePath, out FontAsset fontAsset) || fontAsset == null) {
+                throw new InvalidOperationException($"Font source '{reference.RelativePath}' could not be imported for packaging.");
+            }
+
+            string cookedRelativePath = BuildCookedFontRelativePath(reference.RelativePath);
+            WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), fontAsset);
+            return CreateFileSystemReference(cookedRelativePath);
         }
 
         /// <summary>
@@ -1311,6 +1340,17 @@ namespace helengine.editor {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
             string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hasset");
             return NormalizeRelativePath(Path.Combine("cooked", "imported", changedExtensionPath));
+        }
+
+        /// <summary>
+        /// Builds one cooked packaged-font relative path for an authored source-font reference.
+        /// </summary>
+        /// <param name="relativePath">Original project-relative source-font path.</param>
+        /// <returns>Cooked packaged-font relative path.</returns>
+        string BuildCookedFontRelativePath(string relativePath) {
+            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hefont");
+            return NormalizeRelativePath(Path.Combine("cooked", changedExtensionPath));
         }
 
         /// <summary>

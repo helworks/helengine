@@ -385,12 +385,12 @@ namespace helengine.editor {
             }
 
             if (string.Equals(record.ComponentTypeId, FPSComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteFPSComponentRecord(record);
+                transformedRecord = RewriteFPSComponentRecord(record, buildRootPath);
                 return true;
             }
 
             if (string.Equals(record.ComponentTypeId, TextComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
-                transformedRecord = RewriteTextComponentRecord(record);
+                transformedRecord = RewriteTextComponentRecord(record, buildRootPath);
                 return true;
             }
 
@@ -503,7 +503,7 @@ namespace helengine.editor {
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
         /// <returns>Rewritten mesh component record.</returns>
         SceneComponentAssetRecord RewriteMeshComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
-            ReadTaggedMeshComponentRecord(
+            ReadMeshComponentRecord(
                 record,
                 out SceneAssetReference modelReference,
                 out SceneAssetReference materialReference,
@@ -529,7 +529,7 @@ namespace helengine.editor {
         /// <param name="record">Serialized camera component record to rewrite.</param>
         /// <returns>Rewritten camera component record.</returns>
         SceneComponentAssetRecord RewriteCameraComponentRecord(SceneComponentAssetRecord record) {
-            ReadTaggedCameraComponentRecord(
+            ReadCameraComponentRecord(
                 record,
                 out byte cameraDrawOrder,
                 out ushort layerMask,
@@ -554,11 +554,86 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Reads one serialized mesh payload from either the tolerant tagged editor format or the legacy binary editor format.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <param name="modelReference">Persisted model reference.</param>
+        /// <param name="materialReference">Persisted material reference.</param>
+        /// <param name="renderOrder3D">Persisted render order.</param>
+        void ReadMeshComponentRecord(
+            SceneComponentAssetRecord record,
+            out SceneAssetReference modelReference,
+            out SceneAssetReference materialReference,
+            out byte renderOrder3D) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            try {
+                ReadTaggedMeshComponentRecord(
+                    record,
+                    out modelReference,
+                    out materialReference,
+                    out renderOrder3D);
+                return;
+            } catch (EndOfStreamException) {
+            } catch (InvalidOperationException) {
+            }
+
+            ReadLegacyVersionedMeshComponentRecord(
+                record,
+                out modelReference,
+                out materialReference,
+                out renderOrder3D);
+        }
+
+        /// <summary>
+        /// Reads one serialized camera payload from either the tolerant tagged editor format or the legacy binary editor format.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <param name="cameraDrawOrder">Persisted camera draw order.</param>
+        /// <param name="layerMask">Persisted camera layer mask.</param>
+        /// <param name="viewport">Persisted camera viewport.</param>
+        /// <param name="clearSettings">Persisted camera clear settings.</param>
+        /// <param name="renderSettings">Persisted camera render settings.</param>
+        void ReadCameraComponentRecord(
+            SceneComponentAssetRecord record,
+            out byte cameraDrawOrder,
+            out ushort layerMask,
+            out float4 viewport,
+            out CameraClearSettings clearSettings,
+            out CameraRenderSettings renderSettings) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            byte[] payload = record.Payload ?? Array.Empty<byte>();
+            if (payload.Length > 0 && payload[0] == CameraComponentPayloadVersion) {
+                ReadLegacyVersionedCameraComponentRecord(
+                    record,
+                    out cameraDrawOrder,
+                    out layerMask,
+                    out viewport,
+                    out clearSettings,
+                    out renderSettings);
+                return;
+            }
+
+            ReadTaggedCameraComponentRecord(
+                record,
+                out cameraDrawOrder,
+                out layerMask,
+                out viewport,
+                out clearSettings,
+                out renderSettings);
+        }
+
+        /// <summary>
         /// Rewrites one serialized FPS payload into the strict runtime FPS payload shape.
         /// </summary>
         /// <param name="record">Serialized FPS component record to rewrite.</param>
         /// <returns>Rewritten FPS component record.</returns>
-        SceneComponentAssetRecord RewriteFPSComponentRecord(SceneComponentAssetRecord record) {
+        SceneComponentAssetRecord RewriteFPSComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
             using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
@@ -576,7 +651,7 @@ namespace helengine.editor {
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(FPSComponentPayloadVersion);
-            WriteOptionalReference(writer, RewriteFontReference(fontReference));
+            WriteOptionalReference(writer, RewriteFontReference(fontReference, buildRootPath));
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(refreshIntervalSeconds));
             writer.WriteInt2(padding);
             writer.WriteByte(renderOrder2D);
@@ -593,7 +668,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="record">Serialized text component record to rewrite.</param>
         /// <returns>Rewritten text component record.</returns>
-        SceneComponentAssetRecord RewriteTextComponentRecord(SceneComponentAssetRecord record) {
+        SceneComponentAssetRecord RewriteTextComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
             ReadTaggedTextComponentRecord(
                 record,
                 out SceneAssetReference fontReference,
@@ -610,7 +685,7 @@ namespace helengine.editor {
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(TextComponentPayloadVersion);
-            WriteOptionalReference(writer, RewriteFontReference(fontReference));
+            WriteOptionalReference(writer, RewriteFontReference(fontReference, buildRootPath));
             writer.WriteString(text);
             writer.WriteByte(wrapText ? (byte)1 : (byte)0);
             writer.WriteInt2(size);
@@ -878,6 +953,45 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Reads one legacy binary camera payload into the runtime values needed for packaged rewriting.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <param name="cameraDrawOrder">Persisted camera draw order.</param>
+        /// <param name="layerMask">Persisted camera layer mask.</param>
+        /// <param name="viewport">Persisted camera viewport.</param>
+        /// <param name="clearSettings">Persisted camera clear settings.</param>
+        /// <param name="renderSettings">Persisted camera render settings.</param>
+        void ReadLegacyVersionedCameraComponentRecord(
+            SceneComponentAssetRecord record,
+            out byte cameraDrawOrder,
+            out ushort layerMask,
+            out float4 viewport,
+            out CameraClearSettings clearSettings,
+            out CameraRenderSettings renderSettings) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+            if (!string.Equals(record.ComponentTypeId, CameraComponentTypeId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Expected camera record but received '{record.ComponentTypeId}'.");
+            }
+
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != 1 && version != CameraComponentPayloadVersion) {
+                throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
+            }
+
+            cameraDrawOrder = reader.ReadByte();
+            layerMask = reader.ReadUInt16();
+            viewport = ReadFloat4(reader);
+            clearSettings = ReadClearSettings(reader);
+            renderSettings = version >= CameraComponentPayloadVersion
+                ? ReadRenderSettings(reader)
+                : new CameraRenderSettings();
+        }
+
+        /// <summary>
         /// Reads one tagged mesh payload into the authored asset references and render order needed for packaged rewriting.
         /// </summary>
         /// <param name="record">Scene component record to interpret.</param>
@@ -919,6 +1033,37 @@ namespace helengine.editor {
                     renderOrder3D = renderOrder3DReader.ReadByte();
                 }
             }
+        }
+
+        /// <summary>
+        /// Reads one legacy binary mesh payload into the authored asset references and render order needed for packaged rewriting.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <param name="modelReference">Persisted model reference.</param>
+        /// <param name="materialReference">Persisted material reference.</param>
+        /// <param name="renderOrder3D">Persisted render order.</param>
+        void ReadLegacyVersionedMeshComponentRecord(
+            SceneComponentAssetRecord record,
+            out SceneAssetReference modelReference,
+            out SceneAssetReference materialReference,
+            out byte renderOrder3D) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+            if (!string.Equals(record.ComponentTypeId, MeshComponentTypeId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Expected mesh record but received '{record.ComponentTypeId}'.");
+            }
+
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != MeshComponentPayloadVersion) {
+                throw new InvalidOperationException($"Unsupported mesh component payload version '{version}'.");
+            }
+
+            modelReference = ReadOptionalReference(reader);
+            materialReference = ReadOptionalReference(reader);
+            renderOrder3D = reader.ReadByte();
         }
 
         /// <summary>
@@ -1082,7 +1227,7 @@ namespace helengine.editor {
             }
         }
 
-        SceneAssetReference RewriteFontReference(SceneAssetReference reference) {
+        SceneAssetReference RewriteFontReference(SceneAssetReference reference, string buildRootPath) {
             if (reference == null) {
                 throw new InvalidOperationException("FPSComponent requires a font reference before packaging.");
             }
@@ -1099,8 +1244,7 @@ namespace helengine.editor {
             }
 
             if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                string relativePath = NormalizeRelativePath(reference.RelativePath);
-                return CreateFontFileReference(relativePath);
+                return RewriteFileSystemFontReference(reference, buildRootPath);
             }
 
             throw new InvalidOperationException($"Unsupported font reference source kind '{reference.SourceKind}'.");
@@ -1121,6 +1265,23 @@ namespace helengine.editor {
                 ProviderId = string.Empty,
                 AssetId = string.Empty
             };
+        }
+
+        /// <summary>
+        /// Rewrites one file-backed source font reference into a cooked packaged font reference.
+        /// </summary>
+        /// <param name="reference">Serialized font reference to rewrite.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Packaged file-backed font reference.</returns>
+        SceneAssetReference RewriteFileSystemFontReference(SceneAssetReference reference, string buildRootPath) {
+            string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
+            if (!AssetImportManager.TryLoadFontAsset(sourcePath, out FontAsset fontAsset) || fontAsset == null) {
+                throw new InvalidOperationException($"Font source '{reference.RelativePath}' could not be imported for packaging.");
+            }
+
+            string cookedRelativePath = BuildCookedFontRelativePath(reference.RelativePath);
+            WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), fontAsset);
+            return CreateFontFileReference(cookedRelativePath);
         }
 
         SceneAssetReference RewriteModelReference(SceneAssetReference reference, string buildRootPath) {
@@ -1367,6 +1528,17 @@ namespace helengine.editor {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
             string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hasset");
             return NormalizeRelativePath(Path.Combine("cooked", "imported", changedExtensionPath));
+        }
+
+        /// <summary>
+        /// Builds one cooked packaged-font relative path for an authored source-font reference.
+        /// </summary>
+        /// <param name="relativePath">Original project-relative source-font path.</param>
+        /// <returns>Cooked packaged-font relative path.</returns>
+        string BuildCookedFontRelativePath(string relativePath) {
+            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hefont");
+            return NormalizeRelativePath(Path.Combine("cooked", changedExtensionPath));
         }
 
         SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
