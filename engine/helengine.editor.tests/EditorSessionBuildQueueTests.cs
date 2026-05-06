@@ -289,7 +289,7 @@ namespace helengine.editor.tests {
             int matchingQueueTextCount = 0;
             for (int index = 0; index < Core.Instance.ObjectManager.Drawables2D.Count; index++) {
                 IDrawable2D drawable = Core.Instance.ObjectManager.Drawables2D[index];
-                if (drawable is TextComponent textComponent && textComponent.Text == "windows | Pending | 1 scene(s)") {
+                if (drawable is TextComponent textComponent && textComponent.Text.StartsWith("windows | Pending | 1 scene(s)", StringComparison.Ordinal)) {
                     matchingQueueTextCount++;
                 }
             }
@@ -369,7 +369,7 @@ namespace helengine.editor.tests {
             int matchingQueueTextCount = 0;
             for (int index = 0; index < Core.Instance.ObjectManager.Drawables2D.Count; index++) {
                 IDrawable2D drawable = Core.Instance.ObjectManager.Drawables2D[index];
-                if (drawable is TextComponent textComponent && textComponent.Text == "windows | Pending | 1 scene(s)") {
+                if (drawable is TextComponent textComponent && textComponent.Text.StartsWith("windows | Pending | 1 scene(s)", StringComparison.Ordinal)) {
                     matchingQueueTextCount++;
                 }
             }

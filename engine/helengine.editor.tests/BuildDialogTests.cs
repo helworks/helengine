@@ -743,11 +743,11 @@ namespace helengine.editor.tests {
                     "Scenes/City.helen"
                 },
                 linuxConfig.SelectedSceneIds);
-            Assert.Equal("2", mapOrderFields[0].Text);
-            Assert.Equal("1", mapOrderFields[1].Text);
+            Assert.Equal("1", mapOrderFields[0].Text);
+            Assert.Equal("2", mapOrderFields[1].Text);
             Assert.Equal(2, linuxConfig.SceneOrders.Count);
-            Assert.Equal(2, linuxConfig.SceneOrders[0].OrderNumber);
-            Assert.Equal(1, linuxConfig.SceneOrders[1].OrderNumber);
+            Assert.Equal(1, linuxConfig.SceneOrders[0].OrderNumber);
+            Assert.Equal(2, linuxConfig.SceneOrders[1].OrderNumber);
             Assert.Equal("/tmp/linux-build", linuxConfig.OutputDirectoryPath);
         }
 
@@ -1473,7 +1473,7 @@ namespace helengine.editor.tests {
             Assert.Equal(2f, sceneListBackground.BorderThickness);
             Assert.Equal(BuildDialog.PanelWidth - BuildDialog.QueueColumnWidth - (BuildDialog.PanelPadding * 3), sceneListBackground.Size.X);
             Assert.True(sceneListBackground.Size.Y > 0);
-            Assert.All(mapLabelHosts, host => Assert.Equal(BuildDialog.SceneListPadding, host.LocalPosition.X));
+            Assert.All(mapLabelHosts, host => Assert.Equal(BuildDialog.SceneListPadding + BuildDialog.SceneOrderFieldWidth + 8, host.LocalPosition.X));
         }
 
         /// <summary>

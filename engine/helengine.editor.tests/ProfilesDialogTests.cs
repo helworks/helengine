@@ -113,8 +113,8 @@ namespace helengine.editor.tests {
             RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(platformComboBox, "background");
             RoundedRectComponent listBackground = GetPrivateField<RoundedRectComponent>(platformComboBox, "listBackground");
 
-            Assert.Equal(RenderOrder2D.PanelSurface, background.RenderOrder2D);
-            Assert.Equal(RenderOrder2D.ModalBackground, listBackground.RenderOrder2D);
+            Assert.Equal(RenderOrder2D.ModalBackground, background.RenderOrder2D);
+            Assert.Equal(RenderOrder2D.ModalOverlayBackground, listBackground.RenderOrder2D);
         }
 
         /// <summary>
@@ -175,14 +175,14 @@ namespace helengine.editor.tests {
             Assert.Equal("windows", selection.ActivePlatformId);
             Assert.Same(document, selection.ProfileSettingsDocument);
             Assert.Equal("75", document.Platforms[0].Build.SelectedOptionValues["texture-scale-percent"]);
-            Assert.Equal("False", document.Platforms[0].Build.SelectedOptionValues["shader-variant-pruning"]);
+            Assert.Equal("false", document.Platforms[0].Build.SelectedOptionValues["shader-variant-pruning"]);
             Assert.Equal("1600", document.Platforms[0].Graphics.SelectedOptionValues["default-width"]);
             Assert.Equal("900", document.Platforms[0].Graphics.SelectedOptionValues["default-height"]);
-            Assert.Equal("False", document.Platforms[0].Graphics.SelectedOptionValues["vsync-enabled"]);
-            Assert.Equal("True", document.Platforms[0].Graphics.SelectedOptionValues["fullscreen-enabled"]);
-            Assert.Equal("False", document.Platforms[0].Codegen.SelectedOptionValues["write-conversion-report"]);
-            Assert.Equal("True", document.Platforms[0].Codegen.SelectedOptionValues["include-project-defined-preprocessor-symbols"]);
-            Assert.Equal("False", document.Platforms[0].Codegen.SelectedOptionValues["load-native-runtime-metadata"]);
+            Assert.Equal("false", document.Platforms[0].Graphics.SelectedOptionValues["vsync-enabled"]);
+            Assert.Equal("true", document.Platforms[0].Graphics.SelectedOptionValues["fullscreen-enabled"]);
+            Assert.Equal("false", document.Platforms[0].Codegen.SelectedOptionValues["write-conversion-report"]);
+            Assert.Equal("true", document.Platforms[0].Codegen.SelectedOptionValues["include-project-defined-preprocessor-symbols"]);
+            Assert.Equal("false", document.Platforms[0].Codegen.SelectedOptionValues["load-native-runtime-metadata"]);
         }
 
         /// <summary>

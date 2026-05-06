@@ -375,7 +375,8 @@ namespace helengine.editor {
                     break;
                 case PlatformSettingKind.Text:
                 default:
-                    TextBox = new TextBoxComponent(new int2(valueColumnWidth, EditorPlatformSettingsSection.RowHeight), font, value);
+                    TextBox = new TextBoxComponent(new int2(valueColumnWidth, EditorPlatformSettingsSection.RowHeight), font, string.Empty);
+                    TextBox.Text = value;
                     TextBox.SetRenderOrders(panelOrder, textOrder);
                     TextBox.TextChanged += HandleTextBoxChanged;
                     ControlHost.AddComponent(TextBox);
@@ -416,6 +417,8 @@ namespace helengine.editor {
         /// <param name="errorMessage">Validation error when the setting is missing a required value.</param>
         /// <returns>True when the row is valid; otherwise false.</returns>
         public bool TryValidate(out string errorMessage) {
+            SyncValueFromControl();
+
             if (!Setting.Required) {
                 errorMessage = string.Empty;
                 return true;
@@ -442,6 +445,25 @@ namespace helengine.editor {
 
                     errorMessage = $"Setting '{Setting.DisplayName}' requires a value.";
                     return false;
+            }
+        }
+
+        /// <summary>
+        /// Synchronizes the persisted value dictionary from the currently rendered control state.
+        /// </summary>
+        void SyncValueFromControl() {
+            if (CheckBox != null) {
+                Values[Setting.SettingId] = CheckBox.IsChecked ? "true" : "false";
+                return;
+            }
+
+            if (ComboBox != null) {
+                Values[Setting.SettingId] = ComboBox.HasSelection ? ComboBox.SelectedItem : Setting.DefaultValue;
+                return;
+            }
+
+            if (TextBox != null) {
+                Values[Setting.SettingId] = TextBox.Text ?? Setting.DefaultValue;
             }
         }
 
