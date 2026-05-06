@@ -84,6 +84,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures submitting one dynamic Camera scalar field updates the live component value.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenCameraScalarFieldIsSubmitted_UpdatesTheCameraComponent() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity();
+            CameraComponent camera = new CameraComponent();
+            camera.NearPlaneDistance = 0.1f;
+            entity.AddComponent(camera);
+
+            panel.ShowEntityProperties(entity);
+
+            ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            ComponentPropertyRow nearPlaneRow = GetSingleRow(view, "Near Plane Distance");
+            nearPlaneRow.ScalarField.Text = "2.5";
+
+            MethodInfo submitMethod = typeof(ComponentPropertiesView).GetMethod("HandleScalarSubmitted", BindingFlags.Instance | BindingFlags.NonPublic);
+            submitMethod.Invoke(view, new object[] { nearPlaneRow.ScalarField });
+
+            Assert.Equal(2.5f, camera.NearPlaneDistance, 3);
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>
@@ -114,6 +137,18 @@ namespace helengine.editor.tests {
         void InvokePrivate(object target, string methodName) {
             MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
             method.Invoke(target, Array.Empty<object>());
+        }
+
+        /// <summary>
+        /// Finds one active property row by its label text.
+        /// </summary>
+        /// <param name="view">Properties view under test.</param>
+        /// <param name="label">Row label to resolve.</param>
+        /// <returns>The single matching row.</returns>
+        ComponentPropertyRow GetSingleRow(ComponentPropertiesView view, string label) {
+            FieldInfo activeRowsField = typeof(ComponentPropertiesView).GetField("ActiveRows", BindingFlags.Instance | BindingFlags.NonPublic);
+            List<ComponentPropertyRow> rows = Assert.IsType<List<ComponentPropertyRow>>(activeRowsField.GetValue(view));
+            return Assert.Single(rows, row => string.Equals(row.Label.Text, label, StringComparison.Ordinal));
         }
 
         /// <summary>
