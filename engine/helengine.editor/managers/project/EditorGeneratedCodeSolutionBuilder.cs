@@ -46,7 +46,8 @@ namespace helengine.editor {
                     baseIntermediateOutputPath,
                     baseOutputPath,
                     outputDirectoryPath,
-                    projectGuid));
+                    projectGuid,
+                    module.ModuleKind));
             }
 
             return new EditorGeneratedCodeSolution(moduleProjects);

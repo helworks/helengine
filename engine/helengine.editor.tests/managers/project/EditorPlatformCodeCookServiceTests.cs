@@ -196,6 +196,39 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
         Assert.Empty(toolRunner.Invocations);
     }
 
+    [Fact]
+    public void Compile_code_modules_excludes_editor_modules_from_runtime_build_outputs() {
+        RecordingCodegenToolRunner toolRunner = new();
+        EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
+        Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Scripts", "Tools"));
+        File.WriteAllText(Path.Combine(ProjectRootPath, "assets", "Scripts", "Tools", "MenuCommand.cs"), "public sealed class MenuCommand { }");
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("gameplay", "assets/Scripts", [], ["always-loaded"], EditorCodeModuleKind.Runtime),
+            new EditorCodeModuleManifestEntry("menu.tools", "assets/Scripts/Tools", ["gameplay"], ["always-loaded"], EditorCodeModuleKind.Editor)
+        ]);
+
+        PlatformBuildCodeModule[] modules = service.CompileModules(
+            manifestDocument,
+            "windows",
+            "windows-loose-files",
+            "/tmp/fake-codegen.exe",
+            new PlatformCodegenProfileDefinition(
+                "windows-cpp",
+                "Windows C++",
+                "Default Windows C++ codegen profile.",
+                PlatformCodegenLanguage.Cpp,
+                PlatformSerializationEndianness.LittleEndian,
+                []),
+            [],
+            new Dictionary<string, string>(),
+            OutputRootPath);
+
+        Assert.Single(modules);
+        Assert.Equal("gameplay", modules[0].ModuleId);
+        Assert.DoesNotContain(modules, module => string.Equals(module.ModuleId, "menu.tools", StringComparison.OrdinalIgnoreCase));
+        Assert.Single(toolRunner.Invocations);
+    }
+
     sealed class RecordingCodegenToolRunner : IEditorCodegenToolRunner {
         public List<(string ToolPath, IReadOnlyList<string> Arguments, string WorkingDirectory)> Invocations { get; } = [];
 

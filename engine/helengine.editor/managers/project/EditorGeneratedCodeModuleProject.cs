@@ -14,6 +14,7 @@ namespace helengine.editor {
         /// <param name="baseOutputPath">Absolute base output path.</param>
         /// <param name="outputDirectoryPath">Absolute final output directory path for the module DLL.</param>
         /// <param name="projectGuid">Stable project GUID emitted into the solution.</param>
+        /// <param name="moduleKind">Declares whether the generated project is runtime or editor-only.</param>
         public EditorGeneratedCodeModuleProject(
             string moduleId,
             string sourceFolderPath,
@@ -22,7 +23,8 @@ namespace helengine.editor {
             string baseIntermediateOutputPath,
             string baseOutputPath,
             string outputDirectoryPath,
-            Guid projectGuid) {
+            Guid projectGuid,
+            EditorCodeModuleKind moduleKind) {
             if (string.IsNullOrWhiteSpace(moduleId)) {
                 throw new ArgumentException("Module id must be provided.", nameof(moduleId));
             }
@@ -53,6 +55,7 @@ namespace helengine.editor {
             BaseOutputPath = baseOutputPath;
             OutputDirectoryPath = outputDirectoryPath;
             ProjectGuid = projectGuid;
+            ModuleKind = moduleKind;
         }
 
         /// <summary>
@@ -94,5 +97,10 @@ namespace helengine.editor {
         /// Gets the stable project GUID emitted into the generated solution.
         /// </summary>
         public Guid ProjectGuid { get; }
+
+        /// <summary>
+        /// Gets whether the generated project is runtime or editor-only.
+        /// </summary>
+        public EditorCodeModuleKind ModuleKind { get; }
     }
 }

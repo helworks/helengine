@@ -224,6 +224,7 @@ namespace helengine.editor {
             builder.AppendLine("    <AssemblyName>" + EscapeXml(moduleProject.ModuleId) + "</AssemblyName>");
             builder.AppendLine("    <RootNamespace>" + EscapeXml(moduleProject.ModuleId) + "</RootNamespace>");
             builder.AppendLine("  </PropertyGroup>");
+            AppendAssemblyReferences(builder, moduleProject);
             builder.AppendLine("  <ItemGroup>");
             builder.AppendLine("    <Compile Include=\"" + EscapeXml(Path.Combine(ResolveProjectPath(moduleProject.SourceFolderPath), "**", "*.cs")) + "\" />");
             for (int index = 0; index < moduleProject.NestedSourceFolderPaths.Count; index++) {
@@ -272,6 +273,30 @@ namespace helengine.editor {
             builder.AppendLine("\tEndGlobalSection");
             builder.AppendLine("EndGlobal");
             return builder.ToString();
+        }
+
+        /// <summary>
+        /// Appends assembly references required by the generated project.
+        /// </summary>
+        /// <param name="builder">Project file string builder being populated.</param>
+        /// <param name="moduleProject">Generated module project whose references should be emitted.</param>
+        void AppendAssemblyReferences(StringBuilder builder, EditorGeneratedCodeModuleProject moduleProject) {
+            if (builder == null) {
+                throw new ArgumentNullException(nameof(builder));
+            }
+            if (moduleProject == null) {
+                throw new ArgumentNullException(nameof(moduleProject));
+            }
+
+            if (moduleProject.ModuleKind != EditorCodeModuleKind.Editor) {
+                return;
+            }
+
+            builder.AppendLine("  <ItemGroup>");
+            builder.AppendLine("    <Reference Include=\"helengine.editor\">");
+            builder.AppendLine("      <HintPath>" + EscapeXml(typeof(EditorGameSolutionService).Assembly.Location) + "</HintPath>");
+            builder.AppendLine("    </Reference>");
+            builder.AppendLine("  </ItemGroup>");
         }
 
         /// <summary>
