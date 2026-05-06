@@ -313,10 +313,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures dragging the top-left resize grip changes both the panel size and its origin.
+        /// Ensures dragging the top-left resize grip outward changes both the panel size and its origin.
         /// </summary>
         [Fact]
-        public void HandleTopLeftResizeGrip_WhenDragged_ResizesAndRepositionsThePanel() {
+        public void HandleTopLeftResizeGrip_WhenDraggedOutward_ResizesAndRepositionsThePanel() {
             UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
             dialog.Show();
             dialog.UpdateLayout(1280, 720);
@@ -330,13 +330,13 @@ namespace helengine.editor.tests {
             int2 initialSize = panelBackground.Size;
 
             topLeftInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Press);
-            topLeftInteractable.OnCursor(new int2(8, 8), new int2(20, 12), PointerInteraction.Hover);
+            topLeftInteractable.OnCursor(new int2(8, 8), new int2(-20, -12), PointerInteraction.Hover);
             topLeftInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Release);
 
-            Assert.Equal(initialPosition.X + 20, panelRoot.Position.X);
-            Assert.Equal(initialPosition.Y + 12, panelRoot.Position.Y);
-            Assert.Equal(initialSize.X - 20, panelBackground.Size.X);
-            Assert.Equal(initialSize.Y - 12, panelBackground.Size.Y);
+            Assert.Equal(initialPosition.X - 20, panelRoot.Position.X);
+            Assert.Equal(initialPosition.Y - 12, panelRoot.Position.Y);
+            Assert.Equal(initialSize.X + 20, panelBackground.Size.X);
+            Assert.Equal(initialSize.Y + 12, panelBackground.Size.Y);
         }
 
         /// <summary>
@@ -354,7 +354,7 @@ namespace helengine.editor.tests {
             InteractableComponent topLeftInteractable = topLeftGrip.Components.OfType<InteractableComponent>().Single();
 
             topLeftInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Press);
-            topLeftInteractable.OnCursor(new int2(8, 8), new int2(-1000, -1000), PointerInteraction.Hover);
+            topLeftInteractable.OnCursor(new int2(8, 8), new int2(1000, 1000), PointerInteraction.Hover);
             topLeftInteractable.OnCursor(new int2(8, 8), new int2(0, 0), PointerInteraction.Release);
 
             Assert.Equal(UnsavedChangesDialog.PanelWidth, panelBackground.Size.X);
