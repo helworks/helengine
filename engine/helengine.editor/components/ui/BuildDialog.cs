@@ -989,16 +989,16 @@ namespace helengine.editor {
         /// <param name="checkBox">Checkbox whose selection changed.</param>
         /// <param name="isChecked">True when the checkbox is now selected.</param>
         void ApplySceneSelectionChanged(string sceneId, CheckBoxComponent checkBox, bool isChecked) {
+            if (IsBindingSceneRows) {
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id is required.", nameof(sceneId));
             }
 
             if (checkBox == null) {
                 throw new ArgumentNullException(nameof(checkBox));
-            }
-
-            if (IsBindingSceneRows) {
-                return;
             }
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
@@ -1406,6 +1406,11 @@ namespace helengine.editor {
             try {
                 for (int rowIndex = 0; rowIndex < SceneRows.Count; rowIndex++) {
                     BuildDialogSceneRow row = SceneRows[rowIndex];
+                    if (rowIndex >= visibleRowCount) {
+                        DisableSceneRow(row);
+                        continue;
+                    }
+
                     int sceneIndex = scrollOffset + rowIndex;
                     if (sceneIndex < 0 || sceneIndex >= DisplayedSceneIds.Count) {
                         DisableSceneRow(row);
@@ -1582,12 +1587,19 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(row));
             }
 
-            row.SceneId = string.Empty;
-            row.Root.Enabled = false;
-            row.OrderField.Text = string.Empty;
-            row.OrderField.SetInvalidState(false);
-            row.LabelText.Text = string.Empty;
-            row.CheckBox.IsChecked = false;
+            bool wasBindingSceneRows = IsBindingSceneRows;
+            IsBindingSceneRows = true;
+
+            try {
+                row.Root.Enabled = false;
+                row.OrderField.Text = string.Empty;
+                row.OrderField.SetInvalidState(false);
+                row.LabelText.Text = string.Empty;
+                row.CheckBox.IsChecked = false;
+                row.SceneId = string.Empty;
+            } finally {
+                IsBindingSceneRows = wasBindingSceneRows;
+            }
         }
 
         /// <summary>
@@ -2007,16 +2019,16 @@ namespace helengine.editor {
         /// <param name="sceneId">Project-relative scene identifier whose order should be updated.</param>
         /// <param name="textBox">Textbox currently editing the order value.</param>
         void HandleSceneOrderFieldChanged(string sceneId, TextBoxComponent textBox) {
+            if (IsBindingSceneRows) {
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id is required.", nameof(sceneId));
             }
 
             if (textBox == null) {
                 throw new ArgumentNullException(nameof(textBox));
-            }
-
-            if (IsBindingSceneRows) {
-                return;
             }
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
@@ -2040,16 +2052,16 @@ namespace helengine.editor {
         /// <param name="sceneId">Project-relative scene identifier whose order was submitted.</param>
         /// <param name="textBox">Textbox that submitted the current order value.</param>
         void HandleSceneOrderFieldSubmitted(string sceneId, TextBoxComponent textBox) {
+            if (IsBindingSceneRows) {
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id is required.", nameof(sceneId));
             }
 
             if (textBox == null) {
                 throw new ArgumentNullException(nameof(textBox));
-            }
-
-            if (IsBindingSceneRows) {
-                return;
             }
 
             SyncActivePlatformConfig();
@@ -2288,8 +2300,9 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Visible scene-row count.</returns>
         int GetSceneListVisibleRowCount() {
+            int rowHeight = Math.Max(1, GetSceneRowHeightPixels());
             int contentHeight = Math.Max(1, GetSceneListViewportHeight() - (GetSceneListPaddingPixels() * 2));
-            return Math.Max(1, contentHeight / Math.Max(1, GetSceneRowHeightPixels()));
+            return Math.Max(1, (contentHeight + rowHeight - 1) / rowHeight);
         }
 
         /// <summary>
