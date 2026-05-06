@@ -221,6 +221,60 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Add to Build preserves the selected displayed scene when the visible row order differs from the raw scene list.
+        /// </summary>
+        [Fact]
+        public void HandleAddToBuildClicked_WhenVisibleRowsAreReordered_PreservesDisplayedSceneSelection() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialogAddRequest raisedRequest = null;
+            dialog.AddRequested += request => raisedRequest = request;
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/Physics/TestSceneTriggerVolume.helen",
+                    "Scenes/DemoDiscMenu.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/DemoDiscMenu.helen"
+                            ],
+                            SceneOrders = [
+                                new EditorBuildSceneOrderDocument {
+                                    SceneId = "Scenes/Physics/TestSceneTriggerVolume.helen",
+                                    OrderNumber = 2
+                                },
+                                new EditorBuildSceneOrderDocument {
+                                    SceneId = "Scenes/DemoDiscMenu.helen",
+                                    OrderNumber = 1
+                                }
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows"
+                        }
+                    ]
+                });
+
+            List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
+            List<CheckBoxComponent> mapCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "MapCheckBoxes");
+
+            Assert.Equal("Scenes/DemoDiscMenu.helen", mapLabelTexts[0].Text);
+            Assert.True(mapCheckBoxes[0].IsChecked);
+            Assert.False(mapCheckBoxes[1].IsChecked);
+
+            InvokePrivate(dialog, "HandleAddToBuildClicked");
+
+            Assert.NotNull(raisedRequest);
+            Assert.Equal(
+                [
+                    "Scenes/DemoDiscMenu.helen"
+                ],
+                raisedRequest.SelectedSceneIds);
+        }
+
+        /// <summary>
         /// Ensures switching to another platform restores that platform's saved debug-build value.
         /// </summary>
         [Fact]
@@ -637,8 +691,8 @@ namespace helengine.editor.tests {
 
             List<CheckBoxComponent> mapCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "MapCheckBoxes");
             TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
-            mapCheckBoxes[0].IsChecked = false;
-            mapCheckBoxes[1].IsChecked = true;
+            mapCheckBoxes[0].IsChecked = true;
+            mapCheckBoxes[1].IsChecked = false;
             outputDirectoryField.Text = @"D:\exports\windows";
 
             InvokePrivate(dialog, "HandlePlatformTabClicked", "linux");

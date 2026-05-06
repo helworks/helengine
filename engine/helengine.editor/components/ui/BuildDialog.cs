@@ -210,6 +210,10 @@ namespace helengine.editor {
         /// </summary>
         readonly List<TextBoxComponent> MapOrderFields;
         /// <summary>
+        /// Scene ids for the currently rendered visible rows, kept in the same order as the checkbox and label lists.
+        /// </summary>
+        readonly List<string> DisplayedSceneIds;
+        /// <summary>
         /// Host entities created for the currently rendered queue rows.
         /// </summary>
         readonly List<EditorEntity> QueueItemHosts;
@@ -444,6 +448,7 @@ namespace helengine.editor {
             MapCheckBoxes = new List<CheckBoxComponent>(16);
             MapOrderHosts = new List<EditorEntity>(16);
             MapOrderFields = new List<TextBoxComponent>(16);
+            DisplayedSceneIds = new List<string>(16);
             QueueItemHosts = new List<EditorEntity>(16);
             QueueItemTexts = new List<TextComponent>(16);
             QueueItemRemoveButtonHosts = new List<EditorEntity>(16);
@@ -1167,6 +1172,7 @@ namespace helengine.editor {
             MapLabelTexts.Clear();
             MapCheckBoxes.Clear();
             MapOrderFields.Clear();
+            DisplayedSceneIds.Clear();
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
             EnsureSceneOrderEntries(platformConfig);
@@ -1179,6 +1185,7 @@ namespace helengine.editor {
 
             for (int index = 0; index < orderedSceneIds.Count; index++) {
                 string sceneId = orderedSceneIds[index];
+                DisplayedSceneIds.Add(sceneId);
                 float rowY = topOffset + (index * SceneRowHeight);
 
                 EditorEntity orderHost = new EditorEntity {
@@ -1586,7 +1593,7 @@ namespace helengine.editor {
             platformConfig.SelectedSceneIds.Clear();
             for (int index = 0; index < MapCheckBoxes.Count; index++) {
                 if (MapCheckBoxes[index].IsChecked) {
-                    platformConfig.SelectedSceneIds.Add(SceneIds[index]);
+                    platformConfig.SelectedSceneIds.Add(DisplayedSceneIds[index]);
                 }
             }
 
