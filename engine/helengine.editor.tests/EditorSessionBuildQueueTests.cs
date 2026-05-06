@@ -223,6 +223,43 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures adding one queued build refreshes the visible dialog without discarding a manual panel position.
+        /// </summary>
+        [Fact]
+        public void HandleBuildDialogAddRequested_WhenDialogWasMoved_PreservesDialogPosition() {
+            EditorBuildConfigService buildConfigService = new EditorBuildConfigService(TempProjectRootPath);
+            EditorBuildQueueService buildQueueService = new EditorBuildQueueService(buildConfigService, new TestEditorBuildExecutor([]));
+            EditorSession session = CreateSession(buildConfigService, buildQueueService, "windows");
+            BuildDialog dialog = GetPrivateField<BuildDialog>(session, "buildDialog");
+            EditorBuildConfigDocument buildConfig = buildConfigService.Load([
+                "windows"
+            ], CurrentSceneId);
+
+            dialog.Show([
+                    "windows"
+                ],
+                [
+                    CurrentSceneId
+                ],
+                "windows",
+                buildConfig);
+            dialog.UpdateLayout(1280, 720);
+            SetPrivateField(dialog, "PanelPosition", new int2(164, 118));
+            SetPrivateField(dialog, "IsUserPositioned", true);
+            InvokePrivate(dialog, "ApplyDialogPosition");
+
+            InvokePrivate(session, "HandleBuildDialogAddRequested", new BuildDialogAddRequest(
+                "windows",
+                [
+                    CurrentSceneId
+                ],
+                @"C:\builds\windows"));
+
+            Assert.Equal(new int2(164, 118), GetPrivateField<int2>(dialog, "PanelPosition"));
+            Assert.True(GetPrivateField<bool>(dialog, "IsUserPositioned"));
+        }
+
+        /// <summary>
         /// Ensures the session snapshots the active platform's debug-build flag into the persisted queue item.
         /// </summary>
         [Fact]
@@ -457,6 +494,50 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures removing one queued build refreshes the visible dialog without discarding a manual panel position.
+        /// </summary>
+        [Fact]
+        public void HandleBuildDialogRemoveQueueItemRequested_WhenDialogWasMoved_PreservesDialogPosition() {
+            EditorBuildConfigService buildConfigService = new EditorBuildConfigService(TempProjectRootPath);
+            EditorBuildConfigDocument buildConfig = buildConfigService.Load([
+                "windows"
+            ], CurrentSceneId);
+            buildConfig.QueueItems.Add(new EditorBuildQueueItemDocument {
+                QueueItemId = "queue-1",
+                PlatformId = "windows",
+                SelectedSceneIds = [
+                    CurrentSceneId
+                ],
+                OutputDirectoryPath = @"C:\builds\windows",
+                Status = EditorBuildQueueItemStatus.Pending
+            });
+            buildConfigService.Save(buildConfig);
+            EditorBuildQueueService buildQueueService = new EditorBuildQueueService(buildConfigService, new TestEditorBuildExecutor([]));
+            EditorSession session = CreateSession(buildConfigService, buildQueueService, "windows");
+            BuildDialog dialog = GetPrivateField<BuildDialog>(session, "buildDialog");
+
+            dialog.Show([
+                    "windows"
+                ],
+                [
+                    CurrentSceneId
+                ],
+                "windows",
+                buildConfigService.Load([
+                    "windows"
+                ], CurrentSceneId));
+            dialog.UpdateLayout(1280, 720);
+            SetPrivateField(dialog, "PanelPosition", new int2(212, 146));
+            SetPrivateField(dialog, "IsUserPositioned", true);
+            InvokePrivate(dialog, "ApplyDialogPosition");
+
+            InvokePrivate(session, "HandleBuildDialogRemoveQueueItemRequested", "queue-1");
+
+            Assert.Equal(new int2(212, 146), GetPrivateField<int2>(dialog, "PanelPosition"));
+            Assert.True(GetPrivateField<bool>(dialog, "IsUserPositioned"));
+        }
+
+        /// <summary>
         /// Ensures the build-dialog browse action uses the host resolver and writes the chosen folder back into the visible output field.
         /// </summary>
         [Fact]
@@ -574,7 +655,7 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to read.</param>
         /// <returns>Field value cast to the requested type.</returns>
         T GetPrivateField<T>(object target, string fieldName) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo field = FindPrivateField(target.GetType(), fieldName);
             return Assert.IsType<T>(field.GetValue(target));
         }
 
@@ -585,8 +666,25 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to assign.</param>
         /// <param name="value">Value assigned to the field.</param>
         void SetPrivateField(object target, string fieldName, object value) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo field = FindPrivateField(target.GetType(), fieldName);
             field.SetValue(target, value);
+        }
+
+        /// <summary>
+        /// Finds one non-public instance field declared on the supplied type or one of its base types.
+        /// </summary>
+        /// <param name="type">Type whose field hierarchy should be searched.</param>
+        /// <param name="fieldName">Name of the field to resolve.</param>
+        /// <returns>Resolved field metadata.</returns>
+        FieldInfo FindPrivateField(Type type, string fieldName) {
+            FieldInfo field = null;
+            Type currentType = type;
+            while (currentType != null && field == null) {
+                field = currentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+                currentType = currentType.BaseType;
+            }
+
+            return field ?? throw new InvalidOperationException("Could not find field '" + fieldName + "'.");
         }
 
         /// <summary>
