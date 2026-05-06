@@ -565,6 +565,7 @@ namespace helengine.editor {
             titleBar.ProfilesRequested += HandleProfilesRequested;
             titleBar.BuildScriptsRequested += HandleBuildScriptsRequested;
             titleBar.OpenInIDERequested += HandleOpenInIDERequested;
+            titleBar.ProjectMenuItemRequested += HandleProjectMenuItemRequested;
             titleBar.AddEmptyRequested += HandleAddEmptyRequested;
             titleBar.AddCubeRequested += HandleAddCubeRequested;
             titleBar.AddPlaneRequested += HandleAddPlaneRequested;
@@ -1131,6 +1132,7 @@ namespace helengine.editor {
             titleBar.ProfilesRequested -= HandleProfilesRequested;
             titleBar.BuildScriptsRequested -= HandleBuildScriptsRequested;
             titleBar.OpenInIDERequested -= HandleOpenInIDERequested;
+            titleBar.ProjectMenuItemRequested -= HandleProjectMenuItemRequested;
             titleBar.AddEmptyRequested -= HandleAddEmptyRequested;
             titleBar.AddCubeRequested -= HandleAddCubeRequested;
             titleBar.AddPlaneRequested -= HandleAddPlaneRequested;
@@ -1490,12 +1492,17 @@ namespace helengine.editor {
         /// </summary>
         void HandleBuildScriptsRequested() {
             EditorBuildExecutionResult result = scriptHotReloadService.BuildAndReload();
-            if (result.Succeeded) {
-                Logger.WriteLine(result.Message);
+            if (!result.Succeeded) {
+                Logger.WriteError(result.Message);
                 return;
             }
 
-            Logger.WriteError(result.Message);
+            try {
+                RefreshProjectMenus();
+                Logger.WriteLine(result.Message);
+            } catch (Exception ex) {
+                Logger.WriteError($"Project menu refresh failed: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -1507,6 +1514,78 @@ namespace helengine.editor {
             } catch (Exception ex) {
                 Logger.WriteError($"Open in IDE failed: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Rebuilds the title-bar contributed project menus from the current loaded editor-module catalog.
+        /// </summary>
+        void RefreshProjectMenus() {
+            IReadOnlyList<EditorMenuItemDescriptor> menuItems = scriptHotReloadService.GetAvailableEditorMenuItems();
+            ValidateProjectMenuCommands(menuItems);
+            titleBar.ApplyProjectMenus(menuItems);
+        }
+
+        /// <summary>
+        /// Ensures every contributed menu item references one currently available project-authored editor command.
+        /// </summary>
+        /// <param name="menuItems">Contributed project menu descriptors to validate.</param>
+        void ValidateProjectMenuCommands(IReadOnlyList<EditorMenuItemDescriptor> menuItems) {
+            if (menuItems == null) {
+                throw new ArgumentNullException(nameof(menuItems));
+            }
+
+            IReadOnlyList<EditorProjectCommandDescriptor> commands = scriptHotReloadService.GetAvailableEditorCommands();
+            HashSet<string> commandIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < commands.Count; index++) {
+                commandIds.Add(commands[index].CommandId);
+            }
+
+            for (int index = 0; index < menuItems.Count; index++) {
+                EditorMenuItemDescriptor menuItem = menuItems[index];
+                if (!commandIds.Contains(menuItem.CommandId)) {
+                    throw new InvalidOperationException($"Project menu item '{menuItem.MenuItemId}' references unavailable editor command '{menuItem.CommandId}'.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Executes the command mapped to one contributed project menu item.
+        /// </summary>
+        /// <param name="menuItemId">Stable contributed project menu item identifier.</param>
+        void HandleProjectMenuItemRequested(string menuItemId) {
+            if (string.IsNullOrWhiteSpace(menuItemId)) {
+                throw new ArgumentException("Project menu item id must be provided.", nameof(menuItemId));
+            }
+
+            try {
+                EditorMenuItemDescriptor menuItem = ResolveProjectMenuItem(menuItemId);
+                EditorCommandExecutionService commandExecutionService = new EditorCommandExecutionService(
+                    scriptHotReloadService,
+                    new EditorCommandContext(
+                        projectPath,
+                        scriptHotReloadService.ScriptTypeResolver,
+                        new EditorMenuSceneRegenerationService(projectPath, scriptHotReloadService.ScriptTypeResolver)));
+                commandExecutionService.Execute(menuItem.CommandId);
+                Logger.WriteLine($"Executed project menu item '{menuItemId}'.");
+            } catch (Exception ex) {
+                Logger.WriteError($"Project menu item '{menuItemId}' failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Resolves one contributed project menu item descriptor by stable menu item identifier.
+        /// </summary>
+        /// <param name="menuItemId">Stable contributed project menu item identifier.</param>
+        /// <returns>Resolved contributed project menu item descriptor.</returns>
+        EditorMenuItemDescriptor ResolveProjectMenuItem(string menuItemId) {
+            IReadOnlyList<EditorMenuItemDescriptor> menuItems = scriptHotReloadService.GetAvailableEditorMenuItems();
+            for (int index = 0; index < menuItems.Count; index++) {
+                if (string.Equals(menuItems[index].MenuItemId, menuItemId, StringComparison.OrdinalIgnoreCase)) {
+                    return menuItems[index];
+                }
+            }
+
+            throw new InvalidOperationException($"Project menu item '{menuItemId}' is not available.");
         }
 
         /// <summary>

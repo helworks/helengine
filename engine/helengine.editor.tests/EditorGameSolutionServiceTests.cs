@@ -53,17 +53,19 @@ namespace helengine.editor.tests {
             Assert.Contains("<EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>", projectFileContents);
             Assert.Contains("<GenerateAssemblyInfo>false</GenerateAssemblyInfo>", projectFileContents);
             Assert.Contains("<GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>", projectFileContents);
-            Assert.Contains("<ImplicitUsings>disable</ImplicitUsings>", projectFileContents);
+            Assert.Contains("<ImplicitUsings>enable</ImplicitUsings>", projectFileContents);
             Assert.Contains("<AssemblyName>gameplay</AssemblyName>", projectFileContents);
             Assert.Contains("<RootNamespace>gameplay</RootNamespace>", projectFileContents);
             Assert.Contains("<BaseIntermediateOutputPath>" + EscapeXml(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "obj", "gameplay") + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>", projectFileContents);
-            Assert.Contains("<MSBuildProjectExtensionsPath>" + EscapeXml(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "obj", "gameplay") + Path.DirectorySeparatorChar) + "</MSBuildProjectExtensionsPath>", projectFileContents);
             Assert.Contains("<BaseOutputPath>" + EscapeXml(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "bin", "gameplay") + Path.DirectorySeparatorChar) + "</BaseOutputPath>", projectFileContents);
+            Assert.Contains("helengine.core", projectFileContents, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("<Compile Include=\"" + EscapeXml(Path.Combine(TempProjectRootPath, "assets", "**", "*.cs")) + "\" />", projectFileContents);
+            Assert.Contains("<Compile Include=\"" + EscapeXml(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay", "GlobalUsings.g.cs")) + "\" />", projectFileContents);
             Assert.Contains("gameplay", solutionFileContents);
             Assert.Contains("user_settings/generated_code/projects/gameplay/gameplay.csproj", solutionFileContents);
             Assert.Equal(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "bin", "gameplay", "Debug", "net9.0"), service.GeneratedOutputDirectoryPath);
             Assert.Equal(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "bin", "gameplay", "Debug", "net9.0", "gameplay.dll"), service.GeneratedOutputAssemblyPath);
+            Assert.Equal("global using helengine;" + Environment.NewLine, File.ReadAllText(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay", "GlobalUsings.g.cs")));
         }
 
         /// <summary>
@@ -147,6 +149,49 @@ namespace helengine.editor.tests {
             Assert.Contains("user_settings/generated_code/projects/gameplay/gameplay.csproj", File.ReadAllText(solutionPath), StringComparison.OrdinalIgnoreCase);
             Assert.Contains("user_settings/generated_code/projects/gameplay.ui/gameplay.ui.csproj", File.ReadAllText(solutionPath), StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("assets/SkyRider.csproj", File.ReadAllText(solutionPath), StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures editor modules generate dedicated projects that reference the editor assembly surface.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenEditorModuleExists_WritesEditorProjectWithEditorReference() {
+            File.Delete(Path.Combine(TempProjectRootPath, "assets", "Scripts", "Player.cs"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "gameplay"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "menu.tools"));
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "gameplay", "Player.cs"), "public sealed class Player { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "gameplay", "code.module.json"), """
+{
+  "moduleId": "gameplay",
+  "dependencyModuleIds": [],
+  "loadScopes": [ "always-loaded" ]
+}
+""");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "menu.tools", "code.module.json"), """
+{
+  "moduleId": "menu.tools",
+  "dependencyModuleIds": [ "gameplay" ],
+  "loadScopes": [ "always-loaded" ],
+  "moduleKind": "editor"
+}
+""");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "menu.tools", "RegenerateCommand.cs"), "public sealed class RegenerateCommand { }");
+
+            EditorGameSolutionService service = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+
+            service.GenerateSolutionFiles();
+
+            EditorGeneratedCodeModuleProject editorProject = Assert.Single(service.GeneratedModuleProjects, project => project.ModuleId == "menu.tools");
+            Assert.Equal(EditorCodeModuleKind.Editor, editorProject.ModuleKind);
+
+            string projectFilePath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "menu.tools", "menu.tools.csproj");
+            string projectFileContents = File.ReadAllText(projectFilePath);
+            string globalUsingsContents = File.ReadAllText(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "menu.tools", "GlobalUsings.g.cs"));
+            Assert.Contains("helengine.core", projectFileContents, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("helengine.editor", projectFileContents, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("..\\gameplay\\gameplay.csproj", projectFileContents, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("global using helengine;", globalUsingsContents, StringComparison.Ordinal);
+            Assert.Contains("global using helengine.editor;", globalUsingsContents, StringComparison.Ordinal);
         }
 
         /// <summary>

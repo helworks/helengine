@@ -34,6 +34,7 @@ namespace helengine.editor {
                 EditorCodeModuleManifestEntry module = manifestDocument.Modules[index];
                 string projectDirectoryPath = Path.Combine(fullProjectRootPath, "user_settings", "generated_code", "projects", module.ModuleId);
                 string projectFilePath = Path.Combine(projectDirectoryPath, module.ModuleId + ".csproj");
+                string generatedGlobalUsingsFilePath = Path.Combine(projectDirectoryPath, "GlobalUsings.g.cs");
                 string baseIntermediateOutputPath = Path.Combine(fullProjectRootPath, "user_settings", "generated_code", "obj", module.ModuleId);
                 string baseOutputPath = Path.Combine(fullProjectRootPath, "user_settings", "generated_code", "bin", module.ModuleId);
                 string outputDirectoryPath = Path.Combine(baseOutputPath, "Debug", TargetFrameworkValue);
@@ -41,12 +42,15 @@ namespace helengine.editor {
                 moduleProjects.Add(new EditorGeneratedCodeModuleProject(
                     module.ModuleId,
                     module.FolderPath,
+                    module.DependencyModuleIds,
                     module.NestedModuleFolderPaths,
                     projectFilePath,
+                    generatedGlobalUsingsFilePath,
                     baseIntermediateOutputPath,
                     baseOutputPath,
                     outputDirectoryPath,
-                    projectGuid));
+                    projectGuid,
+                    module.ModuleKind));
             }
 
             return new EditorGeneratedCodeSolution(moduleProjects);

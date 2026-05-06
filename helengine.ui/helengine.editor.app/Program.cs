@@ -14,6 +14,10 @@ namespace helengine.editor.app {
         /// <param name="args">Command-line arguments provided by the operating system shell.</param>
         [STAThread]
         static int Main(string[] args) {
+            if (TryRunEditorCommandMode(args, out int commandExitCode)) {
+                return commandExitCode;
+            }
+
             if (TryRunBuildMode(args, out int buildExitCode)) {
                 return buildExitCode;
             }
@@ -49,6 +53,42 @@ namespace helengine.editor.app {
                 IReadOnlyList<IAssetImporterRegistration> importers = EditorHostImporterFactory.CreateDefault();
                 FontAsset defaultFontAsset = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
                 EditorCliBuildRunner runner = new EditorCliBuildRunner(importers, defaultFontAsset);
+                EditorBuildExecutionResult result = runner.Run(options);
+                if (result.Succeeded) {
+                    Console.WriteLine(result.Message);
+                    exitCode = 0;
+                } else {
+                    Console.Error.WriteLine(result.Message);
+                    exitCode = 1;
+                }
+            } catch (Exception exception) {
+                Console.Error.WriteLine(exception.ToString());
+                exitCode = 1;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Runs one headless project-authored editor command when the requested arguments include `--editor-command`.
+        /// </summary>
+        /// <param name="args">Command-line arguments provided by the operating system shell.</param>
+        /// <param name="exitCode">Process exit code produced by the headless editor-command mode.</param>
+        /// <returns>True when the arguments requested headless editor-command mode.</returns>
+        static bool TryRunEditorCommandMode(string[] args, out int exitCode) {
+            exitCode = 0;
+            if (!EditorCliArgumentParser.IsEditorCommandModeRequested(args)) {
+                return false;
+            }
+
+            if (!EditorCliArgumentParser.TryParseEditorCommandOptions(args, out EditorCliCommandOptions options, out string errorMessage)) {
+                Console.Error.WriteLine(errorMessage);
+                exitCode = 1;
+                return true;
+            }
+
+            try {
+                EditorCliCommandRunner runner = new EditorCliCommandRunner();
                 EditorBuildExecutionResult result = runner.Run(options);
                 if (result.Succeeded) {
                     Console.WriteLine(result.Message);

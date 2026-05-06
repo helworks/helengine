@@ -23,6 +23,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Returns true when the supplied argument list requests headless editor-command mode.
+        /// </summary>
+        /// <param name="args">Command-line arguments supplied by the shell.</param>
+        /// <returns>True when editor-command mode was requested.</returns>
+        public static bool IsEditorCommandModeRequested(string[] args) {
+            if (args == null || args.Length == 0) {
+                return false;
+            }
+
+            for (int index = 0; index < args.Length; index++) {
+                if (IsSwitchMatch(args[index], "--editor-command")) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Attempts to parse one headless build invocation from the supplied arguments.
         /// </summary>
         /// <param name="args">Command-line arguments supplied by the shell.</param>
@@ -112,6 +131,75 @@ namespace helengine.editor {
             }
 
             options = new EditorCliBuildOptions(projectPath, platformId, outputDirectoryPath, useCommonOutputDirectory);
+            return true;
+        }
+
+        /// <summary>
+        /// Attempts to parse one headless editor-command invocation from the supplied arguments.
+        /// </summary>
+        /// <param name="args">Command-line arguments supplied by the shell.</param>
+        /// <param name="options">Parsed editor-command options when parsing succeeds.</param>
+        /// <param name="errorMessage">Human-readable parse error when parsing fails.</param>
+        /// <returns>True when the arguments form one valid headless editor-command invocation.</returns>
+        public static bool TryParseEditorCommandOptions(string[] args, out EditorCliCommandOptions options, out string errorMessage) {
+            options = null;
+            errorMessage = string.Empty;
+
+            if (args == null || args.Length == 0) {
+                errorMessage = "Editor command mode requires `--project` and `--editor-command` arguments.";
+                return false;
+            }
+
+            string projectPath = string.Empty;
+            string commandId = string.Empty;
+
+            for (int index = 0; index < args.Length; index++) {
+                string argument = args[index];
+                if (string.IsNullOrWhiteSpace(argument)) {
+                    continue;
+                }
+
+                if (TryReadInlineValue(argument, "--project", out string inlineProjectPath)) {
+                    projectPath = inlineProjectPath;
+                    continue;
+                }
+
+                if (TryReadInlineValue(argument, "--editor-command", out string inlineCommandId)) {
+                    commandId = inlineCommandId;
+                    continue;
+                }
+
+                if (IsSwitchMatch(argument, "--project")) {
+                    if (!TryReadFollowingValue(args, ref index, out projectPath, out errorMessage)) {
+                        return false;
+                    }
+                    continue;
+                }
+
+                if (IsSwitchMatch(argument, "--editor-command")) {
+                    if (!TryReadFollowingValue(args, ref index, out commandId, out errorMessage)) {
+                        return false;
+                    }
+                    continue;
+                }
+
+                if (argument.StartsWith("-", StringComparison.Ordinal)) {
+                    errorMessage = $"Unrecognized command-line argument '{argument}'.";
+                    return false;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(projectPath)) {
+                errorMessage = "Editor command mode requires a project path supplied through `--project`.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(commandId)) {
+                errorMessage = "Editor command mode requires a command id supplied through `--editor-command`.";
+                return false;
+            }
+
+            options = new EditorCliCommandOptions(projectPath, commandId);
             return true;
         }
 

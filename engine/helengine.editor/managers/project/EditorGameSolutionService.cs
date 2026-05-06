@@ -176,6 +176,7 @@ namespace helengine.editor {
                     Directory.CreateDirectory(projectDirectoryPath);
                 }
 
+                File.WriteAllText(moduleProject.GeneratedGlobalUsingsFilePath, BuildGlobalUsingsFileContents(moduleProject));
                 File.WriteAllText(moduleProject.ProjectFilePath, BuildProjectFileContents(moduleProject));
             }
 
@@ -217,14 +218,15 @@ namespace helengine.editor {
             builder.AppendLine("    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>");
             builder.AppendLine("    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>");
             builder.AppendLine("    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>");
-            builder.AppendLine("    <ImplicitUsings>disable</ImplicitUsings>");
             builder.AppendLine("    <BaseIntermediateOutputPath>" + EscapeXml(moduleProject.BaseIntermediateOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>");
-            builder.AppendLine("    <MSBuildProjectExtensionsPath>" + EscapeXml(moduleProject.BaseIntermediateOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</MSBuildProjectExtensionsPath>");
             builder.AppendLine("    <BaseOutputPath>" + EscapeXml(moduleProject.BaseOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseOutputPath>");
             builder.AppendLine("    <AssemblyName>" + EscapeXml(moduleProject.ModuleId) + "</AssemblyName>");
             builder.AppendLine("    <RootNamespace>" + EscapeXml(moduleProject.ModuleId) + "</RootNamespace>");
             builder.AppendLine("  </PropertyGroup>");
+            AppendProjectReferences(builder, moduleProject);
+            AppendAssemblyReferences(builder, moduleProject);
             builder.AppendLine("  <ItemGroup>");
+            builder.AppendLine("    <Compile Include=\"" + EscapeXml(moduleProject.GeneratedGlobalUsingsFilePath) + "\" />");
             builder.AppendLine("    <Compile Include=\"" + EscapeXml(Path.Combine(ResolveProjectPath(moduleProject.SourceFolderPath), "**", "*.cs")) + "\" />");
             for (int index = 0; index < moduleProject.NestedSourceFolderPaths.Count; index++) {
                 builder.AppendLine("    <Compile Remove=\"" + EscapeXml(Path.Combine(ResolveProjectPath(moduleProject.NestedSourceFolderPaths[index]), "**", "*.cs")) + "\" />");
@@ -275,6 +277,77 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds the generated global-usings file contents for one module project.
+        /// </summary>
+        /// <param name="moduleProject">Generated module project whose global-usings file should be emitted.</param>
+        /// <returns>Generated global-usings file contents.</returns>
+        string BuildGlobalUsingsFileContents(EditorGeneratedCodeModuleProject moduleProject) {
+            if (moduleProject == null) {
+                throw new ArgumentNullException(nameof(moduleProject));
+            }
+
+            StringBuilder builder = new StringBuilder();
+            builder.AppendLine("global using helengine;");
+            if (moduleProject.ModuleKind == EditorCodeModuleKind.Editor) {
+                builder.AppendLine("global using helengine.editor;");
+            }
+
+            return builder.ToString();
+        }
+
+        /// <summary>
+        /// Appends generated project references for one module's declared dependencies.
+        /// </summary>
+        /// <param name="builder">Project file string builder being populated.</param>
+        /// <param name="moduleProject">Generated module project whose dependencies should be emitted.</param>
+        void AppendProjectReferences(StringBuilder builder, EditorGeneratedCodeModuleProject moduleProject) {
+            if (builder == null) {
+                throw new ArgumentNullException(nameof(builder));
+            }
+            if (moduleProject == null) {
+                throw new ArgumentNullException(nameof(moduleProject));
+            }
+            if (moduleProject.DependencyModuleIds.Count == 0) {
+                return;
+            }
+
+            builder.AppendLine("  <ItemGroup>");
+            for (int index = 0; index < moduleProject.DependencyModuleIds.Count; index++) {
+                EditorGeneratedCodeModuleProject dependencyProject = FindGeneratedModuleProject(moduleProject.DependencyModuleIds[index]);
+                string relativeProjectPath = Path.GetRelativePath(
+                    Path.GetDirectoryName(moduleProject.ProjectFilePath) ?? ProjectRootPath,
+                    dependencyProject.ProjectFilePath);
+                builder.AppendLine("    <ProjectReference Include=\"" + EscapeXml(relativeProjectPath) + "\" />");
+            }
+            builder.AppendLine("  </ItemGroup>");
+        }
+
+        /// <summary>
+        /// Appends assembly references required by the generated project.
+        /// </summary>
+        /// <param name="builder">Project file string builder being populated.</param>
+        /// <param name="moduleProject">Generated module project whose references should be emitted.</param>
+        void AppendAssemblyReferences(StringBuilder builder, EditorGeneratedCodeModuleProject moduleProject) {
+            if (builder == null) {
+                throw new ArgumentNullException(nameof(builder));
+            }
+            if (moduleProject == null) {
+                throw new ArgumentNullException(nameof(moduleProject));
+            }
+
+            builder.AppendLine("  <ItemGroup>");
+            builder.AppendLine("    <Reference Include=\"helengine.core\">");
+            builder.AppendLine("      <HintPath>" + EscapeXml(typeof(Core).Assembly.Location) + "</HintPath>");
+            builder.AppendLine("    </Reference>");
+            if (moduleProject.ModuleKind == EditorCodeModuleKind.Editor) {
+            builder.AppendLine("    <Reference Include=\"helengine.editor\">");
+            builder.AppendLine("      <HintPath>" + EscapeXml(typeof(EditorGameSolutionService).Assembly.Location) + "</HintPath>");
+            builder.AppendLine("    </Reference>");
+            }
+            builder.AppendLine("  </ItemGroup>");
+        }
+
+        /// <summary>
         /// Deletes legacy output folders that may remain inside the assets project root from earlier layouts.
         /// </summary>
         void DeleteLegacyProjectFolders() {
@@ -309,6 +382,29 @@ namespace helengine.editor {
             }
 
             return GeneratedCodeSolutionValue.PrimaryModuleProject;
+        }
+
+        /// <summary>
+        /// Resolves one generated module project by stable module id.
+        /// </summary>
+        /// <param name="moduleId">Stable module id to resolve.</param>
+        /// <returns>Resolved generated module project.</returns>
+        EditorGeneratedCodeModuleProject FindGeneratedModuleProject(string moduleId) {
+            if (string.IsNullOrWhiteSpace(moduleId)) {
+                throw new ArgumentException("Module id must be provided.", nameof(moduleId));
+            }
+            if (GeneratedCodeSolutionValue == null) {
+                GeneratedCodeSolutionValue = BuildGeneratedCodeSolution();
+            }
+
+            for (int index = 0; index < GeneratedCodeSolutionValue.ModuleProjects.Count; index++) {
+                EditorGeneratedCodeModuleProject moduleProject = GeneratedCodeSolutionValue.ModuleProjects[index];
+                if (string.Equals(moduleProject.ModuleId, moduleId, StringComparison.OrdinalIgnoreCase)) {
+                    return moduleProject;
+                }
+            }
+
+            throw new InvalidOperationException($"Generated code project '{moduleId}' was not found.");
         }
 
         /// <summary>

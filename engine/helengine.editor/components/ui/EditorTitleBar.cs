@@ -179,6 +179,18 @@ namespace helengine.editor {
         /// </summary>
         readonly IReadOnlyList<ContextMenuItem> BuildMenuItems;
         /// <summary>
+        /// Contributed top-level project menus currently rendered in the title bar.
+        /// </summary>
+        readonly List<EditorTitleBarProjectMenuState> ProjectMenuStates;
+        /// <summary>
+        /// Current contributed project menu descriptors keyed by stable menu item identifier.
+        /// </summary>
+        readonly Dictionary<string, EditorMenuItemDescriptor> ProjectMenuItemsById;
+        /// <summary>
+        /// Current contributed project menu descriptors applied to the title bar.
+        /// </summary>
+        IReadOnlyList<EditorMenuItemDescriptor> ProjectMenuItems;
+        /// <summary>
         /// Entity that hosts the minimize control.
         /// </summary>
         readonly EditorEntity MinimizeButtonEntity;
@@ -365,6 +377,9 @@ namespace helengine.editor {
             BuildMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
             RootEntity.AddChild(BuildMenu.Entity);
             BuildMenuItems = BuildBuildMenuItems();
+            ProjectMenuStates = [];
+            ProjectMenuItemsById = new Dictionary<string, EditorMenuItemDescriptor>(StringComparer.OrdinalIgnoreCase);
+            ProjectMenuItems = Array.Empty<EditorMenuItemDescriptor>();
 
             MinimizeButtonEntity = CreateTitleBarButton("-", HandleMinimizeRequested, null, true, false, out int minimizeButtonWidth);
             MinimizeButtonWidth = minimizeButtonWidth;
@@ -424,6 +439,11 @@ namespace helengine.editor {
             UpdateTitleBarButtonChrome(FileMenuButtonEntity, FileMenuButtonWidth, true, false, font);
             UpdateTitleBarButtonChrome(AddMenuButtonEntity, AddMenuButtonWidth, true, true, font);
             UpdateTitleBarButtonChrome(BuildMenuButtonEntity, BuildMenuButtonWidth, false, true, font);
+            for (int index = 0; index < ProjectMenuStates.Count; index++) {
+                EditorTitleBarProjectMenuState projectMenuState = ProjectMenuStates[index];
+                projectMenuState.ButtonWidth = ComputeButtonWidth(projectMenuState.TopLevelMenuLabel);
+                UpdateTitleBarButtonChrome(projectMenuState.ButtonEntity, projectMenuState.ButtonWidth, false, true, font);
+            }
             UpdateTitleBarButtonChrome(MinimizeButtonEntity, MinimizeButtonWidth, true, false, font);
             UpdateTitleBarButtonChrome(MaximizeButtonEntity, MaximizeButtonWidth, true, false, font);
             UpdateTitleBarButtonChrome(CloseButtonEntity, CloseButtonWidth, true, false, font);
@@ -533,6 +553,10 @@ namespace helengine.editor {
         /// Raised when the user selects the Open in IDE command.
         /// </summary>
         public event Action OpenInIDERequested;
+        /// <summary>
+        /// Raised when one contributed project-authored menu item is activated.
+        /// </summary>
+        public event Action<string> ProjectMenuItemRequested;
 
         /// <summary>
         /// Updates button placement, menu clamping, and title sizing to fit the provided host size.
@@ -554,9 +578,16 @@ namespace helengine.editor {
             AddMenuButtonEntity.Position = new float3(addButtonX, ButtonTop, 0f);
             float buildButtonX = addButtonX + AddMenuButtonWidth + ButtonSpacing;
             BuildMenuButtonEntity.Position = new float3(buildButtonX, ButtonTop, 0f);
+            float lastMenuButtonRightEdge = buildButtonX + BuildMenuButtonWidth;
+            for (int index = 0; index < ProjectMenuStates.Count; index++) {
+                EditorTitleBarProjectMenuState projectMenuState = ProjectMenuStates[index];
+                float projectButtonX = lastMenuButtonRightEdge + ButtonSpacing;
+                projectMenuState.ButtonEntity.Position = new float3(projectButtonX, ButtonTop, 0f);
+                lastMenuButtonRightEdge = projectButtonX + projectMenuState.ButtonWidth;
+            }
 
             int totalControlsWidth = MinimizeButtonWidth + MaximizeButtonWidth + CloseButtonWidth + (ButtonSpacing * 2);
-            float titleX = buildButtonX + BuildMenuButtonWidth + ButtonSpacing + GetTitleSpacing();
+            float titleX = lastMenuButtonRightEdge + ButtonSpacing + GetTitleSpacing();
             float controlStartX = Math.Max(0, width - totalControlsWidth);
 
             TitleEntity.Position = new float3(titleX, GetTitleVerticalOffset(), 0f);
@@ -569,6 +600,28 @@ namespace helengine.editor {
             AddMenu.UpdateLayout(HostSize);
             LightMenu.UpdateLayout(HostSize);
             BuildMenu.UpdateLayout(HostSize);
+            for (int index = 0; index < ProjectMenuStates.Count; index++) {
+                ProjectMenuStates[index].Menu.UpdateLayout(HostSize);
+            }
+        }
+
+        /// <summary>
+        /// Applies one fresh contributed project-menu set, replacing any prior project-authored menu state.
+        /// </summary>
+        /// <param name="menuItems">Project-authored menu descriptors that should be rendered in the title bar.</param>
+        public void ApplyProjectMenus(IReadOnlyList<EditorMenuItemDescriptor> menuItems) {
+            ClearProjectMenus();
+            ProjectMenuItems = menuItems ?? Array.Empty<EditorMenuItemDescriptor>();
+            RebuildProjectMenus();
+            UpdateLayout(HostSize.X, HostSize.Y);
+        }
+
+        /// <summary>
+        /// Activates one contributed project menu item for test coverage without simulating pointer input.
+        /// </summary>
+        /// <param name="menuItemId">Stable contributed menu item identifier to activate.</param>
+        internal void ActivateProjectMenuItemForTest(string menuItemId) {
+            RaiseProjectMenuItemRequested(menuItemId);
         }
 
         /// <summary>
@@ -623,6 +676,130 @@ namespace helengine.editor {
                 new ContextMenuItem("Build Scripts...", RaiseBuildScriptsRequested),
                 new ContextMenuItem("Open in IDE...", RaiseOpenInIDERequested)
             };
+        }
+
+        /// <summary>
+        /// Rebuilds the currently applied contributed project menus from the current descriptor list.
+        /// </summary>
+        void RebuildProjectMenus() {
+            if (ProjectMenuItems.Count < 1) {
+                return;
+            }
+
+            byte menuBackgroundOrder = RenderOrder2D.OverlayBackground;
+            byte menuTextOrder = RenderOrder2D.OverlayForeground;
+            Dictionary<string, List<EditorMenuItemDescriptor>> itemsByTopLevelMenuId = new Dictionary<string, List<EditorMenuItemDescriptor>>(StringComparer.OrdinalIgnoreCase);
+            List<string> topLevelMenuIds = new List<string>();
+            for (int index = 0; index < ProjectMenuItems.Count; index++) {
+                EditorMenuItemDescriptor menuItem = ProjectMenuItems[index] ?? throw new InvalidOperationException("Project menu descriptors must not contain null entries.");
+                ProjectMenuItemsById.Add(menuItem.MenuItemId, menuItem);
+
+                if (!itemsByTopLevelMenuId.TryGetValue(menuItem.TopLevelMenuId, out List<EditorMenuItemDescriptor> topLevelItems)) {
+                    topLevelItems = new List<EditorMenuItemDescriptor>();
+                    itemsByTopLevelMenuId.Add(menuItem.TopLevelMenuId, topLevelItems);
+                    topLevelMenuIds.Add(menuItem.TopLevelMenuId);
+                }
+
+                topLevelItems.Add(menuItem);
+            }
+
+            for (int index = 0; index < topLevelMenuIds.Count; index++) {
+                string topLevelMenuId = topLevelMenuIds[index];
+                List<EditorMenuItemDescriptor> topLevelItems = itemsByTopLevelMenuId[topLevelMenuId];
+                EditorMenuItemDescriptor firstItem = topLevelItems[0];
+                EditorEntity buttonEntity = CreateTitleBarButton(
+                    firstItem.TopLevelMenuLabel,
+                    CreateProjectMenuToggleAction(firstItem.TopLevelMenuId),
+                    CreateProjectMenuHoverAction(firstItem.TopLevelMenuId),
+                    false,
+                    true,
+                    out int buttonWidth);
+                ContextMenu menu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+                RootEntity.AddChild(menu.Entity);
+                IReadOnlyList<ContextMenuItem> menuItems = BuildProjectMenuItems(topLevelItems);
+                ProjectMenuStates.Add(new EditorTitleBarProjectMenuState(
+                    firstItem.TopLevelMenuId,
+                    firstItem.TopLevelMenuLabel,
+                    firstItem.TopLevelMenuOrder,
+                    buttonEntity,
+                    buttonWidth,
+                    menu,
+                    menuItems));
+            }
+        }
+
+        /// <summary>
+        /// Builds one context-menu item list for the supplied contributed top-level menu descriptors.
+        /// </summary>
+        /// <param name="items">Contributed menu descriptors that belong to one top-level menu.</param>
+        /// <returns>Immutable contributed context-menu item list.</returns>
+        IReadOnlyList<ContextMenuItem> BuildProjectMenuItems(IReadOnlyList<EditorMenuItemDescriptor> items) {
+            if (items == null) {
+                throw new ArgumentNullException(nameof(items));
+            }
+
+            ContextMenuItem[] menuItems = new ContextMenuItem[items.Count];
+            for (int index = 0; index < items.Count; index++) {
+                EditorMenuItemDescriptor item = items[index] ?? throw new InvalidOperationException("Project menu descriptors must not contain null entries.");
+                menuItems[index] = new ContextMenuItem(item.MenuItemLabel, CreateProjectMenuItemAction(item.MenuItemId));
+            }
+
+            return menuItems;
+        }
+
+        /// <summary>
+        /// Clears every contributed project menu from the title bar before one fresh menu set is applied.
+        /// </summary>
+        void ClearProjectMenus() {
+            HideProjectMenus();
+
+            for (int index = 0; index < ProjectMenuStates.Count; index++) {
+                EditorTitleBarProjectMenuState projectMenuState = ProjectMenuStates[index];
+                RootEntity.RemoveChild(projectMenuState.Menu.Entity);
+                RootEntity.RemoveChild(projectMenuState.ButtonEntity);
+            }
+
+            ProjectMenuStates.Clear();
+            ProjectMenuItemsById.Clear();
+        }
+
+        /// <summary>
+        /// Creates one reusable click handler for the supplied contributed top-level menu identifier.
+        /// </summary>
+        /// <param name="topLevelMenuId">Stable contributed top-level menu identifier.</param>
+        /// <returns>Reusable click handler that toggles the matching contributed menu.</returns>
+        Action CreateProjectMenuToggleAction(string topLevelMenuId) {
+            if (string.IsNullOrWhiteSpace(topLevelMenuId)) {
+                throw new ArgumentException("Top-level menu id must be provided.", nameof(topLevelMenuId));
+            }
+
+            return () => ToggleProjectMenu(topLevelMenuId);
+        }
+
+        /// <summary>
+        /// Creates one reusable hover handler for the supplied contributed top-level menu identifier.
+        /// </summary>
+        /// <param name="topLevelMenuId">Stable contributed top-level menu identifier.</param>
+        /// <returns>Reusable hover handler that switches to the matching contributed menu.</returns>
+        Action CreateProjectMenuHoverAction(string topLevelMenuId) {
+            if (string.IsNullOrWhiteSpace(topLevelMenuId)) {
+                throw new ArgumentException("Top-level menu id must be provided.", nameof(topLevelMenuId));
+            }
+
+            return () => HandleProjectMenuButtonHovered(topLevelMenuId);
+        }
+
+        /// <summary>
+        /// Creates one reusable click handler for the supplied contributed menu item identifier.
+        /// </summary>
+        /// <param name="menuItemId">Stable contributed menu item identifier.</param>
+        /// <returns>Reusable click handler that raises the contributed menu activation event.</returns>
+        Action CreateProjectMenuItemAction(string menuItemId) {
+            if (string.IsNullOrWhiteSpace(menuItemId)) {
+                throw new ArgumentException("Menu item id must be provided.", nameof(menuItemId));
+            }
+
+            return () => RaiseProjectMenuItemRequested(menuItemId);
         }
 
         /// <summary>
@@ -883,7 +1060,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="controlStartX">Left edge of the window control cluster.</param>
         void UpdateDragRegion(float controlStartX) {
-            float dragRegionX = GetLeftIconSlotWidth() + FileMenuButtonWidth + ButtonSpacing + AddMenuButtonWidth + ButtonSpacing + BuildMenuButtonWidth + ButtonSpacing;
+            float dragRegionX = GetMenuStripRightEdge() + ButtonSpacing;
             int dragRegionWidth = Math.Max(0, (int)Math.Floor(controlStartX - dragRegionX - ButtonSpacing));
 
             DragRegionEntity.Position = new float3(dragRegionX, 0f, 0f);
@@ -913,6 +1090,7 @@ namespace helengine.editor {
             AddMenu.Hide();
             LightMenu.Hide();
             BuildMenu.Hide();
+            HideProjectMenus();
         }
 
         /// <summary>
@@ -955,7 +1133,7 @@ namespace helengine.editor {
         /// Switches to the File menu when hovering across an already active menu strip.
         /// </summary>
         void HandleFileMenuButtonHovered() {
-            if (!AddMenu.IsVisible && !BuildMenu.IsVisible) {
+            if (!IsAnyOtherTopLevelMenuVisible("file")) {
                 return;
             }
 
@@ -966,7 +1144,7 @@ namespace helengine.editor {
         /// Switches to the Add menu when hovering across an already active menu strip.
         /// </summary>
         void HandleAddMenuButtonHovered() {
-            if (!FileMenu.IsVisible && !BuildMenu.IsVisible) {
+            if (!IsAnyOtherTopLevelMenuVisible("add")) {
                 return;
             }
 
@@ -977,11 +1155,23 @@ namespace helengine.editor {
         /// Switches to the Build menu when hovering across an already active menu strip.
         /// </summary>
         void HandleBuildMenuButtonHovered() {
-            if (!FileMenu.IsVisible && !AddMenu.IsVisible) {
+            if (!IsAnyOtherTopLevelMenuVisible("build")) {
                 return;
             }
 
             ShowBuildMenu();
+        }
+
+        /// <summary>
+        /// Switches to one contributed menu when hovering across an already active menu strip.
+        /// </summary>
+        /// <param name="topLevelMenuId">Stable contributed top-level menu identifier.</param>
+        void HandleProjectMenuButtonHovered(string topLevelMenuId) {
+            if (!IsAnyOtherTopLevelMenuVisible(topLevelMenuId)) {
+                return;
+            }
+
+            ShowProjectMenu(topLevelMenuId);
         }
 
         /// <summary>
@@ -1006,6 +1196,30 @@ namespace helengine.editor {
         void ShowBuildMenu() {
             HideMenus();
             BuildMenu.Show(BuildMenuItems, GetBuildMenuPosition(), HostSize);
+        }
+
+        /// <summary>
+        /// Shows or hides one contributed menu anchored beneath its top-level button.
+        /// </summary>
+        /// <param name="topLevelMenuId">Stable contributed top-level menu identifier.</param>
+        void ToggleProjectMenu(string topLevelMenuId) {
+            EditorTitleBarProjectMenuState projectMenuState = GetProjectMenuState(topLevelMenuId);
+            if (projectMenuState.Menu.IsVisible) {
+                projectMenuState.Menu.Hide();
+                return;
+            }
+
+            ShowProjectMenu(topLevelMenuId);
+        }
+
+        /// <summary>
+        /// Shows one contributed top-level project menu and closes every other title-bar menu.
+        /// </summary>
+        /// <param name="topLevelMenuId">Stable contributed top-level menu identifier.</param>
+        void ShowProjectMenu(string topLevelMenuId) {
+            EditorTitleBarProjectMenuState projectMenuState = GetProjectMenuState(topLevelMenuId);
+            HideMenus();
+            projectMenuState.Menu.Show(projectMenuState.MenuItems, GetProjectMenuPosition(projectMenuState), HostSize);
         }
 
         /// <summary>
@@ -1062,6 +1276,20 @@ namespace helengine.editor {
         /// <returns>Menu position relative to the title bar root.</returns>
         int2 GetBuildMenuPosition() {
             int x = (int)Math.Round(BuildMenuButtonEntity.Position.X);
+            return new int2(x, Height);
+        }
+
+        /// <summary>
+        /// Computes the top-left position used to open one contributed top-level menu.
+        /// </summary>
+        /// <param name="projectMenuState">Contributed menu whose context menu should be positioned.</param>
+        /// <returns>Menu position relative to the title bar root.</returns>
+        int2 GetProjectMenuPosition(EditorTitleBarProjectMenuState projectMenuState) {
+            if (projectMenuState == null) {
+                throw new ArgumentNullException(nameof(projectMenuState));
+            }
+
+            int x = (int)Math.Round(projectMenuState.ButtonEntity.Position.X);
             return new int2(x, Height);
         }
 
@@ -1321,6 +1549,93 @@ namespace helengine.editor {
             if (OpenInIDERequested != null) {
                 OpenInIDERequested();
             }
+        }
+
+        /// <summary>
+        /// Raises one contributed project-menu activation event.
+        /// </summary>
+        /// <param name="menuItemId">Stable contributed menu item identifier.</param>
+        void RaiseProjectMenuItemRequested(string menuItemId) {
+            if (string.IsNullOrWhiteSpace(menuItemId)) {
+                throw new ArgumentException("Project menu item id must be provided.", nameof(menuItemId));
+            }
+            if (!ProjectMenuItemsById.ContainsKey(menuItemId)) {
+                throw new InvalidOperationException($"Project menu item '{menuItemId}' is not available.");
+            }
+
+            HideMenus();
+            if (ProjectMenuItemRequested != null) {
+                ProjectMenuItemRequested(menuItemId);
+            }
+        }
+
+        /// <summary>
+        /// Hides every contributed top-level project menu currently rendered by the title bar.
+        /// </summary>
+        void HideProjectMenus() {
+            for (int index = 0; index < ProjectMenuStates.Count; index++) {
+                ProjectMenuStates[index].Menu.Hide();
+            }
+        }
+
+        /// <summary>
+        /// Returns true when any top-level title-bar menu other than the supplied identifier is visible.
+        /// </summary>
+        /// <param name="excludedTopLevelMenuId">Stable top-level menu identifier that should be ignored.</param>
+        /// <returns>True when another top-level menu is visible; otherwise false.</returns>
+        bool IsAnyOtherTopLevelMenuVisible(string excludedTopLevelMenuId) {
+            if (!string.Equals(excludedTopLevelMenuId, "file", StringComparison.OrdinalIgnoreCase) && FileMenu.IsVisible) {
+                return true;
+            }
+            if (!string.Equals(excludedTopLevelMenuId, "add", StringComparison.OrdinalIgnoreCase) && AddMenu.IsVisible) {
+                return true;
+            }
+            if (!string.Equals(excludedTopLevelMenuId, "build", StringComparison.OrdinalIgnoreCase) && BuildMenu.IsVisible) {
+                return true;
+            }
+
+            for (int index = 0; index < ProjectMenuStates.Count; index++) {
+                EditorTitleBarProjectMenuState projectMenuState = ProjectMenuStates[index];
+                if (!string.Equals(projectMenuState.TopLevelMenuId, excludedTopLevelMenuId, StringComparison.OrdinalIgnoreCase)
+                    && projectMenuState.Menu.IsVisible) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Resolves one contributed top-level project menu state by its stable identifier.
+        /// </summary>
+        /// <param name="topLevelMenuId">Stable contributed top-level menu identifier.</param>
+        /// <returns>Resolved contributed top-level project menu state.</returns>
+        EditorTitleBarProjectMenuState GetProjectMenuState(string topLevelMenuId) {
+            if (string.IsNullOrWhiteSpace(topLevelMenuId)) {
+                throw new ArgumentException("Top-level menu id must be provided.", nameof(topLevelMenuId));
+            }
+
+            for (int index = 0; index < ProjectMenuStates.Count; index++) {
+                EditorTitleBarProjectMenuState projectMenuState = ProjectMenuStates[index];
+                if (string.Equals(projectMenuState.TopLevelMenuId, topLevelMenuId, StringComparison.OrdinalIgnoreCase)) {
+                    return projectMenuState;
+                }
+            }
+
+            throw new InvalidOperationException($"Project menu '{topLevelMenuId}' is not available.");
+        }
+
+        /// <summary>
+        /// Computes the current right edge of the top-level menu strip before the title region begins.
+        /// </summary>
+        /// <returns>Right edge of the rightmost top-level menu button in pixels.</returns>
+        float GetMenuStripRightEdge() {
+            if (ProjectMenuStates.Count > 0) {
+                EditorTitleBarProjectMenuState lastProjectMenuState = ProjectMenuStates[ProjectMenuStates.Count - 1];
+                return lastProjectMenuState.ButtonEntity.Position.X + lastProjectMenuState.ButtonWidth;
+            }
+
+            return AddMenuButtonEntity.Position.X + AddMenuButtonWidth + ButtonSpacing + BuildMenuButtonWidth;
         }
 
         /// <summary>

@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Builds the generated scripting solution and reloads the resulting game assembly.
     /// </summary>
-    public sealed class EditorGameScriptHotReloadService : IDisposable, IEditorScriptComponentCatalogProvider {
+    public sealed class EditorGameScriptHotReloadService : IDisposable, IEditorScriptComponentCatalogProvider, IEditorProjectCommandCatalogProvider, IEditorProjectMenuCatalogProvider {
         /// <summary>
         /// Generator used to rewrite the script solution before each build.
         /// </summary>
@@ -42,13 +42,14 @@ namespace helengine.editor {
                     return buildResult;
                 }
 
-                List<ScriptAssemblyDescriptor> assemblies = new List<ScriptAssemblyDescriptor>(GameSolutionService.GeneratedModuleProjects.Count);
+                List<EditorScriptAssemblyDescriptor> assemblies = new List<EditorScriptAssemblyDescriptor>(GameSolutionService.GeneratedModuleProjects.Count);
                 for (int index = 0; index < GameSolutionService.GeneratedModuleProjects.Count; index++) {
                     EditorGeneratedCodeModuleProject moduleProject = GameSolutionService.GeneratedModuleProjects[index];
-                    assemblies.Add(new ScriptAssemblyDescriptor(
+                    assemblies.Add(new EditorScriptAssemblyDescriptor(
                         moduleProject.ModuleId,
                         moduleProject.OutputDirectoryPath,
-                        Path.Combine(moduleProject.OutputDirectoryPath, moduleProject.ModuleId + ".dll")));
+                        Path.Combine(moduleProject.OutputDirectoryPath, moduleProject.ModuleId + ".dll"),
+                        moduleProject.ModuleKind));
                 }
 
                 AssemblyHost.Reload(assemblies);
@@ -67,12 +68,33 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Gets the current script type resolver backed by the loaded script assemblies.
+        /// </summary>
+        public IScriptTypeResolver ScriptTypeResolver => AssemblyHost.ScriptTypeResolver;
+
+        /// <summary>
         /// Returns the addable script components discovered from the current loaded assembly.
         /// </summary>
         /// <param name="entity">Entity that will receive one selected component.</param>
         /// <returns>Descriptors discovered from the current loaded assembly.</returns>
         public IReadOnlyList<EditorComponentAddDescriptor> GetAvailableScriptComponents(Entity entity) {
             return AssemblyHost.GetAvailableScriptComponents(entity);
+        }
+
+        /// <summary>
+        /// Returns the project-authored editor commands discovered from the current loaded editor assemblies.
+        /// </summary>
+        /// <returns>Discovered project-authored editor commands.</returns>
+        public IReadOnlyList<EditorProjectCommandDescriptor> GetAvailableEditorCommands() {
+            return AssemblyHost.GetAvailableEditorCommands();
+        }
+
+        /// <summary>
+        /// Returns the project-authored editor menu items discovered from the current loaded editor assemblies.
+        /// </summary>
+        /// <returns>Discovered project-authored editor menu item descriptors.</returns>
+        public IReadOnlyList<EditorMenuItemDescriptor> GetAvailableEditorMenuItems() {
+            return AssemblyHost.GetAvailableEditorMenuItems();
         }
     }
 }

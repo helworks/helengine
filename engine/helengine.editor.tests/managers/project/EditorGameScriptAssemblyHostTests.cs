@@ -58,6 +58,74 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures editor-only assemblies expose discovered editor commands while runtime assemblies do not.
+        /// </summary>
+        [Fact]
+        public void Reload_WhenEditorAssemblyContainsEditorCommand_ExposesItThroughCatalog() {
+            string gameplayAssemblyPath = WriteModuleAssembly("gameplay");
+            string editorAssemblyPath = WriteModuleAssembly("menu.tools");
+
+            using EditorGameScriptAssemblyHost host = new EditorGameScriptAssemblyHost(ProjectRootPath);
+            host.Reload([
+                CreateAssemblyDescriptor("gameplay", gameplayAssemblyPath, EditorCodeModuleKind.Runtime),
+                CreateAssemblyDescriptor("menu.tools", editorAssemblyPath, EditorCodeModuleKind.Editor)
+            ]);
+
+            IReadOnlyList<EditorProjectCommandDescriptor> commands = host.GetAvailableEditorCommands();
+            EditorProjectCommandDescriptor command = Assert.Single(
+                commands,
+                descriptor => string.Equals(descriptor.CommandId, "menu.regenerate-demo-disc-main-menu", StringComparison.Ordinal));
+            Assert.Equal("menu.regenerate-demo-disc-main-menu", command.CommandId);
+            Assert.Equal("Regenerate Demo Disc Main Menu", command.DisplayName);
+            Assert.Equal("menu.tools", command.ModuleId);
+        }
+
+        /// <summary>
+        /// Ensures editor-only assemblies expose discovered contributed menu items while runtime assemblies do not.
+        /// </summary>
+        [Fact]
+        public void Reload_WhenEditorAssemblyContainsMenuProvider_ExposesContributedMenuItems() {
+            string gameplayAssemblyPath = WriteModuleAssembly("gameplay");
+            string editorAssemblyPath = WriteModuleAssembly("menu.tools");
+
+            using EditorGameScriptAssemblyHost host = new EditorGameScriptAssemblyHost(ProjectRootPath);
+            host.Reload([
+                CreateAssemblyDescriptor("gameplay", gameplayAssemblyPath, EditorCodeModuleKind.Runtime),
+                CreateAssemblyDescriptor("menu.tools", editorAssemblyPath, EditorCodeModuleKind.Editor)
+            ]);
+
+            EditorMenuItemDescriptor menuItem = Assert.Single(
+                host.GetAvailableEditorMenuItems(),
+                descriptor => string.Equals(descriptor.MenuItemId, "demo.regenerate-main-menu", StringComparison.Ordinal));
+            Assert.Equal("demo", menuItem.TopLevelMenuId);
+            Assert.Equal("Demo", menuItem.TopLevelMenuLabel);
+            Assert.Equal("Regenerate Main Menu...", menuItem.MenuItemLabel);
+            Assert.Equal("menu.regenerate-demo-disc-main-menu", menuItem.CommandId);
+        }
+
+        /// <summary>
+        /// Ensures duplicate contributed menu item ids fail fast during reload-time catalog rebuild.
+        /// </summary>
+        [Fact]
+        public void Reload_WhenEditorAssemblyContainsDuplicateMenuItemIds_ThrowsInvalidOperationException() {
+            string gameplayAssemblyPath = WriteModuleAssembly("gameplay");
+            string editorAssemblyPath = WriteModuleAssembly("menu.tools");
+            Environment.SetEnvironmentVariable(DuplicateTestEditorMenuItemProvider.EnabledEnvironmentVariableName, "1");
+
+            try {
+                using EditorGameScriptAssemblyHost host = new EditorGameScriptAssemblyHost(ProjectRootPath);
+                host.Reload([
+                    CreateAssemblyDescriptor("gameplay", gameplayAssemblyPath, EditorCodeModuleKind.Runtime),
+                    CreateAssemblyDescriptor("menu.tools", editorAssemblyPath, EditorCodeModuleKind.Editor)
+                ]);
+                InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => host.GetAvailableEditorMenuItems());
+                Assert.Contains("demo.regenerate-main-menu", exception.Message, StringComparison.Ordinal);
+            } finally {
+                Environment.SetEnvironmentVariable(DuplicateTestEditorMenuItemProvider.EnabledEnvironmentVariableName, null);
+            }
+        }
+
+        /// <summary>
         /// Copies the current test assembly into one generated-module output directory and returns the copied path.
         /// </summary>
         /// <param name="moduleId">Module id that owns the copied assembly.</param>
@@ -90,8 +158,8 @@ namespace helengine.editor.tests.managers.project {
 
             using EditorGameScriptAssemblyHost host = new EditorGameScriptAssemblyHost(ProjectRootPath);
             host.Reload([
-                new ScriptAssemblyDescriptor("gameplay", Path.GetDirectoryName(gameplayAssemblyPath), gameplayAssemblyPath),
-                new ScriptAssemblyDescriptor("gameplay.ui", Path.GetDirectoryName(gameplayUiAssemblyPath), gameplayUiAssemblyPath)
+                CreateAssemblyDescriptor("gameplay", gameplayAssemblyPath, EditorCodeModuleKind.Runtime),
+                CreateAssemblyDescriptor("gameplay.ui", gameplayUiAssemblyPath, EditorCodeModuleKind.Runtime)
             ]);
 
             return [
@@ -116,6 +184,25 @@ namespace helengine.editor.tests.managers.project {
 
             Type type = scriptTypeResolver.Resolve(assemblyQualifiedTypeName);
             return type.FullName;
+        }
+
+        /// <summary>
+        /// Builds one editor-owned assembly descriptor from the supplied module metadata.
+        /// </summary>
+        /// <param name="moduleId">Stable authored module identifier.</param>
+        /// <param name="assemblyPath">Absolute path to the built module assembly.</param>
+        /// <param name="moduleKind">Declares whether the module is runtime or editor-only.</param>
+        /// <returns>Editor-owned descriptor used by the script assembly host.</returns>
+        EditorScriptAssemblyDescriptor CreateAssemblyDescriptor(string moduleId, string assemblyPath, EditorCodeModuleKind moduleKind) {
+            if (string.IsNullOrWhiteSpace(moduleId)) {
+                throw new ArgumentException("Module id must be provided.", nameof(moduleId));
+            }
+            if (string.IsNullOrWhiteSpace(assemblyPath)) {
+                throw new ArgumentException("Assembly path must be provided.", nameof(assemblyPath));
+            }
+
+            string outputDirectoryPath = Path.GetDirectoryName(assemblyPath) ?? string.Empty;
+            return new EditorScriptAssemblyDescriptor(moduleId, outputDirectoryPath, assemblyPath, moduleKind);
         }
     }
 }

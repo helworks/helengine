@@ -136,7 +136,8 @@ namespace helengine.editor {
             if (selectedModuleIdSet.Count > 0) {
                 List<string> missingSelectedModuleIds = [];
                 foreach (string selectedModuleId in selectedModuleIdSet) {
-                    if (!modulesById.ContainsKey(selectedModuleId)) {
+                    if (!modulesById.TryGetValue(selectedModuleId, out EditorCodeModuleManifestEntry selectedModule)
+                        || selectedModule.ModuleKind != EditorCodeModuleKind.Runtime) {
                         missingSelectedModuleIds.Add(selectedModuleId);
                     }
                 }
@@ -147,9 +148,10 @@ namespace helengine.editor {
                 }
             }
 
-            IEnumerable<EditorCodeModuleManifestEntry> rootModules = manifestDocument.Modules;
+            IEnumerable<EditorCodeModuleManifestEntry> runtimeModules = manifestDocument.Modules.Where(module => module.ModuleKind == EditorCodeModuleKind.Runtime);
+            IEnumerable<EditorCodeModuleManifestEntry> rootModules = runtimeModules;
             if (selectedModuleIdSet.Count > 0) {
-                rootModules = manifestDocument.Modules.Where(module => selectedModuleIdSet.Contains(module.ModuleId));
+                rootModules = runtimeModules.Where(module => selectedModuleIdSet.Contains(module.ModuleId));
             }
 
             foreach (EditorCodeModuleManifestEntry moduleEntry in rootModules) {
@@ -219,7 +221,6 @@ namespace helengine.editor {
             projectBuilder.AppendLine("    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>");
             projectBuilder.AppendLine("    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>");
             projectBuilder.AppendLine($"    <BaseIntermediateOutputPath>{EscapeXml(intermediateRootPath)}{Path.DirectorySeparatorChar}</BaseIntermediateOutputPath>");
-            projectBuilder.AppendLine($"    <MSBuildProjectExtensionsPath>{EscapeXml(intermediateRootPath)}{Path.DirectorySeparatorChar}</MSBuildProjectExtensionsPath>");
             projectBuilder.AppendLine("  </PropertyGroup>");
             projectBuilder.AppendLine("  <ItemGroup>");
 
