@@ -73,10 +73,37 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures suppressed authored scene cameras preserve their authored viewport dimensions when previewed.
+        /// </summary>
+        [Fact]
+        public void Resize_WhenSuppressedSceneCameraUsesAuthoredViewport_PreservesAuthoredViewportDimensions() {
+            EditorEntity cameraEntity = CreateCameraEntity(new float4(0f, 0f, 1280f, 720f));
+            CameraComponent liveCamera = Assert.IsType<CameraComponent>(Assert.Single(cameraEntity.Components, component => component is CameraComponent));
+            EditorSceneCameraSuppressionService.AttachAndSuppress(cameraEntity);
+
+            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, Core.Instance.RenderManager3D);
+            source.Resize(new int2(320, 180));
+
+            TestRenderTarget resizedRenderTarget = Assert.IsType<TestRenderTarget>(source.RenderTarget);
+            Assert.Equal(1280, resizedRenderTarget.Width);
+            Assert.Equal(720, resizedRenderTarget.Height);
+            Assert.Equal(new float4(0f, 0f, 1280f, 720f), source.PreviewCamera.Viewport);
+        }
+
+        /// <summary>
         /// Creates one editor entity with a live camera that can be converted into a preview source.
         /// </summary>
         /// <returns>Editor entity with one camera component.</returns>
         EditorEntity CreateCameraEntity() {
+            return CreateCameraEntity(new float4(0f, 0f, 128f, 72f));
+        }
+
+        /// <summary>
+        /// Creates one editor entity with a live camera that can be converted into a preview source.
+        /// </summary>
+        /// <param name="viewport">Viewport assigned to the created camera.</param>
+        /// <returns>Editor entity with one camera component.</returns>
+        EditorEntity CreateCameraEntity(float4 viewport) {
             EditorEntity cameraEntity = new EditorEntity();
             cameraEntity.Position = new float3(3f, 4f, -9f);
             float4 orientation;
@@ -86,7 +113,7 @@ namespace helengine.editor.tests {
             CameraComponent camera = new CameraComponent {
                 CameraDrawOrder = 7,
                 LayerMask = EditorLayerMasks.SceneObjects,
-                Viewport = new float4(0f, 0f, 128f, 72f),
+                Viewport = viewport,
                 ClearSettings = new CameraClearSettings(true, new float4(0.2f, 0.3f, 0.4f, 1f), true, 1f, false, 0)
             };
             cameraEntity.AddComponent(camera);

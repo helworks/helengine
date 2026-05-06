@@ -110,19 +110,19 @@ namespace helengine.editor {
                 return;
             }
 
-            int targetWidth = Math.Max(1, contentSize.X);
-            int targetHeight = Math.Max(1, contentSize.Y);
+            this.contentSize = new int2(Math.Max(1, contentSize.X), Math.Max(1, contentSize.Y));
+            int2 previewTargetSize = ResolvePreviewTargetSize();
+            int targetWidth = previewTargetSize.X;
+            int targetHeight = previewTargetSize.Y;
             if (renderTarget != null && renderTarget.Width == targetWidth && renderTarget.Height == targetHeight) {
-                this.contentSize = new int2(targetWidth, targetHeight);
-                previewCameraComponent.Viewport = new float4(0f, 0f, targetWidth, targetHeight);
+                previewCameraComponent.Viewport = BuildPreviewViewport();
                 return;
             }
 
             DisposeRenderTarget();
             renderTarget = renderManager3D.CreateRenderTarget(targetWidth, targetHeight);
             previewCameraComponent.RenderTarget = renderTarget;
-            previewCameraComponent.Viewport = new float4(0f, 0f, targetWidth, targetHeight);
-            this.contentSize = new int2(targetWidth, targetHeight);
+            previewCameraComponent.Viewport = BuildPreviewViewport();
             ApplyMirroredState();
         }
 
@@ -148,20 +148,24 @@ namespace helengine.editor {
             byte cameraDrawOrder;
             ushort layerMask;
             CameraClearSettings clearSettings;
+            CameraRenderSettings renderSettings;
             if (suppressionState != null) {
                 cameraDrawOrder = suppressionState.CameraDrawOrder;
                 layerMask = suppressionState.LayerMask;
                 clearSettings = suppressionState.ClearSettings;
+                renderSettings = suppressionState.RenderSettings;
             } else {
                 cameraDrawOrder = sourceCameraComponent.CameraDrawOrder;
                 layerMask = sourceCameraComponent.LayerMask;
                 clearSettings = sourceCameraComponent.ClearSettings;
+                renderSettings = sourceCameraComponent.RenderSettings;
             }
 
             previewCameraComponent.CameraDrawOrder = cameraDrawOrder;
             previewCameraComponent.LayerMask = layerMask;
             previewCameraComponent.ClearSettings = clearSettings;
-            previewCameraComponent.Viewport = new float4(0f, 0f, Math.Max(1, contentSize.X), Math.Max(1, contentSize.Y));
+            previewCameraComponent.RenderSettings = new CameraRenderSettings(renderSettings);
+            previewCameraComponent.Viewport = BuildPreviewViewport();
         }
 
         /// <summary>
@@ -174,6 +178,29 @@ namespace helengine.editor {
 
             previewCameraComponent.RenderTarget = null;
             renderTarget = null;
+        }
+
+        /// <summary>
+        /// Builds the preview viewport used to preserve authored scene-camera dimensions when suppression metadata exists.
+        /// </summary>
+        /// <returns>Viewport applied to the preview camera.</returns>
+        float4 BuildPreviewViewport() {
+            int2 previewSize = ResolvePreviewTargetSize();
+            return new float4(0f, 0f, previewSize.X, previewSize.Y);
+        }
+
+        /// <summary>
+        /// Resolves the render-target size used by the preview source.
+        /// </summary>
+        /// <returns>Render-target size that should be allocated for the preview camera.</returns>
+        int2 ResolvePreviewTargetSize() {
+            if (suppressionState != null) {
+                return new int2(
+                    Math.Max(1, (int)Math.Round(suppressionState.Viewport.Z)),
+                    Math.Max(1, (int)Math.Round(suppressionState.Viewport.W)));
+            }
+
+            return new int2(Math.Max(1, contentSize.X), Math.Max(1, contentSize.Y));
         }
     }
 }

@@ -349,6 +349,44 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies the build runner can summarize detected runtime features from the generated conversion report.
+    /// </summary>
+    [Fact]
+    public void BuildDetectedFeatureSummary_when_conversion_report_exists_lists_enabled_and_disabled_features() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(rootPath);
+
+        try {
+            File.WriteAllText(
+                Path.Combine(rootPath, "cpp-conversion-report.json"),
+                "{\n"
+                + "  \"buildFeatures\": {\n"
+                + "    \"decisions\": [\n"
+                + "      { \"feature\": \"DebugOverlay\", \"enabled\": false, \"origin\": \"NotIncluded\" },\n"
+                + "      { \"feature\": \"Render2D\", \"enabled\": true, \"origin\": \"AutoDetected\" },\n"
+                + "      { \"feature\": \"Text2D\", \"enabled\": true, \"origin\": \"AutoDetected\" }\n"
+                + "    ]\n"
+                + "  }\n"
+                + "}\n");
+
+            MethodInfo summaryMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "BuildDetectedFeatureSummary",
+                BindingFlags.Static | BindingFlags.NonPublic);
+
+            Assert.NotNull(summaryMethod);
+
+            string summary = (string)summaryMethod.Invoke(null, [rootPath]);
+
+            Assert.Contains("Enabled runtime features: Render2D (AutoDetected), Text2D (AutoDetected).", summary);
+            Assert.Contains("Disabled runtime features: DebugOverlay (NotIncluded).", summary);
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Verifies source-scene 3D physics feature symbols are forwarded into generated-core regeneration.
     /// </summary>
     [Fact]

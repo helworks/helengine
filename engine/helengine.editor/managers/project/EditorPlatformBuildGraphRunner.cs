@@ -8,6 +8,8 @@ using helengine.baseplatform.Requests;
 using helengine.baseplatform.Targets;
 using helengine.files;
 using helengine.platforms;
+using System.Text;
+using System.Text.Json;
 
 namespace helengine.editor {
     /// <summary>
@@ -476,6 +478,7 @@ namespace helengine.editor {
                 selectedStorageProfileId);
             EditorPlatformBuildProgressReporter progressReporter = new();
             EditorPlatformBuildDiagnosticCollector diagnosticCollector = new();
+            string detectedFeatureSummary = BuildDetectedFeatureSummary(workspace.GeneratedCoreRootPath);
 
             string previousWorkingDirectory = Directory.GetCurrentDirectory();
             string previousPs2RepositoryRootPath = Environment.GetEnvironmentVariable(Ps2RepositoryRootEnvironmentVariableName) ?? string.Empty;
@@ -484,10 +487,13 @@ namespace helengine.editor {
                 ApplyBuilderEnvironmentOverrides();
                 PlatformBuildReport report = builder.BuildAsync(request, progressReporter, diagnosticCollector, CancellationToken.None).GetAwaiter().GetResult();
                 if (!report.Succeeded) {
-                    return EditorBuildExecutionResult.Failure(BuildFailureMessage(report));
+                    return EditorBuildExecutionResult.Failure(AppendFeatureSummary(BuildFailureMessage(report), detectedFeatureSummary));
                 }
 
-                return EditorBuildExecutionResult.Success($"Build completed for platform '{PlatformDescriptor.Id}': {queueItem.OutputDirectoryPath}");
+                return EditorBuildExecutionResult.Success(
+                    AppendFeatureSummary(
+                        $"Build completed for platform '{PlatformDescriptor.Id}': {queueItem.OutputDirectoryPath}",
+                        detectedFeatureSummary));
             } finally {
                 RestoreBuilderEnvironmentOverrides(previousPs2RepositoryRootPath);
                 Directory.SetCurrentDirectory(previousWorkingDirectory);
@@ -651,6 +657,107 @@ namespace helengine.editor {
             }
 
             return "Build failed.";
+        }
+
+        /// <summary>
+        /// Builds one human-readable runtime feature summary from the generated conversion report when it is available.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute generated-core root path that may contain the conversion report.</param>
+        /// <returns>Human-readable feature summary, or an empty string when no report is available.</returns>
+        static string BuildDetectedFeatureSummary(string generatedCoreRootPath) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                return string.Empty;
+            }
+
+            string reportPath = Path.Combine(generatedCoreRootPath, "cpp-conversion-report.json");
+            if (!File.Exists(reportPath)) {
+                return string.Empty;
+            }
+
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(reportPath));
+            if (!document.RootElement.TryGetProperty("buildFeatures", out JsonElement buildFeatures)
+                || !buildFeatures.TryGetProperty("decisions", out JsonElement decisions)
+                || decisions.ValueKind != JsonValueKind.Array) {
+                return string.Empty;
+            }
+
+            List<string> enabledFeatures = [];
+            List<string> disabledFeatures = [];
+            foreach (JsonElement decision in decisions.EnumerateArray()) {
+                if (!TryReadFeatureDecision(decision, out string featureName, out bool enabled, out string origin)) {
+                    continue;
+                }
+
+                string description = $"{featureName} ({origin})";
+                if (enabled) {
+                    enabledFeatures.Add(description);
+                } else {
+                    disabledFeatures.Add(description);
+                }
+            }
+
+            if (enabledFeatures.Count == 0 && disabledFeatures.Count == 0) {
+                return string.Empty;
+            }
+
+            StringBuilder summaryBuilder = new();
+            if (enabledFeatures.Count > 0) {
+                summaryBuilder.Append("Enabled runtime features: ");
+                summaryBuilder.Append(string.Join(", ", enabledFeatures));
+                summaryBuilder.Append('.');
+            }
+
+            if (disabledFeatures.Count > 0) {
+                if (summaryBuilder.Length > 0) {
+                    summaryBuilder.Append(' ');
+                }
+
+                summaryBuilder.Append("Disabled runtime features: ");
+                summaryBuilder.Append(string.Join(", ", disabledFeatures));
+                summaryBuilder.Append('.');
+            }
+
+            return summaryBuilder.ToString();
+        }
+
+        /// <summary>
+        /// Attempts to read one build-feature decision from the generated conversion report.
+        /// </summary>
+        /// <param name="decision">JSON element that may describe one feature decision.</param>
+        /// <param name="featureName">Resolved feature name when present.</param>
+        /// <param name="enabled">Resolved enabled state when present.</param>
+        /// <param name="origin">Resolved decision origin when present.</param>
+        /// <returns>True when the decision payload is complete and valid.</returns>
+        static bool TryReadFeatureDecision(JsonElement decision, out string featureName, out bool enabled, out string origin) {
+            featureName = string.Empty;
+            enabled = false;
+            origin = string.Empty;
+
+            if (!decision.TryGetProperty("feature", out JsonElement featureElement)
+                || !decision.TryGetProperty("enabled", out JsonElement enabledElement)
+                || !decision.TryGetProperty("origin", out JsonElement originElement)
+                || (enabledElement.ValueKind != JsonValueKind.False && enabledElement.ValueKind != JsonValueKind.True)) {
+                return false;
+            }
+
+            featureName = featureElement.GetString() ?? string.Empty;
+            origin = originElement.GetString() ?? string.Empty;
+            enabled = enabledElement.GetBoolean();
+            return !string.IsNullOrWhiteSpace(featureName) && !string.IsNullOrWhiteSpace(origin);
+        }
+
+        /// <summary>
+        /// Appends one optional feature summary beneath an existing build result message.
+        /// </summary>
+        /// <param name="message">Primary build result message.</param>
+        /// <param name="featureSummary">Optional feature summary.</param>
+        /// <returns>Combined build result message.</returns>
+        static string AppendFeatureSummary(string message, string featureSummary) {
+            if (string.IsNullOrWhiteSpace(featureSummary)) {
+                return message;
+            }
+
+            return message + Environment.NewLine + featureSummary;
         }
 
         static string NormalizeRelativePath(string relativePath) {
