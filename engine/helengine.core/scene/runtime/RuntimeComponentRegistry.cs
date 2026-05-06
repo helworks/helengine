@@ -29,10 +29,10 @@ namespace helengine {
             registry.Register(new RuntimeDirectionalLightComponentDeserializer());
             registry.Register(new RuntimePointLightComponentDeserializer());
             registry.Register(new RuntimeSpotLightComponentDeserializer());
-            registry.Register(new RuntimeDemoMenuBuildComponentDeserializer());
-            registry.Register(new RuntimeDemoMenuPanelComponentDeserializer());
-            registry.Register(new RuntimeDemoMenuItemComponentDeserializer());
-            registry.Register(new RuntimeDemoMenuSelectedDescriptionComponentDeserializer());
+            registry.Register(new RuntimeMenuComponentDeserializer());
+            registry.Register(new RuntimeMenuPanelComponentDeserializer());
+            registry.Register(new RuntimeMenuItemComponentDeserializer());
+            registry.Register(new RuntimeMenuSelectedDescriptionComponentDeserializer());
             return registry;
         }
 
@@ -80,7 +80,7 @@ namespace helengine {
             }
 
             if (!DeserializersByTypeId.TryGetValue(componentTypeId, out IRuntimeComponentDeserializer deserializer)) {
-                deserializer = TryCreateAutomaticScriptComponentDeserializer(componentTypeId);
+                deserializer = TryCreateAutomaticComponentDeserializer(componentTypeId);
                 if (deserializer == null) {
                     throw new InvalidOperationException($"Player builds do not support serialized component type '{componentTypeId}' yet.");
                 }
@@ -92,11 +92,11 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Creates one automatic scripted runtime deserializer when the serialized type id resolves to an eligible scripted component type.
+        /// Creates one automatic reflected runtime deserializer when the serialized type id resolves to an eligible component type.
         /// </summary>
         /// <param name="componentTypeId">Serialized component type id to inspect.</param>
-        /// <returns>Automatic scripted runtime deserializer when the type id is eligible; otherwise null.</returns>
-        IRuntimeComponentDeserializer TryCreateAutomaticScriptComponentDeserializer(string componentTypeId) {
+        /// <returns>Automatic reflected runtime deserializer when the type id is eligible; otherwise null.</returns>
+        IRuntimeComponentDeserializer TryCreateAutomaticComponentDeserializer(string componentTypeId) {
             if (string.IsNullOrWhiteSpace(componentTypeId)) {
                 return null;
             }
@@ -106,9 +106,6 @@ namespace helengine {
                 return null;
             }
             if (!typeof(Component).IsAssignableFrom(componentType)) {
-                return null;
-            }
-            if (componentType.Assembly == typeof(Component).Assembly) {
                 return null;
             }
 

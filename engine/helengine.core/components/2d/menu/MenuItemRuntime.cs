@@ -1,8 +1,8 @@
 namespace helengine {
     /// <summary>
-    /// Stores the live scene references associated with one baked demo menu item.
+    /// Stores the live scene references associated with one baked menu item.
     /// </summary>
-    internal sealed class DemoMenuItemRuntime {
+    internal sealed class MenuItemRuntime {
         /// <summary>
         /// Initializes one baked menu item runtime record.
         /// </summary>
@@ -10,8 +10,8 @@ namespace helengine {
         /// <param name="index">Enabled-item index inside the owning panel.</param>
         /// <param name="entity">Owning row entity.</param>
         /// <param name="background">Rounded rectangle used for selection visuals.</param>
-        public DemoMenuItemRuntime(
-            DemoMenuItemComponent definition,
+        public MenuItemRuntime(
+            MenuItemComponent definition,
             int index,
             Entity entity,
             RoundedRectComponent background) {
@@ -24,7 +24,7 @@ namespace helengine {
         /// <summary>
         /// Gets the serialized metadata component for the item.
         /// </summary>
-        public DemoMenuItemComponent Definition { get; }
+        public MenuItemComponent Definition { get; }
 
         /// <summary>
         /// Gets the enabled-item index inside the owning panel.

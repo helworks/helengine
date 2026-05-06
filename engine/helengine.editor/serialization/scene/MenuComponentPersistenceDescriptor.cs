@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Persists the baked demo menu root metadata stored on one scene entity inside tolerant editor scene payloads.
     /// </summary>
-    public class DemoMenuBuildComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
+    public class MenuComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
         /// <summary>
         /// Stable tagged field name used for menu provider-type persistence.
         /// </summary>
@@ -16,24 +16,24 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the concrete runtime component type handled by the descriptor.
         /// </summary>
-        public Type ComponentType => typeof(DemoMenuBuildComponent);
+        public Type ComponentType => typeof(MenuComponent);
 
         /// <summary>
         /// Gets the stable serialized type identifier written into scene files.
         /// </summary>
-        public string ComponentTypeId => DemoMenuBuildComponent.SerializedComponentTypeId;
+        public string ComponentTypeId => MenuComponent.SerializedComponentTypeId;
 
         /// <summary>
         /// Serializes one live baked demo menu root component into a scene component record.
         /// </summary>
         public SceneComponentAssetRecord SerializeComponent(Component component, int componentIndex, EntityComponentSaveState saveState) {
-            if (component is not DemoMenuBuildComponent demoMenuBuildComponent) {
-                throw new InvalidOperationException("Demo menu build descriptor received an unsupported component type.");
+            if (component is not MenuComponent menuComponent) {
+                throw new InvalidOperationException("Menu descriptor received an unsupported component type.");
             }
 
             EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
-            writer.WriteField(ProviderTypeNameFieldName, fieldWriter => fieldWriter.WriteString(demoMenuBuildComponent.ProviderTypeName));
-            writer.WriteField(InitialPanelIdFieldName, fieldWriter => fieldWriter.WriteString(demoMenuBuildComponent.InitialPanelId));
+            writer.WriteField(ProviderTypeNameFieldName, fieldWriter => fieldWriter.WriteString(menuComponent.ProviderTypeName));
+            writer.WriteField(InitialPanelIdFieldName, fieldWriter => fieldWriter.WriteString(menuComponent.InitialPanelId));
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = ComponentTypeId,
@@ -50,7 +50,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Demo menu build descriptor cannot deserialize '{record.ComponentTypeId}'.");
             }
 
-            DemoMenuBuildComponent component = new DemoMenuBuildComponent();
+            MenuComponent component = new MenuComponent();
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
             if (reader.TryGetFieldReader(ProviderTypeNameFieldName, out EngineBinaryReader providerTypeNameReader)) {
                 using (providerTypeNameReader) {

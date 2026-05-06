@@ -39,15 +39,31 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures unsupported component types fail with a clear error instead of being silently ignored.
+        /// Ensures eligible built-in engine components without explicit descriptors also resolve through the automatic reflected fallback.
+        /// </summary>
+        [Fact]
+        public void GetDescriptor_WhenEngineComponentHasNoExplicitDescriptor_ReturnsAutomaticFallback() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            LineRendererComponent component = new LineRendererComponent();
+
+            IComponentPersistenceDescriptor descriptorByComponent = registry.GetDescriptor(component);
+            IComponentPersistenceDescriptor descriptorByTypeId = registry.GetDescriptor(
+                AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(LineRendererComponent)));
+
+            Assert.IsType<AutomaticScriptComponentPersistenceDescriptor>(descriptorByComponent);
+            Assert.Same(descriptorByComponent, descriptorByTypeId);
+        }
+
+        /// <summary>
+        /// Ensures unresolved serialized component type ids fail with a clear error instead of being silently ignored.
         /// </summary>
         [Fact]
         public void GetDescriptor_WhenComponentTypeIsUnsupported_ThrowsClearError() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => registry.GetDescriptor(new AnchorComponent()));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => registry.GetDescriptor("helengine.MissingComponent"));
 
-            Assert.Contains(nameof(AnchorComponent), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("helengine.MissingComponent", exception.Message, StringComparison.Ordinal);
         }
     }
 }

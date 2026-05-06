@@ -19,7 +19,7 @@ namespace helengine.editor {
         readonly IScriptTypeResolver ScriptTypeResolver;
 
         /// <summary>
-        /// Automatic reflected fallback used for eligible scripted components without explicit descriptors.
+        /// Automatic reflected fallback used for eligible components without explicit descriptors.
         /// </summary>
         readonly AutomaticScriptComponentPersistenceDescriptor AutomaticDescriptor;
 
@@ -71,7 +71,7 @@ namespace helengine.editor {
 
             Type componentType = component.GetType();
             if (!DescriptorsByComponentType.TryGetValue(componentType, out IComponentPersistenceDescriptor descriptor)) {
-                if (IsEligibleScriptComponentType(componentType)) {
+                if (IsEligibleAutomaticComponentType(componentType)) {
                     return AutomaticDescriptor;
                 }
 
@@ -93,7 +93,7 @@ namespace helengine.editor {
 
             if (!DescriptorsByTypeId.TryGetValue(componentTypeId, out IComponentPersistenceDescriptor descriptor)) {
                 Type componentType = ResolveComponentType(componentTypeId);
-                if (IsEligibleScriptComponentType(componentType)) {
+                if (IsEligibleAutomaticComponentType(componentType)) {
                     return AutomaticDescriptor;
                 }
 
@@ -104,19 +104,16 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns whether one component type is eligible for automatic reflected script-component persistence.
+        /// Returns whether one component type is eligible for automatic reflected persistence.
         /// </summary>
         /// <param name="componentType">Component type to inspect.</param>
-        /// <returns>True when the type is a non-engine scripted component.</returns>
-        bool IsEligibleScriptComponentType(Type componentType) {
+        /// <returns>True when the type can use the automatic reflected persistence fallback.</returns>
+        bool IsEligibleAutomaticComponentType(Type componentType) {
             if (componentType == null) {
                 return false;
             }
-            if (!typeof(Component).IsAssignableFrom(componentType)) {
-                return false;
-            }
 
-            return componentType.Assembly != typeof(Component).Assembly;
+            return typeof(Component).IsAssignableFrom(componentType);
         }
 
         /// <summary>

@@ -99,8 +99,8 @@ namespace helengine.editor.tests.serialization.scene {
             IReadOnlyList<EditorEntity> loaded = loadService.Load(scenePath);
 
             Assert.Equal(2, loaded.Count);
-            EditorEntity root = Assert.Single(loaded, entity => entity.Components.Any(component => component is DemoMenuBuildComponent));
-            DemoMenuBuildComponent demoMenuBuildComponent = Assert.IsType<DemoMenuBuildComponent>(Assert.Single(root.Components, component => component is DemoMenuBuildComponent));
+            EditorEntity root = Assert.Single(loaded, entity => entity.Components.Any(component => component is MenuComponent));
+            MenuComponent demoMenuBuildComponent = Assert.IsType<MenuComponent>(Assert.Single(root.Components, component => component is MenuComponent));
             Assert.Equal("city.menu.DemoDiscMenuDefinitionProvider, city", demoMenuBuildComponent.ProviderTypeName);
             Assert.False(demoMenuBuildComponent.IsInitialized);
             Assert.Single(root.Children);
@@ -137,10 +137,10 @@ namespace helengine.editor.tests.serialization.scene {
         ComponentPersistenceRegistry CreateDemoMenuPersistenceRegistry() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             registry.Register(new CameraComponentPersistenceDescriptor());
-            registry.Register(new DemoMenuBuildComponentPersistenceDescriptor());
-            registry.Register(new DemoMenuPanelComponentPersistenceDescriptor());
-            registry.Register(new DemoMenuItemComponentPersistenceDescriptor());
-            registry.Register(new DemoMenuSelectedDescriptionComponentPersistenceDescriptor());
+            registry.Register(new MenuComponentPersistenceDescriptor());
+            registry.Register(new MenuPanelComponentPersistenceDescriptor());
+            registry.Register(new MenuItemComponentPersistenceDescriptor());
+            registry.Register(new MenuSelectedDescriptionComponentPersistenceDescriptor());
             registry.Register(new RoundedRectComponentPersistenceDescriptor());
             registry.Register(new TextComponentPersistenceDescriptor());
             return registry;

@@ -413,7 +413,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     public void Normalize_generated_native_sources_rewrites_menu_host_action_lambdas() {
         string generatedCoreRootPath = Path.Combine(RootPath, "normalize-menu-host-lambdas");
         Directory.CreateDirectory(generatedCoreRootPath);
-        string sourcePath = Path.Combine(generatedCoreRootPath, "DemoMenuBuildComponent.cpp");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "MenuComponent.cpp");
         File.WriteAllText(
             sourcePath,
             "::ButtonComponent *button = ([&]() {\n"
@@ -438,7 +438,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     public void Normalize_generated_native_sources_rewrites_menu_host_string_replace_calls() {
         string generatedCoreRootPath = Path.Combine(RootPath, "normalize-menu-host-replace-calls");
         Directory.CreateDirectory(generatedCoreRootPath);
-        string sourcePath = Path.Combine(generatedCoreRootPath, "DemoMenuBuildComponent.cpp");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "MenuComponent.cpp");
         File.WriteAllText(
             sourcePath,
             "const std::string normalizedRelativePath = relativePath.Replace('/', Path::DirectorySeparatorChar).Replace('\\\\', Path::DirectorySeparatorChar);\n"
@@ -458,12 +458,12 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     public void Normalize_generated_native_sources_rewrites_menu_host_gamepad_state_value_semantics() {
         string generatedCoreRootPath = Path.Combine(RootPath, "normalize-menu-host-gamepad-state");
         Directory.CreateDirectory(generatedCoreRootPath);
-        string headerPath = Path.Combine(generatedCoreRootPath, "DemoMenuBuildComponent.hpp");
-        string sourcePath = Path.Combine(generatedCoreRootPath, "DemoMenuBuildComponent.cpp");
+        string headerPath = Path.Combine(generatedCoreRootPath, "MenuComponent.hpp");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "MenuComponent.cpp");
         File.WriteAllText(
             headerPath,
-            "class DemoMenuItemComponent;\n"
-            + "class DemoMenuBuildComponent {\n"
+            "class MenuItemComponent;\n"
+            + "class MenuComponent {\n"
             + "    InputGamepadState* PreviousGamepadState;\n"
             + "    InputGamepadState* ReadPrimaryGamepadState();\n"
             + "    bool WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button);\n"
@@ -472,10 +472,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             sourcePath,
             "InputGamepadState *currentGamepadState = inputSystem->GetGamepadState(0);\n"
             + "if (!currentGamepadState->Connected) { }\n"
-            + "bool DemoMenuBuildComponent::WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button) {\n"
+            + "bool MenuComponent::WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button) {\n"
             + "    return currentState->IsButtonDown(button) && !previousState->IsButtonDown(button);\n"
             + "}\n"
-            + "InputGamepadState* DemoMenuBuildComponent::ReadPrimaryGamepadState() {\n"
+            + "InputGamepadState* MenuComponent::ReadPrimaryGamepadState() {\n"
             + "    return this->ResolveInputSystem()->GetGamepadState(0);\n"
             + "}\n");
 
@@ -488,9 +488,9 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("bool WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button);", normalizedHeader);
         Assert.Contains("InputGamepadState currentGamepadState = inputSystem->GetGamepadState(0);", normalizedSource);
         Assert.Contains("if (!currentGamepadState.Connected)", normalizedSource);
-        Assert.Contains("bool DemoMenuBuildComponent::WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button)", normalizedSource);
+        Assert.Contains("bool MenuComponent::WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button)", normalizedSource);
         Assert.Contains("return currentState.IsButtonDown(button) && !previousState.IsButtonDown(button);", normalizedSource);
-        Assert.Contains("InputGamepadState DemoMenuBuildComponent::ReadPrimaryGamepadState()", normalizedSource);
+        Assert.Contains("InputGamepadState MenuComponent::ReadPrimaryGamepadState()", normalizedSource);
     }
 
     /// <summary>
@@ -520,25 +520,25 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     public void Normalize_generated_native_sources_rewrites_demo_menu_component_template_arguments() {
         string generatedCoreRootPath = Path.Combine(RootPath, "normalize-demo-menu-component-template-arguments");
         Directory.CreateDirectory(generatedCoreRootPath);
-        string headerPath = Path.Combine(generatedCoreRootPath, "DemoMenuBuildComponent.hpp");
-        string sourcePath = Path.Combine(generatedCoreRootPath, "DemoMenuBuildComponent.cpp");
+        string headerPath = Path.Combine(generatedCoreRootPath, "MenuComponent.hpp");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "MenuComponent.cpp");
         File.WriteAllText(
             headerPath,
-            "class DemoMenuBuildComponent {\n"
+            "class MenuComponent {\n"
             + "    InputGamepadState* PreviousGamepadState;\n"
             + "    InputGamepadState* ReadPrimaryGamepadState();\n"
             + "    bool WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button);\n"
             + "};\n");
         File.WriteAllText(
             sourcePath,
-            "CollectEntitiesWithComponent<DemoMenuItemComponent*>(panelEntity, itemEntities);\n"
-            + "DemoMenuItemComponent *itemComponent = FindRequiredComponent<DemoMenuItemComponent*>(itemEntity);\n"
+            "CollectEntitiesWithComponent<MenuItemComponent*>(panelEntity, itemEntities);\n"
+            + "MenuItemComponent *itemComponent = FindRequiredComponent<MenuItemComponent*>(itemEntity);\n"
             + "RoundedRectComponent *backgroundComponent = FindRequiredComponent<RoundedRectComponent*>(itemEntity);\n"
-            + "CollectEntitiesWithComponent<DemoMenuPanelComponent*>(generatedRootEntity, panelEntities);\n"
-            + "DemoMenuPanelComponent *panelComponent = FindRequiredComponent<DemoMenuPanelComponent*>(panelEntity);\n"
-            + "CollectEntitiesWithComponent<DemoMenuSelectedDescriptionComponent*>(panelEntity, markerEntities);\n"
+            + "CollectEntitiesWithComponent<MenuPanelComponent*>(generatedRootEntity, panelEntities);\n"
+            + "MenuPanelComponent *panelComponent = FindRequiredComponent<MenuPanelComponent*>(panelEntity);\n"
+            + "CollectEntitiesWithComponent<MenuSelectedDescriptionComponent*>(panelEntity, markerEntities);\n"
             + "return FindRequiredComponent<TextComponent*>((*markerEntities)[0]);\n"
-            + "InputGamepadState DemoMenuBuildComponent::ReadPrimaryGamepadState()\n"
+            + "InputGamepadState MenuComponent::ReadPrimaryGamepadState()\n"
             + "{\n"
             + "    if (Core::get_Instance() == nullptr || Core::get_Instance()->get_Input() == nullptr)\n"
             + "    {\n"
@@ -550,12 +550,12 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         string normalizedHeader = File.ReadAllText(headerPath);
         string normalizedSource = File.ReadAllText(sourcePath);
         Assert.Contains("InputGamepadState ReadPrimaryGamepadState();", normalizedHeader);
-        Assert.Contains("CollectEntitiesWithComponent<DemoMenuItemComponent*>(panelEntity, itemEntities);", normalizedSource);
-        Assert.Contains("DemoMenuItemComponent *itemComponent = FindRequiredComponent<DemoMenuItemComponent*>(itemEntity);", normalizedSource);
+        Assert.Contains("CollectEntitiesWithComponent<MenuItemComponent*>(panelEntity, itemEntities);", normalizedSource);
+        Assert.Contains("MenuItemComponent *itemComponent = FindRequiredComponent<MenuItemComponent*>(itemEntity);", normalizedSource);
         Assert.Contains("RoundedRectComponent *backgroundComponent = FindRequiredComponent<RoundedRectComponent*>(itemEntity);", normalizedSource);
-        Assert.Contains("CollectEntitiesWithComponent<DemoMenuPanelComponent*>(generatedRootEntity, panelEntities);", normalizedSource);
-        Assert.Contains("DemoMenuPanelComponent *panelComponent = FindRequiredComponent<DemoMenuPanelComponent*>(panelEntity);", normalizedSource);
-        Assert.Contains("CollectEntitiesWithComponent<DemoMenuSelectedDescriptionComponent*>(panelEntity, markerEntities);", normalizedSource);
+        Assert.Contains("CollectEntitiesWithComponent<MenuPanelComponent*>(generatedRootEntity, panelEntities);", normalizedSource);
+        Assert.Contains("MenuPanelComponent *panelComponent = FindRequiredComponent<MenuPanelComponent*>(panelEntity);", normalizedSource);
+        Assert.Contains("CollectEntitiesWithComponent<MenuSelectedDescriptionComponent*>(panelEntity, markerEntities);", normalizedSource);
         Assert.Contains("return FindRequiredComponent<TextComponent*>((*markerEntities)[0]);", normalizedSource);
         Assert.Contains("return InputGamepadState();", normalizedSource);
     }

@@ -217,19 +217,19 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures save fails clearly when one user component does not expose a persistence descriptor.
+        /// Ensures save fails clearly when one user component falls into automatic persistence but exposes an unsupported reflected member type.
         /// </summary>
         [Fact]
         public void Save_WhenEntityContainsUnsupportedComponent_ThrowsClearError() {
             EditorEntity entity = CreateUserEntity("Unsupported", float3.Zero, float3.One, float4.Identity);
-            entity.AddComponent(new AnchorComponent());
+            entity.AddComponent(new UnsupportedScriptComponent());
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Unsupported.helen");
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => saveService.Save(scenePath));
 
-            Assert.Contains(nameof(AnchorComponent), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(nameof(Entity), exception.Message, StringComparison.Ordinal);
         }
 
         /// <summary>

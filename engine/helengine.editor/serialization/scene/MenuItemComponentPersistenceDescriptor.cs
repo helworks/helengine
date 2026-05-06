@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Persists one baked demo menu item metadata component inside tolerant editor scene payloads.
     /// </summary>
-    public class DemoMenuItemComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
+    public class MenuItemComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
         /// <summary>
         /// Stable tagged field name used for menu panel-id persistence.
         /// </summary>
@@ -51,31 +51,31 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the concrete runtime component type handled by the descriptor.
         /// </summary>
-        public Type ComponentType => typeof(DemoMenuItemComponent);
+        public Type ComponentType => typeof(MenuItemComponent);
 
         /// <summary>
         /// Gets the stable serialized type identifier written into scene files.
         /// </summary>
-        public string ComponentTypeId => DemoMenuItemComponent.SerializedComponentTypeId;
+        public string ComponentTypeId => MenuItemComponent.SerializedComponentTypeId;
 
         /// <summary>
         /// Serializes one baked demo menu item metadata component into a scene record.
         /// </summary>
         public SceneComponentAssetRecord SerializeComponent(Component component, int componentIndex, EntityComponentSaveState saveState) {
-            if (component is not DemoMenuItemComponent demoMenuItemComponent) {
-                throw new InvalidOperationException("Demo menu item descriptor received an unsupported component type.");
+            if (component is not MenuItemComponent menuItemComponent) {
+                throw new InvalidOperationException("Menu item descriptor received an unsupported component type.");
             }
 
             EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
-            writer.WriteField(PanelIdFieldName, fieldWriter => fieldWriter.WriteString(demoMenuItemComponent.PanelId));
-            writer.WriteField(ItemIdFieldName, fieldWriter => fieldWriter.WriteString(demoMenuItemComponent.ItemId));
-            writer.WriteField(DescriptionFieldName, fieldWriter => fieldWriter.WriteString(demoMenuItemComponent.Description));
-            writer.WriteField(ActionKindFieldName, fieldWriter => fieldWriter.WriteByte((byte)demoMenuItemComponent.ActionKind));
-            writer.WriteField(TargetIdFieldName, fieldWriter => fieldWriter.WriteString(demoMenuItemComponent.TargetId));
-            writer.WriteField(IdleFillColorFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteByte4(fieldWriter, demoMenuItemComponent.IdleFillColor));
-            writer.WriteField(IdleBorderColorFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteByte4(fieldWriter, demoMenuItemComponent.IdleBorderColor));
-            writer.WriteField(SelectedFillColorFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteByte4(fieldWriter, demoMenuItemComponent.SelectedFillColor));
-            writer.WriteField(SelectedBorderColorFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteByte4(fieldWriter, demoMenuItemComponent.SelectedBorderColor));
+            writer.WriteField(PanelIdFieldName, fieldWriter => fieldWriter.WriteString(menuItemComponent.PanelId));
+            writer.WriteField(ItemIdFieldName, fieldWriter => fieldWriter.WriteString(menuItemComponent.ItemId));
+            writer.WriteField(DescriptionFieldName, fieldWriter => fieldWriter.WriteString(menuItemComponent.Description));
+            writer.WriteField(ActionKindFieldName, fieldWriter => fieldWriter.WriteByte((byte)menuItemComponent.ActionKind));
+            writer.WriteField(TargetIdFieldName, fieldWriter => fieldWriter.WriteString(menuItemComponent.TargetId));
+            writer.WriteField(IdleFillColorFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteByte4(fieldWriter, menuItemComponent.IdleFillColor));
+            writer.WriteField(IdleBorderColorFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteByte4(fieldWriter, menuItemComponent.IdleBorderColor));
+            writer.WriteField(SelectedFillColorFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteByte4(fieldWriter, menuItemComponent.SelectedFillColor));
+            writer.WriteField(SelectedBorderColorFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteByte4(fieldWriter, menuItemComponent.SelectedBorderColor));
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = ComponentTypeId,
@@ -88,7 +88,7 @@ namespace helengine.editor {
         /// Deserializes one scene record back into a baked demo menu item metadata component.
         /// </summary>
         public Component DeserializeComponent(SceneComponentAssetRecord record, EntitySaveComponent saveComponent, ISceneAssetReferenceResolver referenceResolver) {
-            DemoMenuItemComponent component = new DemoMenuItemComponent();
+            MenuItemComponent component = new MenuItemComponent();
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
             if (reader.TryGetFieldReader(PanelIdFieldName, out EngineBinaryReader panelIdReader)) {
                 using (panelIdReader) {
