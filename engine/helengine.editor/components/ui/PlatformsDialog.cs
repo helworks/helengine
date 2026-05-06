@@ -257,6 +257,7 @@ namespace helengine.editor {
 
             RebuildPlatformRows(availablePlatformIds, supportedPlatformIds);
             RebuildActivePlatformItems(activePlatformId);
+            ShowDialogImmediately();
         }
 
         /// <summary>
@@ -286,8 +287,6 @@ namespace helengine.editor {
             if (!UpdateDialogFrame(windowWidth, windowHeight)) {
                 return;
             }
-
-            LayoutContent();
         }
 
         /// <summary>
@@ -353,6 +352,7 @@ namespace helengine.editor {
             CheckBoxComponent checkBox = new CheckBoxComponent(GetPlatformCheckBoxSize(), DialogFont, isChecked);
             checkBox.CheckedChanged += HandlePlatformCheckBoxChanged;
             checkBoxHost.AddComponent(checkBox);
+            checkBox.SetRenderOrders(DialogTextOrder, DialogTextOrder);
             PlatformCheckBoxes.Add(checkBox);
 
             EditorEntity labelHost = CreateInternalHost();
@@ -640,6 +640,13 @@ namespace helengine.editor {
         /// <returns>Scaled footer button size.</returns>
         int2 GetFooterButtonSize(int2 baseSize) {
             return new int2(DialogMetrics.ScalePixels(baseSize.X), DialogMetrics.ScalePixels(baseSize.Y));
+        }
+
+        /// <summary>
+        /// Repositions the dialog-owned content whenever the shared modal shell position or size changes.
+        /// </summary>
+        protected override void HandleDialogLayoutChanged() {
+            LayoutContent();
         }
 
         /// <summary>

@@ -75,6 +75,53 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures platform rows are parented under the modal content root and positioned immediately during Show.
+        /// </summary>
+        [Fact]
+        public void Show_WhenOpened_ParentsPlatformRowsUnderDialogContentRootAndLaysThemOutImmediately() {
+            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+
+            dialog.Show(
+                new[] { "windows", "ps2", "linux" },
+                new[] { "windows", "ps2" },
+                "ps2");
+
+            EditorEntity dialogContentRoot = GetProtectedProperty<EditorEntity>(dialog, "DialogContentRoot");
+            List<EditorEntity> platformCheckBoxHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformCheckBoxHosts");
+            List<EditorEntity> platformLabelHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformLabelHosts");
+            EditorEntity platformsLabelHost = GetPrivateField<EditorEntity>(dialog, "PlatformsLabelHost");
+            EditorEntity activePlatformComboBoxHost = GetPrivateField<EditorEntity>(dialog, "ActivePlatformComboBoxHost");
+
+            Assert.Equal(3, platformCheckBoxHosts.Count);
+            Assert.Equal(3, platformLabelHosts.Count);
+            Assert.Same(dialogContentRoot, platformsLabelHost.Parent);
+            Assert.Same(dialogContentRoot, activePlatformComboBoxHost.Parent);
+            Assert.All(platformCheckBoxHosts, host => Assert.Same(dialogContentRoot, host.Parent));
+            Assert.All(platformLabelHosts, host => Assert.Same(dialogContentRoot, host.Parent));
+            Assert.All(platformCheckBoxHosts, host => Assert.True(host.LocalPosition.Y > 0f));
+            Assert.All(platformLabelHosts, host => Assert.True(host.LocalPosition.Y > 0f));
+        }
+
+        /// <summary>
+        /// Ensures platform rows do not require a later UpdateLayout pass to leave origin coordinates.
+        /// </summary>
+        [Fact]
+        public void Show_WhenOpened_DoesNotLeavePlatformRowsAtDefaultOriginUntilLaterLayout() {
+            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+
+            dialog.Show(
+                new[] { "windows", "ps2" },
+                new[] { "windows" },
+                "windows");
+
+            List<EditorEntity> platformCheckBoxHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformCheckBoxHosts");
+            List<EditorEntity> platformLabelHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformLabelHosts");
+
+            Assert.All(platformCheckBoxHosts, host => Assert.NotEqual(float3.Zero, host.LocalPosition));
+            Assert.All(platformLabelHosts, host => Assert.NotEqual(float3.Zero, host.LocalPosition));
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>
@@ -84,6 +131,28 @@ namespace helengine.editor.tests {
         T GetPrivateField<T>(object target, string fieldName) {
             FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
             return Assert.IsType<T>(field.GetValue(target));
+        }
+
+        /// <summary>
+        /// Reads one inherited non-public or protected instance property and casts it to the requested type.
+        /// </summary>
+        /// <typeparam name="T">Expected property type.</typeparam>
+        /// <param name="target">Object that owns the property.</param>
+        /// <param name="propertyName">Name of the property to read.</param>
+        /// <returns>Property value cast to the requested type.</returns>
+        T GetProtectedProperty<T>(object target, string propertyName) {
+            Type currentType = target.GetType();
+
+            while (currentType != null) {
+                PropertyInfo property = currentType.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.NonPublic);
+                if (property != null) {
+                    return Assert.IsType<T>(property.GetValue(target));
+                }
+
+                currentType = currentType.BaseType;
+            }
+
+            throw new InvalidOperationException($"Property '{propertyName}' was not found on type '{target.GetType().FullName}'.");
         }
 
         /// <summary>

@@ -144,6 +144,11 @@ namespace helengine.editor {
         readonly EditorEntity PanelRoot;
 
         /// <summary>
+        /// Root entity that owns dialog-specific content inside the shared modal shell.
+        /// </summary>
+        readonly EditorEntity ContentRoot;
+
+        /// <summary>
         /// Tint applied to the shared fullscreen modal backdrop.
         /// </summary>
         static readonly byte4 BackdropColor = new byte4(0, 0, 0, 144);
@@ -417,6 +422,13 @@ namespace helengine.editor {
             };
             PanelRoot.AddComponent(PanelBackground);
 
+            ContentRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            PanelRoot.AddChild(ContentRoot);
+
             HeaderRoot = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
@@ -592,9 +604,14 @@ namespace helengine.editor {
         protected byte DialogTextOrder => TextOrder;
 
         /// <summary>
-        /// Gets the root entity that owns the dialog panel content.
+        /// Gets the root entity that owns dialog-specific content inside the shared modal shell.
         /// </summary>
-        protected EditorEntity DialogPanelRoot => PanelRoot;
+        protected EditorEntity DialogPanelRoot => ContentRoot;
+
+        /// <summary>
+        /// Gets the shared content root for derived dialog layout logic and modal tests.
+        /// </summary>
+        protected EditorEntity DialogContentRoot => ContentRoot;
 
         /// <summary>
         /// Gets the rounded panel background rendered behind the dialog content.
@@ -673,6 +690,14 @@ namespace helengine.editor {
             IsDragging = false;
             IsResizing = false;
             IsUserPositioned = false;
+        }
+
+        /// <summary>
+        /// Applies the current dialog shell state immediately after a dialog becomes visible so content is positioned before the next layout pass.
+        /// </summary>
+        protected void ShowDialogImmediately() {
+            CenterDialogIfNeeded();
+            ApplyVisibleDialogState();
         }
 
         /// <summary>
