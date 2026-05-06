@@ -107,6 +107,57 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures submitting Camera clear-depth edits writes back the rebuilt clear settings struct.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenClearDepthIsSubmitted_UpdatesCameraClearSettings() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity();
+            CameraComponent camera = new CameraComponent();
+            camera.ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 1f), true, 1f, false, 0);
+            entity.AddComponent(camera);
+
+            panel.ShowEntityProperties(entity);
+
+            ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            ComponentPropertyRow clearSettingsRow = GetSingleRow(view, "Clear Settings");
+            InvokeNestedSectionToggle(view, clearSettingsRow);
+
+            ComponentPropertyRow clearDepthRow = GetSingleRow(view, "Clear Depth");
+            clearDepthRow.ScalarField.Text = "0.25";
+
+            MethodInfo submitMethod = typeof(ComponentPropertiesView).GetMethod("HandleScalarSubmitted", BindingFlags.Instance | BindingFlags.NonPublic);
+            submitMethod.Invoke(view, new object[] { clearDepthRow.ScalarField });
+
+            Assert.Equal(0.25f, camera.ClearSettings.ClearDepth, 3);
+        }
+
+        /// <summary>
+        /// Ensures toggling Camera clear-color enabled writes back the rebuilt clear settings struct.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenClearColorEnabledChanges_UpdatesCameraClearSettings() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity();
+            CameraComponent camera = new CameraComponent();
+            camera.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 1f), true, 1f, false, 0);
+            entity.AddComponent(camera);
+
+            panel.ShowEntityProperties(entity);
+
+            ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            ComponentPropertyRow clearSettingsRow = GetSingleRow(view, "Clear Settings");
+            InvokeNestedSectionToggle(view, clearSettingsRow);
+
+            ComponentPropertyRow clearColorEnabledRow = GetSingleRow(view, "Clear Color Enabled");
+
+            MethodInfo checkedChangedMethod = typeof(ComponentPropertiesView).GetMethod("HandleBooleanCheckedChanged", BindingFlags.Instance | BindingFlags.NonPublic);
+            checkedChangedMethod.Invoke(view, new object[] { clearColorEnabledRow.CheckBoxField, true });
+
+            Assert.True(camera.ClearSettings.ClearColorEnabled);
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>
@@ -149,6 +200,16 @@ namespace helengine.editor.tests {
             FieldInfo activeRowsField = typeof(ComponentPropertiesView).GetField("ActiveRows", BindingFlags.Instance | BindingFlags.NonPublic);
             List<ComponentPropertyRow> rows = Assert.IsType<List<ComponentPropertyRow>>(activeRowsField.GetValue(view));
             return Assert.Single(rows, row => string.Equals(row.Label.Text, label, StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Invokes the nested section toggle hook on one provider-backed property row.
+        /// </summary>
+        /// <param name="view">Properties view under test.</param>
+        /// <param name="row">Nested section row to toggle.</param>
+        void InvokeNestedSectionToggle(ComponentPropertiesView view, ComponentPropertyRow row) {
+            MethodInfo toggleMethod = typeof(ComponentPropertiesView).GetMethod("HandleCustomSectionPressed", BindingFlags.Instance | BindingFlags.NonPublic);
+            toggleMethod.Invoke(view, new object[] { row });
         }
 
         /// <summary>

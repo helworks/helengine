@@ -100,6 +100,73 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures provider-backed Camera clear settings appear in the inspector.
+        /// </summary>
+        [Fact]
+        public void ShowComponents_WhenInspectingCamera_IncludesClearSettingsNestedSection() {
+            CameraComponent camera = new CameraComponent();
+            EditorEntity entity = new EditorEntity();
+            entity.AddComponent(camera);
+
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            view.ShowComponents(entity);
+
+            List<ComponentPropertyRow> rows = GetActiveRows(view);
+            Assert.Contains(rows, row => string.Equals(row.Label.Text, "Clear Settings", StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Ensures expanding Camera clear settings reveals the expected nested controls.
+        /// </summary>
+        [Fact]
+        public void ShowComponents_WhenClearSettingsSectionIsExpanded_RendersExpectedNestedControls() {
+            CameraComponent camera = new CameraComponent();
+            EditorEntity entity = new EditorEntity();
+            entity.AddComponent(camera);
+
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            view.ShowComponents(entity);
+            view.UpdateLayout(0, 0, 420);
+
+            ComponentPropertyRow clearSettingsRow = GetSingleRow(view, "Clear Settings");
+            InvokeNestedSectionToggle(view, clearSettingsRow);
+
+            List<ComponentPropertyRow> rows = GetActiveRows(view);
+            Assert.Contains(rows, row => string.Equals(row.Label.Text, "Clear Color Enabled", StringComparison.Ordinal));
+            Assert.Contains(rows, row => string.Equals(row.Label.Text, "Clear Color", StringComparison.Ordinal));
+            Assert.Contains(rows, row => string.Equals(row.Label.Text, "Clear Depth Enabled", StringComparison.Ordinal));
+            Assert.Contains(rows, row => string.Equals(row.Label.Text, "Clear Depth", StringComparison.Ordinal));
+            Assert.Contains(rows, row => string.Equals(row.Label.Text, "Clear Stencil Enabled", StringComparison.Ordinal));
+            Assert.Contains(rows, row => string.Equals(row.Label.Text, "Clear Stencil", StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Ensures collapsing Camera clear settings hides the nested controls again.
+        /// </summary>
+        [Fact]
+        public void ShowComponents_WhenClearSettingsSectionIsCollapsed_HidesNestedControls() {
+            CameraComponent camera = new CameraComponent();
+            EditorEntity entity = new EditorEntity();
+            entity.AddComponent(camera);
+
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            view.ShowComponents(entity);
+            view.UpdateLayout(0, 0, 420);
+
+            ComponentPropertyRow clearSettingsRow = GetSingleRow(view, "Clear Settings");
+            InvokeNestedSectionToggle(view, clearSettingsRow);
+            InvokeNestedSectionToggle(view, clearSettingsRow);
+
+            List<ComponentPropertyRow> rows = GetActiveRows(view);
+            Assert.DoesNotContain(rows, row => string.Equals(row.Label.Text, "Clear Color Enabled", StringComparison.Ordinal));
+            Assert.DoesNotContain(rows, row => string.Equals(row.Label.Text, "Clear Color", StringComparison.Ordinal));
+            Assert.DoesNotContain(rows, row => string.Equals(row.Label.Text, "Clear Depth Enabled", StringComparison.Ordinal));
+            Assert.DoesNotContain(rows, row => string.Equals(row.Label.Text, "Clear Depth", StringComparison.Ordinal));
+            Assert.DoesNotContain(rows, row => string.Equals(row.Label.Text, "Clear Stencil Enabled", StringComparison.Ordinal));
+            Assert.DoesNotContain(rows, row => string.Equals(row.Label.Text, "Clear Stencil", StringComparison.Ordinal));
+        }
+
+        /// <summary>
         /// Reads the active rows from the reflected properties view.
         /// </summary>
         /// <param name="view">Properties view under test.</param>
@@ -107,6 +174,27 @@ namespace helengine.editor.tests {
         List<ComponentPropertyRow> GetActiveRows(ComponentPropertiesView view) {
             FieldInfo activeRowsField = typeof(ComponentPropertiesView).GetField("ActiveRows", BindingFlags.Instance | BindingFlags.NonPublic);
             return Assert.IsType<List<ComponentPropertyRow>>(activeRowsField.GetValue(view));
+        }
+
+        /// <summary>
+        /// Finds one active property row by its visible label.
+        /// </summary>
+        /// <param name="view">Properties view under test.</param>
+        /// <param name="label">Visible row label to resolve.</param>
+        /// <returns>The single matching row.</returns>
+        ComponentPropertyRow GetSingleRow(ComponentPropertiesView view, string label) {
+            List<ComponentPropertyRow> rows = GetActiveRows(view);
+            return Assert.Single(rows, row => string.Equals(row.Label.Text, label, StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Invokes the nested section toggle hook on one provider-backed property row.
+        /// </summary>
+        /// <param name="view">Properties view under test.</param>
+        /// <param name="row">Nested section row to toggle.</param>
+        void InvokeNestedSectionToggle(ComponentPropertiesView view, ComponentPropertyRow row) {
+            MethodInfo toggleMethod = typeof(ComponentPropertiesView).GetMethod("HandleCustomSectionPressed", BindingFlags.Instance | BindingFlags.NonPublic);
+            toggleMethod.Invoke(view, new object[] { row });
         }
 
         /// <summary>
