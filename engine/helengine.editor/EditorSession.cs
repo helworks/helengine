@@ -151,6 +151,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorViewportCanvasPlanePreviewComponent canvasPlanePreviewComponent;
         /// <summary>
+        /// Scene-owned canvas profile shared by viewport previews and scene settings UI.
+        /// </summary>
+        readonly EditorSceneCanvasProfileState sceneCanvasProfileState;
+        /// <summary>
         /// UI camera entity used for 2D rendering.
         /// </summary>
         readonly EditorEntity uiCameraEntity;
@@ -271,6 +275,10 @@ namespace helengine.editor {
         /// </summary>
         UnsavedChangesDialog unsavedChangesDialog;
         /// <summary>
+        /// Modal dialog used to edit scene-level authoring settings such as the shared canvas profile.
+        /// </summary>
+        SceneSettingsDialog sceneSettingsDialog;
+        /// <summary>
         /// Modal dialog used to edit editor-global preferences such as UI scale.
         /// </summary>
         EditorPreferencesDialog preferencesDialog;
@@ -314,6 +322,10 @@ namespace helengine.editor {
         /// Absolute path to the current scene file, when one has been saved.
         /// </summary>
         string CurrentScenePath;
+        /// <summary>
+        /// Scene-level settings tracked for the active editor scene.
+        /// </summary>
+        SceneSettingsAsset CurrentSceneSettings;
         /// <summary>
         /// True when the current scene contains unsaved editor changes.
         /// </summary>
@@ -437,7 +449,8 @@ namespace helengine.editor {
             assetImportManager = InitializeAssetImports(Importers);
             materialAssetSettingsService = new MaterialAssetSettingsService();
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
-            previewSourceResolver = new PreviewSourceResolver(assetImportManager, render2D, render3D);
+            sceneCanvasProfileState = new EditorSceneCanvasProfileState();
+            previewSourceResolver = new PreviewSourceResolver(assetImportManager, render2D, render3D, sceneCanvasProfileState);
 
             uiCameraEntity = new EditorEntity();
             uiCameraEntity.InternalEntity = true;
@@ -521,8 +534,8 @@ namespace helengine.editor {
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics);
-            mainViewport = new EditorViewport(sceneCameraComponent, uiFont, snapModifierFont, toolbarIcons, CurrentUiMetrics);
-            canvasPlanePreviewComponent = new EditorViewportCanvasPlanePreviewComponent(sceneCameraComponent, mainViewport.CanvasPreviewSettings, render3D);
+            mainViewport = new EditorViewport(sceneCameraComponent, uiFont, snapModifierFont, toolbarIcons, sceneCanvasProfileState, CurrentUiMetrics);
+            canvasPlanePreviewComponent = new EditorViewportCanvasPlanePreviewComponent(sceneCameraComponent, sceneCanvasProfileState, mainViewport.CanvasPreviewSettings, render3D);
             sceneCameraEntity.AddComponent(canvasPlanePreviewComponent);
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
@@ -571,12 +584,15 @@ namespace helengine.editor {
                 new EditorDotNetScriptBuildTool(),
                 new EditorGameScriptAssemblyHost(this.projectPath));
             unsavedChangesDialog = new UnsavedChangesDialog(uiFont, CurrentUiMetrics);
+            sceneSettingsDialog = new SceneSettingsDialog(uiFont, CurrentUiMetrics);
             preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
                 persistenceRegistry,
                 new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver));
             CurrentScenePath = string.Empty;
+            CurrentSceneSettings = new SceneSettingsAsset();
+            sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
             PendingOpenScenePath = string.Empty;
             PendingSceneTransition = SceneTransitionKind.None;
             IsSceneDirty = false;
@@ -592,6 +608,7 @@ namespace helengine.editor {
             titleBar.OpenMapRequested += HandleOpenMapRequested;
             titleBar.SaveMapRequested += HandleSaveMapRequested;
             titleBar.SaveMapAsRequested += HandleSaveMapAsRequested;
+            titleBar.SceneSettingsRequested += HandleSceneSettingsRequested;
             titleBar.PreferencesRequested += HandlePreferencesRequested;
             titleBar.BuildRequested += HandleBuildRequested;
             titleBar.PlatformsRequested += HandlePlatformsRequested;
@@ -825,6 +842,7 @@ namespace helengine.editor {
             buildDialog.UpdateLayout(width, height);
             buildDialogCopySettingsDialog.UpdateLayout(width, height);
             unsavedChangesDialog.UpdateLayout(width, height);
+            sceneSettingsDialog.UpdateLayout(width, height);
             preferencesDialog.UpdateLayout(width, height);
             propertiesPanel.UpdateModalLayout(width, height);
             mainViewport.RefreshInputBlockers();
@@ -934,6 +952,10 @@ namespace helengine.editor {
                 preferencesDialog.ConfirmRequested += HandlePreferencesDialogConfirmed;
                 preferencesDialog.CancelRequested += HandlePreferencesDialogCanceled;
             }
+            if (sceneSettingsDialog != null) {
+                sceneSettingsDialog.ConfirmRequested += HandleSceneSettingsDialogConfirmed;
+                sceneSettingsDialog.CancelRequested += HandleSceneSettingsDialogCanceled;
+            }
         }
 
         /// <summary>
@@ -979,6 +1001,10 @@ namespace helengine.editor {
                 preferencesDialog.ConfirmRequested -= HandlePreferencesDialogConfirmed;
                 preferencesDialog.CancelRequested -= HandlePreferencesDialogCanceled;
             }
+            if (sceneSettingsDialog != null) {
+                sceneSettingsDialog.ConfirmRequested -= HandleSceneSettingsDialogConfirmed;
+                sceneSettingsDialog.CancelRequested -= HandleSceneSettingsDialogCanceled;
+            }
         }
 
         /// <summary>
@@ -1015,6 +1041,9 @@ namespace helengine.editor {
             if (preferencesDialog != null) {
                 preferencesDialog.Hide();
             }
+            if (sceneSettingsDialog != null) {
+                sceneSettingsDialog.Hide();
+            }
         }
 
         /// <summary>
@@ -1044,6 +1073,7 @@ namespace helengine.editor {
             buildDialog = new BuildDialog(uiFont, CurrentUiMetrics);
             buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics);
             unsavedChangesDialog = new UnsavedChangesDialog(uiFont, CurrentUiMetrics);
+            sceneSettingsDialog = new SceneSettingsDialog(uiFont, CurrentUiMetrics);
             preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
             AttachScaleSensitiveDialogHandlers();
         }
@@ -1081,6 +1111,9 @@ namespace helengine.editor {
             }
             if (preferencesDialog != null) {
                 preferencesDialog.Dispose();
+            }
+            if (sceneSettingsDialog != null) {
+                sceneSettingsDialog.Dispose();
             }
         }
 
@@ -1163,6 +1196,7 @@ namespace helengine.editor {
             titleBar.OpenMapRequested -= HandleOpenMapRequested;
             titleBar.SaveMapRequested -= HandleSaveMapRequested;
             titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested;
+            titleBar.SceneSettingsRequested -= HandleSceneSettingsRequested;
             titleBar.PreferencesRequested -= HandlePreferencesRequested;
             titleBar.BuildRequested -= HandleBuildRequested;
             titleBar.PlatformsRequested -= HandlePlatformsRequested;
@@ -1402,6 +1436,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Opens the scene settings dialog using the current scene-owned canvas profile.
+        /// </summary>
+        void HandleSceneSettingsRequested() {
+            sceneSettingsDialog.Show(CurrentSceneSettings);
+        }
+
+        /// <summary>
         /// Applies one confirmed editor-global preferences selection and notifies the host.
         /// </summary>
         /// <param name="settings">Confirmed editor-global preferences settings.</param>
@@ -1428,6 +1469,31 @@ namespace helengine.editor {
         /// </summary>
         void HandlePreferencesDialogCanceled() {
             preferencesDialog.Hide();
+        }
+
+        /// <summary>
+        /// Applies confirmed scene settings and marks the current scene dirty when the canvas profile changed.
+        /// </summary>
+        /// <param name="sceneSettings">Confirmed scene settings payload.</param>
+        void HandleSceneSettingsDialogConfirmed(SceneSettingsAsset sceneSettings) {
+            if (sceneSettings == null) {
+                throw new ArgumentNullException(nameof(sceneSettings));
+            }
+
+            bool settingsChanged = !AreSceneSettingsEquivalent(CurrentSceneSettings, sceneSettings);
+            CurrentSceneSettings = sceneSettings;
+            sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
+            sceneSettingsDialog.Hide();
+            if (settingsChanged) {
+                EditorSceneMutationService.MarkSceneMutated();
+            }
+        }
+
+        /// <summary>
+        /// Cancels the scene settings workflow and hides the dialog.
+        /// </summary>
+        void HandleSceneSettingsDialogCanceled() {
+            sceneSettingsDialog.Hide();
         }
 
         /// <summary>
@@ -1833,7 +1899,7 @@ namespace helengine.editor {
             }
 
             try {
-                SceneSaveService.Save(fullPath);
+                SceneSaveService.Save(fullPath, CurrentSceneSettings);
                 CurrentScenePath = Path.GetFullPath(fullPath);
                 MarkSceneClean();
                 RefreshWindowTitle();
@@ -1873,10 +1939,12 @@ namespace helengine.editor {
 
             List<EditorEntity> existingSceneEntities = CaptureUserSceneEntities();
             try {
-                IReadOnlyList<EditorEntity> loadedRoots = SceneFileLoadService.Load(fullPath);
+                LoadedEditorSceneDocument loadedSceneDocument = SceneFileLoadService.Load(fullPath);
                 ClearUserSceneEntities(existingSceneEntities);
-                AttachLoadedRoots(loadedRoots);
+                AttachLoadedRoots(loadedSceneDocument.RootEntities);
                 CurrentScenePath = Path.GetFullPath(fullPath);
+                CurrentSceneSettings = loadedSceneDocument.SceneSettings;
+                sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
                 MarkSceneClean();
                 RefreshWindowTitle();
                 EditorSelectionService.ClearSelection();
@@ -1898,6 +1966,8 @@ namespace helengine.editor {
         void ResetToNewScene() {
             ClearUserSceneEntities();
             CurrentScenePath = string.Empty;
+            CurrentSceneSettings = new SceneSettingsAsset();
+            sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
             MarkSceneClean();
             RefreshWindowTitle();
             EditorSelectionService.ClearSelection();
@@ -2851,6 +2921,30 @@ namespace helengine.editor {
             }
 
             return Path.GetFullPath(directory);
+        }
+
+        /// <summary>
+        /// Determines whether two scene settings payloads describe the same scene-owned canvas profile.
+        /// </summary>
+        /// <param name="left">Left scene settings payload.</param>
+        /// <param name="right">Right scene settings payload.</param>
+        /// <returns>True when both payloads describe the same canvas profile.</returns>
+        static bool AreSceneSettingsEquivalent(SceneSettingsAsset left, SceneSettingsAsset right) {
+            if (left == null) {
+                throw new ArgumentNullException(nameof(left));
+            }
+            if (right == null) {
+                throw new ArgumentNullException(nameof(right));
+            }
+            if (left.CanvasProfile == null) {
+                throw new InvalidOperationException("Left scene settings must include a canvas profile.");
+            }
+            if (right.CanvasProfile == null) {
+                throw new InvalidOperationException("Right scene settings must include a canvas profile.");
+            }
+
+            return left.CanvasProfile.Width == right.CanvasProfile.Width &&
+                   left.CanvasProfile.Height == right.CanvasProfile.Height;
         }
 
         /// <summary>

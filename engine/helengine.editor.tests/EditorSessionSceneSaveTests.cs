@@ -25,12 +25,14 @@ namespace helengine.editor.tests {
                 ContentRootPath = TempProjectRootPath
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            EditorSceneMutationService.Reset();
         }
 
         /// <summary>
         /// Deletes temporary project state after each test.
         /// </summary>
         public void Dispose() {
+            EditorSceneMutationService.Reset();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -63,6 +65,32 @@ namespace helengine.editor.tests {
             string currentScenePath = GetPrivateField<string>(session, "CurrentScenePath");
             Assert.Equal(expectedPath, currentScenePath);
             Assert.True(File.Exists(expectedPath));
+        }
+
+        /// <summary>
+        /// Ensures successful scene saves persist the tracked scene canvas profile.
+        /// </summary>
+        [Fact]
+        public void HandleSceneSaveRequested_WhenSceneSettingsAreCustomized_PersistsCanvasProfile() {
+            EditorSession session = CreateSessionForSceneSave();
+            string expectedPath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CanvasProfile.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(expectedPath));
+            SetPrivateField(session, "CurrentSceneSettings", new SceneSettingsAsset {
+                CanvasProfile = new SceneCanvasProfile {
+                    Width = 1600,
+                    Height = 900
+                }
+            });
+
+            InvokePrivate(session, "HandleSceneSaveRequested", expectedPath);
+
+            SceneAsset sceneAsset;
+            using (FileStream stream = File.OpenRead(expectedPath)) {
+                sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.Equal(1600, sceneAsset.SceneSettings.CanvasProfile.Width);
+            Assert.Equal(900, sceneAsset.SceneSettings.CanvasProfile.Height);
         }
 
         /// <summary>
@@ -104,6 +132,50 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures requesting Scene Settings shows the scene settings dialog.
+        /// </summary>
+        [Fact]
+        public void HandleSceneSettingsRequested_WhenInvoked_ShowsSceneSettingsDialog() {
+            EditorSession session = CreateSessionForSceneSave();
+
+            InvokePrivate(session, "HandleSceneSettingsRequested");
+
+            SceneSettingsDialog sceneSettingsDialog = GetPrivateField<SceneSettingsDialog>(session, "sceneSettingsDialog");
+            Assert.True(sceneSettingsDialog.IsVisible);
+        }
+
+        /// <summary>
+        /// Ensures confirmed scene settings update the tracked canvas profile and mark the scene dirty when changed.
+        /// </summary>
+        [Fact]
+        public void HandleSceneSettingsDialogConfirmed_WhenCanvasProfileChanges_UpdatesStateAndMarksSceneDirty() {
+            EditorSession session = CreateSessionForSceneSave();
+            SceneSettingsAsset updatedSettings = new SceneSettingsAsset {
+                CanvasProfile = new SceneCanvasProfile {
+                    Width = 1600,
+                    Height = 900
+                }
+            };
+            Action handleSceneMutated = () => InvokePrivate(session, "HandleSceneMutated");
+
+            try {
+                EditorSceneMutationService.SceneMutated += handleSceneMutated;
+                InvokePrivate(session, "HandleSceneSettingsDialogConfirmed", updatedSettings);
+            } finally {
+                EditorSceneMutationService.SceneMutated -= handleSceneMutated;
+            }
+
+            SceneSettingsAsset currentSceneSettings = GetPrivateField<SceneSettingsAsset>(session, "CurrentSceneSettings");
+            EditorSceneCanvasProfileState sceneCanvasProfileState = GetPrivateField<EditorSceneCanvasProfileState>(session, "sceneCanvasProfileState");
+            bool isSceneDirty = GetPrivateField<bool>(session, "IsSceneDirty");
+            Assert.Equal(1600, currentSceneSettings.CanvasProfile.Width);
+            Assert.Equal(900, currentSceneSettings.CanvasProfile.Height);
+            Assert.Equal(1600, sceneCanvasProfileState.CanvasWidth);
+            Assert.Equal(900, sceneCanvasProfileState.CanvasHeight);
+            Assert.True(isSceneDirty);
+        }
+
+        /// <summary>
         /// Creates a partially initialized editor session containing only the collaborators used by scene save handlers.
         /// </summary>
         /// <returns>Editor session instance configured for scene save tests.</returns>
@@ -117,6 +189,10 @@ namespace helengine.editor.tests {
             SaveFileDialog saveFileDialog = new SaveFileDialog(CreateFont(), TempProjectRootPath);
             SceneSavePathResolver pathResolver = new SceneSavePathResolver(TempProjectRootPath);
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            SceneSettingsAsset currentSceneSettings = new SceneSettingsAsset();
+            EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
+            sceneCanvasProfileState.ApplySceneSettings(currentSceneSettings);
+            SceneSettingsDialog sceneSettingsDialog = new SceneSettingsDialog(CreateFont(), EditorUiMetrics.Default);
             EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "helengine - project.heproj");
 
             SetPrivateField(session, "assetBrowserPanel", assetBrowserPanel);
@@ -124,6 +200,9 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "SceneSavePathResolver", pathResolver);
             SetPrivateField(session, "SceneSaveService", saveService);
             SetPrivateField(session, "CurrentScenePath", string.Empty);
+            SetPrivateField(session, "CurrentSceneSettings", currentSceneSettings);
+            SetPrivateField(session, "sceneCanvasProfileState", sceneCanvasProfileState);
+            SetPrivateField(session, "sceneSettingsDialog", sceneSettingsDialog);
             SetPrivateField(session, "titleBar", titleBar);
             SetPrivateField(session, "ProjectDisplayName", "project.heproj");
 

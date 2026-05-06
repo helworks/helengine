@@ -217,6 +217,32 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures scene save persists the supplied scene-level canvas profile into the serialized scene asset.
+        /// </summary>
+        [Fact]
+        public void Save_WhenSceneSettingsAreProvided_PersistsCanvasProfile() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            SceneSettingsAsset sceneSettings = new SceneSettingsAsset {
+                CanvasProfile = new SceneCanvasProfile {
+                    Width = 1920,
+                    Height = 1080
+                }
+            };
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CanvasProfile.helen");
+
+            saveService.Save(scenePath, sceneSettings);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.Equal(1920, asset.SceneSettings.CanvasProfile.Width);
+            Assert.Equal(1080, asset.SceneSettings.CanvasProfile.Height);
+        }
+
+        /// <summary>
         /// Ensures save fails clearly when one user component falls into automatic persistence but exposes an unsupported reflected member type.
         /// </summary>
         [Fact]

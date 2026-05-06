@@ -36,9 +36,10 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void MapWorldPointToCanvas_WhenUsingDefaultScale_ReturnsExpectedPixels() {
+            EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             EditorViewportCanvasPreviewSettings settings = new EditorViewportCanvasPreviewSettings();
 
-            int2 pixel = EditorViewportCanvasPlaneCoordinateMapper.MapWorldToCanvas(new float3(6.4f, 3.6f, 0f), settings);
+            int2 pixel = EditorViewportCanvasPlaneCoordinateMapper.MapWorldToCanvas(new float3(6.4f, 3.6f, 0f), sceneCanvasProfileState, settings);
 
             Assert.Equal(new int2(640, 360), pixel);
         }
@@ -48,9 +49,10 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void MapWorldPointToCanvas_WhenPointIsOnTopEdge_ReturnsZeroCanvasY() {
+            EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             EditorViewportCanvasPreviewSettings settings = new EditorViewportCanvasPreviewSettings();
 
-            int2 pixel = EditorViewportCanvasPlaneCoordinateMapper.MapWorldToCanvas(new float3(0f, 7.2f, 0f), settings);
+            int2 pixel = EditorViewportCanvasPlaneCoordinateMapper.MapWorldToCanvas(new float3(0f, 7.2f, 0f), sceneCanvasProfileState, settings);
 
             Assert.Equal(new int2(0, 0), pixel);
         }

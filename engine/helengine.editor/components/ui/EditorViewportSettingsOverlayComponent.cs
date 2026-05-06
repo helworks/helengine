@@ -1,6 +1,6 @@
 namespace helengine.editor {
     /// <summary>
-    /// Non-modal viewport overlay that exposes grid visibility, simulated canvas settings, and clip-plane settings for one editor camera.
+    /// Non-modal viewport overlay that exposes grid visibility and viewport-local preview controls for one editor camera.
     /// </summary>
     public class EditorViewportSettingsOverlayComponent : UpdateComponent {
         /// <summary>
@@ -10,7 +10,7 @@ namespace helengine.editor {
         /// <summary>
         /// Fixed overlay height in pixels.
         /// </summary>
-        const int PanelHeight = 318;
+        const int PanelHeight = 226;
         /// <summary>
         /// Horizontal panel padding in pixels.
         /// </summary>
@@ -56,14 +56,6 @@ namespace helengine.editor {
         /// </summary>
         const int CloseButtonHeight = 24;
         /// <summary>
-        /// Minimum authored keyboard step used by the canvas-width slider.
-        /// </summary>
-        const double CanvasWidthKeyboardStep = 1.0;
-        /// <summary>
-        /// Minimum authored keyboard step used by the canvas-height slider.
-        /// </summary>
-        const double CanvasHeightKeyboardStep = 1.0;
-        /// <summary>
         /// Minimum authored keyboard step used by the pixels-per-world-unit slider.
         /// </summary>
         const double PixelsPerWorldUnitKeyboardStep = 1.0;
@@ -75,14 +67,6 @@ namespace helengine.editor {
         /// Minimum authored keyboard step used by the far-plane slider.
         /// </summary>
         const double FarPlaneKeyboardStep = 1.0;
-        /// <summary>
-        /// Maximum canvas width exposed by the first-pass preview settings overlay.
-        /// </summary>
-        const double MaximumCanvasWidth = 4096.0;
-        /// <summary>
-        /// Maximum canvas height exposed by the first-pass preview settings overlay.
-        /// </summary>
-        const double MaximumCanvasHeight = 4096.0;
         /// <summary>
         /// Maximum pixels-per-world-unit value exposed by the first-pass preview settings overlay.
         /// </summary>
@@ -146,22 +130,6 @@ namespace helengine.editor {
         /// </summary>
         CheckBoxComponent GridToggleCheckBox;
         /// <summary>
-        /// Label text for the canvas-width slider row.
-        /// </summary>
-        TextComponent CanvasWidthLabelText;
-        /// <summary>
-        /// Value text for the canvas-width slider row.
-        /// </summary>
-        TextComponent CanvasWidthValueText;
-        /// <summary>
-        /// Label text for the canvas-height slider row.
-        /// </summary>
-        TextComponent CanvasHeightLabelText;
-        /// <summary>
-        /// Value text for the canvas-height slider row.
-        /// </summary>
-        TextComponent CanvasHeightValueText;
-        /// <summary>
         /// Label text for the pixels-per-world-unit slider row.
         /// </summary>
         TextComponent PixelsPerWorldUnitLabelText;
@@ -210,14 +178,6 @@ namespace helengine.editor {
         /// </summary>
         EditorFocusTarget GridToggleFocusTargetInternal;
         /// <summary>
-        /// Focus target for the canvas-width slider.
-        /// </summary>
-        EditorFocusTarget CanvasWidthFocusTargetInternal;
-        /// <summary>
-        /// Focus target for the canvas-height slider.
-        /// </summary>
-        EditorFocusTarget CanvasHeightFocusTargetInternal;
-        /// <summary>
         /// Focus target for the pixels-per-world-unit slider.
         /// </summary>
         EditorFocusTarget PixelsPerWorldUnitFocusTargetInternal;
@@ -233,14 +193,6 @@ namespace helengine.editor {
         /// Focus target for the close button.
         /// </summary>
         EditorFocusTarget CloseButtonFocusTargetInternal;
-        /// <summary>
-        /// Slider used to edit the simulated canvas width.
-        /// </summary>
-        EditorSlider CanvasWidthSliderInternal;
-        /// <summary>
-        /// Slider used to edit the simulated canvas height.
-        /// </summary>
-        EditorSlider CanvasHeightSliderInternal;
         /// <summary>
         /// Slider used to edit the number of canvas pixels represented by one world unit.
         /// </summary>
@@ -296,6 +248,7 @@ namespace helengine.editor {
         /// <param name="camera">Viewport camera whose settings are edited by the overlay.</param>
         /// <param name="font">Font used for overlay labels and button text.</param>
         /// <param name="overlayLayerMask">Layer mask applied to overlay visuals.</param>
+        /// <param name="canvasPreviewSettings">Viewport-local preview settings edited by this overlay.</param>
         /// <param name="setGridVisibleAction">Delegate that applies viewport grid visibility.</param>
         /// <param name="isGridVisibleResolver">Delegate that resolves whether the viewport grid is visible.</param>
         public EditorViewportSettingsOverlayComponent(
@@ -330,16 +283,6 @@ namespace helengine.editor {
         public EditorFocusTarget GridToggleFocusTarget => GridToggleFocusTargetInternal;
 
         /// <summary>
-        /// Gets the focus target used by the canvas-width slider row.
-        /// </summary>
-        public EditorFocusTarget CanvasWidthFocusTarget => CanvasWidthFocusTargetInternal;
-
-        /// <summary>
-        /// Gets the focus target used by the canvas-height slider row.
-        /// </summary>
-        public EditorFocusTarget CanvasHeightFocusTarget => CanvasHeightFocusTargetInternal;
-
-        /// <summary>
         /// Gets the focus target used by the pixels-per-world-unit slider row.
         /// </summary>
         public EditorFocusTarget PixelsPerWorldUnitFocusTarget => PixelsPerWorldUnitFocusTargetInternal;
@@ -358,16 +301,6 @@ namespace helengine.editor {
         /// Gets the focus target used by the close button row.
         /// </summary>
         public EditorFocusTarget CloseButtonFocusTarget => CloseButtonFocusTargetInternal;
-
-        /// <summary>
-        /// Gets the canvas-width slider entity.
-        /// </summary>
-        public EditorSlider CanvasWidthSlider => CanvasWidthSliderInternal;
-
-        /// <summary>
-        /// Gets the canvas-height slider entity.
-        /// </summary>
-        public EditorSlider CanvasHeightSlider => CanvasHeightSliderInternal;
 
         /// <summary>
         /// Gets the pixels-per-world-unit slider entity.
@@ -402,8 +335,6 @@ namespace helengine.editor {
 
             CreateOverlayRoot();
             CreateGridToggleRow();
-            CreateCanvasWidthRow();
-            CreateCanvasHeightRow();
             CreatePixelsPerWorldUnitRow();
             CreateNearPlaneRow();
             CreateFarPlaneRow();
@@ -624,82 +555,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates the canvas-width slider row and binds live preview-setting updates.
-        /// </summary>
-        void CreateCanvasWidthRow() {
-            EditorEntity labelRoot = CreateChildRoot();
-            OverlayRoot.AddChild(labelRoot);
-
-            CanvasWidthLabelText = new TextComponent {
-                Font = Font,
-                Text = "Canvas Width",
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(PanelWidth - PanelPadding * 2, SectionLabelHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
-            };
-            labelRoot.AddComponent(CanvasWidthLabelText);
-
-            CanvasWidthSliderInternal = new EditorSlider(1.0, MaximumCanvasWidth, CanvasPreviewSettings.CanvasWidth, EditorSliderScaleMode.Linear, SliderWidth, SliderHeight) {
-                InternalEntity = true
-            };
-            CanvasWidthSliderInternal.ApplyLayerMask(OverlayLayerMask);
-            CanvasWidthSliderInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
-            CanvasWidthSliderInternal.KeyboardStep = CanvasWidthKeyboardStep;
-            CanvasWidthSliderInternal.ValueChanged += HandleCanvasWidthSliderChanged;
-            OverlayRoot.AddChild(CanvasWidthSliderInternal);
-
-            EditorEntity valueRoot = CreateChildRoot();
-            OverlayRoot.AddChild(valueRoot);
-
-            CanvasWidthValueText = new TextComponent {
-                Font = Font,
-                Text = string.Empty,
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(SliderValueWidth, SliderHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
-            };
-            valueRoot.AddComponent(CanvasWidthValueText);
-        }
-
-        /// <summary>
-        /// Creates the canvas-height slider row and binds live preview-setting updates.
-        /// </summary>
-        void CreateCanvasHeightRow() {
-            EditorEntity labelRoot = CreateChildRoot();
-            OverlayRoot.AddChild(labelRoot);
-
-            CanvasHeightLabelText = new TextComponent {
-                Font = Font,
-                Text = "Canvas Height",
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(PanelWidth - PanelPadding * 2, SectionLabelHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
-            };
-            labelRoot.AddComponent(CanvasHeightLabelText);
-
-            CanvasHeightSliderInternal = new EditorSlider(1.0, MaximumCanvasHeight, CanvasPreviewSettings.CanvasHeight, EditorSliderScaleMode.Linear, SliderWidth, SliderHeight) {
-                InternalEntity = true
-            };
-            CanvasHeightSliderInternal.ApplyLayerMask(OverlayLayerMask);
-            CanvasHeightSliderInternal.SetRenderOrders(RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
-            CanvasHeightSliderInternal.KeyboardStep = CanvasHeightKeyboardStep;
-            CanvasHeightSliderInternal.ValueChanged += HandleCanvasHeightSliderChanged;
-            OverlayRoot.AddChild(CanvasHeightSliderInternal);
-
-            EditorEntity valueRoot = CreateChildRoot();
-            OverlayRoot.AddChild(valueRoot);
-
-            CanvasHeightValueText = new TextComponent {
-                Font = Font,
-                Text = string.Empty,
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                Size = new int2(SliderValueWidth, SliderHeight),
-                RenderOrder2D = RenderOrder2D.OverlayForeground
-            };
-            valueRoot.AddComponent(CanvasHeightValueText);
-        }
-
-        /// <summary>
         /// Creates the pixels-per-world-unit slider row and binds live preview-setting updates.
         /// </summary>
         void CreatePixelsPerWorldUnitRow() {
@@ -872,31 +727,9 @@ namespace helengine.editor {
                 ActivateGridToggleFromKey);
             EditorKeyboardFocusService.RegisterTarget(GridToggleFocusTargetInternal);
 
-            CanvasWidthFocusTargetInternal = new EditorFocusTarget(
-                OverlayFocusGroup,
-                1,
-                false,
-                () => IsOpen && CanvasWidthSliderInternal.Enabled,
-                ContainsCanvasWidthSliderPoint,
-                HandleCanvasWidthFocusedChanged,
-                CanAdjustSliderWithKey,
-                ActivateCanvasWidthFromKey);
-            EditorKeyboardFocusService.RegisterTarget(CanvasWidthFocusTargetInternal);
-
-            CanvasHeightFocusTargetInternal = new EditorFocusTarget(
-                OverlayFocusGroup,
-                2,
-                false,
-                () => IsOpen && CanvasHeightSliderInternal.Enabled,
-                ContainsCanvasHeightSliderPoint,
-                HandleCanvasHeightFocusedChanged,
-                CanAdjustSliderWithKey,
-                ActivateCanvasHeightFromKey);
-            EditorKeyboardFocusService.RegisterTarget(CanvasHeightFocusTargetInternal);
-
             PixelsPerWorldUnitFocusTargetInternal = new EditorFocusTarget(
                 OverlayFocusGroup,
-                3,
+                1,
                 false,
                 () => IsOpen && PixelsPerWorldUnitSliderInternal.Enabled,
                 ContainsPixelsPerWorldUnitSliderPoint,
@@ -907,7 +740,7 @@ namespace helengine.editor {
 
             NearPlaneFocusTargetInternal = new EditorFocusTarget(
                 OverlayFocusGroup,
-                4,
+                2,
                 false,
                 () => IsOpen && NearPlaneSliderInternal.Enabled,
                 ContainsNearPlaneSliderPoint,
@@ -918,7 +751,7 @@ namespace helengine.editor {
 
             FarPlaneFocusTargetInternal = new EditorFocusTarget(
                 OverlayFocusGroup,
-                5,
+                3,
                 false,
                 () => IsOpen && FarPlaneSliderInternal.Enabled,
                 ContainsFarPlaneSliderPoint,
@@ -929,7 +762,7 @@ namespace helengine.editor {
 
             CloseButtonFocusTargetInternal = new EditorFocusTarget(
                 OverlayFocusGroup,
-                6,
+                4,
                 false,
                 () => IsOpen && CloseButtonRoot.Enabled,
                 ContainsCloseButtonPoint,
@@ -945,12 +778,6 @@ namespace helengine.editor {
         void UnregisterFocusTargets() {
             if (GridToggleFocusTargetInternal != null) {
                 EditorKeyboardFocusService.UnregisterTarget(GridToggleFocusTargetInternal);
-            }
-            if (CanvasWidthFocusTargetInternal != null) {
-                EditorKeyboardFocusService.UnregisterTarget(CanvasWidthFocusTargetInternal);
-            }
-            if (CanvasHeightFocusTargetInternal != null) {
-                EditorKeyboardFocusService.UnregisterTarget(CanvasHeightFocusTargetInternal);
             }
             if (PixelsPerWorldUnitFocusTargetInternal != null) {
                 EditorKeyboardFocusService.UnregisterTarget(PixelsPerWorldUnitFocusTargetInternal);
@@ -985,11 +812,7 @@ namespace helengine.editor {
             }
 
             int gridRowY = PanelPadding;
-            int canvasWidthLabelY = gridRowY + GridToggleRowHeight + SectionSpacing;
-            int canvasWidthSliderY = canvasWidthLabelY + SectionLabelHeight + SectionLabelSpacing;
-            int canvasHeightLabelY = canvasWidthSliderY + SliderHeight + SectionSpacing;
-            int canvasHeightSliderY = canvasHeightLabelY + SectionLabelHeight + SectionLabelSpacing;
-            int pixelsPerWorldUnitLabelY = canvasHeightSliderY + SliderHeight + SectionSpacing;
+            int pixelsPerWorldUnitLabelY = gridRowY + GridToggleRowHeight + SectionSpacing;
             int pixelsPerWorldUnitSliderY = pixelsPerWorldUnitLabelY + SectionLabelHeight + SectionLabelSpacing;
             int nearLabelY = pixelsPerWorldUnitSliderY + SliderHeight + SectionSpacing;
             int nearSliderY = nearLabelY + SectionLabelHeight + SectionLabelSpacing;
@@ -998,8 +821,6 @@ namespace helengine.editor {
             int closeY = PanelHeight - PanelPadding - CloseButtonHeight;
 
             LayoutGridRow(gridRowY);
-            LayoutSliderRow(CanvasWidthSliderInternal, CanvasWidthValueText, canvasWidthLabelY, canvasWidthSliderY);
-            LayoutSliderRow(CanvasHeightSliderInternal, CanvasHeightValueText, canvasHeightLabelY, canvasHeightSliderY);
             LayoutSliderRow(PixelsPerWorldUnitSliderInternal, PixelsPerWorldUnitValueText, pixelsPerWorldUnitLabelY, pixelsPerWorldUnitSliderY);
             LayoutSliderRow(NearPlaneSliderInternal, NearPlaneValueText, nearLabelY, nearSliderY);
             LayoutSliderRow(FarPlaneSliderInternal, FarPlaneValueText, farLabelY, farSliderY);
@@ -1038,11 +859,7 @@ namespace helengine.editor {
             }
 
             TextComponent labelText = null;
-            if (ReferenceEquals(slider, CanvasWidthSliderInternal)) {
-                labelText = CanvasWidthLabelText;
-            } else if (ReferenceEquals(slider, CanvasHeightSliderInternal)) {
-                labelText = CanvasHeightLabelText;
-            } else if (ReferenceEquals(slider, PixelsPerWorldUnitSliderInternal)) {
+            if (ReferenceEquals(slider, PixelsPerWorldUnitSliderInternal)) {
                 labelText = PixelsPerWorldUnitLabelText;
             } else if (ReferenceEquals(slider, NearPlaneSliderInternal)) {
                 labelText = NearPlaneLabelText;
@@ -1112,22 +929,6 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="isFocused">True when keyboard focus currently targets the grid-toggle checkbox.</param>
         void HandleGridToggleFocusedChanged(bool isFocused) {
-        }
-
-        /// <summary>
-        /// Applies keyboard-focus styling to the canvas-width slider target.
-        /// </summary>
-        /// <param name="isFocused">True when keyboard focus currently targets the canvas-width slider.</param>
-        void HandleCanvasWidthFocusedChanged(bool isFocused) {
-            CanvasWidthSliderInternal.SetKeyboardFocused(isFocused);
-        }
-
-        /// <summary>
-        /// Applies keyboard-focus styling to the canvas-height slider target.
-        /// </summary>
-        /// <param name="isFocused">True when keyboard focus currently targets the canvas-height slider.</param>
-        void HandleCanvasHeightFocusedChanged(bool isFocused) {
-            CanvasHeightSliderInternal.SetKeyboardFocused(isFocused);
         }
 
         /// <summary>
@@ -1209,30 +1010,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies one keyboard adjustment to the canvas-width slider.
-        /// </summary>
-        /// <param name="key">Adjustment key routed by the focus service.</param>
-        void ActivateCanvasWidthFromKey(Keys key) {
-            if (!CanAdjustSliderWithKey(key)) {
-                return;
-            }
-
-            CanvasWidthSliderInternal.AdjustFromKey(key);
-        }
-
-        /// <summary>
-        /// Applies one keyboard adjustment to the canvas-height slider.
-        /// </summary>
-        /// <param name="key">Adjustment key routed by the focus service.</param>
-        void ActivateCanvasHeightFromKey(Keys key) {
-            if (!CanAdjustSliderWithKey(key)) {
-                return;
-            }
-
-            CanvasHeightSliderInternal.AdjustFromKey(key);
-        }
-
-        /// <summary>
         /// Applies one keyboard adjustment to the pixels-per-world-unit slider.
         /// </summary>
         /// <param name="key">Adjustment key routed by the focus service.</param>
@@ -1278,32 +1055,6 @@ namespace helengine.editor {
             }
 
             Close(SettingsButtonFocusTarget);
-        }
-
-        /// <summary>
-        /// Applies live preview-setting updates from the canvas-width slider.
-        /// </summary>
-        /// <param name="value">New authored canvas width from the slider.</param>
-        void HandleCanvasWidthSliderChanged(double value) {
-            if (IsSynchronizingState) {
-                return;
-            }
-
-            CanvasPreviewSettings.CanvasWidth = Math.Max(1, (int)Math.Round(value));
-            SynchronizeFromState();
-        }
-
-        /// <summary>
-        /// Applies live preview-setting updates from the canvas-height slider.
-        /// </summary>
-        /// <param name="value">New authored canvas height from the slider.</param>
-        void HandleCanvasHeightSliderChanged(double value) {
-            if (IsSynchronizingState) {
-                return;
-            }
-
-            CanvasPreviewSettings.CanvasHeight = Math.Max(1, (int)Math.Round(value));
-            SynchronizeFromState();
         }
 
         /// <summary>
@@ -1357,8 +1108,6 @@ namespace helengine.editor {
         void SynchronizeFromState() {
             IsSynchronizingState = true;
             try {
-                CanvasWidthSliderInternal.SetValue(CanvasPreviewSettings.CanvasWidth);
-                CanvasHeightSliderInternal.SetValue(CanvasPreviewSettings.CanvasHeight);
                 PixelsPerWorldUnitSliderInternal.SetValue(CanvasPreviewSettings.PixelsPerWorldUnit);
                 NearPlaneSliderInternal.SetValue(Camera.NearPlaneDistance);
                 FarPlaneSliderInternal.SetValue(Camera.FarPlaneDistance);
@@ -1407,15 +1156,9 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Updates the simulated canvas and clip-plane numeric value readouts from current state.
+        /// Updates the viewport-local preview and clip-plane numeric value readouts from current state.
         /// </summary>
         void UpdateSliderValueTexts() {
-            if (CanvasWidthValueText != null) {
-                CanvasWidthValueText.Text = FormatIntegerValue(CanvasPreviewSettings.CanvasWidth);
-            }
-            if (CanvasHeightValueText != null) {
-                CanvasHeightValueText.Text = FormatIntegerValue(CanvasPreviewSettings.CanvasHeight);
-            }
             if (PixelsPerWorldUnitValueText != null) {
                 PixelsPerWorldUnitValueText.Text = FormatIntegerValue(CanvasPreviewSettings.PixelsPerWorldUnit);
             }
@@ -1464,24 +1207,6 @@ namespace helengine.editor {
         /// <returns>True when the point lies inside the grid-toggle checkbox.</returns>
         bool ContainsGridTogglePoint(int2 point) {
             return ContainsChildPoint(GridToggleCheckBoxHost, EditorPlatformSettingsSection.CheckBoxSize.X, EditorPlatformSettingsSection.CheckBoxSize.Y, point);
-        }
-
-        /// <summary>
-        /// Returns true when the supplied point lies inside the canvas-width slider.
-        /// </summary>
-        /// <param name="point">Screen point to evaluate.</param>
-        /// <returns>True when the point lies inside the canvas-width slider.</returns>
-        bool ContainsCanvasWidthSliderPoint(int2 point) {
-            return ContainsChildPoint(CanvasWidthSliderInternal, SliderWidth, SliderHeight, point);
-        }
-
-        /// <summary>
-        /// Returns true when the supplied point lies inside the canvas-height slider.
-        /// </summary>
-        /// <param name="point">Screen point to evaluate.</param>
-        /// <returns>True when the point lies inside the canvas-height slider.</returns>
-        bool ContainsCanvasHeightSliderPoint(int2 point) {
-            return ContainsChildPoint(CanvasHeightSliderInternal, SliderWidth, SliderHeight, point);
         }
 
         /// <summary>

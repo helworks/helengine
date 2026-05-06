@@ -13,9 +13,10 @@ namespace helengine.editor.tests.managers.scene {
         public void ComponentAdded_WhenAttached_CreatesDefaultSizedRenderTargetAndPlane() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera();
+            EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             EditorViewportCanvasPreviewSettings settings = new EditorViewportCanvasPreviewSettings();
             EditorEntity cameraEntity = Assert.IsType<EditorEntity>(sceneCamera.Parent);
-            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, settings, Core.Instance.RenderManager3D);
+            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D);
 
             cameraEntity.AddComponent(component);
             component.Update();
@@ -35,16 +36,17 @@ namespace helengine.editor.tests.managers.scene {
         public void Update_WhenCanvasSettingsChange_RebuildsRenderTargetAndPlaneScale() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera();
+            EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             EditorViewportCanvasPreviewSettings settings = new EditorViewportCanvasPreviewSettings();
             EditorEntity cameraEntity = Assert.IsType<EditorEntity>(sceneCamera.Parent);
-            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, settings, Core.Instance.RenderManager3D);
+            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D);
 
             cameraEntity.AddComponent(component);
             component.Update();
             RenderTarget initialRenderTarget = component.PreviewRenderTarget;
 
-            settings.CanvasWidth = 1920;
-            settings.CanvasHeight = 1080;
+            sceneCanvasProfileState.SetCanvasWidth(1920);
+            sceneCanvasProfileState.SetCanvasHeight(1080);
             settings.PixelsPerWorldUnit = 200;
             component.Update();
 
@@ -62,9 +64,10 @@ namespace helengine.editor.tests.managers.scene {
         public void Update_WhenViewportPreviewIsActive_RoutesAuthoredSceneDrawablesOnlyToPreviewCamera() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera();
+            EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             EditorViewportCanvasPreviewSettings settings = new EditorViewportCanvasPreviewSettings();
             EditorEntity cameraEntity = Assert.IsType<EditorEntity>(sceneCamera.Parent);
-            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, settings, Core.Instance.RenderManager3D);
+            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D);
             CreateSceneRoundedRectEntity();
 
             cameraEntity.AddComponent(component);

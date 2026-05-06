@@ -36,26 +36,16 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures tab traversal moves through the overlay controls in the expected order.
+        /// Ensures tab traversal moves through the viewport-local overlay controls in the expected order.
         /// </summary>
         [Fact]
-        public void HandleTab_WhenOverlayIsOpen_TraversesGridNearFarAndCloseControlsInOrder() {
+        public void HandleTab_WhenOverlayIsOpen_TraversesGridPreviewNearFarAndCloseControlsInOrder() {
             InitializeCore();
             EditorViewport viewport = CreateViewport();
             EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
             EditorFocusTarget settingsTarget = GetPrivateField<EditorFocusTarget>(viewport, "SettingsButtonFocusTarget");
 
             settingsTarget.ActivateFromKey(Keys.Enter);
-            EditorKeyboardFocusService.HandleTab(true);
-            Assert.Same(
-                overlayComponent.CanvasWidthFocusTarget,
-                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
-
-            EditorKeyboardFocusService.HandleTab(true);
-            Assert.Same(
-                overlayComponent.CanvasHeightFocusTarget,
-                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
-
             EditorKeyboardFocusService.HandleTab(true);
             Assert.Same(
                 overlayComponent.PixelsPerWorldUnitFocusTarget,
@@ -85,8 +75,8 @@ namespace helengine.editor.tests {
             InitializeCore();
             EditorViewport viewport = CreateViewport();
 
-            Assert.Equal(1280, viewport.CanvasPreviewSettings.CanvasWidth);
-            Assert.Equal(720, viewport.CanvasPreviewSettings.CanvasHeight);
+            Assert.Equal(1280, viewport.SceneCanvasProfileState.CanvasWidth);
+            Assert.Equal(720, viewport.SceneCanvasProfileState.CanvasHeight);
             Assert.Equal(100, viewport.CanvasPreviewSettings.PixelsPerWorldUnit);
         }
 
@@ -268,21 +258,19 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures canvas preview sliders update viewport-local preview settings immediately.
+        /// Ensures viewport-local preview sliders update preview settings without changing the scene-owned canvas profile.
         /// </summary>
         [Fact]
-        public void SetCanvasPreviewSliderValues_WhenChanged_UpdatesViewportSettingsImmediately() {
+        public void SetPixelsPerWorldUnitSliderValue_WhenChanged_UpdatesViewportPreviewSettingsWithoutChangingSceneCanvas() {
             InitializeCore();
             EditorViewport viewport = CreateViewport();
             EditorViewportSettingsOverlayComponent overlayComponent = GetPrivateField<EditorViewportSettingsOverlayComponent>(viewport, "SettingsOverlayComponent");
 
             overlayComponent.Open();
-            overlayComponent.CanvasWidthSlider.SetValue(1920);
-            overlayComponent.CanvasHeightSlider.SetValue(1080);
             overlayComponent.PixelsPerWorldUnitSlider.SetValue(200);
 
-            Assert.Equal(1920, viewport.CanvasPreviewSettings.CanvasWidth);
-            Assert.Equal(1080, viewport.CanvasPreviewSettings.CanvasHeight);
+            Assert.Equal(1280, viewport.SceneCanvasProfileState.CanvasWidth);
+            Assert.Equal(720, viewport.SceneCanvasProfileState.CanvasHeight);
             Assert.Equal(200, viewport.CanvasPreviewSettings.PixelsPerWorldUnit);
         }
 

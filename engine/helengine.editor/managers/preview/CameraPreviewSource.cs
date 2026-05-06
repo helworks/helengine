@@ -20,6 +20,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorSceneCameraSuppressionComponent suppressionState;
         /// <summary>
+        /// Scene-owned canvas profile used to size preview render targets for authored 2D scenes.
+        /// </summary>
+        readonly EditorSceneCanvasProfileState sceneCanvasProfileState;
+        /// <summary>
         /// Hidden editor entity that owns the offscreen preview camera.
         /// </summary>
         readonly EditorEntity previewEntity;
@@ -46,7 +50,8 @@ namespace helengine.editor {
         /// <param name="sourceEntity">Selected scene entity that owns the live camera.</param>
         /// <param name="sourceCameraComponent">Selected camera component.</param>
         /// <param name="renderManager3D">Renderer used to allocate the offscreen target.</param>
-        public CameraPreviewSource(Entity sourceEntity, CameraComponent sourceCameraComponent, RenderManager3D renderManager3D) {
+        /// <param name="sceneCanvasProfileState">Scene-owned canvas profile used to size previews.</param>
+        public CameraPreviewSource(Entity sourceEntity, CameraComponent sourceCameraComponent, RenderManager3D renderManager3D, EditorSceneCanvasProfileState sceneCanvasProfileState) {
             if (sourceEntity == null) {
                 throw new ArgumentNullException(nameof(sourceEntity));
             }
@@ -60,6 +65,31 @@ namespace helengine.editor {
             this.renderManager3D = renderManager3D;
             this.sourceEntity = sourceEntity;
             this.sourceCameraComponent = sourceCameraComponent;
+            this.sceneCanvasProfileState = sceneCanvasProfileState;
+            suppressionState = EditorSceneCameraSuppressionService.GetSuppressionState(sourceCameraComponent);
+
+            previewEntity = new EditorEntity();
+            previewEntity.InternalEntity = true;
+            previewEntity.LayerMask = EditorLayerMasks.SceneObjects;
+            previewCameraComponent = new CameraComponent();
+            previewEntity.AddComponent(previewCameraComponent);
+
+            contentSize = new int2(1, 1);
+            ApplyMirroredState();
+            Resize(contentSize);
+        }
+
+        /// <summary>
+        /// Initializes a new camera preview source for one selected scene camera without a shared scene canvas profile.
+        /// </summary>
+        /// <param name="sourceEntity">Selected scene entity that owns the live camera.</param>
+        /// <param name="sourceCameraComponent">Selected camera component.</param>
+        /// <param name="renderManager3D">Renderer used to allocate the offscreen target.</param>
+        public CameraPreviewSource(Entity sourceEntity, CameraComponent sourceCameraComponent, RenderManager3D renderManager3D) {
+            this.renderManager3D = renderManager3D ?? throw new ArgumentNullException(nameof(renderManager3D));
+            this.sourceEntity = sourceEntity ?? throw new ArgumentNullException(nameof(sourceEntity));
+            this.sourceCameraComponent = sourceCameraComponent ?? throw new ArgumentNullException(nameof(sourceCameraComponent));
+            sceneCanvasProfileState = null;
             suppressionState = EditorSceneCameraSuppressionService.GetSuppressionState(sourceCameraComponent);
 
             previewEntity = new EditorEntity();
@@ -194,6 +224,11 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Render-target size that should be allocated for the preview camera.</returns>
         int2 ResolvePreviewTargetSize() {
+            if (sceneCanvasProfileState != null) {
+                return new int2(
+                    Math.Max(1, sceneCanvasProfileState.CanvasWidth),
+                    Math.Max(1, sceneCanvasProfileState.CanvasHeight));
+            }
             if (suppressionState != null) {
                 return new int2(
                     Math.Max(1, (int)Math.Round(suppressionState.Viewport.Z)),

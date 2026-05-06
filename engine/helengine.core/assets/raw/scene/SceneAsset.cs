@@ -19,6 +19,11 @@ namespace helengine {
         public SceneAssetReference[] AssetReferences { get; set; } = Array.Empty<SceneAssetReference>();
 
         /// <summary>
+        /// Gets or sets the scene-wide authoring settings persisted with the scene asset.
+        /// </summary>
+        public SceneSettingsAsset SceneSettings { get; set; } = new SceneSettingsAsset();
+
+        /// <summary>
         /// Gets or sets the authored physics 3D scene feature flags persisted by editor scene assets.
         /// </summary>
         public uint Physics3DSceneFeatureFlags { get; set; }

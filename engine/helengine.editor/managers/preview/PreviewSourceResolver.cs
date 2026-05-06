@@ -15,6 +15,10 @@ namespace helengine.editor {
         /// 3D renderer reserved for camera preview sources in the next implementation slice.
         /// </summary>
         readonly RenderManager3D renderManager3D;
+        /// <summary>
+        /// Scene-owned canvas profile used to size camera previews against the authored logical resolution.
+        /// </summary>
+        readonly EditorSceneCanvasProfileState sceneCanvasProfileState;
 
         /// <summary>
         /// Initializes a new preview source resolver.
@@ -22,7 +26,8 @@ namespace helengine.editor {
         /// <param name="assetImportManager">Asset import manager used for texture preview loading.</param>
         /// <param name="renderManager2D">2D renderer used for texture preview creation.</param>
         /// <param name="renderManager3D">3D renderer reserved for camera preview creation.</param>
-        public PreviewSourceResolver(AssetImportManager assetImportManager, RenderManager2D renderManager2D, RenderManager3D renderManager3D) {
+        /// <param name="sceneCanvasProfileState">Scene-owned canvas profile used to size camera previews.</param>
+        public PreviewSourceResolver(AssetImportManager assetImportManager, RenderManager2D renderManager2D, RenderManager3D renderManager3D, EditorSceneCanvasProfileState sceneCanvasProfileState) {
             if (assetImportManager == null) {
                 throw new ArgumentNullException(nameof(assetImportManager));
             }
@@ -36,6 +41,20 @@ namespace helengine.editor {
             this.assetImportManager = assetImportManager;
             this.renderManager2D = renderManager2D;
             this.renderManager3D = renderManager3D;
+            this.sceneCanvasProfileState = sceneCanvasProfileState;
+        }
+
+        /// <summary>
+        /// Initializes a new preview source resolver without a shared scene canvas profile.
+        /// </summary>
+        /// <param name="assetImportManager">Asset import manager used for texture preview loading.</param>
+        /// <param name="renderManager2D">2D renderer used for texture preview creation.</param>
+        /// <param name="renderManager3D">3D renderer reserved for camera preview creation.</param>
+        public PreviewSourceResolver(AssetImportManager assetImportManager, RenderManager2D renderManager2D, RenderManager3D renderManager3D) {
+            this.assetImportManager = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
+            this.renderManager2D = renderManager2D ?? throw new ArgumentNullException(nameof(renderManager2D));
+            this.renderManager3D = renderManager3D ?? throw new ArgumentNullException(nameof(renderManager3D));
+            sceneCanvasProfileState = null;
         }
 
         /// <summary>
@@ -50,7 +69,7 @@ namespace helengine.editor {
                 CameraComponent cameraComponent = FindComponent<CameraComponent>(selectedEntity);
                 if (cameraComponent != null) {
                     try {
-                        source = new CameraPreviewSource(selectedEntity, cameraComponent, renderManager3D);
+                        source = new CameraPreviewSource(selectedEntity, cameraComponent, renderManager3D, sceneCanvasProfileState);
                         return true;
                     } catch (Exception ex) {
                         Logger.WriteError($"Camera preview failed for '{GetSelectionLabel(selectedEntity)}': {ex.Message}");
