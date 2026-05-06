@@ -627,7 +627,7 @@ namespace helengine.editor {
 
             CodeModuleLabelText = new TextComponent {
                 Font = DialogFont,
-                Text = "Code Modules",
+                Text = "Runtime Modules",
                 Color = ThemeManager.Colors.InputForegroundPrimary,
                 RenderOrder2D = DialogTextOrder
             };
@@ -667,7 +667,7 @@ namespace helengine.editor {
             OutputDirectoryField.TextChanged += HandleOutputDirectoryFieldTextChanged;
             OutputFieldHost.AddComponent(OutputDirectoryField);
 
-            CodeModuleField = new TextBoxComponent(new int2(GetOutputFieldWidth(), GetOutputFieldHeightPixels()), DialogFont, "Comma-separated code modules");
+            CodeModuleField = new TextBoxComponent(new int2(GetOutputFieldWidth(), GetOutputFieldHeightPixels()), DialogFont, "Comma-separated runtime modules");
             CodeModuleField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CodeModuleField.TextChanged += HandleCodeModuleFieldTextChanged;
             CodeModuleFieldHost.AddComponent(CodeModuleField);
@@ -1715,7 +1715,7 @@ namespace helengine.editor {
             }
 
             if (queueItem.SelectedCodeModuleIds != null && queueItem.SelectedCodeModuleIds.Count > 0) {
-                segments.Add("modules " + queueItem.SelectedCodeModuleIds.Count);
+                segments.Add("runtime modules " + queueItem.SelectedCodeModuleIds.Count);
             }
 
             if (segments.Count == 0) {

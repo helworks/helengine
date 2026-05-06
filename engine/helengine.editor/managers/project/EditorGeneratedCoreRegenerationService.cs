@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Profiles;
@@ -443,6 +444,7 @@ namespace helengine.editor {
                 return;
             }
 
+            IReadOnlyList<string> featureManifestEntries = LoadGeneratedFeatureManifestEntries(generatedCoreRootPath);
             string[] sourceFiles = Directory.GetFiles(generatedCoreRootPath, "*.*", SearchOption.AllDirectories);
             Array.Sort(sourceFiles, StringComparer.OrdinalIgnoreCase);
             for (int index = 0; index < sourceFiles.Length; index++) {
@@ -456,7 +458,7 @@ namespace helengine.editor {
 
                 string fileName = Path.GetFileName(sourceFilePath);
                 string contents = File.ReadAllText(sourceFilePath);
-                string updatedContents = NormalizeGeneratedNativeSource(fileName, contents);
+                string updatedContents = NormalizeGeneratedNativeSource(fileName, contents, featureManifestEntries);
                 if (!string.Equals(contents, updatedContents, StringComparison.Ordinal)) {
                     File.WriteAllText(sourceFilePath, updatedContents);
                 }
@@ -468,8 +470,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fileName">File name being normalized.</param>
         /// <param name="contents">Current file contents.</param>
+        /// <param name="featureManifestEntries">Feature-manifest entries derived from the generated conversion report.</param>
         /// <returns>Updated file contents.</returns>
-        static string NormalizeGeneratedNativeSource(string fileName, string contents) {
+        static string NormalizeGeneratedNativeSource(string fileName, string contents, IReadOnlyList<string> featureManifestEntries) {
             if (string.IsNullOrWhiteSpace(fileName) || string.IsNullOrEmpty(contents)) {
                 return contents;
             }
@@ -643,6 +646,11 @@ namespace helengine.editor {
                 return InsertMissingFeatureManifestEntries(contents);
             }
 
+            if (string.Equals(fileName, "feature_manifest.cpp", StringComparison.OrdinalIgnoreCase)
+                && featureManifestEntries.Count > 0) {
+                return RewriteFeatureManifestEntries(contents, featureManifestEntries);
+            }
+
             if (string.Equals(fileName, "ShaderFilesystemIncludeResolver.cpp", StringComparison.OrdinalIgnoreCase)
                 && contents.Contains("Directory::Exists", StringComparison.Ordinal)
                 && !contents.Contains("#include \"system/io/directory.hpp\"", StringComparison.Ordinal)) {
@@ -665,6 +673,47 @@ namespace helengine.editor {
             }
 
             return contents;
+        }
+
+        /// <summary>
+        /// Loads feature-manifest entries from the generated conversion report when it is present.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
+        /// <returns>Ordered manifest entries derived from the generated feature decisions.</returns>
+        static IReadOnlyList<string> LoadGeneratedFeatureManifestEntries(string generatedCoreRootPath) {
+            string reportPath = Path.Combine(generatedCoreRootPath, "cpp-conversion-report.json");
+            if (!File.Exists(reportPath)) {
+                return [];
+            }
+
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(reportPath));
+            if (!document.RootElement.TryGetProperty("buildFeatures", out JsonElement buildFeatures)
+                || !buildFeatures.TryGetProperty("decisions", out JsonElement decisions)
+                || decisions.ValueKind != JsonValueKind.Array) {
+                return [];
+            }
+
+            List<string> entries = new();
+            foreach (JsonElement decision in decisions.EnumerateArray()) {
+                if (!decision.TryGetProperty("feature", out JsonElement featureElement)
+                    || !decision.TryGetProperty("enabled", out JsonElement enabledElement)
+                    || !decision.TryGetProperty("origin", out JsonElement originElement)) {
+                    continue;
+                }
+
+                string feature = featureElement.GetString() ?? string.Empty;
+                string origin = originElement.GetString() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(feature)
+                    || string.IsNullOrWhiteSpace(origin)
+                    || (enabledElement.ValueKind != JsonValueKind.False && enabledElement.ValueKind != JsonValueKind.True)) {
+                    continue;
+                }
+
+                string enabled = enabledElement.GetBoolean() ? "true" : "false";
+                entries.Add($"    {{ HEFeature::{feature}, {enabled}, HEFeatureDecisionOrigin::{origin}, \"{feature}\" }},");
+            }
+
+            return entries;
         }
 
         /// <summary>
@@ -912,6 +961,43 @@ namespace helengine.editor {
             return contents.Substring(0, enumStartIndex)
                 + replacement
                 + contents.Substring(enumEndIndex + 2);
+        }
+
+        /// <summary>
+        /// Rewrites the generated feature-manifest body so it matches the feature decisions recorded by conversion.
+        /// </summary>
+        /// <param name="contents">Current feature-manifest source contents.</param>
+        /// <param name="featureManifestEntries">Feature-manifest entries derived from the generated conversion report.</param>
+        /// <returns>Updated feature-manifest source contents.</returns>
+        static string RewriteFeatureManifestEntries(string contents, IReadOnlyList<string> featureManifestEntries) {
+            if (string.IsNullOrEmpty(contents) || featureManifestEntries == null || featureManifestEntries.Count == 0) {
+                return contents;
+            }
+
+            const string manifestArrayDeclaration = "static const HEFeatureEntry kFeatureEntries[] = {";
+            int declarationIndex = contents.IndexOf(manifestArrayDeclaration, StringComparison.Ordinal);
+            if (declarationIndex < 0) {
+                return contents;
+            }
+
+            int arrayEndIndex = contents.IndexOf("};", declarationIndex + manifestArrayDeclaration.Length, StringComparison.Ordinal);
+            if (arrayEndIndex < 0) {
+                return contents;
+            }
+
+            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            StringBuilder replacementBuilder = new();
+            replacementBuilder.Append(manifestArrayDeclaration);
+            replacementBuilder.Append(newline);
+            for (int index = 0; index < featureManifestEntries.Count; index++) {
+                replacementBuilder.Append(featureManifestEntries[index]);
+                replacementBuilder.Append(newline);
+            }
+
+            replacementBuilder.Append("};");
+            return contents.Substring(0, declarationIndex)
+                + replacementBuilder.ToString()
+                + contents.Substring(arrayEndIndex + 2);
         }
 
         /// <summary>

@@ -138,6 +138,7 @@ namespace helengine.editor {
             cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
             WriteRuntimeNativeManifestSources(cookedManifest, workspace.GeneratedCoreRootPath);
             WriteRuntimeGraphicsRendererManifestSource(workspace.GeneratedCoreRootPath, selectionModel);
+            FinalizeGeneratedCoreSources(workspace.GeneratedCoreRootPath);
             RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
 
             return RunPackagePlatform(
@@ -190,6 +191,14 @@ namespace helengine.editor {
                 builder,
                 selectedBuildProfileId,
                 selectedGraphicsProfileId);
+        }
+
+        /// <summary>
+        /// Finalizes the generated native core tree after runtime-specific source writers update it.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Generated core source root that will be compiled into the native player.</param>
+        void FinalizeGeneratedCoreSources(string generatedCoreRootPath) {
+            EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
         }
 
         /// <summary>

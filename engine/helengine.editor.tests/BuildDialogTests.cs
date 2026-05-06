@@ -946,7 +946,7 @@ namespace helengine.editor.tests {
             Assert.Equal(3, firstLines.Length);
             Assert.Equal("windows | Pending", firstLines[0]);
             Assert.Equal("1 scene(s) | Debug", firstLines[1]);
-            Assert.Equal("build b | gfx g | modules 2", firstLines[2]);
+            Assert.Equal("build b | gfx g | runtime modules 2", firstLines[2]);
             Assert.Equal("windows | Failed", secondLines[0]);
             Assert.Equal("1 scene(s) | Release", secondLines[1]);
             Assert.DoesNotContain("Unsupported scene format.", queueItemTexts[1].Text);

@@ -650,6 +650,50 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated feature-manifest sources are rewritten from the conversion report instead of preserving stale disabled entries.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_feature_manifest_entries_from_conversion_report() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-feature-manifest-source");
+        Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "runtime"));
+        string reportPath = Path.Combine(generatedCoreRootPath, "cpp-conversion-report.json");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "runtime", "feature_manifest.cpp");
+        File.WriteAllText(
+            reportPath,
+            "{\n"
+            + "  \"buildFeatures\": {\n"
+            + "    \"decisions\": [\n"
+            + "      { \"feature\": \"DebugOverlay\", \"enabled\": false, \"origin\": \"NotIncluded\" },\n"
+            + "      { \"feature\": \"Render2D\", \"enabled\": true, \"origin\": \"AutoDetected\" },\n"
+            + "      { \"feature\": \"Shaders\", \"enabled\": true, \"origin\": \"AutoDetected\" },\n"
+            + "      { \"feature\": \"Sprites\", \"enabled\": true, \"origin\": \"AutoDetected\" },\n"
+            + "      { \"feature\": \"Text2D\", \"enabled\": true, \"origin\": \"AutoDetected\" }\n"
+            + "    ]\n"
+            + "  }\n"
+            + "}\n");
+        File.WriteAllText(
+            sourcePath,
+            "#include \"feature_manifest.hpp\"\n"
+            + "\n"
+            + "static const HEFeatureEntry kFeatureEntries[] = {\n"
+            + "    { HEFeature::DebugOverlay, false, HEFeatureDecisionOrigin::NotIncluded, \"DebugOverlay\" },\n"
+            + "    { HEFeature::Render2D, false, HEFeatureDecisionOrigin::NotIncluded, \"Render2D\" },\n"
+            + "    { HEFeature::Shaders, false, HEFeatureDecisionOrigin::NotIncluded, \"Shaders\" },\n"
+            + "    { HEFeature::Sprites, false, HEFeatureDecisionOrigin::NotIncluded, \"Sprites\" },\n"
+            + "    { HEFeature::Text2D, false, HEFeatureDecisionOrigin::NotIncluded, \"Text2D\" },\n"
+            + "};\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedSource = File.ReadAllText(sourcePath);
+        Assert.Contains("{ HEFeature::Render2D, true, HEFeatureDecisionOrigin::AutoDetected, \"Render2D\" }", normalizedSource);
+        Assert.Contains("{ HEFeature::Shaders, true, HEFeatureDecisionOrigin::AutoDetected, \"Shaders\" }", normalizedSource);
+        Assert.Contains("{ HEFeature::Sprites, true, HEFeatureDecisionOrigin::AutoDetected, \"Sprites\" }", normalizedSource);
+        Assert.Contains("{ HEFeature::Text2D, true, HEFeatureDecisionOrigin::AutoDetected, \"Text2D\" }", normalizedSource);
+        Assert.Contains("{ HEFeature::DebugOverlay, false, HEFeatureDecisionOrigin::NotIncluded, \"DebugOverlay\" }", normalizedSource);
+    }
+
+    /// <summary>
     /// Verifies unity translation regeneration excludes only the separately linked runtime manifest sources.
     /// </summary>
     [Fact]
