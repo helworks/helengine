@@ -40,6 +40,14 @@ namespace helengine.editor {
         /// </summary>
         public const int SectionSpacing = 10;
         /// <summary>
+        /// Fallback host width used before the editor reports a real window size.
+        /// </summary>
+        const int FallbackHostWidth = 1280;
+        /// <summary>
+        /// Fallback host height used before the editor reports a real window size.
+        /// </summary>
+        const int FallbackHostHeight = 720;
+        /// <summary>
         /// <summary>
         /// Maximum time in milliseconds between row activations that counts as a double-click.
         /// </summary>
@@ -222,6 +230,7 @@ namespace helengine.editor {
             }
 
             BrowserView.RefreshEntries();
+            ShowDialogWithAdaptiveSize();
         }
 
         /// <summary>
@@ -262,23 +271,11 @@ namespace helengine.editor {
 
             int safeWindowWidth = Math.Max(1, windowWidth);
             int safeWindowHeight = Math.Max(1, windowHeight);
-            if (!DialogIsUserPositioned) {
-                int maxWidth = Math.Max(GetMinimumPanelWidthPixels(), safeWindowWidth - GetPanelPaddingPixels() * 2);
-                int maxHeight = Math.Max(GetMinimumPanelHeightPixels(), safeWindowHeight - GetPanelPaddingPixels() * 2);
-                int panelWidth = Math.Min(GetMaximumPanelWidthPixels(), Math.Min(maxWidth, safeWindowWidth));
-                int panelHeight = Math.Min(GetMaximumPanelHeightPixels(), Math.Min(maxHeight, safeWindowHeight));
-                SetDialogSize(panelWidth, panelHeight);
-            }
+            ApplyAutomaticPanelSize(safeWindowWidth, safeWindowHeight);
 
             if (!UpdateDialogFrame(windowWidth, windowHeight)) {
                 return;
             }
-
-            PanelSize = DialogPanelBackground.Size;
-            PanelPosition = DialogPanelPosition;
-            LayoutBrowser();
-            LayoutStatus();
-            LayoutFooter();
         }
 
         /// <summary>
@@ -341,6 +338,36 @@ namespace helengine.editor {
             SelectedEntry = null;
             LastActivatedTicks = 0;
             StatusText.Text = string.Empty;
+        }
+
+        /// <summary>
+        /// Applies the first visible dialog state using the current host size, or a safe desktop fallback before the host reports one.
+        /// </summary>
+        void ShowDialogWithAdaptiveSize() {
+            int safeHostWidth = DialogHostSize.X > 0 ? DialogHostSize.X : FallbackHostWidth;
+            int safeHostHeight = DialogHostSize.Y > 0 ? DialogHostSize.Y : FallbackHostHeight;
+
+            UpdateHostSize(safeHostWidth, safeHostHeight);
+            ApplyAutomaticPanelSize(safeHostWidth, safeHostHeight);
+            CenterDialogIfNeeded();
+            ApplyVisibleDialogState();
+        }
+
+        /// <summary>
+        /// Applies the automatic first-show or host-resized panel size while the user has not manually repositioned the dialog.
+        /// </summary>
+        /// <param name="windowWidth">Current host window width.</param>
+        /// <param name="windowHeight">Current host window height.</param>
+        void ApplyAutomaticPanelSize(int windowWidth, int windowHeight) {
+            if (DialogIsUserPositioned) {
+                return;
+            }
+
+            int maxWidth = Math.Max(GetMinimumPanelWidthPixels(), windowWidth - GetPanelPaddingPixels() * 2);
+            int maxHeight = Math.Max(GetMinimumPanelHeightPixels(), windowHeight - GetPanelPaddingPixels() * 2);
+            int panelWidth = Math.Min(GetMaximumPanelWidthPixels(), Math.Min(maxWidth, windowWidth));
+            int panelHeight = Math.Min(GetMaximumPanelHeightPixels(), Math.Min(maxHeight, windowHeight));
+            SetDialogSize(panelWidth, panelHeight);
         }
 
         /// <summary>
@@ -482,6 +509,17 @@ namespace helengine.editor {
             return new int2(
                 DialogMetrics.ScalePixels(OpenButtonSize.X),
                 DialogMetrics.ScalePixels(OpenButtonSize.Y));
+        }
+
+        /// <summary>
+        /// Repositions the dialog content whenever the shared modal shell position or size changes.
+        /// </summary>
+        protected override void HandleDialogLayoutChanged() {
+            PanelSize = DialogPanelBackground.Size;
+            PanelPosition = DialogPanelPosition;
+            LayoutBrowser();
+            LayoutStatus();
+            LayoutFooter();
         }
     }
 }

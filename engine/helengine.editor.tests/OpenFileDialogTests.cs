@@ -143,6 +143,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the browser, status row, and footer buttons are positioned immediately during Show.
+        /// </summary>
+        [Fact]
+        public void Show_WhenOpened_PositionsBrowserStatusAndFooterImmediately() {
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+
+            dialog.Show("Scenes");
+
+            AssetBrowserView browserView = GetPrivateField<AssetBrowserView>(dialog, "BrowserView");
+            EditorEntity statusHost = GetPrivateField<EditorEntity>(dialog, "StatusHost");
+            EditorEntity cancelButtonHost = GetPrivateField<EditorEntity>(dialog, "CancelButtonHost");
+            EditorEntity openButtonHost = GetPrivateField<EditorEntity>(dialog, "OpenButtonHost");
+            RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
+            int2 panelSize = GetPrivateField<int2>(dialog, "PanelSize");
+
+            Assert.NotEqual(float3.Zero, browserView.Entity.LocalPosition);
+            Assert.NotEqual(float3.Zero, statusHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, cancelButtonHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, openButtonHost.LocalPosition);
+            Assert.Equal(panelBackground.Size, panelSize);
+        }
+
+        /// <summary>
         /// Ensures the Open Map panel background scales with the dialog layout instead of staying at the constructor size.
         /// </summary>
         [Fact]
