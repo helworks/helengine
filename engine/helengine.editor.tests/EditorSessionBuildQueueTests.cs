@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using helengine.editor.tests.testing;
+using helengine.platforms;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -48,6 +49,49 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Profiles receives only the alphabetical intersection of enabled and available platforms.
+        /// </summary>
+        [Fact]
+        public void HandleProfilesRequested_WhenSomePlatformsAreUnavailable_ShowsOnlyEnabledAndAvailablePlatforms() {
+            EditorBuildConfigService buildConfigService = new EditorBuildConfigService(TempProjectRootPath);
+            EditorBuildQueueService buildQueueService = new EditorBuildQueueService(buildConfigService, new TestEditorBuildExecutor([]));
+            EditorSession session = CreateSession(buildConfigService, buildQueueService, "windows");
+            SetPrivateField(session, "ProjectSupportedPlatforms", new List<string> {
+                "ps2",
+                "windows"
+            });
+            ConfigureAvailablePlatforms("windows");
+
+            InvokePrivate(session, "HandleProfilesRequested");
+
+            ProfilesDialog dialog = GetPrivateField<ProfilesDialog>(session, "profilesDialog");
+            List<string> supportedPlatformIds = GetPrivateField<List<string>>(dialog, "SupportedPlatformIds");
+            Assert.Equal(["windows"], supportedPlatformIds);
+        }
+
+        /// <summary>
+        /// Ensures Build shows only platforms that are both enabled and currently available.
+        /// </summary>
+        [Fact]
+        public void HandleBuildRequested_WhenProjectContainsUnavailablePlatforms_HidesUnavailableTabs() {
+            EditorBuildConfigService buildConfigService = new EditorBuildConfigService(TempProjectRootPath);
+            EditorBuildQueueService buildQueueService = new EditorBuildQueueService(buildConfigService, new TestEditorBuildExecutor([]));
+            EditorSession session = CreateSession(buildConfigService, buildQueueService, "windows");
+            SetPrivateField(session, "ProjectSupportedPlatforms", new List<string> {
+                "ps2",
+                "windows"
+            });
+            ConfigureAvailablePlatforms("windows");
+
+            InvokePrivate(session, "HandleBuildRequested");
+
+            BuildDialog dialog = GetPrivateField<BuildDialog>(session, "buildDialog");
+            List<TabComponent> platformTabs = GetPrivateField<List<TabComponent>>(dialog, "PlatformTabs");
+            Assert.Equal("windows", GetPrivateField<string>(dialog, "ActivePlatformId"));
+            Assert.Single(platformTabs);
+        }
+
+        /// <summary>
         /// Ensures opening the Build dialog seeds the current scene on first use and renders the enabled project platforms.
         /// </summary>
         [Fact]
@@ -78,11 +122,12 @@ namespace helengine.editor.tests {
         public void HandleBuildDialogCopySettingsRequested_WhenInvoked_ShowsChooserAndCopiesSelectedPlatform() {
             EditorBuildConfigService buildConfigService = new EditorBuildConfigService(TempProjectRootPath);
             EditorBuildQueueService buildQueueService = new EditorBuildQueueService(buildConfigService, new TestEditorBuildExecutor([]));
-            EditorSession session = CreateSession(buildConfigService, buildQueueService, "linux");
+            EditorSession session = CreateSession(buildConfigService, buildQueueService, "ps2");
             SetPrivateField(session, "ProjectSupportedPlatforms", new List<string> {
                 "windows",
-                "linux"
+                "ps2"
             });
+            ConfigureAvailablePlatforms("windows", "ps2");
 
             EditorBuildConfigDocument buildConfig = new EditorBuildConfigDocument {
                 Platforms = [
@@ -93,7 +138,7 @@ namespace helengine.editor.tests {
                         ]
                     },
                     new EditorBuildPlatformConfigDocument {
-                        PlatformId = "linux",
+                        PlatformId = "ps2",
                         SelectedSceneIds = [
                             "Scenes/Menu.helen"
                         ]
@@ -105,13 +150,13 @@ namespace helengine.editor.tests {
             BuildDialog dialog = GetPrivateField<BuildDialog>(session, "buildDialog");
             dialog.Show([
                     "windows",
-                    "linux"
+                    "ps2"
                 ],
                 [
                     "Scenes/City.helen",
                     "Scenes/Menu.helen"
                 ],
-                "linux",
+                "ps2",
                 buildConfig);
 
             InvokePrivate(session, "HandleBuildDialogCopySettingsRequested");
@@ -125,13 +170,13 @@ namespace helengine.editor.tests {
             InvokePrivate(session, "HandleBuildDialogCopySettingsConfirmed", "windows");
 
             List<CheckBoxComponent> mapCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "MapCheckBoxes");
-            EditorBuildPlatformConfigDocument linuxConfig = Assert.Single(buildConfig.Platforms.Where(platform => platform.PlatformId == "linux"));
+            EditorBuildPlatformConfigDocument ps2Config = Assert.Single(buildConfig.Platforms.Where(platform => platform.PlatformId == "ps2"));
 
             Assert.True(mapCheckBoxes[0].IsChecked);
             Assert.False(mapCheckBoxes[1].IsChecked);
             Assert.Equal([
                 "Scenes/City.helen"
-            ], linuxConfig.SelectedSceneIds);
+            ], ps2Config.SelectedSceneIds);
         }
 
         /// <summary>
@@ -454,12 +499,60 @@ namespace helengine.editor.tests {
             });
             SetPrivateField(session, "ActiveProjectPlatform", activePlatform);
             SetPrivateField(session, "CurrentScenePath", CurrentScenePath);
+            SetPrivateField(session, "ProjectLocalSettingsService", new EditorProjectLocalSettingsService(TempProjectRootPath, [
+                "windows"
+            ]));
             SetPrivateField(session, "buildDialog", new BuildDialog(CreateFont()));
+            SetPrivateField(session, "buildDialogCopySettingsDialog", new BuildDialogCopySettingsDialog(CreateFont()));
+            SetPrivateField(session, "profilesDialog", new ProfilesDialog(CreateFont()));
+            SetPrivateField(session, "profileSettingsService", new EditorProfileSettingsService(TempProjectRootPath));
             SetPrivateField(session, "buildConfigService", buildConfigService);
             SetPrivateField(session, "buildQueueService", buildQueueService);
             SetPrivateField(session, "sceneCatalogService", new EditorProjectSceneCatalogService(TempProjectRootPath));
+            SetPrivateField(session, "RequiredEngineVersion", "1.0.0-custom");
+            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath), new WindowsLauncherInstallRootLocator()));
 
             return session;
+        }
+
+        /// <summary>
+        /// Writes one temporary platform manifest that marks only the supplied platform identifiers as installed.
+        /// </summary>
+        /// <param name="installedPlatformIds">Platform identifiers that should be treated as available.</param>
+        void ConfigureAvailablePlatforms(params string[] installedPlatformIds) {
+            List<AvailablePlatformDescriptor> platforms = new List<AvailablePlatformDescriptor> {
+                new AvailablePlatformDescriptor("ps2", "PlayStation 2", string.Empty, "platforms/ps2", false),
+                new AvailablePlatformDescriptor("windows", "Windows DirectX", string.Empty, "platforms/windows", false)
+            };
+            string manifestPath = Path.Combine(TempProjectRootPath, "platforms.json");
+            List<string> manifestEntries = new List<string>(platforms.Count);
+
+            for (int index = 0; index < platforms.Count; index++) {
+                AvailablePlatformDescriptor platform = platforms[index];
+                manifestEntries.Add($$"""
+                {
+                  "engineVersion": "1.0.0-custom",
+                  "platformId": "{{platform.Id}}",
+                  "displayName": "{{platform.DisplayName}}",
+                  "builderAssemblyPath": "",
+                  "playerSourceRootPath": "{{platform.PlayerSourceRootPath}}"
+                }
+                """);
+
+                if (installedPlatformIds.Contains(platform.Id, StringComparer.OrdinalIgnoreCase)) {
+                    Directory.CreateDirectory(Path.Combine(TempProjectRootPath, platform.PlayerSourceRootPath));
+                }
+            }
+
+            File.WriteAllText(
+                manifestPath,
+                """
+                {
+                  "platforms": [
+                """ + string.Join(",\n", manifestEntries) + """
+                  ]
+                }
+                """);
         }
 
         /// <summary>

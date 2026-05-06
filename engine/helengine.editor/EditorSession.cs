@@ -1388,11 +1388,7 @@ namespace helengine.editor {
         /// </summary>
         void HandlePlatformsRequested() {
             EditorProjectPlatformsDocument projectPlatforms = projectPlatformsService.Load();
-            IReadOnlyList<string> availablePlatforms = availablePlatformProviderResolver
-                .LoadPlatforms(RequiredEngineVersion)
-                .Select(platform => platform.Id)
-                .OrderBy(platformId => platformId, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+            IReadOnlyList<string> availablePlatforms = ResolveInstalledPlatformIds();
             if (buildDialogCopySettingsDialog != null) {
                 buildDialogCopySettingsDialog.Hide();
             }
@@ -1430,9 +1426,15 @@ namespace helengine.editor {
         /// Opens the profiles dialog using the current active platform and persisted profile settings.
         /// </summary>
         void HandleProfilesRequested() {
-            EditorProfileSettingsDocument profileSettings = profileSettingsService.Load(SupportedPlatforms);
+            IReadOnlyList<string> visiblePlatformIds = ResolveVisibleSupportedPlatforms();
+            if (visiblePlatformIds.Count < 1) {
+                return;
+            }
+
+            string dialogPlatformId = ResolveVisiblePlatformId(visiblePlatformIds, ActiveProjectPlatform);
+            EditorProfileSettingsDocument profileSettings = profileSettingsService.Load(visiblePlatformIds);
             buildDialogCopySettingsDialog.Hide();
-            profilesDialog.Show(profileSettings, SupportedPlatforms, ActiveProjectPlatform, ResolvePlatformSelectionModel(ActiveProjectPlatform));
+            profilesDialog.Show(profileSettings, visiblePlatformIds, dialogPlatformId, ResolvePlatformSelectionModel(dialogPlatformId));
         }
 
         /// <summary>
@@ -1463,11 +1465,17 @@ namespace helengine.editor {
         /// Opens the local Build dialog using the current scene to seed first-use map selections.
         /// </summary>
         void HandleBuildRequested() {
+            IReadOnlyList<string> visiblePlatformIds = ResolveVisibleSupportedPlatforms();
+            if (visiblePlatformIds.Count < 1) {
+                return;
+            }
+
+            string dialogPlatformId = ResolveVisiblePlatformId(visiblePlatformIds, ActiveProjectPlatform);
             IReadOnlyList<string> sceneIds = sceneCatalogService.GetSceneIds();
             string currentSceneId = sceneCatalogService.ResolveSceneId(CurrentScenePath);
-            EditorBuildConfigDocument buildConfig = buildConfigService.Load(SupportedPlatforms, currentSceneId);
+            EditorBuildConfigDocument buildConfig = buildConfigService.Load(visiblePlatformIds, currentSceneId);
             buildDialogCopySettingsDialog.Hide();
-            buildDialog.Show(SupportedPlatforms, sceneIds, ActiveProjectPlatform, buildConfig, ResolvePlatformSelectionModel(ActiveProjectPlatform));
+            buildDialog.Show(visiblePlatformIds, sceneIds, dialogPlatformId, buildConfig, ResolvePlatformSelectionModel(dialogPlatformId));
         }
 
         /// <summary>
@@ -1504,7 +1512,7 @@ namespace helengine.editor {
             }
 
             string currentSceneId = sceneCatalogService.ResolveSceneId(CurrentScenePath);
-            return buildConfigService.Load(SupportedPlatforms, currentSceneId);
+            return buildConfigService.Load(ResolveVisibleSupportedPlatforms(), currentSceneId);
         }
 
         /// <summary>
@@ -1554,7 +1562,7 @@ namespace helengine.editor {
             });
             buildConfigService.Save(buildConfig);
             buildDialogCopySettingsDialog.Hide();
-            buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), request.PlatformId, buildConfig, ResolvePlatformSelectionModel(request.PlatformId));
+            buildDialog.Show(ResolveVisibleSupportedPlatforms(), sceneCatalogService.GetSceneIds(), request.PlatformId, buildConfig, ResolvePlatformSelectionModel(request.PlatformId));
         }
 
         /// <summary>
@@ -1576,7 +1584,14 @@ namespace helengine.editor {
 
             buildConfigService.Save(buildConfig);
             buildDialogCopySettingsDialog.Hide();
-            buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), ActiveProjectPlatform, buildConfig, ResolvePlatformSelectionModel(ActiveProjectPlatform));
+            IReadOnlyList<string> visiblePlatformIds = ResolveVisibleSupportedPlatforms();
+            if (visiblePlatformIds.Count < 1) {
+                buildDialog.Hide();
+                return;
+            }
+
+            string dialogPlatformId = ResolveVisiblePlatformId(visiblePlatformIds, ActiveProjectPlatform);
+            buildDialog.Show(visiblePlatformIds, sceneCatalogService.GetSceneIds(), dialogPlatformId, buildConfig, ResolvePlatformSelectionModel(dialogPlatformId));
         }
 
         /// <summary>
@@ -1599,11 +1614,18 @@ namespace helengine.editor {
         /// Executes all pending queued builds sequentially and refreshes the dialog with persisted results.
         /// </summary>
         void HandleBuildDialogBuildQueueRequested() {
+            IReadOnlyList<string> visiblePlatformIds = ResolveVisibleSupportedPlatforms();
             EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
             buildConfigService.Save(buildConfig);
-            buildQueueService.RunPending(buildConfig, SupportedPlatforms);
+            buildQueueService.RunPending(buildConfig, visiblePlatformIds);
             buildDialogCopySettingsDialog.Hide();
-            buildDialog.Show(SupportedPlatforms, sceneCatalogService.GetSceneIds(), ActiveProjectPlatform, buildConfig, ResolvePlatformSelectionModel(ActiveProjectPlatform));
+            if (visiblePlatformIds.Count < 1) {
+                buildDialog.Hide();
+                return;
+            }
+
+            string dialogPlatformId = ResolveVisiblePlatformId(visiblePlatformIds, ActiveProjectPlatform);
+            buildDialog.Show(visiblePlatformIds, sceneCatalogService.GetSceneIds(), dialogPlatformId, buildConfig, ResolvePlatformSelectionModel(dialogPlatformId));
         }
 
         /// <summary>
@@ -1618,10 +1640,12 @@ namespace helengine.editor {
         /// Opens the compact chooser used to copy settings from another platform into the active build tab.
         /// </summary>
         void HandleBuildDialogCopySettingsRequested() {
-            List<string> copySourcePlatformIds = new List<string>(SupportedPlatforms.Count);
-            for (int index = 0; index < SupportedPlatforms.Count; index++) {
-                string platformId = SupportedPlatforms[index];
-                if (!string.Equals(platformId, ActiveProjectPlatform, StringComparison.OrdinalIgnoreCase)) {
+            IReadOnlyList<string> visiblePlatformIds = ResolveVisibleSupportedPlatforms();
+            string dialogPlatformId = ResolveVisiblePlatformId(visiblePlatformIds, ActiveProjectPlatform);
+            List<string> copySourcePlatformIds = new List<string>(visiblePlatformIds.Count);
+            for (int index = 0; index < visiblePlatformIds.Count; index++) {
+                string platformId = visiblePlatformIds[index];
+                if (!string.Equals(platformId, dialogPlatformId, StringComparison.OrdinalIgnoreCase)) {
                     copySourcePlatformIds.Add(platformId);
                 }
             }
@@ -2559,6 +2583,72 @@ namespace helengine.editor {
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Resolves the installed platform identifiers currently available for the active engine version.
+        /// </summary>
+        /// <returns>Alphabetically ordered installed platform identifiers.</returns>
+        IReadOnlyList<string> ResolveInstalledPlatformIds() {
+            if (availablePlatformProviderResolver == null) {
+                return Array.Empty<string>();
+            }
+
+            return availablePlatformProviderResolver
+                .LoadPlatforms(RequiredEngineVersion)
+                .Where(platform => platform.IsInstalled)
+                .Select(platform => platform.Id)
+                .OrderBy(platformId => platformId, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Resolves the platforms that are both project-enabled and currently installed on the local machine.
+        /// </summary>
+        /// <returns>Alphabetically ordered visible platform identifiers.</returns>
+        IReadOnlyList<string> ResolveVisibleSupportedPlatforms() {
+            IReadOnlyList<string> installedPlatformIds = ResolveInstalledPlatformIds();
+            if (installedPlatformIds.Count < 1 || SupportedPlatforms.Count < 1) {
+                return Array.Empty<string>();
+            }
+
+            HashSet<string> installedPlatformIdSet = new HashSet<string>(installedPlatformIds, StringComparer.OrdinalIgnoreCase);
+            List<string> visiblePlatformIds = new List<string>(SupportedPlatforms.Count);
+            for (int index = 0; index < SupportedPlatforms.Count; index++) {
+                string platformId = SupportedPlatforms[index];
+                if (installedPlatformIdSet.Contains(platformId)) {
+                    visiblePlatformIds.Add(platformId);
+                }
+            }
+
+            visiblePlatformIds.Sort(StringComparer.OrdinalIgnoreCase);
+            return visiblePlatformIds;
+        }
+
+        /// <summary>
+        /// Resolves the platform id that should be shown first in one filtered dialog without persisting any replacement.
+        /// </summary>
+        /// <param name="visiblePlatformIds">Platforms currently visible in the dialog.</param>
+        /// <param name="preferredPlatformId">Preferred platform id, typically the user-local active platform.</param>
+        /// <returns>Visible platform id to show first.</returns>
+        string ResolveVisiblePlatformId(IReadOnlyList<string> visiblePlatformIds, string preferredPlatformId) {
+            if (visiblePlatformIds == null) {
+                throw new ArgumentNullException(nameof(visiblePlatformIds));
+            }
+
+            if (visiblePlatformIds.Count < 1) {
+                throw new InvalidOperationException("At least one visible platform is required.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(preferredPlatformId)) {
+                for (int index = 0; index < visiblePlatformIds.Count; index++) {
+                    if (string.Equals(visiblePlatformIds[index], preferredPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                        return visiblePlatformIds[index];
+                    }
+                }
+            }
+
+            return visiblePlatformIds[0];
         }
 
         /// <summary>
