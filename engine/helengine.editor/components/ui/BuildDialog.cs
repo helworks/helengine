@@ -959,9 +959,48 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(checkBox));
             }
 
-            if (isChecked) {
-                SetSceneListInvalidState(false);
+            for (int index = 0; index < SceneRows.Count; index++) {
+                BuildDialogSceneRow row = SceneRows[index];
+                if (row.CheckBox == checkBox) {
+                    ApplySceneSelectionChanged(row.SceneId, checkBox, isChecked);
+                    return;
+                }
             }
+
+            throw new InvalidOperationException("Scene selection checkbox is not bound to a visible scene row.");
+        }
+
+        /// <summary>
+        /// Clears the scene-list invalid state as soon as at least one scene becomes selected again.
+        /// Empty scene selections are still validated only when Add to Build is clicked.
+        /// </summary>
+        /// <param name="sceneId">Scene identifier currently bound to the checkbox.</param>
+        /// <param name="checkBox">Checkbox whose selection changed.</param>
+        /// <param name="isChecked">True when the checkbox is now selected.</param>
+        void ApplySceneSelectionChanged(string sceneId, CheckBoxComponent checkBox, bool isChecked) {
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                throw new ArgumentException("Scene id is required.", nameof(sceneId));
+            }
+
+            if (checkBox == null) {
+                throw new ArgumentNullException(nameof(checkBox));
+            }
+
+            if (IsBindingSceneRows) {
+                return;
+            }
+
+            EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
+            if (isChecked) {
+                if (!platformConfig.SelectedSceneIds.Contains(sceneId)) {
+                    platformConfig.SelectedSceneIds.Add(sceneId);
+                }
+
+                SetSceneListInvalidState(false);
+                return;
+            }
+
+            platformConfig.SelectedSceneIds.Remove(sceneId);
         }
 
         /// <summary>
@@ -1456,7 +1495,7 @@ namespace helengine.editor {
             BuildDialogSceneRow row = new BuildDialogSceneRow(DialogFont, DialogMetrics, LayerMask, DialogPanelOrder, DialogTextOrder);
             row.OrderField.TextChanged += currentOrderField => HandleSceneOrderFieldChanged(row.SceneId, currentOrderField);
             row.OrderField.Submitted += currentOrderField => HandleSceneOrderFieldSubmitted(row.SceneId, currentOrderField);
-            row.CheckBox.CheckedChanged += HandleSceneSelectionChanged;
+            row.CheckBox.CheckedChanged += (checkBox, isChecked) => ApplySceneSelectionChanged(row.SceneId, checkBox, isChecked);
             SceneListItemsRoot.AddChild(row.Root);
             return row;
         }
@@ -1684,10 +1723,15 @@ namespace helengine.editor {
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
             EnsureSceneOrderEntries(platformConfig);
-            platformConfig.SelectedSceneIds.Clear();
-            for (int index = 0; index < MapCheckBoxes.Count; index++) {
-                if (MapCheckBoxes[index].IsChecked) {
-                    platformConfig.SelectedSceneIds.Add(DisplayedSceneIds[index]);
+            for (int index = 0; index < SceneRows.Count; index++) {
+                BuildDialogSceneRow row = SceneRows[index];
+                if (string.IsNullOrWhiteSpace(row.SceneId)) {
+                    continue;
+                }
+
+                platformConfig.SelectedSceneIds.Remove(row.SceneId);
+                if (row.Root.Enabled && row.CheckBox.IsChecked && !platformConfig.SelectedSceneIds.Contains(row.SceneId)) {
+                    platformConfig.SelectedSceneIds.Add(row.SceneId);
                 }
             }
 
@@ -2101,13 +2145,12 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when the active platform has one selected scene; otherwise false.</returns>
         bool HasAnySelectedScene() {
-            for (int index = 0; index < MapCheckBoxes.Count; index++) {
-                if (MapCheckBoxes[index].IsChecked) {
-                    return true;
-                }
+            if (CurrentBuildConfig == null || string.IsNullOrWhiteSpace(ActivePlatformId)) {
+                return false;
             }
 
-            return false;
+            EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
+            return platformConfig.SelectedSceneIds.Count > 0;
         }
 
         /// <summary>
