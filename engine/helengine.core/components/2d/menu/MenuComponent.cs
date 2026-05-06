@@ -1,22 +1,22 @@
 namespace helengine {
     /// <summary>
-    /// Stores demo-disc menu build metadata and drives runtime navigation against the baked menu hierarchy.
+    /// Stores baked menu metadata and drives runtime navigation against the generated menu hierarchy.
     /// </summary>
     public class MenuComponent : UpdateComponent {
         /// <summary>
-        /// Current payload version used by scene persistence for the baked demo menu root component.
+        /// Current payload version used by scene persistence for the baked menu root component.
         /// </summary>
         public const byte CurrentVersion = 1;
 
         /// <summary>
-        /// Stable serialized component type id used by baked demo menu scene records.
+        /// Stable serialized component type id used by baked menu scene records.
         /// </summary>
         public const string SerializedComponentTypeId = "helengine.MenuComponent";
 
         /// <summary>
         /// Baked panels keyed by stable panel id.
         /// </summary>
-        readonly Dictionary<string, DemoMenuPanelRuntime> PanelsById;
+        readonly Dictionary<string, MenuPanelRuntime> PanelsById;
 
         /// <summary>
         /// History stack used by Back actions.
@@ -36,7 +36,7 @@ namespace helengine {
         /// <summary>
         /// Active baked panel runtime.
         /// </summary>
-        DemoMenuPanelRuntime ActivePanel;
+        MenuPanelRuntime ActivePanel;
 
         /// <summary>
         /// Previous primary gamepad state used for edge detection.
@@ -54,10 +54,10 @@ namespace helengine {
         string SelectedItemIdValue;
 
         /// <summary>
-        /// Initializes a new baked demo menu root component.
+        /// Initializes a new baked menu root component.
         /// </summary>
         public MenuComponent() {
-            PanelsById = new Dictionary<string, DemoMenuPanelRuntime>(StringComparer.Ordinal);
+            PanelsById = new Dictionary<string, MenuPanelRuntime>(StringComparer.Ordinal);
             PanelHistory = new List<string>();
             ProviderTypeNameValue = string.Empty;
             InitialPanelIdValue = string.Empty;
@@ -164,7 +164,7 @@ namespace helengine {
 
             Entity generatedRootEntity = FindGeneratedRootEntity(rootEntity);
             if (generatedRootEntity == null) {
-                throw new InvalidOperationException($"Demo menu root '{DescribeEntity(rootEntity)}' is missing the generated menu subtree.");
+                throw new InvalidOperationException($"Menu root '{DescribeEntity(rootEntity)}' is missing the generated menu subtree.");
             }
 
             List<Entity> panelEntities = new List<Entity>();
@@ -173,17 +173,17 @@ namespace helengine {
                 Entity panelEntity = panelEntities[panelIndex];
                 MenuPanelComponent panelComponent = FindRequiredComponent<MenuPanelComponent>(panelEntity);
                 TextComponent selectedDescriptionText = ResolveSelectedDescriptionText(panelEntity);
-                DemoMenuItemRuntime[] itemRuntimes = BindItems(panelEntity, panelComponent.PanelId);
-                DemoMenuPanelRuntime panelRuntime = new DemoMenuPanelRuntime(panelComponent, panelEntity, selectedDescriptionText, itemRuntimes);
+                MenuItemRuntime[] itemRuntimes = BindItems(panelEntity, panelComponent.PanelId);
+                MenuPanelRuntime panelRuntime = new MenuPanelRuntime(panelComponent, panelEntity, selectedDescriptionText, itemRuntimes);
                 if (PanelsById.ContainsKey(panelComponent.PanelId)) {
-                    throw new InvalidOperationException($"Duplicate baked demo menu panel id '{panelComponent.PanelId}' was found.");
+                    throw new InvalidOperationException($"Duplicate baked menu panel id '{panelComponent.PanelId}' was found.");
                 }
 
                 PanelsById.Add(panelComponent.PanelId, panelRuntime);
             }
 
             if (PanelsById.Count == 0) {
-                throw new InvalidOperationException("The baked demo menu scene does not contain any panel metadata.");
+                throw new InvalidOperationException("The baked menu scene does not contain any panel metadata.");
             }
         }
 
@@ -193,10 +193,10 @@ namespace helengine {
         /// <param name="panelEntity">Panel root whose baked items should be bound.</param>
         /// <param name="panelId">Stable panel id expected for every bound item.</param>
         /// <returns>Bound baked item runtime records.</returns>
-        DemoMenuItemRuntime[] BindItems(Entity panelEntity, string panelId) {
+        MenuItemRuntime[] BindItems(Entity panelEntity, string panelId) {
             List<Entity> itemEntities = new List<Entity>();
             CollectEntitiesWithComponent<MenuItemComponent>(panelEntity, itemEntities);
-            DemoMenuItemRuntime[] itemRuntimes = new DemoMenuItemRuntime[itemEntities.Count];
+            MenuItemRuntime[] itemRuntimes = new MenuItemRuntime[itemEntities.Count];
             for (int itemIndex = 0; itemIndex < itemEntities.Count; itemIndex++) {
                 Entity itemEntity = itemEntities[itemIndex];
                 MenuItemComponent itemComponent = FindRequiredComponent<MenuItemComponent>(itemEntity);
@@ -205,11 +205,11 @@ namespace helengine {
                 }
 
                 RoundedRectComponent backgroundComponent = FindRequiredComponent<RoundedRectComponent>(itemEntity);
-                itemRuntimes[itemIndex] = new DemoMenuItemRuntime(itemComponent, itemIndex, itemEntity, backgroundComponent);
+                itemRuntimes[itemIndex] = new MenuItemRuntime(itemComponent, itemIndex, itemEntity, backgroundComponent);
             }
 
             if (itemRuntimes.Length == 0) {
-                throw new InvalidOperationException($"Baked demo menu panel '{panelId}' does not contain any items.");
+                throw new InvalidOperationException($"Baked menu panel '{panelId}' does not contain any items.");
             }
 
             return itemRuntimes;
@@ -221,8 +221,8 @@ namespace helengine {
         /// <param name="panelId">Panel id to activate.</param>
         /// <param name="pushHistory">True when the current panel should be recorded in the back stack.</param>
         void ActivatePanel(string panelId, bool pushHistory) {
-            if (!PanelsById.TryGetValue(panelId, out DemoMenuPanelRuntime nextPanel)) {
-                throw new InvalidOperationException($"Baked demo menu panel '{panelId}' was not registered.");
+            if (!PanelsById.TryGetValue(panelId, out MenuPanelRuntime nextPanel)) {
+                throw new InvalidOperationException($"Baked menu panel '{panelId}' was not registered.");
             }
 
             if (ActivePanel != null) {
@@ -272,7 +272,7 @@ namespace helengine {
         /// </summary>
         /// <param name="panelRuntime">Panel that owns the item.</param>
         /// <param name="itemIndex">Enabled-item index to select.</param>
-        void SetSelection(DemoMenuPanelRuntime panelRuntime, int itemIndex) {
+        void SetSelection(MenuPanelRuntime panelRuntime, int itemIndex) {
             if (panelRuntime == null) {
                 throw new ArgumentNullException(nameof(panelRuntime));
             }
@@ -282,12 +282,12 @@ namespace helengine {
 
             panelRuntime.SelectedItemIndex = itemIndex;
             for (int index = 0; index < panelRuntime.Items.Length; index++) {
-                DemoMenuItemRuntime runtimeItem = panelRuntime.Items[index];
+                MenuItemRuntime runtimeItem = panelRuntime.Items[index];
                 bool isSelected = index == itemIndex;
                 ApplyItemVisualState(runtimeItem, isSelected);
             }
 
-            DemoMenuItemRuntime selectedItem = panelRuntime.Items[itemIndex];
+            MenuItemRuntime selectedItem = panelRuntime.Items[itemIndex];
             SelectedItemIdValue = selectedItem.Definition.ItemId;
             panelRuntime.SelectedDescriptionText.Text = selectedItem.Definition.Description;
         }
@@ -422,7 +422,7 @@ namespace helengine {
         /// </summary>
         /// <param name="panelRuntime">Panel whose initial selected index should be resolved.</param>
         /// <returns>Resolved initial selected item index.</returns>
-        int ResolveSelectedIndex(DemoMenuPanelRuntime panelRuntime) {
+        int ResolveSelectedIndex(MenuPanelRuntime panelRuntime) {
             if (panelRuntime.SelectedItemIndex >= 0 && panelRuntime.SelectedItemIndex < panelRuntime.Items.Length) {
                 return panelRuntime.SelectedItemIndex;
             }
@@ -435,7 +435,7 @@ namespace helengine {
         /// </summary>
         /// <param name="runtimeItem">Item whose visual state should be updated.</param>
         /// <param name="isSelected">True when selected-state colors should be applied.</param>
-        void ApplyItemVisualState(DemoMenuItemRuntime runtimeItem, bool isSelected) {
+        void ApplyItemVisualState(MenuItemRuntime runtimeItem, bool isSelected) {
             if (isSelected) {
                 runtimeItem.Background.FillColor = runtimeItem.Definition.SelectedFillColor;
                 runtimeItem.Background.BorderColor = runtimeItem.Definition.SelectedBorderColor;
@@ -449,7 +449,7 @@ namespace helengine {
         /// Clears selected-state visuals for one panel before another panel becomes active.
         /// </summary>
         /// <param name="panelRuntime">Panel whose item visuals should be reset.</param>
-        void ClearSelectionVisuals(DemoMenuPanelRuntime panelRuntime) {
+        void ClearSelectionVisuals(MenuPanelRuntime panelRuntime) {
             for (int itemIndex = 0; itemIndex < panelRuntime.Items.Length; itemIndex++) {
                 ApplyItemVisualState(panelRuntime.Items[itemIndex], false);
             }
@@ -481,7 +481,7 @@ namespace helengine {
             List<Entity> markerEntities = new List<Entity>();
             CollectEntitiesWithComponent<MenuSelectedDescriptionComponent>(panelEntity, markerEntities);
             if (markerEntities.Count != 1) {
-                throw new InvalidOperationException("Each baked demo menu panel must contain exactly one selected-description marker.");
+                throw new InvalidOperationException("Each baked menu panel must contain exactly one selected-description marker.");
             }
 
             return FindRequiredComponent<TextComponent>(markerEntities[0]);

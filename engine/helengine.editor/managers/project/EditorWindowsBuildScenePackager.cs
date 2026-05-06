@@ -628,11 +628,11 @@ namespace helengine.editor {
             }
 
             if (!ComponentCompatibilitiesByTypeId.TryGetValue(componentTypeId, out PlatformComponentCompatibilityDefinition compatibility)) {
-                if (IsAutomaticScriptComponentTypeId(componentTypeId)) {
+                if (TransformService.CanTransform(componentTypeId)) {
                     return new PlatformComponentCompatibilityDefinition(
                         componentTypeId,
                         PlatformComponentCompatibilityKind.Transform,
-                        "Eligible scripted components are rewritten into packaged ordinal payloads.",
+                        "Eligible reflected components are rewritten into packaged ordinal payloads.",
                         string.Empty);
                 }
 
@@ -640,27 +640,6 @@ namespace helengine.editor {
             }
 
             return compatibility;
-        }
-
-        /// <summary>
-        /// Returns whether one serialized component type id identifies an eligible scripted component that should be transformed during packaging.
-        /// </summary>
-        /// <param name="componentTypeId">Serialized component type id to inspect.</param>
-        /// <returns>True when the component type id identifies an eligible scripted component.</returns>
-        bool IsAutomaticScriptComponentTypeId(string componentTypeId) {
-            if (string.IsNullOrWhiteSpace(componentTypeId)) {
-                return false;
-            }
-
-            Type componentType = Type.GetType(componentTypeId, false);
-            if (componentType == null) {
-                return false;
-            }
-            if (!typeof(Component).IsAssignableFrom(componentType)) {
-                return false;
-            }
-
-            return componentType.Assembly != typeof(Component).Assembly;
         }
 
         /// <summary>

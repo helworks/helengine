@@ -237,6 +237,110 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures menu components still package successfully when the platform omits explicit compatibility metadata and the packager falls back to the automatic transform path.
+        /// </summary>
+        [Fact]
+        public void Package_WhenPlatformOmitsMenuCompatibility_StillPackagesMenuComponentThroughFallback() {
+            string menuSceneId = "Scenes/MenuScene.helen";
+            string playableSceneId = "Scenes/TestPlayableScene.helen";
+
+            WriteFontAsset("fonts/title.hefont", CreatePackagedFontAsset());
+            WriteFontAsset("fonts/body.hefont", CreatePackagedFontAsset());
+            WriteSceneAsset(menuSceneId, BuildDemoMenuSceneAsset(menuSceneId));
+            WriteEmptySceneAsset(playableSceneId);
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition,
+                defaultFont);
+
+            packager.Package(new[] { menuSceneId, playableSceneId }, BuildRootPath);
+
+            string packagedMenuScenePath = Path.Combine(
+                BuildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedMenuScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+            Entity loadedRoot = Assert.Single(loadedRoots, entity => entity.Components.Any(component => component is MenuComponent));
+            Assert.IsType<MenuComponent>(Assert.Single(loadedRoot.Components, component => component is MenuComponent));
+        }
+
+        /// <summary>
+        /// Ensures reflectable built-in engine components package and load through the automatic fallback when the platform omits explicit compatibility metadata.
+        /// </summary>
+        [Fact]
+        public void Package_WhenPlatformOmitsCompatibilityForReflectableEngineComponent_UsesAutomaticFallback() {
+            string sceneId = "Scenes/LineRendererScene.helen";
+            ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
+            LineRendererComponent component = new LineRendererComponent();
+            SceneComponentAssetRecord componentRecord = persistenceRegistry.GetDescriptor(component)
+                .SerializeComponent(component, 0, new EntityComponentSaveState());
+
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "line-root",
+                        Name = "LineRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            componentRecord
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            });
+
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition);
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = Path.Combine(
+                BuildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+            Entity loadedRoot = Assert.Single(loadedRoots);
+            Assert.IsType<LineRendererComponent>(Assert.Single(loadedRoot.Components, loadedComponent => loadedComponent is LineRendererComponent));
+        }
+
+        /// <summary>
         /// Ensures packaged lights and rounded rectangles are rewritten into strict runtime payloads that still load correctly.
         /// </summary>
         [Fact]
@@ -1344,6 +1448,44 @@ namespace helengine.editor.tests {
                     }
                 }
             };
+        }
+
+        /// <summary>
+        /// Creates one minimal Windows platform definition with the supplied component compatibility metadata.
+        /// </summary>
+        /// <param name="componentCompatibilities">Component compatibility metadata exposed by the platform.</param>
+        /// <returns>Minimal Windows platform definition for packager tests.</returns>
+        static PlatformDefinition CreateWindowsPlatformDefinition(PlatformComponentCompatibilityDefinition[] componentCompatibilities) {
+            if (componentCompatibilities == null) {
+                throw new ArgumentNullException(nameof(componentCompatibilities));
+            }
+
+            return new PlatformDefinition(
+                "windows",
+                "Windows DirectX",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "debug",
+                        "Debug",
+                        "Debug player build",
+                        "directx11",
+                        [])
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "directx11",
+                        "DirectX 11",
+                        "Default Windows renderer",
+                        [])
+                ],
+                [
+                    new PlatformAssetRequirementDefinition(
+                        "texture",
+                        "Texture",
+                        true,
+                        ["png", "tga"])
+                ],
+                componentCompatibilities);
         }
 
         /// <summary>
