@@ -22,11 +22,15 @@ namespace helengine {
             if (!entity.SuppressUpdateComponentExecutionInEditor) {
                 return true;
             }
+#if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+            return false;
+#else
             if (component is not UpdateComponent) {
                 return true;
             }
 
             return Attribute.IsDefined(component.GetType(), typeof(RunInEditorAttribute), true);
+#endif
         }
     }
 }

@@ -80,17 +80,22 @@ namespace helengine {
             }
 
             if (!DeserializersByTypeId.TryGetValue(componentTypeId, out IRuntimeComponentDeserializer deserializer)) {
+#if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+                throw new InvalidOperationException($"Player builds do not support serialized component type '{componentTypeId}' yet.");
+#else
                 deserializer = TryCreateAutomaticComponentDeserializer(componentTypeId);
                 if (deserializer == null) {
                     throw new InvalidOperationException($"Player builds do not support serialized component type '{componentTypeId}' yet.");
                 }
 
                 DeserializersByTypeId.Add(componentTypeId, deserializer);
+#endif
             }
 
             return deserializer;
         }
 
+#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
         /// <summary>
         /// Creates one automatic reflected runtime deserializer when the serialized type id resolves to an eligible component type.
         /// </summary>
@@ -111,5 +116,6 @@ namespace helengine {
 
             return new AutomaticScriptComponentRuntimeDeserializer(componentTypeId, componentType);
         }
+#endif
     }
 }

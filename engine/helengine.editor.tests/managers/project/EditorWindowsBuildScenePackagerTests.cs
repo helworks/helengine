@@ -209,6 +209,81 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures legacy binary camera payloads still package into runtime-loadable camera components.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsLegacyVersionedCameraPayload_PackagesAndLoadsCameraComponent() {
+            string sceneId = "Scenes/CameraScene.helen";
+            WriteSceneAsset(sceneId, "helengine.CameraComponent", WriteLegacyCameraComponentPayloadVersion2());
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = Path.Combine(
+                BuildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+            CameraComponent cameraComponent = Assert.IsType<CameraComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is CameraComponent));
+
+            Assert.Equal((byte)17, cameraComponent.CameraDrawOrder);
+            Assert.Equal((ushort)1, cameraComponent.LayerMask);
+            Assert.Equal(new float4(12f, 24f, 640f, 360f), cameraComponent.Viewport);
+            Assert.Equal(DepthPrepassMode.Always, cameraComponent.RenderSettings.DepthPrepassMode);
+            Assert.Equal(128f, cameraComponent.RenderSettings.ShadowDistance);
+            Assert.Equal(PostProcessTier.High, cameraComponent.RenderSettings.PostProcessTier);
+        }
+
+        /// <summary>
+        /// Ensures legacy binary mesh payloads still package into runtime-loadable mesh components.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsLegacyVersionedMeshPayload_PackagesAndLoadsMeshComponent() {
+            string sceneId = "Scenes/MeshScene.helen";
+            WriteSceneAsset(sceneId, "helengine.MeshComponent", WriteLegacyMeshComponentPayloadVersion1());
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = Path.Combine(
+                BuildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+            MeshComponent meshComponent = Assert.IsType<MeshComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is MeshComponent));
+
+            Assert.Equal((byte)23, meshComponent.RenderOrder3D);
+            Assert.Null(meshComponent.Model);
+            Assert.Null(meshComponent.Material);
+        }
+
+        /// <summary>
         /// Ensures packaged scenes preserve baked demo menu components and their file-backed font dependencies for the player runtime loader.
         /// </summary>
         [Fact]
@@ -372,6 +447,67 @@ namespace helengine.editor.tests {
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             Entity loadedRoot = Assert.Single(loadedRoots);
             Assert.IsType<LineRendererComponent>(Assert.Single(loadedRoot.Components, loadedComponent => loadedComponent is LineRendererComponent));
+        }
+
+        /// <summary>
+        /// Ensures builder-supplied compatibility metadata does not remove the default pass-through physics component compatibility required by packaged runtime scenes.
+        /// </summary>
+        [Fact]
+        public void Package_WhenPlatformOmitsPassThroughPhysicsCompatibility_PreservesDefaultPhysicsCompatibility() {
+            string sceneId = "Scenes/PhysicsScene.helen";
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "physics-root",
+                        Name = "PhysicsRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.RigidBody3DComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteRigidBody3DComponentPayload(BodyKind3D.Dynamic, true)
+                            },
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.BoxCollider3DComponent",
+                                ComponentIndex = 1,
+                                Payload = WriteBoxCollider3DComponentPayload(new float3(1f, 2f, 3f))
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            });
+
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition);
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = Path.Combine(
+                BuildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset loadedRoot = Assert.Single(packagedScene.RootEntities);
+            SceneComponentAssetRecord rigidBodyRecord = Assert.Single(
+                loadedRoot.Components,
+                componentRecord => string.Equals(componentRecord.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
+            SceneComponentAssetRecord boxColliderRecord = Assert.Single(
+                loadedRoot.Components,
+                componentRecord => string.Equals(componentRecord.ComponentTypeId, "helengine.BoxCollider3DComponent", StringComparison.Ordinal));
+
+            Assert.Equal(WriteRigidBody3DComponentPayload(BodyKind3D.Dynamic, true), rigidBodyRecord.Payload);
+            Assert.Equal(WriteBoxCollider3DComponentPayload(new float3(1f, 2f, 3f)), boxColliderRecord.Payload);
         }
 
         /// <summary>
@@ -1191,6 +1327,49 @@ namespace helengine.editor.tests {
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(fpsComponent, 0, saveState);
             return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one legacy binary camera component payload using the pre-tagged versioned scene format.
+        /// </summary>
+        /// <returns>Serialized legacy binary camera component payload.</returns>
+        byte[] WriteLegacyCameraComponentPayloadVersion2() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(2);
+            writer.WriteByte(17);
+            writer.WriteUInt16(EditorLayerMasks.SceneObjects);
+            writer.WriteSingle(12f);
+            writer.WriteSingle(24f);
+            writer.WriteSingle(640f);
+            writer.WriteSingle(360f);
+            writer.WriteByte(1);
+            writer.WriteSingle(0.25f);
+            writer.WriteSingle(0.5f);
+            writer.WriteSingle(0.75f);
+            writer.WriteSingle(1f);
+            writer.WriteByte(1);
+            writer.WriteSingle(0.42f);
+            writer.WriteByte(1);
+            writer.WriteByte(9);
+            writer.WriteByte((byte)DepthPrepassMode.Always);
+            writer.WriteSingle(128f);
+            writer.WriteByte((byte)PostProcessTier.High);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one legacy binary mesh component payload using the pre-tagged versioned scene format.
+        /// </summary>
+        /// <returns>Serialized legacy binary mesh component payload.</returns>
+        byte[] WriteLegacyMeshComponentPayloadVersion1() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteByte(0);
+            writer.WriteByte(0);
+            writer.WriteByte(23);
+            return stream.ToArray();
         }
 
         /// <summary>

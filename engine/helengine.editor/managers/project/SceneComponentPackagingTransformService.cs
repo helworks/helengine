@@ -503,7 +503,7 @@ namespace helengine.editor {
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
         /// <returns>Rewritten mesh component record.</returns>
         SceneComponentAssetRecord RewriteMeshComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
-            ReadTaggedMeshComponentRecord(
+            ReadMeshComponentRecord(
                 record,
                 out SceneAssetReference modelReference,
                 out SceneAssetReference materialReference,
@@ -529,7 +529,7 @@ namespace helengine.editor {
         /// <param name="record">Serialized camera component record to rewrite.</param>
         /// <returns>Rewritten camera component record.</returns>
         SceneComponentAssetRecord RewriteCameraComponentRecord(SceneComponentAssetRecord record) {
-            ReadTaggedCameraComponentRecord(
+            ReadCameraComponentRecord(
                 record,
                 out byte cameraDrawOrder,
                 out ushort layerMask,
@@ -551,6 +551,81 @@ namespace helengine.editor {
                 ComponentIndex = record.ComponentIndex,
                 Payload = writeStream.ToArray()
             };
+        }
+
+        /// <summary>
+        /// Reads one serialized mesh payload from either the tolerant tagged editor format or the legacy binary editor format.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <param name="modelReference">Persisted model reference.</param>
+        /// <param name="materialReference">Persisted material reference.</param>
+        /// <param name="renderOrder3D">Persisted render order.</param>
+        void ReadMeshComponentRecord(
+            SceneComponentAssetRecord record,
+            out SceneAssetReference modelReference,
+            out SceneAssetReference materialReference,
+            out byte renderOrder3D) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            try {
+                ReadTaggedMeshComponentRecord(
+                    record,
+                    out modelReference,
+                    out materialReference,
+                    out renderOrder3D);
+                return;
+            } catch (EndOfStreamException) {
+            } catch (InvalidOperationException) {
+            }
+
+            ReadLegacyVersionedMeshComponentRecord(
+                record,
+                out modelReference,
+                out materialReference,
+                out renderOrder3D);
+        }
+
+        /// <summary>
+        /// Reads one serialized camera payload from either the tolerant tagged editor format or the legacy binary editor format.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <param name="cameraDrawOrder">Persisted camera draw order.</param>
+        /// <param name="layerMask">Persisted camera layer mask.</param>
+        /// <param name="viewport">Persisted camera viewport.</param>
+        /// <param name="clearSettings">Persisted camera clear settings.</param>
+        /// <param name="renderSettings">Persisted camera render settings.</param>
+        void ReadCameraComponentRecord(
+            SceneComponentAssetRecord record,
+            out byte cameraDrawOrder,
+            out ushort layerMask,
+            out float4 viewport,
+            out CameraClearSettings clearSettings,
+            out CameraRenderSettings renderSettings) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            byte[] payload = record.Payload ?? Array.Empty<byte>();
+            if (payload.Length > 0 && payload[0] == CameraComponentPayloadVersion) {
+                ReadLegacyVersionedCameraComponentRecord(
+                    record,
+                    out cameraDrawOrder,
+                    out layerMask,
+                    out viewport,
+                    out clearSettings,
+                    out renderSettings);
+                return;
+            }
+
+            ReadTaggedCameraComponentRecord(
+                record,
+                out cameraDrawOrder,
+                out layerMask,
+                out viewport,
+                out clearSettings,
+                out renderSettings);
         }
 
         /// <summary>
@@ -878,6 +953,45 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Reads one legacy binary camera payload into the runtime values needed for packaged rewriting.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <param name="cameraDrawOrder">Persisted camera draw order.</param>
+        /// <param name="layerMask">Persisted camera layer mask.</param>
+        /// <param name="viewport">Persisted camera viewport.</param>
+        /// <param name="clearSettings">Persisted camera clear settings.</param>
+        /// <param name="renderSettings">Persisted camera render settings.</param>
+        void ReadLegacyVersionedCameraComponentRecord(
+            SceneComponentAssetRecord record,
+            out byte cameraDrawOrder,
+            out ushort layerMask,
+            out float4 viewport,
+            out CameraClearSettings clearSettings,
+            out CameraRenderSettings renderSettings) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+            if (!string.Equals(record.ComponentTypeId, CameraComponentTypeId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Expected camera record but received '{record.ComponentTypeId}'.");
+            }
+
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != 1 && version != CameraComponentPayloadVersion) {
+                throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
+            }
+
+            cameraDrawOrder = reader.ReadByte();
+            layerMask = reader.ReadUInt16();
+            viewport = ReadFloat4(reader);
+            clearSettings = ReadClearSettings(reader);
+            renderSettings = version >= CameraComponentPayloadVersion
+                ? ReadRenderSettings(reader)
+                : new CameraRenderSettings();
+        }
+
+        /// <summary>
         /// Reads one tagged mesh payload into the authored asset references and render order needed for packaged rewriting.
         /// </summary>
         /// <param name="record">Scene component record to interpret.</param>
@@ -919,6 +1033,37 @@ namespace helengine.editor {
                     renderOrder3D = renderOrder3DReader.ReadByte();
                 }
             }
+        }
+
+        /// <summary>
+        /// Reads one legacy binary mesh payload into the authored asset references and render order needed for packaged rewriting.
+        /// </summary>
+        /// <param name="record">Scene component record to interpret.</param>
+        /// <param name="modelReference">Persisted model reference.</param>
+        /// <param name="materialReference">Persisted material reference.</param>
+        /// <param name="renderOrder3D">Persisted render order.</param>
+        void ReadLegacyVersionedMeshComponentRecord(
+            SceneComponentAssetRecord record,
+            out SceneAssetReference modelReference,
+            out SceneAssetReference materialReference,
+            out byte renderOrder3D) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+            if (!string.Equals(record.ComponentTypeId, MeshComponentTypeId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Expected mesh record but received '{record.ComponentTypeId}'.");
+            }
+
+            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != MeshComponentPayloadVersion) {
+                throw new InvalidOperationException($"Unsupported mesh component payload version '{version}'.");
+            }
+
+            modelReference = ReadOptionalReference(reader);
+            materialReference = ReadOptionalReference(reader);
+            renderOrder3D = reader.ReadByte();
         }
 
         /// <summary>

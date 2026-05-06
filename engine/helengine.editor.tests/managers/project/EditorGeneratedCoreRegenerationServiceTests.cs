@@ -99,7 +99,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             symbols,
             symbol => Assert.Equal("HELENGINE_INPUT_KEYBOARD", symbol),
             symbol => Assert.Equal("HELENGINE_INPUT_MOUSE", symbol),
-            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol));
+            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol),
+            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", symbol));
     }
 
     /// <summary>
@@ -407,6 +408,64 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies bundled native number support exposes finite-check helpers used by generated core validation code.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_adds_native_number_finite_helpers() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-native-number-finite-helpers");
+        Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "system"));
+        string headerPath = Path.Combine(generatedCoreRootPath, "system", "number.hpp");
+        File.WriteAllText(
+            headerPath,
+            "#pragma once\n"
+            + "#include <cmath>\n"
+            + "class Number {\n"
+            + "public:\n"
+            + "    static bool IsPositiveInfinity(float value) {\n"
+            + "        return std::isinf(value) && value > 0.0f;\n"
+            + "    }\n"
+            + "\n"
+            + "    static bool IsPositiveInfinity(double value) {\n"
+            + "        return std::isinf(value) && value > 0.0;\n"
+            + "    }\n"
+            + "};\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedHeader = File.ReadAllText(headerPath);
+        Assert.Contains("static bool IsNaN(float value)", normalizedHeader);
+        Assert.Contains("return std::isnan(value);", normalizedHeader);
+        Assert.Contains("static bool IsNaN(double value)", normalizedHeader);
+        Assert.Contains("static bool IsInfinity(float value)", normalizedHeader);
+        Assert.Contains("static bool IsInfinity(double value)", normalizedHeader);
+    }
+
+    /// <summary>
+    /// Verifies generated animation-player looping code rewrites floating-point modulo into a valid native fmod call.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_animation_player_floating_point_modulo() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-animation-player-floating-point-modulo");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string sourcePath = Path.Combine(generatedCoreRootPath, "AnimationPlayerComponent.cpp");
+        File.WriteAllText(
+            sourcePath,
+            "#include \"AnimationPlayerComponent.hpp\"\n"
+            + "float AnimationPlayerComponent::ResolvePlaybackTime(float time)\n"
+            + "{\n"
+            + "    const double duration = this->currentClip->get_Duration();\n"
+            + "    double wrapped = time % duration;\n"
+            + "    return static_cast<float>(wrapped);\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedSource = File.ReadAllText(sourcePath);
+        Assert.Contains("#include <cmath>", normalizedSource);
+        Assert.Contains("double wrapped = std::fmod(static_cast<double>(time), duration);", normalizedSource);
+    }
+
+    /// <summary>
     /// Verifies generated menu-host source rewrites captured Action lambdas into valid native delegate construction.
     /// </summary>
     [Fact]
@@ -591,10 +650,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies unity translation regeneration excludes the separately linked bridge and profile sources.
+    /// Verifies unity translation regeneration excludes only the separately linked runtime manifest sources.
     /// </summary>
     [Fact]
-    public void Rewrite_unity_translation_unit_excludes_bridge_sources() {
+    public void Rewrite_unity_translation_unit_excludes_only_runtime_manifest_sources() {
         string generatedCoreRootPath = Path.Combine(RootPath, "rewrite-unity-exclusions");
         Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "runtime"));
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// foo\n");
@@ -608,8 +667,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
 
         string unitySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"));
         Assert.Contains("#include \"Foo.cpp\"", unitySource);
-        Assert.DoesNotContain("RendererBackendCapabilityProfile.cpp", unitySource);
-        Assert.DoesNotContain("Ps2MaterialAsset.cpp", unitySource);
+        Assert.Contains("#include \"RendererBackendCapabilityProfile.cpp\"", unitySource);
+        Assert.Contains("#include \"Ps2MaterialAsset.cpp\"", unitySource);
         Assert.DoesNotContain("runtime/runtime_startup_manifest.cpp", unitySource);
         Assert.DoesNotContain("runtime/runtime_code_module_manifest.cpp", unitySource);
     }

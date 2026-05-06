@@ -415,7 +415,7 @@ namespace helengine.editor {
             ReferencedShaderAssetIds = new List<string>();
             ReferencedShaderAssetIdsSet = new HashSet<string>(StringComparer.Ordinal);
             PlatformId = string.IsNullOrWhiteSpace(targetPlatformId) ? "windows" : targetPlatformId;
-            ComponentCompatibilitiesByTypeId = BuildCompatibilityLookup(platformDefinition?.ComponentCompatibilities ?? CreateDefaultComponentCompatibilities());
+            ComponentCompatibilitiesByTypeId = BuildEffectiveCompatibilityLookup(platformDefinition?.ComponentCompatibilities);
             TransformService = new SceneComponentPackagingTransformService(
                 AssetsRootPath,
                 ProjectContentManager,
@@ -647,16 +647,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds a lookup table from the builder-provided compatibility metadata.
+        /// Builds one compatibility lookup that preserves the built-in defaults while allowing builder-provided entries to override them.
         /// </summary>
-        /// <param name="componentCompatibilities">Builder-provided compatibility entries.</param>
+        /// <param name="componentCompatibilities">Optional builder-provided compatibility entries.</param>
         /// <returns>Case-insensitive compatibility lookup.</returns>
-        static Dictionary<string, PlatformComponentCompatibilityDefinition> BuildCompatibilityLookup(
+        static Dictionary<string, PlatformComponentCompatibilityDefinition> BuildEffectiveCompatibilityLookup(
             IReadOnlyList<PlatformComponentCompatibilityDefinition> componentCompatibilities) {
             Dictionary<string, PlatformComponentCompatibilityDefinition> lookup =
                 new Dictionary<string, PlatformComponentCompatibilityDefinition>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> builderCompatibilityTypeIds =
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            PlatformComponentCompatibilityDefinition[] defaultCompatibilities = CreateDefaultComponentCompatibilities();
+            for (int index = 0; index < defaultCompatibilities.Length; index++) {
+                PlatformComponentCompatibilityDefinition compatibility = defaultCompatibilities[index];
+                lookup.Add(compatibility.ComponentTypeId, compatibility);
+            }
+
             if (componentCompatibilities == null) {
-                throw new ArgumentNullException(nameof(componentCompatibilities));
+                return lookup;
             }
 
             for (int index = 0; index < componentCompatibilities.Count; index++) {
@@ -664,11 +673,11 @@ namespace helengine.editor {
                 if (compatibility == null) {
                     throw new InvalidOperationException("Platform compatibility metadata must not contain null entries.");
                 }
-                if (lookup.ContainsKey(compatibility.ComponentTypeId)) {
+                if (!builderCompatibilityTypeIds.Add(compatibility.ComponentTypeId)) {
                     throw new InvalidOperationException($"Platform compatibility metadata already contains an entry for '{compatibility.ComponentTypeId}'.");
                 }
 
-                lookup.Add(compatibility.ComponentTypeId, compatibility);
+                lookup[compatibility.ComponentTypeId] = compatibility;
             }
 
             return lookup;
