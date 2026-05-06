@@ -110,7 +110,8 @@ namespace helengine {
         /// <summary>
         /// Gets or sets the clear settings applied before this camera renders.
         /// </summary>
-        [EditorPropertyHidden]
+        [EditorPropertyDisplayName("Clear Settings")]
+        [EditorPropertyOrder(4)]
         public CameraClearSettings ClearSettings { get; set; }
 
         /// <summary>

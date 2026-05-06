@@ -32,6 +32,14 @@ namespace helengine.editor {
         /// </summary>
         Scalar,
         /// <summary>
+        /// Editable row for a Vector4 value.
+        /// </summary>
+        Vector4,
+        /// <summary>
+        /// Collapsible nested section row used by provider-backed custom editors.
+        /// </summary>
+        CustomSection,
+        /// <summary>
         /// Read-only row for unsupported property types.
         /// </summary>
         ReadOnly

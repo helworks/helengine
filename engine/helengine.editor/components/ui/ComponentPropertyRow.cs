@@ -54,6 +54,31 @@ namespace helengine.editor {
         public PropertyInfo Property { get; set; }
 
         /// <summary>
+        /// Gets or sets the effective value type edited by this row.
+        /// </summary>
+        public Type ValueType { get; set; }
+
+        /// <summary>
+        /// Gets or sets the stable custom editor type identifier when this row participates in a provider-backed editor.
+        /// </summary>
+        public string CustomEditorTypeId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the nested member name edited by this row when it targets one field inside a provider-backed property value.
+        /// </summary>
+        public string NestedMemberName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the indentation level applied during layout.
+        /// </summary>
+        public int IndentLevel { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether a provider-backed section row is currently expanded.
+        /// </summary>
+        public bool IsExpanded { get; set; }
+
+        /// <summary>
         /// Gets or sets the vector field hosts for Vector3 rows.
         /// </summary>
         public EditorEntity[] VectorFieldHosts { get; set; }
@@ -67,6 +92,21 @@ namespace helengine.editor {
         /// Gets or sets the text cache for vector fields.
         /// </summary>
         public string[] VectorCache { get; set; }
+
+        /// <summary>
+        /// Gets or sets the vector field hosts for Vector4 rows.
+        /// </summary>
+        public EditorEntity[] Vector4FieldHosts { get; set; }
+
+        /// <summary>
+        /// Gets or sets the vector field text boxes for Vector4 rows.
+        /// </summary>
+        public TextBoxComponent[] Vector4Fields { get; set; }
+
+        /// <summary>
+        /// Gets or sets the text cache for Vector4 rows.
+        /// </summary>
+        public string[] Vector4Cache { get; set; }
 
         /// <summary>
         /// Gets or sets the text box for scalar rows.
@@ -107,5 +147,15 @@ namespace helengine.editor {
         /// Gets or sets the action button component.
         /// </summary>
         public ButtonComponent ActionButton { get; set; }
+
+        /// <summary>
+        /// Gets or sets the background surface used by one custom section row.
+        /// </summary>
+        public SpriteComponent HeaderBackground { get; set; }
+
+        /// <summary>
+        /// Gets or sets the interactable surface used by one custom section row.
+        /// </summary>
+        public InteractableComponent HeaderInteractable { get; set; }
     }
 }

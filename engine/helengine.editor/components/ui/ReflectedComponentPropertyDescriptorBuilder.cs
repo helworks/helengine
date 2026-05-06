@@ -6,6 +6,20 @@ namespace helengine.editor {
     /// </summary>
     public class ReflectedComponentPropertyDescriptorBuilder {
         /// <summary>
+        /// Registered provider-backed custom property editors.
+        /// </summary>
+        readonly List<IComponentPropertyEditorProvider> Providers;
+
+        /// <summary>
+        /// Initializes the reflected descriptor builder with the currently supported custom editor providers.
+        /// </summary>
+        public ReflectedComponentPropertyDescriptorBuilder() {
+            Providers = new List<IComponentPropertyEditorProvider> {
+                new CameraClearSettingsPropertyEditorProvider()
+            };
+        }
+
+        /// <summary>
         /// Builds reflected descriptors for the supplied component type.
         /// </summary>
         /// <param name="componentType">Component type being inspected.</param>
@@ -20,6 +34,11 @@ namespace helengine.editor {
             for (int index = 0; index < properties.Length; index++) {
                 PropertyInfo property = properties[index];
                 if (!ShouldInclude(property)) {
+                    continue;
+                }
+
+                if (TryBuildCustomEditorDescriptor(property, out ReflectedComponentPropertyDescriptor customDescriptor)) {
+                    descriptors.Add(customDescriptor);
                     continue;
                 }
 
@@ -130,6 +149,35 @@ namespace helengine.editor {
                 return true;
             }
 
+            return false;
+        }
+
+        /// <summary>
+        /// Tries to build a provider-backed custom editor descriptor for one reflected property.
+        /// </summary>
+        /// <param name="property">Property metadata being inspected.</param>
+        /// <param name="descriptor">Resolved provider-backed descriptor when supported.</param>
+        /// <returns>True when one provider claims the property.</returns>
+        bool TryBuildCustomEditorDescriptor(PropertyInfo property, out ReflectedComponentPropertyDescriptor descriptor) {
+            if (property == null) {
+                throw new ArgumentNullException(nameof(property));
+            }
+
+            for (int index = 0; index < Providers.Count; index++) {
+                IComponentPropertyEditorProvider provider = Providers[index];
+                if (!provider.TryCreateDescriptor(property, out ComponentPropertyEditorDescriptor customEditor)) {
+                    continue;
+                }
+
+                descriptor = new ReflectedComponentPropertyDescriptor(
+                    property,
+                    customEditor.DisplayName,
+                    customEditor,
+                    customEditor.Order);
+                return true;
+            }
+
+            descriptor = null;
             return false;
         }
 

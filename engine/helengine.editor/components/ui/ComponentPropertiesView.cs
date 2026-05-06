@@ -124,6 +124,10 @@ namespace helengine.editor {
         /// </summary>
         readonly Dictionary<TextBoxComponent, ComponentPropertyRow> VectorFieldRows;
         /// <summary>
+        /// Map of Vector4 text fields to their owning row.
+        /// </summary>
+        readonly Dictionary<TextBoxComponent, ComponentPropertyRow> Vector4FieldRows;
+        /// <summary>
         /// Map of scalar text fields to their owning row.
         /// </summary>
         readonly Dictionary<TextBoxComponent, ComponentPropertyRow> ScalarFieldRows;
@@ -152,9 +156,33 @@ namespace helengine.editor {
         /// </summary>
         readonly Dictionary<Component, bool> CollapsedStates;
         /// <summary>
+        /// Tracks nested provider-backed section expansion state for visible components.
+        /// </summary>
+        readonly Dictionary<string, bool> CustomEditorExpandedStates;
+        /// <summary>
         /// Tracks whether the view is updating text fields internally.
         /// </summary>
         bool IsSynchronizing;
+        /// <summary>
+        /// Entity currently being inspected.
+        /// </summary>
+        Entity CurrentEntity;
+        /// <summary>
+        /// Last left offset used during layout.
+        /// </summary>
+        int LastLayoutLeft;
+        /// <summary>
+        /// Last top offset used during layout.
+        /// </summary>
+        int LastLayoutTop;
+        /// <summary>
+        /// Last available width used during layout.
+        /// </summary>
+        int LastLayoutWidth;
+        /// <summary>
+        /// Tracks whether one layout pass has already established the current row geometry.
+        /// </summary>
+        bool HasLayoutState;
         /// <summary>
         /// Height consumed by the most recent visible layout pass.
         /// </summary>
@@ -233,12 +261,14 @@ namespace helengine.editor {
             SectionPool = new List<ComponentSectionView>(8);
             ActiveSections = new List<ComponentSectionView>(8);
             VectorFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
+            Vector4FieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ModelLabels = new Dictionary<RuntimeModel, string>();
             MaterialLabels = new Dictionary<RuntimeMaterial, string>();
             FontLabels = new Dictionary<FontAsset, string>();
             DescriptorBuilder = new ReflectedComponentPropertyDescriptorBuilder();
             CollapsedStates = new Dictionary<Component, bool>();
+            CustomEditorExpandedStates = new Dictionary<string, bool>();
             TextOrder = RenderOrder2D.PanelForeground;
         }
 
@@ -266,6 +296,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(entity));
             }
 
+            CurrentEntity = entity;
             ClearActiveRows();
             ClearActiveSections();
             if (entity.Components == null || entity.Components.Count == 0) {
@@ -304,6 +335,8 @@ namespace helengine.editor {
             ClearActiveSections();
             RootEntity.Enabled = false;
             LayoutHeightValue = 0;
+            CurrentEntity = null;
+            HasLayoutState = false;
         }
 
         /// <summary>
@@ -318,6 +351,10 @@ namespace helengine.editor {
                 return;
             }
 
+            LastLayoutLeft = left;
+            LastLayoutTop = top;
+            LastLayoutWidth = maxWidth;
+            HasLayoutState = true;
             RootEntity.Position = new float3(left, top, 0.2f);
             int width = Math.Max(0, maxWidth);
             int y = 0;
@@ -354,6 +391,11 @@ namespace helengine.editor {
                 row.Entity.Enabled = false;
                 row.TargetComponent = null;
                 row.Property = null;
+                row.ValueType = null;
+                row.CustomEditorTypeId = null;
+                row.NestedMemberName = null;
+                row.IndentLevel = 0;
+                row.IsExpanded = false;
                 RowPool.Add(row);
             }
 
@@ -384,11 +426,49 @@ namespace helengine.editor {
             List<ReflectedComponentPropertyDescriptor> descriptors = DescriptorBuilder.Build(component.GetType());
             for (int index = 0; index < descriptors.Count; index++) {
                 ReflectedComponentPropertyDescriptor descriptor = descriptors[index];
+                if (descriptor.IsCustomEditor) {
+                    AddCustomEditorRows(section, component, descriptor);
+                    continue;
+                }
+
                 ComponentPropertyRow row = AcquireRow(descriptor.RowKind);
                 BindPropertyRow(row, component, descriptor);
                 UpdateRowValue(row);
                 section.Rows.Add(row);
                 ActiveRows.Add(row);
+            }
+        }
+
+        /// <summary>
+        /// Adds the rows required by one provider-backed custom property editor.
+        /// </summary>
+        /// <param name="section">Section receiving the rows.</param>
+        /// <param name="component">Component that owns the custom editor property.</param>
+        /// <param name="descriptor">Provider-backed property descriptor.</param>
+        void AddCustomEditorRows(ComponentSectionView section, Component component, ReflectedComponentPropertyDescriptor descriptor) {
+            if (section == null) {
+                throw new ArgumentNullException(nameof(section));
+            }
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+            if (descriptor == null) {
+                throw new ArgumentNullException(nameof(descriptor));
+            }
+            if (!descriptor.IsCustomEditor) {
+                throw new InvalidOperationException("Custom editor rows require a provider-backed descriptor.");
+            }
+
+            ComponentPropertyRow sectionRow = AcquireRow(ComponentPropertyRowKind.CustomSection);
+            BindCustomSectionRow(sectionRow, component, descriptor);
+            section.Rows.Add(sectionRow);
+            ActiveRows.Add(sectionRow);
+            if (!sectionRow.IsExpanded) {
+                return;
+            }
+
+            if (string.Equals(sectionRow.CustomEditorTypeId, CameraClearSettingsPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
+                AddCameraClearSettingsRows(section, component, descriptor, sectionRow);
             }
         }
 
@@ -401,7 +481,124 @@ namespace helengine.editor {
         void BindPropertyRow(ComponentPropertyRow row, Component component, ReflectedComponentPropertyDescriptor descriptor) {
             row.TargetComponent = component;
             row.Property = descriptor.Property;
+            row.ValueType = descriptor.Property.PropertyType;
             row.Label.Text = descriptor.DisplayName;
+            row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
+            row.Entity.Enabled = true;
+        }
+
+        /// <summary>
+        /// Associates one custom section row with its provider-backed property descriptor.
+        /// </summary>
+        /// <param name="row">Row to bind.</param>
+        /// <param name="component">Component that owns the custom editor property.</param>
+        /// <param name="descriptor">Provider-backed property descriptor.</param>
+        void BindCustomSectionRow(ComponentPropertyRow row, Component component, ReflectedComponentPropertyDescriptor descriptor) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+            if (descriptor == null) {
+                throw new ArgumentNullException(nameof(descriptor));
+            }
+
+            row.TargetComponent = component;
+            row.Property = descriptor.Property;
+            row.ValueType = descriptor.Property.PropertyType;
+            row.CustomEditorTypeId = descriptor.CustomEditor.EditorTypeId;
+            row.NestedMemberName = null;
+            row.IndentLevel = 0;
+            row.Label.Text = descriptor.DisplayName;
+            row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
+            row.Entity.Enabled = true;
+            row.IsExpanded = CustomEditorExpandedStates.TryGetValue(BuildCustomEditorStateKey(component, descriptor.Property), out bool isExpanded) && isExpanded;
+            UpdateCustomSectionVisual(row, false);
+        }
+
+        /// <summary>
+        /// Adds the nested rows used by the camera clear settings custom editor.
+        /// </summary>
+        /// <param name="section">Section receiving the nested rows.</param>
+        /// <param name="component">Component that owns the clear settings property.</param>
+        /// <param name="descriptor">Provider-backed property descriptor.</param>
+        /// <param name="sectionRow">Top-level custom section row.</param>
+        void AddCameraClearSettingsRows(ComponentSectionView section, Component component, ReflectedComponentPropertyDescriptor descriptor, ComponentPropertyRow sectionRow) {
+            AddNestedBooleanRow(section, component, descriptor, sectionRow, "Clear Color Enabled", nameof(CameraClearSettings.ClearColorEnabled));
+            AddNestedVector4Row(section, component, descriptor, sectionRow, "Clear Color", nameof(CameraClearSettings.ClearColor));
+            AddNestedBooleanRow(section, component, descriptor, sectionRow, "Clear Depth Enabled", nameof(CameraClearSettings.ClearDepthEnabled));
+            AddNestedScalarRow(section, component, descriptor, sectionRow, "Clear Depth", nameof(CameraClearSettings.ClearDepth), typeof(float));
+            AddNestedBooleanRow(section, component, descriptor, sectionRow, "Clear Stencil Enabled", nameof(CameraClearSettings.ClearStencilEnabled));
+            AddNestedScalarRow(section, component, descriptor, sectionRow, "Clear Stencil", nameof(CameraClearSettings.ClearStencil), typeof(byte));
+        }
+
+        /// <summary>
+        /// Adds one nested boolean row inside the camera clear settings section.
+        /// </summary>
+        void AddNestedBooleanRow(ComponentSectionView section, Component component, ReflectedComponentPropertyDescriptor descriptor, ComponentPropertyRow sectionRow, string label, string nestedMemberName) {
+            ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Boolean);
+            BindNestedPropertyRow(row, component, descriptor, sectionRow, label, nestedMemberName, typeof(bool));
+            UpdateRowValue(row);
+            section.Rows.Add(row);
+            ActiveRows.Add(row);
+        }
+
+        /// <summary>
+        /// Adds one nested scalar row inside the camera clear settings section.
+        /// </summary>
+        void AddNestedScalarRow(ComponentSectionView section, Component component, ReflectedComponentPropertyDescriptor descriptor, ComponentPropertyRow sectionRow, string label, string nestedMemberName, Type valueType) {
+            ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Scalar);
+            BindNestedPropertyRow(row, component, descriptor, sectionRow, label, nestedMemberName, valueType);
+            UpdateRowValue(row);
+            section.Rows.Add(row);
+            ActiveRows.Add(row);
+        }
+
+        /// <summary>
+        /// Adds one nested Vector4 row inside the camera clear settings section.
+        /// </summary>
+        void AddNestedVector4Row(ComponentSectionView section, Component component, ReflectedComponentPropertyDescriptor descriptor, ComponentPropertyRow sectionRow, string label, string nestedMemberName) {
+            ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Vector4);
+            BindNestedPropertyRow(row, component, descriptor, sectionRow, label, nestedMemberName, typeof(float4));
+            UpdateRowValue(row);
+            section.Rows.Add(row);
+            ActiveRows.Add(row);
+        }
+
+        /// <summary>
+        /// Associates one nested provider-backed row with the owning property and nested member metadata.
+        /// </summary>
+        void BindNestedPropertyRow(ComponentPropertyRow row, Component component, ReflectedComponentPropertyDescriptor descriptor, ComponentPropertyRow sectionRow, string label, string nestedMemberName, Type valueType) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+            if (descriptor == null) {
+                throw new ArgumentNullException(nameof(descriptor));
+            }
+            if (sectionRow == null) {
+                throw new ArgumentNullException(nameof(sectionRow));
+            }
+            if (string.IsNullOrWhiteSpace(label)) {
+                throw new ArgumentException("Label must be provided.", nameof(label));
+            }
+            if (string.IsNullOrWhiteSpace(nestedMemberName)) {
+                throw new ArgumentException("Nested member name must be provided.", nameof(nestedMemberName));
+            }
+            if (valueType == null) {
+                throw new ArgumentNullException(nameof(valueType));
+            }
+
+            row.TargetComponent = component;
+            row.Property = descriptor.Property;
+            row.ValueType = valueType;
+            row.CustomEditorTypeId = sectionRow.CustomEditorTypeId;
+            row.NestedMemberName = nestedMemberName;
+            row.IndentLevel = 1;
+            row.Label.Text = label;
             row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
             row.Entity.Enabled = true;
         }
@@ -416,8 +613,14 @@ namespace helengine.editor {
             }
 
             switch (row.Kind) {
+                case ComponentPropertyRowKind.CustomSection:
+                    UpdateCustomSectionRow(row);
+                    break;
                 case ComponentPropertyRowKind.Vector3:
                     UpdateVectorRow(row);
+                    break;
+                case ComponentPropertyRowKind.Vector4:
+                    UpdateVector4Row(row);
                     break;
                 case ComponentPropertyRowKind.Material:
                     UpdateMaterialRow(row);
@@ -441,6 +644,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Updates one custom section row to reflect its current expansion state.
+        /// </summary>
+        /// <param name="row">Row to update.</param>
+        void UpdateCustomSectionRow(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            UpdateCustomSectionVisual(row, false);
+        }
+
+        /// <summary>
         /// Updates a Vector3 row with the component property value.
         /// </summary>
         /// <param name="row">Row to update.</param>
@@ -458,7 +673,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row to update.</param>
         void UpdateScalarRow(ComponentPropertyRow row) {
-            object rawValue = GetPropertyValue(row);
+            object rawValue = GetRowValue(row);
             string text = FormatScalarValue(rawValue);
             UpdateScalarField(row, text);
         }
@@ -473,7 +688,7 @@ namespace helengine.editor {
             }
 
             bool isChecked = false;
-            object rawValue = GetPropertyValue(row);
+            object rawValue = GetRowValue(row);
             if (rawValue is bool boolValue) {
                 isChecked = boolValue;
             }
@@ -486,7 +701,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row to update.</param>
         void UpdateReadOnlyRow(ComponentPropertyRow row) {
-            object rawValue = GetPropertyValue(row);
+            object rawValue = GetRowValue(row);
             row.ValueText.Text = rawValue == null ? string.Empty : rawValue.ToString();
         }
 
@@ -531,7 +746,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row to update.</param>
         void UpdateModelRow(ComponentPropertyRow row) {
-            object rawValue = GetPropertyValue(row);
+            object rawValue = GetRowValue(row);
             if (rawValue is RuntimeModel model) {
                 if (ModelLabels.TryGetValue(model, out string label) && !string.IsNullOrWhiteSpace(label)) {
                     row.ValueText.Text = label;
@@ -543,6 +758,19 @@ namespace helengine.editor {
             }
 
             row.ValueText.Text = EmptyAssetLabel;
+        }
+
+        /// <summary>
+        /// Updates a Vector4 row with the current nested property value.
+        /// </summary>
+        /// <param name="row">Row to update.</param>
+        void UpdateVector4Row(ComponentPropertyRow row) {
+            if (!TryGetVector4Value(row, out float4 value)) {
+                SetVector4Fields(row, 0.0, 0.0, 0.0, 0.0);
+                return;
+            }
+
+            SetVector4Fields(row, value.X, value.Y, value.Z, value.W);
         }
 
         /// <summary>
@@ -559,6 +787,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Retrieves the effective editable value represented by one row.
+        /// </summary>
+        /// <param name="row">Row to query.</param>
+        /// <returns>Effective row value or null.</returns>
+        object GetRowValue(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.NestedMemberName)
+                && string.Equals(row.CustomEditorTypeId, CameraClearSettingsPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
+                CameraClearSettings settings = ReadCameraClearSettings(row);
+                return ReadCameraClearSettingsNestedValue(row, settings);
+            }
+
+            return GetPropertyValue(row);
+        }
+
+        /// <summary>
         /// Attempts to read a Vector3 value from the row property.
         /// </summary>
         /// <param name="row">Row to query.</param>
@@ -566,8 +813,25 @@ namespace helengine.editor {
         /// <returns>True when a Vector3 value was read.</returns>
         bool TryGetVectorValue(ComponentPropertyRow row, out float3 value) {
             value = float3.Zero;
-            object rawValue = GetPropertyValue(row);
+            object rawValue = GetRowValue(row);
             if (rawValue is float3 vector) {
+                value = vector;
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Attempts to read a Vector4 value from the row property.
+        /// </summary>
+        /// <param name="row">Row to query.</param>
+        /// <param name="value">Vector4 value when available.</param>
+        /// <returns>True when a Vector4 value was read.</returns>
+        bool TryGetVector4Value(ComponentPropertyRow row, out float4 value) {
+            value = float4.Identity;
+            object rawValue = GetRowValue(row);
+            if (rawValue is float4 vector) {
                 value = vector;
                 return true;
             }
@@ -629,6 +893,36 @@ namespace helengine.editor {
             row.VectorCache[0] = xText;
             row.VectorCache[1] = yText;
             row.VectorCache[2] = zText;
+            IsSynchronizing = false;
+        }
+
+        /// <summary>
+        /// Applies Vector4 field text to the row and cache.
+        /// </summary>
+        /// <param name="row">Row to update.</param>
+        /// <param name="x">X value.</param>
+        /// <param name="y">Y value.</param>
+        /// <param name="z">Z value.</param>
+        /// <param name="w">W value.</param>
+        void SetVector4Fields(ComponentPropertyRow row, double x, double y, double z, double w) {
+            if (row.Vector4Fields == null || row.Vector4Cache == null) {
+                return;
+            }
+
+            string xText = FormatDouble(x);
+            string yText = FormatDouble(y);
+            string zText = FormatDouble(z);
+            string wText = FormatDouble(w);
+
+            IsSynchronizing = true;
+            row.Vector4Fields[0].Text = xText;
+            row.Vector4Fields[1].Text = yText;
+            row.Vector4Fields[2].Text = zText;
+            row.Vector4Fields[3].Text = wText;
+            row.Vector4Cache[0] = xText;
+            row.Vector4Cache[1] = yText;
+            row.Vector4Cache[2] = zText;
+            row.Vector4Cache[3] = wText;
             IsSynchronizing = false;
         }
 
@@ -698,6 +992,54 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Attempts to parse a Vector4 from the row fields.
+        /// </summary>
+        /// <param name="row">Row to parse.</param>
+        /// <param name="x">Parsed X value.</param>
+        /// <param name="y">Parsed Y value.</param>
+        /// <param name="z">Parsed Z value.</param>
+        /// <param name="w">Parsed W value.</param>
+        /// <returns>True when all fields parse successfully.</returns>
+        bool TryReadVector4(ComponentPropertyRow row, out double x, out double y, out double z, out double w) {
+            x = 0.0;
+            y = 0.0;
+            z = 0.0;
+            w = 0.0;
+
+            if (row.Vector4Fields == null || row.Vector4Fields.Length < 4) {
+                return false;
+            }
+
+            if (!TryReadNumber(row.Vector4Fields[0].Text, out x)) {
+                return false;
+            }
+            if (!TryReadNumber(row.Vector4Fields[1].Text, out y)) {
+                return false;
+            }
+            if (!TryReadNumber(row.Vector4Fields[2].Text, out z)) {
+                return false;
+            }
+            if (!TryReadNumber(row.Vector4Fields[3].Text, out w)) {
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Determines whether two Vector4 values contain the same components.
+        /// </summary>
+        /// <param name="left">Left value.</param>
+        /// <param name="right">Right value.</param>
+        /// <returns>True when all four components match exactly.</returns>
+        bool AreFloat4ValuesEqual(float4 left, float4 right) {
+            return left.X == right.X
+                && left.Y == right.Y
+                && left.Z == right.Z
+                && left.W == right.W;
+        }
+
+        /// <summary>
         /// Parses a numeric value using invariant culture.
         /// </summary>
         /// <param name="text">Text to parse.</param>
@@ -738,13 +1080,45 @@ namespace helengine.editor {
             }
 
             var value = new float3((float)x, (float)y, (float)z);
-            if (GetPropertyValue(row) is float3 currentValue && currentValue == value) {
+            if (GetRowValue(row) is float3 currentValue && currentValue == value) {
                 SetVectorFields(row, x, y, z);
                 return;
             }
 
-            row.Property.SetValue(row.TargetComponent, value);
+            SetRowValue(row, value);
             SetVectorFields(row, x, y, z);
+            EditorSceneMutationService.MarkSceneMutated();
+        }
+
+        /// <summary>
+        /// Handles submit events for Vector4 fields.
+        /// </summary>
+        /// <param name="field">Submitted text box.</param>
+        void HandleVector4Submitted(TextBoxComponent field) {
+            if (IsSynchronizing) {
+                return;
+            }
+
+            if (!Vector4FieldRows.TryGetValue(field, out ComponentPropertyRow row)) {
+                return;
+            }
+
+            if (row.TargetComponent == null || row.Property == null) {
+                return;
+            }
+
+            if (!TryReadVector4(row, out double x, out double y, out double z, out double w)) {
+                return;
+            }
+
+            var value = new float4((float)x, (float)y, (float)z, (float)w);
+            if (GetRowValue(row) is float4 currentValue && AreFloat4ValuesEqual(currentValue, value)) {
+                SetVector4Fields(row, x, y, z, w);
+                return;
+            }
+
+            SetRowValue(row, value);
+            SetVector4Fields(row, x, y, z, w);
             EditorSceneMutationService.MarkSceneMutated();
         }
 
@@ -765,19 +1139,19 @@ namespace helengine.editor {
                 return;
             }
 
-            Type targetType = row.Property.PropertyType;
+            Type targetType = row.ValueType ?? row.Property.PropertyType;
             if (!TryParseScalar(field.Text, targetType, out object parsed)) {
                 UpdateScalarField(row, row.ScalarCache);
                 return;
             }
 
-            object currentValue = GetPropertyValue(row);
+            object currentValue = GetRowValue(row);
             if (Equals(currentValue, parsed)) {
                 UpdateScalarField(row, FormatScalarValue(parsed));
                 return;
             }
 
-            row.Property.SetValue(row.TargetComponent, parsed);
+            SetRowValue(row, parsed);
             UpdateScalarField(row, FormatScalarValue(parsed));
             EditorSceneMutationService.MarkSceneMutated();
         }
@@ -800,13 +1174,13 @@ namespace helengine.editor {
                 return;
             }
 
-            object currentValue = GetPropertyValue(row);
+            object currentValue = GetRowValue(row);
             if (currentValue is bool currentBoolValue && currentBoolValue == isChecked) {
                 UpdateBooleanField(row, isChecked);
                 return;
             }
 
-            row.Property.SetValue(row.TargetComponent, isChecked);
+            SetRowValue(row, isChecked);
             UpdateBooleanField(row, isChecked);
             EditorSceneMutationService.MarkSceneMutated();
         }
@@ -901,6 +1275,109 @@ namespace helengine.editor {
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Applies one effective row value back to the owning component property.
+        /// </summary>
+        /// <param name="row">Row being updated.</param>
+        /// <param name="value">Value to apply.</param>
+        void SetRowValue(ComponentPropertyRow row, object value) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (row.TargetComponent == null || row.Property == null) {
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.NestedMemberName)
+                && string.Equals(row.CustomEditorTypeId, CameraClearSettingsPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
+                CameraClearSettings settings = ReadCameraClearSettings(row);
+                settings = WriteCameraClearSettingsNestedValue(row, settings, value);
+                row.Property.SetValue(row.TargetComponent, settings);
+                return;
+            }
+
+            row.Property.SetValue(row.TargetComponent, value);
+        }
+
+        /// <summary>
+        /// Reads the camera clear settings value represented by one provider-backed row.
+        /// </summary>
+        /// <param name="row">Row whose owning property should be read.</param>
+        /// <returns>Current camera clear settings value.</returns>
+        CameraClearSettings ReadCameraClearSettings(ComponentPropertyRow row) {
+            object rawValue = GetPropertyValue(row);
+            if (rawValue is CameraClearSettings settings) {
+                return settings;
+            }
+
+            throw new InvalidOperationException("Camera clear settings row requires a CameraClearSettings value.");
+        }
+
+        /// <summary>
+        /// Reads one nested camera clear settings member from the supplied struct value.
+        /// </summary>
+        /// <param name="row">Row whose nested member should be read.</param>
+        /// <param name="settings">Current camera clear settings value.</param>
+        /// <returns>Nested member value.</returns>
+        object ReadCameraClearSettingsNestedValue(ComponentPropertyRow row, CameraClearSettings settings) {
+            if (string.Equals(row.NestedMemberName, nameof(CameraClearSettings.ClearColorEnabled), StringComparison.Ordinal)) {
+                return settings.ClearColorEnabled;
+            }
+            if (string.Equals(row.NestedMemberName, nameof(CameraClearSettings.ClearColor), StringComparison.Ordinal)) {
+                return settings.ClearColor;
+            }
+            if (string.Equals(row.NestedMemberName, nameof(CameraClearSettings.ClearDepthEnabled), StringComparison.Ordinal)) {
+                return settings.ClearDepthEnabled;
+            }
+            if (string.Equals(row.NestedMemberName, nameof(CameraClearSettings.ClearDepth), StringComparison.Ordinal)) {
+                return settings.ClearDepth;
+            }
+            if (string.Equals(row.NestedMemberName, nameof(CameraClearSettings.ClearStencilEnabled), StringComparison.Ordinal)) {
+                return settings.ClearStencilEnabled;
+            }
+            if (string.Equals(row.NestedMemberName, nameof(CameraClearSettings.ClearStencil), StringComparison.Ordinal)) {
+                return settings.ClearStencil;
+            }
+
+            throw new InvalidOperationException($"Unsupported camera clear settings member '{row.NestedMemberName}'.");
+        }
+
+        /// <summary>
+        /// Writes one nested camera clear settings member into the supplied struct value.
+        /// </summary>
+        /// <param name="row">Row whose nested member should be written.</param>
+        /// <param name="settings">Current camera clear settings value.</param>
+        /// <param name="value">Nested value to assign.</param>
+        /// <returns>Updated camera clear settings value.</returns>
+        CameraClearSettings WriteCameraClearSettingsNestedValue(ComponentPropertyRow row, CameraClearSettings settings, object value) {
+            if (string.Equals(row.NestedMemberName, nameof(CameraClearSettings.ClearColorEnabled), StringComparison.Ordinal)) {
+                settings.ClearColorEnabled = (bool)value;
+                return settings;
+            }
+            if (string.Equals(row.NestedMemberName, nameof(CameraClearSettings.ClearColor), StringComparison.Ordinal)) {
+                settings.ClearColor = (float4)value;
+                return settings;
+            }
+            if (string.Equals(row.NestedMemberName, nameof(CameraClearSettings.ClearDepthEnabled), StringComparison.Ordinal)) {
+                settings.ClearDepthEnabled = (bool)value;
+                return settings;
+            }
+            if (string.Equals(row.NestedMemberName, nameof(CameraClearSettings.ClearDepth), StringComparison.Ordinal)) {
+                settings.ClearDepth = (float)value;
+                return settings;
+            }
+            if (string.Equals(row.NestedMemberName, nameof(CameraClearSettings.ClearStencilEnabled), StringComparison.Ordinal)) {
+                settings.ClearStencilEnabled = (bool)value;
+                return settings;
+            }
+            if (string.Equals(row.NestedMemberName, nameof(CameraClearSettings.ClearStencil), StringComparison.Ordinal)) {
+                settings.ClearStencil = (byte)value;
+                return settings;
+            }
+
+            throw new InvalidOperationException($"Unsupported camera clear settings member '{row.NestedMemberName}'.");
         }
 
         /// <summary>
@@ -1095,7 +1572,9 @@ namespace helengine.editor {
         /// <param name="height">Row height.</param>
         void LayoutRow(ComponentPropertyRow row, int width, int top, int height) {
             int bodyWidth = Math.Max(0, width - SectionBodyPadding * 2);
-            row.Entity.Position = new float3(SectionBodyPadding, top, 0.2f);
+            int indentOffset = row.IndentLevel * (SectionBodyPadding * 2);
+            bodyWidth = Math.Max(0, bodyWidth - indentOffset);
+            row.Entity.Position = new float3(SectionBodyPadding + indentOffset, top, 0.2f);
             int labelWidth = Math.Min(LabelWidth, bodyWidth);
 
             var labelMetrics = Font.MeasureTight(row.Label.Text ?? string.Empty);
@@ -1109,6 +1588,12 @@ namespace helengine.editor {
                     break;
                 case ComponentPropertyRowKind.Vector3:
                     LayoutVectorRow(row, bodyWidth, height, labelWidth);
+                    break;
+                case ComponentPropertyRowKind.Vector4:
+                    LayoutVector4Row(row, bodyWidth, height, labelWidth);
+                    break;
+                case ComponentPropertyRowKind.CustomSection:
+                    LayoutCustomSectionRow(row, bodyWidth, height);
                     break;
                 case ComponentPropertyRowKind.Material:
                     LayoutMaterialRow(row, bodyWidth, height, labelWidth);
@@ -1131,6 +1616,24 @@ namespace helengine.editor {
                 default:
                     break;
             }
+        }
+
+        /// <summary>
+        /// Layouts one custom section row so it spans the available width like a nested header.
+        /// </summary>
+        /// <param name="row">Custom section row to layout.</param>
+        /// <param name="width">Available width.</param>
+        /// <param name="height">Row height.</param>
+        void LayoutCustomSectionRow(ComponentPropertyRow row, int width, int height) {
+            if (row.HeaderBackground == null || row.HeaderInteractable == null) {
+                return;
+            }
+
+            int safeWidth = Math.Max(1, width);
+            row.HeaderBackground.Size = new int2(safeWidth, height);
+            row.HeaderInteractable.Size = new int2(safeWidth, height);
+            row.LabelHost.Position = new float3(SectionHeaderPadding, row.LabelHost.Position.Y, 0.2f);
+            row.Label.Size = new int2(Math.Max(1, safeWidth - SectionHeaderPadding * 2), row.Label.Size.Y);
         }
 
         /// <summary>
@@ -1187,6 +1690,30 @@ namespace helengine.editor {
             for (int i = 0; i < row.VectorFieldHosts.Length; i++) {
                 row.VectorFieldHosts[i].Position = new float3(fieldX, fieldY, 0.2f);
                 row.VectorFields[i].Size = new int2(fieldWidth, FieldHeight);
+                fieldX += fieldWidth + FieldSpacing;
+            }
+        }
+
+        /// <summary>
+        /// Layouts a Vector4 row with four text fields.
+        /// </summary>
+        /// <param name="row">Vector4 row to layout.</param>
+        /// <param name="width">Available width.</param>
+        /// <param name="height">Row height.</param>
+        /// <param name="labelWidth">Width reserved for labels.</param>
+        void LayoutVector4Row(ComponentPropertyRow row, int width, int height, int labelWidth) {
+            if (row.Vector4FieldHosts == null || row.Vector4Fields == null) {
+                return;
+            }
+
+            int available = Math.Max(0, width - labelWidth - (FieldSpacing * 3));
+            int fieldWidth = Math.Max(40, available / 4);
+            float fieldY = (float)Math.Round((height - FieldHeight) * 0.5);
+
+            int fieldX = labelWidth + FieldSpacing;
+            for (int index = 0; index < row.Vector4FieldHosts.Length; index++) {
+                row.Vector4FieldHosts[index].Position = new float3(fieldX, fieldY, 0.2f);
+                row.Vector4Fields[index].Size = new int2(fieldWidth, FieldHeight);
                 fieldX += fieldWidth + FieldSpacing;
             }
         }
@@ -1377,6 +1904,91 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Handles pointer interactions for one nested provider-backed section row.
+        /// </summary>
+        /// <param name="row">Row receiving the pointer interaction.</param>
+        /// <param name="state">Current pointer state.</param>
+        void HandleCustomSectionCursor(ComponentPropertyRow row, PointerInteraction state) {
+            if (row == null) {
+                return;
+            }
+
+            if (state == PointerInteraction.Hover) {
+                UpdateCustomSectionVisual(row, true);
+                return;
+            }
+
+            if (state == PointerInteraction.Leave) {
+                UpdateCustomSectionVisual(row, false);
+                return;
+            }
+
+            if (state != PointerInteraction.Press) {
+                return;
+            }
+
+            HandleCustomSectionPressed(row);
+        }
+
+        /// <summary>
+        /// Toggles one nested provider-backed section row and rebuilds the current inspected entity.
+        /// </summary>
+        /// <param name="row">Row to toggle.</param>
+        void HandleCustomSectionPressed(ComponentPropertyRow row) {
+            if (row == null || row.TargetComponent == null || row.Property == null) {
+                return;
+            }
+
+            string stateKey = BuildCustomEditorStateKey(row.TargetComponent, row.Property);
+            bool nextExpanded = !row.IsExpanded;
+            row.IsExpanded = nextExpanded;
+            CustomEditorExpandedStates[stateKey] = nextExpanded;
+            if (CurrentEntity == null) {
+                return;
+            }
+
+            ShowComponents(CurrentEntity);
+            if (HasLayoutState) {
+                UpdateLayout(LastLayoutLeft, LastLayoutTop, LastLayoutWidth);
+            }
+        }
+
+        /// <summary>
+        /// Builds the stable expansion-state key for one provider-backed property editor.
+        /// </summary>
+        /// <param name="component">Component that owns the custom editor property.</param>
+        /// <param name="property">Owning property metadata.</param>
+        /// <returns>Stable expansion-state key.</returns>
+        string BuildCustomEditorStateKey(Component component, PropertyInfo property) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+            if (property == null) {
+                throw new ArgumentNullException(nameof(property));
+            }
+
+            return component.GetHashCode().ToString(CultureInfo.InvariantCulture) + "::" + property.Name;
+        }
+
+        /// <summary>
+        /// Updates one nested provider-backed section header to reflect hover and expansion state.
+        /// </summary>
+        /// <param name="row">Row whose visual state should be refreshed.</param>
+        /// <param name="isHovered">True when the row is currently hovered.</param>
+        void UpdateCustomSectionVisual(ComponentPropertyRow row, bool isHovered) {
+            if (row == null || row.HeaderBackground == null || row.Label == null) {
+                return;
+            }
+
+            row.HeaderBackground.Color = isHovered || row.IsExpanded
+                ? ThemeManager.Colors.AccentPrimary
+                : ThemeManager.Colors.AccentSecondary;
+            row.Label.Color = isHovered || row.IsExpanded
+                ? ThemeManager.Colors.TextOnAccent
+                : ThemeManager.Colors.InputForegroundPrimary;
+        }
+
+        /// <summary>
         /// Handles header pointer interactions so one section can be collapsed or expanded.
         /// </summary>
         /// <param name="section">Section receiving the interaction.</param>
@@ -1528,6 +2140,12 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Vector3:
                     BuildVectorRow(row, rowEntity);
                     break;
+                case ComponentPropertyRowKind.Vector4:
+                    BuildVector4Row(row, rowEntity);
+                    break;
+                case ComponentPropertyRowKind.CustomSection:
+                    BuildCustomSectionRow(row, rowEntity);
+                    break;
                 case ComponentPropertyRowKind.Material:
                     BuildMaterialRow(row, rowEntity);
                     break;
@@ -1551,6 +2169,58 @@ namespace helengine.editor {
             }
 
             return row;
+        }
+
+        /// <summary>
+        /// Builds the Vector4 field controls for a row.
+        /// </summary>
+        /// <param name="row">Row to populate.</param>
+        /// <param name="rowEntity">Row root entity.</param>
+        void BuildVector4Row(ComponentPropertyRow row, EditorEntity rowEntity) {
+            row.Vector4FieldHosts = new EditorEntity[4];
+            row.Vector4Fields = new TextBoxComponent[4];
+            row.Vector4Cache = new string[4];
+
+            string[] placeholders = new[] { "R", "G", "B", "A" };
+            for (int index = 0; index < row.Vector4FieldHosts.Length; index++) {
+                var fieldHost = new EditorEntity();
+                fieldHost.LayerMask = RootEntity.LayerMask;
+                fieldHost.Position = float3.Zero;
+                rowEntity.AddChild(fieldHost);
+
+                var field = new TextBoxComponent(new int2(48, FieldHeight), Font, placeholders[index]);
+                field.Submitted += HandleVector4Submitted;
+                fieldHost.AddComponent(field);
+
+                row.Vector4FieldHosts[index] = fieldHost;
+                row.Vector4Fields[index] = field;
+                Vector4FieldRows[field] = row;
+            }
+        }
+
+        /// <summary>
+        /// Builds the chrome used by one provider-backed nested section row.
+        /// </summary>
+        /// <param name="row">Row to populate.</param>
+        /// <param name="rowEntity">Row root entity.</param>
+        void BuildCustomSectionRow(ComponentPropertyRow row, EditorEntity rowEntity) {
+            SpriteComponent background = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Color = ThemeManager.Colors.AccentSecondary,
+                RenderOrder2D = RenderOrder2D.PanelSurface,
+                Size = new int2(1, RowHeight)
+            };
+            rowEntity.AddComponent(background);
+
+            InteractableComponent interactable = new InteractableComponent {
+                Size = new int2(1, RowHeight),
+                HoverCursor = PointerCursorKind.Hand
+            };
+            rowEntity.AddComponent(interactable);
+
+            row.HeaderBackground = background;
+            row.HeaderInteractable = interactable;
+            interactable.CursorEvent += (pos, delta, state) => HandleCustomSectionCursor(row, state);
         }
 
         /// <summary>

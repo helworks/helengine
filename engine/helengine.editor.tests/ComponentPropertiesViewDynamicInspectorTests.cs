@@ -55,7 +55,7 @@ namespace helengine.editor.tests {
             Assert.Contains(rows, row => string.Equals(row.Label.Text, "Near Plane Distance", StringComparison.Ordinal));
             Assert.Contains(rows, row => string.Equals(row.Label.Text, "Far Plane Distance", StringComparison.Ordinal));
 
-            Assert.DoesNotContain(rows, row => string.Equals(row.Label.Text, "ClearSettings", StringComparison.Ordinal));
+            Assert.Contains(rows, row => string.Equals(row.Label.Text, "Clear Settings", StringComparison.Ordinal));
             Assert.DoesNotContain(rows, row => string.Equals(row.Label.Text, "RenderSettings", StringComparison.Ordinal));
             Assert.DoesNotContain(rows, row => string.Equals(row.Label.Text, "RenderQueue2D", StringComparison.Ordinal));
             Assert.DoesNotContain(rows, row => string.Equals(row.Label.Text, "RenderQueue3D", StringComparison.Ordinal));
@@ -80,7 +80,8 @@ namespace helengine.editor.tests {
                 row => Assert.Equal("Draw Order", row.Label.Text),
                 row => Assert.Equal("Layer Mask", row.Label.Text),
                 row => Assert.Equal("Near Plane Distance", row.Label.Text),
-                row => Assert.Equal("Far Plane Distance", row.Label.Text));
+                row => Assert.Equal("Far Plane Distance", row.Label.Text),
+                row => Assert.Equal("Clear Settings", row.Label.Text));
         }
 
         /// <summary>
