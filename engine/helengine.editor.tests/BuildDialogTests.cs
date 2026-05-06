@@ -1673,7 +1673,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenPointerClicksTitleBarCloseButtonBeforeMoving_HidesDialog() {
-            CreateModalCamera(1280, 720);
+            CreateModalCamera(1280, 960);
 
             BuildDialog dialog = new BuildDialog(CreateFont());
             dialog.Show(
@@ -1692,7 +1692,7 @@ namespace helengine.editor.tests {
                         }
                     ]
                 });
-            dialog.UpdateLayout(1280, 720);
+            dialog.UpdateLayout(1280, 960);
 
             int2 panelPosition = GetPrivateField<int2>(dialog, "PanelPosition");
             EditorEntity closeButtonHost = GetPrivateField<EditorEntity>(dialog, "CloseButtonHost");
@@ -1713,7 +1713,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenPointerClicksQueueItemRemoveButtonBeforeMoving_RaisesRemoveRequest() {
-            CreateModalCamera(1280, 720);
+            CreateModalCamera(1280, 960);
 
             BuildDialog dialog = new BuildDialog(CreateFont());
             string removedQueueItemId = string.Empty;
@@ -1745,13 +1745,26 @@ namespace helengine.editor.tests {
                         }
                     ]
                 });
-            dialog.UpdateLayout(1280, 720);
+            dialog.UpdateLayout(1280, 960);
 
             int2 panelPosition = GetPrivateField<int2>(dialog, "PanelPosition");
+            EditorEntity queueColumnRoot = GetPrivateField<EditorEntity>(dialog, "QueueColumnRoot");
+            EditorEntity queueItemsRoot = GetPrivateField<EditorEntity>(dialog, "QueueItemsRoot");
+            EditorEntity queueItemHost = Assert.Single(GetPrivateField<List<EditorEntity>>(dialog, "QueueItemHosts"));
             EditorEntity removeButtonHost = Assert.Single(GetPrivateField<List<EditorEntity>>(dialog, "QueueItemRemoveButtonHosts"));
             ButtonComponent removeButton = Assert.Single(GetPrivateField<List<ButtonComponent>>(dialog, "QueueItemRemoveButtons"));
-            int pointerX = panelPosition.X + (int)Math.Round(removeButtonHost.LocalPosition.X) + (removeButton.Size.X / 2);
-            int pointerY = panelPosition.Y + (int)Math.Round(removeButtonHost.LocalPosition.Y) + (removeButton.Size.Y / 2);
+            int pointerX = panelPosition.X +
+                           (int)Math.Round(queueColumnRoot.LocalPosition.X) +
+                           (int)Math.Round(queueItemsRoot.LocalPosition.X) +
+                           (int)Math.Round(queueItemHost.LocalPosition.X) +
+                           (int)Math.Round(removeButtonHost.LocalPosition.X) +
+                           (removeButton.Size.X / 2);
+            int pointerY = panelPosition.Y +
+                           (int)Math.Round(queueColumnRoot.LocalPosition.Y) +
+                           (int)Math.Round(queueItemsRoot.LocalPosition.Y) +
+                           (int)Math.Round(queueItemHost.LocalPosition.Y) +
+                           (int)Math.Round(removeButtonHost.LocalPosition.Y) +
+                           (removeButton.Size.Y / 2);
 
             AdvanceInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));

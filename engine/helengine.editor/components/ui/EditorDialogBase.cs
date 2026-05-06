@@ -735,10 +735,7 @@ namespace helengine.editor {
 
             UpdateHostSize(windowWidth, windowHeight);
             CenterDialogIfNeeded();
-            ClampDialogPosition();
-            ApplyDialogPosition();
-            UpdateDialogBackdrop();
-            UpdateDialogChromeLayout();
+            ApplyVisibleDialogState();
             return true;
         }
 
@@ -804,6 +801,16 @@ namespace helengine.editor {
             }
 
             PanelPosition = new int2(clampedX, clampedY);
+        }
+
+        /// <summary>
+        /// Applies the current positioned dialog shell and modal backdrop state.
+        /// </summary>
+        protected void ApplyVisibleDialogState() {
+            ClampDialogPosition();
+            ApplyDialogPosition();
+            UpdateDialogBackdrop();
+            UpdateDialogChromeLayout();
         }
 
         /// <summary>

@@ -243,7 +243,7 @@ namespace helengine.editor.tests {
                 ],
                 "windows",
                 buildConfig);
-            dialog.UpdateLayout(1280, 720);
+            dialog.UpdateLayout(1280, 960);
             SetPrivateField(dialog, "PanelPosition", new int2(164, 118));
             SetPrivateField(dialog, "IsUserPositioned", true);
             InvokePrivate(dialog, "ApplyDialogPosition");
@@ -526,7 +526,7 @@ namespace helengine.editor.tests {
                 buildConfigService.Load([
                     "windows"
                 ], CurrentSceneId));
-            dialog.UpdateLayout(1280, 720);
+            dialog.UpdateLayout(1280, 960);
             SetPrivateField(dialog, "PanelPosition", new int2(212, 146));
             SetPrivateField(dialog, "IsUserPositioned", true);
             InvokePrivate(dialog, "ApplyDialogPosition");

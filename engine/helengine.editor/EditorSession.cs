@@ -1569,7 +1569,7 @@ namespace helengine.editor {
             });
             buildConfigService.Save(buildConfig);
             buildDialogCopySettingsDialog.Hide();
-            buildDialog.Show(ResolveVisibleSupportedPlatforms(), sceneCatalogService.GetSceneIds(), request.PlatformId, buildConfig, ResolvePlatformSelectionModel(request.PlatformId));
+            buildDialog.Refresh(ResolveVisibleSupportedPlatforms(), sceneCatalogService.GetSceneIds(), request.PlatformId, buildConfig, ResolvePlatformSelectionModel(request.PlatformId));
         }
 
         /// <summary>
@@ -1598,7 +1598,7 @@ namespace helengine.editor {
             }
 
             string dialogPlatformId = ResolveVisiblePlatformId(visiblePlatformIds, ActiveProjectPlatform);
-            buildDialog.Show(visiblePlatformIds, sceneCatalogService.GetSceneIds(), dialogPlatformId, buildConfig, ResolvePlatformSelectionModel(dialogPlatformId));
+            buildDialog.Refresh(visiblePlatformIds, sceneCatalogService.GetSceneIds(), dialogPlatformId, buildConfig, ResolvePlatformSelectionModel(dialogPlatformId));
         }
 
         /// <summary>
@@ -1632,7 +1632,7 @@ namespace helengine.editor {
             }
 
             string dialogPlatformId = ResolveVisiblePlatformId(visiblePlatformIds, ActiveProjectPlatform);
-            buildDialog.Show(visiblePlatformIds, sceneCatalogService.GetSceneIds(), dialogPlatformId, buildConfig, ResolvePlatformSelectionModel(dialogPlatformId));
+            buildDialog.Refresh(visiblePlatformIds, sceneCatalogService.GetSceneIds(), dialogPlatformId, buildConfig, ResolvePlatformSelectionModel(dialogPlatformId));
         }
 
         /// <summary>

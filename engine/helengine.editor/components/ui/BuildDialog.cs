@@ -829,23 +829,34 @@ namespace helengine.editor {
             }
 
             ResetDialogPositioning();
-            CopyPlatforms(supportedPlatformIds);
-            CopyScenes(sceneIds);
-            CurrentBuildConfig = buildConfig;
-            ActivePlatformSelectionModel = selectionModel;
-            SceneListScrollComponent.ResetScrollOffset();
-            QueueScrollComponent.ResetScrollOffset();
-            BuildLogsScrollComponent.ResetScrollOffset();
-            EnsurePlatformConfigs();
-            SetActivePlatform(activePlatformId);
-            RebuildPlatformTabs();
-            RebuildActivePlatformSceneRows();
-            RebuildQueueRows();
-            RebuildBuildLogs();
-            LayoutStaticControls();
-            UpdateDialogChromeLayout();
-            CenterDialogIfNeeded();
             Enabled = true;
+            BindDialogState(supportedPlatformIds, sceneIds, activePlatformId, buildConfig, selectionModel, true);
+            CenterDialogIfNeeded();
+            ApplyVisibleDialogState();
+        }
+
+        /// <summary>
+        /// Refreshes the visible dialog state after queue mutations without resetting a manual position.
+        /// </summary>
+        /// <param name="supportedPlatformIds">Visible platform ids rendered as tabs.</param>
+        /// <param name="sceneIds">Project-relative scene ids available to the active platform.</param>
+        /// <param name="activePlatformId">Platform id that should stay active after the refresh.</param>
+        /// <param name="buildConfig">Mutable build config currently being edited.</param>
+        /// <param name="selectionModel">Builder-provided metadata for the active platform.</param>
+        public void Refresh(
+            IReadOnlyList<string> supportedPlatformIds,
+            IReadOnlyList<string> sceneIds,
+            string activePlatformId,
+            EditorBuildConfigDocument buildConfig,
+            EditorPlatformBuildSelectionModel selectionModel) {
+            if (!Enabled) {
+                Show(supportedPlatformIds, sceneIds, activePlatformId, buildConfig, selectionModel);
+                return;
+            }
+
+            BindDialogState(supportedPlatformIds, sceneIds, activePlatformId, buildConfig, selectionModel, true);
+            CenterDialogIfNeeded();
+            ApplyVisibleDialogState();
         }
 
         /// <summary>
@@ -1001,6 +1012,53 @@ namespace helengine.editor {
             }
 
             platformConfig.SelectedSceneIds.Remove(sceneId);
+        }
+
+        /// <summary>
+        /// Rebinds the dialog state and rebuilds the visible controls.
+        /// </summary>
+        /// <param name="supportedPlatformIds">Visible platform ids rendered as tabs.</param>
+        /// <param name="sceneIds">Project-relative scene ids available to the active platform.</param>
+        /// <param name="activePlatformId">Platform id that should stay active after the refresh.</param>
+        /// <param name="buildConfig">Mutable build config currently being edited.</param>
+        /// <param name="selectionModel">Builder-provided metadata for the active platform.</param>
+        /// <param name="resetScrollOffsets">True when the caller wants to reset scroll state.</param>
+        void BindDialogState(
+            IReadOnlyList<string> supportedPlatformIds,
+            IReadOnlyList<string> sceneIds,
+            string activePlatformId,
+            EditorBuildConfigDocument buildConfig,
+            EditorPlatformBuildSelectionModel selectionModel,
+            bool resetScrollOffsets) {
+            if (supportedPlatformIds == null) {
+                throw new ArgumentNullException(nameof(supportedPlatformIds));
+            }
+
+            if (sceneIds == null) {
+                throw new ArgumentNullException(nameof(sceneIds));
+            }
+
+            if (buildConfig == null) {
+                throw new ArgumentNullException(nameof(buildConfig));
+            }
+
+            CopyPlatforms(supportedPlatformIds);
+            CopyScenes(sceneIds);
+            CurrentBuildConfig = buildConfig;
+            ActivePlatformSelectionModel = selectionModel;
+            if (resetScrollOffsets) {
+                SceneListScrollComponent.ResetScrollOffset();
+                QueueScrollComponent.ResetScrollOffset();
+                BuildLogsScrollComponent.ResetScrollOffset();
+            }
+
+            EnsurePlatformConfigs();
+            SetActivePlatform(activePlatformId);
+            RebuildPlatformTabs();
+            RebuildActivePlatformSceneRows();
+            RebuildQueueRows();
+            RebuildBuildLogs();
+            LayoutStaticControls();
         }
 
         /// <summary>
