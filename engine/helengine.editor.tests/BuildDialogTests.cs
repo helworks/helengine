@@ -13,6 +13,10 @@ namespace helengine.editor.tests {
         /// Gets the temporary content root used by the dialog tests.
         /// </summary>
         string TempRootPath { get; }
+        /// <summary>
+        /// Configurable input backend used by pointer-routing build dialog tests.
+        /// </summary>
+        readonly TestInputBackend Input;
 
         /// <summary>
         /// Initializes the runtime services required by the build dialog tests.
@@ -25,7 +29,8 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            Input = new TestInputBackend();
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input);
         }
 
         /// <summary>
@@ -1664,6 +1669,99 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures clicking the Build dialog close button works before the panel has been dragged.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPointerClicksTitleBarCloseButtonBeforeMoving_HidesDialog() {
+            CreateModalCamera(1280, 720);
+
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ]
+                });
+            dialog.UpdateLayout(1280, 720);
+
+            int2 panelPosition = GetPrivateField<int2>(dialog, "PanelPosition");
+            EditorEntity closeButtonHost = GetPrivateField<EditorEntity>(dialog, "CloseButtonHost");
+            ButtonComponent closeButton = GetPrivateField<ButtonComponent>(dialog, "CloseButton");
+            int pointerX = panelPosition.X + (int)Math.Round(closeButtonHost.LocalPosition.X) + (closeButton.Size.X / 2);
+            int pointerY = panelPosition.Y + (int)Math.Round(closeButtonHost.LocalPosition.Y) + (closeButton.Size.Y / 2);
+
+            AdvanceInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.False(dialog.Enabled);
+        }
+
+        /// <summary>
+        /// Ensures clicking one queue-item remove button works before the panel has been dragged.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPointerClicksQueueItemRemoveButtonBeforeMoving_RaisesRemoveRequest() {
+            CreateModalCamera(1280, 720);
+
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            string removedQueueItemId = string.Empty;
+            dialog.RemoveQueueItemRequested += queueItemId => removedQueueItemId = queueItemId;
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = [
+                        new EditorBuildQueueItemDocument {
+                            QueueItemId = "queue-1",
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows",
+                            Status = EditorBuildQueueItemStatus.Pending
+                        }
+                    ]
+                });
+            dialog.UpdateLayout(1280, 720);
+
+            int2 panelPosition = GetPrivateField<int2>(dialog, "PanelPosition");
+            EditorEntity removeButtonHost = Assert.Single(GetPrivateField<List<EditorEntity>>(dialog, "QueueItemRemoveButtonHosts"));
+            ButtonComponent removeButton = Assert.Single(GetPrivateField<List<ButtonComponent>>(dialog, "QueueItemRemoveButtons"));
+            int pointerX = panelPosition.X + (int)Math.Round(removeButtonHost.LocalPosition.X) + (removeButton.Size.X / 2);
+            int pointerY = panelPosition.Y + (int)Math.Round(removeButtonHost.LocalPosition.Y) + (removeButton.Size.Y / 2);
+
+            AdvanceInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.Equal("queue-1", removedQueueItemId);
+        }
+
+        /// <summary>
         /// Ensures the scene list is enclosed by a bordered surface instead of leaving the rows visually floating.
         /// </summary>
         [Fact]
@@ -1883,6 +1981,35 @@ namespace helengine.editor.tests {
             }
 
             return sceneIds;
+        }
+
+        /// <summary>
+        /// Creates the modal camera used to evaluate pointer input against dialog-owned controls.
+        /// </summary>
+        /// <param name="width">Viewport width in pixels.</param>
+        /// <param name="height">Viewport height in pixels.</param>
+        void CreateModalCamera(int width, int height) {
+            EditorEntity cameraEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = 0b1000000000000000
+            };
+
+            CameraComponent camera = new CameraComponent {
+                LayerMask = 0b1000000000000000,
+                CameraDrawOrder = 255,
+                Viewport = new float4(0f, 0f, width, height)
+            };
+            cameraEntity.AddComponent(camera);
+        }
+
+        /// <summary>
+        /// Advances the input system by one frame using the supplied mouse state.
+        /// </summary>
+        /// <param name="mouseState">Mouse state to expose for the next frame.</param>
+        void AdvanceInput(MouseState mouseState) {
+            Input.SetMouseState(mouseState);
+            Input.EarlyUpdate();
+            Input.Update();
         }
 
         /// <summary>
