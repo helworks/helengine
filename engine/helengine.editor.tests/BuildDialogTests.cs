@@ -396,10 +396,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures Add to Build snapshots the active platform's code-module selection into the queued build request.
+        /// Ensures Add to Build clears persisted runtime-module selections because the dialog no longer exposes module picking.
         /// </summary>
         [Fact]
-        public void HandleAddToBuildClicked_WhenCodeModuleFieldIsEdited_SnapshotsTheSelectedCodeModules() {
+        public void HandleAddToBuildClicked_WhenPlatformContainsPersistedRuntimeModules_ClearsTheSelection() {
             BuildDialog dialog = new BuildDialog(CreateFont());
             BuildDialogAddRequest raisedRequest = null;
             dialog.AddRequested += request => raisedRequest = request;
@@ -416,18 +416,19 @@ namespace helengine.editor.tests {
                             SelectedSceneIds = [
                                 "Scenes/City.helen"
                             ],
-                            OutputDirectoryPath = @"C:\builds\windows"
+                            OutputDirectoryPath = @"C:\builds\windows",
+                            SelectedCodeModuleIds = [
+                                "gameplay",
+                                "ui"
+                            ]
                         }
                     ]
                 });
 
-            TextBoxComponent codeModuleField = GetPrivateField<TextBoxComponent>(dialog, "CodeModuleField");
-            codeModuleField.Text = "gameplay, ui, gameplay, ai";
-
             InvokePrivate(dialog, "HandleAddToBuildClicked");
 
             Assert.NotNull(raisedRequest);
-            Assert.Equal(["gameplay", "ui", "ai"], raisedRequest.SelectedCodeModuleIds);
+            Assert.Empty(raisedRequest.SelectedCodeModuleIds);
         }
 
         /// <summary>

@@ -278,14 +278,6 @@ namespace helengine.editor {
         /// </summary>
         readonly TextComponent OutputLabelText;
         /// <summary>
-        /// Host entity for the code-module label.
-        /// </summary>
-        readonly EditorEntity CodeModuleLabelHost;
-        /// <summary>
-        /// Code-module label text.
-        /// </summary>
-        readonly TextComponent CodeModuleLabelText;
-        /// <summary>
         /// Debug-build label text.
         /// </summary>
         readonly TextComponent DebugBuildLabelText;
@@ -294,17 +286,9 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity OutputFieldHost;
         /// <summary>
-        /// Host entity for the code-module textbox.
-        /// </summary>
-        readonly EditorEntity CodeModuleFieldHost;
-        /// <summary>
         /// Text box used to edit the active platform's output directory.
         /// </summary>
         readonly TextBoxComponent OutputDirectoryField;
-        /// <summary>
-        /// Text box used to edit the active platform's selected code-module ids.
-        /// </summary>
-        readonly TextBoxComponent CodeModuleField;
         /// <summary>
         /// Host entity for the debug-build checkbox.
         /// </summary>
@@ -599,13 +583,6 @@ namespace helengine.editor {
             };
             BuildColumnRoot.AddChild(OutputLabelHost);
 
-            CodeModuleLabelHost = new EditorEntity {
-                LayerMask = LayerMask,
-                Position = float3.Zero,
-                InternalEntity = true
-            };
-            BuildColumnRoot.AddChild(CodeModuleLabelHost);
-
             CopySettingsButtonHost = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
@@ -624,14 +601,6 @@ namespace helengine.editor {
                 RenderOrder2D = DialogTextOrder
             };
             OutputLabelHost.AddComponent(OutputLabelText);
-
-            CodeModuleLabelText = new TextComponent {
-                Font = DialogFont,
-                Text = "Runtime Modules",
-                Color = ThemeManager.Colors.InputForegroundPrimary,
-                RenderOrder2D = DialogTextOrder
-            };
-            CodeModuleLabelHost.AddComponent(CodeModuleLabelText);
 
             DebugBuildLabelHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -655,22 +624,10 @@ namespace helengine.editor {
             };
             BuildColumnRoot.AddChild(OutputFieldHost);
 
-            CodeModuleFieldHost = new EditorEntity {
-                LayerMask = LayerMask,
-                Position = float3.Zero,
-                InternalEntity = true
-            };
-            BuildColumnRoot.AddChild(CodeModuleFieldHost);
-
             OutputDirectoryField = new TextBoxComponent(new int2(GetOutputFieldWidth(), GetOutputFieldHeightPixels()), DialogFont, "Select an output folder");
             OutputDirectoryField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             OutputDirectoryField.TextChanged += HandleOutputDirectoryFieldTextChanged;
             OutputFieldHost.AddComponent(OutputDirectoryField);
-
-            CodeModuleField = new TextBoxComponent(new int2(GetOutputFieldWidth(), GetOutputFieldHeightPixels()), DialogFont, "Comma-separated runtime modules");
-            CodeModuleField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-            CodeModuleField.TextChanged += HandleCodeModuleFieldTextChanged;
-            CodeModuleFieldHost.AddComponent(CodeModuleField);
 
             DebugBuildCheckBoxHost = new EditorEntity {
                 LayerMask = LayerMask,
@@ -955,20 +912,6 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="textBox">Output-folder text box that changed.</param>
         void HandleOutputDirectoryFieldTextChanged(TextBoxComponent textBox) {
-            if (textBox == null) {
-                throw new ArgumentNullException(nameof(textBox));
-            }
-
-            if (!string.IsNullOrWhiteSpace(textBox.Text)) {
-                textBox.SetInvalidState(false);
-            }
-        }
-
-        /// <summary>
-        /// Clears the code-module field invalid state as soon as the current text becomes non-blank.
-        /// </summary>
-        /// <param name="textBox">Code-module textbox that changed.</param>
-        void HandleCodeModuleFieldTextChanged(TextBoxComponent textBox) {
             if (textBox == null) {
                 throw new ArgumentNullException(nameof(textBox));
             }
@@ -1340,8 +1283,6 @@ namespace helengine.editor {
             LayoutLowerLeftControls();
             OutputDirectoryField.Text = platformConfig.OutputDirectoryPath ?? "";
             OutputDirectoryField.SetInvalidState(false);
-            CodeModuleField.Text = string.Join(", ", platformConfig.SelectedCodeModuleIds ?? []);
-            CodeModuleField.SetInvalidState(false);
             DebugBuildCheckBox.IsChecked = platformConfig.DebugBuild;
             SetSceneListInvalidState(false);
         }
@@ -1640,9 +1581,7 @@ namespace helengine.editor {
             int outputFieldY = GetLegacyContentHeightPixels() - GetHeaderHeightPixels() - GetPanelPaddingPixels() - GetFooterButtonHeightPixels() - DialogMetrics.ScalePixels(8) - DialogMetrics.ScalePixels(16) - GetOutputFieldHeightPixels();
             int addButtonY = outputFieldY + GetOutputFieldHeightPixels() + DialogMetrics.ScalePixels(16) + DialogMetrics.ScalePixels(18) + DialogMetrics.ScalePixels(16);
             int outputLabelY = outputFieldY - DialogMetrics.ScalePixels(20);
-            int codeModuleFieldY = outputLabelY - DialogMetrics.ScalePixels(16) - GetOutputFieldHeightPixels();
-            int codeModuleLabelY = codeModuleFieldY - DialogMetrics.ScalePixels(20);
-            int copySettingsButtonY = codeModuleLabelY - DialogMetrics.ScalePixels(16) - GetFooterButtonHeightPixels();
+            int copySettingsButtonY = outputLabelY - DialogMetrics.ScalePixels(16) - GetFooterButtonHeightPixels();
             int debugBuildY = outputFieldY + GetOutputFieldHeightPixels() + DialogMetrics.ScalePixels(16);
             int sceneListTop = GetPlatformTabHeightPixels() + GetSceneListTopMarginPixels();
             int sceneListHeight = Math.Max(1, copySettingsButtonY - DialogMetrics.ScalePixels(12) - sceneListTop);
@@ -1659,8 +1598,6 @@ namespace helengine.editor {
             CopySettingsButton.SetSize(new int2(GetBuildColumnWidth(), GetFooterButtonHeightPixels()));
             OutputLabelHost.Position = new float3(0f, outputLabelY, 0.1f);
             OutputFieldHost.Position = new float3(OutputDirectoryField.CurrentShakeOffsetX, outputFieldY, 0.1f);
-            CodeModuleLabelHost.Position = new float3(0f, codeModuleLabelY, 0.1f);
-            CodeModuleFieldHost.Position = new float3(CodeModuleField.CurrentShakeOffsetX, codeModuleFieldY, 0.1f);
             BrowseOutputFolderButtonHost.Position = new float3(GetOutputFieldWidth() + DialogMetrics.ScalePixels(8), outputFieldY, 0.1f);
             DebugBuildLabelHost.Position = new float3(DialogMetrics.ScalePixels(24), debugBuildY, 0.1f);
             DebugBuildCheckBoxHost.Position = new float3(0f, debugBuildY - DialogMetrics.ScalePixels(2), 0.1f);
@@ -1826,35 +1763,9 @@ namespace helengine.editor {
             }
 
             platformConfig.OutputDirectoryPath = OutputDirectoryField.Text ?? string.Empty;
-            platformConfig.SelectedCodeModuleIds = ParseCodeModuleIds(CodeModuleField.Text);
+            platformConfig.SelectedCodeModuleIds = [];
             platformConfig.DebugBuild = DebugBuildCheckBox.IsChecked;
             EnsurePlatformSelectionDefaults(platformConfig);
-        }
-
-        /// <summary>
-        /// Parses one comma-separated code-module field into an ordered unique list of module ids.
-        /// </summary>
-        static List<string> ParseCodeModuleIds(string text) {
-            if (string.IsNullOrWhiteSpace(text)) {
-                return [];
-            }
-
-            HashSet<string> seenModuleIds = new(StringComparer.OrdinalIgnoreCase);
-            List<string> parsedModuleIds = [];
-            string[] tokens = text.Split(new[] { ',', ';', '\n', '\r', '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            for (int index = 0; index < tokens.Length; index++) {
-                string moduleId = tokens[index].Trim();
-                if (string.IsNullOrWhiteSpace(moduleId)) {
-                    continue;
-                }
-                if (!seenModuleIds.Add(moduleId)) {
-                    continue;
-                }
-
-                parsedModuleIds.Add(moduleId);
-            }
-
-            return parsedModuleIds;
         }
 
         /// <summary>
