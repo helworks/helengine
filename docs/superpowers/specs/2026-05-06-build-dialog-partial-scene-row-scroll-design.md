@@ -27,7 +27,7 @@ This means:
 
 This would make the list behave more like a plain document flow, but it throws away the existing pooled-row pattern already used in the dialog and adds unnecessary rendering/input cost for large scene lists.
 
-### Add a special-case partial “peek row”
+### Add a special-case partial "peek row"
 
 This would duplicate row layout and input handling just to render one clipped row. It is more complex than the underlying problem and creates a second rendering path for the same scene-row UI.
 
@@ -66,7 +66,7 @@ The desired behavior is:
 
 - the partially visible row is a real pooled row
 - its visible clipped portion remains clickable through the existing row components
-- there is no separate “render-only” row mode
+- there is no separate "render-only" row mode
 
 This keeps the scene list consistent with the rest of the dialog and avoids extra input-state complexity.
 
