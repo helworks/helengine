@@ -146,6 +146,14 @@ namespace helengine.editor {
         /// </summary>
         readonly RoundedRectComponent SceneListBackground;
         /// <summary>
+        /// Root entity that owns the virtualized visible scene rows inside the bordered scene list.
+        /// </summary>
+        readonly EditorEntity SceneListItemsRoot;
+        /// <summary>
+        /// Scroll controller used to page through the active platform's visible scene rows.
+        /// </summary>
+        readonly ScrollComponent SceneListScrollComponent;
+        /// <summary>
         /// Root entity for all right-side queue controls.
         /// </summary>
         readonly EditorEntity QueueColumnRoot;
@@ -237,6 +245,10 @@ namespace helengine.editor {
         /// Reusable queue-row bundles virtualized against the current scroll offset.
         /// </summary>
         readonly List<BuildDialogQueueRow> QueueRows;
+        /// <summary>
+        /// Reusable scene-row bundles virtualized against the current scene-list scroll offset.
+        /// </summary>
+        readonly List<BuildDialogSceneRow> SceneRows;
         /// <summary>
         /// Host entity for the output-directory label.
         /// </summary>
@@ -394,6 +406,10 @@ namespace helengine.editor {
         /// </summary>
         float SceneListShakeOffsetX;
         /// <summary>
+        /// Tracks whether pooled scene rows are currently being rebound from persisted configuration state.
+        /// </summary>
+        bool IsBindingSceneRows;
+        /// <summary>
         /// Platform id shown by the currently active tab.
         /// </summary>
         string ActivePlatformId;
@@ -455,6 +471,7 @@ namespace helengine.editor {
             QueueItemRemoveButtons = new List<ButtonComponent>(16);
             QueueItemCardBackgrounds = new List<RoundedRectComponent>(16);
             QueueRows = new List<BuildDialogQueueRow>(16);
+            SceneRows = new List<BuildDialogSceneRow>(16);
             SceneIds = new List<string>(32);
             SupportedPlatformIds = new List<string>(8);
 
@@ -482,6 +499,18 @@ namespace helengine.editor {
                 Size = new int2(GetBuildColumnWidth(), 1)
             };
             SceneListRoot.AddComponent(SceneListBackground);
+
+            SceneListItemsRoot = new EditorEntity {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            SceneListRoot.AddChild(SceneListItemsRoot);
+
+            SceneListScrollComponent = new ScrollComponent();
+            SceneListScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
+            SceneListScrollComponent.ScrollOffsetChanged += HandleSceneListScrollOffsetChanged;
+            SceneListItemsRoot.AddComponent(SceneListScrollComponent);
 
             QueueColumnRoot = new EditorEntity {
                 LayerMask = LayerMask,
@@ -804,6 +833,7 @@ namespace helengine.editor {
             CopyScenes(sceneIds);
             CurrentBuildConfig = buildConfig;
             ActivePlatformSelectionModel = selectionModel;
+            SceneListScrollComponent.ResetScrollOffset();
             QueueScrollComponent.ResetScrollOffset();
             BuildLogsScrollComponent.ResetScrollOffset();
             EnsurePlatformConfigs();
@@ -837,6 +867,7 @@ namespace helengine.editor {
         /// </summary>
         public void Hide() {
             ClearDialogBackdrop();
+            SceneListScrollComponent.ResetScrollOffset();
             QueueScrollComponent.ResetScrollOffset();
             BuildLogsScrollComponent.ResetScrollOffset();
             ResetDialogPositioning();
@@ -972,6 +1003,19 @@ namespace helengine.editor {
             }
 
             UpdateQueueRowsLayout();
+        }
+
+        /// <summary>
+        /// Refreshes the visible scene rows when the scene-list scroll offset changes.
+        /// </summary>
+        /// <param name="scrollComponent">Scene-list scroll controller that triggered the update.</param>
+        /// <param name="scrollOffset">Current scene-list scroll offset.</param>
+        void HandleSceneListScrollOffsetChanged(ScrollComponent scrollComponent, int scrollOffset) {
+            if (scrollComponent == null) {
+                throw new ArgumentNullException(nameof(scrollComponent));
+            }
+
+            UpdateSceneListRowsLayout();
         }
 
         /// <summary>
@@ -1158,6 +1202,7 @@ namespace helengine.editor {
 
             SyncActivePlatformConfig();
             ActivePlatformId = platformId;
+            SceneListScrollComponent.ResetScrollOffset();
             RebuildPlatformTabs();
             RebuildActivePlatformSceneRows();
         }
@@ -1166,77 +1211,16 @@ namespace helengine.editor {
         /// Rebuilds the scene checklist for the current active platform.
         /// </summary>
         void RebuildActivePlatformSceneRows() {
-            ClearEntities(MapLabelHosts);
-            ClearEntities(MapCheckBoxHosts);
-            ClearEntities(MapOrderHosts);
-            MapLabelTexts.Clear();
-            MapCheckBoxes.Clear();
-            MapOrderFields.Clear();
             DisplayedSceneIds.Clear();
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
             EnsureSceneOrderEntries(platformConfig);
-            List<string> selectedSceneIds = platformConfig.SelectedSceneIds;
             List<string> orderedSceneIds = BuildDisplayedSceneIds(platformConfig);
-            int topOffset = SceneListPadding;
-            int orderFieldX = SceneListPadding;
-            int sceneLabelX = orderFieldX + SceneOrderFieldWidth + 8;
-            int checkBoxX = GetBuildColumnWidth() - SceneListPadding - 18;
-
             for (int index = 0; index < orderedSceneIds.Count; index++) {
-                string sceneId = orderedSceneIds[index];
-                DisplayedSceneIds.Add(sceneId);
-                float rowY = topOffset + (index * SceneRowHeight);
-
-                EditorEntity orderHost = new EditorEntity {
-                    LayerMask = LayerMask,
-                    Position = new float3(orderFieldX, rowY - 2, 0.1f),
-                    InternalEntity = true
-                };
-                SceneListRoot.AddChild(orderHost);
-                MapOrderHosts.Add(orderHost);
-
-                TextBoxComponent orderField = new TextBoxComponent(new int2(SceneOrderFieldWidth, SceneOrderFieldHeight), DialogFont, string.Empty);
-                orderField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-                orderField.TextChanged += currentOrderField => HandleSceneOrderFieldChanged(sceneId, currentOrderField);
-                orderField.Submitted += currentOrderField => HandleSceneOrderFieldSubmitted(sceneId, currentOrderField);
-                orderField.Text = GetSceneOrderNumber(platformConfig, sceneId).ToString();
-                orderHost.AddComponent(orderField);
-                MapOrderFields.Add(orderField);
-
-                EditorEntity labelHost = new EditorEntity {
-                    LayerMask = LayerMask,
-                    Position = new float3(sceneLabelX, rowY, 0.1f),
-                    InternalEntity = true
-                };
-                SceneListRoot.AddChild(labelHost);
-                MapLabelHosts.Add(labelHost);
-
-                TextComponent labelText = new TextComponent {
-                    Font = DialogFont,
-                    Text = sceneId,
-                    Color = ThemeManager.Colors.InputForegroundPrimary,
-                    RenderOrder2D = DialogTextOrder
-                };
-                labelHost.AddComponent(labelText);
-                MapLabelTexts.Add(labelText);
-
-                EditorEntity checkBoxHost = new EditorEntity {
-                    LayerMask = LayerMask,
-                    Position = new float3(checkBoxX, rowY - 2, 0.1f),
-                    InternalEntity = true
-                };
-                SceneListRoot.AddChild(checkBoxHost);
-                MapCheckBoxHosts.Add(checkBoxHost);
-
-                bool isChecked = selectedSceneIds.Contains(sceneId);
-                CheckBoxComponent checkBox = new CheckBoxComponent(new int2(18, 18), DialogFont, isChecked);
-                checkBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-                checkBox.CheckedChanged += HandleSceneSelectionChanged;
-                checkBoxHost.AddComponent(checkBox);
-                MapCheckBoxes.Add(checkBox);
+                DisplayedSceneIds.Add(orderedSceneIds[index]);
             }
 
+            SceneListScrollComponent.ItemCount = DisplayedSceneIds.Count;
             LayoutLowerLeftControls();
             OutputDirectoryField.Text = platformConfig.OutputDirectoryPath ?? "";
             OutputDirectoryField.SetInvalidState(false);
@@ -1288,6 +1272,70 @@ namespace helengine.editor {
             BuildLogsScrollComponent.Size = new int2(GetBuildLogsTextViewportWidth(), GetBuildLogsTextViewportHeight());
             BuildLogsScrollComponent.ClampScrollOffset();
             UpdateBuildLogsText(buildLogLines);
+        }
+
+        /// <summary>
+        /// Refreshes the visible scene rows after the scroll offset or active platform scene order changes.
+        /// </summary>
+        void UpdateSceneListRowsLayout() {
+            int visibleRowCount = SceneListScrollComponent.VisibleItemCount;
+            if (visibleRowCount < 1) {
+                visibleRowCount = GetSceneListVisibleRowCount();
+            }
+
+            SceneListScrollComponent.VisibleItemCount = visibleRowCount;
+            SceneListScrollComponent.Size = new int2(GetSceneListViewportWidth(), GetSceneListViewportHeight());
+            EnsureSceneRowCount(visibleRowCount);
+
+            MapLabelHosts.Clear();
+            MapLabelTexts.Clear();
+            MapCheckBoxHosts.Clear();
+            MapCheckBoxes.Clear();
+            MapOrderHosts.Clear();
+            MapOrderFields.Clear();
+
+            if (CurrentBuildConfig == null || string.IsNullOrWhiteSpace(ActivePlatformId)) {
+                for (int rowIndex = 0; rowIndex < SceneRows.Count; rowIndex++) {
+                    DisableSceneRow(SceneRows[rowIndex]);
+                }
+
+                return;
+            }
+
+            EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
+            int scrollOffset = SceneListScrollComponent.ScrollOffset;
+            IsBindingSceneRows = true;
+
+            try {
+                for (int rowIndex = 0; rowIndex < SceneRows.Count; rowIndex++) {
+                    BuildDialogSceneRow row = SceneRows[rowIndex];
+                    int sceneIndex = scrollOffset + rowIndex;
+                    if (sceneIndex < 0 || sceneIndex >= DisplayedSceneIds.Count) {
+                        DisableSceneRow(row);
+                        continue;
+                    }
+
+                    string sceneId = DisplayedSceneIds[sceneIndex];
+                    row.SceneId = sceneId;
+                    row.Root.Enabled = true;
+                    row.Root.Position = new float3(0f, GetSceneListPaddingPixels() + (rowIndex * GetSceneRowHeightPixels()), 0.1f);
+                    row.OrderHost.Position = new float3(GetSceneListPaddingPixels(), -DialogMetrics.ScalePixels(2), 0.1f);
+                    row.LabelHost.Position = new float3(GetSceneLabelX(), 0f, 0.1f);
+                    row.CheckBoxHost.Position = new float3(GetSceneCheckBoxX(), -DialogMetrics.ScalePixels(2), 0.1f);
+                    row.OrderField.Text = GetSceneOrderNumber(platformConfig, sceneId).ToString();
+                    row.LabelText.Text = sceneId;
+                    row.CheckBox.IsChecked = platformConfig.SelectedSceneIds.Contains(sceneId);
+
+                    MapOrderHosts.Add(row.OrderHost);
+                    MapOrderFields.Add(row.OrderField);
+                    MapLabelHosts.Add(row.LabelHost);
+                    MapLabelTexts.Add(row.LabelText);
+                    MapCheckBoxHosts.Add(row.CheckBoxHost);
+                    MapCheckBoxes.Add(row.CheckBox);
+                }
+            } finally {
+                IsBindingSceneRows = false;
+            }
         }
 
         /// <summary>
@@ -1379,6 +1427,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Enables enough pooled scene rows for the current viewport.
+        /// </summary>
+        /// <param name="count">Number of pooled rows required.</param>
+        void EnsureSceneRowCount(int count) {
+            for (int index = SceneRows.Count; index < count; index++) {
+                BuildDialogSceneRow row = CreateSceneRow();
+                SceneRows.Add(row);
+            }
+        }
+
+        /// <summary>
         /// Creates one reusable queue row and attaches it to the queue list container.
         /// </summary>
         /// <returns>New queue row bundle.</returns>
@@ -1386,6 +1445,19 @@ namespace helengine.editor {
             BuildDialogQueueRow row = new BuildDialogQueueRow(DialogFont, DialogMetrics, LayerMask, DialogPanelOrder, DialogTextOrder);
             row.RemoveRequested += HandleQueueRowRemoveRequested;
             QueueItemsRoot.AddChild(row.Root);
+            return row;
+        }
+
+        /// <summary>
+        /// Creates one reusable scene row and attaches it to the scene-list container.
+        /// </summary>
+        /// <returns>New scene row bundle.</returns>
+        BuildDialogSceneRow CreateSceneRow() {
+            BuildDialogSceneRow row = new BuildDialogSceneRow(DialogFont, DialogMetrics, LayerMask, DialogPanelOrder, DialogTextOrder);
+            row.OrderField.TextChanged += currentOrderField => HandleSceneOrderFieldChanged(row.SceneId, currentOrderField);
+            row.OrderField.Submitted += currentOrderField => HandleSceneOrderFieldSubmitted(row.SceneId, currentOrderField);
+            row.CheckBox.CheckedChanged += HandleSceneSelectionChanged;
+            SceneListItemsRoot.AddChild(row.Root);
             return row;
         }
 
@@ -1402,6 +1474,23 @@ namespace helengine.editor {
             row.Root.Enabled = false;
             row.Text.Text = string.Empty;
             row.Text.Size = new int2(0, 0);
+        }
+
+        /// <summary>
+        /// Clears one pooled scene row when it no longer maps to a visible scene entry.
+        /// </summary>
+        /// <param name="row">Row bundle to disable.</param>
+        void DisableSceneRow(BuildDialogSceneRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            row.SceneId = string.Empty;
+            row.Root.Enabled = false;
+            row.OrderField.Text = string.Empty;
+            row.OrderField.SetInvalidState(false);
+            row.LabelText.Text = string.Empty;
+            row.CheckBox.IsChecked = false;
         }
 
         /// <summary>
@@ -1432,6 +1521,11 @@ namespace helengine.editor {
 
             SceneListRoot.Position = new float3(SceneListShakeOffsetX, sceneListTop, 0.1f);
             SceneListBackground.Size = new int2(GetBuildColumnWidth(), sceneListHeight);
+            SceneListItemsRoot.Position = float3.Zero;
+            SceneListScrollComponent.VisibleItemCount = GetSceneListVisibleRowCount();
+            SceneListScrollComponent.Size = new int2(GetSceneListViewportWidth(), GetSceneListViewportHeight());
+            SceneListScrollComponent.ClampScrollOffset();
+            UpdateSceneListRowsLayout();
             CopySettingsButtonHost.Position = new float3(0f, copySettingsButtonY, 0.1f);
             CopySettingsButton.SetSize(new int2(GetBuildColumnWidth(), GetFooterButtonHeightPixels()));
             OutputLabelHost.Position = new float3(0f, outputLabelY, 0.1f);
@@ -1819,6 +1913,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(textBox));
             }
 
+            if (IsBindingSceneRows) {
+                return;
+            }
+
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
             EditorBuildSceneOrderDocument sceneOrder = FindSceneOrder(platformConfig, sceneId);
             if (sceneOrder == null) {
@@ -1846,6 +1944,10 @@ namespace helengine.editor {
 
             if (textBox == null) {
                 throw new ArgumentNullException(nameof(textBox));
+            }
+
+            if (IsBindingSceneRows) {
+                return;
             }
 
             SyncActivePlatformConfig();
@@ -2046,6 +2148,63 @@ namespace helengine.editor {
         /// <returns>Width available for build-planning controls.</returns>
         int GetBuildColumnWidth() {
             return DialogWidth - GetQueueColumnWidthPixels() - (GetPanelPaddingPixels() * 3);
+        }
+
+        /// <summary>
+        /// Gets the width available for the scene-list scroll viewport.
+        /// </summary>
+        /// <returns>Width available for visible scene rows.</returns>
+        int GetSceneListViewportWidth() {
+            return GetBuildColumnWidth();
+        }
+
+        /// <summary>
+        /// Gets the height available for the scene-list scroll viewport.
+        /// </summary>
+        /// <returns>Height available for visible scene rows.</returns>
+        int GetSceneListViewportHeight() {
+            return Math.Max(1, SceneListBackground.Size.Y);
+        }
+
+        /// <summary>
+        /// Gets the scaled scene-list padding in pixels.
+        /// </summary>
+        /// <returns>Scaled scene-list padding in pixels.</returns>
+        int GetSceneListPaddingPixels() {
+            return DialogMetrics.ScalePixels(SceneListPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled scene-row height in pixels.
+        /// </summary>
+        /// <returns>Scaled scene-row height in pixels.</returns>
+        int GetSceneRowHeightPixels() {
+            return DialogMetrics.ScalePixels(SceneRowHeight);
+        }
+
+        /// <summary>
+        /// Gets the number of visible scene rows that fit within the current scene-list viewport.
+        /// </summary>
+        /// <returns>Visible scene-row count.</returns>
+        int GetSceneListVisibleRowCount() {
+            int contentHeight = Math.Max(1, GetSceneListViewportHeight() - (GetSceneListPaddingPixels() * 2));
+            return Math.Max(1, contentHeight / Math.Max(1, GetSceneRowHeightPixels()));
+        }
+
+        /// <summary>
+        /// Gets the local x offset used by visible scene labels inside each pooled row.
+        /// </summary>
+        /// <returns>Local x offset used by scene labels.</returns>
+        int GetSceneLabelX() {
+            return GetSceneListPaddingPixels() + DialogMetrics.ScalePixels(SceneOrderFieldWidth) + DialogMetrics.ScalePixels(8);
+        }
+
+        /// <summary>
+        /// Gets the local x offset used by visible scene checkboxes inside each pooled row.
+        /// </summary>
+        /// <returns>Local x offset used by scene checkboxes.</returns>
+        int GetSceneCheckBoxX() {
+            return GetBuildColumnWidth() - GetSceneListPaddingPixels() - DialogMetrics.ScalePixels(18);
         }
 
         /// <summary>
