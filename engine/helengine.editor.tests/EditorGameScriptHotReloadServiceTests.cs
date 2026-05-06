@@ -46,6 +46,7 @@ namespace helengine.editor.tests {
             Assert.Equal("gameplay", assemblyHost.Assemblies[0].ModuleId);
             Assert.Equal(solutionService.GeneratedOutputDirectoryPath, assemblyHost.Assemblies[0].OutputDirectoryPath);
             Assert.Equal(solutionService.GeneratedOutputAssemblyPath, assemblyHost.Assemblies[0].AssemblyPath);
+            Assert.Equal(EditorCodeModuleKind.Runtime, assemblyHost.Assemblies[0].ModuleKind);
             Assert.Equal(1, assemblyHost.ReloadCount);
             Assert.True(File.Exists(solutionService.GeneratedSolutionFilePath));
             Assert.True(File.Exists(solutionService.GeneratedProjectFilePath));
@@ -126,13 +127,13 @@ namespace helengine.editor.tests {
             /// <summary>
             /// Gets the assembly descriptors passed to the fake host.
             /// </summary>
-            public IReadOnlyList<ScriptAssemblyDescriptor> Assemblies { get; private set; }
+            public IReadOnlyList<EditorScriptAssemblyDescriptor> Assemblies { get; private set; }
 
             /// <summary>
             /// Reloads the fake host state without touching the filesystem.
             /// </summary>
             /// <param name="assemblies">Descriptors for the freshly built module assemblies.</param>
-            public void Reload(IReadOnlyList<ScriptAssemblyDescriptor> assemblies) {
+            public void Reload(IReadOnlyList<EditorScriptAssemblyDescriptor> assemblies) {
                 Assemblies = assemblies;
                 ReloadCount++;
             }
@@ -144,6 +145,14 @@ namespace helengine.editor.tests {
             /// <returns>Empty descriptor list.</returns>
             public IReadOnlyList<EditorComponentAddDescriptor> GetAvailableScriptComponents(Entity entity) {
                 return Array.Empty<EditorComponentAddDescriptor>();
+            }
+
+            /// <summary>
+            /// Returns no editor commands in the test harness.
+            /// </summary>
+            /// <returns>Empty editor command descriptor list.</returns>
+            public IReadOnlyList<EditorProjectCommandDescriptor> GetAvailableEditorCommands() {
+                return Array.Empty<EditorProjectCommandDescriptor>();
             }
 
             /// <summary>

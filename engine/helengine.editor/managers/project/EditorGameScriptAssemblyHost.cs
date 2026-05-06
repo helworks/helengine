@@ -23,6 +23,11 @@ namespace helengine.editor {
         Dictionary<string, Assembly> CurrentAssembliesByModuleId;
 
         /// <summary>
+        /// Module kinds keyed by module id for the currently loaded assemblies.
+        /// </summary>
+        Dictionary<string, EditorCodeModuleKind> CurrentModuleKindsByModuleId;
+
+        /// <summary>
         /// Snapshot root directory that backs the currently loaded collectible contexts.
         /// </summary>
         string CurrentSnapshotRootDirectoryPath;
@@ -46,6 +51,7 @@ namespace helengine.editor {
             Directory.CreateDirectory(SnapshotRootPath);
             CurrentLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
             CurrentAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
+            CurrentModuleKindsByModuleId = new Dictionary<string, EditorCodeModuleKind>(StringComparer.OrdinalIgnoreCase);
             ScriptTypeResolverValue = new ScriptTypeResolver();
         }
 
@@ -58,7 +64,7 @@ namespace helengine.editor {
         /// Reloads the current scripting assemblies by copying each build output into a snapshot and loading it.
         /// </summary>
         /// <param name="assemblies">Descriptors for the freshly built module assemblies.</param>
-        public void Reload(IReadOnlyList<ScriptAssemblyDescriptor> assemblies) {
+        public void Reload(IReadOnlyList<EditorScriptAssemblyDescriptor> assemblies) {
             if (assemblies == null) {
                 throw new ArgumentNullException(nameof(assemblies));
             }
@@ -71,13 +77,15 @@ namespace helengine.editor {
             string snapshotRootDirectoryPath = Path.Combine(SnapshotRootPath, Guid.NewGuid().ToString("N"));
             Dictionary<string, EditorCollectibleScriptAssemblyLoadContext> nextLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
             Dictionary<string, Assembly> nextAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, EditorCodeModuleKind> nextModuleKindsByModuleId = new Dictionary<string, EditorCodeModuleKind>(StringComparer.OrdinalIgnoreCase);
             ScriptTypeResolver nextScriptTypeResolver = new ScriptTypeResolver();
             Dictionary<string, EditorCollectibleScriptAssemblyLoadContext> previousLoadContextsByModuleId = CurrentLoadContextsByModuleId;
             Dictionary<string, Assembly> previousAssembliesByModuleId = CurrentAssembliesByModuleId;
+            Dictionary<string, EditorCodeModuleKind> previousModuleKindsByModuleId = CurrentModuleKindsByModuleId;
             string previousSnapshotRootDirectoryPath = CurrentSnapshotRootDirectoryPath;
             try {
                 for (int index = 0; index < assemblies.Count; index++) {
-                    ScriptAssemblyDescriptor descriptor = assemblies[index];
+                    EditorScriptAssemblyDescriptor descriptor = assemblies[index];
                     string moduleSnapshotDirectoryPath = Path.Combine(snapshotRootDirectoryPath, descriptor.ModuleId);
                     CopyDirectory(descriptor.OutputDirectoryPath, moduleSnapshotDirectoryPath);
 
@@ -86,11 +94,13 @@ namespace helengine.editor {
                     Assembly nextAssembly = nextLoadContext.LoadFromAssemblyPath(snapshotAssemblyPath);
                     nextLoadContextsByModuleId.Add(descriptor.ModuleId, nextLoadContext);
                     nextAssembliesByModuleId.Add(descriptor.ModuleId, nextAssembly);
+                    nextModuleKindsByModuleId.Add(descriptor.ModuleId, descriptor.ModuleKind);
                     nextScriptTypeResolver.Register(descriptor.ModuleId, nextAssembly);
                 }
 
                 CurrentLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
                 CurrentAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
+                CurrentModuleKindsByModuleId = new Dictionary<string, EditorCodeModuleKind>(StringComparer.OrdinalIgnoreCase);
                 CurrentSnapshotRootDirectoryPath = null;
 
                 UnloadContexts(previousLoadContextsByModuleId);
@@ -98,6 +108,7 @@ namespace helengine.editor {
 
                 CurrentLoadContextsByModuleId = nextLoadContextsByModuleId;
                 CurrentAssembliesByModuleId = nextAssembliesByModuleId;
+                CurrentModuleKindsByModuleId = nextModuleKindsByModuleId;
                 CurrentSnapshotRootDirectoryPath = snapshotRootDirectoryPath;
                 ScriptTypeResolverValue = nextScriptTypeResolver;
             } catch {
@@ -105,6 +116,7 @@ namespace helengine.editor {
                 DeleteDirectoryIfPresent(snapshotRootDirectoryPath);
                 CurrentLoadContextsByModuleId = previousLoadContextsByModuleId;
                 CurrentAssembliesByModuleId = previousAssembliesByModuleId;
+                CurrentModuleKindsByModuleId = previousModuleKindsByModuleId;
                 CurrentSnapshotRootDirectoryPath = previousSnapshotRootDirectoryPath;
                 ScriptTypeResolverValue = BuildResolver(previousAssembliesByModuleId);
                 throw;
@@ -127,6 +139,7 @@ namespace helengine.editor {
 
             CurrentLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
             CurrentAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
+            CurrentModuleKindsByModuleId = new Dictionary<string, EditorCodeModuleKind>(StringComparer.OrdinalIgnoreCase);
             CurrentSnapshotRootDirectoryPath = null;
             ScriptTypeResolverValue = new ScriptTypeResolver();
         }
@@ -154,13 +167,46 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Returns the project-authored editor commands discovered from the currently loaded editor module assemblies.
+        /// </summary>
+        /// <returns>Discovered editor command descriptors.</returns>
+        public IReadOnlyList<EditorProjectCommandDescriptor> GetAvailableEditorCommands() {
+            if (CurrentAssembliesByModuleId.Count == 0) {
+                return Array.Empty<EditorProjectCommandDescriptor>();
+            }
+
+            List<EditorProjectCommandDescriptor> commands = [];
+            foreach (KeyValuePair<string, Assembly> entry in CurrentAssembliesByModuleId) {
+                if (!CurrentModuleKindsByModuleId.TryGetValue(entry.Key, out EditorCodeModuleKind moduleKind)
+                    || moduleKind != EditorCodeModuleKind.Editor) {
+                    continue;
+                }
+
+                Type[] types = entry.Value.GetTypes();
+                for (int index = 0; index < types.Length; index++) {
+                    Type candidateType = types[index];
+                    if (candidateType.IsAbstract || !typeof(IEditorCommand).IsAssignableFrom(candidateType)) {
+                        continue;
+                    }
+
+                    IEditorCommand command = (IEditorCommand)(Activator.CreateInstance(candidateType)
+                        ?? throw new InvalidOperationException($"Editor command type '{candidateType.FullName}' could not be instantiated."));
+                    commands.Add(new EditorProjectCommandDescriptor(command.CommandId, command.DisplayName, candidateType, entry.Key));
+                }
+            }
+
+            commands.Sort((left, right) => string.Compare(left.DisplayName, right.DisplayName, StringComparison.Ordinal));
+            return commands;
+        }
+
+        /// <summary>
         /// Validates the supplied script assembly descriptors before loading begins.
         /// </summary>
         /// <param name="assemblies">Descriptors to validate.</param>
-        void ValidateAssemblies(IReadOnlyList<ScriptAssemblyDescriptor> assemblies) {
+        void ValidateAssemblies(IReadOnlyList<EditorScriptAssemblyDescriptor> assemblies) {
             HashSet<string> moduleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             for (int index = 0; index < assemblies.Count; index++) {
-                ScriptAssemblyDescriptor descriptor = assemblies[index];
+                EditorScriptAssemblyDescriptor descriptor = assemblies[index];
                 if (descriptor == null) {
                     throw new InvalidOperationException("Script assembly descriptors must not contain null entries.");
                 }

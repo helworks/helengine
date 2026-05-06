@@ -12,7 +12,7 @@ namespace helengine.editor {
         /// Reloads the current scripting assemblies from the newly built module descriptors.
         /// </summary>
         /// <param name="assemblies">Descriptors for the freshly built module assemblies.</param>
-        void Reload(IReadOnlyList<ScriptAssemblyDescriptor> assemblies);
+        void Reload(IReadOnlyList<EditorScriptAssemblyDescriptor> assemblies);
 
         /// <summary>
         /// Returns the addable component descriptors discovered from the currently loaded scripting assembly.
@@ -20,5 +20,11 @@ namespace helengine.editor {
         /// <param name="entity">Entity that will receive one selected component.</param>
         /// <returns>Descriptors built from the active scripting assembly.</returns>
         IReadOnlyList<EditorComponentAddDescriptor> GetAvailableScriptComponents(Entity entity);
+
+        /// <summary>
+        /// Returns the editor commands discovered from the currently loaded editor-only assemblies.
+        /// </summary>
+        /// <returns>Discovered project-authored editor commands.</returns>
+        IReadOnlyList<EditorProjectCommandDescriptor> GetAvailableEditorCommands();
     }
 }
