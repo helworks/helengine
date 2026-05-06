@@ -228,6 +228,7 @@ namespace helengine.editor {
             CopyAvailableParentEntities(parentEntities);
             ParentHierarchyView.Show(targetEntity, parentEntities, SelectedParentEntity);
             Enabled = true;
+            ShowDialogImmediately();
         }
 
         /// <summary>
@@ -264,10 +265,6 @@ namespace helengine.editor {
             if (!UpdateDialogFrame(windowWidth, windowHeight)) {
                 return;
             }
-            LayoutTarget();
-            LayoutParentHierarchy();
-            LayoutStatus();
-            LayoutFooter();
         }
 
         /// <summary>
@@ -381,6 +378,16 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnCloseRequested() {
             HandleCancelClicked();
+        }
+
+        /// <summary>
+        /// Repositions the dialog content whenever the shared modal shell position or size changes.
+        /// </summary>
+        protected override void HandleDialogLayoutChanged() {
+            LayoutTarget();
+            LayoutParentHierarchy();
+            LayoutStatus();
+            LayoutFooter();
         }
 
         /// <summary>

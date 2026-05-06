@@ -130,6 +130,35 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the target row, hierarchy picker, and footer buttons are positioned immediately during Show.
+        /// </summary>
+        [Fact]
+        public void Show_WhenOpened_PositionsHierarchyAndFooterImmediately() {
+            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
+            EditorEntity root = new EditorEntity {
+                Name = "Root"
+            };
+            EditorEntity child = new EditorEntity {
+                Name = "Child"
+            };
+            root.AddChild(child);
+
+            dialog.Show(child, new Entity[] { root, child });
+
+            EditorEntity targetHost = GetPrivateField<EditorEntity>(dialog, "TargetHost");
+            SceneHierarchyPickerView parentHierarchyView = GetPrivateField<SceneHierarchyPickerView>(dialog, "ParentHierarchyView");
+            EditorEntity statusHost = GetPrivateField<EditorEntity>(dialog, "StatusHost");
+            EditorEntity cancelButtonHost = GetPrivateField<EditorEntity>(dialog, "CancelButtonHost");
+            EditorEntity applyButtonHost = GetPrivateField<EditorEntity>(dialog, "ApplyButtonHost");
+
+            Assert.NotEqual(float3.Zero, targetHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, parentHierarchyView.Entity.LocalPosition);
+            Assert.NotEqual(float3.Zero, statusHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, cancelButtonHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, applyButtonHost.LocalPosition);
+        }
+
+        /// <summary>
         /// Ensures the close button owns the same left separator used by the editor window chrome.
         /// </summary>
         [Fact]

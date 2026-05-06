@@ -282,6 +282,7 @@ namespace helengine.editor {
             RefreshAvailableComponents();
             ClearSelection();
             SearchField.IsFocused = true;
+            ShowDialogImmediately();
         }
 
         /// <summary>
@@ -313,10 +314,6 @@ namespace helengine.editor {
                 HideRows();
                 return;
             }
-
-            UpdateSearchLayout();
-            UpdateListLayout();
-            UpdateFooterLayout();
         }
 
         /// <summary>
@@ -792,6 +789,15 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnCloseRequested() {
             Hide();
+        }
+
+        /// <summary>
+        /// Repositions the dialog content whenever the shared modal shell position or size changes.
+        /// </summary>
+        protected override void HandleDialogLayoutChanged() {
+            UpdateSearchLayout();
+            UpdateListLayout();
+            UpdateFooterLayout();
         }
     }
 }
