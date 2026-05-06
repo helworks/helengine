@@ -1073,11 +1073,7 @@ namespace helengine.editor {
             string fullPath = ResolveProjectAssetPath(reference.RelativePath);
             MaterialAsset materialAsset = ProjectContentManager.Load<MaterialAsset>(fullPath, EditorContentProcessorIds.MaterialAsset);
             if (MaterialBuilder != null) {
-                AssetImportSettings materialSettings = LoadMaterialSettingsForCook(fullPath, reference.RelativePath);
-                if (!materialSettings.Processor.Platforms.ContainsKey(TargetPlatformId)) {
-                    throw new InvalidOperationException($"Material '{reference.RelativePath}' does not define settings for target platform '{TargetPlatformId}'.");
-                }
-
+                AssetImportSettings materialSettings = LoadMaterialSettingsForCook(fullPath, reference.RelativePath, materialAsset);
                 PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(BuildMaterialCookRequest(reference, materialAsset, materialSettings));
                 RememberReferencedShaderAssetIds(cookResult.ReferencedShaderAssetIds);
 
@@ -1104,20 +1100,48 @@ namespace helengine.editor {
         /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
         /// <param name="materialRelativePath">Project-relative material asset path used in diagnostics.</param>
         /// <returns>Deserialized material settings sidecar.</returns>
-        AssetImportSettings LoadMaterialSettingsForCook(string materialAssetPath, string materialRelativePath) {
+        AssetImportSettings LoadMaterialSettingsForCook(string materialAssetPath, string materialRelativePath, MaterialAsset materialAsset) {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             } else if (string.IsNullOrWhiteSpace(materialRelativePath)) {
                 throw new ArgumentException("Material relative path must be provided.", nameof(materialRelativePath));
+            } else if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
             }
 
             string settingsPath = materialAssetPath + AssetImportManager.SettingsExtension;
-            if (!File.Exists(settingsPath)) {
-                throw new InvalidOperationException($"Material '{materialRelativePath}' is missing settings required for target platform '{TargetPlatformId}'.");
+            if (File.Exists(settingsPath)) {
+                using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                AssetImportSettings settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
+                if (settings.Processor?.Platforms != null && settings.Processor.Platforms.ContainsKey(TargetPlatformId)) {
+                    return settings;
+                }
             }
 
-            using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return AssetImportSettingsBinarySerializer.Deserialize(stream);
+            if (MaterialBuilder != null) {
+                return MaterialAssetSettingsService.LoadOrCreate(
+                    materialAssetPath,
+                    materialAsset,
+                    [TargetPlatformId],
+                    ResolveSelectionModelForMaterialSettings);
+            }
+
+            throw new InvalidOperationException($"Material '{materialRelativePath}' is missing settings required for target platform '{TargetPlatformId}'.");
+        }
+
+        /// <summary>
+        /// Resolves the builder selection model used to seed missing material settings during packaging.
+        /// </summary>
+        /// <param name="platformId">Platform whose builder metadata should be returned.</param>
+        /// <returns>Selection model backed by the active material builder definition.</returns>
+        EditorPlatformBuildSelectionModel ResolveSelectionModelForMaterialSettings(string platformId) {
+            if (!string.Equals(platformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException($"Material settings were requested for unexpected platform '{platformId}'.");
+            } else if (MaterialBuilder == null) {
+                throw new InvalidOperationException("Material builder must exist before resolving material settings metadata.");
+            }
+
+            return EditorPlatformBuildSelectionModel.From(MaterialBuilder.Definition);
         }
 
         /// <summary>

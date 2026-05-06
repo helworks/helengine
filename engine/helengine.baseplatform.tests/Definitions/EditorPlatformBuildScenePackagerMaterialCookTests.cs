@@ -75,6 +75,40 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     }
 
     /// <summary>
+    /// Ensures packaging seeds missing material sidecars from the material compatibility fields when a builder is available.
+    /// </summary>
+    [Fact]
+    public void Package_when_builder_is_available_and_material_sidecar_is_missing_seeds_platform_material_settings_from_compatibility_fields() {
+        string materialRelativePath = "Materials/TestMaterial.helmat";
+        WriteMaterialAsset(materialRelativePath, "StaleShader");
+
+        IPlatformAssetBuilder builder = new TestPlatformAssetBuilder();
+        EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+            ProjectRootPath,
+            Array.Empty<IAssetImporterRegistration>(),
+            "windows",
+            builder,
+            "debug",
+            "directx11");
+        string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        MaterialAsset materialAsset;
+        using (FileStream stream = new FileStream(materialPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+            materialAsset = Assert.IsType<MaterialAsset>(global::helengine.editor.AssetSerializer.Deserialize(stream));
+        }
+        MethodInfo loadMethod = typeof(EditorPlatformBuildScenePackager).GetMethod(
+            "LoadMaterialSettingsForCook",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        AssetImportSettings settings = Assert.IsType<AssetImportSettings>(loadMethod.Invoke(packager, [materialPath, materialRelativePath, materialAsset]));
+
+        Assert.Equal("standard-shader", settings.Processor.Platforms["windows"].Material.SchemaId);
+        Assert.Equal("StaleShader", settings.Processor.Platforms["windows"].Material.FieldValues["shader-asset-id"]);
+        Assert.Equal("StaleShader.vs", settings.Processor.Platforms["windows"].Material.FieldValues["vertex-program"]);
+        Assert.Equal("StaleShader.ps", settings.Processor.Platforms["windows"].Material.FieldValues["pixel-program"]);
+        Assert.Equal("default", settings.Processor.Platforms["windows"].Material.FieldValues["variant"]);
+        Assert.True(File.Exists(materialPath + ".hasset"));
+    }
+
+    /// <summary>
     /// Writes one serialized scene asset that references the supplied material path from a mesh component payload.
     /// </summary>
     /// <param name="sceneId">Scene asset id to write.</param>
