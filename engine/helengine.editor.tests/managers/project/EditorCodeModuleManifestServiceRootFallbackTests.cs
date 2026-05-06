@@ -55,9 +55,11 @@ public sealed class EditorCodeModuleManifestServiceRootFallbackTests : IDisposab
         Assert.Equal("assets", gameplay.FolderPath);
         Assert.Contains("assets/Scripts/Ui", gameplay.NestedModuleFolderPaths);
         Assert.Equal(new[] { "always-loaded" }, gameplay.LoadScopes);
+        Assert.Equal(EditorCodeModuleKind.Runtime, gameplay.ModuleKind);
 
         EditorCodeModuleManifestEntry ui = Assert.Single(document.Modules, module => module.ModuleId == "ui");
         Assert.Equal("assets/Scripts/Ui", ui.FolderPath);
         Assert.Equal(new[] { "gameplay" }, ui.DependencyModuleIds);
+        Assert.Equal(EditorCodeModuleKind.Runtime, ui.ModuleKind);
     }
 }

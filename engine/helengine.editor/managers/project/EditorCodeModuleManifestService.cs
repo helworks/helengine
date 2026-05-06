@@ -5,13 +5,35 @@ namespace helengine.editor {
     /// Loads the project-local authored code-module manifests used by the shared build graph.
     /// </summary>
     public sealed class EditorCodeModuleManifestService {
+        /// <summary>
+        /// File name used by folder-scoped module manifests.
+        /// </summary>
         const string ManifestFileName = "code.module.json";
+
+        /// <summary>
+        /// Reserved module identifier used by loose scripts beneath the project assets root.
+        /// </summary>
         const string DefaultModuleId = "gameplay";
+
+        /// <summary>
+        /// Relative assets root scanned for authored code modules.
+        /// </summary>
         const string DefaultSourceRoot = "assets";
+
+        /// <summary>
+        /// Default runtime residency scope applied when manifests omit one.
+        /// </summary>
         const string DefaultLoadScope = "always-loaded";
 
+        /// <summary>
+        /// Absolute project root path that owns the authored assets tree.
+        /// </summary>
         readonly string ProjectRootPath;
 
+        /// <summary>
+        /// Initializes one manifest service for the supplied project root.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative project root path.</param>
         public EditorCodeModuleManifestService(string projectRootPath) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
@@ -20,8 +42,15 @@ namespace helengine.editor {
             ProjectRootPath = Path.GetFullPath(projectRootPath);
         }
 
+        /// <summary>
+        /// Gets the absolute manifest file path rooted at the project directory.
+        /// </summary>
         public string ManifestFilePath => Path.Combine(ProjectRootPath, ManifestFileName);
 
+        /// <summary>
+        /// Discovers authored code modules for the current project.
+        /// </summary>
+        /// <returns>Discovered authored code-module manifest document.</returns>
         public EditorCodeModuleManifestDocument Load() {
             string assetsRootPath = Path.Combine(ProjectRootPath, DefaultSourceRoot);
             if (!Directory.Exists(assetsRootPath)) {
@@ -30,26 +59,35 @@ namespace helengine.editor {
 
             EditorCodeModuleManifestEntry[] discoveredModules = LoadFolderScopedManifests(assetsRootPath);
             if (discoveredModules.Length > 0) {
+                EditorCodeModuleManifestEntry[] finalModules = discoveredModules;
                 if (ProjectContainsScriptsOutsideModules(assetsRootPath, discoveredModules)) {
-                    return new EditorCodeModuleManifestDocument(BuildRootFallbackManifestEntries(discoveredModules));
+                    finalModules = BuildRootFallbackManifestEntries(discoveredModules);
                 }
 
-                return new EditorCodeModuleManifestDocument(discoveredModules);
+                ValidateDependencyKinds(finalModules);
+                return new EditorCodeModuleManifestDocument(finalModules);
             }
 
             if (ProjectContainsAnyScripts()) {
-                return new EditorCodeModuleManifestDocument([
+                EditorCodeModuleManifestEntry[] defaultModules = [
                     new EditorCodeModuleManifestEntry(
                         DefaultModuleId,
                         DefaultSourceRoot,
                         [],
                         [DefaultLoadScope])
-                ]);
+                ];
+                ValidateDependencyKinds(defaultModules);
+                return new EditorCodeModuleManifestDocument(defaultModules);
             }
 
             return new EditorCodeModuleManifestDocument([]);
         }
 
+        /// <summary>
+        /// Loads all folder-scoped manifest entries beneath the assets root.
+        /// </summary>
+        /// <param name="assetsRootPath">Absolute assets root path.</param>
+        /// <returns>Resolved authored module entries ordered by folder depth.</returns>
         EditorCodeModuleManifestEntry[] LoadFolderScopedManifests(string assetsRootPath) {
             List<EditorCodeModuleManifestEntry> discoveredEntries = [];
             HashSet<string> discoveredModuleIds = new(StringComparer.OrdinalIgnoreCase);
@@ -69,7 +107,8 @@ namespace helengine.editor {
                     manifestRecord.ModuleId,
                     folderPath,
                     manifestRecord.DependencyModuleIds ?? [],
-                    manifestRecord.LoadScopes is { Length: > 0 } ? manifestRecord.LoadScopes : [DefaultLoadScope]));
+                    manifestRecord.LoadScopes is { Length: > 0 } ? manifestRecord.LoadScopes : [DefaultLoadScope],
+                    ParseModuleKind(manifestRecord.ModuleKind, manifestFilePath)));
             }
 
             if (discoveredEntries.Count == 0) {
@@ -97,7 +136,8 @@ namespace helengine.editor {
                     entry.FolderPath,
                     entry.DependencyModuleIds,
                     entry.LoadScopes,
-                    [.. nestedFolderPaths]));
+                    [.. nestedFolderPaths],
+                    entry.ModuleKind));
             }
 
             resolvedEntries.Sort((left, right) => {
@@ -134,12 +174,17 @@ namespace helengine.editor {
                     DefaultSourceRoot,
                     [],
                     [DefaultLoadScope],
-                    [.. discoveredModules.Select(module => module.FolderPath).OrderBy(static folderPath => folderPath, StringComparer.OrdinalIgnoreCase)])
+                    [.. discoveredModules.Select(module => module.FolderPath).OrderBy(static folderPath => folderPath, StringComparer.OrdinalIgnoreCase)],
+                    EditorCodeModuleKind.Runtime)
             ];
             combinedEntries.AddRange(discoveredModules);
             return [.. combinedEntries];
         }
 
+        /// <summary>
+        /// Determines whether any C# source files exist beneath the assets root.
+        /// </summary>
+        /// <returns><c>true</c> when any authored scripts are present.</returns>
         bool ProjectContainsAnyScripts() {
             string assetsRootPath = Path.Combine(ProjectRootPath, DefaultSourceRoot);
             return Directory.Exists(assetsRootPath)
@@ -194,6 +239,11 @@ namespace helengine.editor {
             return false;
         }
 
+        /// <summary>
+        /// Reads one manifest file from disk.
+        /// </summary>
+        /// <param name="manifestFilePath">Absolute manifest file path.</param>
+        /// <returns>Deserialized manifest record.</returns>
         static EditorCodeModuleManifestFileRecord ReadManifestFile(string manifestFilePath) {
             string manifestJson = File.ReadAllText(manifestFilePath);
             EditorCodeModuleManifestFileRecord manifestRecord = JsonSerializer.Deserialize<EditorCodeModuleManifestFileRecord>(manifestJson, JsonOptions);
@@ -204,6 +254,62 @@ namespace helengine.editor {
             return manifestRecord;
         }
 
+        /// <summary>
+        /// Parses one authored module kind string.
+        /// </summary>
+        /// <param name="moduleKindText">Authored module kind text from the manifest.</param>
+        /// <param name="manifestFilePath">Absolute manifest file path used for error reporting.</param>
+        /// <returns>Resolved authored module kind.</returns>
+        static EditorCodeModuleKind ParseModuleKind(string moduleKindText, string manifestFilePath) {
+            if (string.IsNullOrWhiteSpace(moduleKindText)) {
+                return EditorCodeModuleKind.Runtime;
+            }
+            if (string.Equals(moduleKindText, "runtime", StringComparison.OrdinalIgnoreCase)) {
+                return EditorCodeModuleKind.Runtime;
+            }
+            if (string.Equals(moduleKindText, "editor", StringComparison.OrdinalIgnoreCase)) {
+                return EditorCodeModuleKind.Editor;
+            }
+
+            throw new InvalidOperationException($"Code module manifest '{manifestFilePath}' declared unsupported moduleKind '{moduleKindText}'.");
+        }
+
+        /// <summary>
+        /// Validates that runtime modules do not depend on editor-only modules.
+        /// </summary>
+        /// <param name="modules">Resolved module entries to validate.</param>
+        static void ValidateDependencyKinds(EditorCodeModuleManifestEntry[] modules) {
+            Dictionary<string, EditorCodeModuleManifestEntry> modulesById = new(StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < modules.Length; index++) {
+                modulesById[modules[index].ModuleId] = modules[index];
+            }
+
+            for (int moduleIndex = 0; moduleIndex < modules.Length; moduleIndex++) {
+                EditorCodeModuleManifestEntry module = modules[moduleIndex];
+                if (module.ModuleKind != EditorCodeModuleKind.Runtime) {
+                    continue;
+                }
+
+                for (int dependencyIndex = 0; dependencyIndex < module.DependencyModuleIds.Length; dependencyIndex++) {
+                    string dependencyModuleId = module.DependencyModuleIds[dependencyIndex];
+                    if (string.IsNullOrWhiteSpace(dependencyModuleId)) {
+                        continue;
+                    }
+
+                    if (modulesById.TryGetValue(dependencyModuleId, out EditorCodeModuleManifestEntry dependencyModule)
+                        && dependencyModule.ModuleKind == EditorCodeModuleKind.Editor) {
+                        throw new InvalidOperationException($"Runtime code module '{module.ModuleId}' cannot depend on editor code module '{dependencyModule.ModuleId}'.");
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Determines whether one folder path is nested beneath another.
+        /// </summary>
+        /// <param name="parentFolderPath">Candidate parent folder path.</param>
+        /// <param name="candidateFolderPath">Candidate nested folder path.</param>
+        /// <returns><c>true</c> when the candidate path is nested beneath the parent path.</returns>
         static bool IsDescendantFolder(string parentFolderPath, string candidateFolderPath) {
             if (string.IsNullOrWhiteSpace(parentFolderPath) || string.IsNullOrWhiteSpace(candidateFolderPath)) {
                 return false;
@@ -217,6 +323,11 @@ namespace helengine.editor {
             return candidateFolderPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// Counts the folder depth used for stable manifest ordering.
+        /// </summary>
+        /// <param name="folderPath">Folder path whose depth should be counted.</param>
+        /// <returns>Number of path segments in the folder path.</returns>
         static int GetFolderDepth(string folderPath) {
             if (string.IsNullOrWhiteSpace(folderPath)) {
                 return 0;
@@ -225,19 +336,46 @@ namespace helengine.editor {
             return folderPath.Split('/', StringSplitOptions.RemoveEmptyEntries).Length;
         }
 
+        /// <summary>
+        /// Normalizes one project-relative path to the persisted manifest convention.
+        /// </summary>
+        /// <param name="relativePath">Relative path to normalize.</param>
+        /// <returns>Normalized relative path.</returns>
         static string NormalizeRelativePath(string relativePath) {
             return relativePath.Replace('\\', '/');
         }
 
+        /// <summary>
+        /// Shared JSON serializer options used when reading manifest files.
+        /// </summary>
         static readonly JsonSerializerOptions JsonOptions = new() {
             PropertyNameCaseInsensitive = true,
             WriteIndented = true
         };
 
+        /// <summary>
+        /// Deserializable JSON shape stored on disk for one folder-scoped module manifest.
+        /// </summary>
         sealed class EditorCodeModuleManifestFileRecord {
+            /// <summary>
+            /// Gets or sets the stable authored module identifier.
+            /// </summary>
             public string ModuleId { get; set; } = string.Empty;
+
+            /// <summary>
+            /// Gets or sets ordered dependency module identifiers.
+            /// </summary>
             public string[] DependencyModuleIds { get; set; } = [];
+
+            /// <summary>
+            /// Gets or sets authored runtime residency scopes.
+            /// </summary>
             public string[] LoadScopes { get; set; } = [];
+
+            /// <summary>
+            /// Gets or sets the optional authored module kind text.
+            /// </summary>
+            public string ModuleKind { get; set; } = string.Empty;
         }
     }
 }
