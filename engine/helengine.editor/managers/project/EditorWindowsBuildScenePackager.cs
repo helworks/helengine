@@ -758,22 +758,22 @@ namespace helengine.editor {
                     "Spot light payloads are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
-                    DemoMenuBuildComponent.SerializedComponentTypeId,
+                    MenuComponent.SerializedComponentTypeId,
                     PlatformComponentCompatibilityKind.Transform,
                     "Baked demo menu root components are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
-                    DemoMenuPanelComponent.SerializedComponentTypeId,
+                    MenuPanelComponent.SerializedComponentTypeId,
                     PlatformComponentCompatibilityKind.Transform,
                     "Baked demo menu panel metadata is rewritten into strict runtime payloads during packaging.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
-                    DemoMenuItemComponent.SerializedComponentTypeId,
+                    MenuItemComponent.SerializedComponentTypeId,
                     PlatformComponentCompatibilityKind.Transform,
                     "Baked demo menu item metadata is rewritten into strict runtime payloads during packaging.",
                     string.Empty),
                 new PlatformComponentCompatibilityDefinition(
-                    DemoMenuSelectedDescriptionComponent.SerializedComponentTypeId,
+                    MenuSelectedDescriptionComponent.SerializedComponentTypeId,
                     PlatformComponentCompatibilityKind.Transform,
                     "Baked demo menu selected-description markers are rewritten into strict runtime payloads during packaging.",
                     string.Empty)

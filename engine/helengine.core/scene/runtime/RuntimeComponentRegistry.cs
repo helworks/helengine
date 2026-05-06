@@ -29,10 +29,10 @@ namespace helengine {
             registry.Register(new RuntimeDirectionalLightComponentDeserializer());
             registry.Register(new RuntimePointLightComponentDeserializer());
             registry.Register(new RuntimeSpotLightComponentDeserializer());
-            registry.Register(new RuntimeDemoMenuBuildComponentDeserializer());
-            registry.Register(new RuntimeDemoMenuPanelComponentDeserializer());
-            registry.Register(new RuntimeDemoMenuItemComponentDeserializer());
-            registry.Register(new RuntimeDemoMenuSelectedDescriptionComponentDeserializer());
+            registry.Register(new RuntimeMenuComponentDeserializer());
+            registry.Register(new RuntimeMenuPanelComponentDeserializer());
+            registry.Register(new RuntimeMenuItemComponentDeserializer());
+            registry.Register(new RuntimeMenuSelectedDescriptionComponentDeserializer());
             return registry;
         }
 

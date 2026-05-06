@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Stores the serialized runtime metadata required to navigate one baked demo menu item.
     /// </summary>
-    public class DemoMenuItemComponent : Component {
+    public class MenuItemComponent : Component {
         /// <summary>
         /// Current payload version used by scene persistence for baked menu items.
         /// </summary>
@@ -11,7 +11,7 @@ namespace helengine {
         /// <summary>
         /// Stable serialized component type id used by baked menu item scene records.
         /// </summary>
-        public const string SerializedComponentTypeId = "helengine.DemoMenuItemComponent";
+        public const string SerializedComponentTypeId = "helengine.MenuItemComponent";
 
         /// <summary>
         /// Backing field for the owning panel id.
@@ -36,7 +36,7 @@ namespace helengine {
         /// <summary>
         /// Initializes a new baked menu item component with empty metadata.
         /// </summary>
-        public DemoMenuItemComponent() {
+        public MenuItemComponent() {
             PanelIdValue = string.Empty;
             ItemIdValue = string.Empty;
             DescriptionValue = string.Empty;

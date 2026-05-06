@@ -2,20 +2,20 @@ namespace helengine {
     /// <summary>
     /// Deserializes the baked demo menu selected-description marker for player builds.
     /// </summary>
-    public sealed class RuntimeDemoMenuSelectedDescriptionComponentDeserializer : IRuntimeComponentDeserializer {
+    public sealed class RuntimeMenuSelectedDescriptionComponentDeserializer : IRuntimeComponentDeserializer {
         /// <inheritdoc />
-        public string ComponentTypeId => DemoMenuSelectedDescriptionComponent.SerializedComponentTypeId;
+        public string ComponentTypeId => MenuSelectedDescriptionComponent.SerializedComponentTypeId;
 
         /// <inheritdoc />
         public Component Deserialize(SceneComponentAssetRecord record, RuntimeSceneAssetReferenceResolver referenceResolver) {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != DemoMenuSelectedDescriptionComponent.CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported demo menu selected-description component payload version '{version}'.");
+            if (version != MenuSelectedDescriptionComponent.CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported menu selected-description component payload version '{version}'.");
             }
 
-            return new DemoMenuSelectedDescriptionComponent();
+            return new MenuSelectedDescriptionComponent();
         }
     }
 }

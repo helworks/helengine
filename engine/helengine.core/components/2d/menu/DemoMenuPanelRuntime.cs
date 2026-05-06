@@ -11,7 +11,7 @@ namespace helengine {
         /// <param name="selectedDescriptionText">Text component updated as selection changes.</param>
         /// <param name="items">Enabled baked menu items contained by the panel.</param>
         public DemoMenuPanelRuntime(
-            DemoMenuPanelComponent definition,
+            MenuPanelComponent definition,
             Entity rootEntity,
             TextComponent selectedDescriptionText,
             DemoMenuItemRuntime[] items) {
@@ -25,7 +25,7 @@ namespace helengine {
         /// <summary>
         /// Gets the serialized panel metadata component.
         /// </summary>
-        public DemoMenuPanelComponent Definition { get; }
+        public MenuPanelComponent Definition { get; }
 
         /// <summary>
         /// Gets the root entity that owns the baked panel subtree.

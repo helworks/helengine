@@ -178,7 +178,7 @@ namespace helengine.editor.tests {
         /// Ensures packaged scenes preserve baked demo menu components and their file-backed font dependencies for the player runtime loader.
         /// </summary>
         [Fact]
-        public void Package_WhenSceneContainsDemoMenuBuildComponent_LeavesPackagedComponentLoadable() {
+        public void Package_WhenSceneContainsMenuComponent_LeavesPackagedComponentLoadable() {
             string menuSceneId = "Scenes/MenuScene.helen";
             string playableSceneId = "Scenes/TestPlayableScene.helen";
 
@@ -227,9 +227,9 @@ namespace helengine.editor.tests {
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             Assert.Equal(2, loadedRoots.Count);
-            Entity loadedRoot = Assert.Single(loadedRoots, entity => entity.Components.Any(component => component is DemoMenuBuildComponent));
-            DemoMenuBuildComponent menuHostComponent = Assert.IsType<DemoMenuBuildComponent>(
-                Assert.Single(loadedRoot.Components, component => component is DemoMenuBuildComponent));
+            Entity loadedRoot = Assert.Single(loadedRoots, entity => entity.Components.Any(component => component is MenuComponent));
+            MenuComponent menuHostComponent = Assert.IsType<MenuComponent>(
+                Assert.Single(loadedRoot.Components, component => component is MenuComponent));
 
             Assert.False(menuHostComponent.IsInitialized);
             Assert.Single(loadedRoot.Children);

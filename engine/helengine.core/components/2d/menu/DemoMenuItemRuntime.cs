@@ -11,7 +11,7 @@ namespace helengine {
         /// <param name="entity">Owning row entity.</param>
         /// <param name="background">Rounded rectangle used for selection visuals.</param>
         public DemoMenuItemRuntime(
-            DemoMenuItemComponent definition,
+            MenuItemComponent definition,
             int index,
             Entity entity,
             RoundedRectComponent background) {
@@ -24,7 +24,7 @@ namespace helengine {
         /// <summary>
         /// Gets the serialized metadata component for the item.
         /// </summary>
-        public DemoMenuItemComponent Definition { get; }
+        public MenuItemComponent Definition { get; }
 
         /// <summary>
         /// Gets the enabled-item index inside the owning panel.

@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Identifies one baked demo menu panel inside the generated menu hierarchy.
     /// </summary>
-    public class DemoMenuPanelComponent : Component {
+    public class MenuPanelComponent : Component {
         /// <summary>
         /// Current payload version used by scene persistence for baked menu panels.
         /// </summary>
@@ -11,7 +11,7 @@ namespace helengine {
         /// <summary>
         /// Stable serialized component type id used by baked menu panel scene records.
         /// </summary>
-        public const string SerializedComponentTypeId = "helengine.DemoMenuPanelComponent";
+        public const string SerializedComponentTypeId = "helengine.MenuPanelComponent";
 
         /// <summary>
         /// Backing field for the stable panel id.
@@ -21,7 +21,7 @@ namespace helengine {
         /// <summary>
         /// Initializes a new baked menu panel component.
         /// </summary>
-        public DemoMenuPanelComponent() {
+        public MenuPanelComponent() {
             PanelIdValue = string.Empty;
         }
 

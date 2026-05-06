@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Persists one baked demo menu panel metadata component inside tolerant editor scene payloads.
     /// </summary>
-    public class DemoMenuPanelComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
+    public class MenuPanelComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
         /// <summary>
         /// Stable tagged field name used for menu panel-id persistence.
         /// </summary>
@@ -11,23 +11,23 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the concrete runtime component type handled by the descriptor.
         /// </summary>
-        public Type ComponentType => typeof(DemoMenuPanelComponent);
+        public Type ComponentType => typeof(MenuPanelComponent);
 
         /// <summary>
         /// Gets the stable serialized type identifier written into scene files.
         /// </summary>
-        public string ComponentTypeId => DemoMenuPanelComponent.SerializedComponentTypeId;
+        public string ComponentTypeId => MenuPanelComponent.SerializedComponentTypeId;
 
         /// <summary>
         /// Serializes one baked demo menu panel metadata component into a scene record.
         /// </summary>
         public SceneComponentAssetRecord SerializeComponent(Component component, int componentIndex, EntityComponentSaveState saveState) {
-            if (component is not DemoMenuPanelComponent demoMenuPanelComponent) {
-                throw new InvalidOperationException("Demo menu panel descriptor received an unsupported component type.");
+            if (component is not MenuPanelComponent menuPanelComponent) {
+                throw new InvalidOperationException("Menu panel descriptor received an unsupported component type.");
             }
 
             EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
-            writer.WriteField(PanelIdFieldName, fieldWriter => fieldWriter.WriteString(demoMenuPanelComponent.PanelId));
+            writer.WriteField(PanelIdFieldName, fieldWriter => fieldWriter.WriteString(menuPanelComponent.PanelId));
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = ComponentTypeId,
@@ -40,7 +40,7 @@ namespace helengine.editor {
         /// Deserializes one scene record back into a baked demo menu panel metadata component.
         /// </summary>
         public Component DeserializeComponent(SceneComponentAssetRecord record, EntitySaveComponent saveComponent, ISceneAssetReferenceResolver referenceResolver) {
-            DemoMenuPanelComponent component = new DemoMenuPanelComponent();
+            MenuPanelComponent component = new MenuPanelComponent();
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
             if (reader.TryGetFieldReader(PanelIdFieldName, out EngineBinaryReader panelIdReader)) {
                 using (panelIdReader) {

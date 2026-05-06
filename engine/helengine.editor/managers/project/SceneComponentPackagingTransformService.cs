@@ -212,19 +212,19 @@ namespace helengine.editor {
         /// <summary>
         /// Demo menu root descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
         /// </summary>
-        readonly DemoMenuBuildComponentPersistenceDescriptor DemoMenuBuildComponentDescriptor;
+        readonly MenuComponentPersistenceDescriptor DemoMenuBuildComponentDescriptor;
         /// <summary>
         /// Demo menu panel descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
         /// </summary>
-        readonly DemoMenuPanelComponentPersistenceDescriptor DemoMenuPanelComponentDescriptor;
+        readonly MenuPanelComponentPersistenceDescriptor DemoMenuPanelComponentDescriptor;
         /// <summary>
         /// Demo menu item descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
         /// </summary>
-        readonly DemoMenuItemComponentPersistenceDescriptor DemoMenuItemComponentDescriptor;
+        readonly MenuItemComponentPersistenceDescriptor DemoMenuItemComponentDescriptor;
         /// <summary>
         /// Demo menu selected-description descriptor used to interpret tagged editor payloads before rewriting packaged runtime bytes.
         /// </summary>
-        readonly DemoMenuSelectedDescriptionComponentPersistenceDescriptor DemoMenuSelectedDescriptionComponentDescriptor;
+        readonly MenuSelectedDescriptionComponentPersistenceDescriptor DemoMenuSelectedDescriptionComponentDescriptor;
 
         /// <summary>
         /// Initializes one shared scene-component transform service.
@@ -267,10 +267,10 @@ namespace helengine.editor {
             AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder);
             CameraComponentDescriptor = new CameraComponentPersistenceDescriptor();
             RoundedRectComponentDescriptor = new RoundedRectComponentPersistenceDescriptor();
-            DemoMenuBuildComponentDescriptor = new DemoMenuBuildComponentPersistenceDescriptor();
-            DemoMenuPanelComponentDescriptor = new DemoMenuPanelComponentPersistenceDescriptor();
-            DemoMenuItemComponentDescriptor = new DemoMenuItemComponentPersistenceDescriptor();
-            DemoMenuSelectedDescriptionComponentDescriptor = new DemoMenuSelectedDescriptionComponentPersistenceDescriptor();
+            DemoMenuBuildComponentDescriptor = new MenuComponentPersistenceDescriptor();
+            DemoMenuPanelComponentDescriptor = new MenuPanelComponentPersistenceDescriptor();
+            DemoMenuItemComponentDescriptor = new MenuItemComponentPersistenceDescriptor();
+            DemoMenuSelectedDescriptionComponentDescriptor = new MenuSelectedDescriptionComponentPersistenceDescriptor();
         }
 
         /// <summary>
@@ -328,22 +328,22 @@ namespace helengine.editor {
                 return true;
             }
 
-            if (string.Equals(record.ComponentTypeId, DemoMenuBuildComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(record.ComponentTypeId, MenuComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 transformedRecord = RewriteDemoMenuBuildComponentRecord(record);
                 return true;
             }
 
-            if (string.Equals(record.ComponentTypeId, DemoMenuPanelComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(record.ComponentTypeId, MenuPanelComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 transformedRecord = RewriteDemoMenuPanelComponentRecord(record);
                 return true;
             }
 
-            if (string.Equals(record.ComponentTypeId, DemoMenuItemComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(record.ComponentTypeId, MenuItemComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 transformedRecord = RewriteDemoMenuItemComponentRecord(record);
                 return true;
             }
 
-            if (string.Equals(record.ComponentTypeId, DemoMenuSelectedDescriptionComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(record.ComponentTypeId, MenuSelectedDescriptionComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 transformedRecord = RewriteDemoMenuSelectedDescriptionComponentRecord(record);
                 return true;
             }
@@ -651,16 +651,16 @@ namespace helengine.editor {
         /// <param name="record">Serialized demo-menu root component record to rewrite.</param>
         /// <returns>Rewritten demo-menu root component record.</returns>
         SceneComponentAssetRecord RewriteDemoMenuBuildComponentRecord(SceneComponentAssetRecord record) {
-            DemoMenuBuildComponent component = AssertDemoMenuBuildComponent(record);
+            MenuComponent component = AssertDemoMenuBuildComponent(record);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(DemoMenuBuildComponent.CurrentVersion);
+            writer.WriteByte(MenuComponent.CurrentVersion);
             writer.WriteString(component.ProviderTypeName);
             writer.WriteString(component.InitialPanelId);
 
             return new SceneComponentAssetRecord {
-                ComponentTypeId = DemoMenuBuildComponent.SerializedComponentTypeId,
+                ComponentTypeId = MenuComponent.SerializedComponentTypeId,
                 ComponentIndex = record.ComponentIndex,
                 Payload = writeStream.ToArray()
             };
@@ -672,15 +672,15 @@ namespace helengine.editor {
         /// <param name="record">Serialized demo-menu panel component record to rewrite.</param>
         /// <returns>Rewritten demo-menu panel component record.</returns>
         SceneComponentAssetRecord RewriteDemoMenuPanelComponentRecord(SceneComponentAssetRecord record) {
-            DemoMenuPanelComponent component = AssertDemoMenuPanelComponent(record);
+            MenuPanelComponent component = AssertDemoMenuPanelComponent(record);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(DemoMenuPanelComponent.CurrentVersion);
+            writer.WriteByte(MenuPanelComponent.CurrentVersion);
             writer.WriteString(component.PanelId);
 
             return new SceneComponentAssetRecord {
-                ComponentTypeId = DemoMenuPanelComponent.SerializedComponentTypeId,
+                ComponentTypeId = MenuPanelComponent.SerializedComponentTypeId,
                 ComponentIndex = record.ComponentIndex,
                 Payload = writeStream.ToArray()
             };
@@ -692,11 +692,11 @@ namespace helengine.editor {
         /// <param name="record">Serialized demo-menu item component record to rewrite.</param>
         /// <returns>Rewritten demo-menu item component record.</returns>
         SceneComponentAssetRecord RewriteDemoMenuItemComponentRecord(SceneComponentAssetRecord record) {
-            DemoMenuItemComponent component = AssertDemoMenuItemComponent(record);
+            MenuItemComponent component = AssertDemoMenuItemComponent(record);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(DemoMenuItemComponent.CurrentVersion);
+            writer.WriteByte(MenuItemComponent.CurrentVersion);
             writer.WriteString(component.PanelId);
             writer.WriteString(component.ItemId);
             writer.WriteString(component.Description);
@@ -708,7 +708,7 @@ namespace helengine.editor {
             FontAssetScenePersistenceSupport.WriteByte4(writer, component.SelectedBorderColor);
 
             return new SceneComponentAssetRecord {
-                ComponentTypeId = DemoMenuItemComponent.SerializedComponentTypeId,
+                ComponentTypeId = MenuItemComponent.SerializedComponentTypeId,
                 ComponentIndex = record.ComponentIndex,
                 Payload = writeStream.ToArray()
             };
@@ -724,10 +724,10 @@ namespace helengine.editor {
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(DemoMenuSelectedDescriptionComponent.CurrentVersion);
+            writer.WriteByte(MenuSelectedDescriptionComponent.CurrentVersion);
 
             return new SceneComponentAssetRecord {
-                ComponentTypeId = DemoMenuSelectedDescriptionComponent.SerializedComponentTypeId,
+                ComponentTypeId = MenuSelectedDescriptionComponent.SerializedComponentTypeId,
                 ComponentIndex = record.ComponentIndex,
                 Payload = writeStream.ToArray()
             };
@@ -860,9 +860,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="record">Scene component record to interpret.</param>
         /// <returns>Deserialized demo menu root component.</returns>
-        DemoMenuBuildComponent AssertDemoMenuBuildComponent(SceneComponentAssetRecord record) {
+        MenuComponent AssertDemoMenuBuildComponent(SceneComponentAssetRecord record) {
             Component component = DemoMenuBuildComponentDescriptor.DeserializeComponent(record, null, null);
-            if (component is not DemoMenuBuildComponent demoMenuBuildComponent) {
+            if (component is not MenuComponent demoMenuBuildComponent) {
                 throw new InvalidOperationException("Demo menu build component payload did not materialize correctly before packaging.");
             }
 
@@ -874,9 +874,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="record">Scene component record to interpret.</param>
         /// <returns>Deserialized demo menu panel component.</returns>
-        DemoMenuPanelComponent AssertDemoMenuPanelComponent(SceneComponentAssetRecord record) {
+        MenuPanelComponent AssertDemoMenuPanelComponent(SceneComponentAssetRecord record) {
             Component component = DemoMenuPanelComponentDescriptor.DeserializeComponent(record, null, null);
-            if (component is not DemoMenuPanelComponent demoMenuPanelComponent) {
+            if (component is not MenuPanelComponent demoMenuPanelComponent) {
                 throw new InvalidOperationException("Demo menu panel component payload did not materialize correctly before packaging.");
             }
 
@@ -888,9 +888,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="record">Scene component record to interpret.</param>
         /// <returns>Deserialized demo menu item component.</returns>
-        DemoMenuItemComponent AssertDemoMenuItemComponent(SceneComponentAssetRecord record) {
+        MenuItemComponent AssertDemoMenuItemComponent(SceneComponentAssetRecord record) {
             Component component = DemoMenuItemComponentDescriptor.DeserializeComponent(record, null, null);
-            if (component is not DemoMenuItemComponent demoMenuItemComponent) {
+            if (component is not MenuItemComponent demoMenuItemComponent) {
                 throw new InvalidOperationException("Demo menu item component payload did not materialize correctly before packaging.");
             }
 
@@ -903,7 +903,7 @@ namespace helengine.editor {
         /// <param name="record">Scene component record to interpret.</param>
         void AssertDemoMenuSelectedDescriptionComponent(SceneComponentAssetRecord record) {
             Component component = DemoMenuSelectedDescriptionComponentDescriptor.DeserializeComponent(record, null, null);
-            if (component is not DemoMenuSelectedDescriptionComponent) {
+            if (component is not MenuSelectedDescriptionComponent) {
                 throw new InvalidOperationException("Demo menu selected-description component payload did not materialize correctly before packaging.");
             }
         }

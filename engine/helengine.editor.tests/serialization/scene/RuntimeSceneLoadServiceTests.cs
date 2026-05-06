@@ -262,8 +262,8 @@ namespace helengine.editor.tests.serialization.scene {
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
             Assert.Equal(2, loadedRoots.Count);
-            Entity loadedRoot = Assert.Single(loadedRoots, entity => entity.Components.Any(component => component is DemoMenuBuildComponent));
-            DemoMenuBuildComponent menuHostComponent = Assert.IsType<DemoMenuBuildComponent>(Assert.Single(loadedRoot.Components, component => component is DemoMenuBuildComponent));
+            Entity loadedRoot = Assert.Single(loadedRoots, entity => entity.Components.Any(component => component is MenuComponent));
+            MenuComponent menuHostComponent = Assert.IsType<MenuComponent>(Assert.Single(loadedRoot.Components, component => component is MenuComponent));
 
             Assert.Equal(typeof(TestMenuDefinitionProvider).AssemblyQualifiedName, menuHostComponent.ProviderTypeName);
             Assert.False(menuHostComponent.IsInitialized);

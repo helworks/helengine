@@ -10,22 +10,22 @@ namespace helengine.editor {
 
         /// Descriptor used to serialize baked demo menu root metadata.
         /// </summary>
-        readonly DemoMenuBuildComponentPersistenceDescriptor DemoMenuBuildDescriptor;
+        readonly MenuComponentPersistenceDescriptor DemoMenuBuildDescriptor;
 
         /// <summary>
         /// Descriptor used to serialize baked panel metadata.
         /// </summary>
-        readonly DemoMenuPanelComponentPersistenceDescriptor DemoMenuPanelDescriptor;
+        readonly MenuPanelComponentPersistenceDescriptor DemoMenuPanelDescriptor;
 
         /// <summary>
         /// Descriptor used to serialize baked item metadata.
         /// </summary>
-        readonly DemoMenuItemComponentPersistenceDescriptor DemoMenuItemDescriptor;
+        readonly MenuItemComponentPersistenceDescriptor DemoMenuItemDescriptor;
 
         /// <summary>
         /// Descriptor used to serialize baked selected-description markers.
         /// </summary>
-        readonly DemoMenuSelectedDescriptionComponentPersistenceDescriptor DemoMenuSelectedDescriptionDescriptor;
+        readonly MenuSelectedDescriptionComponentPersistenceDescriptor DemoMenuSelectedDescriptionDescriptor;
 
         /// <summary>
         /// Descriptor used to serialize text scene visuals.
@@ -46,10 +46,10 @@ namespace helengine.editor {
         /// Initializes the factory with the persistence descriptors required for baked menu scene output.
         /// </summary>
         public DemoMenuSceneAssetFactory() {
-            DemoMenuBuildDescriptor = new DemoMenuBuildComponentPersistenceDescriptor();
-            DemoMenuPanelDescriptor = new DemoMenuPanelComponentPersistenceDescriptor();
-            DemoMenuItemDescriptor = new DemoMenuItemComponentPersistenceDescriptor();
-            DemoMenuSelectedDescriptionDescriptor = new DemoMenuSelectedDescriptionComponentPersistenceDescriptor();
+            DemoMenuBuildDescriptor = new MenuComponentPersistenceDescriptor();
+            DemoMenuPanelDescriptor = new MenuPanelComponentPersistenceDescriptor();
+            DemoMenuItemDescriptor = new MenuItemComponentPersistenceDescriptor();
+            DemoMenuSelectedDescriptionDescriptor = new MenuSelectedDescriptionComponentPersistenceDescriptor();
             TextDescriptor = new TextComponentPersistenceDescriptor();
             RoundedRectDescriptor = new RoundedRectComponentPersistenceDescriptor();
             PlaceholderFont = new FontAsset(
@@ -152,7 +152,7 @@ namespace helengine.editor {
         /// Builds the serialized baked demo menu root entity and generated hierarchy.
         /// </summary>
         SceneEntityAsset BuildMenuRootEntityAsset(string providerTypeName, MenuDefinition definition) {
-            DemoMenuBuildComponent buildComponent = new DemoMenuBuildComponent {
+            MenuComponent buildComponent = new MenuComponent {
                 ProviderTypeName = providerTypeName,
                 InitialPanelId = definition.InitialPanelId
             };
@@ -200,7 +200,7 @@ namespace helengine.editor {
         /// Builds one baked panel subtree.
         /// </summary>
         SceneEntityAsset BuildPanelEntityAsset(MenuDefinition definition, MenuPanelDefinition panelDefinition) {
-            DemoMenuPanelComponent panelComponent = new DemoMenuPanelComponent {
+            MenuPanelComponent panelComponent = new MenuPanelComponent {
                 PanelId = panelDefinition.PanelId
             };
             SceneComponentAssetRecord panelRecord = DemoMenuPanelDescriptor.SerializeComponent(panelComponent, 0, null);
@@ -244,7 +244,7 @@ namespace helengine.editor {
             byte4 selectedFillColor = definition.AccentColor;
             byte4 selectedBorderColor = definition.AccentColor;
 
-            DemoMenuItemComponent itemComponent = new DemoMenuItemComponent {
+            MenuItemComponent itemComponent = new MenuItemComponent {
                 PanelId = panelDefinition.PanelId,
                 ItemId = itemDefinition.ItemId,
                 Description = itemDefinition.Description,
@@ -295,7 +295,7 @@ namespace helengine.editor {
         /// Builds one marker entity that hosts the selected item description text.
         /// </summary>
         SceneEntityAsset BuildSelectedDescriptionEntityAsset(string panelId, float3 localPosition, string description, string fontPath, byte4 color) {
-            DemoMenuSelectedDescriptionComponent markerComponent = new DemoMenuSelectedDescriptionComponent();
+            MenuSelectedDescriptionComponent markerComponent = new MenuSelectedDescriptionComponent();
             SceneComponentAssetRecord markerRecord = DemoMenuSelectedDescriptionDescriptor.SerializeComponent(markerComponent, 0, null);
             SceneComponentAssetRecord textRecord = SerializeTextComponent(description, fontPath, color, new int2(500, 64), 41);
 

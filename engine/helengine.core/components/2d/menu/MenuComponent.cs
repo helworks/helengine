@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Stores demo-disc menu build metadata and drives runtime navigation against the baked menu hierarchy.
     /// </summary>
-    public class DemoMenuBuildComponent : UpdateComponent {
+    public class MenuComponent : UpdateComponent {
         /// <summary>
         /// Current payload version used by scene persistence for the baked demo menu root component.
         /// </summary>
@@ -11,7 +11,7 @@ namespace helengine {
         /// <summary>
         /// Stable serialized component type id used by baked demo menu scene records.
         /// </summary>
-        public const string SerializedComponentTypeId = "helengine.DemoMenuBuildComponent";
+        public const string SerializedComponentTypeId = "helengine.MenuComponent";
 
         /// <summary>
         /// Baked panels keyed by stable panel id.
@@ -56,7 +56,7 @@ namespace helengine {
         /// <summary>
         /// Initializes a new baked demo menu root component.
         /// </summary>
-        public DemoMenuBuildComponent() {
+        public MenuComponent() {
             PanelsById = new Dictionary<string, DemoMenuPanelRuntime>(StringComparer.Ordinal);
             PanelHistory = new List<string>();
             ProviderTypeNameValue = string.Empty;
@@ -111,7 +111,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(entity));
             }
             if (string.IsNullOrWhiteSpace(InitialPanelIdValue)) {
-                throw new InvalidOperationException("Demo menu build components require an initial panel id.");
+                throw new InvalidOperationException("Menu components require an initial panel id.");
             }
         }
 
@@ -168,10 +168,10 @@ namespace helengine {
             }
 
             List<Entity> panelEntities = new List<Entity>();
-            CollectEntitiesWithComponent<DemoMenuPanelComponent>(generatedRootEntity, panelEntities);
+            CollectEntitiesWithComponent<MenuPanelComponent>(generatedRootEntity, panelEntities);
             for (int panelIndex = 0; panelIndex < panelEntities.Count; panelIndex++) {
                 Entity panelEntity = panelEntities[panelIndex];
-                DemoMenuPanelComponent panelComponent = FindRequiredComponent<DemoMenuPanelComponent>(panelEntity);
+                MenuPanelComponent panelComponent = FindRequiredComponent<MenuPanelComponent>(panelEntity);
                 TextComponent selectedDescriptionText = ResolveSelectedDescriptionText(panelEntity);
                 DemoMenuItemRuntime[] itemRuntimes = BindItems(panelEntity, panelComponent.PanelId);
                 DemoMenuPanelRuntime panelRuntime = new DemoMenuPanelRuntime(panelComponent, panelEntity, selectedDescriptionText, itemRuntimes);
@@ -195,11 +195,11 @@ namespace helengine {
         /// <returns>Bound baked item runtime records.</returns>
         DemoMenuItemRuntime[] BindItems(Entity panelEntity, string panelId) {
             List<Entity> itemEntities = new List<Entity>();
-            CollectEntitiesWithComponent<DemoMenuItemComponent>(panelEntity, itemEntities);
+            CollectEntitiesWithComponent<MenuItemComponent>(panelEntity, itemEntities);
             DemoMenuItemRuntime[] itemRuntimes = new DemoMenuItemRuntime[itemEntities.Count];
             for (int itemIndex = 0; itemIndex < itemEntities.Count; itemIndex++) {
                 Entity itemEntity = itemEntities[itemIndex];
-                DemoMenuItemComponent itemComponent = FindRequiredComponent<DemoMenuItemComponent>(itemEntity);
+                MenuItemComponent itemComponent = FindRequiredComponent<MenuItemComponent>(itemEntity);
                 if (!string.Equals(itemComponent.PanelId, panelId, StringComparison.Ordinal)) {
                     throw new InvalidOperationException($"Baked menu item '{itemComponent.ItemId}' does not match panel '{panelId}'.");
                 }
@@ -311,7 +311,7 @@ namespace helengine {
         /// Executes one baked menu action.
         /// </summary>
         /// <param name="itemComponent">Serialized item metadata whose action should be executed.</param>
-        void ExecuteAction(DemoMenuItemComponent itemComponent) {
+        void ExecuteAction(MenuItemComponent itemComponent) {
             if (itemComponent == null) {
                 throw new ArgumentNullException(nameof(itemComponent));
             }
@@ -479,7 +479,7 @@ namespace helengine {
         /// <returns>Selected-description text component for the panel.</returns>
         TextComponent ResolveSelectedDescriptionText(Entity panelEntity) {
             List<Entity> markerEntities = new List<Entity>();
-            CollectEntitiesWithComponent<DemoMenuSelectedDescriptionComponent>(panelEntity, markerEntities);
+            CollectEntitiesWithComponent<MenuSelectedDescriptionComponent>(panelEntity, markerEntities);
             if (markerEntities.Count != 1) {
                 throw new InvalidOperationException("Each baked demo menu panel must contain exactly one selected-description marker.");
             }

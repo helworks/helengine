@@ -154,7 +154,7 @@ namespace helengine.editor.tests.tools {
             Assert.Equal(2, sceneAsset.RootEntities.Length);
 
             SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
-            SceneComponentAssetRecord buildRecord = Assert.Single(menuEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.DemoMenuBuildComponent", StringComparison.Ordinal));
+            SceneComponentAssetRecord buildRecord = Assert.Single(menuEntity.Components, component => string.Equals(component.ComponentTypeId, "helengine.MenuComponent", StringComparison.Ordinal));
             Assert.NotNull(buildRecord);
             Assert.NotEmpty(menuEntity.Children);
         }
@@ -198,9 +198,9 @@ namespace helengine.editor.tests.tools {
             }
 
             SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
-            SceneComponentAssetRecord menuRecord = Assert.Single(menuEntity.Components, component => component.ComponentTypeId == DemoMenuBuildComponent.SerializedComponentTypeId);
-            DemoMenuBuildComponentPersistenceDescriptor descriptor = new DemoMenuBuildComponentPersistenceDescriptor();
-            DemoMenuBuildComponent menuHostComponent = Assert.IsType<DemoMenuBuildComponent>(
+            SceneComponentAssetRecord menuRecord = Assert.Single(menuEntity.Components, component => component.ComponentTypeId == MenuComponent.SerializedComponentTypeId);
+            MenuComponentPersistenceDescriptor descriptor = new MenuComponentPersistenceDescriptor();
+            MenuComponent menuHostComponent = Assert.IsType<MenuComponent>(
                 descriptor.DeserializeComponent(menuRecord, null, new TestSceneAssetReferenceResolver()));
             return menuHostComponent.ProviderTypeName;
         }

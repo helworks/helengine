@@ -2,20 +2,20 @@ namespace helengine {
     /// <summary>
     /// Deserializes baked demo menu panel metadata for player builds.
     /// </summary>
-    public sealed class RuntimeDemoMenuPanelComponentDeserializer : IRuntimeComponentDeserializer {
+    public sealed class RuntimeMenuPanelComponentDeserializer : IRuntimeComponentDeserializer {
         /// <inheritdoc />
-        public string ComponentTypeId => DemoMenuPanelComponent.SerializedComponentTypeId;
+        public string ComponentTypeId => MenuPanelComponent.SerializedComponentTypeId;
 
         /// <inheritdoc />
         public Component Deserialize(SceneComponentAssetRecord record, RuntimeSceneAssetReferenceResolver referenceResolver) {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != DemoMenuPanelComponent.CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported demo menu panel component payload version '{version}'.");
+            if (version != MenuPanelComponent.CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported menu panel component payload version '{version}'.");
             }
 
-            return new DemoMenuPanelComponent {
+            return new MenuPanelComponent {
                 PanelId = reader.ReadString()
             };
         }
