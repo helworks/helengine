@@ -140,6 +140,10 @@ namespace helengine.editor {
         /// </summary>
         readonly Dictionary<FontAsset, string> FontLabels;
         /// <summary>
+        /// Builds reflected property descriptors for the default inspector path.
+        /// </summary>
+        readonly ReflectedComponentPropertyDescriptorBuilder DescriptorBuilder;
+        /// <summary>
         /// Render order used for label text.
         /// </summary>
         readonly byte TextOrder;
@@ -233,6 +237,7 @@ namespace helengine.editor {
             ModelLabels = new Dictionary<RuntimeModel, string>();
             MaterialLabels = new Dictionary<RuntimeMaterial, string>();
             FontLabels = new Dictionary<FontAsset, string>();
+            DescriptorBuilder = new ReflectedComponentPropertyDescriptorBuilder();
             CollapsedStates = new Dictionary<Component, bool>();
             TextOrder = RenderOrder2D.PanelForeground;
         }
@@ -376,75 +381,14 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="component">Component to inspect.</param>
         void AddPropertyRows(ComponentSectionView section, Component component) {
-            PropertyInfo[] properties = component.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public);
-            for (int i = 0; i < properties.Length; i++) {
-                PropertyInfo property = properties[i];
-                if (!ShouldShowProperty(property)) {
-                    continue;
-                }
-
-                Type propertyType = property.PropertyType;
-                bool isEditable = property.CanWrite;
-
-                if (propertyType == typeof(float3) && isEditable) {
-                    ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Vector3);
-                    BindPropertyRow(row, component, property);
-                    UpdateVectorRow(row);
-                    section.Rows.Add(row);
-                    ActiveRows.Add(row);
-                    continue;
-                }
-
-                if (propertyType == typeof(bool) && isEditable) {
-                    ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Boolean);
-                    BindPropertyRow(row, component, property);
-                    UpdateBooleanRow(row);
-                    section.Rows.Add(row);
-                    ActiveRows.Add(row);
-                    continue;
-                }
-
-                if (propertyType == typeof(RuntimeMaterial) && isEditable) {
-                    ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Material);
-                    BindPropertyRow(row, component, property);
-                    UpdateMaterialRow(row);
-                    section.Rows.Add(row);
-                    ActiveRows.Add(row);
-                    continue;
-                }
-
-                if (propertyType == typeof(FontAsset) && isEditable) {
-                    ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Font);
-                    BindPropertyRow(row, component, property);
-                    UpdateFontRow(row);
-                    section.Rows.Add(row);
-                    ActiveRows.Add(row);
-                    continue;
-                }
-
-                if (propertyType == typeof(RuntimeModel) && isEditable) {
-                    ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Model);
-                    BindPropertyRow(row, component, property);
-                    UpdateModelRow(row);
-                    section.Rows.Add(row);
-                    ActiveRows.Add(row);
-                    continue;
-                }
-
-                if (IsEditableScalar(propertyType) && isEditable) {
-                    ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Scalar);
-                    BindPropertyRow(row, component, property);
-                    UpdateScalarRow(row);
-                    section.Rows.Add(row);
-                    ActiveRows.Add(row);
-                    continue;
-                }
-
-                ComponentPropertyRow readOnly = AcquireRow(ComponentPropertyRowKind.ReadOnly);
-                BindPropertyRow(readOnly, component, property);
-                UpdateReadOnlyRow(readOnly);
-                section.Rows.Add(readOnly);
-                ActiveRows.Add(readOnly);
+            List<ReflectedComponentPropertyDescriptor> descriptors = DescriptorBuilder.Build(component.GetType());
+            for (int index = 0; index < descriptors.Count; index++) {
+                ReflectedComponentPropertyDescriptor descriptor = descriptors[index];
+                ComponentPropertyRow row = AcquireRow(descriptor.RowKind);
+                BindPropertyRow(row, component, descriptor);
+                UpdateRowValue(row);
+                section.Rows.Add(row);
+                ActiveRows.Add(row);
             }
         }
 
@@ -453,13 +397,47 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row to bind.</param>
         /// <param name="component">Component owning the property.</param>
-        /// <param name="property">Property metadata.</param>
-        void BindPropertyRow(ComponentPropertyRow row, Component component, PropertyInfo property) {
+        /// <param name="descriptor">Reflected property descriptor.</param>
+        void BindPropertyRow(ComponentPropertyRow row, Component component, ReflectedComponentPropertyDescriptor descriptor) {
             row.TargetComponent = component;
-            row.Property = property;
-            row.Label.Text = property.Name;
+            row.Property = descriptor.Property;
+            row.Label.Text = descriptor.DisplayName;
             row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
             row.Entity.Enabled = true;
+        }
+
+        /// <summary>
+        /// Updates one row according to its configured row kind.
+        /// </summary>
+        /// <param name="row">Row to update.</param>
+        void UpdateRowValue(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            switch (row.Kind) {
+                case ComponentPropertyRowKind.Vector3:
+                    UpdateVectorRow(row);
+                    break;
+                case ComponentPropertyRowKind.Material:
+                    UpdateMaterialRow(row);
+                    break;
+                case ComponentPropertyRowKind.Font:
+                    UpdateFontRow(row);
+                    break;
+                case ComponentPropertyRowKind.Model:
+                    UpdateModelRow(row);
+                    break;
+                case ComponentPropertyRowKind.Boolean:
+                    UpdateBooleanRow(row);
+                    break;
+                case ComponentPropertyRowKind.Scalar:
+                    UpdateScalarRow(row);
+                    break;
+                case ComponentPropertyRowKind.ReadOnly:
+                    UpdateReadOnlyRow(row);
+                    break;
+            }
         }
 
         /// <summary>
@@ -565,56 +543,6 @@ namespace helengine.editor {
             }
 
             row.ValueText.Text = EmptyAssetLabel;
-        }
-
-        /// <summary>
-        /// Determines whether a property should be shown in the list.
-        /// </summary>
-        /// <param name="property">Property metadata.</param>
-        /// <returns>True when the property is eligible for display.</returns>
-        bool ShouldShowProperty(PropertyInfo property) {
-            if (property == null) {
-                return false;
-            }
-
-            if (property.GetIndexParameters().Length > 0) {
-                return false;
-            }
-
-            if (!property.CanRead) {
-                return false;
-            }
-
-            if (string.Equals(property.Name, "Parent", StringComparison.Ordinal)) {
-                return false;
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Determines whether a property type should be edited as a scalar text field.
-        /// </summary>
-        /// <param name="propertyType">Property type to test.</param>
-        /// <returns>True when the type should use a scalar field.</returns>
-        bool IsEditableScalar(Type propertyType) {
-            if (propertyType == typeof(string)) {
-                return true;
-            }
-            if (propertyType == typeof(int) ||
-                propertyType == typeof(float) ||
-                propertyType == typeof(double) ||
-                propertyType == typeof(byte) ||
-                propertyType == typeof(short) ||
-                propertyType == typeof(long) ||
-                propertyType == typeof(uint) ||
-                propertyType == typeof(ulong) ||
-                propertyType == typeof(ushort) ||
-                propertyType == typeof(sbyte)) {
-                return true;
-            }
-
-            return false;
         }
 
         /// <summary>
