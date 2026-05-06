@@ -275,6 +275,46 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Add to Build preserves a selected scene that is outside the current visible scene-list viewport.
+        /// </summary>
+        [Fact]
+        public void HandleAddToBuildClicked_WhenSelectedSceneIsOutsideVisibleViewport_PreservesHiddenSelection() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialogAddRequest raisedRequest = null;
+            IReadOnlyList<string> sceneIds = CreateSceneIds(18);
+            dialog.AddRequested += request => raisedRequest = request;
+
+            dialog.Show(
+                ["windows"],
+                sceneIds,
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/Map14.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows"
+                        }
+                    ]
+                });
+
+            List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
+
+            Assert.DoesNotContain("Scenes/Map14.helen", mapLabelTexts.Select(label => label.Text));
+
+            InvokePrivate(dialog, "HandleAddToBuildClicked");
+
+            Assert.NotNull(raisedRequest);
+            Assert.Equal(
+                [
+                    "Scenes/Map14.helen"
+                ],
+                raisedRequest.SelectedSceneIds);
+        }
+
+        /// <summary>
         /// Ensures switching to another platform restores that platform's saved debug-build value.
         /// </summary>
         [Fact]
@@ -1391,6 +1431,62 @@ namespace helengine.editor.tests {
 
             Assert.Equal(0, queueScrollComponent.ScrollOffset);
             Assert.Contains("platform-1 | Pending", queueItemTexts[0].Text);
+        }
+
+        /// <summary>
+        /// Ensures the scene list uses a scroll viewport when the active platform exposes more scenes than fit inside the bordered list area.
+        /// </summary>
+        [Fact]
+        public void Show_WhenSceneRowsExceedViewport_VirtualizesRowsAndRespondsToScrollOffset() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            IReadOnlyList<string> sceneIds = CreateSceneIds(18);
+
+            dialog.Show(
+                ["windows"],
+                sceneIds,
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/Map00.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows"
+                        }
+                    ]
+                });
+
+            ScrollComponent sceneListScrollComponent = GetPrivateField<ScrollComponent>(dialog, "SceneListScrollComponent");
+            List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
+
+            Assert.True(sceneListScrollComponent.MaximumScrollOffset > 0);
+            Assert.Equal(sceneListScrollComponent.VisibleItemCount, mapLabelTexts.Count);
+            Assert.Equal("Scenes/Map00.helen", mapLabelTexts[0].Text);
+
+            Assert.True(sceneListScrollComponent.ScrollTo(1));
+
+            Assert.Equal("Scenes/Map01.helen", mapLabelTexts[0].Text);
+            Assert.DoesNotContain("Scenes/Map00.helen", mapLabelTexts[0].Text);
+
+            dialog.Show(
+                ["windows"],
+                sceneIds,
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/Map00.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows"
+                        }
+                    ]
+                });
+
+            Assert.Equal(0, sceneListScrollComponent.ScrollOffset);
+            Assert.Equal("Scenes/Map00.helen", mapLabelTexts[0].Text);
         }
 
         /// <summary>
