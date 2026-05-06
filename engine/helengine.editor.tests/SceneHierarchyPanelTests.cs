@@ -282,6 +282,47 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the Scene Hierarchy content camera renders below the shared modal UI camera tier.
+        /// </summary>
+        [Fact]
+        public void RefreshHierarchy_UsesPanelContentCameraTierBelowModalUiTier() {
+            new EditorEntity {
+                Name = "Hierarchy Camera Tier Entity"
+            };
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+                Position = new float3(40f, 64f, 0f),
+                Size = new int2(320, 176)
+            };
+
+            panel.RefreshHierarchy();
+
+            CameraComponent contentCamera = GetPrivateField<CameraComponent>(panel, "contentCameraComponent");
+
+            Assert.True(contentCamera.CameraDrawOrder < EditorUiCameraDrawOrders.ModalUi);
+            Assert.Equal(EditorUiCameraDrawOrders.PanelContent, contentCamera.CameraDrawOrder);
+        }
+
+        /// <summary>
+        /// Ensures modal UI rendering always uses a later camera tier than Scene Hierarchy content.
+        /// </summary>
+        [Fact]
+        public void RefreshHierarchy_WhenModalUiTierIsCompared_RendersBelowModalDialogs() {
+            new EditorEntity {
+                Name = "Modal Comparison Entity"
+            };
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+                Position = new float3(24f, 32f, 0f),
+                Size = new int2(320, 176)
+            };
+
+            panel.RefreshHierarchy();
+
+            CameraComponent contentCamera = GetPrivateField<CameraComponent>(panel, "contentCameraComponent");
+
+            Assert.True(EditorUiCameraDrawOrders.ModalUi > contentCamera.CameraDrawOrder);
+        }
+
+        /// <summary>
         /// Ensures rows outside the visible Scene Hierarchy viewport are not hit by pointer resolution.
         /// </summary>
         [Fact]
