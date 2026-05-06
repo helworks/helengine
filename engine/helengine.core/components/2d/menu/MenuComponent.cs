@@ -19,6 +19,11 @@ namespace helengine {
         readonly Dictionary<string, MenuPanelRuntime> PanelsById;
 
         /// <summary>
+        /// Baked panels stored in deterministic iteration order for runtime activation updates.
+        /// </summary>
+        readonly List<MenuPanelRuntime> PanelRuntimes;
+
+        /// <summary>
         /// History stack used by Back actions.
         /// </summary>
         readonly List<string> PanelHistory;
@@ -58,6 +63,7 @@ namespace helengine {
         /// </summary>
         public MenuComponent() {
             PanelsById = new Dictionary<string, MenuPanelRuntime>(StringComparer.Ordinal);
+            PanelRuntimes = new List<MenuPanelRuntime>();
             PanelHistory = new List<string>();
             ProviderTypeNameValue = string.Empty;
             InitialPanelIdValue = string.Empty;
@@ -160,6 +166,7 @@ namespace helengine {
         /// <param name="rootEntity">Owning menu root entity.</param>
         void BindPanels(Entity rootEntity) {
             PanelsById.Clear();
+            PanelRuntimes.Clear();
             PanelHistory.Clear();
 
             Entity generatedRootEntity = FindGeneratedRootEntity(rootEntity);
@@ -180,6 +187,7 @@ namespace helengine {
                 }
 
                 PanelsById.Add(panelComponent.PanelId, panelRuntime);
+                PanelRuntimes.Add(panelRuntime);
             }
 
             if (PanelsById.Count == 0) {
@@ -229,9 +237,12 @@ namespace helengine {
                 if (pushHistory && !string.Equals(ActivePanel.Definition.PanelId, panelId, StringComparison.Ordinal)) {
                     PanelHistory.Add(ActivePanel.Definition.PanelId);
                 }
+            }
 
-                ActivePanel.RootEntity.Enabled = false;
-                ClearSelectionVisuals(ActivePanel);
+            for (int panelIndex = 0; panelIndex < PanelRuntimes.Count; panelIndex++) {
+                MenuPanelRuntime panelRuntime = PanelRuntimes[panelIndex];
+                panelRuntime.RootEntity.Enabled = false;
+                ClearSelectionVisuals(panelRuntime);
             }
 
             ActivePanel = nextPanel;

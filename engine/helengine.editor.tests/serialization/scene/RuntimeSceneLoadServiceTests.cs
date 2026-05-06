@@ -290,17 +290,13 @@ namespace helengine.editor.tests.serialization.scene {
             Directory.CreateDirectory(assetsRootPath);
             Directory.CreateDirectory(buildRootPath);
 
-            string titleFontPath = Path.Combine(assetsRootPath, "Fonts", "DemoDiscTitle.hefont");
+            string titleFontPath = Path.Combine(assetsRootPath, "Fonts", "DemoDiscTitle.ttf");
             Directory.CreateDirectory(Path.GetDirectoryName(titleFontPath));
-            using (FileStream titleFontStream = new FileStream(titleFontPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                FontAssetBinarySerializer.Serialize(titleFontStream, CreateFont());
-            }
+            File.WriteAllBytes(titleFontPath, new byte[] { 1, 2, 3, 4 });
 
-            string bodyFontPath = Path.Combine(assetsRootPath, "Fonts", "DemoDiscBody.hefont");
+            string bodyFontPath = Path.Combine(assetsRootPath, "Fonts", "DemoDiscBody.ttf");
             Directory.CreateDirectory(Path.GetDirectoryName(bodyFontPath));
-            using (FileStream bodyFontStream = new FileStream(bodyFontPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                FontAssetBinarySerializer.Serialize(bodyFontStream, CreateFont());
-            }
+            File.WriteAllBytes(bodyFontPath, new byte[] { 5, 6, 7, 8 });
 
             SceneAsset authoredSceneAsset = BuildDemoMenuSceneAsset();
             string authoredScenePath = Path.Combine(assetsRootPath, "Scenes", "TestMenu.helen");
@@ -311,7 +307,9 @@ namespace helengine.editor.tests.serialization.scene {
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 projectRootPath,
-                Array.Empty<IAssetImporterRegistration>(),
+                new IAssetImporterRegistration[] {
+                    new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" })
+                },
                 CreateFont());
             packager.Package(new[] { "Scenes/TestMenu.helen" }, buildRootPath);
 
@@ -338,6 +336,73 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.False(menuHostComponent.IsInitialized);
             Assert.Single(loadedRoot.Children);
             Assert.NotEmpty(loadedRoot.Children[0].Children);
+        }
+
+        /// <summary>
+        /// Ensures baked menu initialization hides inactive panels so only the selected startup panel remains visible.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneContainsBakedDemoMenu_InitializesOnlyTheInitialPanelAsEnabled() {
+            string projectRootPath = Path.Combine(TempRootPath, "menu-panel-visibility-project");
+            string assetsRootPath = Path.Combine(projectRootPath, "assets");
+            string buildRootPath = Path.Combine(TempRootPath, "menu-panel-visibility-build");
+            Directory.CreateDirectory(assetsRootPath);
+            Directory.CreateDirectory(buildRootPath);
+
+            string titleFontPath = Path.Combine(assetsRootPath, "Fonts", "DemoDiscTitle.ttf");
+            Directory.CreateDirectory(Path.GetDirectoryName(titleFontPath));
+            File.WriteAllBytes(titleFontPath, new byte[] { 1, 2, 3, 4 });
+
+            string bodyFontPath = Path.Combine(assetsRootPath, "Fonts", "DemoDiscBody.ttf");
+            Directory.CreateDirectory(Path.GetDirectoryName(bodyFontPath));
+            File.WriteAllBytes(bodyFontPath, new byte[] { 5, 6, 7, 8 });
+
+            SceneAsset authoredSceneAsset = BuildDemoMenuSceneAsset();
+            string authoredScenePath = Path.Combine(assetsRootPath, "Scenes", "TestMenu.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(authoredScenePath));
+            using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
+            }
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                projectRootPath,
+                new IAssetImporterRegistration[] {
+                    new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" })
+                },
+                CreateFont());
+            packager.Package(new[] { "Scenes/TestMenu.helen" }, buildRootPath);
+
+            SceneAsset sceneAsset;
+            string packagedScenePath = Path.Combine(
+                buildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            using (FileStream packagedSceneStream = File.OpenRead(packagedScenePath)) {
+                sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            }
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                buildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            Entity loadedRoot = Assert.Single(loadedRoots, entity => entity.Components.Any(component => component is MenuComponent));
+            MenuComponent menuHostComponent = Assert.IsType<MenuComponent>(Assert.Single(loadedRoot.Components, component => component is MenuComponent));
+            menuHostComponent.Update();
+
+            List<Entity> panelEntities = new List<Entity>();
+            CollectEntitiesWithComponent<MenuPanelComponent>(loadedRoot, panelEntities);
+
+            Entity mainPanel = Assert.Single(panelEntities, entity => entity.Components.OfType<MenuPanelComponent>().Any(component => component.PanelId == "main"));
+            Entity optionsPanel = Assert.Single(panelEntities, entity => entity.Components.OfType<MenuPanelComponent>().Any(component => component.PanelId == "options"));
+            MenuPanelComponent activePanelComponent = Assert.IsType<MenuPanelComponent>(Assert.Single(mainPanel.Components, component => component is MenuPanelComponent));
+
+            Assert.True(menuHostComponent.IsInitialized);
+            Assert.Equal("main", menuHostComponent.ActivePanelId);
+            Assert.Equal(activePanelComponent.PanelId, menuHostComponent.ActivePanelId);
+            Assert.True(mainPanel.Enabled);
+            Assert.False(optionsPanel.Enabled);
         }
 
         /// <summary>
@@ -641,8 +706,8 @@ namespace helengine.editor.tests.serialization.scene {
                     "Demo",
                     "Runtime",
                     "main",
-                    "Fonts/DemoDiscTitle.hefont",
-                    "Fonts/DemoDiscBody.hefont",
+                    "Fonts/DemoDiscTitle.ttf",
+                    "Fonts/DemoDiscBody.ttf",
                     new byte4(10, 10, 20, 255),
                     new byte4(30, 30, 50, 255),
                     new byte4(60, 60, 90, 255),
@@ -651,16 +716,52 @@ namespace helengine.editor.tests.serialization.scene {
                     new byte4(255, 255, 255, 255),
                     new byte4(210, 210, 220, 255),
                     new[] {
-                        new MenuPanelDefinition(
+                    new MenuPanelDefinition(
                             "main",
                             "Main Menu",
                             "Runtime test panel.",
                             4,
                             new[] {
-                                new MenuItemDefinition("select-scene", "Select Scene", "Loads a scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "Scenes/TestPlayableScene.helen")),
+                                new MenuItemDefinition("open-options", "Options", "Opens the options panel.", true, new MenuActionDefinition(MenuActionKind.OpenPanel, "options")),
                                 new MenuItemDefinition("back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
+                            }),
+                        new MenuPanelDefinition(
+                            "options",
+                            "Options",
+                            "Secondary runtime test panel.",
+                            4,
+                            new[] {
+                                new MenuItemDefinition("load-scene", "Select Scene", "Loads a scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "Scenes/TestPlayableScene.helen")),
+                                new MenuItemDefinition("options-back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
                             })
                     }));
+        }
+
+        /// <summary>
+        /// Recursively collects entities that contain the supplied component type.
+        /// </summary>
+        /// <typeparam name="TComponent">Component type that marks a matching entity.</typeparam>
+        /// <param name="entity">Root entity to inspect.</param>
+        /// <param name="entities">Destination list receiving matching entities.</param>
+        void CollectEntitiesWithComponent<TComponent>(Entity entity, List<Entity> entities) where TComponent : Component {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+            if (entities == null) {
+                throw new ArgumentNullException(nameof(entities));
+            }
+
+            if (entity.Components != null && entity.Components.Any(component => component is TComponent)) {
+                entities.Add(entity);
+            }
+
+            if (entity.Children == null) {
+                return;
+            }
+
+            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                CollectEntitiesWithComponent<TComponent>(entity.Children[childIndex], entities);
+            }
         }
 
         /// <summary>
