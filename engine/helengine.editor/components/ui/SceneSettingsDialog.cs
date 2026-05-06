@@ -164,6 +164,7 @@ namespace helengine.editor {
             CanvasWidthFieldHost = CreateDialogHost();
             DialogPanelRoot.AddChild(CanvasWidthFieldHost);
             CanvasWidthField = new TextBoxComponent(GetFieldSize(), DialogFont, "1280");
+            CanvasWidthField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CanvasWidthFieldHost.AddComponent(CanvasWidthField);
 
             CanvasHeightLabelHost = CreateDialogHost();
@@ -174,6 +175,7 @@ namespace helengine.editor {
             CanvasHeightFieldHost = CreateDialogHost();
             DialogPanelRoot.AddChild(CanvasHeightFieldHost);
             CanvasHeightField = new TextBoxComponent(GetFieldSize(), DialogFont, "720");
+            CanvasHeightField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CanvasHeightFieldHost.AddComponent(CanvasHeightField);
 
             StatusHost = CreateDialogHost();
