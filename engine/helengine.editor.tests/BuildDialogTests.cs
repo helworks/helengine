@@ -788,7 +788,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures one queue row is rendered for each persisted queued build item.
+        /// Ensures one queue row is rendered for each persisted queued build item and cards omit verbose status-message text.
         /// </summary>
         [Fact]
         public void Show_WhenQueueItemsProvided_RendersOneQueueRowPerItem() {
@@ -817,7 +817,15 @@ namespace helengine.editor.tests {
                                 "Scenes/City.helen"
                             ],
                             OutputDirectoryPath = @"C:\builds\windows",
-                            Status = EditorBuildQueueItemStatus.Pending
+                            Status = EditorBuildQueueItemStatus.Pending,
+                            DebugBuild = true,
+                            SelectedBuildProfileId = "b1",
+                            SelectedGraphicsProfileId = "g1",
+                            SelectedCodegenProfileId = "c1",
+                            SelectedCodeModuleIds = [
+                                "gameplay",
+                                "ai"
+                            ]
                         },
                         new EditorBuildQueueItemDocument {
                             QueueItemId = "queue-2",
@@ -833,12 +841,17 @@ namespace helengine.editor.tests {
                 });
 
             List<TextComponent> queueItemTexts = GetPrivateField<List<TextComponent>>(dialog, "QueueItemTexts");
+            string[] firstLines = queueItemTexts[0].Text.Split('\n');
+            string[] secondLines = queueItemTexts[1].Text.Split('\n');
 
             Assert.Equal(2, queueItemTexts.Count);
-            Assert.Contains('\n', queueItemTexts[0].Text);
-            Assert.Contains("Pending", queueItemTexts[0].Text);
-            Assert.Contains("Failed", queueItemTexts[1].Text);
-            Assert.Contains("\nUnsupported scene format.", queueItemTexts[1].Text);
+            Assert.Equal(3, firstLines.Length);
+            Assert.Equal("windows | Pending", firstLines[0]);
+            Assert.Equal("1 scene(s) | Debug", firstLines[1]);
+            Assert.Equal("build b1 | gfx g1 | codegen c1 | modules 2", firstLines[2]);
+            Assert.Equal("windows | Failed", secondLines[0]);
+            Assert.Equal("1 scene(s) | Release", secondLines[1]);
+            Assert.DoesNotContain("Unsupported scene format.", queueItemTexts[1].Text);
         }
 
         /// <summary>
@@ -1098,12 +1111,11 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures a long queue-row status message is clipped on the second line before it reaches the remove button.
+        /// Ensures a long optional capability summary is clipped on the third line before it reaches the remove button lane.
         /// </summary>
         [Fact]
-        public void Show_WhenQueueItemsProvided_ClipsStatusMessageOnSecondLine() {
+        public void Show_WhenQueueItemsProvided_ClipsCapabilitySummaryOnThirdLine() {
             BuildDialog dialog = new BuildDialog(CreateFont());
-            string longStatusMessage = "This queue status message is intentionally long enough to overflow the row width and needs clipping before it is rendered in the second line of the card.";
             dialog.Show(
                 ["windows"],
                 [
@@ -1128,7 +1140,16 @@ namespace helengine.editor.tests {
                             ],
                             OutputDirectoryPath = @"C:\builds\windows",
                             Status = EditorBuildQueueItemStatus.Failed,
-                            StatusMessage = longStatusMessage
+                            DebugBuild = false,
+                            SelectedBuildProfileId = "build-profile-with-a-very-long-name",
+                            SelectedGraphicsProfileId = "graphics-profile-with-a-very-long-name",
+                            SelectedCodegenProfileId = "codegen-profile-with-a-very-long-name",
+                            SelectedCodeModuleIds = [
+                                "gameplay",
+                                "ai",
+                                "editor"
+                            ],
+                            StatusMessage = "This failure belongs in the build log, not in the card."
                         }
                     ]
                 });
@@ -1136,10 +1157,64 @@ namespace helengine.editor.tests {
             TextComponent queueText = Assert.Single(GetPrivateField<List<TextComponent>>(dialog, "QueueItemTexts"));
             string[] lines = queueText.Text.Split('\n');
 
-            Assert.Equal(2, lines.Length);
-            Assert.StartsWith("windows | Failed | 1 scene(s)", lines[0]);
-            Assert.DoesNotContain(longStatusMessage, lines[1]);
-            Assert.EndsWith("...", lines[1]);
+            Assert.Equal(3, lines.Length);
+            Assert.Equal("windows | Failed", lines[0]);
+            Assert.Equal("1 scene(s) | Release", lines[1]);
+            Assert.DoesNotContain("This failure belongs in the build log, not in the card.", queueText.Text);
+            Assert.EndsWith("...", lines[2]);
+        }
+
+        /// <summary>
+        /// Ensures the queue-card text width is reduced before layout so the remove button keeps a dedicated right-edge lane.
+        /// </summary>
+        [Fact]
+        public void Show_WhenQueueItemsProvided_ReservesTextWidthForRemoveButton() {
+            BuildDialog dialog = new BuildDialog(CreateFont());
+
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ]
+                        }
+                    ],
+                    QueueItems = [
+                        new EditorBuildQueueItemDocument {
+                            QueueItemId = "queue-1",
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows",
+                            Status = EditorBuildQueueItemStatus.Pending,
+                            DebugBuild = true,
+                            SelectedBuildProfileId = "b1",
+                            SelectedGraphicsProfileId = "g1",
+                            SelectedCodegenProfileId = "c1",
+                            SelectedCodeModuleIds = [
+                                "gameplay",
+                                "ai"
+                            ]
+                        }
+                    ]
+                });
+
+            TextComponent queueText = Assert.Single(GetPrivateField<List<TextComponent>>(dialog, "QueueItemTexts"));
+            RoundedRectComponent queueCardBackground = Assert.Single(GetPrivateField<List<RoundedRectComponent>>(dialog, "QueueItemCardBackgrounds"));
+            EditorEntity removeButtonHost = Assert.Single(GetPrivateField<List<EditorEntity>>(dialog, "QueueItemRemoveButtonHosts"));
+
+            Assert.Equal(
+                queueCardBackground.Size.X - (BuildDialog.QueueCardTextPadding * 2) - BuildDialog.QueueCardRemoveButtonWidth - BuildDialog.QueueCardTextButtonGap,
+                queueText.Size.X);
+            Assert.True(removeButtonHost.LocalPosition.X >= queueText.Parent.LocalPosition.X + queueText.Size.X + BuildDialog.QueueCardTextButtonGap);
         }
 
         /// <summary>
@@ -1203,13 +1278,13 @@ namespace helengine.editor.tests {
             for (int index = 0; index < 9; index++) {
                 queueItems.Add(new EditorBuildQueueItemDocument {
                     QueueItemId = "queue-" + (index + 1).ToString(),
-                    PlatformId = "windows",
+                    PlatformId = "platform-" + (index + 1).ToString(),
                     SelectedSceneIds = [
                         "Scenes/City.helen"
                     ],
                     OutputDirectoryPath = @"C:\builds\windows",
                     Status = EditorBuildQueueItemStatus.Pending,
-                    StatusMessage = "queue item " + (index + 1).ToString()
+                    DebugBuild = index % 2 == 0
                 });
             }
 
@@ -1236,12 +1311,12 @@ namespace helengine.editor.tests {
 
             Assert.True(queueScrollComponent.MaximumScrollOffset > 0);
             Assert.Equal(queueScrollComponent.VisibleItemCount, queueItemTexts.Count);
-            Assert.Contains("queue item 1", queueItemTexts[0].Text);
+            Assert.Contains("platform-1 | Pending", queueItemTexts[0].Text);
 
             Assert.True(queueScrollComponent.ScrollTo(1));
 
-            Assert.Contains("queue item 2", queueItemTexts[0].Text);
-            Assert.DoesNotContain("queue item 1", queueItemTexts[0].Text);
+            Assert.Contains("platform-2 | Pending", queueItemTexts[0].Text);
+            Assert.DoesNotContain("platform-1 | Pending", queueItemTexts[0].Text);
 
             dialog.Show(
                 ["windows"],
@@ -1262,7 +1337,7 @@ namespace helengine.editor.tests {
                 });
 
             Assert.Equal(0, queueScrollComponent.ScrollOffset);
-            Assert.Contains("queue item 1", queueItemTexts[0].Text);
+            Assert.Contains("platform-1 | Pending", queueItemTexts[0].Text);
         }
 
         /// <summary>
