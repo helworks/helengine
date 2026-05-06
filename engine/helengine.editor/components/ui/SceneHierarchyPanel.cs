@@ -102,7 +102,7 @@ namespace helengine.editor {
             };
             contentCameraComponent = new CameraComponent {
                 LayerMask = EditorLayerMasks.SceneHierarchyContent,
-                CameraDrawOrder = 255,
+                CameraDrawOrder = EditorUiCameraDrawOrders.PanelContent,
                 ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), false, 1.0f, false, 0)
             };
             contentCameraEntity.AddComponent(contentCameraComponent);

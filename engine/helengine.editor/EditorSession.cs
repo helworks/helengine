@@ -422,7 +422,7 @@ namespace helengine.editor {
             uiCameraEntity.Position = new float3(0, 3, -8);
             uiCameraComponent = new CameraComponent();
             uiCameraComponent.LayerMask = EditorLayerMasks.EditorUi;
-            uiCameraComponent.CameraDrawOrder = 255;
+            uiCameraComponent.CameraDrawOrder = EditorUiCameraDrawOrders.ModalUi;
             uiCameraComponent.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), false, 1.0f, false, 0);
             uiCameraEntity.AddComponent(uiCameraComponent);
 
