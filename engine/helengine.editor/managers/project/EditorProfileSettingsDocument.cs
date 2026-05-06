@@ -1,6 +1,6 @@
 namespace helengine.editor {
     /// <summary>
-    /// Represents editor-local platform profile settings stored in `user_settings/profile_config.json`.
+    /// Represents project-shared platform profile settings aggregated from `settings/platform.<platform-id>.json` files.
     /// </summary>
     public sealed class EditorProfileSettingsDocument {
         /// <summary>

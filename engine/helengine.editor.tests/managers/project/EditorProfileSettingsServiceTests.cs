@@ -3,7 +3,7 @@ using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies editor-local platform profile settings persistence.
+    /// Verifies project-shared platform profile settings persistence.
     /// </summary>
     public sealed class EditorProfileSettingsServiceTests : IDisposable {
         /// <summary>
@@ -29,10 +29,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures a missing profile file seeds one default profile per supported platform.
+        /// Ensures a missing settings directory seeds one default profile per supported platform.
         /// </summary>
         [Fact]
-        public void Load_WhenProfileFileIsMissing_SeedsDefaultBuildAndGraphicsProfilesForEachSupportedPlatform() {
+        public void Load_WhenPlatformFilesAreMissing_SeedsDefaultBuildAndGraphicsProfilesForEachSupportedPlatform() {
             EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
 
             EditorProfileSettingsDocument document = service.Load(new List<string> { "windows", "ps2" });
@@ -42,31 +42,51 @@ namespace helengine.editor.tests {
             Assert.Equal(100, document.Platforms[0].Build.TextureScalePercent);
             Assert.True(document.Platforms[0].Graphics.VSyncEnabled);
             Assert.Equal("ps2", document.Platforms[1].PlatformId);
+            Assert.True(File.Exists(Path.Combine(TempRootPath, "settings", "platform.windows.json")));
+            Assert.True(File.Exists(Path.Combine(TempRootPath, "settings", "platform.ps2.json")));
         }
 
         /// <summary>
-        /// Ensures saved profile values survive a reload.
+        /// Ensures saving one multi-platform document writes one file per platform.
+        /// </summary>
+        [Fact]
+        public void Save_WhenOnePlatformChanges_WritesOnlyPerPlatformFiles() {
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+            EditorProfileSettingsDocument document = CreateProfileDocument("windows", "ps2");
+
+            service.Save(document);
+
+            Assert.True(File.Exists(Path.Combine(TempRootPath, "settings", "platform.windows.json")));
+            Assert.True(File.Exists(Path.Combine(TempRootPath, "settings", "platform.ps2.json")));
+            Assert.False(File.Exists(Path.Combine(TempRootPath, "user_settings", "profile_config.json")));
+        }
+
+        /// <summary>
+        /// Ensures loading one supported subset leaves an unavailable platform file untouched on disk.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSupportedPlatformIsUnavailable_LeavesItsFileUntouched() {
+            SeedPlatformProfileFile("windows", "50");
+            SeedPlatformProfileFile("ps2", "75");
+            string ps2FilePath = Path.Combine(TempRootPath, "settings", "platform.ps2.json");
+            string originalPs2Json = File.ReadAllText(ps2FilePath);
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+
+            EditorProfileSettingsDocument document = service.Load(new[] { "windows" });
+
+            Assert.Single(document.Platforms);
+            Assert.Equal("windows", document.Platforms[0].PlatformId);
+            Assert.True(File.Exists(ps2FilePath));
+            Assert.Equal(originalPs2Json, File.ReadAllText(ps2FilePath));
+        }
+
+        /// <summary>
+        /// Ensures saved profile values survive a reload through per-platform files.
         /// </summary>
         [Fact]
         public void SaveAndReload_PreservesPlatformSpecificBuildAndGraphicsProfileValues() {
             EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
-            EditorProfileSettingsDocument document = new EditorProfileSettingsDocument {
-                Platforms = new List<EditorPlatformProfileSettingsDocument> {
-                    new EditorPlatformProfileSettingsDocument {
-                        PlatformId = "windows",
-                        Build = new EditorBuildProfileSettingsDocument {
-                            TextureScalePercent = 75,
-                            ShaderVariantPruningEnabled = false
-                        },
-                        Graphics = new EditorGraphicsProfileSettingsDocument {
-                            DefaultWidth = 1920,
-                            DefaultHeight = 1080,
-                            VSyncEnabled = false,
-                            FullscreenEnabled = true
-                        }
-                    }
-                }
-            };
+            EditorProfileSettingsDocument document = CreateProfileDocument("windows");
 
             service.Save(document);
 
@@ -74,6 +94,77 @@ namespace helengine.editor.tests {
             Assert.Equal(75, reloaded.Platforms[0].Build.TextureScalePercent);
             Assert.False(reloaded.Platforms[0].Graphics.VSyncEnabled);
             Assert.True(reloaded.Platforms[0].Graphics.FullscreenEnabled);
+        }
+
+        /// <summary>
+        /// Creates one multi-platform profile document with stable values for the supplied platforms.
+        /// </summary>
+        /// <param name="platformIds">Platform identifiers that should be included in the document.</param>
+        /// <returns>Profile document containing one record per requested platform.</returns>
+        EditorProfileSettingsDocument CreateProfileDocument(params string[] platformIds) {
+            List<EditorPlatformProfileSettingsDocument> platforms = new List<EditorPlatformProfileSettingsDocument>(platformIds.Length);
+
+            for (int index = 0; index < platformIds.Length; index++) {
+                string platformId = platformIds[index];
+                platforms.Add(new EditorPlatformProfileSettingsDocument {
+                    PlatformId = platformId,
+                    Build = new EditorBuildProfileSettingsDocument {
+                        TextureScalePercent = index == 0 ? 75 : 50,
+                        ShaderVariantPruningEnabled = index != 0
+                    },
+                    Graphics = new EditorGraphicsProfileSettingsDocument {
+                        DefaultWidth = 1920,
+                        DefaultHeight = 1080,
+                        VSyncEnabled = false,
+                        FullscreenEnabled = true
+                    },
+                    Codegen = new EditorCodegenProfileSettingsDocument {
+                        SelectedCodegenProfileId = "default"
+                    }
+                });
+            }
+
+            return new EditorProfileSettingsDocument {
+                Platforms = platforms
+            };
+        }
+
+        /// <summary>
+        /// Seeds one per-platform profile file with the supplied texture scale value.
+        /// </summary>
+        /// <param name="platformId">Platform identifier whose file should be written.</param>
+        /// <param name="textureScalePercent">Texture scale value persisted into the file.</param>
+        void SeedPlatformProfileFile(string platformId, string textureScalePercent) {
+            Directory.CreateDirectory(Path.Combine(TempRootPath, "settings"));
+            File.WriteAllText(
+                Path.Combine(TempRootPath, "settings", $"platform.{platformId}.json"),
+                $$"""
+                {
+                  "platformId": "{{platformId}}",
+                  "build": {
+                    "selectedBuildProfileId": "",
+                    "textureScalePercent": {{textureScalePercent}},
+                    "shaderVariantPruningEnabled": true,
+                    "selectedOptionValues": {}
+                  },
+                  "graphics": {
+                    "selectedGraphicsProfileId": "",
+                    "defaultWidth": 1280,
+                    "defaultHeight": 720,
+                    "vSyncEnabled": true,
+                    "fullscreenEnabled": false,
+                    "rendererDepthPrepassMode": 0,
+                    "rendererShadowQualityTier": "medium",
+                    "rendererHdrEnabled": true,
+                    "rendererPostProcessTier": 2,
+                    "selectedOptionValues": {}
+                  },
+                  "codegen": {
+                    "selectedCodegenProfileId": "",
+                    "selectedOptionValues": {}
+                  }
+                }
+                """);
         }
     }
 }

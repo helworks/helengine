@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace helengine.editor {
     /// <summary>
-    /// Loads and persists editor-local platform profile settings stored in `user_settings/profile_config.json`.
+    /// Loads and persists project-shared platform profile settings stored in `settings/platform.<platform-id>.json`.
     /// </summary>
     public sealed class EditorProfileSettingsService {
         /// <summary>
@@ -20,9 +20,18 @@ namespace helengine.editor {
         string ProjectRootPath { get; }
 
         /// <summary>
-        /// Gets the absolute path to `user_settings/profile_config.json`.
+        /// Gets the absolute path to the shared `settings` directory.
         /// </summary>
-        string ProfileConfigFilePath {
+        string SettingsDirectoryPath {
+            get {
+                return Path.Combine(ProjectRootPath, "settings");
+            }
+        }
+
+        /// <summary>
+        /// Gets the absolute path to the legacy `user_settings/profile_config.json` file.
+        /// </summary>
+        string LegacyProfileConfigFilePath {
             get {
                 return Path.Combine(ProjectRootPath, "user_settings", "profile_config.json");
             }
@@ -41,7 +50,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Loads the profile settings document, regenerating missing or invalid data and seeding newly supported platforms.
+        /// Loads the profile settings document, seeding one normalized platform file for each requested platform.
         /// </summary>
         /// <param name="supportedPlatforms">Supported platform identifiers declared by the current project.</param>
         /// <returns>Validated platform profile settings document for the current project.</returns>
@@ -50,29 +59,45 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(supportedPlatforms));
             }
 
-            EditorProfileSettingsDocument document = TryLoadDocument();
-            if (document == null) {
-                document = new EditorProfileSettingsDocument();
+            EditorProfileSettingsDocument existingDocument = TryLoadExisting();
+            EditorProfileSettingsDocument document = new EditorProfileSettingsDocument();
+            for (int index = 0; index < supportedPlatforms.Count; index++) {
+                string platformId = supportedPlatforms[index];
+                EditorPlatformProfileSettingsDocument platform = FindPlatform(existingDocument == null ? null : existingDocument.Platforms, platformId);
+                if (platform == null) {
+                    platform = CreatePlatformDocument(platformId);
+                } else {
+                    NormalizePlatform(platform, platformId);
+                }
+
+                document.Platforms.Add(platform);
             }
 
-            bool changed = NormalizePlatforms(document, supportedPlatforms);
-            if (!File.Exists(ProfileConfigFilePath) || changed) {
-                Save(document);
-            }
-
+            Save(document);
             return document;
         }
 
         /// <summary>
-        /// Attempts to load an existing profile settings document without seeding new platform entries.
+        /// Attempts to load existing profile settings without seeding new platform entries.
         /// </summary>
         /// <returns>Loaded profile settings document, or null when the file is missing or malformed.</returns>
         public EditorProfileSettingsDocument TryLoadExisting() {
-            return TryLoadDocument();
+            EditorProfileSettingsDocument document = TryLoadSplitDocument();
+            if (document != null && document.Platforms.Count > 0) {
+                return document;
+            }
+
+            document = TryLoadLegacyDocument();
+            if (document == null) {
+                return null;
+            }
+
+            Save(document);
+            return TryLoadSplitDocument();
         }
 
         /// <summary>
-        /// Persists the supplied profile settings document to `user_settings/profile_config.json`.
+        /// Persists the supplied profile settings document to one file per platform under `settings`.
         /// </summary>
         /// <param name="document">Validated platform profile settings to persist.</param>
         public void Save(EditorProfileSettingsDocument document) {
@@ -80,47 +105,86 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(document));
             }
 
-            string settingsDirectoryPath = Path.GetDirectoryName(ProfileConfigFilePath);
-            Directory.CreateDirectory(settingsDirectoryPath);
+            Directory.CreateDirectory(SettingsDirectoryPath);
 
-            string json = JsonSerializer.Serialize(document, JsonSerializerOptions);
-            File.WriteAllText(ProfileConfigFilePath, json);
+            for (int index = 0; index < document.Platforms.Count; index++) {
+                EditorPlatformProfileSettingsDocument platform = document.Platforms[index];
+                if (platform == null) {
+                    continue;
+                }
+
+                NormalizePlatform(platform, platform.PlatformId);
+                string json = JsonSerializer.Serialize(platform, JsonSerializerOptions);
+                File.WriteAllText(GetPlatformFilePath(platform.PlatformId), json);
+            }
         }
 
         /// <summary>
-        /// Attempts to load the profile settings document from disk.
+        /// Gets the file path used for one platform's shared profile settings.
         /// </summary>
-        /// <returns>Loaded profile settings document, or null when the file is missing or malformed.</returns>
-        EditorProfileSettingsDocument TryLoadDocument() {
-            if (!File.Exists(ProfileConfigFilePath)) {
+        /// <param name="platformId">Platform identifier that owns the settings file.</param>
+        /// <returns>Absolute path to the platform settings file.</returns>
+        string GetPlatformFilePath(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            return Path.Combine(SettingsDirectoryPath, $"platform.{platformId}.json");
+        }
+
+        /// <summary>
+        /// Attempts to load one aggregated profile settings document from per-platform files.
+        /// </summary>
+        /// <returns>Aggregated platform profile settings document, or null when no valid platform files exist.</returns>
+        EditorProfileSettingsDocument TryLoadSplitDocument() {
+            if (!Directory.Exists(SettingsDirectoryPath)) {
+                return null;
+            }
+
+            string[] filePaths = Directory.GetFiles(SettingsDirectoryPath, "platform.*.json");
+            Array.Sort(filePaths, StringComparer.OrdinalIgnoreCase);
+
+            EditorProfileSettingsDocument document = new EditorProfileSettingsDocument();
+            for (int index = 0; index < filePaths.Length; index++) {
+                EditorPlatformProfileSettingsDocument platform = TryLoadPlatformDocument(filePaths[index]);
+                if (platform == null || string.IsNullOrWhiteSpace(platform.PlatformId)) {
+                    continue;
+                }
+
+                NormalizePlatform(platform, platform.PlatformId);
+                document.Platforms.Add(platform);
+            }
+
+            if (document.Platforms.Count == 0) {
+                return null;
+            }
+
+            return document;
+        }
+
+        /// <summary>
+        /// Attempts to load the legacy combined profile settings document from `user_settings/profile_config.json`.
+        /// </summary>
+        /// <returns>Loaded legacy document, or null when the file is missing or malformed.</returns>
+        EditorProfileSettingsDocument TryLoadLegacyDocument() {
+            if (!File.Exists(LegacyProfileConfigFilePath)) {
                 return null;
             }
 
             try {
-                string json = File.ReadAllText(ProfileConfigFilePath);
+                string json = File.ReadAllText(LegacyProfileConfigFilePath);
                 EditorProfileSettingsDocument document = JsonSerializer.Deserialize<EditorProfileSettingsDocument>(json, JsonSerializerOptions);
-                if (document == null) {
+                if (document == null || document.Platforms == null) {
                     return null;
                 }
 
-                document.Platforms ??= [];
                 for (int index = 0; index < document.Platforms.Count; index++) {
                     EditorPlatformProfileSettingsDocument platform = document.Platforms[index];
-                    if (platform == null) {
-                        document.Platforms[index] = new EditorPlatformProfileSettingsDocument();
+                    if (platform == null || string.IsNullOrWhiteSpace(platform.PlatformId)) {
                         continue;
                     }
 
-                    platform.Build ??= new EditorBuildProfileSettingsDocument();
-                    platform.Graphics ??= new EditorGraphicsProfileSettingsDocument();
-                    platform.Codegen ??= new EditorCodegenProfileSettingsDocument();
-                    platform.Build.SelectedBuildProfileId ??= string.Empty;
-                    platform.Graphics.SelectedGraphicsProfileId ??= string.Empty;
-                    platform.Graphics.RendererShadowQualityTier ??= "medium";
-                    platform.Build.SelectedOptionValues ??= [];
-                    platform.Graphics.SelectedOptionValues ??= [];
-                    platform.Codegen.SelectedCodegenProfileId ??= string.Empty;
-                    platform.Codegen.SelectedOptionValues ??= [];
+                    NormalizePlatform(platform, platform.PlatformId);
                 }
 
                 return document;
@@ -130,92 +194,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Ensures the supplied document contains one normalized profile entry for each supported platform.
+        /// Attempts to load one per-platform profile document from the supplied file path.
         /// </summary>
-        /// <param name="document">Profile settings document to normalize.</param>
-        /// <param name="supportedPlatforms">Supported platform identifiers declared by the current project.</param>
-        /// <returns>True when the document changed; otherwise false.</returns>
-        bool NormalizePlatforms(EditorProfileSettingsDocument document, IReadOnlyList<string> supportedPlatforms) {
-            bool changed = false;
-            List<EditorPlatformProfileSettingsDocument> normalizedPlatforms = new List<EditorPlatformProfileSettingsDocument>(supportedPlatforms.Count);
-
-            if (document.Platforms == null) {
-                document.Platforms = [];
-                changed = true;
+        /// <param name="filePath">Absolute path to the per-platform profile file.</param>
+        /// <returns>Loaded per-platform profile document, or null when the file is missing or malformed.</returns>
+        EditorPlatformProfileSettingsDocument TryLoadPlatformDocument(string filePath) {
+            if (!File.Exists(filePath)) {
+                return null;
             }
 
-            for (int i = 0; i < supportedPlatforms.Count; i++) {
-                string platformId = supportedPlatforms[i];
-                EditorPlatformProfileSettingsDocument platform = FindPlatform(document.Platforms, platformId);
-                if (platform == null) {
-                    normalizedPlatforms.Add(CreatePlatformDocument(platformId));
-                    changed = true;
-                    continue;
-                }
-
-                if (!string.Equals(platform.PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
-                    platform.PlatformId = platformId;
-                    changed = true;
-                }
-
-                if (platform.Build == null) {
-                    platform.Build = new EditorBuildProfileSettingsDocument();
-                    changed = true;
-                }
-                if (string.IsNullOrWhiteSpace(platform.Build.SelectedBuildProfileId)) {
-                    platform.Build.SelectedBuildProfileId = string.Empty;
-                    changed = true;
-                }
-                if (platform.Build.SelectedOptionValues == null) {
-                    platform.Build.SelectedOptionValues = [];
-                    changed = true;
-                }
-
-                if (platform.Graphics == null) {
-                    platform.Graphics = new EditorGraphicsProfileSettingsDocument();
-                    changed = true;
-                }
-                if (platform.Codegen == null) {
-                    platform.Codegen = new EditorCodegenProfileSettingsDocument();
-                    changed = true;
-                }
-                if (string.IsNullOrWhiteSpace(platform.Graphics.SelectedGraphicsProfileId)) {
-                    platform.Graphics.SelectedGraphicsProfileId = string.Empty;
-                    changed = true;
-                }
-                if (platform.Graphics.SelectedOptionValues == null) {
-                    platform.Graphics.SelectedOptionValues = [];
-                    changed = true;
-                }
-                if (string.IsNullOrWhiteSpace(platform.Graphics.RendererShadowQualityTier)) {
-                    platform.Graphics.RendererShadowQualityTier = "medium";
-                    changed = true;
-                }
-                if (string.IsNullOrWhiteSpace(platform.Codegen.SelectedCodegenProfileId)) {
-                    platform.Codegen.SelectedCodegenProfileId = string.Empty;
-                    changed = true;
-                }
-                if (platform.Codegen.SelectedOptionValues == null) {
-                    platform.Codegen.SelectedOptionValues = [];
-                    changed = true;
-                }
-
-                normalizedPlatforms.Add(platform);
+            try {
+                string json = File.ReadAllText(filePath);
+                return JsonSerializer.Deserialize<EditorPlatformProfileSettingsDocument>(json, JsonSerializerOptions);
+            } catch {
+                return null;
             }
-
-            if (document.Platforms.Count != normalizedPlatforms.Count) {
-                changed = true;
-            } else {
-                for (int i = 0; i < document.Platforms.Count; i++) {
-                    if (!ReferenceEquals(document.Platforms[i], normalizedPlatforms[i])) {
-                        changed = true;
-                        break;
-                    }
-                }
-            }
-
-            document.Platforms = normalizedPlatforms;
-            return changed;
         }
 
         /// <summary>
@@ -225,6 +218,10 @@ namespace helengine.editor {
         /// <param name="platformId">Platform identifier to locate.</param>
         /// <returns>Matching platform profile record when present; otherwise null.</returns>
         EditorPlatformProfileSettingsDocument FindPlatform(IReadOnlyList<EditorPlatformProfileSettingsDocument> platforms, string platformId) {
+            if (platforms == null) {
+                return null;
+            }
+
             for (int i = 0; i < platforms.Count; i++) {
                 EditorPlatformProfileSettingsDocument platform = platforms[i];
                 if (platform != null && string.Equals(platform.PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
@@ -241,12 +238,41 @@ namespace helengine.editor {
         /// <param name="platformId">Platform identifier the new profile record belongs to.</param>
         /// <returns>New platform profile document seeded with defaults.</returns>
         EditorPlatformProfileSettingsDocument CreatePlatformDocument(string platformId) {
-            return new EditorPlatformProfileSettingsDocument {
+            EditorPlatformProfileSettingsDocument document = new EditorPlatformProfileSettingsDocument {
                 PlatformId = platformId,
                 Build = new EditorBuildProfileSettingsDocument(),
                 Graphics = new EditorGraphicsProfileSettingsDocument(),
                 Codegen = new EditorCodegenProfileSettingsDocument()
             };
+
+            NormalizePlatform(document, platformId);
+            return document;
+        }
+
+        /// <summary>
+        /// Normalizes one platform profile document so required nested settings objects always exist.
+        /// </summary>
+        /// <param name="platform">Platform profile document to normalize.</param>
+        /// <param name="platformId">Canonical platform identifier for the document.</param>
+        void NormalizePlatform(EditorPlatformProfileSettingsDocument platform, string platformId) {
+            if (platform == null) {
+                throw new ArgumentNullException(nameof(platform));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            platform.PlatformId = platformId;
+            platform.Build ??= new EditorBuildProfileSettingsDocument();
+            platform.Graphics ??= new EditorGraphicsProfileSettingsDocument();
+            platform.Codegen ??= new EditorCodegenProfileSettingsDocument();
+            platform.Build.SelectedBuildProfileId ??= string.Empty;
+            platform.Build.SelectedOptionValues ??= [];
+            platform.Graphics.SelectedGraphicsProfileId ??= string.Empty;
+            platform.Graphics.SelectedOptionValues ??= [];
+            platform.Graphics.RendererShadowQualityTier ??= "medium";
+            platform.Codegen.SelectedCodegenProfileId ??= string.Empty;
+            platform.Codegen.SelectedOptionValues ??= [];
         }
     }
 }
