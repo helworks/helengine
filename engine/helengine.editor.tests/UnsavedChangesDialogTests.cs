@@ -94,6 +94,22 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the message and footer content are positioned immediately during Show without waiting for UpdateLayout.
+        /// </summary>
+        [Fact]
+        public void Show_WhenOpened_PositionsMessageAndFooterImmediately() {
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+
+            dialog.Show();
+
+            EditorEntity messageHost = GetPrivateField<EditorEntity>(dialog, "MessageHost");
+            EditorEntity footerHost = GetPrivateField<EditorEntity>(dialog, "FooterHost");
+
+            Assert.NotEqual(float3.Zero, messageHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, footerHost.LocalPosition);
+        }
+
+        /// <summary>
         /// Ensures the title bar touches the panel borders instead of using inset chrome.
         /// </summary>
         [Fact]

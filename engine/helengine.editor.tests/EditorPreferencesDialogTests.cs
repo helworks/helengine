@@ -69,6 +69,24 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the preferences controls are positioned immediately during Show without waiting for UpdateLayout.
+        /// </summary>
+        [Fact]
+        public void Show_WhenOpened_PositionsControlsImmediately() {
+            EditorPreferencesDialog dialog = new EditorPreferencesDialog(CreateFont(), new EditorUiMetrics(1d));
+
+            dialog.Show(new EditorUiScaleSettings(EditorUiScaleMode.Override, 150));
+
+            EditorEntity scaleModeComboBoxHost = GetPrivateField<EditorEntity>(dialog, "ScaleModeComboBoxHost");
+            EditorEntity scalePercentComboBoxHost = GetPrivateField<EditorEntity>(dialog, "ScalePercentComboBoxHost");
+            EditorEntity applyButtonHost = GetPrivateField<EditorEntity>(dialog, "ApplyButtonHost");
+
+            Assert.NotEqual(float3.Zero, scaleModeComboBoxHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, scalePercentComboBoxHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, applyButtonHost.LocalPosition);
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>

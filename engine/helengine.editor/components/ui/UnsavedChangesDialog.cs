@@ -232,6 +232,7 @@ namespace helengine.editor {
         public void Show() {
             ResetDialogPositioning();
             Enabled = true;
+            ShowDialogImmediately();
         }
 
         /// <summary>
@@ -255,8 +256,6 @@ namespace helengine.editor {
             if (!UpdateDialogFrame(windowWidth, windowHeight)) {
                 return;
             }
-            LayoutMessage();
-            LayoutButtons();
         }
 
         /// <summary>
@@ -320,6 +319,14 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnCloseRequested() {
             HandleCancelClicked();
+        }
+
+        /// <summary>
+        /// Repositions the dialog content whenever the shared modal shell position or size changes.
+        /// </summary>
+        protected override void HandleDialogLayoutChanged() {
+            LayoutMessage();
+            LayoutButtons();
         }
 
         /// <summary>

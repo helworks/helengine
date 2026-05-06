@@ -99,6 +99,22 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the confirmation message and footer buttons are positioned immediately during Show.
+        /// </summary>
+        [Fact]
+        public void Show_WhenOpened_PositionsMessageAndFooterImmediately() {
+            RemoveComponentDialog dialog = new RemoveComponentDialog(CreateFont());
+
+            dialog.Show("Cube", "Mesh Component");
+
+            EditorEntity messageHost = GetPrivateField<EditorEntity>(dialog, "MessageHost");
+            EditorEntity removeButtonHost = GetPrivateField<EditorEntity>(dialog, "RemoveButtonHost");
+
+            Assert.NotEqual(float3.Zero, messageHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, removeButtonHost.LocalPosition);
+        }
+
+        /// <summary>
         /// Invokes one non-public instance method.
         /// </summary>
         /// <param name="target">Target object that owns the method.</param>

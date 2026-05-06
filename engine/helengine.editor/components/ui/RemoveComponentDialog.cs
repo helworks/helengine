@@ -152,6 +152,7 @@ namespace helengine.editor {
             ResetDialogPositioning();
             MessageText.Text = $"Remove {componentName} from {entityName}?";
             Enabled = true;
+            ShowDialogImmediately();
         }
 
         /// <summary>
@@ -175,9 +176,6 @@ namespace helengine.editor {
             if (!UpdateDialogFrame(windowWidth, windowHeight)) {
                 return;
             }
-
-            LayoutMessage();
-            LayoutButtons();
         }
 
         /// <summary>
@@ -234,6 +232,14 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnCloseRequested() {
             HandleCloseClicked();
+        }
+
+        /// <summary>
+        /// Repositions the dialog content whenever the shared modal shell position or size changes.
+        /// </summary>
+        protected override void HandleDialogLayoutChanged() {
+            LayoutMessage();
+            LayoutButtons();
         }
     }
 }

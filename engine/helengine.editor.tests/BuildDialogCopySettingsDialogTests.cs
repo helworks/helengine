@@ -93,6 +93,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the chooser positions its visible content immediately during Show without waiting for UpdateLayout.
+        /// </summary>
+        [Fact]
+        public void Show_WhenOpened_PositionsContentImmediately() {
+            BuildDialogCopySettingsDialog dialog = new BuildDialogCopySettingsDialog(CreateFont());
+
+            dialog.Show([
+                "windows",
+                "linux"
+            ]);
+
+            EditorEntity sourceLabelHost = GetPrivateField<EditorEntity>(dialog, "SourceLabelHost");
+            EditorEntity sourceComboHost = GetPrivateField<EditorEntity>(dialog, "SourceComboHost");
+            EditorEntity copyButtonHost = GetPrivateField<EditorEntity>(dialog, "CopyButtonHost");
+            EditorEntity cancelButtonHost = GetPrivateField<EditorEntity>(dialog, "CancelButtonHost");
+
+            Assert.NotEqual(float3.Zero, sourceLabelHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, sourceComboHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, copyButtonHost.LocalPosition);
+            Assert.NotEqual(float3.Zero, cancelButtonHost.LocalPosition);
+        }
+
+        /// <summary>
         /// Creates one deterministic font asset for modal layout and control tests.
         /// </summary>
         /// <returns>Font asset with stable glyph metrics.</returns>

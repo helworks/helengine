@@ -200,11 +200,9 @@ namespace helengine.editor {
 
             ResetDialogPositioning();
             Enabled = true;
-            CenterDialogIfNeeded();
-            UpdateDialogChromeLayout();
             SourceComboBox.IsOpen = false;
             RebuildSourceItems();
-            LayoutContent();
+            ShowDialogImmediately();
         }
         /// <summary>
         /// Hides the chooser and clears transient state.
@@ -228,8 +226,6 @@ namespace helengine.editor {
             if (!UpdateDialogFrame(windowWidth, windowHeight)) {
                 return;
             }
-
-            LayoutContent();
         }
         /// <summary>
         /// Rebuilds the source-platform combo box and updates the empty-state visibility.
@@ -298,6 +294,13 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnCloseRequested() {
             HandleCancelClicked();
+        }
+
+        /// <summary>
+        /// Repositions the chooser content whenever the shared modal shell position or size changes.
+        /// </summary>
+        protected override void HandleDialogLayoutChanged() {
+            LayoutContent();
         }
 
         /// <summary>

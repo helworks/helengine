@@ -226,6 +226,7 @@ namespace helengine.editor {
             SetScalePercentSelection(settings.OverridePercent);
             UpdateScalePercentEnabled(settings.Mode == EditorUiScaleMode.Override);
             Enabled = true;
+            ShowDialogImmediately();
         }
 
         /// <summary>
@@ -249,8 +250,6 @@ namespace helengine.editor {
             if (!UpdateDialogFrame(windowWidth, windowHeight)) {
                 return;
             }
-
-            LayoutContent();
         }
 
         /// <summary>
@@ -258,6 +257,13 @@ namespace helengine.editor {
         /// </summary>
         protected override void OnCloseRequested() {
             HandleCancelClicked();
+        }
+
+        /// <summary>
+        /// Repositions the dialog content whenever the shared modal shell position or size changes.
+        /// </summary>
+        protected override void HandleDialogLayoutChanged() {
+            LayoutContent();
         }
 
         /// <summary>
