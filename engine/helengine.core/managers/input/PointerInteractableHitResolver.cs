@@ -28,8 +28,6 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(camera));
             }
 
-            int localPointerX = pointerX - (int)camera.Viewport.X;
-            int localPointerY = pointerY - (int)camera.Viewport.Y;
             ushort cameraLayerMask = camera.LayerMask;
             IInteractable2D hit = null;
             byte hitRenderOrder = 0;
@@ -44,7 +42,7 @@ namespace helengine {
 
                 float3 position = interactable.Parent.Position;
                 float4 rect = new float4(position.X, position.Y, interactable.Size.X, interactable.Size.Y);
-                if (!rect.Contains(localPointerX, localPointerY)) {
+                if (!rect.Contains(pointerX, pointerY)) {
                     continue;
                 }
 
@@ -81,16 +79,9 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(interactable));
             }
 
-            float2 local = new float2(pointerX, pointerY);
-            if (camera != null) {
-                float4 viewport = camera.Viewport;
-                local.X -= viewport.X;
-                local.Y -= viewport.Y;
-            }
-
             float3 position = interactable.Parent.Position;
-            relativeX = (int)Math.Round(local.X - position.X);
-            relativeY = (int)Math.Round(local.Y - position.Y);
+            relativeX = (int)Math.Round(pointerX - position.X);
+            relativeY = (int)Math.Round(pointerY - position.Y);
         }
 
         /// <summary>

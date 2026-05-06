@@ -28,18 +28,37 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures relative pointer coordinates subtract both viewport origin and entity origin.
+        /// Ensures relative pointer coordinates subtract only the interactable's window-space origin.
         /// </summary>
         [Fact]
-        public void GetRelativePointerForInteractable_WhenCameraViewportOffsetsPointer_SubtractsViewportAndEntityPosition() {
+        public void GetRelativePointerForInteractable_WhenCameraViewportOffsetsPointer_UsesWindowSpaceEntityPosition() {
             InitializeCore();
             CameraComponent camera = CreateCamera(new float4(100f, 50f, 320f, 180f), EditorLayerMasks.EditorUi);
-            InteractableComponent interactable = CreateInteractableEntity(new float3(32f, 18f, 0f), new int2(40, 30), 3);
+            InteractableComponent interactable = CreateInteractableEntity(new float3(132f, 68f, 0f), new int2(40, 30), 3);
 
             PointerInteractableHitResolver.GetRelativePointerForInteractable(interactable, 180, 120, camera, out int relativeX, out int relativeY);
 
             Assert.Equal(48, relativeX);
             Assert.Equal(52, relativeY);
+        }
+
+        /// <summary>
+        /// Ensures hit resolution still finds a window-space interactable that renders inside an offset viewport.
+        /// </summary>
+        [Fact]
+        public void ResolveTopInteractableAt_WhenCameraViewportOffsetsPointer_UsesWindowSpaceEntityPosition() {
+            InitializeCore();
+            CameraComponent camera = CreateCamera(new float4(100f, 50f, 320f, 180f), EditorLayerMasks.EditorUi);
+            InteractableComponent interactable = CreateInteractableEntity(new float3(132f, 68f, 0f), new int2(80, 80), 3);
+
+            IInteractable2D hit = PointerInteractableHitResolver.ResolveTopInteractableAt(
+                Core.Instance.ObjectManager.Interactables,
+                Core.Instance.ObjectManager.Drawables2D,
+                camera,
+                180,
+                120);
+
+            Assert.Same(interactable, hit);
         }
 
         /// <summary>
@@ -74,7 +93,7 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Creates one interactable entity with a visible sprite so render-order comparisons remain deterministic.
         /// </summary>
-        /// <param name="position">Top-left entity position in viewport-local coordinates.</param>
+        /// <param name="position">Top-left entity position in window-space coordinates.</param>
         /// <param name="size">Interactable size in pixels.</param>
         /// <param name="renderOrder">2D render order assigned to the visible sprite.</param>
         /// <returns>Interactable component registered for hit resolution.</returns>
