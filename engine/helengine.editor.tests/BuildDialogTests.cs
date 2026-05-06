@@ -819,9 +819,8 @@ namespace helengine.editor.tests {
                             OutputDirectoryPath = @"C:\builds\windows",
                             Status = EditorBuildQueueItemStatus.Pending,
                             DebugBuild = true,
-                            SelectedBuildProfileId = "b1",
-                            SelectedGraphicsProfileId = "g1",
-                            SelectedCodegenProfileId = "c1",
+                            SelectedBuildProfileId = "b",
+                            SelectedGraphicsProfileId = "g",
                             SelectedCodeModuleIds = [
                                 "gameplay",
                                 "ai"
@@ -848,7 +847,7 @@ namespace helengine.editor.tests {
             Assert.Equal(3, firstLines.Length);
             Assert.Equal("windows | Pending", firstLines[0]);
             Assert.Equal("1 scene(s) | Debug", firstLines[1]);
-            Assert.Equal("build b1 | gfx g1 | codegen c1 | modules 2", firstLines[2]);
+            Assert.Equal("build b | gfx g | modules 2", firstLines[2]);
             Assert.Equal("windows | Failed", secondLines[0]);
             Assert.Equal("1 scene(s) | Release", secondLines[1]);
             Assert.DoesNotContain("Unsupported scene format.", queueItemTexts[1].Text);

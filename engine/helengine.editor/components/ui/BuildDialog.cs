@@ -1315,13 +1315,21 @@ namespace helengine.editor {
                 EditorBuildQueueItemDocument queueItem = CurrentBuildConfig.QueueItems[queueIndex];
                 row.QueueItemId = queueItem.QueueItemId;
                 row.Root.Enabled = true;
-                row.Root.Position = new float3(2f, rowIndex * QueueRowHeight, 0.1f);
+                row.Root.Position = new float3(2f, rowIndex * GetQueueCardHeight(), 0.1f);
                 row.Background.Size = new int2(GetQueueCardWidth(), GetQueueCardHeight());
-                row.SeparatorHost.Position = new float3(0f, QueueRowHeight - 1, 0.2f);
-                row.Separator.Size = new int2(GetQueueCardWidth(), 1);
-                row.RemoveButtonHost.Position = new float3(GetQueueCardWidth() - QueueCardRemoveButtonWidth - QueueCardTextPadding, 8f, 0.2f);
-                row.TextHost.Position = new float3(QueueCardTextPadding, 8f, 0.2f);
-                row.Text.Size = new int2(GetQueueCardTextWidth(), Math.Max(GetDialogLineHeight() * 2, GetQueueCardHeight() - 12));
+                row.SeparatorHost.Position = new float3(0f, GetQueueCardHeight() - DialogMetrics.ScalePixels(1), 0.2f);
+                row.Separator.Size = new int2(GetQueueCardWidth(), DialogMetrics.ScalePixels(1));
+                row.RemoveButtonHost.Position = new float3(
+                    GetQueueCardWidth() - GetQueueCardRemoveButtonWidthPixels() - GetQueueCardTextPaddingPixels(),
+                    GetQueueCardTextPaddingPixels(),
+                    0.2f);
+                row.TextHost.Position = new float3(
+                    GetQueueCardTextPaddingPixels(),
+                    GetQueueCardTextPaddingPixels(),
+                    0.2f);
+                row.Text.Size = new int2(
+                    GetQueueCardTextWidth(),
+                    Math.Max(1, GetQueueCardHeight() - (GetQueueCardTextPaddingPixels() * 2)));
                 row.Text.Text = BuildQueueItemText(queueItem);
 
                 QueueItemHosts.Add(row.Root);
@@ -1454,27 +1462,60 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds the optional compact capability summary shown on the third queue-card line.
+        /// </summary>
+        /// <param name="queueItem">Persisted queue item to summarize.</param>
+        /// <returns>Clipped third-line summary, or an empty string when no optional values are present.</returns>
+        string BuildQueueItemCapabilitySummary(EditorBuildQueueItemDocument queueItem) {
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
+            }
+
+            List<string> segments = new List<string>();
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedBuildProfileId)) {
+                segments.Add("build " + queueItem.SelectedBuildProfileId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedGraphicsProfileId)) {
+                segments.Add("gfx " + queueItem.SelectedGraphicsProfileId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(queueItem.SelectedCodegenProfileId)) {
+                segments.Add("codegen " + queueItem.SelectedCodegenProfileId);
+            }
+
+            if (queueItem.SelectedCodeModuleIds != null && queueItem.SelectedCodeModuleIds.Count > 0) {
+                segments.Add("modules " + queueItem.SelectedCodeModuleIds.Count);
+            }
+
+            if (segments.Count == 0) {
+                return string.Empty;
+            }
+
+            return ClipTextToWidth(string.Join(" | ", segments), GetQueueCardTextWidth());
+        }
+
+        /// <summary>
         /// Builds one queue-row summary string for the supplied persisted queue item.
         /// </summary>
         /// <param name="queueItem">Persisted queue item to summarize.</param>
         /// <returns>Queue summary text shown in the queue column.</returns>
         string BuildQueueItemText(EditorBuildQueueItemDocument queueItem) {
-            string summaryText = queueItem.PlatformId + " | " + queueItem.Status + " | " + queueItem.SelectedSceneIds.Count + " scene(s)";
-            if (!string.IsNullOrWhiteSpace(queueItem.SelectedBuildProfileId)) {
-                summaryText += " | build " + queueItem.SelectedBuildProfileId;
-            }
-            if (!string.IsNullOrWhiteSpace(queueItem.SelectedGraphicsProfileId)) {
-                summaryText += " | gfx " + queueItem.SelectedGraphicsProfileId;
-            }
-            if (!string.IsNullOrWhiteSpace(queueItem.SelectedCodegenProfileId)) {
-                summaryText += " | codegen " + queueItem.SelectedCodegenProfileId;
-            }
-            if (queueItem.SelectedCodeModuleIds != null && queueItem.SelectedCodeModuleIds.Count > 0) {
-                summaryText += " | modules " + queueItem.SelectedCodeModuleIds.Count;
+            if (queueItem == null) {
+                throw new ArgumentNullException(nameof(queueItem));
             }
 
-            string statusMessage = BuildQueueItemStatusMessage(queueItem.StatusMessage);
-            return summaryText + "\n" + statusMessage;
+            List<string> lines = new List<string>(3) {
+                queueItem.PlatformId + " | " + queueItem.Status,
+                queueItem.SelectedSceneIds.Count + " scene(s) | " + (queueItem.DebugBuild ? "Debug" : "Release")
+            };
+
+            string capabilitySummary = BuildQueueItemCapabilitySummary(queueItem);
+            if (!string.IsNullOrWhiteSpace(capabilitySummary)) {
+                lines.Add(capabilitySummary);
+            }
+
+            return string.Join("\n", lines);
         }
 
         /// <summary>
@@ -2025,20 +2066,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Clips the queue-row status message to fit inside the available row width.
-        /// </summary>
-        /// <param name="statusMessage">Status message to clip.</param>
-        /// <returns>Clipped status message or an empty string when no status message is provided.</returns>
-        string BuildQueueItemStatusMessage(string statusMessage) {
-            if (string.IsNullOrWhiteSpace(statusMessage)) {
-                return string.Empty;
-            }
-
-            string sanitizedMessage = statusMessage.Replace('\r', ' ').Replace('\n', ' ');
-            return ClipTextToWidth(sanitizedMessage, GetQueueCardTextWidth());
-        }
-
-        /// <summary>
         /// Clips a single-line string to the available width using the dialog font metrics.
         /// </summary>
         /// <param name="text">Text to clip.</param>
@@ -2115,7 +2142,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Visible queue row count.</returns>
         int GetQueueVisibleRowCount() {
-            return Math.Max(1, GetQueueRowsViewportHeight() / QueueRowHeight);
+            return Math.Max(1, GetQueueRowsViewportHeight() / Math.Max(1, GetQueueCardHeight()));
         }
 
         /// <summary>
