@@ -19,7 +19,7 @@ The user expectation is explicit:
 
 - every modal should have a dedicated content container
 - dynamic modal content should never depend on implicit global placement
-- no dialog-created entity should effectively end up with “global parent” behavior
+- no dialog-created entity should effectively end up with "global parent" behavior
 
 ## Goals
 
