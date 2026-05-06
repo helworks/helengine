@@ -9,6 +9,11 @@ namespace helengine.editor.tests {
     /// </summary>
     public class EditorSessionPreferencesTests : IDisposable {
         /// <summary>
+        /// Stores the theme that was active before the test modified it.
+        /// </summary>
+        readonly ThemeManager.ThemePalette OriginalTheme;
+
+        /// <summary>
         /// Temporary content root used by the editor-session preferences tests.
         /// </summary>
         readonly string TempRootPath;
@@ -19,11 +24,12 @@ namespace helengine.editor.tests {
         public EditorSessionPreferencesTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-session-preferences-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
+            OriginalTheme = ThemeManager.Current;
 
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null);
         }
 
         /// <summary>
@@ -32,6 +38,7 @@ namespace helengine.editor.tests {
         public void Dispose() {
             EditorKeyboardFocusService.Reset();
             EditorInputCaptureService.Reset();
+            ThemeManager.SetTheme(OriginalTheme);
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -46,11 +53,49 @@ namespace helengine.editor.tests {
             EditorUiScaleSettings raisedSettings = null;
             session.UiScaleSettingsChanged += settings => raisedSettings = settings;
 
-            InvokePrivate(session, "HandlePreferencesDialogConfirmed", new EditorUiScaleSettings(EditorUiScaleMode.Override, 175));
+            InvokePrivate(
+                session,
+                "HandlePreferencesDialogConfirmed",
+                new EditorPreferencesSettings(
+                    new EditorUiScaleSettings(EditorUiScaleMode.Override, 175),
+                    "dark"));
 
             Assert.NotNull(raisedSettings);
             Assert.Equal(EditorUiScaleMode.Override, raisedSettings.Mode);
             Assert.Equal(175, raisedSettings.OverridePercent);
+        }
+
+        /// <summary>
+        /// Ensures confirming the preferences dialog applies the selected editor theme only when Apply is invoked.
+        /// </summary>
+        [Fact]
+        public void HandlePreferencesDialogConfirmed_WhenInvoked_AppliesThemeOnlyOnConfirm() {
+            ThemeManager.SetTheme(ThemeManager.CreateNeon90s());
+            EditorSession session = CreateSessionForPreferences();
+
+            InvokePrivate(
+                session,
+                "HandlePreferencesDialogConfirmed",
+                new EditorPreferencesSettings(
+                    new EditorUiScaleSettings(EditorUiScaleMode.Auto, 100),
+                    "light"));
+
+            Assert.Equal("light", GetPrivateField<string>(session, "CurrentThemeId"));
+            Assert.Equal(ThemeManager.CreateLightTheme().Colors.BackgroundPrimary, ThemeManager.Current.Colors.BackgroundPrimary);
+        }
+
+        /// <summary>
+        /// Ensures canceling the preferences workflow leaves the current theme unchanged.
+        /// </summary>
+        [Fact]
+        public void HandlePreferencesDialogCanceled_WhenInvoked_DoesNotApplyPendingThemeChanges() {
+            ThemeManager.ThemePalette initialTheme = ThemeManager.CreateDarkTheme();
+            ThemeManager.SetTheme(initialTheme);
+            EditorSession session = CreateSessionForPreferences();
+
+            InvokePrivate(session, "HandlePreferencesDialogCanceled");
+
+            Assert.Equal(initialTheme.Colors.BackgroundPrimary, ThemeManager.Current.Colors.BackgroundPrimary);
         }
 
         /// <summary>
@@ -88,7 +133,11 @@ namespace helengine.editor.tests {
             TextComponent[] snapValueTexts = GetPrivateField<TextComponent[]>(mainViewport, "SnapValueTexts");
 
             Assert.Equal(41, titleBar.Height);
-            Assert.Equal(new int2(540, 330), GetDialogMinimumSize(preferencesDialog));
+            Assert.Equal(
+                new int2(
+                    scaledMetrics.ScalePixels(EditorPreferencesDialog.PanelWidth),
+                    scaledMetrics.ScalePixels(EditorPreferencesDialog.PanelHeight)),
+                GetDialogMinimumSize(preferencesDialog));
             Assert.Equal(scaledMetrics.DockTitleBarHeight, assetBrowserPanel.TitleBarHeightPixels);
             Assert.Equal(scaledMetrics.DockTitleBarHeight, mainViewport.TitleBarHeightPixels);
             Assert.Equal(scaledMetrics.DockTitleBarHeight, propertiesPanel.TitleBarHeightPixels);
@@ -127,6 +176,8 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "mainViewport", CreateViewport(metrics));
             SetPrivateField(session, "propertiesPanel", CreatePropertiesPanel(metrics));
             SetPrivateField(session, "CurrentUiScaleSettings", new EditorUiScaleSettings(EditorUiScaleMode.Auto, 100));
+            SetPrivateField(session, "CurrentThemeId", EditorThemeCatalog.DefaultThemeId);
+            SetPrivateField(session, "CurrentEditorPreferences", new EditorPreferencesSettings(new EditorUiScaleSettings(EditorUiScaleMode.Auto, 100), EditorThemeCatalog.DefaultThemeId));
             SetPrivateField(session, "CurrentUiMetrics", metrics);
             return session;
         }
@@ -269,23 +320,55 @@ namespace helengine.editor.tests {
         FontAsset CreateFont(float lineHeight) {
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
                 ['A'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['C'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['D'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['F'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['G'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['H'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['L'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['M'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f),
+                ['N'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['O'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
                 ['P'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['R'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['S'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['T'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['U'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['V'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
                 ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['d'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['e'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['f'] = new FontChar(new float4(0f, 0f, 5f, 12f), 0f, 5f, 0f, 0f),
+                ['g'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['h'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['i'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
+                ['k'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
                 ['l'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
+                ['m'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f),
+                ['n'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['o'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['r'] = new FontChar(new float4(0f, 0f, 6f, 12f), 0f, 6f, 0f, 0f),
+                ['s'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
                 ['t'] = new FontChar(new float4(0f, 0f, 5f, 12f), 0f, 5f, 0f, 0f),
                 ['u'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['v'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['x'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['y'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['z'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['+'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
+                ['-'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
+                ['.'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
                 ['%'] = new FontChar(new float4(0f, 0f, 9f, 12f), 0f, 9f, 0f, 0f),
+                ['0'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['1'] = new FontChar(new float4(0f, 0f, 7f, 12f), 0f, 7f, 0f, 0f),
+                ['2'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['3'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['4'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['7'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['5'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)
+                ['5'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['6'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['8'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['9'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)
             };
 
             return new FontAsset(

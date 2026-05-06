@@ -36,10 +36,11 @@ public sealed class EditorPreferencesServiceTests : IDisposable {
     public void Load_WhenPreferencesFileIsMissing_ReturnsAutoAndCreatesDocument() {
         EditorPreferencesService service = new EditorPreferencesService(TempSettingsRootPath);
 
-        EditorUiScaleSettings settings = service.Load();
+        EditorPreferencesSettings settings = service.Load();
 
-        Assert.Equal(EditorUiScaleMode.Auto, settings.Mode);
-        Assert.Equal(100, settings.OverridePercent);
+        Assert.Equal(EditorUiScaleMode.Auto, settings.UiScale.Mode);
+        Assert.Equal(100, settings.UiScale.OverridePercent);
+        Assert.Equal(EditorThemeCatalog.DefaultThemeId, settings.ThemeId);
         Assert.True(File.Exists(GetPreferencesFilePath()));
     }
 
@@ -53,16 +54,18 @@ public sealed class EditorPreferencesServiceTests : IDisposable {
             """
             {
               "uiScaleMode": "Override",
-              "uiScalePercent": 150
+              "uiScalePercent": 150,
+              "themeId": "dark"
             }
             """);
         EditorPreferencesService service = new EditorPreferencesService(TempSettingsRootPath);
 
-        EditorUiScaleSettings settings = service.Load();
+        EditorPreferencesSettings settings = service.Load();
 
-        Assert.Equal(EditorUiScaleMode.Override, settings.Mode);
-        Assert.Equal(150, settings.OverridePercent);
-        Assert.Equal(1.5, settings.ResolveEffectiveScale(192));
+        Assert.Equal(EditorUiScaleMode.Override, settings.UiScale.Mode);
+        Assert.Equal(150, settings.UiScale.OverridePercent);
+        Assert.Equal("dark", settings.ThemeId);
+        Assert.Equal(1.5, settings.UiScale.ResolveEffectiveScale(192));
     }
 
     /// <summary>
@@ -84,11 +87,12 @@ public sealed class EditorPreferencesServiceTests : IDisposable {
         File.WriteAllText(GetPreferencesFilePath(), "{ invalid json");
         EditorPreferencesService service = new EditorPreferencesService(TempSettingsRootPath);
 
-        EditorUiScaleSettings settings = service.Load();
+        EditorPreferencesSettings settings = service.Load();
 
-        Assert.Equal(EditorUiScaleMode.Auto, settings.Mode);
+        Assert.Equal(EditorUiScaleMode.Auto, settings.UiScale.Mode);
         Assert.Equal(EditorUiScaleMode.Auto, ReadModeFromDisk());
         Assert.Equal(100, ReadPercentFromDisk());
+        Assert.Equal(EditorThemeCatalog.DefaultThemeId, ReadThemeIdFromDisk());
     }
 
     /// <summary>
@@ -101,16 +105,79 @@ public sealed class EditorPreferencesServiceTests : IDisposable {
             """
             {
               "uiScaleMode": "Override",
-              "uiScalePercent": 90
+              "uiScalePercent": 90,
+              "themeId": "light"
             }
             """);
         EditorPreferencesService service = new EditorPreferencesService(TempSettingsRootPath);
 
-        EditorUiScaleSettings settings = service.Load();
+        EditorPreferencesSettings settings = service.Load();
 
-        Assert.Equal(EditorUiScaleMode.Auto, settings.Mode);
+        Assert.Equal(EditorUiScaleMode.Auto, settings.UiScale.Mode);
         Assert.Equal(EditorUiScaleMode.Auto, ReadModeFromDisk());
         Assert.Equal(100, ReadPercentFromDisk());
+        Assert.Equal(EditorThemeCatalog.DefaultThemeId, ReadThemeIdFromDisk());
+    }
+
+    /// <summary>
+    /// Ensures persisted theme preferences round-trip through the editor preferences service.
+    /// </summary>
+    [Fact]
+    public void Load_WhenPreferencesFileContainsThemeId_ReturnsStoredTheme() {
+        File.WriteAllText(
+            GetPreferencesFilePath(),
+            """
+            {
+              "uiScaleMode": "Override",
+              "uiScalePercent": 125,
+              "themeId": "light"
+            }
+            """);
+        EditorPreferencesService service = new EditorPreferencesService(TempSettingsRootPath);
+
+        EditorPreferencesSettings settings = service.Load();
+
+        Assert.Equal(EditorUiScaleMode.Override, settings.UiScale.Mode);
+        Assert.Equal(125, settings.UiScale.OverridePercent);
+        Assert.Equal("light", settings.ThemeId);
+    }
+
+    /// <summary>
+    /// Ensures invalid persisted theme ids are replaced with the default persisted theme.
+    /// </summary>
+    [Fact]
+    public void Load_WhenThemeIdIsInvalid_RewritesDefaultTheme() {
+        File.WriteAllText(
+            GetPreferencesFilePath(),
+            """
+            {
+              "uiScaleMode": "Auto",
+              "uiScalePercent": 100,
+              "themeId": "missing-theme"
+            }
+            """);
+        EditorPreferencesService service = new EditorPreferencesService(TempSettingsRootPath);
+
+        EditorPreferencesSettings settings = service.Load();
+
+        Assert.Equal(EditorThemeCatalog.DefaultThemeId, settings.ThemeId);
+        Assert.Equal(EditorThemeCatalog.DefaultThemeId, ReadThemeIdFromDisk());
+    }
+
+    /// <summary>
+    /// Ensures saving combined preferences persists both theme and scale fields.
+    /// </summary>
+    [Fact]
+    public void Save_WhenCombinedPreferencesArePersisted_WritesThemeIdAndScaleSettings() {
+        EditorPreferencesService service = new EditorPreferencesService(TempSettingsRootPath);
+
+        service.Save(new EditorPreferencesSettings(
+            new EditorUiScaleSettings(EditorUiScaleMode.Override, 125),
+            "light"));
+
+        Assert.Equal(EditorUiScaleMode.Override, ReadModeFromDisk());
+        Assert.Equal(125, ReadPercentFromDisk());
+        Assert.Equal("light", ReadThemeIdFromDisk());
     }
 
     /// <summary>
@@ -140,5 +207,15 @@ public sealed class EditorPreferencesServiceTests : IDisposable {
         string json = File.ReadAllText(GetPreferencesFilePath());
         using JsonDocument document = JsonDocument.Parse(json);
         return document.RootElement.GetProperty("uiScalePercent").GetInt32();
+    }
+
+    /// <summary>
+    /// Reads the persisted theme identifier from the preferences file on disk.
+    /// </summary>
+    /// <returns>Theme identifier persisted in the preferences document.</returns>
+    string ReadThemeIdFromDisk() {
+        string json = File.ReadAllText(GetPreferencesFilePath());
+        using JsonDocument document = JsonDocument.Parse(json);
+        return document.RootElement.GetProperty("themeId").GetString();
     }
 }

@@ -1,6 +1,6 @@
 namespace helengine.editor {
     /// <summary>
-    /// Coordinates persisted editor UI scale settings with host-reported monitor DPI.
+    /// Coordinates persisted editor-global preferences with host-reported monitor DPI.
     /// </summary>
     public sealed class EditorUiScaleController {
         /// <summary>
@@ -9,9 +9,9 @@ namespace helengine.editor {
         readonly EditorPreferencesService PreferencesService;
 
         /// <summary>
-        /// Current validated editor UI scale settings loaded from the preferences service.
+        /// Current validated editor-global preferences loaded from the preferences service.
         /// </summary>
-        EditorUiScaleSettings CurrentSettings;
+        EditorPreferencesSettings CurrentSettings;
 
         /// <summary>
         /// Initializes one editor UI scale controller around the supplied preferences service.
@@ -23,12 +23,20 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Loads the latest validated editor-global preferences from the preferences service.
+        /// </summary>
+        /// <returns>Current validated editor-global preferences.</returns>
+        public EditorPreferencesSettings LoadPreferences() {
+            CurrentSettings = PreferencesService.Load();
+            return CurrentSettings;
+        }
+
+        /// <summary>
         /// Loads the latest validated editor UI scale settings from the preferences service.
         /// </summary>
         /// <returns>Current validated editor UI scale settings.</returns>
         public EditorUiScaleSettings Load() {
-            CurrentSettings = PreferencesService.Load();
-            return CurrentSettings;
+            return LoadPreferences().UiScale;
         }
 
         /// <summary>
@@ -37,7 +45,27 @@ namespace helengine.editor {
         /// <param name="monitorDpi">Current monitor DPI reported by the active host.</param>
         /// <returns>Scaled editor UI metrics for the current settings and monitor DPI.</returns>
         public EditorUiMetrics ResolveMetrics(int monitorDpi) {
-            return new EditorUiMetrics(CurrentSettings.ResolveEffectiveScale(monitorDpi));
+            return new EditorUiMetrics(CurrentSettings.UiScale.ResolveEffectiveScale(monitorDpi));
+        }
+
+        /// <summary>
+        /// Persists one new user-selected editor UI scale settings document and returns the validated current value.
+        /// </summary>
+        /// <param name="settings">Validated editor UI scale settings chosen by the user.</param>
+        /// <returns>Current validated editor UI scale settings after persistence.</returns>
+        /// <summary>
+        /// Persists one new editor-global preferences document and returns the validated current value.
+        /// </summary>
+        /// <param name="settings">Validated editor-global preferences chosen by the user.</param>
+        /// <returns>Current validated editor-global preferences after persistence.</returns>
+        public EditorPreferencesSettings ApplyUserSelection(EditorPreferencesSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            CurrentSettings = settings;
+            PreferencesService.Save(CurrentSettings);
+            return CurrentSettings;
         }
 
         /// <summary>
@@ -50,9 +78,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            PreferencesService.Save(settings);
-            CurrentSettings = settings;
-            return CurrentSettings;
+            return ApplyUserSelection(new EditorPreferencesSettings(settings, CurrentSettings.ThemeId)).UiScale;
         }
 
         /// <summary>
@@ -60,7 +86,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when the current settings follow monitor DPI; otherwise false.</returns>
         public bool ShouldReapplyForMonitorDpiChange() {
-            return CurrentSettings.Mode == EditorUiScaleMode.Auto;
+            return CurrentSettings.UiScale.Mode == EditorUiScaleMode.Auto;
         }
     }
 }

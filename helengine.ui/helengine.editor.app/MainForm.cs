@@ -119,7 +119,9 @@ namespace helengine.editor.app {
             string projectRootPath = ResolveProjectRootPath(projectPath);
             string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
             uiScaleController = new EditorUiScaleController(new EditorPreferencesService(ResolveEditorPreferencesRootPath()));
-            EditorUiScaleSettings initialUiScaleSettings = uiScaleController.Load();
+            EditorPreferencesSettings initialEditorPreferences = uiScaleController.LoadPreferences();
+            ApplyEditorTheme(initialEditorPreferences.ThemeId);
+            EditorUiScaleSettings initialUiScaleSettings = initialEditorPreferences.UiScale;
             EditorUiMetrics initialUiMetrics = uiScaleController.ResolveMetrics(DeviceDpi);
 
             string rendererBackend = Environment.GetEnvironmentVariable(RendererBackendEnvironmentVariable, EnvironmentVariableTarget.Process);
@@ -164,7 +166,7 @@ namespace helengine.editor.app {
             editorSession = new EditorSession(
                 core,
                 projectPath,
-                initialUiScaleSettings,
+                initialEditorPreferences,
                 initialUiMetrics,
                 uiFont,
                 snapModifierFont,
@@ -180,7 +182,7 @@ namespace helengine.editor.app {
 
             editorSession.TitleChanged += SetWindowTitle;
             editorSession.CloseRequested += HandleEditorSessionCloseRequested;
-            editorSession.UiScaleSettingsChanged += HandleUiScaleSettingsChanged;
+            editorSession.PreferencesChanged += HandleEditorPreferencesChanged;
             TitleBarWindowAdapter.Attach(editorSession.TitleBar, this, () => ToggleMaximizeState());
             SetWindowTitle(editorSession.WindowTitle);
 
@@ -339,7 +341,7 @@ namespace helengine.editor.app {
 
             closed = true;
             editorSession.CloseRequested -= HandleEditorSessionCloseRequested;
-            editorSession.UiScaleSettingsChanged -= HandleUiScaleSettingsChanged;
+            editorSession.PreferencesChanged -= HandleEditorPreferencesChanged;
             editorSession.Dispose();
         }
 
@@ -435,10 +437,23 @@ namespace helengine.editor.app {
         }
 
         /// <summary>
-        /// Persists one newly confirmed editor UI scale selection and reapplies the effective UI scale live.
+        /// Resolves one persisted editor theme identifier and applies the matching palette to the live runtime theme manager.
         /// </summary>
-        /// <param name="settings">Validated editor UI scale settings confirmed by the user.</param>
-        void HandleUiScaleSettingsChanged(EditorUiScaleSettings settings) {
+        /// <param name="themeId">Stable persisted editor theme identifier.</param>
+        void ApplyEditorTheme(string themeId) {
+            EditorThemeDefinition theme = EditorThemeCatalog.FindById(themeId);
+            if (theme == null) {
+                throw new InvalidOperationException($"Unknown editor theme '{themeId}'.");
+            }
+
+            ThemeManager.SetTheme(theme.PaletteFactory());
+        }
+
+        /// <summary>
+        /// Persists one newly confirmed editor-global preferences selection and reapplies the effective UI scale live.
+        /// </summary>
+        /// <param name="settings">Validated editor-global preferences confirmed by the user.</param>
+        void HandleEditorPreferencesChanged(EditorPreferencesSettings settings) {
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }

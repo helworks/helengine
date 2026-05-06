@@ -275,6 +275,10 @@ namespace helengine.editor {
         /// </summary>
         public event Action<EditorUiScaleSettings> UiScaleSettingsChanged;
         /// <summary>
+        /// Raised when the user confirms one editor-global preferences selection.
+        /// </summary>
+        public event Action<EditorPreferencesSettings> PreferencesChanged;
+        /// <summary>
         /// Resolves the available platform list that can be selected in Build Settings.
         /// </summary>
         readonly AvailablePlatformProviderResolver availablePlatformProviderResolver;
@@ -335,6 +339,14 @@ namespace helengine.editor {
         /// </summary>
         EditorUiScaleSettings CurrentUiScaleSettings;
         /// <summary>
+        /// Current editor-global theme identifier reflected by the preferences dialog.
+        /// </summary>
+        string CurrentThemeId;
+        /// <summary>
+        /// Current editor-global preferences reflected by the preferences dialog.
+        /// </summary>
+        EditorPreferencesSettings CurrentEditorPreferences;
+        /// <summary>
         /// Current scaled editor UI metrics applied to scale-aware editor chrome.
         /// </summary>
         EditorUiMetrics CurrentUiMetrics;
@@ -352,7 +364,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="core">Editor core instance that owns shared state.</param>
         /// <param name="projectPath">Path to the project root or project file being edited.</param>
-        /// <param name="initialUiScaleSettings">Validated global editor UI scale settings resolved by the host before session startup.</param>
+        /// <param name="initialEditorPreferences">Validated editor-global preferences resolved by the host before session startup.</param>
         /// <param name="initialUiMetrics">Scaled editor UI metrics resolved by the host before session startup.</param>
         /// <param name="uiFont">Font used for editor UI text.</param>
         /// <param name="snapModifierFont">Font used for the viewport snap modifier labels.</param>
@@ -368,7 +380,7 @@ namespace helengine.editor {
         public EditorSession(
             EditorCore core,
             string projectPath,
-            EditorUiScaleSettings initialUiScaleSettings,
+            EditorPreferencesSettings initialEditorPreferences,
             EditorUiMetrics initialUiMetrics,
             FontAsset uiFont,
             FontAsset snapModifierFont,
@@ -386,7 +398,9 @@ namespace helengine.editor {
             CanonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
             this.projectPath = ResolveProjectRootPathFromCanonicalProjectFile(CanonicalProjectFilePath);
             ProjectDisplayName = ResolveProjectDisplayNameFromCanonicalProjectFile(CanonicalProjectFilePath);
-            CurrentUiScaleSettings = initialUiScaleSettings ?? throw new ArgumentNullException(nameof(initialUiScaleSettings));
+            CurrentEditorPreferences = initialEditorPreferences ?? throw new ArgumentNullException(nameof(initialEditorPreferences));
+            CurrentUiScaleSettings = CurrentEditorPreferences.UiScale;
+            CurrentThemeId = CurrentEditorPreferences.ThemeId;
             CurrentUiMetrics = initialUiMetrics ?? throw new ArgumentNullException(nameof(initialUiMetrics));
             ProjectFileDocument projectDocument = LoadProjectDocument(CanonicalProjectFilePath);
             RequiredEngineVersion = ResolveRequiredEngineVersion(projectDocument);
@@ -444,6 +458,7 @@ namespace helengine.editor {
             sceneCameraEntity.AddComponent(new TransformTranslationGizmoDragComponent(sceneCameraComponent));
             sceneCameraEntity.AddComponent(new TransformRotationGizmoDragComponent(sceneCameraComponent));
             sceneCameraEntity.AddComponent(new TransformScaleGizmoDragComponent(sceneCameraComponent));
+            ApplyEditorTheme(CurrentThemeId);
             keyboardFocusEntity = new EditorEntity {
                 InternalEntity = true,
                 Enabled = true,
@@ -820,6 +835,9 @@ namespace helengine.editor {
             }
 
             CurrentUiScaleSettings = settings;
+            if (!string.IsNullOrWhiteSpace(CurrentThemeId)) {
+                CurrentEditorPreferences = new EditorPreferencesSettings(CurrentUiScaleSettings, CurrentThemeId);
+            }
             CurrentUiMetrics = metrics;
             this.uiFont = uiFont;
 
@@ -1359,25 +1377,31 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Opens the editor preferences dialog using the current UI scale settings.
+        /// Opens the editor preferences dialog using the current editor-global preferences.
         /// </summary>
         void HandlePreferencesRequested() {
-            preferencesDialog.Show(CurrentUiScaleSettings);
+            preferencesDialog.Show(CurrentEditorPreferences);
         }
 
         /// <summary>
-        /// Applies one confirmed editor UI scale selection and notifies the host.
+        /// Applies one confirmed editor-global preferences selection and notifies the host.
         /// </summary>
-        /// <param name="settings">Confirmed editor UI scale settings.</param>
-        void HandlePreferencesDialogConfirmed(EditorUiScaleSettings settings) {
+        /// <param name="settings">Confirmed editor-global preferences settings.</param>
+        void HandlePreferencesDialogConfirmed(EditorPreferencesSettings settings) {
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            CurrentUiScaleSettings = settings;
+            CurrentEditorPreferences = settings;
+            CurrentUiScaleSettings = settings.UiScale;
+            CurrentThemeId = settings.ThemeId;
+            ApplyEditorTheme(CurrentThemeId);
             preferencesDialog.Hide();
+            if (PreferencesChanged != null) {
+                PreferencesChanged(settings);
+            }
             if (UiScaleSettingsChanged != null) {
-                UiScaleSettingsChanged(settings);
+                UiScaleSettingsChanged(settings.UiScale);
             }
         }
 
@@ -1804,6 +1828,21 @@ namespace helengine.editor {
                 Logger.WriteError($"Scene save failed: {ex.Message}");
                 saveFileDialog.ShowError(ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Resolves and applies one editor theme through the shared theme catalog and live runtime theme manager.
+        /// </summary>
+        /// <param name="themeId">Stable editor theme identifier that should become active.</param>
+        void ApplyEditorTheme(string themeId) {
+            EditorThemeDefinition theme = EditorThemeCatalog.FindById(themeId);
+            if (theme == null) {
+                throw new InvalidOperationException($"Unknown editor theme '{themeId}'.");
+            }
+
+            ThemeManager.SetTheme(theme.PaletteFactory());
+            CurrentThemeId = theme.Id;
+            ApplySceneViewportBackground();
         }
 
         /// <summary>

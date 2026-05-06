@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace helengine.editor {
     /// <summary>
-    /// Loads and persists editor-global UI scale preferences stored in one JSON document.
+    /// Loads and persists editor-global preferences stored in one JSON document.
     /// </summary>
     public sealed class EditorPreferencesService {
         /// <summary>
@@ -38,30 +38,37 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Loads one validated editor UI scale selection, regenerating the preferences document when it is missing or invalid.
+        /// Loads one validated editor-global preferences selection, regenerating the preferences document when it is missing or invalid.
         /// </summary>
-        /// <returns>Validated editor UI scale settings for the current user.</returns>
-        public EditorUiScaleSettings Load() {
+        /// <returns>Validated editor-global preferences for the current user.</returns>
+        public EditorPreferencesSettings Load() {
             EditorPreferencesDocument document = TryLoadDocument();
             if (document != null) {
                 try {
-                    EditorUiScaleSettings settings = new EditorUiScaleSettings(document.UiScaleMode, document.UiScalePercent);
+                    string themeId = document.ThemeId;
+                    if (string.IsNullOrWhiteSpace(themeId)) {
+                        themeId = EditorThemeCatalog.DefaultThemeId;
+                    }
+
+                    EditorPreferencesSettings settings = new EditorPreferencesSettings(
+                        new EditorUiScaleSettings(document.UiScaleMode, document.UiScalePercent),
+                        themeId);
                     Save(settings);
                     return settings;
                 } catch {
                 }
             }
 
-            EditorUiScaleSettings defaultSettings = CreateDefaultSettings();
+            EditorPreferencesSettings defaultSettings = CreateDefaultSettings();
             Save(defaultSettings);
             return defaultSettings;
         }
 
         /// <summary>
-        /// Persists the supplied editor UI scale selection to the preferences document.
+        /// Persists the supplied editor-global preferences selection to the preferences document.
         /// </summary>
-        /// <param name="settings">Validated editor UI scale settings to persist.</param>
-        public void Save(EditorUiScaleSettings settings) {
+        /// <param name="settings">Validated editor-global preferences to persist.</param>
+        public void Save(EditorPreferencesSettings settings) {
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
@@ -70,8 +77,9 @@ namespace helengine.editor {
             Directory.CreateDirectory(preferencesDirectoryPath);
 
             EditorPreferencesDocument document = new EditorPreferencesDocument {
-                UiScaleMode = settings.Mode,
-                UiScalePercent = settings.OverridePercent
+                UiScaleMode = settings.UiScale.Mode,
+                UiScalePercent = settings.UiScale.OverridePercent,
+                ThemeId = settings.ThemeId
             };
 
             string json = JsonSerializer.Serialize(document, JsonSerializerOptions);
@@ -101,11 +109,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates the default editor UI scale settings used when no valid preference document exists.
+        /// Creates the default editor-global preferences used when no valid preference document exists.
         /// </summary>
-        /// <returns>Default auto-mode editor UI scale settings.</returns>
-        static EditorUiScaleSettings CreateDefaultSettings() {
-            return new EditorUiScaleSettings(EditorUiScaleMode.Auto, 100);
+        /// <returns>Default editor-global preferences.</returns>
+        static EditorPreferencesSettings CreateDefaultSettings() {
+            return new EditorPreferencesSettings(
+                new EditorUiScaleSettings(EditorUiScaleMode.Auto, 100),
+                EditorThemeCatalog.DefaultThemeId);
         }
 
         /// <summary>

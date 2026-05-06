@@ -1,6 +1,6 @@
 namespace helengine.editor {
     /// <summary>
-    /// Stores the persisted editor-global UI scale preference document.
+    /// Stores the persisted editor-global preferences document.
     /// </summary>
     public sealed class EditorPreferencesDocument {
         /// <summary>
@@ -12,5 +12,10 @@ namespace helengine.editor {
         /// Gets or sets the persisted explicit editor UI scale percentage.
         /// </summary>
         public int UiScalePercent { get; set; } = 100;
+
+        /// <summary>
+        /// Gets or sets the persisted editor-global theme identifier.
+        /// </summary>
+        public string ThemeId { get; set; } = EditorThemeCatalog.DefaultThemeId;
     }
 }

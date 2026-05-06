@@ -1,17 +1,17 @@
 namespace helengine.editor {
     /// <summary>
-    /// Floating modal dialog used to edit editor-global UI scale preferences.
+    /// Floating modal dialog used to edit editor-global theme and UI scale preferences.
     /// </summary>
     public class EditorPreferencesDialog : EditorDialogBase {
         /// <summary>
         /// Fixed panel width used by the dialog.
         /// </summary>
-        public const int PanelWidth = 360;
+        public const int PanelWidth = 680;
 
         /// <summary>
         /// Fixed panel height used by the dialog.
         /// </summary>
-        public const int PanelHeight = 220;
+        public const int PanelHeight = 520;
 
         /// <summary>
         /// Padding applied inside the dialog panel.
@@ -46,7 +46,7 @@ namespace helengine.editor {
         /// <summary>
         /// Width reserved for each combo-box field.
         /// </summary>
-        const int FieldWidth = 220;
+        const int FieldWidth = 320;
 
         /// <summary>
         /// Vertical spacing preserved between each label and its field.
@@ -82,6 +82,36 @@ namespace helengine.editor {
             "175%",
             "200%"
         };
+
+        /// <summary>
+        /// Theme definitions exposed by the editor theme catalog.
+        /// </summary>
+        readonly EditorThemeDefinition[] ThemeDefinitions;
+
+        /// <summary>
+        /// Theme display names exposed by the editor theme catalog.
+        /// </summary>
+        readonly string[] ThemeItems;
+
+        /// <summary>
+        /// Host entity for the theme label.
+        /// </summary>
+        readonly EditorEntity ThemeLabelHost;
+
+        /// <summary>
+        /// Label that describes the theme selector.
+        /// </summary>
+        readonly TextComponent ThemeLabel;
+
+        /// <summary>
+        /// Host entity for the theme combo box.
+        /// </summary>
+        readonly EditorEntity ThemeComboBoxHost;
+
+        /// <summary>
+        /// Combo box used to choose the active editor theme.
+        /// </summary>
+        readonly ComboBoxComponent ThemeComboBox;
 
         /// <summary>
         /// Host entity for the scale-mode label.
@@ -146,7 +176,7 @@ namespace helengine.editor {
         /// <summary>
         /// Last settings document shown by the dialog.
         /// </summary>
-        EditorUiScaleSettings CurrentSettings;
+        EditorPreferencesSettings CurrentSettings;
 
         /// <summary>
         /// Tracks whether the dialog has completed initialization.
@@ -154,9 +184,9 @@ namespace helengine.editor {
         bool IsInitialized;
 
         /// <summary>
-        /// Raised when the user confirms one UI scale selection.
+        /// Raised when the user confirms one editor-global preferences selection.
         /// </summary>
-        public event Action<EditorUiScaleSettings> ConfirmRequested;
+        public event Action<EditorPreferencesSettings> ConfirmRequested;
 
         /// <summary>
         /// Raised when the user cancels the preferences workflow.
@@ -170,7 +200,21 @@ namespace helengine.editor {
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
         public EditorPreferencesDialog(FontAsset font, EditorUiMetrics metrics)
             : base("EditorPreferencesDialog", "Preferences", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
+            ThemeDefinitions = CreateThemeDefinitions();
+            ThemeItems = CreateThemeItems(ThemeDefinitions);
+
             SetDialogMinimumSize(PanelWidth, PanelHeight);
+
+            ThemeLabelHost = CreateDialogHost();
+            DialogPanelRoot.AddChild(ThemeLabelHost);
+            ThemeLabel = CreateDialogLabel("Theme");
+            ThemeLabelHost.AddComponent(ThemeLabel);
+
+            ThemeComboBoxHost = CreateDialogHost();
+            DialogPanelRoot.AddChild(ThemeComboBoxHost);
+            ThemeComboBox = new ComboBoxComponent(GetFieldSize(), DialogFont, ThemeItems, ResolveThemeIndex(EditorThemeCatalog.DefaultThemeId));
+            ConfigureDialogComboBox(ThemeComboBox);
+            ThemeComboBoxHost.AddComponent(ThemeComboBox);
 
             ScaleModeLabelHost = CreateDialogHost();
             DialogPanelRoot.AddChild(ScaleModeLabelHost);
@@ -214,17 +258,18 @@ namespace helengine.editor {
         /// <summary>
         /// Shows the preferences dialog for the provided current settings.
         /// </summary>
-        /// <param name="settings">Current global UI scale settings.</param>
-        public void Show(EditorUiScaleSettings settings) {
+        /// <param name="settings">Current editor-global preferences.</param>
+        public void Show(EditorPreferencesSettings settings) {
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
 
             CurrentSettings = settings;
             ResetDialogPositioning();
-            SetScaleModeSelection(settings.Mode);
-            SetScalePercentSelection(settings.OverridePercent);
-            UpdateScalePercentEnabled(settings.Mode == EditorUiScaleMode.Override);
+            SetThemeSelection(settings.ThemeId);
+            SetScaleModeSelection(settings.UiScale.Mode);
+            SetScalePercentSelection(settings.UiScale.OverridePercent);
+            UpdateScalePercentEnabled(settings.UiScale.Mode == EditorUiScaleMode.Override);
             Enabled = true;
             ShowDialogImmediately();
         }
@@ -271,7 +316,9 @@ namespace helengine.editor {
         /// </summary>
         void LayoutContent() {
             int contentWidth = Math.Max(0, AnchorBounds.X - GetPanelPaddingPixels() * 2);
-            int scaleModeLabelTop = GetPanelPaddingPixels() + GetHeaderHeightPixels() + GetSectionSpacingPixels();
+            int themeLabelTop = GetPanelPaddingPixels() + GetHeaderHeightPixels() + GetSectionSpacingPixels();
+            int themeComboTop = themeLabelTop + GetLabelHeightPixels() + GetLabelFieldSpacingPixels();
+            int scaleModeLabelTop = themeComboTop + GetFieldHeightPixels() + GetSectionSpacingPixels();
             int scaleModeComboTop = scaleModeLabelTop + GetLabelHeightPixels() + GetLabelFieldSpacingPixels();
             int scalePercentLabelTop = scaleModeComboTop + GetFieldHeightPixels() + GetSectionSpacingPixels();
             int scalePercentComboTop = scalePercentLabelTop + GetLabelHeightPixels() + GetLabelFieldSpacingPixels();
@@ -279,6 +326,12 @@ namespace helengine.editor {
             int buttonY = footerTop + Math.Max(0, (GetFooterHeightPixels() - GetApplyButtonSize().Y) / 2);
             int applyButtonX = AnchorBounds.X - GetPanelPaddingPixels() - GetApplyButtonSize().X;
             int cancelButtonX = applyButtonX - GetFooterButtonSpacingPixels() - GetCancelButtonSize().X;
+
+            ThemeLabelHost.Position = new float3(GetPanelPaddingPixels(), themeLabelTop, 0.2f);
+            ThemeLabel.Size = new int2(contentWidth, GetLabelHeightPixels());
+
+            ThemeComboBoxHost.Position = new float3(GetPanelPaddingPixels(), themeComboTop, 0.2f);
+            ThemeComboBox.Size = GetFieldSize();
 
             ScaleModeLabelHost.Position = new float3(GetPanelPaddingPixels(), scaleModeLabelTop, 0.2f);
             ScaleModeLabel.Size = new int2(contentWidth, GetLabelHeightPixels());
@@ -311,7 +364,9 @@ namespace helengine.editor {
         void HandleApplyClicked() {
             EditorUiScaleMode mode = ResolveSelectedMode();
             int percent = ResolveSelectedPercent();
-            CurrentSettings = new EditorUiScaleSettings(mode, percent);
+            CurrentSettings = new EditorPreferencesSettings(
+                new EditorUiScaleSettings(mode, percent),
+                ResolveSelectedThemeId());
             Hide();
             if (ConfirmRequested != null) {
                 ConfirmRequested(CurrentSettings);
@@ -338,6 +393,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Selects the dialog item that matches the provided theme identifier.
+        /// </summary>
+        /// <param name="themeId">Persisted theme identifier that should appear selected.</param>
+        void SetThemeSelection(string themeId) {
+            ThemeComboBox.SetItems(ThemeItems, ResolveThemeIndex(themeId));
+        }
+
+        /// <summary>
         /// Selects the dialog item that matches the provided scale mode.
         /// </summary>
         /// <param name="mode">Scale mode that should appear selected.</param>
@@ -353,6 +416,22 @@ namespace helengine.editor {
         void SetScalePercentSelection(int percent) {
             int selectedIndex = ResolvePercentIndex(percent);
             ScalePercentComboBox.SetItems(ScalePercentItems, selectedIndex);
+        }
+
+        /// <summary>
+        /// Resolves the currently selected theme identifier from the combo-box value.
+        /// </summary>
+        /// <returns>Selected stable theme identifier.</returns>
+        string ResolveSelectedThemeId() {
+            string selectedValue = ThemeComboBox.SelectedItem;
+            for (int index = 0; index < ThemeDefinitions.Length; index++) {
+                EditorThemeDefinition theme = ThemeDefinitions[index];
+                if (string.Equals(theme.DisplayName, selectedValue, StringComparison.Ordinal)) {
+                    return theme.Id;
+                }
+            }
+
+            throw new InvalidOperationException("The selected editor theme must resolve to one catalog entry.");
         }
 
         /// <summary>
@@ -376,6 +455,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the combo-box index that matches one persisted theme identifier.
+        /// </summary>
+        /// <param name="themeId">Persisted theme identifier.</param>
+        /// <returns>Index of the matching combo-box item.</returns>
+        int ResolveThemeIndex(string themeId) {
+            for (int index = 0; index < ThemeDefinitions.Length; index++) {
+                EditorThemeDefinition theme = ThemeDefinitions[index];
+                if (string.Equals(theme.Id, themeId, StringComparison.Ordinal)) {
+                    return index;
+                }
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(themeId), "Theme identifier must match one supported editor theme.");
+        }
+
+        /// <summary>
         /// Resolves the combo-box index that matches one supported explicit percentage.
         /// </summary>
         /// <param name="percent">Supported explicit scale percentage.</param>
@@ -389,6 +484,32 @@ namespace helengine.editor {
             }
 
             throw new ArgumentOutOfRangeException(nameof(percent), "Scale percent must match one supported editor preference value.");
+        }
+
+        /// <summary>
+        /// Creates one array copy of the currently registered editor theme definitions.
+        /// </summary>
+        /// <returns>Theme definitions exposed by the editor theme catalog.</returns>
+        static EditorThemeDefinition[] CreateThemeDefinitions() {
+            return EditorThemeCatalog.Themes.ToArray();
+        }
+
+        /// <summary>
+        /// Creates one display-name array for the supplied theme definitions.
+        /// </summary>
+        /// <param name="themeDefinitions">Theme definitions that should be exposed by the theme combo box.</param>
+        /// <returns>Display-name array aligned with the supplied theme definitions.</returns>
+        static string[] CreateThemeItems(EditorThemeDefinition[] themeDefinitions) {
+            if (themeDefinitions == null) {
+                throw new ArgumentNullException(nameof(themeDefinitions));
+            }
+
+            string[] items = new string[themeDefinitions.Length];
+            for (int index = 0; index < themeDefinitions.Length; index++) {
+                items[index] = themeDefinitions[index].DisplayName;
+            }
+
+            return items;
         }
 
         /// <summary>
