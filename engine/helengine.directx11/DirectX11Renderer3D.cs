@@ -1794,15 +1794,21 @@ namespace helengine.directx11 {
                 return null;
             }
 
-            if (runtimeTexture is not DirectX11TextureResource textureResource) {
-                throw new InvalidOperationException("3D material textures must be DirectX11 texture resources.");
+            if (runtimeTexture is DirectX11TextureResource textureResource) {
+                if (textureResource.Resource == null) {
+                    throw new InvalidOperationException("DirectX11 texture resources must expose a shader resource view.");
+                }
+
+                return textureResource.Resource;
+            } else if (runtimeTexture is DirectX11RenderTargetResource renderTargetResource) {
+                if (renderTargetResource.ShaderResourceView == null) {
+                    throw new InvalidOperationException("DirectX11 render targets used as material textures must expose a shader resource view.");
+                }
+
+                return renderTargetResource.ShaderResourceView;
             }
 
-            if (textureResource.Resource == null) {
-                throw new InvalidOperationException("DirectX11 texture resources must expose a shader resource view.");
-            }
-
-            return textureResource.Resource;
+            throw new InvalidOperationException("3D material textures must be DirectX11 texture resources.");
         }
         /// <summary>
         /// Gets the fallback material used for drawables without materials.

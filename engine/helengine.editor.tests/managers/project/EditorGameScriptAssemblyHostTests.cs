@@ -46,6 +46,18 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures transient script snapshots stay outside the project tree so editor startup does not require project write access.
+        /// </summary>
+        [Fact]
+        public void Constructor_DoesNotCreateScriptSnapshotsUnderProjectUserSettings() {
+            using EditorGameScriptAssemblyHost host = new EditorGameScriptAssemblyHost(ProjectRootPath);
+
+            string projectSnapshotRootPath = Path.Combine(ProjectRootPath, "user_settings", "script_snapshots");
+
+            Assert.False(Directory.Exists(projectSnapshotRootPath));
+        }
+
+        /// <summary>
         /// Copies the current test assembly into one generated-module output directory and returns the copied path.
         /// </summary>
         /// <param name="moduleId">Module id that owns the copied assembly.</param>

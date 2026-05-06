@@ -47,6 +47,26 @@ namespace helengine.editor.tests.managers.scene {
         }
 
         /// <summary>
+        /// Ensures the viewport-to-canvas mapping treats the top of the plane as canvas Y zero so visual hits match the rendered preview.
+        /// </summary>
+        [Fact]
+        public void ResolveSelectableEntityAtPointer_WhenPointerHitsTopOfPlane_SelectsTopCanvasEntity() {
+            InitializeCore();
+            EditorEntity cameraEntity = CreateViewportCameraEntity();
+            CameraComponent sceneCamera = FindCameraComponent(cameraEntity);
+            EditorViewportCanvasPlanePreviewComponent previewComponent = CreatePreviewComponent(cameraEntity, sceneCamera, 200, 200, 100);
+            EditorEntity expectedEntity = CreateInteractableEntity(new float3(0f, 0f, 0f), new int2(40, 40), 3);
+
+            Entity selectedEntity = EditorViewportCanvasPlaneSelectionService.ResolveSelectableEntityAtPointer(
+                previewComponent,
+                cameraEntity,
+                sceneCamera.Viewport,
+                new int2(40, 40));
+
+            Assert.Same(expectedEntity, selectedEntity);
+        }
+
+        /// <summary>
         /// Initializes the lightweight editor core services required by canvas-plane selection tests.
         /// </summary>
         void InitializeCore() {

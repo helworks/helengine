@@ -194,7 +194,7 @@ namespace helengine.editor {
             double localX = (hitPoint.X - minX) / planeWidth;
             double localY = (hitPoint.Y - minY) / planeHeight;
             int canvasX = ClampToRange((int)Math.Round(localX * canvasWidth), 0, canvasWidth - 1);
-            int canvasY = ClampToRange((int)Math.Round(localY * canvasHeight), 0, canvasHeight - 1);
+            int canvasY = ClampToRange(canvasHeight - (int)Math.Round(localY * canvasHeight), 0, canvasHeight - 1);
             return new int2(canvasX, canvasY);
         }
 

@@ -56,6 +56,25 @@ namespace helengine.editor.tests.managers.scene {
         }
 
         /// <summary>
+        /// Ensures authored 2D scene drawables render only through the offscreen preview camera once the viewport plane preview is active.
+        /// </summary>
+        [Fact]
+        public void Update_WhenViewportPreviewIsActive_RoutesAuthoredSceneDrawablesOnlyToPreviewCamera() {
+            InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera();
+            EditorViewportCanvasPreviewSettings settings = new EditorViewportCanvasPreviewSettings();
+            EditorEntity cameraEntity = Assert.IsType<EditorEntity>(sceneCamera.Parent);
+            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, settings, Core.Instance.RenderManager3D);
+            CreateSceneRoundedRectEntity();
+
+            cameraEntity.AddComponent(component);
+            component.Update();
+
+            Assert.Equal(0, sceneCamera.RenderQueue2D.Count);
+            Assert.Equal(1, component.PreviewCamera.RenderQueue2D.Count);
+        }
+
+        /// <summary>
         /// Initializes the core services required by canvas-plane preview component tests.
         /// </summary>
         void InitializeCore() {
@@ -75,6 +94,18 @@ namespace helengine.editor.tests.managers.scene {
             };
             cameraEntity.AddComponent(sceneCamera);
             return sceneCamera;
+        }
+
+        /// <summary>
+        /// Creates one authored scene entity containing a rounded rectangle drawable.
+        /// </summary>
+        /// <returns>Scene entity registered on the authored scene-object layer.</returns>
+        EditorEntity CreateSceneRoundedRectEntity() {
+            var sceneEntity = new EditorEntity {
+                LayerMask = EditorLayerMasks.SceneObjects
+            };
+            sceneEntity.AddComponent(new RoundedRectComponent());
+            return sceneEntity;
         }
     }
 }

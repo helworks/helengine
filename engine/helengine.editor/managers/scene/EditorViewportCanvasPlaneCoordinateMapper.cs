@@ -14,9 +14,12 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(settings));
             }
 
+            int canvasHeight = Math.Max(1, settings.CanvasHeight);
+            int canvasX = (int)Math.Round(worldPoint.X * settings.PixelsPerWorldUnit);
+            int canvasY = canvasHeight - (int)Math.Round(worldPoint.Y * settings.PixelsPerWorldUnit);
             return new int2(
-                (int)Math.Round(worldPoint.X * settings.PixelsPerWorldUnit),
-                (int)Math.Round(worldPoint.Y * settings.PixelsPerWorldUnit));
+                canvasX,
+                canvasY);
         }
     }
 }

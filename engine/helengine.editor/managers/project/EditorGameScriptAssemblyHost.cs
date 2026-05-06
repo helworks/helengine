@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace helengine.editor {
     /// <summary>
@@ -39,7 +41,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
 
-            SnapshotRootPath = Path.Combine(Path.GetFullPath(projectRootPath), "user_settings", "script_snapshots");
+            SnapshotRootPath = BuildSnapshotRootPath(projectRootPath);
             DeleteDirectoryIfPresent(SnapshotRootPath);
             Directory.CreateDirectory(SnapshotRootPath);
             CurrentLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
@@ -194,6 +196,22 @@ namespace helengine.editor {
 
                 File.Copy(sourceFilePath, destinationFilePath, true);
             }
+        }
+
+        /// <summary>
+        /// Builds the transient snapshot root path for one project under the current user's temporary directory.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative project root path.</param>
+        /// <returns>Per-project snapshot directory stored outside the project tree.</returns>
+        static string BuildSnapshotRootPath(string projectRootPath) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
+            string normalizedProjectRootPath = Path.GetFullPath(projectRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            byte[] pathBytes = Encoding.UTF8.GetBytes(normalizedProjectRootPath);
+            string projectHash = Convert.ToHexString(SHA256.HashData(pathBytes));
+            return Path.Combine(Path.GetTempPath(), "helengine", "script_snapshots", projectHash);
         }
 
         /// <summary>

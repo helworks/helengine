@@ -106,6 +106,7 @@ namespace helengine.editor {
             PlaneMeshComponent = AssertPlaneMeshComponent(PlaneEntityValue);
             PlaneMaterial = PlaneMeshComponent.Material ?? throw new InvalidOperationException("Canvas plane material must exist after plane creation.");
             SynchronizePlaneTransform();
+            SynchronizeRenderQueues();
             IsInitialized = true;
         }
 
@@ -131,6 +132,7 @@ namespace helengine.editor {
 
             EnsureRenderTargetMatchesSettings();
             PreviewCameraComponent.RenderQueue3D.Clear();
+            SynchronizeRenderQueues();
             SynchronizePlaneTransform();
         }
 
@@ -196,6 +198,53 @@ namespace helengine.editor {
             float planeHeight = CurrentCanvasHeight / (float)CurrentPixelsPerWorldUnit;
             PlaneEntityValue.LocalPosition = new float3(planeWidth * 0.5f, planeHeight * 0.5f, 0f);
             PlaneEntityValue.LocalScale = new float3(planeWidth, planeHeight, 1f);
+        }
+
+        /// <summary>
+        /// Rebuilds the scene-camera and preview-camera 2D queues so scene-view 2D renders only through the offscreen preview target.
+        /// </summary>
+        void SynchronizeRenderQueues() {
+            if (SceneCamera == null) {
+                throw new InvalidOperationException("Scene camera must exist before synchronizing viewport canvas queues.");
+            }
+            if (PreviewCameraComponent == null) {
+                throw new InvalidOperationException("Preview camera must exist before synchronizing viewport canvas queues.");
+            }
+
+            IRenderQueue2D previewQueue = PreviewCameraComponent.RenderQueue2D;
+            SceneCamera.RenderQueue2D.Clear();
+            previewQueue.Clear();
+
+            List<IDrawable2D> drawables2D = Core.Instance.ObjectManager.Drawables2D;
+            for (int index = 0; index < drawables2D.Count; index++) {
+                IDrawable2D drawable = drawables2D[index];
+                if (drawable == null || drawable.Parent == null || !drawable.Parent.Enabled) {
+                    continue;
+                }
+
+                if (ShouldRouteDrawableThroughPreview(drawable)) {
+                    previewQueue.Add(drawable);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Determines whether one 2D drawable belongs to authored scene content that must render only through the viewport canvas preview.
+        /// </summary>
+        /// <param name="drawable">2D drawable candidate.</param>
+        /// <returns>True when the drawable belongs to non-internal scene content on the authored scene layer.</returns>
+        bool ShouldRouteDrawableThroughPreview(IDrawable2D drawable) {
+            if (drawable == null) {
+                return false;
+            }
+            if (drawable.Parent == null) {
+                return false;
+            }
+            if ((drawable.Parent.LayerMask & EditorLayerMasks.SceneObjects) == 0) {
+                return false;
+            }
+
+            return EditorViewportSceneSelectionFilter.ResolveSelectableEntity(drawable.Parent) != null;
         }
 
         /// <summary>

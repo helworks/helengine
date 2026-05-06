@@ -20,12 +20,15 @@ namespace helengine.editor.tests.managers.scene {
 
             EditorEntity planeEntity = EditorViewportCanvasPlaneFactory.Create(render3D, renderTarget);
             MeshComponent meshComponent = Assert.IsType<MeshComponent>(Assert.Single(planeEntity.Components, component => component is MeshComponent));
+            ModelAsset builtModelAsset = Assert.Single(render3D.BuiltModelAssets);
 
             Assert.True(planeEntity.InternalEntity);
             Assert.Equal(EditorLayerMasks.SceneCanvasPlane, planeEntity.LayerMask);
             Assert.NotNull(meshComponent.Model);
             Assert.NotNull(meshComponent.Material);
             Assert.Same(renderTarget, meshComponent.Material.ResolveTexture());
+            Assert.Equal(new float2(0f, 1f), builtModelAsset.TexCoords[0]);
+            Assert.Equal(new float2(0f, 0f), builtModelAsset.TexCoords[3]);
         }
 
         /// <summary>
@@ -38,6 +41,18 @@ namespace helengine.editor.tests.managers.scene {
             int2 pixel = EditorViewportCanvasPlaneCoordinateMapper.MapWorldToCanvas(new float3(6.4f, 3.6f, 0f), settings);
 
             Assert.Equal(new int2(640, 360), pixel);
+        }
+
+        /// <summary>
+        /// Ensures world points on the top edge of the plane map to canvas Y zero so preview texture orientation matches 2D scene coordinates.
+        /// </summary>
+        [Fact]
+        public void MapWorldPointToCanvas_WhenPointIsOnTopEdge_ReturnsZeroCanvasY() {
+            EditorViewportCanvasPreviewSettings settings = new EditorViewportCanvasPreviewSettings();
+
+            int2 pixel = EditorViewportCanvasPlaneCoordinateMapper.MapWorldToCanvas(new float3(0f, 7.2f, 0f), settings);
+
+            Assert.Equal(new int2(0, 0), pixel);
         }
 
         /// <summary>

@@ -26,7 +26,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(canvasTexture));
             }
 
-            RuntimeModel planeModel = render3D.BuildModelFromRaw(TransformGizmoMeshFactory.CreateCenteredPlaneSquare(CanvasPlaneMeshSize));
+            RuntimeModel planeModel = render3D.BuildModelFromRaw(CreateCanvasPlaneModelAsset());
             RuntimeMaterial planeMaterial = EditorViewportCanvasPlaneMaterialFactory.Create(render3D, canvasTexture);
             var planeEntity = new EditorEntity {
                 Name = CanvasPlaneEntityName,
@@ -42,6 +42,52 @@ namespace helengine.editor {
             };
             planeEntity.AddComponent(meshComponent);
             return planeEntity;
+        }
+
+        /// <summary>
+        /// Builds the centered plane mesh used by the viewport canvas preview with UVs aligned to top-left 2D canvas coordinates.
+        /// </summary>
+        /// <returns>Model asset whose top edge samples the top of the preview render target.</returns>
+        static ModelAsset CreateCanvasPlaneModelAsset() {
+            float halfSize = CanvasPlaneMeshSize * 0.5f;
+            return new ModelAsset {
+                Positions = [
+                    new float3(-halfSize, -halfSize, 0f),
+                    new float3(halfSize, -halfSize, 0f),
+                    new float3(halfSize, halfSize, 0f),
+                    new float3(-halfSize, halfSize, 0f),
+                    new float3(-halfSize, -halfSize, 0f),
+                    new float3(-halfSize, halfSize, 0f),
+                    new float3(halfSize, halfSize, 0f),
+                    new float3(halfSize, -halfSize, 0f)
+                ],
+                Normals = [
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, -1f),
+                    new float3(0f, 0f, -1f),
+                    new float3(0f, 0f, -1f),
+                    new float3(0f, 0f, -1f)
+                ],
+                TexCoords = [
+                    new float2(0f, 1f),
+                    new float2(1f, 1f),
+                    new float2(1f, 0f),
+                    new float2(0f, 0f),
+                    new float2(0f, 1f),
+                    new float2(0f, 0f),
+                    new float2(1f, 0f),
+                    new float2(1f, 1f)
+                ],
+                Indices16 = [
+                    0, 1, 2,
+                    0, 2, 3,
+                    4, 5, 6,
+                    4, 6, 7
+                ]
+            };
         }
     }
 }
