@@ -1821,6 +1821,76 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures clicking one visible scene checkbox through the live pointer system hovers and toggles it.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPointerClicksSceneCheckboxBeforeMoving_TogglesSelection() {
+            CreateModalCamera(1280, 960);
+
+            BuildDialog dialog = new BuildDialog(CreateFont());
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen",
+                    "Scenes/Menu.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [],
+                            OutputDirectoryPath = @"C:\builds\windows"
+                        }
+                    ]
+                });
+            dialog.UpdateLayout(1280, 960);
+
+            int2 panelPosition = GetPrivateField<int2>(dialog, "PanelPosition");
+            EditorEntity buildColumnRoot = GetPrivateField<EditorEntity>(dialog, "BuildColumnRoot");
+            EditorEntity sceneListRoot = GetPrivateField<EditorEntity>(dialog, "SceneListRoot");
+            CameraComponent contentCamera = GetPrivateField<CameraComponent>(dialog, "SceneListContentCameraComponent");
+            BuildDialogSceneRow firstRow = GetPrivateField<List<BuildDialogSceneRow>>(dialog, "SceneRows")
+                .Where(row => row.Root.Enabled)
+                .OrderBy(row => row.Root.LocalPosition.Y)
+                .First();
+            InteractableComponent checkboxInteractable = FindComponent<InteractableComponent>(firstRow.CheckBoxHost);
+            int pointerX = panelPosition.X +
+                           (int)Math.Round(buildColumnRoot.LocalPosition.X) +
+                           (int)Math.Round(sceneListRoot.LocalPosition.X) +
+                           (int)Math.Round(firstRow.Root.LocalPosition.X) +
+                           (int)Math.Round(firstRow.CheckBoxHost.LocalPosition.X) +
+                           (firstRow.CheckBox.Size.X / 2);
+            int pointerY = panelPosition.Y +
+                           (int)Math.Round(buildColumnRoot.LocalPosition.Y) +
+                           (int)Math.Round(sceneListRoot.LocalPosition.Y) +
+                           (int)Math.Round(firstRow.Root.LocalPosition.Y) +
+                           (int)Math.Round(firstRow.CheckBoxHost.LocalPosition.Y) +
+                           (firstRow.CheckBox.Size.Y / 2);
+
+            Assert.True(contentCamera.Viewport.Contains(pointerX, pointerY));
+            Assert.Contains(checkboxInteractable, Core.Instance.ObjectManager.Interactables);
+            Assert.Same(
+                checkboxInteractable,
+                PointerInteractableHitResolver.ResolveTopInteractableAt(
+                    Core.Instance.ObjectManager.Interactables,
+                    Core.Instance.ObjectManager.Drawables2D,
+                    contentCamera,
+                    pointerX,
+                    pointerY));
+
+            AdvanceInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.Equal(PointerCursorKind.Hand, Core.Instance.PointerInteractionSystem.HoverCursor);
+
+            AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(pointerX, pointerY, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.True(firstRow.CheckBox.IsChecked);
+        }
+
+        /// <summary>
         /// Ensures the scene list is enclosed by a bordered surface instead of leaving the rows visually floating.
         /// </summary>
         [Fact]
