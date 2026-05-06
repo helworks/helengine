@@ -39,6 +39,11 @@ namespace helengine.editor {
         public const ushort BuildDialogSceneListContent = 0b0000000100000000;
 
         /// <summary>
+        /// Layer mask used by clipped Properties panel content rendered inside the dock body viewport.
+        /// </summary>
+        public const ushort PropertiesPanelContent = 0b0000000010000000;
+
+        /// <summary>
         /// Layer mask used by the world-space 2D canvas preview plane.
         /// </summary>
         public const ushort SceneCanvasPlane = 0b0000001000000000;

@@ -394,6 +394,97 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures tall property content produces a positive scroll range instead of overflowing the panel body.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenPropertyContentExceedsPanelBody_ExposesPositiveScrollRange() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath)) {
+                Position = new float3(32f, 40f, 0f),
+                Size = new int2(320, 120)
+            };
+            EditorEntity entity = CreateEntityWithTallPropertyComponent();
+
+            panel.ShowEntityProperties(entity);
+
+            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(panel, "ContentScrollComponent");
+            int expectedViewportHeight = Math.Max(panel.Size.Y, panel.MinSize.Y);
+
+            Assert.True(scrollComponent.MaximumScrollOffset > 0);
+            Assert.Equal(320, scrollComponent.Size.X);
+            Assert.Equal(expectedViewportHeight, scrollComponent.Size.Y);
+            Assert.Equal(expectedViewportHeight, scrollComponent.VisibleItemCount);
+        }
+
+        /// <summary>
+        /// Ensures scrollable property content is parented to the clipped content root and rendered on its dedicated layer.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenScrollableBodyIsBuilt_ParentsChildContentToTheClippedViewportLayer() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath)) {
+                Position = new float3(32f, 40f, 0f),
+                Size = new int2(320, 120)
+            };
+            EditorEntity entity = CreateEntityWithTallPropertyComponent();
+
+            panel.ShowEntityProperties(entity);
+
+            EditorEntity scrollContentRoot = GetPrivateField<EditorEntity>(panel, "ScrollContentRoot");
+            EditorEntity transformRoot = GetPrivateField<EditorEntity>(panel, "TransformRoot");
+            EditorEntity addComponentButtonRoot = GetPrivateField<EditorEntity>(panel, "AddComponentButtonRoot");
+            ComponentPropertiesView componentView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            CameraComponent contentCamera = GetPrivateField<CameraComponent>(panel, "ContentCameraComponent");
+            float expectedViewportHeight = Math.Max(panel.Size.Y, panel.MinSize.Y);
+
+            Assert.Equal(EditorLayerMasks.PropertiesPanelContent, scrollContentRoot.LayerMask);
+            Assert.Equal(EditorLayerMasks.PropertiesPanelContent, transformRoot.LayerMask);
+            Assert.Equal(EditorLayerMasks.PropertiesPanelContent, addComponentButtonRoot.LayerMask);
+            Assert.Equal(EditorLayerMasks.PropertiesPanelContent, componentView.Root.LayerMask);
+            Assert.Same(scrollContentRoot, transformRoot.Parent);
+            Assert.Same(scrollContentRoot, addComponentButtonRoot.Parent);
+            Assert.Same(scrollContentRoot, componentView.Root.Parent);
+            Assert.Equal(EditorUiCameraDrawOrders.PanelContent, contentCamera.CameraDrawOrder);
+            Assert.Equal(32f, contentCamera.Viewport.X);
+            Assert.Equal(40f + DockableEntity.TitleBarHeight, contentCamera.Viewport.Y);
+            Assert.Equal(320f, contentCamera.Viewport.Z);
+            Assert.Equal(expectedViewportHeight, contentCamera.Viewport.W);
+        }
+
+        /// <summary>
+        /// Ensures controls that overflow below the panel body are not resolved by pointer hit testing until scrolled into view.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenPointerTargetsAddButtonOutsideViewport_DoesNotResolveTheClippedOverflowButton() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath)) {
+                Position = new float3(32f, 40f, 0f),
+                Size = new int2(320, 120)
+            };
+            EditorEntity entity = CreateEntityWithTallPropertyComponent();
+
+            panel.ShowEntityProperties(entity);
+
+            ComponentPropertiesView componentView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            List<ComponentSectionView> sections = GetPrivateField<List<ComponentSectionView>>(componentView, "ActiveSections");
+            ComponentSectionView firstSection = Assert.Single(sections);
+            int pointerX = (int)Math.Round(firstSection.HeaderInteractable.Parent.Position.X + 8f);
+            int pointerY = (int)Math.Round(firstSection.HeaderInteractable.Parent.Position.Y + 8f);
+            ICamera topCamera = FindTopCameraAt(pointerX, pointerY);
+            Assert.Null(topCamera);
+
+            IInteractable2D hit = null;
+            if (topCamera != null) {
+                hit = PointerInteractableHitResolver.ResolveTopInteractableAt(
+                    Core.Instance.ObjectManager.Interactables,
+                    Core.Instance.ObjectManager.Drawables2D,
+                    topCamera,
+                    pointerX,
+                    pointerY);
+            }
+
+            Assert.NotSame(firstSection.HeaderInteractable, hit);
+            Assert.Null(hit);
+        }
+
+        /// <summary>
         /// Ensures the remove button wiring raises a remove request for the correct component.
         /// </summary>
         [Fact]
@@ -575,6 +666,18 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates one editor entity whose property rows overflow a small properties panel body.
+        /// </summary>
+        /// <returns>Entity used to verify scrolling and clipping.</returns>
+        EditorEntity CreateEntityWithTallPropertyComponent() {
+            EditorEntity entity = new EditorEntity {
+                Name = "Tall"
+            };
+            entity.AddComponent(new TallPropertyTestComponent());
+            return entity;
+        }
+
+        /// <summary>
         /// Finds one scalar property row by bound property name.
         /// </summary>
         /// <param name="view">View that owns the active property rows.</param>
@@ -656,6 +759,24 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Finds the top-most camera whose viewport contains the supplied pointer coordinate.
+        /// </summary>
+        /// <param name="pointerX">Pointer X coordinate in window space.</param>
+        /// <param name="pointerY">Pointer Y coordinate in window space.</param>
+        /// <returns>Top-most camera at the pointer position, or null when no camera covers the point.</returns>
+        ICamera FindTopCameraAt(int pointerX, int pointerY) {
+            List<ICamera> cameras = Core.Instance.ObjectManager.Cameras;
+            for (int cameraIndex = cameras.Count - 1; cameraIndex >= 0; cameraIndex--) {
+                ICamera camera = cameras[cameraIndex];
+                if (camera.Viewport.Contains(pointerX, pointerY)) {
+                    return camera;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Script component provider used to verify reflection-discovered components flow into the add modal.
         /// </summary>
         sealed class TestScriptComponentCatalogProvider : IEditorScriptComponentCatalogProvider {
@@ -675,6 +796,60 @@ namespace helengine.editor.tests {
         /// Synthetic script component used by the reflection-provider test.
         /// </summary>
         public sealed class TestScriptComponent : Component {
+        }
+
+        /// <summary>
+        /// Synthetic component with enough editable scalar properties to overflow the properties panel body in tests.
+        /// </summary>
+        public sealed class TallPropertyTestComponent : Component {
+            /// <summary>
+            /// Gets or sets the first scalar value.
+            /// </summary>
+            public float Alpha { get; set; } = 1f;
+            /// <summary>
+            /// Gets or sets the second scalar value.
+            /// </summary>
+            public float Bravo { get; set; } = 2f;
+            /// <summary>
+            /// Gets or sets the third scalar value.
+            /// </summary>
+            public float Charlie { get; set; } = 3f;
+            /// <summary>
+            /// Gets or sets the fourth scalar value.
+            /// </summary>
+            public float Delta { get; set; } = 4f;
+            /// <summary>
+            /// Gets or sets the fifth scalar value.
+            /// </summary>
+            public float Echo { get; set; } = 5f;
+            /// <summary>
+            /// Gets or sets the sixth scalar value.
+            /// </summary>
+            public float Foxtrot { get; set; } = 6f;
+            /// <summary>
+            /// Gets or sets the seventh scalar value.
+            /// </summary>
+            public float Golf { get; set; } = 7f;
+            /// <summary>
+            /// Gets or sets the eighth scalar value.
+            /// </summary>
+            public float Hotel { get; set; } = 8f;
+            /// <summary>
+            /// Gets or sets the ninth scalar value.
+            /// </summary>
+            public float India { get; set; } = 9f;
+            /// <summary>
+            /// Gets or sets the tenth scalar value.
+            /// </summary>
+            public float Juliet { get; set; } = 10f;
+            /// <summary>
+            /// Gets or sets the eleventh scalar value.
+            /// </summary>
+            public float Kilo { get; set; } = 11f;
+            /// <summary>
+            /// Gets or sets the twelfth scalar value.
+            /// </summary>
+            public float Lima { get; set; } = 12f;
         }
 
         /// <summary>

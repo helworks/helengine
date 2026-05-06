@@ -24,6 +24,7 @@ namespace helengine.editor {
         /// Applies property edits each frame.
         /// </summary>
         public override void Update() {
+            Panel.UpdateContentViewportFromCurrentBounds();
             Panel.UpdateTransformEdits();
         }
     }

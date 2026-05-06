@@ -151,6 +151,10 @@ namespace helengine.editor {
         /// Tracks whether the view is updating text fields internally.
         /// </summary>
         bool IsSynchronizing;
+        /// <summary>
+        /// Height consumed by the most recent visible layout pass.
+        /// </summary>
+        int LayoutHeightValue;
 
         /// <summary>
         /// Raised when the user requests to remove one component section.
@@ -162,7 +166,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for row labels.</param>
         /// <param name="contentManager">Content manager used to load serialized assets.</param>
-        public ComponentPropertiesView(FontAsset font, ContentManager contentManager) : this(font, contentManager, null, null) { }
+        public ComponentPropertiesView(FontAsset font, ContentManager contentManager) : this(font, contentManager, null, null, EditorLayerMasks.EditorUi) { }
 
         /// <summary>
         /// Initializes a new component properties view with support for file-system model source resolution.
@@ -171,7 +175,7 @@ namespace helengine.editor {
         /// <param name="contentManager">Content manager used to load serialized assets.</param>
         /// <param name="fileSystemModelResolver">Resolver that imports or loads processed model assets for file-system model sources.</param>
         public ComponentPropertiesView(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver)
-            : this(font, contentManager, fileSystemModelResolver, null) {
+            : this(font, contentManager, fileSystemModelResolver, null, EditorLayerMasks.EditorUi) {
         }
 
         /// <summary>
@@ -181,7 +185,28 @@ namespace helengine.editor {
         /// <param name="contentManager">Content manager used to load serialized assets.</param>
         /// <param name="fileSystemModelResolver">Resolver that imports or loads processed model assets for file-system model sources.</param>
         /// <param name="fileSystemFontResolver">Resolver that imports or loads processed font assets for file-system font sources.</param>
-        public ComponentPropertiesView(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorFileSystemFontResolver fileSystemFontResolver) {
+        public ComponentPropertiesView(
+            FontAsset font,
+            ContentManager contentManager,
+            EditorFileSystemModelResolver fileSystemModelResolver,
+            EditorFileSystemFontResolver fileSystemFontResolver)
+            : this(font, contentManager, fileSystemModelResolver, fileSystemFontResolver, EditorLayerMasks.EditorUi) {
+        }
+
+        /// <summary>
+        /// Initializes a new component properties view with support for file-system model and font source resolution on the requested UI layer.
+        /// </summary>
+        /// <param name="font">Font used for row labels.</param>
+        /// <param name="contentManager">Content manager used to load serialized assets.</param>
+        /// <param name="fileSystemModelResolver">Resolver that imports or loads processed model assets for file-system model sources.</param>
+        /// <param name="fileSystemFontResolver">Resolver that imports or loads processed font assets for file-system font sources.</param>
+        /// <param name="layerMask">Layer used by the view root and all generated rows.</param>
+        public ComponentPropertiesView(
+            FontAsset font,
+            ContentManager contentManager,
+            EditorFileSystemModelResolver fileSystemModelResolver,
+            EditorFileSystemFontResolver fileSystemFontResolver,
+            ushort layerMask) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -195,7 +220,7 @@ namespace helengine.editor {
             FileSystemModelResolver = fileSystemModelResolver;
             FileSystemFontResolver = fileSystemFontResolver;
             RootEntity = new EditorEntity();
-            RootEntity.LayerMask = 0b1000000000000000;
+            RootEntity.LayerMask = layerMask;
             RootEntity.Position = float3.Zero;
             RootEntity.Enabled = false;
 
@@ -223,6 +248,11 @@ namespace helengine.editor {
         public bool IsVisible => RootEntity.Enabled;
 
         /// <summary>
+        /// Gets the height consumed by the current visible section layout.
+        /// </summary>
+        public int Height => LayoutHeightValue;
+
+        /// <summary>
         /// Shows component properties for the specified entity.
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
@@ -235,6 +265,7 @@ namespace helengine.editor {
             ClearActiveSections();
             if (entity.Components == null || entity.Components.Count == 0) {
                 RootEntity.Enabled = false;
+                LayoutHeightValue = 0;
                 return;
             }
 
@@ -256,6 +287,7 @@ namespace helengine.editor {
 
             if (ActiveSections.Count == 0) {
                 RootEntity.Enabled = false;
+                LayoutHeightValue = 0;
             }
         }
 
@@ -266,6 +298,7 @@ namespace helengine.editor {
             ClearActiveRows();
             ClearActiveSections();
             RootEntity.Enabled = false;
+            LayoutHeightValue = 0;
         }
 
         /// <summary>
@@ -276,6 +309,7 @@ namespace helengine.editor {
         /// <param name="maxWidth">Maximum width available for the rows.</param>
         public void UpdateLayout(int left, int top, int maxWidth) {
             if (!RootEntity.Enabled) {
+                LayoutHeightValue = 0;
                 return;
             }
 
@@ -302,6 +336,8 @@ namespace helengine.editor {
 
                 y += SectionSpacing;
             }
+
+            LayoutHeightValue = y > 0 ? y - SectionSpacing : 0;
         }
 
         /// <summary>

@@ -57,9 +57,25 @@ namespace helengine.editor {
         /// </summary>
         readonly byte textOrder;
         /// <summary>
-        /// Root entity hosting property text lines.
+        /// Root entity hosting the scroll viewport directly below the title bar.
         /// </summary>
         readonly EditorEntity contentRoot;
+        /// <summary>
+        /// Camera owner that clips scrollable property content to the panel body.
+        /// </summary>
+        readonly EditorEntity ContentCameraEntity;
+        /// <summary>
+        /// Camera that renders the scrollable properties body inside the panel viewport only.
+        /// </summary>
+        readonly CameraComponent ContentCameraComponent;
+        /// <summary>
+        /// Root entity hosting all scrollable property content.
+        /// </summary>
+        readonly EditorEntity ScrollContentRoot;
+        /// <summary>
+        /// Scroll controller that tracks pixel-based vertical offset for the panel body.
+        /// </summary>
+        readonly ScrollComponent ContentScrollComponent;
         /// <summary>
         /// Hosts for each text line.
         /// </summary>
@@ -252,6 +268,22 @@ namespace helengine.editor {
         /// Tracks whether the panel finished initialization.
         /// </summary>
         bool isInitialized;
+        /// <summary>
+        /// Last X coordinate used to position the clipped content camera viewport.
+        /// </summary>
+        float LastContentViewportX;
+        /// <summary>
+        /// Last Y coordinate used to position the clipped content camera viewport.
+        /// </summary>
+        float LastContentViewportY;
+        /// <summary>
+        /// Last width used by the clipped content camera viewport.
+        /// </summary>
+        float LastContentViewportWidth;
+        /// <summary>
+        /// Last height used by the clipped content camera viewport.
+        /// </summary>
+        float LastContentViewportHeight;
 
         /// <summary>
         /// Raised when the user applies a pending import setting change.
@@ -335,6 +367,27 @@ namespace helengine.editor {
             contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
             AddChild(contentRoot);
 
+            ContentCameraEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.PropertiesPanelContent
+            };
+            ContentCameraComponent = new CameraComponent {
+                LayerMask = EditorLayerMasks.PropertiesPanelContent,
+                CameraDrawOrder = EditorUiCameraDrawOrders.PanelContent,
+                ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), false, 1.0f, false, 0)
+            };
+            ContentCameraEntity.AddComponent(ContentCameraComponent);
+
+            ScrollContentRoot = new EditorEntity();
+            ScrollContentRoot.LayerMask = EditorLayerMasks.PropertiesPanelContent;
+            ScrollContentRoot.Position = float3.Zero;
+            contentRoot.AddChild(ScrollContentRoot);
+
+            ContentScrollComponent = new ScrollComponent();
+            ContentScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
+            ContentScrollComponent.ScrollOffsetChanged += HandleContentScrollOffsetChanged;
+            contentRoot.AddComponent(ContentScrollComponent);
+
             lineHosts = new List<EditorEntity>(6);
             lineTexts = new List<TextComponent>(6);
 
@@ -345,31 +398,31 @@ namespace helengine.editor {
             assetIdText = AddLine();
             statusText = AddLine();
 
-            importSettingsView = new AssetImportSettingsView(font, LayerMask);
+            importSettingsView = new AssetImportSettingsView(font, EditorLayerMasks.PropertiesPanelContent);
             importSettingsView.ApplyRequested += HandleImportSettingsApplyRequested;
-            contentRoot.AddChild(importSettingsView.Root);
+            ScrollContentRoot.AddChild(importSettingsView.Root);
 
-            MaterialView = new MaterialAssetView(font, LayerMask);
-            contentRoot.AddChild(MaterialView.Root);
+            MaterialView = new MaterialAssetView(font, EditorLayerMasks.PropertiesPanelContent);
+            ScrollContentRoot.AddChild(MaterialView.Root);
 
             TransformRoot = new EditorEntity();
-            TransformRoot.LayerMask = LayerMask;
+            TransformRoot.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             TransformRoot.Position = new float3(0, 0, 0.2f);
-            contentRoot.AddChild(TransformRoot);
+            ScrollContentRoot.AddChild(TransformRoot);
 
             if (fileSystemModelResolver == null && fileSystemFontResolver == null) {
-                ComponentView = new ComponentPropertiesView(font, contentManager);
+                ComponentView = new ComponentPropertiesView(font, contentManager, null, null, EditorLayerMasks.PropertiesPanelContent);
             } else {
-                ComponentView = new ComponentPropertiesView(font, contentManager, fileSystemModelResolver, fileSystemFontResolver);
+                ComponentView = new ComponentPropertiesView(font, contentManager, fileSystemModelResolver, fileSystemFontResolver, EditorLayerMasks.PropertiesPanelContent);
             }
             ComponentView.RemoveRequested += HandleComponentRemoveRequested;
-            contentRoot.AddChild(ComponentView.Root);
+            ScrollContentRoot.AddChild(ComponentView.Root);
 
             AddComponentButtonRoot = new EditorEntity();
-            AddComponentButtonRoot.LayerMask = LayerMask;
+            AddComponentButtonRoot.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             AddComponentButtonRoot.Position = float3.Zero;
             AddComponentButtonRoot.Enabled = true;
-            contentRoot.AddChild(AddComponentButtonRoot);
+            ScrollContentRoot.AddChild(AddComponentButtonRoot);
 
             AddComponentButton = new ButtonComponent("Add Component", new int2(AddComponentButtonWidth, AddComponentButtonHeight), font, HandleAddComponentClicked, 0f);
             AddComponentButton.UseSquareCorners();
@@ -409,6 +462,8 @@ namespace helengine.editor {
 
             ShowEmpty();
             isInitialized = true;
+            UpdateContentViewportFromCurrentBounds();
+            LayoutLines();
         }
 
         /// <summary>
@@ -664,6 +719,7 @@ namespace helengine.editor {
             }
 
             LayoutLines();
+            UpdateContentViewportFromCurrentBounds();
         }
 
         /// <summary>
@@ -681,6 +737,81 @@ namespace helengine.editor {
         protected override void HandleUiMetricsApplied() {
             MinSize = new int2(UiMetrics.ScalePixels(220), UiMetrics.ScalePixels(160));
             contentRoot.Position = new float3(0f, TitleBarHeightPixels, 0.05f);
+            UpdateContentViewportFromCurrentBounds();
+            LayoutLines();
+        }
+
+        /// <summary>
+        /// Reapplies the clipped content camera viewport when the panel moves or resizes.
+        /// </summary>
+        internal void UpdateContentViewportFromCurrentBounds() {
+            if (!isInitialized) {
+                return;
+            }
+
+            float viewportX = Position.X;
+            float viewportY = Position.Y + TitleBarHeightPixels;
+            float viewportWidth = Math.Max(1, GetContentViewportWidthPixels());
+            float viewportHeight = Math.Max(1, GetContentViewportHeightPixels());
+            if (LastContentViewportX == viewportX &&
+                LastContentViewportY == viewportY &&
+                LastContentViewportWidth == viewportWidth &&
+                LastContentViewportHeight == viewportHeight) {
+                return;
+            }
+
+            LastContentViewportX = viewportX;
+            LastContentViewportY = viewportY;
+            LastContentViewportWidth = viewportWidth;
+            LastContentViewportHeight = viewportHeight;
+            ContentCameraComponent.Viewport = new float4(viewportX, viewportY, viewportWidth, viewportHeight);
+            ContentScrollComponent.Size = new int2((int)Math.Round(viewportWidth), (int)Math.Round(viewportHeight));
+        }
+
+        /// <summary>
+        /// Updates the scrollable content root when the vertical offset changes.
+        /// </summary>
+        /// <param name="scrollComponent">Scroll controller that raised the change notification.</param>
+        /// <param name="scrollOffset">Current vertical scroll offset in pixels.</param>
+        void HandleContentScrollOffsetChanged(ScrollComponent scrollComponent, int scrollOffset) {
+            UpdateScrollContentPosition();
+        }
+
+        /// <summary>
+        /// Gets the current width of the visible properties body.
+        /// </summary>
+        /// <returns>Viewport width in pixels.</returns>
+        int GetContentViewportWidthPixels() {
+            return Math.Max(Size.X, MinSize.X);
+        }
+
+        /// <summary>
+        /// Gets the current height of the visible properties body.
+        /// </summary>
+        /// <returns>Viewport height in pixels.</returns>
+        int GetContentViewportHeightPixels() {
+            return Math.Max(Size.Y, MinSize.Y);
+        }
+
+        /// <summary>
+        /// Updates scroll metrics to reflect the current document height and viewport size.
+        /// </summary>
+        /// <param name="contentHeightPixels">Measured total content height in pixels.</param>
+        void UpdateContentScrollMetrics(int contentHeightPixels) {
+            int viewportWidth = GetContentViewportWidthPixels();
+            int viewportHeight = GetContentViewportHeightPixels();
+            ContentScrollComponent.Size = new int2(viewportWidth, viewportHeight);
+            ContentScrollComponent.VisibleItemCount = viewportHeight;
+            ContentScrollComponent.ItemCount = Math.Max(0, contentHeightPixels);
+            ContentScrollComponent.ClampScrollOffset();
+            UpdateScrollContentPosition();
+        }
+
+        /// <summary>
+        /// Applies the current scroll offset to the scrollable content root.
+        /// </summary>
+        void UpdateScrollContentPosition() {
+            ScrollContentRoot.Position = new float3(0f, -ContentScrollComponent.ScrollOffset, 0.1f);
         }
 
         /// <summary>
@@ -689,9 +820,9 @@ namespace helengine.editor {
         /// <returns>The created text component.</returns>
         TextComponent AddLine() {
             var host = new EditorEntity();
-            host.LayerMask = LayerMask;
+            host.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             host.Position = float3.Zero;
-            contentRoot.AddChild(host);
+            ScrollContentRoot.AddChild(host);
 
             var text = new TextComponent();
             text.Font = font;
@@ -756,12 +887,12 @@ namespace helengine.editor {
             }
 
             row = new EditorEntity();
-            row.LayerMask = LayerMask;
+            row.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             row.Position = float3.Zero;
             TransformRoot.AddChild(row);
 
             var labelHost = new EditorEntity();
-            labelHost.LayerMask = LayerMask;
+            labelHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             labelHost.Position = float3.Zero;
             row.AddChild(labelHost);
 
@@ -778,7 +909,7 @@ namespace helengine.editor {
             string[] placeholders = new[] { "X", "Y", "Z" };
             for (int i = 0; i < fieldHosts.Length; i++) {
                 var fieldHost = new EditorEntity();
-                fieldHost.LayerMask = LayerMask;
+                fieldHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
                 fieldHost.Position = float3.Zero;
                 row.AddChild(fieldHost);
 
@@ -803,12 +934,12 @@ namespace helengine.editor {
             out EditorEntity fieldHost,
             out TextBoxComponent field) {
             row = new EditorEntity();
-            row.LayerMask = LayerMask;
+            row.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             row.Position = float3.Zero;
             TransformRoot.AddChild(row);
 
             var labelHost = new EditorEntity();
-            labelHost.LayerMask = LayerMask;
+            labelHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             labelHost.Position = float3.Zero;
             row.AddChild(labelHost);
 
@@ -821,7 +952,7 @@ namespace helengine.editor {
             labelHost.AddComponent(labelText);
 
             fieldHost = new EditorEntity();
-            fieldHost.LayerMask = LayerMask;
+            fieldHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             fieldHost.Position = float3.Zero;
             row.AddChild(fieldHost);
 
@@ -1305,7 +1436,8 @@ namespace helengine.editor {
         /// Updates line positions and sizes based on the current text content.
         /// </summary>
         void LayoutLines() {
-            int rowWidth = Math.Max(Size.X, MinSize.X);
+            UpdateContentViewportFromCurrentBounds();
+            int rowWidth = GetContentViewportWidthPixels();
             int maxWidth = Math.Max(0, rowWidth - ContentPadding * 2);
             float lineHeight = (float)Math.Max((double)font.LineHeight, 1.0);
 
@@ -1327,11 +1459,13 @@ namespace helengine.editor {
             if (importSettingsView.IsVisible) {
                 int viewTop = (int)Math.Round(offsetY);
                 importSettingsView.UpdateLayout(ContentPadding, viewTop, maxWidth);
+                offsetY = viewTop + importSettingsView.Height + LineSpacing;
             }
 
             if (MaterialView.IsVisible) {
                 int viewTop = (int)Math.Round(offsetY);
                 MaterialView.UpdateLayout(ContentPadding, viewTop, maxWidth);
+                offsetY = viewTop + MaterialView.Height + LineSpacing;
             }
 
             if (ShowTransformControls) {
@@ -1341,11 +1475,15 @@ namespace helengine.editor {
                 LayoutAddComponentButton(addComponentTop, maxWidth);
                 int componentTop = addComponentTop + AddComponentButtonHeight + AddComponentListSpacing;
                 ComponentView.UpdateLayout(0, componentTop, rowWidth);
+                offsetY = Math.Max(addComponentTop + AddComponentButtonHeight, componentTop + ComponentView.Height);
             } else {
                 TransformRoot.Enabled = false;
                 AddComponentButtonRoot.Enabled = false;
                 ComponentView.Hide();
             }
+
+            int contentHeight = (int)Math.Ceiling(offsetY) + ContentPadding;
+            UpdateContentScrollMetrics(contentHeight);
         }
 
         /// <summary>
