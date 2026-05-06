@@ -1083,7 +1083,8 @@ namespace helengine.editor {
             }
 
             AssetImportSettings compatibilityMaterialSettings;
-            if (MaterialAssetSettingsService.TryLoad(fullPath, out compatibilityMaterialSettings)) {
+            if (MaterialAssetSettingsService.TryLoad(fullPath, out compatibilityMaterialSettings) &&
+                HasValidPlatformMaterialSettings(compatibilityMaterialSettings, TargetPlatformId)) {
                 MaterialAssetSettingsService.ApplyPlatformCompatibilityFields(materialAsset, compatibilityMaterialSettings, TargetPlatformId);
             }
 
@@ -1142,6 +1143,29 @@ namespace helengine.editor {
             }
 
             return EditorPlatformBuildSelectionModel.From(MaterialBuilder.Definition);
+        }
+
+        /// <summary>
+        /// Returns true when one persisted material sidecar exposes valid settings for the requested platform.
+        /// </summary>
+        /// <param name="settings">Persisted material settings candidate.</param>
+        /// <param name="platformId">Target platform whose settings should be validated.</param>
+        /// <returns>True when the sidecar contains a non-empty schema id for the requested platform.</returns>
+        static bool HasValidPlatformMaterialSettings(AssetImportSettings settings, string platformId) {
+            if (settings == null || string.IsNullOrWhiteSpace(platformId)) {
+                return false;
+            }
+            if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return false;
+            }
+            if (!settings.Processor.Platforms.TryGetValue(platformId, out AssetPlatformProcessorSettings platformSettings)) {
+                return false;
+            }
+            if (platformSettings == null || platformSettings.Material == null) {
+                return false;
+            }
+
+            return !string.IsNullOrWhiteSpace(platformSettings.Material.SchemaId);
         }
 
         /// <summary>

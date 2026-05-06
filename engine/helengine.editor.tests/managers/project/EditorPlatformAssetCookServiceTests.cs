@@ -123,6 +123,45 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "main.hasset")));
     }
 
+    /// <summary>
+    /// Verifies asset cooking falls back to compatibility material packaging when the active builder publishes no material schemas.
+    /// </summary>
+    [Fact]
+    public void Cook_when_builder_definition_publishes_no_material_schemas_packages_material_without_builder_material_cook() {
+        string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+        string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
+        EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(Path.Combine(sourceProjectRootPath, "project.heproj"));
+        AvailablePlatformDescriptor platformDescriptor = bootstrap.ResolvePlatformDescriptor("windows");
+        EditorPlatformAssetBuilderLoader builderLoader = new();
+        helengine.baseplatform.Builders.IPlatformAssetBuilder builder = builderLoader.Load(platformDescriptor.BuilderAssemblyPath);
+
+        string sceneId = "Scenes/PhysicsTrigger.helen";
+        string materialRelativePath = "Materials/physics/PhysicsDemoNeutral.helmat";
+        WriteMaterialAsset(materialRelativePath, "PhysicsDemoNeutral");
+        WriteSceneAssetWithMaterial(sceneId, materialRelativePath);
+
+        EditorPlatformAssetCookService service = new(
+            ProjectRootPath,
+            bootstrap.RequiredEngineVersion,
+            bootstrap.ProjectName,
+            bootstrap.ProjectVersion,
+            Array.Empty<IAssetImporterRegistration>(),
+            null);
+
+        PlatformBuildManifest manifest = service.Cook(
+            builder.Definition,
+            [sceneId],
+            BuildRootPath,
+            ["windows"],
+            builder,
+            "debug",
+            "directx11");
+
+        Assert.Equal(sceneId, manifest.StartupSceneId);
+        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "main.hasset")));
+        Assert.True(File.Exists(Path.Combine(BuildRootPath, "Materials", "physics", "PhysicsDemoNeutral.helmat")));
+    }
+
     void WriteSceneAsset(string sceneId, SceneAssetReference[] assetReferences) {
         string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(scenePath)!);
@@ -145,6 +184,82 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
 
         using FileStream stream = new(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
         AssetSerializer.Serialize(stream, sceneAsset);
+    }
+
+    /// <summary>
+    /// Writes one serialized material asset with compatibility shader fields and no import-settings sidecar.
+    /// </summary>
+    /// <param name="materialRelativePath">Project-relative material path to write.</param>
+    /// <param name="materialAssetId">Serialized material asset identifier.</param>
+    void WriteMaterialAsset(string materialRelativePath, string materialAssetId) {
+        string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(materialPath)!);
+
+        MaterialAsset materialAsset = new() {
+            Id = materialAssetId,
+            ShaderAssetId = "PhysicsDemoShader",
+            VertexProgram = "PhysicsDemo.vs",
+            PixelProgram = "PhysicsDemo.ps",
+            Variant = "default",
+            RenderState = new MaterialRenderState(),
+            ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>()
+        };
+
+        using FileStream stream = new(materialPath, FileMode.Create, FileAccess.Write, FileShare.None);
+        AssetSerializer.Serialize(stream, materialAsset);
+    }
+
+    /// <summary>
+    /// Writes one serialized scene asset whose mesh component references the supplied file-backed material.
+    /// </summary>
+    /// <param name="sceneId">Scene asset identifier to write.</param>
+    /// <param name="materialRelativePath">Project-relative material path referenced by the mesh component.</param>
+    void WriteSceneAssetWithMaterial(string sceneId, string materialRelativePath) {
+        string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(scenePath)!);
+
+        SceneAsset sceneAsset = new() {
+            Id = sceneId,
+            RootEntities = [
+                new SceneEntityAsset {
+                    Id = "mesh-root",
+                    Name = "MeshRoot",
+                    LocalPosition = float3.Zero,
+                    LocalScale = float3.One,
+                    LocalOrientation = float4.Identity,
+                    Components = [
+                        new SceneComponentAssetRecord {
+                            ComponentTypeId = "helengine.MeshComponent",
+                            ComponentIndex = 0,
+                            Payload = WriteMeshComponentPayload(materialRelativePath)
+                        }
+                    ],
+                    Children = Array.Empty<SceneEntityAsset>()
+                }
+            ]
+        };
+
+        using FileStream stream = new(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        AssetSerializer.Serialize(stream, sceneAsset);
+    }
+
+    /// <summary>
+    /// Writes one mesh-component payload that references one file-backed material.
+    /// </summary>
+    /// <param name="materialRelativePath">Project-relative material path encoded into the payload.</param>
+    /// <returns>Serialized mesh-component payload.</returns>
+    static byte[] WriteMeshComponentPayload(string materialRelativePath) {
+        using MemoryStream stream = new();
+        using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+        writer.WriteByte(1);
+        writer.WriteByte(0);
+        writer.WriteByte(1);
+        writer.WriteInt32((int)SceneAssetReferenceSourceKind.FileSystem);
+        writer.WriteString(materialRelativePath);
+        writer.WriteString(string.Empty);
+        writer.WriteString(string.Empty);
+        writer.WriteByte(0);
+        return stream.ToArray();
     }
 
     /// <summary>

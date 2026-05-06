@@ -60,13 +60,14 @@ namespace helengine.editor {
 
             string fullOutputRootPath = Path.GetFullPath(outputRootPath);
             Directory.CreateDirectory(fullOutputRootPath);
+            IPlatformAssetBuilder effectiveMaterialBuilder = ResolveEffectiveMaterialBuilder(materialBuilder);
 
             EditorPlatformBuildScenePackager packager = new(
                 ProjectRootPath,
                 Importers,
                 platformDefinition,
                 DefaultFontAsset,
-                materialBuilder,
+                effectiveMaterialBuilder,
                 selectedBuildProfileId,
                 selectedGraphicsProfileId);
             packager.Package(orderedSceneIds, fullOutputRootPath);
@@ -86,6 +87,24 @@ namespace helengine.editor {
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
                 new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+        }
+
+        /// <summary>
+        /// Returns the builder instance that should own material cooking for the current build.
+        /// </summary>
+        /// <param name="materialBuilder">Builder loaded for the active platform.</param>
+        /// <returns>The builder when it publishes material schemas; otherwise null to keep compatibility material packaging active.</returns>
+        static IPlatformAssetBuilder ResolveEffectiveMaterialBuilder(IPlatformAssetBuilder materialBuilder) {
+            if (materialBuilder == null) {
+                return null;
+            }
+
+            PlatformDefinition definition = materialBuilder.Definition;
+            if (definition == null || definition.MaterialSchemas == null || definition.MaterialSchemas.Length == 0) {
+                return null;
+            }
+
+            return materialBuilder;
         }
 
         PlatformBuildScene[] BuildSceneEntries(IReadOnlyList<string> orderedSceneIds, string outputRootPath) {

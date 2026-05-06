@@ -1,3 +1,4 @@
+using System.Reflection;
 using helengine.baseplatform.Definitions;
 using helengine.editor.tests.testing;
 using Xunit;
@@ -55,6 +56,43 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
             Assert.Equal(new[] { shaderAssetId }, result.ReferencedShaderAssetIds);
+        }
+
+        /// <summary>
+        /// Ensures compatibility packaging ignores malformed material sidecars that do not define a schema or field values.
+        /// </summary>
+        [Fact]
+        public void Package_WhenMaterialSidecarHasNoSchema_PreservesTopLevelMaterialShaderFields() {
+            string materialRelativePath = "Materials/TestMaterial.helmat";
+            string shaderAssetId = "ForwardStandardShader";
+            string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+
+            WriteMaterialAsset(materialRelativePath, shaderAssetId);
+            WriteInvalidMaterialSettings(materialRelativePath);
+
+            MaterialAsset materialAsset;
+            using (FileStream stream = new FileStream(materialPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                materialAsset = Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            Assert.True(settingsService.TryLoad(materialPath, out AssetImportSettings settings));
+
+            MethodInfo validationMethod = typeof(EditorPlatformBuildScenePackager).GetMethod(
+                "HasValidPlatformMaterialSettings",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.NotNull(validationMethod);
+            bool isValid = Assert.IsType<bool>(validationMethod.Invoke(null, [settings, "windows"]));
+
+            if (isValid) {
+                settingsService.ApplyPlatformCompatibilityFields(materialAsset, settings, "windows");
+            }
+
+            Assert.False(isValid);
+            Assert.Equal(shaderAssetId, materialAsset.ShaderAssetId);
+            Assert.Equal(shaderAssetId + ".vs", materialAsset.VertexProgram);
+            Assert.Equal(shaderAssetId + ".ps", materialAsset.PixelProgram);
+            Assert.Equal("default", materialAsset.Variant);
         }
 
         /// <summary>
@@ -904,6 +942,22 @@ namespace helengine.editor.tests {
 
             using FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, materialAsset);
+        }
+
+        /// <summary>
+        /// Writes one malformed material settings sidecar that names the platform but omits schema and field values.
+        /// </summary>
+        /// <param name="materialRelativePath">Project-relative material path whose sidecar should be written.</param>
+        void WriteInvalidMaterialSettings(string materialRelativePath) {
+            string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            AssetImportSettings settings = new AssetImportSettings();
+            settings.Importer.ImporterId = "helengine.material";
+            settings.Importer.SourceChecksum = string.Empty;
+            settings.Importer.AssetId = materialRelativePath;
+            settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings();
+
+            using FileStream stream = new FileStream(materialPath + ".hasset", FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetImportSettingsBinarySerializer.Serialize(stream, settings);
         }
 
         /// <summary>
