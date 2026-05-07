@@ -10,7 +10,7 @@ namespace helengine.demo_disc_scene_writer {
         /// <summary>
         /// Default test-project root used when writing committed rendering smoke scenes.
         /// </summary>
-        static readonly string DefaultRenderingProjectRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "test-project"));
+        static readonly string DefaultRenderingProjectRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "test-project"));
 
         /// <summary>
         /// Runs the demo-disc scene writer tool.

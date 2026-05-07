@@ -15,6 +15,10 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         readonly string RenderingMaterialRootPath;
         /// <summary>
+        /// Absolute path to the committed rendering code directory.
+        /// </summary>
+        readonly string RenderingCodeRootPath;
+        /// <summary>
         /// Core instance used while deserializing persisted camera payloads.
         /// </summary>
         readonly Core Core;
@@ -26,6 +30,7 @@ namespace helengine.editor.tests.rendering {
             string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
             RenderingSceneRootPath = Path.Combine(repositoryRootPath, "test-project", "assets", "Scenes", "rendering");
             RenderingMaterialRootPath = Path.Combine(repositoryRootPath, "test-project", "assets", "Materials", "rendering");
+            RenderingCodeRootPath = Path.Combine(repositoryRootPath, "test-project", "assets", "codebase", "rendering");
 
             Core = new Core(new CoreInitializationOptions {
                 ContentRootPath = repositoryRootPath
@@ -168,6 +173,34 @@ namespace helengine.editor.tests.rendering {
             Assert.Equal(60f, cameraComponent.RenderSettings.ShadowDistance);
             Assert.Equal(PostProcessTier.Disabled, cameraComponent.RenderSettings.PostProcessTier);
             Assert.Equal(60f, directionalLightComponent.ShadowDistance);
+        }
+
+        /// <summary>
+        /// Ensures the directional-shadow plaza showcase scene exists and contains the expected authored attract-mode runtime components.
+        /// </summary>
+        [Fact]
+        public void SceneCatalog_WhenLoadingDirectionalShadowPlaza_IncludesDirectionalLightCameraAndAttractModeComponents() {
+            SceneAsset sceneAsset = LoadSceneAsset("directional-shadow-plaza.helen");
+            SceneComponentAssetRecord cameraRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.CameraComponent");
+            SceneComponentAssetRecord directionalLightRecord = FindFirstComponent(sceneAsset.RootEntities, "helengine.DirectionalLightComponent");
+            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            CameraComponent cameraComponent = (CameraComponent)descriptor.DeserializeComponent(cameraRecord, null, null);
+
+            Assert.NotNull(cameraRecord);
+            Assert.NotNull(directionalLightRecord);
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.DirectionalLightComponent"));
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.CameraComponent"));
+            Assert.Equal(3, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.DirectionalShadowTowerSpinComponent, gameplay"));
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.DirectionalShadowOrbitComponent, gameplay"));
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.DirectionalShadowSunSweepComponent, gameplay"));
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.DirectionalShadowCameraOrbitComponent, gameplay"));
+            Assert.Equal(DepthPrepassMode.Auto, cameraComponent.RenderSettings.DepthPrepassMode);
+            Assert.Equal(60f, cameraComponent.RenderSettings.ShadowDistance);
+            Assert.Equal(PostProcessTier.Disabled, cameraComponent.RenderSettings.PostProcessTier);
+            Assert.True(File.Exists(Path.Combine(RenderingCodeRootPath, "DirectionalShadowTowerSpinComponent.cs")));
+            Assert.True(File.Exists(Path.Combine(RenderingCodeRootPath, "DirectionalShadowOrbitComponent.cs")));
+            Assert.True(File.Exists(Path.Combine(RenderingCodeRootPath, "DirectionalShadowSunSweepComponent.cs")));
+            Assert.True(File.Exists(Path.Combine(RenderingCodeRootPath, "DirectionalShadowCameraOrbitComponent.cs")));
         }
 
         /// <summary>
