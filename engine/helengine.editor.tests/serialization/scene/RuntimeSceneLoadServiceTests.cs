@@ -491,7 +491,47 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.Equal(1, scrollComponent.ScrollOffset);
             Assert.Equal(new float3(0f, -(DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing), 0f), scrollComponent.Parent.LocalPosition);
-            Assert.Equal("scene-beta", menuHostComponent.SelectedItemId);
+            Assert.Equal("scene-alpha", menuHostComponent.SelectedItemId);
+        }
+
+        /// <summary>
+        /// Ensures stationary mouse hover does not override keyboard-driven menu selection and scrolling.
+        /// </summary>
+        [Fact]
+        public void Load_WhenMouseIsStationaryOverSceneList_KeyboardSelectionStillScrollsTheItemsRoot() {
+            string projectRootPath = Path.Combine(TempRootPath, "menu-selection-scroll-stationary-mouse-project");
+            string buildRootPath = PackageDemoMenuScene(projectRootPath, "menu-selection-scroll-stationary-mouse-build");
+            MenuComponent menuHostComponent = LoadPackagedMenu(buildRootPath);
+            TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
+            ScrollComponent scrollComponent = FindPanelScrollComponent(menuHostComponent, "main");
+
+            input.SetMouseState(CreateMouseStateInsideMenuItem(menuHostComponent, "open-options", ButtonState.Released));
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetMouseState(CreateMouseStateInsideMenuItem(menuHostComponent, "open-options", ButtonState.Released));
+            input.SetKeyboardState(new KeyboardState(Keys.Down));
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetMouseState(CreateMouseStateInsideMenuItem(menuHostComponent, "open-options", ButtonState.Released));
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetMouseState(CreateMouseStateInsideMenuItem(menuHostComponent, "open-options", ButtonState.Released));
+            input.SetKeyboardState(new KeyboardState(Keys.Down));
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            Assert.Equal(1, scrollComponent.ScrollOffset);
+            Assert.Equal(new float3(0f, -(DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing), 0f), scrollComponent.Parent.LocalPosition);
+            Assert.Equal("scene-alpha", menuHostComponent.SelectedItemId);
         }
 
         /// <summary>
@@ -513,6 +553,84 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.Equal(1, scrollComponent.ScrollOffset);
             Assert.Equal(new float3(0f, -(DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing), 0f), scrollComponent.Parent.LocalPosition);
+        }
+
+        /// <summary>
+        /// Ensures keyboard navigation scrolls a secondary scene-select panel opened from the main menu.
+        /// </summary>
+        [Fact]
+        public void Load_WhenKeyboardNavigatesOpenedSceneSelectPanel_ScrollsThatPanelItemsRoot() {
+            string projectRootPath = Path.Combine(TempRootPath, "menu-secondary-panel-selection-scroll-project");
+            string buildRootPath = PackageDemoMenuScene(projectRootPath, "menu-secondary-panel-selection-scroll-build");
+            MenuComponent menuHostComponent = LoadPackagedMenu(buildRootPath);
+            TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
+
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Down));
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Enter));
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            ScrollComponent scrollComponent = FindPanelScrollComponent(menuHostComponent, "scene-select");
+
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Down));
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Down));
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Down));
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Down));
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            Assert.Equal("scene-select", menuHostComponent.ActivePanelId);
+            Assert.Equal(1, scrollComponent.ScrollOffset);
+            Assert.Equal(new float3(0f, -(DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing), 0f), scrollComponent.Parent.LocalPosition);
+            Assert.Equal("scene-epsilon", menuHostComponent.SelectedItemId);
         }
 
         /// <summary>
@@ -922,6 +1040,7 @@ namespace helengine.editor.tests.serialization.scene {
                             2,
                             new[] {
                                 new MenuItemDefinition("open-options", "Options", "Opens the options panel.", true, new MenuActionDefinition(MenuActionKind.OpenPanel, "options")),
+                                new MenuItemDefinition("open-scene-select", "Select Scene", "Opens the scene selection panel.", true, new MenuActionDefinition(MenuActionKind.OpenPanel, "scene-select")),
                                 new MenuItemDefinition("scene-alpha", "Scene Alpha", "Preview alpha district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
                                 new MenuItemDefinition("scene-beta", "Scene Beta", "Preview beta district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
                                 new MenuItemDefinition("scene-gamma", "Scene Gamma", "Preview gamma district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
@@ -935,6 +1054,19 @@ namespace helengine.editor.tests.serialization.scene {
                             new[] {
                                 new MenuItemDefinition("load-scene", "Select Scene", "Loads a scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "Scenes/TestPlayableScene.helen")),
                                 new MenuItemDefinition("options-back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
+                            }),
+                        new MenuPanelDefinition(
+                            "scene-select",
+                            "Select Scene",
+                            "Secondary scene selection panel.",
+                            4,
+                            new[] {
+                                new MenuItemDefinition("scene-alpha", "Scene Alpha", "Preview alpha district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
+                                new MenuItemDefinition("scene-beta", "Scene Beta", "Preview beta district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
+                                new MenuItemDefinition("scene-gamma", "Scene Gamma", "Preview gamma district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
+                                new MenuItemDefinition("scene-delta", "Scene Delta", "Preview delta district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
+                                new MenuItemDefinition("scene-epsilon", "Scene Epsilon", "Preview epsilon district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
+                                new MenuItemDefinition("scene-select-back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
                             })
                     }));
         }

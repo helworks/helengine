@@ -318,6 +318,7 @@ namespace helengine {
             SelectedItemIdValue = selectedItem.Definition.ItemId;
             panelRuntime.SelectedDescriptionText.Text = selectedItem.Definition.Description;
             EnsureSelectedItemVisible(panelRuntime, itemIndex);
+            ApplyItemsScrollOffset(panelRuntime.ItemsRootEntity, panelRuntime.ItemsScrollComponent.ScrollOffset);
         }
 
         /// <summary>
@@ -428,7 +429,9 @@ namespace helengine {
             }
 
             MenuItemRuntime hoveredItem = FindHoveredItem(ActivePanel, inputSystem.GetMouseX(), inputSystem.GetMouseY());
-            if (hoveredItem != null && hoveredItem.Index != ActivePanel.SelectedItemIndex) {
+            if (hoveredItem != null
+                && hoveredItem.Index != ActivePanel.SelectedItemIndex
+                && IsMouseHoverSelectionUpdateRequired(inputSystem)) {
                 SetSelection(ActivePanel, hoveredItem.Index);
             }
 
@@ -444,6 +447,23 @@ namespace helengine {
 
                 PressedPointerItem = null;
             }
+        }
+
+        /// <summary>
+        /// Returns whether the current frame should allow passive mouse hover to retarget selection.
+        /// </summary>
+        /// <param name="inputSystem">Input system supplying the current frame state.</param>
+        /// <returns>True when pointer movement or a new press should update hover selection.</returns>
+        bool IsMouseHoverSelectionUpdateRequired(InputSystem inputSystem) {
+            if (inputSystem == null) {
+                throw new ArgumentNullException(nameof(inputSystem));
+            }
+
+            if (inputSystem.GetMouseDeltaX() != 0 || inputSystem.GetMouseDeltaY() != 0) {
+                return true;
+            }
+
+            return inputSystem.WasMouseLeftButtonPressed();
         }
 
         /// <summary>
