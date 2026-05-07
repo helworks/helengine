@@ -1897,7 +1897,6 @@ namespace helengine.editor {
                 SceneSaveService.Save(fullPath, CurrentSceneSettings);
                 CurrentScenePath = Path.GetFullPath(fullPath);
                 MarkSceneClean();
-                RefreshWindowTitle();
                 assetBrowserPanel.RefreshEntries();
                 saveFileDialog.Hide();
                 if (PendingSceneTransition != SceneTransitionKind.None) {
@@ -1941,7 +1940,6 @@ namespace helengine.editor {
                 CurrentSceneSettings = loadedSceneDocument.SceneSettings;
                 sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
                 MarkSceneClean();
-                RefreshWindowTitle();
                 EditorSelectionService.ClearSelection();
                 sceneHierarchyPanel.RefreshHierarchy();
                 assetBrowserPanel.RefreshEntries();
@@ -1964,7 +1962,6 @@ namespace helengine.editor {
             CurrentSceneSettings = new SceneSettingsAsset();
             sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
             MarkSceneClean();
-            RefreshWindowTitle();
             EditorSelectionService.ClearSelection();
             if (sceneHierarchyPanel != null) {
                 sceneHierarchyPanel.RefreshHierarchy();
@@ -2059,6 +2056,7 @@ namespace helengine.editor {
         /// </summary>
         void HandleSceneMutated() {
             IsSceneDirty = true;
+            RefreshWindowTitle();
         }
 
         /// <summary>
@@ -2066,6 +2064,7 @@ namespace helengine.editor {
         /// </summary>
         void MarkSceneClean() {
             IsSceneDirty = false;
+            RefreshWindowTitle();
         }
 
         /// <summary>
@@ -2657,7 +2656,32 @@ namespace helengine.editor {
                 return title;
             }
 
-            return $"{ResolveSceneDisplayName(CurrentScenePath)} - {title}";
+            string sceneDisplayName = ResolveSceneDisplayName(CurrentScenePath);
+            string sceneTitle = BuildSceneDisplayTitle(sceneDisplayName);
+            return $"{sceneTitle} - {title}";
+        }
+
+        /// <summary>
+        /// Returns whether the currently open map has unsaved editor changes.
+        /// </summary>
+        /// <returns>True when the current map should display a dirty marker.</returns>
+        bool IsCurrentMapDirty() {
+            return IsSceneDirty;
+        }
+
+        /// <summary>
+        /// Appends the current-map dirty marker to one resolved scene display name when needed.
+        /// </summary>
+        /// <param name="sceneDisplayName">Resolved scene display name.</param>
+        /// <returns>Scene display name with the dirty marker applied when required.</returns>
+        string BuildSceneDisplayTitle(string sceneDisplayName) {
+            if (string.IsNullOrWhiteSpace(sceneDisplayName)) {
+                throw new InvalidOperationException("Scene display name must be provided.");
+            }
+
+            return IsCurrentMapDirty()
+                ? $"{sceneDisplayName}*"
+                : sceneDisplayName;
         }
 
         /// <summary>
