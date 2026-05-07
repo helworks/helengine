@@ -803,6 +803,7 @@ namespace helengine.editor {
             ContentScrollComponent.Size = new int2(viewportWidth, viewportHeight);
             ContentScrollComponent.VisibleItemCount = viewportHeight;
             ContentScrollComponent.ItemCount = Math.Max(0, contentHeightPixels);
+            ContentScrollComponent.ScrollStepCount = GetContentScrollStepPixels();
             ContentScrollComponent.ClampScrollOffset();
             UpdateScrollContentPosition();
         }
@@ -812,6 +813,14 @@ namespace helengine.editor {
         /// </summary>
         void UpdateScrollContentPosition() {
             ScrollContentRoot.Position = new float3(0f, -ContentScrollComponent.ScrollOffset, 0.1f);
+        }
+
+        /// <summary>
+        /// Gets the number of vertical pixels the properties body should advance for one wheel notch.
+        /// </summary>
+        /// <returns>Scaled scroll distance for one wheel notch.</returns>
+        int GetContentScrollStepPixels() {
+            return Math.Max(1, UiMetrics.ScalePixels(TransformRowHeight));
         }
 
         /// <summary>

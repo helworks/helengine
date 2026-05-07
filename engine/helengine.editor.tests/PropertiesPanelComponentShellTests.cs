@@ -416,6 +416,24 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures one mouse-wheel notch advances the properties panel by one content row instead of one raw pixel.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenPropertyContentExceedsPanelBody_UsesRowSizedWheelScrollSteps() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath)) {
+                Position = new float3(32f, 40f, 0f),
+                Size = new int2(320, 120)
+            };
+            EditorEntity entity = CreateEntityWithTallPropertyComponent();
+
+            panel.ShowEntityProperties(entity);
+
+            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(panel, "ContentScrollComponent");
+
+            Assert.Equal(24, scrollComponent.ScrollStepCount);
+        }
+
+        /// <summary>
         /// Ensures scrollable property content is parented to the clipped content root and rendered on its dedicated layer.
         /// </summary>
         [Fact]
