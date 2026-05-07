@@ -115,6 +115,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures dirty scene titles preserve the active platform suffix.
+        /// </summary>
+        [Fact]
+        public void RefreshWindowTitle_WhenSceneIsDirtyAndPlatformIsActive_AppendsDirtyMarkerBeforePlatformSuffix() {
+            WritePlatformsSettingsFile("windows", "ps2");
+            WritePlatformManifest(
+                "1.0.0-custom",
+                [
+                    new AvailablePlatformDescriptor("windows", "Windows DirectX", string.Empty, "platforms/windows", true),
+                    new AvailablePlatformDescriptor("ps2", "PlayStation 2", string.Empty, "platforms/ps2", true)
+                ],
+                ["windows", "ps2"]);
+            EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, ["windows", "ps2"]);
+            localSettingsService.SaveActivePlatform("windows");
+            EditorSession session = CreateSession(["windows", "ps2"], localSettingsService, "windows");
+            string currentScenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "DirtyScene.helen");
+
+            SetPrivateField(session, "CurrentScenePath", currentScenePath);
+            SetPrivateField(session, "ActiveProjectPlatform", "ps2");
+            InvokePrivate(session, "HandleSceneMutated");
+            InvokePrivate(session, "RefreshWindowTitle");
+
+            Assert.Equal("DirtyScene* - helengine - project.heproj [PS2]", session.WindowTitle);
+        }
+
+        /// <summary>
         /// Ensures one invalid persisted project platform forces the Platforms dialog to remain open until the user chooses a replacement.
         /// </summary>
         [Fact]

@@ -109,6 +109,41 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures mutating the current scene marks the visible map title as dirty.
+        /// </summary>
+        [Fact]
+        public void HandleSceneMutated_WhenCurrentSceneHasPath_AppendsDirtyMarkerToWindowTitle() {
+            EditorSession session = CreateSessionForSceneSave();
+            string currentScenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "DirtyScene.helen");
+
+            SetPrivateField(session, "CurrentScenePath", currentScenePath);
+            InvokePrivate(session, "RefreshWindowTitle");
+            InvokePrivate(session, "HandleSceneMutated");
+            InvokePrivate(session, "RefreshWindowTitle");
+
+            EditorTitleBar titleBar = GetPrivateField<EditorTitleBar>(session, "titleBar");
+            Assert.Equal("DirtyScene* - helengine - project.heproj", titleBar.Title);
+        }
+
+        /// <summary>
+        /// Ensures saving a dirty current scene clears the visible dirty marker from the title.
+        /// </summary>
+        [Fact]
+        public void HandleSceneSaveRequested_WhenDirtySceneIsSaved_RemovesDirtyMarkerFromWindowTitle() {
+            EditorSession session = CreateSessionForSceneSave();
+            string savePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Saved.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(savePath));
+
+            SetPrivateField(session, "CurrentScenePath", savePath);
+            InvokePrivate(session, "HandleSceneMutated");
+            InvokePrivate(session, "RefreshWindowTitle");
+            InvokePrivate(session, "HandleSceneSaveRequested", savePath);
+
+            EditorTitleBar titleBar = GetPrivateField<EditorTitleBar>(session, "titleBar");
+            Assert.Equal("Saved - helengine - project.heproj", titleBar.Title);
+        }
+
+        /// <summary>
         /// Ensures the editor session can save a scene that contains an FPS overlay component.
         /// </summary>
         [Fact]
