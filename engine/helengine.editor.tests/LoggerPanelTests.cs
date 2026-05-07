@@ -123,6 +123,83 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the shared copy path writes all selected visible rows to the clipboard.
+        /// </summary>
+        [Fact]
+        public void CopySelection_WhenMultipleRowsSelected_WritesJoinedVisibleRowsToClipboard() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+            TestTextClipboardService clipboardService = new TestTextClipboardService();
+            Core.Instance.SetTextClipboardService(clipboardService);
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
+                InvokePrivate(panel, "HandleRowPressed", 3, true, false);
+
+                List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
+                string expected = string.Join(
+                    Environment.NewLine,
+                    rows[1].Label.Text,
+                    rows[3].Label.Text);
+
+                InvokePrivate(panel, "CopySelection");
+
+                Assert.Equal(expected, clipboardService.ReadText());
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures right-clicking an unselected row selects it and opens the copy context menu.
+        /// </summary>
+        [Fact]
+        public void HandleRowRightPressed_WhenClickedRowIsUnselected_SelectsThatRowAndShowsCopyMenu() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 0, false, false);
+                InvokePrivate(panel, "HandleRowRightPressed", 2, new int2(24, 48));
+
+                ContextMenu contextMenu = GetPrivateField<ContextMenu>(panel, "RowContextMenu");
+
+                Assert.Equal(2, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(2, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(new[] { 2 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+                Assert.True(contextMenu.IsVisible);
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures the context-menu copy action reuses the same payload as the shared copy path.
+        /// </summary>
+        [Fact]
+        public void HandleCopyContextMenuRequested_WhenInvoked_UsesTheSameClipboardPayloadAsKeyboardCopy() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+            TestTextClipboardService clipboardService = new TestTextClipboardService();
+            Core.Instance.SetTextClipboardService(clipboardService);
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
+                InvokePrivate(panel, "HandleRowPressed", 3, true, false);
+
+                List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
+                string expected = string.Join(
+                    Environment.NewLine,
+                    rows[1].Label.Text,
+                    rows[3].Label.Text);
+
+                InvokePrivate(panel, "HandleRowRightPressed", 3, new int2(24, 72));
+                InvokePrivate(panel, "HandleCopyContextMenuRequested");
+
+                Assert.Equal(expected, clipboardService.ReadText());
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>

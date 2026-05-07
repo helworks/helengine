@@ -59,6 +59,14 @@ namespace helengine.editor {
         /// Tracks the currently selected logger row indices.
         /// </summary>
         readonly HashSet<int> SelectedRowIndices;
+        /// <summary>
+        /// Context menu shown for the currently right-clicked row selection.
+        /// </summary>
+        readonly ContextMenu RowContextMenu;
+        /// <summary>
+        /// Menu items available for the logger row context menu.
+        /// </summary>
+        readonly List<ContextMenuItem> RowContextMenuItems;
 
         /// <summary>
         /// Synchronizes access to pending entries.
@@ -111,6 +119,11 @@ namespace helengine.editor {
             syncRoot = new object();
             FocusedRowIndex = -1;
             AnchorRowIndex = -1;
+            RowContextMenuItems = new List<ContextMenuItem> {
+                new ContextMenuItem("Copy", HandleCopyContextMenuRequested)
+            };
+            RowContextMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            AddChild(RowContextMenu.Entity);
 
             AddComponent(new LoggerPanelUpdater(this));
 
@@ -396,6 +409,73 @@ namespace helengine.editor {
             for (int selectedRowIndex = rangeStart; selectedRowIndex <= rangeEnd; selectedRowIndex++) {
                 SelectedRowIndices.Add(selectedRowIndex);
             }
+        }
+
+        /// <summary>
+        /// Selects one row for context-menu interaction and shows the logger row menu.
+        /// </summary>
+        /// <param name="rowIndex">Row index that was right-clicked.</param>
+        /// <param name="localPointerPosition">Pointer position relative to the logger panel.</param>
+        void HandleRowRightPressed(int rowIndex, int2 localPointerPosition) {
+            if (rowIndex < 0 || rowIndex >= entries.Count) {
+                return;
+            }
+
+            if (!SelectedRowIndices.Contains(rowIndex)) {
+                FocusedRowIndex = rowIndex;
+                AnchorRowIndex = rowIndex;
+                SelectSingleRow(rowIndex);
+            } else {
+                FocusedRowIndex = rowIndex;
+                AnchorRowIndex = rowIndex;
+            }
+
+            RowContextMenu.Show(RowContextMenuItems, localPointerPosition, GetContextMenuHostSize());
+        }
+
+        /// <summary>
+        /// Copies the currently selected rows to the host clipboard.
+        /// </summary>
+        void CopySelection() {
+            Core.Instance.TextClipboardService.WriteText(BuildSelectedRowsText());
+        }
+
+        /// <summary>
+        /// Handles activation of the logger row copy context-menu item.
+        /// </summary>
+        void HandleCopyContextMenuRequested() {
+            CopySelection();
+        }
+
+        /// <summary>
+        /// Builds one text payload from the currently selected rows in visible row order.
+        /// </summary>
+        /// <returns>Joined logger text payload for the current selection.</returns>
+        string BuildSelectedRowsText() {
+            if (SelectedRowIndices.Count == 0) {
+                return string.Empty;
+            }
+
+            List<string> lines = new List<string>(SelectedRowIndices.Count);
+            for (int rowIndex = 0; rowIndex < entries.Count; rowIndex++) {
+                if (!SelectedRowIndices.Contains(rowIndex)) {
+                    continue;
+                }
+
+                lines.Add(FormatEntry(entries[rowIndex]));
+            }
+
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        /// <summary>
+        /// Resolves the host region used to clamp the logger row context menu.
+        /// </summary>
+        /// <returns>Host size for logger context-menu layout.</returns>
+        int2 GetContextMenuHostSize() {
+            return new int2(
+                Math.Max(Size.X, MinSize.X),
+                Math.Max(Size.Y + TitleBarHeightPixels, MinSize.Y + TitleBarHeightPixels));
         }
     }
 }
