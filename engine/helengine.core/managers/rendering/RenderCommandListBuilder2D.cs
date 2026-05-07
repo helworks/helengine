@@ -9,6 +9,30 @@ namespace helengine {
         RenderCommandList2D CommandListValue;
 
         /// <summary>
+        /// Reusable clip-chain resolver used to compare active ancestor clip ownership between drawables.
+        /// </summary>
+        readonly ClipRegionStackBuilder2D ClipRegionStackBuilder;
+
+        /// <summary>
+        /// Clip chain currently active in the emitted command stream.
+        /// </summary>
+        readonly List<IClipRegion2D> ActiveClipChain;
+
+        /// <summary>
+        /// Clip chain resolved for the drawable currently being visited.
+        /// </summary>
+        readonly List<IClipRegion2D> NextClipChain;
+
+        /// <summary>
+        /// Initializes one reusable 2D command builder.
+        /// </summary>
+        public RenderCommandListBuilder2D() {
+            ClipRegionStackBuilder = new ClipRegionStackBuilder2D();
+            ActiveClipChain = new List<IClipRegion2D>();
+            NextClipChain = new List<IClipRegion2D>();
+        }
+
+        /// <summary>
         /// Builds one resolved command list from the supplied render queue.
         /// </summary>
         /// <param name="renderQueue">Ordered render queue to flatten.</param>
@@ -24,7 +48,10 @@ namespace helengine {
                 CommandListValue.Reset();
             }
 
+            ActiveClipChain.Clear();
+            NextClipChain.Clear();
             renderQueue.VisitOrdered(this);
+            EmitTrailingClipPops();
             return CommandListValue;
         }
 
@@ -36,6 +63,9 @@ namespace helengine {
             if (drawable == null || drawable.Parent == null || !drawable.Parent.Enabled) {
                 return;
             }
+
+            ClipRegionStackBuilder.BuildClipChain(drawable, NextClipChain);
+            SyncClipTransitions();
 
             if (drawable is ISpriteDrawable2D sprite) {
                 EmitSprite(sprite);
@@ -53,6 +83,65 @@ namespace helengine {
             }
 
             throw new InvalidOperationException("Unsupported 2D drawable type.");
+        }
+
+        /// <summary>
+        /// Pops any remaining active clip regions after the last drawable in the queue has been emitted.
+        /// </summary>
+        void EmitTrailingClipPops() {
+            while (ActiveClipChain.Count > 0) {
+                CommandListValue.AddClipPop();
+                ActiveClipChain.RemoveAt(ActiveClipChain.Count - 1);
+            }
+        }
+
+        /// <summary>
+        /// Synchronizes the emitted clip stack with the clip chain required by the current drawable.
+        /// </summary>
+        void SyncClipTransitions() {
+            int sharedPrefixLength = GetSharedPrefixLength();
+
+            while (ActiveClipChain.Count > sharedPrefixLength) {
+                CommandListValue.AddClipPop();
+                ActiveClipChain.RemoveAt(ActiveClipChain.Count - 1);
+            }
+
+            while (ActiveClipChain.Count < NextClipChain.Count) {
+                IClipRegion2D clipRegion = NextClipChain[ActiveClipChain.Count];
+                float4 resolvedRect = ResolveClipRectForPush(clipRegion);
+                CommandListValue.AddClipPush(resolvedRect);
+                ActiveClipChain.Add(clipRegion);
+            }
+        }
+
+        /// <summary>
+        /// Gets the number of leading clip owners shared between the active and next clip chains.
+        /// </summary>
+        /// <returns>Shared clip-chain prefix length.</returns>
+        int GetSharedPrefixLength() {
+            int sharedPrefixLength = 0;
+            int maxSharedLength = Math.Min(ActiveClipChain.Count, NextClipChain.Count);
+            while (sharedPrefixLength < maxSharedLength &&
+                   ReferenceEquals(ActiveClipChain[sharedPrefixLength], NextClipChain[sharedPrefixLength])) {
+                sharedPrefixLength++;
+            }
+
+            return sharedPrefixLength;
+        }
+
+        /// <summary>
+        /// Resolves the effective clip rectangle for one pushed clip owner by intersecting it with the current active clip chain.
+        /// </summary>
+        /// <param name="clipRegion">Clip owner being pushed.</param>
+        /// <returns>Resolved effective clip rectangle.</returns>
+        float4 ResolveClipRectForPush(IClipRegion2D clipRegion) {
+            float4 resolvedRect = clipRegion.GetClipRect();
+            if (ActiveClipChain.Count <= 0) {
+                return resolvedRect;
+            }
+
+            float4 currentRect = ActiveClipChain[ActiveClipChain.Count - 1].GetClipRect();
+            return ClipRegionStackBuilder.Intersect(currentRect, resolvedRect);
         }
 
         /// <summary>

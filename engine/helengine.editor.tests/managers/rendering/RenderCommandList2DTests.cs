@@ -93,5 +93,23 @@ namespace helengine.editor.tests.managers.rendering {
             Assert.Equal(new float4(0.2f, 0.3f, 0.4f, 0.5f), list.GetTexturedQuadSourceRect(texturedQuadPayloadIndex));
             Assert.Equal(new byte4(15, 16, 17, 18), list.GetTexturedQuadColor(texturedQuadPayloadIndex));
         }
+
+        /// <summary>
+        /// Ensures clip push and pop commands preserve their order and expose the stored clip rectangle payload.
+        /// </summary>
+        [Fact]
+        public void AddClipCommands_WhenWritten_PreservesClipOrderAndPayloadAccess() {
+            RenderCommandList2D list = new RenderCommandList2D(4);
+
+            list.AddClipPush(new float4(3f, 4f, 50f, 60f));
+            list.AddClipPop();
+
+            Assert.Equal(2, list.Count);
+            Assert.Equal(RenderCommand2DType.ClipPush, list.GetCommandType(0));
+            Assert.Equal(RenderCommand2DType.ClipPop, list.GetCommandType(1));
+
+            int payloadIndex = list.GetClipPushPayloadIndex(0);
+            Assert.Equal(new float4(3f, 4f, 50f, 60f), list.GetClipPushRect(payloadIndex));
+        }
     }
 }

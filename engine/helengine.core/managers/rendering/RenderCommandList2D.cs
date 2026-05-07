@@ -14,6 +14,11 @@ namespace helengine {
         readonly List<int> PayloadIndices;
 
         /// <summary>
+        /// Rectangular payloads used by clip-push commands.
+        /// </summary>
+        readonly List<float4> ClipRects;
+
+        /// <summary>
         /// Runtime textures used by textured-quad commands.
         /// </summary>
         readonly List<RuntimeTexture> QuadTextures;
@@ -94,6 +99,7 @@ namespace helengine {
 
             CommandTypes = new List<RenderCommand2DType>(initialCapacity);
             PayloadIndices = new List<int>(initialCapacity);
+            ClipRects = new List<float4>(initialCapacity);
             QuadTextures = new List<RuntimeTexture>(initialCapacity);
             QuadBounds = new List<float4>(initialCapacity);
             QuadSourceRects = new List<float4>(initialCapacity);
@@ -123,6 +129,7 @@ namespace helengine {
         public void Reset() {
             CommandTypes.Clear();
             PayloadIndices.Clear();
+            ClipRects.Clear();
             QuadTextures.Clear();
             QuadBounds.Clear();
             QuadSourceRects.Clear();
@@ -137,6 +144,25 @@ namespace helengine {
             RoundedRectCornersValues.Clear();
             RoundedRectFillColors.Clear();
             RoundedRectBorderColors.Clear();
+        }
+
+        /// <summary>
+        /// Adds one clip-push command to the list.
+        /// </summary>
+        /// <param name="clipRect">Resolved clip rectangle in pixels.</param>
+        public void AddClipPush(float4 clipRect) {
+            int payloadIndex = ClipRects.Count;
+            ClipRects.Add(clipRect);
+            CommandTypes.Add(RenderCommand2DType.ClipPush);
+            PayloadIndices.Add(payloadIndex);
+        }
+
+        /// <summary>
+        /// Adds one clip-pop command to the list.
+        /// </summary>
+        public void AddClipPop() {
+            CommandTypes.Add(RenderCommand2DType.ClipPop);
+            PayloadIndices.Add(-1);
         }
 
         /// <summary>
@@ -218,6 +244,15 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets the clip-push payload index stored at one logical command index.
+        /// </summary>
+        /// <param name="commandIndex">Zero-based logical command index.</param>
+        /// <returns>Zero-based clip-push payload index.</returns>
+        public int GetClipPushPayloadIndex(int commandIndex) {
+            return PayloadIndices[commandIndex];
+        }
+
+        /// <summary>
         /// Gets the textured-quad payload index stored at one logical command index.
         /// </summary>
         /// <param name="commandIndex">Zero-based logical command index.</param>
@@ -242,6 +277,15 @@ namespace helengine {
         /// <returns>Zero-based rounded-rectangle payload index.</returns>
         public int GetRoundedRectPayloadIndex(int commandIndex) {
             return PayloadIndices[commandIndex];
+        }
+
+        /// <summary>
+        /// Gets the clip rectangle stored for one clip-push payload.
+        /// </summary>
+        /// <param name="payloadIndex">Zero-based clip-push payload index.</param>
+        /// <returns>Stored clip rectangle.</returns>
+        public float4 GetClipPushRect(int payloadIndex) {
+            return ClipRects[payloadIndex];
         }
 
         /// <summary>
