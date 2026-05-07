@@ -152,6 +152,11 @@ namespace helengine {
         public RuntimeSceneLoadService SceneLoadService { get; private set; }
 
         /// <summary>
+        /// Gets the runtime scene manager configured for built scene tracking and notifications.
+        /// </summary>
+        public SceneManager SceneManager { get; private set; }
+
+        /// <summary>
         /// Gets the runtime component registry used to materialize packaged scene components.
         /// </summary>
         public RuntimeComponentRegistry SceneRuntimeComponentRegistry { get; private set; }
@@ -209,6 +214,7 @@ namespace helengine {
                 ShaderCompileTarget.DirectX11);
             SceneRuntimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
             SceneLoadService = new RuntimeSceneLoadService(SceneAssetReferenceResolver, SceneRuntimeComponentRegistry);
+            SceneManager = CreateSceneManager(contentManager);
         }
 
         /// <summary>
@@ -356,6 +362,25 @@ namespace helengine {
             }
 
             return new PhysicsFixedStepScheduler(options.PhysicsFixedStepSeconds);
+        }
+
+        /// <summary>
+        /// Creates one runtime scene manager when packaged scene metadata exists beneath the current content root.
+        /// </summary>
+        /// <param name="contentManager">Runtime content manager rooted at the active content path.</param>
+        /// <returns>Configured runtime scene manager, or null when no packaged scene catalog exists.</returns>
+        SceneManager CreateSceneManager(ContentManager contentManager) {
+            if (contentManager == null) {
+                throw new ArgumentNullException(nameof(contentManager));
+            }
+
+            string runtimeSceneCatalogPath = Path.Combine(InitializationOptions.ContentRootPath, "runtime-scene-catalog.json");
+            if (!File.Exists(runtimeSceneCatalogPath)) {
+                return null;
+            }
+
+            RuntimeSceneCatalog runtimeSceneCatalog = RuntimeSceneCatalog.ReadFromFile(runtimeSceneCatalogPath);
+            return new SceneManager(runtimeSceneCatalog, contentManager, SceneLoadService);
         }
 
         /// <summary>
