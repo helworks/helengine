@@ -104,6 +104,11 @@ namespace helengine.demo_disc_scene_writer {
         readonly RuntimeMaterial PlaceholderMaterial;
 
         /// <summary>
+        /// Writes generated user-side runtime motion source files for rendering showcase scenes.
+        /// </summary>
+        readonly RenderingShowcaseSourceWriter ShowcaseSourceWriter;
+
+        /// <summary>
         /// Initializes the committed rendering scene writer with the persistence descriptors required for authored editor-scene output.
         /// </summary>
         public RenderingSceneWriter() {
@@ -113,6 +118,7 @@ namespace helengine.demo_disc_scene_writer {
             DirectionalLightDescriptor = new DirectionalLightComponentPersistenceDescriptor();
             PlaceholderModel = new AuthoringPlaceholderRuntimeModel();
             PlaceholderMaterial = new RuntimeMaterial();
+            ShowcaseSourceWriter = new RenderingShowcaseSourceWriter();
         }
 
         /// <summary>
@@ -130,6 +136,7 @@ namespace helengine.demo_disc_scene_writer {
                 throw new InvalidOperationException($"Assets root was not found: {assetsRootPath}");
             }
 
+            ShowcaseSourceWriter.WriteDirectionalShadowPlazaSources(assetsRootPath);
             WritePointShadowSceneAsset(assetsRootPath);
             WritePointShadowLabSceneAsset(assetsRootPath);
             WriteSpotShadowLabSceneAsset(assetsRootPath);
