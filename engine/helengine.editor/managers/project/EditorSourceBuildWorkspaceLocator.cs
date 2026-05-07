@@ -9,6 +9,16 @@ namespace helengine.editor {
         const string HelEngineEditorProjectRelativePath = "engine/helengine.editor/helengine.editor.csproj";
 
         /// <summary>
+        /// Hidden git worktree directory name used by this source workspace.
+        /// </summary>
+        const string HiddenWorktreeDirectoryName = ".worktrees";
+
+        /// <summary>
+        /// Non-hidden git worktree directory name used by this source workspace.
+        /// </summary>
+        const string WorktreeDirectoryName = "worktrees";
+
+        /// <summary>
         /// Resolves the HelEngine source root that contains the current editor assembly.
         /// </summary>
         /// <returns>Absolute HelEngine source root path.</returns>
@@ -32,11 +42,51 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the shared HelEngine source root that owns engine-level source-build settings even when the current editor build runs from a git worktree.
+        /// </summary>
+        /// <returns>Absolute shared HelEngine source root path.</returns>
+        public string ResolveSharedHelEngineRootPath() {
+            string helEngineRootPath = ResolveHelEngineRootPath();
+            DirectoryInfo directoryInfo = new DirectoryInfo(helEngineRootPath);
+            DirectoryInfo worktreeDirectory = directoryInfo.Parent;
+            if (worktreeDirectory == null) {
+                return helEngineRootPath;
+            }
+
+            string worktreeDirectoryName = worktreeDirectory.Name;
+            if (!string.Equals(worktreeDirectoryName, HiddenWorktreeDirectoryName, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(worktreeDirectoryName, WorktreeDirectoryName, StringComparison.OrdinalIgnoreCase)) {
+                return helEngineRootPath;
+            }
+
+            DirectoryInfo sharedRootDirectory = worktreeDirectory.Parent;
+            if (sharedRootDirectory == null) {
+                throw new InvalidOperationException("Shared HelEngine source root could not be resolved from the current git worktree path.");
+            }
+
+            string markerPath = Path.Combine(sharedRootDirectory.FullName, HelEngineEditorProjectRelativePath);
+            if (!File.Exists(markerPath)) {
+                throw new InvalidOperationException($"Expected shared HelEngine source root was not found at '{sharedRootDirectory.FullName}'.");
+            }
+
+            return sharedRootDirectory.FullName;
+        }
+
+        /// <summary>
+        /// Resolves the engine-level user-settings root shared by source builds and git worktrees.
+        /// </summary>
+        /// <returns>Absolute shared engine user-settings root path.</returns>
+        public string ResolveSharedEngineUserSettingsRootPath() {
+            string sharedHelEngineRootPath = ResolveSharedHelEngineRootPath();
+            return Path.Combine(sharedHelEngineRootPath, "user_settings");
+        }
+
+        /// <summary>
         /// Resolves the sibling `csharpcodegen` source repository used by local source builds.
         /// </summary>
         /// <returns>Absolute `csharpcodegen` source root path.</returns>
         public string ResolveCSharpCodegenRootPath() {
-            string helEngineRootPath = ResolveHelEngineRootPath();
+            string helEngineRootPath = ResolveSharedHelEngineRootPath();
             string parentDirectoryPath = ResolveWorkspaceParentDirectoryPath(helEngineRootPath);
             string cSharpCodegenRootPath = Path.Combine(parentDirectoryPath, "csharpcodegen");
             if (!Directory.Exists(cSharpCodegenRootPath)) {
@@ -51,7 +101,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Absolute `helengine-windows` source root path.</returns>
         public string ResolveHelEngineWindowsRootPath() {
-            string helEngineRootPath = ResolveHelEngineRootPath();
+            string helEngineRootPath = ResolveSharedHelEngineRootPath();
             string parentDirectoryPath = ResolveWorkspaceParentDirectoryPath(helEngineRootPath);
             string helEngineWindowsRootPath = Path.Combine(parentDirectoryPath, "helworks", "helengine-windows");
             if (!Directory.Exists(helEngineWindowsRootPath)) {

@@ -77,6 +77,10 @@ namespace helengine.editor {
         /// </summary>
         readonly ScrollComponent ContentScrollComponent;
         /// <summary>
+        /// Clip owner attached to the fixed panel body host so overflow content clips against the visible viewport instead of the scrolling child.
+        /// </summary>
+        readonly ClipRectComponent ContentClipComponent;
+        /// <summary>
         /// Hosts for each text line.
         /// </summary>
         readonly List<EditorEntity> lineHosts;
@@ -366,6 +370,9 @@ namespace helengine.editor {
             contentRoot.LayerMask = LayerMask;
             contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
             AddChild(contentRoot);
+
+            ContentClipComponent = new ClipRectComponent();
+            contentRoot.AddComponent(ContentClipComponent);
 
             ContentCameraEntity = new EditorEntity {
                 InternalEntity = true,
@@ -765,6 +772,7 @@ namespace helengine.editor {
             LastContentViewportWidth = viewportWidth;
             LastContentViewportHeight = viewportHeight;
             ContentCameraComponent.Viewport = new float4(viewportX, viewportY, viewportWidth, viewportHeight);
+            ContentClipComponent.Size = new int2((int)Math.Round(viewportWidth), (int)Math.Round(viewportHeight));
             ContentScrollComponent.Size = new int2((int)Math.Round(viewportWidth), (int)Math.Round(viewportHeight));
         }
 

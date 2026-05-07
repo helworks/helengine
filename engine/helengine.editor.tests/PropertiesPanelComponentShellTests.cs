@@ -468,6 +468,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the fixed properties-body viewport host owns a clip component sized to the visible panel body.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenScrollableBodyIsBuilt_AttachesClipOwnerToTheFixedViewportHost() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath)) {
+                Position = new float3(32f, 40f, 0f),
+                Size = new int2(320, 120)
+            };
+            EditorEntity entity = CreateEntityWithTallPropertyComponent();
+
+            panel.ShowEntityProperties(entity);
+
+            EditorEntity contentRoot = GetPrivateField<EditorEntity>(panel, "contentRoot");
+            EditorEntity scrollContentRoot = GetPrivateField<EditorEntity>(panel, "ScrollContentRoot");
+            ClipRectComponent clipComponent = GetRequiredComponent<ClipRectComponent>(contentRoot);
+            int expectedViewportHeight = Math.Max(panel.Size.Y, panel.MinSize.Y);
+
+            Assert.NotNull(clipComponent);
+            Assert.Equal(new int2(320, expectedViewportHeight), clipComponent.Size);
+            Assert.Equal(new float4(32f, 40f + DockableEntity.TitleBarHeight, 320f, expectedViewportHeight), clipComponent.GetClipRect());
+            Assert.Equal(0f, scrollContentRoot.LocalPosition.X);
+            Assert.Equal(0f, scrollContentRoot.LocalPosition.Y);
+            Assert.Equal(0.1f, scrollContentRoot.LocalPosition.Z);
+        }
+
+        /// <summary>
         /// Ensures controls that overflow below the panel body are not resolved by pointer hit testing until scrolled into view.
         /// </summary>
         [Fact]
@@ -707,6 +733,25 @@ namespace helengine.editor.tests {
                 rows,
                 row => row.Kind == ComponentPropertyRowKind.Scalar
                     && string.Equals(row.Property?.Name, propertyName, StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Gets one required component from an entity by exact assignable type.
+        /// </summary>
+        /// <typeparam name="T">Expected component type.</typeparam>
+        /// <param name="entity">Entity that owns the component.</param>
+        /// <returns>Matching component instance.</returns>
+        T GetRequiredComponent<T>(Entity entity) where T : Component {
+            Assert.NotNull(entity);
+            Assert.NotNull(entity.Components);
+
+            for (int index = 0; index < entity.Components.Count; index++) {
+                if (entity.Components[index] is T component) {
+                    return component;
+                }
+            }
+
+            throw new InvalidOperationException($"Component '{typeof(T).FullName}' was not found on entity '{entity.GetType().FullName}'.");
         }
 
         /// <summary>
