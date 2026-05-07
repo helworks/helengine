@@ -144,6 +144,37 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Ctrl+S saves the current scene through the existing Save Map flow when a scene path already exists.
+        /// </summary>
+        [Fact]
+        public void HandleGlobalSaveShortcut_WhenCurrentScenePathExists_SavesTheScene() {
+            EditorSession session = CreateSessionForSceneSave();
+            string savePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "ShortcutSave.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(savePath));
+
+            SetPrivateField(session, "CurrentScenePath", savePath);
+
+            InvokePrivate(session, "HandleGlobalSaveShortcut");
+
+            Assert.True(File.Exists(savePath));
+            Assert.Equal(savePath, GetPrivateField<string>(session, "CurrentScenePath"));
+        }
+
+        /// <summary>
+        /// Ensures Ctrl+S shows the save dialog when the current scene has not been saved yet.
+        /// </summary>
+        [Fact]
+        public void HandleGlobalSaveShortcut_WhenCurrentScenePathIsEmpty_ShowsSaveFileDialog() {
+            EditorSession session = CreateSessionForSceneSave();
+
+            SetPrivateField(session, "CurrentScenePath", string.Empty);
+            InvokePrivate(session, "HandleGlobalSaveShortcut");
+
+            SaveFileDialog saveFileDialog = GetPrivateField<SaveFileDialog>(session, "saveFileDialog");
+            Assert.True(saveFileDialog.IsVisible);
+        }
+
+        /// <summary>
         /// Ensures the editor session can save a scene that contains an FPS overlay component.
         /// </summary>
         [Fact]
