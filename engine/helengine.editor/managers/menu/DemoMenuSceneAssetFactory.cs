@@ -212,9 +212,8 @@ namespace helengine.editor {
 
             List<SceneEntityAsset> children = new List<SceneEntityAsset>();
             children.Add(BuildBackgroundEntityAsset($"panel-{panelDefinition.PanelId}-surface", new float3(88f, 190f, 0f), new int2(DemoMenuLayout.PanelWidth, DemoMenuLayout.PanelHeight), 18f, 3f, definition.SurfaceColor, definition.SurfaceBorderColor, 30));
-            children.Add(BuildBackgroundEntityAsset($"panel-{panelDefinition.PanelId}-accent", new float3(88f, 190f, 0f), new int2(DemoMenuLayout.PanelWidth, 18), 9f, 0f, definition.AccentColor, definition.AccentColor, 31));
+            children.Add(BuildBackgroundEntityAsset($"panel-{panelDefinition.PanelId}-top-band", new float3(88f, 190f, 0f), new int2(DemoMenuLayout.PanelWidth, 18), 9f, 0f, definition.AccentColor, definition.AccentColor, 31));
             children.Add(BuildTextEntityAsset($"panel-{panelDefinition.PanelId}-heading", new float3(120f, 220f, 0.1f), panelDefinition.Heading, definition.BodyFontPath, definition.TextColor, new int2(420, 36), 41));
-            children.Add(BuildTextEntityAsset($"panel-{panelDefinition.PanelId}-description", new float3(120f, 258f, 0.1f), panelDefinition.Description, definition.BodyFontPath, definition.MutedTextColor, new int2(430, 52), 41));
             children.Add(BuildSelectedDescriptionEntityAsset(panelDefinition.PanelId, new float3(120f, 600f, 0.1f), firstItem.Description, definition.BodyFontPath, definition.MutedTextColor));
 
             int itemInsertIndex = 0;
@@ -275,7 +274,7 @@ namespace helengine.editor {
             return new SceneEntityAsset {
                 Id = $"item-{panelDefinition.PanelId}-{itemDefinition.ItemId}",
                 Name = $"Item-{itemDefinition.ItemId}",
-                LocalPosition = new float3(120f, 320f + (visibleIndex * (DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing)), 0f),
+                LocalPosition = new float3(120f, 280f + (visibleIndex * (DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing)), 0f),
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
                 Components = new[] {
