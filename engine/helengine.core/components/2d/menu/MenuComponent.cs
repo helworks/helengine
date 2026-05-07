@@ -371,9 +371,9 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Loads one authored or packaged scene targeted by the baked menu.
+        /// Loads one scene targeted by the baked menu using the editor direct-load path or the runtime scene manager.
         /// </summary>
-        /// <param name="scenePath">Authored or packaged scene path targeted by the menu item.</param>
+        /// <param name="scenePath">Authored scene identifier targeted by the menu item.</param>
         void LoadScene(string scenePath) {
             if (string.IsNullOrWhiteSpace(scenePath)) {
                 throw new InvalidOperationException("Scene-loading baked menu items must provide a scene path.");
@@ -381,13 +381,21 @@ namespace helengine {
             if (Core.Instance == null) {
                 throw new InvalidOperationException("A core instance must exist before loading a scene from the baked menu.");
             }
-            if (Core.Instance.SceneLoadService == null) {
-                throw new InvalidOperationException("Core scene loading services must be initialized before loading a scene from the baked menu.");
+
+            if (ComponentExecutionContext.CurrentMode == ComponentExecutionMode.Editor) {
+                if (Core.Instance.SceneLoadService == null) {
+                    throw new InvalidOperationException("Core scene loading services must be initialized before loading a scene from the baked menu.");
+                }
+
+                string resolvedScenePath = ResolveSceneContentPath(scenePath);
+                SceneAsset sceneAsset = Core.Instance.ContentManager.Load<SceneAsset>(resolvedScenePath, RuntimeContentProcessorIds.SceneAsset);
+                Core.Instance.SceneLoadService.Load(sceneAsset);
+            } else if (Core.Instance.SceneManager == null) {
+                throw new InvalidOperationException("Core scene manager must be initialized before runtime menu scene loading can occur.");
+            } else {
+                Core.Instance.SceneManager.LoadScene(scenePath, SceneLoadMode.Single);
             }
 
-            string resolvedScenePath = ResolveSceneContentPath(scenePath);
-            SceneAsset sceneAsset = Core.Instance.ContentManager.Load<SceneAsset>(resolvedScenePath, RuntimeContentProcessorIds.SceneAsset);
-            Core.Instance.SceneLoadService.Load(sceneAsset);
             Parent.Enabled = false;
         }
 
