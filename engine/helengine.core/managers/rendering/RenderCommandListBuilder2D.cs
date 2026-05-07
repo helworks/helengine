@@ -52,7 +52,7 @@ namespace helengine {
                 return;
             }
 
-            throw new InvalidOperationException($"Unsupported 2D drawable type '{drawable.GetType().FullName}'.");
+            throw new InvalidOperationException("Unsupported 2D drawable type.");
         }
 
         /// <summary>
