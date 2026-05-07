@@ -35,6 +35,31 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Parses the runtime scene catalog shape and returns the corresponding runtime object.
+        /// </summary>
+        /// <param name="json">Runtime scene catalog JSON text.</param>
+        /// <returns>The parsed runtime scene catalog.</returns>
+        public static RuntimeSceneCatalog ReadRuntimeSceneCatalog(string json) {
+            if (string.IsNullOrWhiteSpace(json)) {
+                throw new ArgumentException("Runtime scene catalog JSON is required.", nameof(json));
+            }
+
+            string entriesJson = ReadRequiredArrayProperty(json, "Entries");
+            List<RuntimeSceneCatalogEntry> entries = new List<RuntimeSceneCatalogEntry>();
+            int elementStart = 0;
+            int elementLength = 0;
+            int cursor = 1;
+            while (TryReadNextArrayElement(entriesJson, ref cursor, out elementStart, out elementLength)) {
+                string entryJson = entriesJson.Substring(elementStart, elementLength);
+                string sceneId = ReadRequiredStringProperty(entryJson, "SceneId");
+                string cookedRelativePath = ReadRequiredStringProperty(entryJson, "CookedRelativePath");
+                entries.Add(new RuntimeSceneCatalogEntry(sceneId, cookedRelativePath));
+            }
+
+            return new RuntimeSceneCatalog(entries.ToArray());
+        }
+
+        /// <summary>
         /// Reads the runtime code-module entry array from one manifest JSON document.
         /// </summary>
         /// <param name="json">Runtime code-module manifest JSON text.</param>
