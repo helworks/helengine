@@ -65,5 +65,22 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.Contains("helengine.MissingComponent", exception.Message, StringComparison.Ordinal);
         }
+
+        /// <summary>
+        /// Ensures the editor session persistence-registry factory wires the script type resolver so project script components can load from scene files.
+        /// </summary>
+        [Fact]
+        public void EditorSessionPersistenceRegistryFactory_WhenScriptResolverIsProvided_UsesItForAutomaticScriptComponentResolution() {
+            FakeScriptTypeResolver scriptTypeResolver = new FakeScriptTypeResolver(typeof(TestScriptSerializableComponent));
+            var factoryMethod = typeof(EditorSession).GetMethod("CreateComponentPersistenceRegistry", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.NotNull(factoryMethod);
+
+            ComponentPersistenceRegistry registry = Assert.IsType<ComponentPersistenceRegistry>(factoryMethod.Invoke(null, new object[] { scriptTypeResolver }));
+
+            IComponentPersistenceDescriptor descriptor = registry.GetDescriptor("city.rendering.DirectionalShadowCameraOrbitComponent, gameplay");
+
+            Assert.IsType<AutomaticScriptComponentPersistenceDescriptor>(descriptor);
+        }
     }
 }

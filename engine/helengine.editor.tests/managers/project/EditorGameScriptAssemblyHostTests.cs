@@ -126,6 +126,30 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures reload can replace the active collectible assembly even when long-lived editor services still hold the shared script type resolver.
+        /// </summary>
+        [Fact]
+        public void Reload_WhenPreviousResolverIsStillReferenced_DoesNotFailToUnloadPreviousAssembly() {
+            string gameplayAssemblyPath = WriteModuleAssembly("gameplay");
+
+            using EditorGameScriptAssemblyHost host = new EditorGameScriptAssemblyHost(ProjectRootPath);
+            host.Reload([
+                CreateAssemblyDescriptor("gameplay", gameplayAssemblyPath, EditorCodeModuleKind.Runtime)
+            ]);
+
+            IScriptTypeResolver capturedResolver = host.ScriptTypeResolver;
+
+            host.Reload([
+                CreateAssemblyDescriptor("gameplay", gameplayAssemblyPath, EditorCodeModuleKind.Runtime)
+            ]);
+
+            Assert.Same(capturedResolver, host.ScriptTypeResolver);
+            Assert.Equal(
+                typeof(TestMenuDefinitionProvider).FullName,
+                capturedResolver.Resolve(typeof(TestMenuDefinitionProvider).FullName + ", gameplay").FullName);
+        }
+
+        /// <summary>
         /// Copies the current test assembly into one generated-module output directory and returns the copied path.
         /// </summary>
         /// <param name="moduleId">Module id that owns the copied assembly.</param>

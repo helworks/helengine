@@ -78,11 +78,6 @@ namespace helengine.editor {
             Dictionary<string, EditorCollectibleScriptAssemblyLoadContext> nextLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
             Dictionary<string, Assembly> nextAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
             Dictionary<string, EditorCodeModuleKind> nextModuleKindsByModuleId = new Dictionary<string, EditorCodeModuleKind>(StringComparer.OrdinalIgnoreCase);
-            ScriptTypeResolver nextScriptTypeResolver = new ScriptTypeResolver();
-            Dictionary<string, EditorCollectibleScriptAssemblyLoadContext> previousLoadContextsByModuleId = CurrentLoadContextsByModuleId;
-            Dictionary<string, Assembly> previousAssembliesByModuleId = CurrentAssembliesByModuleId;
-            Dictionary<string, EditorCodeModuleKind> previousModuleKindsByModuleId = CurrentModuleKindsByModuleId;
-            string previousSnapshotRootDirectoryPath = CurrentSnapshotRootDirectoryPath;
             try {
                 for (int index = 0; index < assemblies.Count; index++) {
                     EditorScriptAssemblyDescriptor descriptor = assemblies[index];
@@ -95,32 +90,29 @@ namespace helengine.editor {
                     nextLoadContextsByModuleId.Add(descriptor.ModuleId, nextLoadContext);
                     nextAssembliesByModuleId.Add(descriptor.ModuleId, nextAssembly);
                     nextModuleKindsByModuleId.Add(descriptor.ModuleId, descriptor.ModuleKind);
-                    nextScriptTypeResolver.Register(descriptor.ModuleId, nextAssembly);
                 }
-
-                CurrentLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
-                CurrentAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
-                CurrentModuleKindsByModuleId = new Dictionary<string, EditorCodeModuleKind>(StringComparer.OrdinalIgnoreCase);
-                CurrentSnapshotRootDirectoryPath = null;
-
-                UnloadContexts(previousLoadContextsByModuleId);
-                DeleteDirectoryIfPresent(previousSnapshotRootDirectoryPath);
-
-                CurrentLoadContextsByModuleId = nextLoadContextsByModuleId;
-                CurrentAssembliesByModuleId = nextAssembliesByModuleId;
-                CurrentModuleKindsByModuleId = nextModuleKindsByModuleId;
-                CurrentSnapshotRootDirectoryPath = snapshotRootDirectoryPath;
-                ScriptTypeResolverValue = nextScriptTypeResolver;
             } catch {
                 UnloadContexts(nextLoadContextsByModuleId);
                 DeleteDirectoryIfPresent(snapshotRootDirectoryPath);
-                CurrentLoadContextsByModuleId = previousLoadContextsByModuleId;
-                CurrentAssembliesByModuleId = previousAssembliesByModuleId;
-                CurrentModuleKindsByModuleId = previousModuleKindsByModuleId;
-                CurrentSnapshotRootDirectoryPath = previousSnapshotRootDirectoryPath;
-                ScriptTypeResolverValue = BuildResolver(previousAssembliesByModuleId);
                 throw;
             }
+
+            Dictionary<string, EditorCollectibleScriptAssemblyLoadContext> previousLoadContextsByModuleId = CurrentLoadContextsByModuleId;
+            string previousSnapshotRootDirectoryPath = CurrentSnapshotRootDirectoryPath;
+            CurrentLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
+            CurrentAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
+            CurrentModuleKindsByModuleId = new Dictionary<string, EditorCodeModuleKind>(StringComparer.OrdinalIgnoreCase);
+            CurrentSnapshotRootDirectoryPath = null;
+            ScriptTypeResolverValue.Clear();
+
+            UnloadContexts(previousLoadContextsByModuleId);
+            DeleteDirectoryIfPresent(previousSnapshotRootDirectoryPath);
+
+            CurrentLoadContextsByModuleId = nextLoadContextsByModuleId;
+            CurrentAssembliesByModuleId = nextAssembliesByModuleId;
+            CurrentModuleKindsByModuleId = nextModuleKindsByModuleId;
+            CurrentSnapshotRootDirectoryPath = snapshotRootDirectoryPath;
+            RegisterResolverAssemblies(nextAssembliesByModuleId);
         }
 
         /// <summary>
@@ -141,7 +133,7 @@ namespace helengine.editor {
             CurrentAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
             CurrentModuleKindsByModuleId = new Dictionary<string, EditorCodeModuleKind>(StringComparer.OrdinalIgnoreCase);
             CurrentSnapshotRootDirectoryPath = null;
-            ScriptTypeResolverValue = new ScriptTypeResolver();
+            ScriptTypeResolverValue.Clear();
         }
 
         /// <summary>
@@ -395,6 +387,22 @@ namespace helengine.editor {
                 return;
             }
 
+            List<WeakReference> references = BeginUnloadContexts(loadContextsByModuleId);
+            for (int index = 0; index < references.Count; index++) {
+                WaitForUnload(references[index]);
+            }
+        }
+
+        /// <summary>
+        /// Initiates unload for each tracked collectible context and clears the owning dictionary before collection polling begins.
+        /// </summary>
+        /// <param name="loadContextsByModuleId">Load contexts keyed by module id.</param>
+        /// <returns>Weak references that can be polled until each context is collected.</returns>
+        List<WeakReference> BeginUnloadContexts(Dictionary<string, EditorCollectibleScriptAssemblyLoadContext> loadContextsByModuleId) {
+            if (loadContextsByModuleId == null) {
+                throw new ArgumentNullException(nameof(loadContextsByModuleId));
+            }
+
             List<WeakReference> references = new List<WeakReference>(loadContextsByModuleId.Count);
             foreach (EditorCollectibleScriptAssemblyLoadContext loadContext in loadContextsByModuleId.Values) {
                 WeakReference loadContextReference = BeginUnload(loadContext);
@@ -403,27 +411,22 @@ namespace helengine.editor {
                 }
             }
 
-            for (int index = 0; index < references.Count; index++) {
-                WaitForUnload(references[index]);
-            }
+            loadContextsByModuleId.Clear();
+            return references;
         }
 
         /// <summary>
-        /// Builds one script resolver from the supplied module assembly table.
+        /// Registers one loaded module assembly table with the shared script type resolver.
         /// </summary>
         /// <param name="assembliesByModuleId">Loaded assemblies keyed by module id.</param>
-        /// <returns>Resolver populated with the supplied assemblies.</returns>
-        ScriptTypeResolver BuildResolver(Dictionary<string, Assembly> assembliesByModuleId) {
+        void RegisterResolverAssemblies(Dictionary<string, Assembly> assembliesByModuleId) {
             if (assembliesByModuleId == null) {
                 throw new ArgumentNullException(nameof(assembliesByModuleId));
             }
 
-            ScriptTypeResolver resolver = new ScriptTypeResolver();
             foreach (KeyValuePair<string, Assembly> entry in assembliesByModuleId) {
-                resolver.Register(entry.Key, entry.Value);
+                ScriptTypeResolverValue.Register(entry.Key, entry.Value);
             }
-
-            return resolver;
         }
     }
 }

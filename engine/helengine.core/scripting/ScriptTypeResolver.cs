@@ -35,6 +35,13 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Removes all registered module assemblies from the resolver.
+        /// </summary>
+        public void Clear() {
+            AssembliesByModuleId.Clear();
+        }
+
+        /// <summary>
         /// Resolves one assembly-qualified script type name against the loaded module assemblies.
         /// </summary>
         /// <param name="assemblyQualifiedTypeName">Assembly-qualified script type name.</param>

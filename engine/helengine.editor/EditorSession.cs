@@ -547,19 +547,13 @@ namespace helengine.editor {
             EditorKeyboardFocusService.RegisterGroup(loggerPanel);
             EditorKeyboardFocusService.RegisterGroup(previewPanel);
             assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath);
-            ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
-            persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new CameraComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new TextComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new RoundedRectComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new FPSComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new DirectionalLightComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new PointLightComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new SpotLightComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new MenuComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new MenuPanelComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new MenuItemComponentPersistenceDescriptor());
-            persistenceRegistry.Register(new MenuSelectedDescriptionComponentPersistenceDescriptor());
+            gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
+            EditorGameScriptAssemblyHost scriptAssemblyHost = new EditorGameScriptAssemblyHost(this.projectPath);
+            scriptHotReloadService = new EditorGameScriptHotReloadService(
+                gameSolutionService,
+                new EditorDotNetScriptBuildTool(),
+                scriptAssemblyHost);
+            ComponentPersistenceRegistry persistenceRegistry = CreateComponentPersistenceRegistry(scriptHotReloadService.ScriptTypeResolver);
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
             SceneCreationService = new EditorSceneCreationService();
@@ -578,11 +572,6 @@ namespace helengine.editor {
             profilesDialog = new ProfilesDialog(uiFont, CurrentUiMetrics);
             buildDialog = new BuildDialog(uiFont, CurrentUiMetrics);
             buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics);
-            gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
-            scriptHotReloadService = new EditorGameScriptHotReloadService(
-                gameSolutionService,
-                new EditorDotNetScriptBuildTool(),
-                new EditorGameScriptAssemblyHost(this.projectPath));
             unsavedChangesDialog = new UnsavedChangesDialog(uiFont, CurrentUiMetrics);
             sceneSettingsDialog = new SceneSettingsDialog(uiFont, CurrentUiMetrics);
             preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
@@ -2584,6 +2573,53 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates the scene component persistence registry used by editor scene save and load workflows.
+        /// </summary>
+        /// <param name="scriptTypeResolver">Resolver backed by the currently loaded project script assemblies.</param>
+        /// <returns>Configured persistence registry.</returns>
+        static ComponentPersistenceRegistry CreateComponentPersistenceRegistry(IScriptTypeResolver scriptTypeResolver) {
+            ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);
+            persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new CameraComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new TextComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new RoundedRectComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new FPSComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new DirectionalLightComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new PointLightComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new SpotLightComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new MenuComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new MenuPanelComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new MenuItemComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new MenuSelectedDescriptionComponentPersistenceDescriptor());
+            return persistenceRegistry;
+        }
+
+        /// <summary>
+        /// Builds and loads the available project script libraries during editor-session startup and applies the resulting project menus.
+        /// </summary>
+        /// <param name="scriptHotReloadService">Hot-reload service that builds and loads project script assemblies.</param>
+        /// <param name="applyProjectMenus">Callback that applies the contributed project-menu descriptors to the title bar.</param>
+        /// <returns>Result of the startup project-library load attempt.</returns>
+        static EditorBuildExecutionResult LoadProjectLibrariesOnStartup(
+            EditorGameScriptHotReloadService scriptHotReloadService,
+            Action<IReadOnlyList<EditorMenuItemDescriptor>> applyProjectMenus) {
+            if (scriptHotReloadService == null) {
+                throw new ArgumentNullException(nameof(scriptHotReloadService));
+            }
+            if (applyProjectMenus == null) {
+                throw new ArgumentNullException(nameof(applyProjectMenus));
+            }
+
+            EditorBuildExecutionResult result = scriptHotReloadService.BuildAndReload();
+            if (!result.Succeeded) {
+                return result;
+            }
+
+            applyProjectMenus(scriptHotReloadService.GetAvailableEditorMenuItems());
+            return result;
+        }
+
+        /// <summary>
         /// Resolves the shader package output path for the current project.
         /// </summary>
         /// <param name="projectRoot">Project root path.</param>
@@ -2756,7 +2792,9 @@ namespace helengine.editor {
                     ProjectVersion,
                     Importers,
                     platform,
-                    uiFont);
+                    uiFont,
+                    null,
+                    scriptHotReloadService.ScriptTypeResolver);
             }
 
             return new EditorBuildExecutorRouter(executorsByPlatformId);
