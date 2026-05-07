@@ -45,6 +45,16 @@ namespace helengine.editor {
         public string Name => MemberInfoValue.Name;
 
         /// <summary>
+        /// Gets whether the reflected member is one property.
+        /// </summary>
+        public bool IsProperty => MemberInfoValue is PropertyInfo;
+
+        /// <summary>
+        /// Gets whether the reflected member is one field.
+        /// </summary>
+        public bool IsField => MemberInfoValue is FieldInfo;
+
+        /// <summary>
         /// Gets the runtime value type stored by this member.
         /// </summary>
         public Type ValueType {

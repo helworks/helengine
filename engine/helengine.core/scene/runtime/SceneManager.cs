@@ -45,22 +45,22 @@ namespace helengine {
         /// <summary>
         /// Raised before one built scene payload is loaded.
         /// </summary>
-        public event EventHandler<SceneLoadingEventArgs> SceneLoading;
+        public event Action<SceneManager, SceneLoadingEventArgs> SceneLoading;
 
         /// <summary>
         /// Raised after one built scene payload has been loaded and tracked.
         /// </summary>
-        public event EventHandler<SceneLoadedEventArgs> SceneLoaded;
+        public event Action<SceneManager, SceneLoadedEventArgs> SceneLoaded;
 
         /// <summary>
         /// Raised before one tracked scene record is removed so the player can destroy its memory.
         /// </summary>
-        public event EventHandler<SceneUnloadingEventArgs> SceneUnloading;
+        public event Action<SceneManager, SceneUnloadingEventArgs> SceneUnloading;
 
         /// <summary>
         /// Raised after one tracked scene record has been removed.
         /// </summary>
-        public event EventHandler<SceneUnloadedEventArgs> SceneUnloaded;
+        public event Action<SceneManager, SceneUnloadedEventArgs> SceneUnloaded;
 
         /// <summary>
         /// Gets the loaded scene records in load order.

@@ -7,10 +7,10 @@ namespace helengine.editor.tests.serialization.scene {
     /// </summary>
     public sealed class AutomaticScriptComponentPersistenceDescriptorTests {
         /// <summary>
-        /// Ensures supported scripted-component members serialize through the reflected fallback, log a warning, and round-trip successfully.
+        /// Ensures supported scripted-component members serialize through the reflected fallback and round-trip successfully without warning noise.
         /// </summary>
         [Fact]
-        public void SerializeAndDeserialize_WhenScriptComponentHasSupportedMembers_UsesAutomaticFallbackAndLogsWarning() {
+        public void SerializeAndDeserialize_WhenScriptComponentHasSupportedMembers_UsesAutomaticFallbackWithoutWarnings() {
             ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(schemaBuilder);
             TestScriptSerializableComponent component = new TestScriptSerializableComponent {
@@ -30,9 +30,7 @@ namespace helengine.editor.tests.serialization.scene {
                 Assert.Equal("Menu Row", deserialized.DisplayName);
                 Assert.True(deserialized.Visible);
                 Assert.Equal(7, deserialized.SortOrder);
-                LogEntry warning = Assert.Single(warnings);
-                Assert.Contains(typeof(TestScriptSerializableComponent).FullName, warning.Message, StringComparison.Ordinal);
-                Assert.Contains("automatic reflection fallback", warning.Message, StringComparison.Ordinal);
+                Assert.Empty(warnings);
             } finally {
                 Logger.WarningLogged -= warnings.Add;
             }

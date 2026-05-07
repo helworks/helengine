@@ -206,6 +206,32 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated-core normalization emits automatic native runtime component deserializers and patches the native registry to register them at startup.
+    /// </summary>
+    [Fact]
+    public void Emit_generated_automatic_runtime_component_deserializers_writes_native_sources_and_patches_registry_registration() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "RuntimeComponentRegistry.cpp"),
+            "#include \"RuntimeComponentRegistry.hpp\"" + Environment.NewLine
+            + "::RuntimeComponentRegistry* RuntimeComponentRegistry::CreateDefault()" + Environment.NewLine
+            + "{" + Environment.NewLine
+            + "::RuntimeComponentRegistry *registry = new ::RuntimeComponentRegistry();" + Environment.NewLine
+            + "return registry;}" + Environment.NewLine);
+
+        EditorGeneratedCoreRegenerationService.EmitGeneratedAutomaticRuntimeComponentDeserializers(generatedCoreRootPath);
+
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeClipRectComponentDeserializer.hpp")));
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeClipRectComponentDeserializer.cpp")));
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeScrollComponentDeserializer.hpp")));
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeScrollComponentDeserializer.cpp")));
+        string registrySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "RuntimeComponentRegistry.cpp"));
+        Assert.Contains("#include \"GeneratedRuntimeComponentDeserializerRegistration.hpp\"", registrySource, StringComparison.Ordinal);
+        Assert.Contains("RegisterGeneratedRuntimeComponentDeserializers(registry);", registrySource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies generated sources that reference AppContext receive the bundled AppContext include during normalization.
     /// </summary>
     [Fact]

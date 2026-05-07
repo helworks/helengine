@@ -281,7 +281,7 @@ namespace helengine {
                 ancestorEntity = ancestorEntity.Parent;
             }
 
-            clipRect = default;
+            clipRect = new float4(0, 0, 0, 0);
             return false;
         }
 
@@ -301,7 +301,7 @@ namespace helengine {
                 }
             }
 
-            clipRect = default;
+            clipRect = new float4(0, 0, 0, 0);
             return false;
         }
     }

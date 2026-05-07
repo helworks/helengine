@@ -445,6 +445,7 @@ namespace helengine.editor {
             }
 
             RemoveEditorOnlyGeneratedSourceFiles(generatedCoreRootPath);
+            EmitGeneratedAutomaticRuntimeComponentDeserializers(generatedCoreRootPath);
             IReadOnlyList<string> featureManifestEntries = LoadGeneratedFeatureManifestEntries(generatedCoreRootPath);
             string[] sourceFiles = Directory.GetFiles(generatedCoreRootPath, "*.*", SearchOption.AllDirectories);
             Array.Sort(sourceFiles, StringComparer.OrdinalIgnoreCase);
@@ -463,6 +464,188 @@ namespace helengine.editor {
                 if (!string.Equals(contents, updatedContents, StringComparison.Ordinal)) {
                     File.WriteAllText(sourceFilePath, updatedContents);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Emits generated native runtime component deserializers for engine-owned components that use automatic packaged scene persistence.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute generated core output root that should receive the generated native files.</param>
+        internal static void EmitGeneratedAutomaticRuntimeComponentDeserializers(string generatedCoreRootPath) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+
+            Directory.CreateDirectory(generatedCoreRootPath);
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+            ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
+            IReadOnlyList<ScriptComponentReflectionSchema> schemas = DiscoverAutomaticRuntimeComponentSchemas(schemaBuilder, generator);
+            if (schemas.Count == 0) {
+                return;
+            }
+
+            for (int index = 0; index < schemas.Count; index++) {
+                ScriptComponentReflectionSchema schema = schemas[index];
+                string className = generator.BuildNativeDeserializerClassName(schema);
+                File.WriteAllText(
+                    Path.Combine(generatedCoreRootPath, className + ".hpp"),
+                    generator.GenerateNativeDeserializerHeader(schema));
+                File.WriteAllText(
+                    Path.Combine(generatedCoreRootPath, className + ".cpp"),
+                    generator.GenerateNativeDeserializerSource(schema));
+            }
+
+            File.WriteAllText(
+                Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.hpp"),
+                BuildGeneratedRuntimeComponentDeserializerRegistrationHeader());
+            File.WriteAllText(
+                Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp"),
+                BuildGeneratedRuntimeComponentDeserializerRegistrationSource(schemas, generator));
+            PatchRuntimeComponentRegistryForGeneratedDeserializers(generatedCoreRootPath);
+        }
+
+        /// <summary>
+        /// Discovers the engine-owned component schemas that can participate in generated native runtime deserializer emission.
+        /// </summary>
+        /// <param name="schemaBuilder">Reflected schema builder used for component discovery.</param>
+        /// <param name="generator">Native deserializer generator used to validate supported schemas.</param>
+        /// <returns>Deterministically ordered schemas eligible for generated native runtime deserializer emission.</returns>
+        static IReadOnlyList<ScriptComponentReflectionSchema> DiscoverAutomaticRuntimeComponentSchemas(
+            ScriptComponentReflectionSchemaBuilder schemaBuilder,
+            ScriptComponentPlayerDeserializerGenerator generator) {
+            if (schemaBuilder == null) {
+                throw new ArgumentNullException(nameof(schemaBuilder));
+            }
+            if (generator == null) {
+                throw new ArgumentNullException(nameof(generator));
+            }
+
+            Type[] componentTypes = typeof(Component).Assembly
+                .GetTypes()
+                .Where(IsEligibleAutomaticRuntimeComponentType)
+                .OrderBy(type => type.FullName, StringComparer.Ordinal)
+                .ToArray();
+            List<ScriptComponentReflectionSchema> schemas = new List<ScriptComponentReflectionSchema>(componentTypes.Length);
+            for (int index = 0; index < componentTypes.Length; index++) {
+                ScriptComponentReflectionSchema schema = schemaBuilder.Build(componentTypes[index]);
+                if (generator.CanGenerateNativeDeserializer(schema)) {
+                    schemas.Add(schema);
+                }
+            }
+
+            return schemas;
+        }
+
+        /// <summary>
+        /// Returns whether one engine-owned component type is eligible for generated native runtime deserializer emission.
+        /// </summary>
+        /// <param name="componentType">Component type to inspect.</param>
+        /// <returns>True when the component type can participate in generated native runtime deserializer emission.</returns>
+        static bool IsEligibleAutomaticRuntimeComponentType(Type componentType) {
+            if (componentType == null) {
+                return false;
+            }
+            if (componentType == typeof(Component) || componentType == typeof(UpdateComponent)) {
+                return false;
+            }
+            if (!typeof(Component).IsAssignableFrom(componentType)) {
+                return false;
+            }
+            if (!componentType.IsClass || componentType.IsAbstract || componentType.ContainsGenericParameters) {
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(componentType.FullName)) {
+                return false;
+            }
+
+            return componentType.GetConstructor(Type.EmptyTypes) != null;
+        }
+
+        /// <summary>
+        /// Builds the generated native registration header used to install all emitted automatic runtime component deserializers.
+        /// </summary>
+        /// <returns>Generated native registration header text.</returns>
+        static string BuildGeneratedRuntimeComponentDeserializerRegistrationHeader() {
+            return "#pragma once" + Environment.NewLine
+                + "#ifdef DrawText" + Environment.NewLine
+                + "#undef DrawText" + Environment.NewLine
+                + "#endif" + Environment.NewLine
+                + "class RuntimeComponentRegistry;" + Environment.NewLine + Environment.NewLine
+                + "void RegisterGeneratedRuntimeComponentDeserializers(::RuntimeComponentRegistry* registry);" + Environment.NewLine;
+        }
+
+        /// <summary>
+        /// Builds the generated native registration source used to install all emitted automatic runtime component deserializers.
+        /// </summary>
+        /// <param name="schemas">Reflected component schemas whose generated deserializers should be registered.</param>
+        /// <param name="generator">Native deserializer generator used to resolve generated class names.</param>
+        /// <returns>Generated native registration source text.</returns>
+        static string BuildGeneratedRuntimeComponentDeserializerRegistrationSource(
+            IReadOnlyList<ScriptComponentReflectionSchema> schemas,
+            ScriptComponentPlayerDeserializerGenerator generator) {
+            if (schemas == null) {
+                throw new ArgumentNullException(nameof(schemas));
+            }
+            if (generator == null) {
+                throw new ArgumentNullException(nameof(generator));
+            }
+
+            StringBuilder builder = new StringBuilder();
+            builder.AppendLine("#ifdef DrawText");
+            builder.AppendLine("#undef DrawText");
+            builder.AppendLine("#endif");
+            builder.AppendLine("#include \"GeneratedRuntimeComponentDeserializerRegistration.hpp\"");
+            builder.AppendLine("#include \"RuntimeComponentRegistry.hpp\"");
+            builder.AppendLine("#include \"runtime/native_exceptions.hpp\"");
+            for (int index = 0; index < schemas.Count; index++) {
+                builder.AppendLine($"#include \"{generator.BuildNativeDeserializerClassName(schemas[index])}.hpp\"");
+            }
+
+            builder.AppendLine();
+            builder.AppendLine("void RegisterGeneratedRuntimeComponentDeserializers(::RuntimeComponentRegistry* registry)");
+            builder.AppendLine("{");
+            builder.AppendLine("    if (registry == nullptr)");
+            builder.AppendLine("    {");
+            builder.AppendLine("throw new ArgumentNullException(\"registry\");");
+            builder.AppendLine("    }");
+            for (int index = 0; index < schemas.Count; index++) {
+                builder.AppendLine($"registry->Register(new ::{generator.BuildNativeDeserializerClassName(schemas[index])}());");
+            }
+
+            builder.AppendLine("}");
+            return builder.ToString();
+        }
+
+        /// <summary>
+        /// Patches the generated native runtime component registry so it registers emitted automatic component deserializers during startup.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute generated core output root whose registry source should be patched.</param>
+        static void PatchRuntimeComponentRegistryForGeneratedDeserializers(string generatedCoreRootPath) {
+            string registrySourcePath = Path.Combine(generatedCoreRootPath, "RuntimeComponentRegistry.cpp");
+            if (!File.Exists(registrySourcePath)) {
+                return;
+            }
+
+            string contents = File.ReadAllText(registrySourcePath);
+            string updatedContents = contents;
+            const string registrationHeaderInclude = "#include \"GeneratedRuntimeComponentDeserializerRegistration.hpp\"";
+            if (!updatedContents.Contains(registrationHeaderInclude, StringComparison.Ordinal)) {
+                updatedContents = updatedContents.Replace(
+                    "#include \"RuntimeComponentRegistry.hpp\"",
+                    "#include \"RuntimeComponentRegistry.hpp\"" + Environment.NewLine + registrationHeaderInclude,
+                    StringComparison.Ordinal);
+            }
+
+            const string registrationCall = "RegisterGeneratedRuntimeComponentDeserializers(registry);";
+            if (!updatedContents.Contains(registrationCall, StringComparison.Ordinal)) {
+                updatedContents = updatedContents.Replace(
+                    "return registry;}",
+                    registrationCall + Environment.NewLine + "return registry;}",
+                    StringComparison.Ordinal);
+            }
+
+            if (!string.Equals(contents, updatedContents, StringComparison.Ordinal)) {
+                File.WriteAllText(registrySourcePath, updatedContents);
             }
         }
 

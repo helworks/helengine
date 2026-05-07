@@ -17,7 +17,7 @@ namespace helengine {
             }
 
             SceneId = sceneId;
-            CookedRelativePath = cookedRelativePath.Replace('\\', '/');
+            CookedRelativePath = NormalizeCookedRelativePath(cookedRelativePath);
         }
 
         /// <summary>
@@ -29,5 +29,20 @@ namespace helengine {
         /// Gets the cooked content-relative scene payload path.
         /// </summary>
         public string CookedRelativePath { get; }
+
+        /// <summary>
+        /// Rewrites one cooked relative path to use forward slashes for runtime lookups and generated native builds.
+        /// </summary>
+        /// <param name="cookedRelativePath">Cooked relative path to normalize.</param>
+        /// <returns>Normalized cooked relative path with forward slashes.</returns>
+        static string NormalizeCookedRelativePath(string cookedRelativePath) {
+            char[] normalizedCharacters = new char[cookedRelativePath.Length];
+            for (int index = 0; index < cookedRelativePath.Length; index++) {
+                char character = cookedRelativePath[index];
+                normalizedCharacters[index] = character == '\\' ? '/' : character;
+            }
+
+            return new string(normalizedCharacters);
+        }
     }
 }

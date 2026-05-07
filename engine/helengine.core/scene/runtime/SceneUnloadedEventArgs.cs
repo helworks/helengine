@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Carries scene metadata for a post-unload notification.
     /// </summary>
-    public sealed class SceneUnloadedEventArgs : EventArgs {
+    public sealed class SceneUnloadedEventArgs {
         /// <summary>
         /// Initializes one scene-unloaded event payload.
         /// </summary>

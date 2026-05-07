@@ -16,21 +16,23 @@ namespace helengine {
             if (entries == null) {
                 throw new ArgumentNullException(nameof(entries));
             }
-            if (Array.Exists(entries, entry => entry == null)) {
-                throw new ArgumentException("Runtime scene catalog entries cannot contain null entries.", nameof(entries));
-            }
 
+            RuntimeSceneCatalogEntry[] copiedEntries = new RuntimeSceneCatalogEntry[entries.Length];
             Dictionary<string, RuntimeSceneCatalogEntry> entriesBySceneId = new Dictionary<string, RuntimeSceneCatalogEntry>(StringComparer.OrdinalIgnoreCase);
             for (int index = 0; index < entries.Length; index++) {
                 RuntimeSceneCatalogEntry entry = entries[index];
+                if (entry == null) {
+                    throw new ArgumentException("Runtime scene catalog entries cannot contain null entries.", nameof(entries));
+                }
                 if (entriesBySceneId.ContainsKey(entry.SceneId)) {
                     throw new InvalidOperationException($"Runtime scene catalog contains duplicate scene id '{entry.SceneId}'.");
                 }
 
+                copiedEntries[index] = entry;
                 entriesBySceneId.Add(entry.SceneId, entry);
             }
 
-            Entries = [.. entries];
+            Entries = copiedEntries;
             EntriesBySceneId = entriesBySceneId;
         }
 

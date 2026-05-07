@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Carries scene metadata for a pre-load notification.
     /// </summary>
-    public sealed class SceneLoadingEventArgs : EventArgs {
+    public sealed class SceneLoadingEventArgs {
         /// <summary>
         /// Initializes one scene-loading event payload.
         /// </summary>

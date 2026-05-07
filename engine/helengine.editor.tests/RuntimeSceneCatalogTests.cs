@@ -74,4 +74,16 @@ public sealed class RuntimeSceneCatalogTests : IDisposable {
 
         Assert.Contains("Scenes/TestPlayableScene.helen", exception.Message);
     }
+
+    /// <summary>
+    /// Ensures cooked scene paths are normalized to forward slashes for runtime lookups and native exports.
+    /// </summary>
+    [Fact]
+    public void Constructor_whenCookedRelativePathUsesBackslashes_normalizesToForwardSlashes() {
+        RuntimeSceneCatalogEntry entry = new RuntimeSceneCatalogEntry(
+            "Scenes/TestPlayableScene.helen",
+            @"scenes\Scenes\TestPlayableScene.hasset");
+
+        Assert.Equal("scenes/Scenes/TestPlayableScene.hasset", entry.CookedRelativePath);
+    }
 }

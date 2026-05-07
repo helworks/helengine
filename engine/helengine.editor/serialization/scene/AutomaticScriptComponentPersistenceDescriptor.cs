@@ -51,7 +51,6 @@ namespace helengine.editor {
             }
 
             ScriptComponentReflectionSchema schema = SchemaBuilder.Build(component.GetType());
-            Logger.WriteWarning($"Serialized scripted component '{schema.ComponentType.FullName}' through the automatic reflection fallback.");
 
             EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
             for (int index = 0; index < schema.Members.Count; index++) {
