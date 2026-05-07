@@ -259,8 +259,8 @@ namespace helengine.editor {
         /// <returns>Resolver that loads platforms from development overrides, launcher state, or built-in fallback sources.</returns>
         static AvailablePlatformProviderResolver CreateAvailablePlatformProviderResolver() {
             EditorSourceBuildWorkspaceLocator workspaceLocator = new EditorSourceBuildWorkspaceLocator();
-            string helEngineRootPath = workspaceLocator.ResolveHelEngineRootPath();
-            PlatformDiscoveryOptions options = new PlatformDiscoveryOptions(Path.Combine(helEngineRootPath, "user_settings"));
+            string sharedEngineUserSettingsRootPath = workspaceLocator.ResolveSharedEngineUserSettingsRootPath();
+            PlatformDiscoveryOptions options = new PlatformDiscoveryOptions(sharedEngineUserSettingsRootPath);
             WindowsLauncherInstallRootLocator launcherInstallRootLocator = new WindowsLauncherInstallRootLocator();
             return new AvailablePlatformProviderResolver(options, launcherInstallRootLocator);
         }

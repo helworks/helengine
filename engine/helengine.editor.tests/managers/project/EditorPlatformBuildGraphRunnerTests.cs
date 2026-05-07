@@ -522,6 +522,31 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies project bootstrap can still resolve the installed Windows selection model when the editor runs from a git worktree copy.
+    /// </summary>
+    [Fact]
+    public void Bootstrap_WhenRunningFromWorktreeCopy_ResolvesWindowsSelectionModel() {
+        string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+        string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
+        string workspaceRootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        string projectRootPath = Path.Combine(workspaceRootPath, "project");
+
+        try {
+            CopyDirectory(sourceProjectRootPath, projectRootPath);
+
+            EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(Path.Combine(projectRootPath, "project.heproj"));
+
+            EditorPlatformBuildSelectionModel selectionModel = bootstrap.ResolveSelectionModel("windows");
+
+            Assert.NotNull(selectionModel);
+        } finally {
+            if (Directory.Exists(workspaceRootPath)) {
+                Directory.Delete(workspaceRootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Creates one minimal platform definition for test-only build-graph execution.
     /// </summary>
     /// <param name="platformId">Stable platform identifier.</param>
