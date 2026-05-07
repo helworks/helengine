@@ -186,7 +186,17 @@ namespace helengine {
                 MenuPanelComponent panelComponent = FindRequiredComponent<MenuPanelComponent>(panelEntity);
                 TextComponent selectedDescriptionText = ResolveSelectedDescriptionText(panelEntity);
                 MenuItemRuntime[] itemRuntimes = BindItems(panelEntity, panelComponent.PanelId);
-                MenuPanelRuntime panelRuntime = new MenuPanelRuntime(panelComponent, panelEntity, selectedDescriptionText, itemRuntimes);
+                ScrollComponent itemsScrollComponent = ResolveItemsScrollComponent(panelEntity, panelComponent.PanelId);
+                itemsScrollComponent.ItemCount = itemRuntimes.Length;
+                MenuPanelRuntime panelRuntime = new MenuPanelRuntime(
+                    panelComponent,
+                    panelEntity,
+                    selectedDescriptionText,
+                    itemsScrollComponent.Parent,
+                    itemsScrollComponent,
+                    itemRuntimes);
+                panelRuntime.ItemsScrollComponent.ScrollOffsetChanged += HandleItemsScrollOffsetChanged;
+                ApplyItemsScrollOffset(panelRuntime.ItemsRootEntity, panelRuntime.ItemsScrollComponent.ScrollOffset);
                 if (PanelsById.ContainsKey(panelComponent.PanelId)) {
                     throw new InvalidOperationException($"Duplicate baked menu panel id '{panelComponent.PanelId}' was found.");
                 }
@@ -307,6 +317,7 @@ namespace helengine {
             MenuItemRuntime selectedItem = panelRuntime.Items[itemIndex];
             SelectedItemIdValue = selectedItem.Definition.ItemId;
             panelRuntime.SelectedDescriptionText.Text = selectedItem.Definition.Description;
+            EnsureSelectedItemVisible(panelRuntime, itemIndex);
         }
 
         /// <summary>
@@ -592,6 +603,82 @@ namespace helengine {
             }
 
             return FindRequiredComponent<TextComponent>(markerEntities[0]);
+        }
+
+        /// <summary>
+        /// Resolves the reusable row-based scroll component hosted beneath one baked panel.
+        /// </summary>
+        /// <param name="panelEntity">Panel root whose item-list scroll component should be resolved.</param>
+        /// <param name="panelId">Stable panel id used in diagnostics.</param>
+        /// <returns>Resolved scroll component.</returns>
+        ScrollComponent ResolveItemsScrollComponent(Entity panelEntity, string panelId) {
+            List<Entity> scrollEntities = new List<Entity>();
+            CollectEntitiesWithComponent<ScrollComponent>(panelEntity, scrollEntities);
+            if (scrollEntities.Count != 1) {
+                throw new InvalidOperationException($"Baked menu panel '{panelId}' must contain exactly one scroll component.");
+            }
+
+            ScrollComponent scrollComponent = FindRequiredComponent<ScrollComponent>(scrollEntities[0]);
+            if (scrollComponent.VisibleItemCount < 1) {
+                throw new InvalidOperationException($"Baked menu panel '{panelId}' must expose at least one visible item row.");
+            }
+
+            return scrollComponent;
+        }
+
+        /// <summary>
+        /// Ensures the selected menu row remains inside the currently visible scroll window.
+        /// </summary>
+        /// <param name="panelRuntime">Panel that owns the selected row.</param>
+        /// <param name="selectedItemIndex">Selected enabled-item index.</param>
+        void EnsureSelectedItemVisible(MenuPanelRuntime panelRuntime, int selectedItemIndex) {
+            if (panelRuntime == null) {
+                throw new ArgumentNullException(nameof(panelRuntime));
+            }
+            if (selectedItemIndex < 0 || selectedItemIndex >= panelRuntime.Items.Length) {
+                throw new ArgumentOutOfRangeException(nameof(selectedItemIndex), "Selected baked menu item index must be valid.");
+            }
+
+            int visibleItemCount = panelRuntime.ItemsScrollComponent.VisibleItemCount;
+            int scrollOffset = panelRuntime.ItemsScrollComponent.ScrollOffset;
+            int visibleEndExclusive = scrollOffset + visibleItemCount;
+            if (selectedItemIndex < scrollOffset) {
+                panelRuntime.ItemsScrollComponent.ScrollTo(selectedItemIndex);
+                return;
+            }
+
+            if (selectedItemIndex >= visibleEndExclusive) {
+                panelRuntime.ItemsScrollComponent.ScrollTo(selectedItemIndex - visibleItemCount + 1);
+            }
+        }
+
+        /// <summary>
+        /// Applies one scroll offset to the baked item-root entity associated with the updated scroll component.
+        /// </summary>
+        /// <param name="scrollComponent">Scroll component whose offset changed.</param>
+        /// <param name="scrollOffset">New offset in item units.</param>
+        void HandleItemsScrollOffsetChanged(ScrollComponent scrollComponent, int scrollOffset) {
+            if (scrollComponent == null) {
+                throw new ArgumentNullException(nameof(scrollComponent));
+            }
+
+            ApplyItemsScrollOffset(scrollComponent.Parent, scrollOffset);
+        }
+
+        /// <summary>
+        /// Applies one row-based scroll offset to the baked item-root entity.
+        /// </summary>
+        /// <param name="itemsRootEntity">Item-root entity translated by the active scroll window.</param>
+        /// <param name="scrollOffset">Offset in item units.</param>
+        void ApplyItemsScrollOffset(Entity itemsRootEntity, int scrollOffset) {
+            if (itemsRootEntity == null) {
+                throw new ArgumentNullException(nameof(itemsRootEntity));
+            }
+
+            itemsRootEntity.LocalPosition = new float3(
+                0f,
+                -scrollOffset * (DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing),
+                0f);
         }
 
         /// <summary>

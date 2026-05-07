@@ -305,6 +305,50 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
+        /// Ensures generated demo menu panels bake a clipped item viewport and scrolling root instead of parenting item rows directly under the panel root.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuSceneIsGenerated_BakesClippedSceneListViewportAndScrollingRoot() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            SceneAsset sceneAsset = ReadGeneratedSceneAsset();
+            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
+            SceneEntityAsset sceneSelectPanel = Assert.Single(generatedRoot.Children, child => string.Equals(child.Id, "panel-scene-select", StringComparison.Ordinal));
+
+            SceneEntityAsset itemsViewport = Assert.Single(sceneSelectPanel.Children, child => string.Equals(child.Id, "panel-scene-select-items-viewport", StringComparison.Ordinal));
+            SceneEntityAsset itemsRoot = Assert.Single(itemsViewport.Children, child => string.Equals(child.Id, "panel-scene-select-items-root", StringComparison.Ordinal));
+
+            Assert.DoesNotContain(sceneSelectPanel.Children, child => child.Id.StartsWith("item-scene-select-", StringComparison.Ordinal));
+            Assert.Contains(itemsRoot.Children, child => child.Id.StartsWith("item-scene-select-", StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Ensures the generated scene-list viewport owns a clip component and the scrolling root owns a scroll component.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuSceneIsGenerated_BakesClipAndScrollComponentsForSceneList() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            SceneAsset sceneAsset = ReadGeneratedSceneAsset();
+            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
+            SceneEntityAsset sceneSelectPanel = Assert.Single(generatedRoot.Children, child => string.Equals(child.Id, "panel-scene-select", StringComparison.Ordinal));
+            SceneEntityAsset itemsViewport = Assert.Single(sceneSelectPanel.Children, child => string.Equals(child.Id, "panel-scene-select-items-viewport", StringComparison.Ordinal));
+            SceneEntityAsset itemsRoot = Assert.Single(itemsViewport.Children, child => string.Equals(child.Id, "panel-scene-select-items-root", StringComparison.Ordinal));
+
+            string clipTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(ClipRectComponent));
+            string scrollTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(ScrollComponent));
+
+            Assert.Contains(itemsViewport.Components, component => string.Equals(component.ComponentTypeId, clipTypeId, StringComparison.Ordinal));
+            Assert.Contains(itemsRoot.Components, component => string.Equals(component.ComponentTypeId, scrollTypeId, StringComparison.Ordinal));
+        }
+
+        /// <summary>
         /// Initializes a core instance so camera components can allocate their render queues during deserialization.
         /// </summary>
         void InitializeCore() {

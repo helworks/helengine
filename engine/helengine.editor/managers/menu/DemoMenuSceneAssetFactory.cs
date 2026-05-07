@@ -38,6 +38,11 @@ namespace helengine.editor {
         readonly RoundedRectComponentPersistenceDescriptor RoundedRectDescriptor;
 
         /// <summary>
+        /// Descriptor used to serialize automatic reflected component payloads such as clip and scroll metadata.
+        /// </summary>
+        readonly AutomaticScriptComponentPersistenceDescriptor AutomaticDescriptor;
+
+        /// <summary>
         /// Dummy font asset used only to satisfy text-component serialization before real asset references are applied.
         /// </summary>
         readonly FontAsset PlaceholderFont;
@@ -52,6 +57,7 @@ namespace helengine.editor {
             DemoMenuSelectedDescriptionDescriptor = new MenuSelectedDescriptionComponentPersistenceDescriptor();
             TextDescriptor = new TextComponentPersistenceDescriptor();
             RoundedRectDescriptor = new RoundedRectComponentPersistenceDescriptor();
+            AutomaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             PlaceholderFont = new FontAsset(
                 new FontInfo("Placeholder", 16, 4f),
                 new ManagedRuntimeTexture {
@@ -216,6 +222,7 @@ namespace helengine.editor {
             children.Add(BuildTextEntityAsset($"panel-{panelDefinition.PanelId}-heading", new float3(120f, 220f, 0.1f), panelDefinition.Heading, definition.BodyFontPath, definition.TextColor, new int2(420, 36), 41));
             children.Add(BuildSelectedDescriptionEntityAsset(panelDefinition.PanelId, new float3(120f, 600f, 0.1f), firstItem.Description, definition.BodyFontPath, definition.MutedTextColor));
 
+            List<SceneEntityAsset> itemChildren = new List<SceneEntityAsset>();
             int itemInsertIndex = 0;
             for (int itemIndex = 0; itemIndex < panelDefinition.Items.Length; itemIndex++) {
                 MenuItemDefinition itemDefinition = panelDefinition.Items[itemIndex];
@@ -223,9 +230,12 @@ namespace helengine.editor {
                     continue;
                 }
 
-                children.Add(BuildItemEntityAsset(definition, panelDefinition, itemDefinition, itemInsertIndex));
+                itemChildren.Add(BuildItemEntityAsset(definition, panelDefinition, itemDefinition, itemInsertIndex));
                 itemInsertIndex++;
             }
+
+            SceneEntityAsset itemsRootEntity = BuildItemsRootEntityAsset(panelDefinition, itemChildren.ToArray());
+            children.Add(BuildItemsViewportEntityAsset(panelDefinition, itemsRootEntity));
 
             return new SceneEntityAsset {
                 Id = $"panel-{panelDefinition.PanelId}",
@@ -274,7 +284,7 @@ namespace helengine.editor {
             return new SceneEntityAsset {
                 Id = $"item-{panelDefinition.PanelId}-{itemDefinition.ItemId}",
                 Name = $"Item-{itemDefinition.ItemId}",
-                LocalPosition = new float3(120f, 280f + (visibleIndex * (DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing)), 0f),
+                LocalPosition = new float3(0f, visibleIndex * (DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing), 0f),
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
                 Components = new[] {
@@ -314,6 +324,101 @@ namespace helengine.editor {
                 },
                 Children = Array.Empty<SceneEntityAsset>()
             };
+        }
+
+        /// <summary>
+        /// Builds the fixed panel-local viewport that clips overflowing menu rows.
+        /// </summary>
+        /// <param name="panelDefinition">Panel whose item viewport should be authored.</param>
+        /// <param name="itemsRootEntity">Scrolling root entity parented beneath the viewport.</param>
+        /// <returns>Viewport entity that owns the clip rectangle.</returns>
+        SceneEntityAsset BuildItemsViewportEntityAsset(MenuPanelDefinition panelDefinition, SceneEntityAsset itemsRootEntity) {
+            if (panelDefinition == null) {
+                throw new ArgumentNullException(nameof(panelDefinition));
+            }
+            if (itemsRootEntity == null) {
+                throw new ArgumentNullException(nameof(itemsRootEntity));
+            }
+
+            ClipRectComponent clipComponent = new ClipRectComponent {
+                Size = BuildItemsViewportSize(panelDefinition)
+            };
+
+            return new SceneEntityAsset {
+                Id = $"panel-{panelDefinition.PanelId}-items-viewport",
+                Name = $"Panel-{panelDefinition.PanelId}-ItemsViewport",
+                LocalPosition = new float3(120f, 280f, 0f),
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity,
+                Components = new[] {
+                    AutomaticDescriptor.SerializeComponent(clipComponent, 0, null)
+                },
+                Children = new[] { itemsRootEntity }
+            };
+        }
+
+        /// <summary>
+        /// Builds the scrolling item-root entity that owns the reusable row-based scroll state.
+        /// </summary>
+        /// <param name="panelDefinition">Panel whose visible row count should be reflected into the scroll metadata.</param>
+        /// <param name="itemChildren">Baked item rows that should scroll inside the viewport.</param>
+        /// <returns>Scrolling item-root entity.</returns>
+        SceneEntityAsset BuildItemsRootEntityAsset(MenuPanelDefinition panelDefinition, SceneEntityAsset[] itemChildren) {
+            if (panelDefinition == null) {
+                throw new ArgumentNullException(nameof(panelDefinition));
+            }
+            if (itemChildren == null) {
+                throw new ArgumentNullException(nameof(itemChildren));
+            }
+
+            ScrollComponent scrollComponent = new ScrollComponent {
+                Size = BuildItemsViewportSize(panelDefinition),
+                ItemCount = itemChildren.Length,
+                VisibleItemCount = ResolveVisibleItemCount(panelDefinition),
+                ScrollStepCount = 1,
+                WheelNotchSize = 120,
+                RequiresPointerInside = true
+            };
+
+            return new SceneEntityAsset {
+                Id = $"panel-{panelDefinition.PanelId}-items-root",
+                Name = $"Panel-{panelDefinition.PanelId}-ItemsRoot",
+                LocalPosition = float3.Zero,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity,
+                Components = new[] {
+                    AutomaticDescriptor.SerializeComponent(scrollComponent, 0, null)
+                },
+                Children = itemChildren
+            };
+        }
+
+        /// <summary>
+        /// Builds the fixed viewport size used for one panel item list.
+        /// </summary>
+        /// <param name="panelDefinition">Panel whose visible row count determines the viewport height.</param>
+        /// <returns>Viewport size in authored scene pixels.</returns>
+        int2 BuildItemsViewportSize(MenuPanelDefinition panelDefinition) {
+            int visibleItemCount = ResolveVisibleItemCount(panelDefinition);
+            int viewportHeight = (visibleItemCount * DemoMenuLayout.ButtonHeight)
+                + ((visibleItemCount - 1) * DemoMenuLayout.ButtonSpacing);
+            return new int2(DemoMenuLayout.ButtonWidth, viewportHeight);
+        }
+
+        /// <summary>
+        /// Resolves the authored visible-row count for one menu panel.
+        /// </summary>
+        /// <param name="panelDefinition">Panel definition whose visible-row count should be validated.</param>
+        /// <returns>Validated visible-row count.</returns>
+        int ResolveVisibleItemCount(MenuPanelDefinition panelDefinition) {
+            if (panelDefinition == null) {
+                throw new ArgumentNullException(nameof(panelDefinition));
+            }
+            if (panelDefinition.VisibleItemCount < 1) {
+                throw new InvalidOperationException($"Menu panel '{panelDefinition.PanelId}' must expose at least one visible row.");
+            }
+
+            return panelDefinition.VisibleItemCount;
         }
 
         /// <summary>
