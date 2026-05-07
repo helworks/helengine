@@ -459,6 +459,95 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures runtime menu scene actions route through the runtime scene manager and register the loaded scene.
+        /// </summary>
+        [Fact]
+        public void Load_WhenRuntimeMenuActionLoadsScene_routesThroughSceneManager() {
+            string projectRootPath = Path.Combine(TempRootPath, "menu-runtime-scene-manager-project");
+            string assetsRootPath = Path.Combine(projectRootPath, "assets");
+            string buildRootPath = Path.Combine(TempRootPath, "menu-runtime-scene-manager-build");
+            Directory.CreateDirectory(assetsRootPath);
+            Directory.CreateDirectory(buildRootPath);
+
+            string titleFontPath = Path.Combine(assetsRootPath, "Fonts", "DemoDiscTitle.ttf");
+            Directory.CreateDirectory(Path.GetDirectoryName(titleFontPath));
+            File.WriteAllBytes(titleFontPath, new byte[] { 1, 2, 3, 4 });
+
+            string bodyFontPath = Path.Combine(assetsRootPath, "Fonts", "DemoDiscBody.ttf");
+            Directory.CreateDirectory(Path.GetDirectoryName(bodyFontPath));
+            File.WriteAllBytes(bodyFontPath, new byte[] { 5, 6, 7, 8 });
+
+            string playableScenePath = Path.Combine(assetsRootPath, "Scenes", "TestPlayableScene.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(playableScenePath));
+            using (FileStream playableSceneStream = new FileStream(playableScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                EditorAssetBinarySerializer.Serialize(
+                    playableSceneStream,
+                    new SceneAsset {
+                        Id = "Scenes/TestPlayableScene.helen",
+                        RootEntities = new[] {
+                            new SceneEntityAsset {
+                                Id = "playable-root",
+                                Name = "PlayableRoot",
+                                Components = Array.Empty<SceneComponentAssetRecord>(),
+                                Children = Array.Empty<SceneEntityAsset>()
+                            }
+                        }
+                    });
+            }
+
+            SceneAsset authoredSceneAsset = BuildDemoMenuSceneAsset();
+            string authoredScenePath = Path.Combine(assetsRootPath, "Scenes", "TestMenu.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(authoredScenePath));
+            using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
+            }
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                projectRootPath,
+                new IAssetImporterRegistration[] {
+                    new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" })
+                },
+                CreateFont());
+            packager.Package(new[] { "Scenes/TestMenu.helen", "Scenes/TestPlayableScene.helen" }, buildRootPath);
+            WriteRuntimeSceneCatalog(
+                buildRootPath,
+                new RuntimeSceneCatalogEntry("Scenes/TestMenu.helen", "cooked/scenes/main.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "scenes/Scenes/TestPlayableScene.hasset"));
+
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = buildRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
+            Core.Instance.DefaultFontAsset = CreateFont();
+
+            MenuComponent menuHostComponent = LoadPackagedMenu(buildRootPath);
+            TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
+
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Enter));
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Enter));
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            Assert.NotNull(Core.Instance.SceneManager);
+            Assert.True(Core.Instance.SceneManager.IsSceneLoaded("Scenes/TestPlayableScene.helen"));
+        }
+
+        /// <summary>
         /// Ensures packaged runtime scene loading materializes eligible scripted components through the ordinal automatic fallback path.
         /// </summary>
         [Fact]
@@ -825,6 +914,40 @@ namespace helengine.editor.tests.serialization.scene {
                 CreateFont());
             packager.Package(new[] { "Scenes/TestMenu.helen" }, buildRootPath);
             return buildRootPath;
+        }
+
+        /// <summary>
+        /// Writes one runtime scene catalog file into the supplied packaged build output root.
+        /// </summary>
+        /// <param name="buildRootPath">Packaged build output root that should receive the runtime catalog.</param>
+        /// <param name="entries">Runtime scene catalog entries to persist.</param>
+        void WriteRuntimeSceneCatalog(string buildRootPath, params RuntimeSceneCatalogEntry[] entries) {
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+            if (entries == null) {
+                throw new ArgumentNullException(nameof(entries));
+            }
+
+            string catalogPath = Path.Combine(buildRootPath, "runtime-scene-catalog.json");
+            using StreamWriter writer = new StreamWriter(catalogPath, false, System.Text.Encoding.UTF8);
+            writer.WriteLine("{");
+            writer.WriteLine("  \"Entries\": [");
+            for (int index = 0; index < entries.Length; index++) {
+                RuntimeSceneCatalogEntry entry = entries[index];
+                writer.WriteLine("    {");
+                writer.WriteLine("      \"SceneId\": \"" + entry.SceneId + "\",");
+                writer.WriteLine("      \"CookedRelativePath\": \"" + entry.CookedRelativePath + "\"");
+                writer.Write("    }");
+                if (index < entries.Length - 1) {
+                    writer.Write(",");
+                }
+
+                writer.WriteLine();
+            }
+
+            writer.WriteLine("  ]");
+            writer.WriteLine("}");
         }
 
         /// <summary>
