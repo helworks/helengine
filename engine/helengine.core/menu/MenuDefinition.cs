@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>
         /// Initializes one menu definition.
         /// </summary>
-        /// <param name="title">Large display title rendered near the top of the menu.</param>
+        /// <param name="title">Optional large display title rendered near the top of the menu.</param>
         /// <param name="subtitle">Optional supporting subtitle rendered under the title.</param>
         /// <param name="initialPanelId">Panel id that should become active when the menu host starts.</param>
         /// <param name="titleFontPath">Project-relative path to the title font asset.</param>
@@ -33,8 +33,11 @@ namespace helengine {
             byte4 textColor,
             byte4 mutedTextColor,
             MenuPanelDefinition[] panels) {
-            if (string.IsNullOrWhiteSpace(title)) {
-                throw new ArgumentException("Menu title must be provided.", nameof(title));
+            if (title == null) {
+                throw new ArgumentNullException(nameof(title));
+            }
+            if (subtitle == null) {
+                throw new ArgumentNullException(nameof(subtitle));
             }
             if (string.IsNullOrWhiteSpace(initialPanelId)) {
                 throw new ArgumentException("Initial panel id must be provided.", nameof(initialPanelId));
@@ -53,7 +56,7 @@ namespace helengine {
             }
 
             Title = title;
-            Subtitle = subtitle ?? string.Empty;
+            Subtitle = subtitle;
             InitialPanelId = initialPanelId;
             TitleFontPath = titleFontPath;
             BodyFontPath = bodyFontPath;
@@ -68,12 +71,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets the large display title rendered near the top of the menu.
+        /// Gets the optional large display title rendered near the top of the menu.
         /// </summary>
         public string Title { get; }
 
         /// <summary>
-        /// Gets the supporting subtitle rendered under the title.
+        /// Gets the optional supporting subtitle rendered under the title.
         /// </summary>
         public string Subtitle { get; }
 

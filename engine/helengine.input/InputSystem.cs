@@ -69,6 +69,10 @@ public sealed class InputSystem {
     /// </summary>
     bool KeyboardIsActive;
     /// <summary>
+    /// Tracks whether the active backend should continue reporting input while its host is not foreground active.
+    /// </summary>
+    bool ReceiveInputInBackground;
+    /// <summary>
     /// Optional frame callback invoked after input capture and before pointer-wrap state is committed.
     /// </summary>
     Action FrameUpdateHandler;
@@ -114,6 +118,7 @@ public sealed class InputSystem {
     /// <param name="backend">Backend that captures raw input.</param>
     public void SetBackend(IInputBackend backend) {
         Backend = backend;
+        ApplyBackgroundInputPolicy();
     }
 
     /// <summary>
@@ -130,6 +135,15 @@ public sealed class InputSystem {
     /// <param name="isActive">True to capture key state; false to ignore input.</param>
     public void SetKeyboardActive(bool isActive) {
         KeyboardIsActive = isActive;
+    }
+
+    /// <summary>
+    /// Enables or disables raw keyboard and mouse-button capture while the host window is not foreground active.
+    /// </summary>
+    /// <param name="isEnabled">True when the backend should continue reporting background input.</param>
+    public void SetBackgroundInputEnabled(bool isEnabled) {
+        ReceiveInputInBackground = isEnabled;
+        ApplyBackgroundInputPolicy();
     }
 
     /// <summary>
@@ -718,6 +732,17 @@ public sealed class InputSystem {
         int2 pointerWrapDeltaOffset = PointerWrapDeltaOffset;
         PointerWrapDeltaOffset = new int2(0, 0);
         return pointerWrapDeltaOffset;
+    }
+
+    /// <summary>
+    /// Applies the current background-input policy to the active backend when one is available.
+    /// </summary>
+    void ApplyBackgroundInputPolicy() {
+        if (Backend == null) {
+            return;
+        }
+
+        Backend.ReceiveInputInBackground = ReceiveInputInBackground;
     }
 
     /// <summary>

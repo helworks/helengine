@@ -178,8 +178,12 @@ namespace helengine.editor {
             List<SceneEntityAsset> children = new List<SceneEntityAsset>();
             children.Add(BuildBackgroundEntityAsset("demo-disc-menu-background", new float3(0f, 0f, 0f), new int2(DemoMenuLayout.CanvasWidth, DemoMenuLayout.CanvasHeight), 0f, 0f, definition.BackgroundColor, definition.BackgroundColor, 10));
             children.Add(BuildBackgroundEntityAsset("demo-disc-menu-accent", new float3(72f, 64f, 0f), new int2(18, 520), 9f, 0f, definition.AccentSecondaryColor, definition.AccentSecondaryColor, 20));
-            children.Add(BuildTextEntityAsset("demo-disc-menu-title", new float3(96f, 56f, 0.1f), definition.Title, definition.TitleFontPath, definition.TextColor, new int2(600, 64), 40));
-            children.Add(BuildTextEntityAsset("demo-disc-menu-subtitle", new float3(100f, 118f, 0.1f), definition.Subtitle, definition.BodyFontPath, definition.MutedTextColor, new int2(700, 36), 41));
+            if (!string.IsNullOrWhiteSpace(definition.Title)) {
+                children.Add(BuildTextEntityAsset("demo-disc-menu-title", new float3(96f, 56f, 0.1f), definition.Title, definition.TitleFontPath, definition.TextColor, new int2(600, 64), 40));
+            }
+            if (!string.IsNullOrWhiteSpace(definition.Subtitle)) {
+                children.Add(BuildTextEntityAsset("demo-disc-menu-subtitle", new float3(100f, 118f, 0.1f), definition.Subtitle, definition.BodyFontPath, definition.MutedTextColor, new int2(700, 36), 41));
+            }
 
             for (int panelIndex = 0; panelIndex < definition.Panels.Length; panelIndex++) {
                 children.Add(BuildPanelEntityAsset(definition, definition.Panels[panelIndex]));

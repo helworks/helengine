@@ -94,6 +94,11 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets or sets whether the backend should continue reporting keyboard and button input while its host window is not foreground active.
+        /// </summary>
+        public bool ReceiveInputInBackground { get; set; }
+
+        /// <summary>
         /// Captures the current raw input frame from the attached window.
         /// </summary>
         /// <returns>Captured input frame.</returns>
@@ -132,7 +137,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Keyboard state for the current frame.</returns>
         KeyboardState CaptureKeyboardState() {
-            if (!IsWindowForegroundActive()) {
+            if (!ReceiveInputInBackground && !IsWindowForegroundActive()) {
                 CapturedKeys.Clear();
                 return new KeyboardState();
             }
@@ -172,7 +177,7 @@ namespace helengine {
                 mouseState.Y = pos.Y;
             }
 
-            if (!IsWindowForegroundActive()) {
+            if (!ReceiveInputInBackground && !IsWindowForegroundActive()) {
                 ReleaseAllButtons(ref mouseState);
             } else {
                 MouseButtons buttons = Control.MouseButtons;

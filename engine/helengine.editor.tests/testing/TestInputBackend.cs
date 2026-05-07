@@ -21,6 +21,11 @@ namespace helengine.editor.tests.testing {
         public bool IsForegroundActive { get; set; } = true;
 
         /// <summary>
+        /// Gets or sets whether the backend should continue reporting keyboard and button input while inactive.
+        /// </summary>
+        public bool ReceiveInputInBackground { get; set; }
+
+        /// <summary>
         /// Gets or sets the gamepad states returned by the backend.
         /// </summary>
         public InputGamepadState[] Gamepads { get; set; } = Array.Empty<InputGamepadState>();
@@ -74,7 +79,7 @@ namespace helengine.editor.tests.testing {
         /// <returns>Input frame supplied by the test.</returns>
         public InputFrameState CaptureFrame() {
             InputFrameState frame = new InputFrameState();
-            frame.Keyboard = KeyboardState;
+            frame.Keyboard = CaptureKeyboardState();
             frame.Mouse = CaptureMouseState();
             frame.Gamepads = Gamepads;
             frame.GamepadCount = GamepadCount;
@@ -114,9 +119,21 @@ namespace helengine.editor.tests.testing {
         /// Captures the current mouse state while suppressing clicks when the test window is inactive.
         /// </summary>
         /// <returns>Mouse state supplied by the test.</returns>
+        KeyboardState CaptureKeyboardState() {
+            if (IsForegroundActive || ReceiveInputInBackground) {
+                return KeyboardState;
+            }
+
+            return new KeyboardState();
+        }
+
+        /// <summary>
+        /// Captures the current mouse state while suppressing clicks when the test window is inactive.
+        /// </summary>
+        /// <returns>Mouse state supplied by the test.</returns>
         MouseState CaptureMouseState() {
             MouseState state = MouseState;
-            if (IsForegroundActive) {
+            if (IsForegroundActive || ReceiveInputInBackground) {
                 return state;
             }
 

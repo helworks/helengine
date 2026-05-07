@@ -190,6 +190,46 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures inactive hosts suppress keyboard transitions by default.
+        /// </summary>
+        [Fact]
+        public void EarlyUpdate_WhenWindowIsInactiveAndBackgroundInputIsDisabled_DoesNotCaptureKeyboardTransitions() {
+            TestInputBackend input = InitializeCore();
+            input.IsForegroundActive = false;
+
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Enter));
+            input.EarlyUpdate();
+
+            Assert.False(Core.Instance.InputSystem.WasKeyPressed(Keys.Enter));
+        }
+
+        /// <summary>
+        /// Ensures enabling background input allows inactive hosts to report keyboard and mouse-button input.
+        /// </summary>
+        [Fact]
+        public void EarlyUpdate_WhenBackgroundInputIsEnabled_CapturesInactiveKeyboardAndMouseButtonInput() {
+            TestInputBackend input = InitializeCore();
+            input.IsForegroundActive = false;
+            Core.Instance.InputSystem.SetBackgroundInputEnabled(true);
+
+            input.SetKeyboardState(new KeyboardState());
+            input.SetMouseState(new MouseState(40, 40, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            input.EarlyUpdate();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Enter));
+            input.SetMouseState(new MouseState(40, 40, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            input.EarlyUpdate();
+
+            Assert.True(Core.Instance.InputSystem.WasKeyPressed(Keys.Enter));
+            Assert.Equal(ButtonState.Pressed, Core.Instance.InputSystem.CurrentFrame.Mouse.LeftButton);
+        }
+
+        /// <summary>
         /// Ensures the shared input layer leaves edge positions unchanged when pointer wrapping is disabled.
         /// </summary>
         [Fact]

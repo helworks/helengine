@@ -176,6 +176,22 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
+        /// Ensures generated demo-disc provider source no longer emits the removed title and subtitle copy.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuSourcesAreGenerated_DoesNotEmitRemovedTitleOrSubtitleCopy() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            string providerSourcePath = Path.Combine(ProjectRootPath, "assets", "codebase", "menu", "DemoDiscMenuDefinitionProvider.cs");
+            string providerSource = File.ReadAllText(providerSourcePath);
+
+            Assert.DoesNotContain("Helengine Demo Disc", providerSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("Lilac nights, bright experiments, and a little street grit.", providerSource, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures the generated demo-disc assets author source font files instead of committed cooked-font blobs.
         /// </summary>
         [Fact]
@@ -215,6 +231,23 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
+        /// Ensures the generated baked scene no longer contains dedicated title or subtitle text entities.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuSceneIsGenerated_DoesNotBakeTitleOrSubtitleEntities() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            SceneAsset sceneAsset = ReadGeneratedSceneAsset();
+            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
+
+            Assert.DoesNotContain(generatedRoot.Children, child => string.Equals(child.Name, "demo-disc-menu-title", StringComparison.Ordinal));
+            Assert.DoesNotContain(generatedRoot.Children, child => string.Equals(child.Name, "demo-disc-menu-subtitle", StringComparison.Ordinal));
+        }
+
+        /// <summary>
         /// Initializes a core instance so camera components can allocate their render queues during deserialization.
         /// </summary>
         void InitializeCore() {
@@ -230,18 +263,23 @@ namespace helengine.editor.tests.tools {
         /// </summary>
         /// <returns>Persisted provider type name.</returns>
         string ReadProviderTypeName() {
-            SceneAsset sceneAsset;
-            string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "DemoDiscMainMenu.helen");
-            using (FileStream stream = File.OpenRead(scenePath)) {
-                sceneAsset = Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
-            }
-
+            SceneAsset sceneAsset = ReadGeneratedSceneAsset();
             SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
             SceneComponentAssetRecord menuRecord = Assert.Single(menuEntity.Components, component => component.ComponentTypeId == MenuComponent.SerializedComponentTypeId);
             MenuComponentPersistenceDescriptor descriptor = new MenuComponentPersistenceDescriptor();
             MenuComponent menuHostComponent = Assert.IsType<MenuComponent>(
                 descriptor.DeserializeComponent(menuRecord, null, new TestSceneAssetReferenceResolver()));
             return menuHostComponent.ProviderTypeName;
+        }
+
+        /// <summary>
+        /// Reads the generated demo-disc scene asset from disk.
+        /// </summary>
+        /// <returns>Generated scene asset.</returns>
+        SceneAsset ReadGeneratedSceneAsset() {
+            string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "DemoDiscMainMenu.helen");
+            using FileStream stream = File.OpenRead(scenePath);
+            return Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
         }
 
         /// <summary>

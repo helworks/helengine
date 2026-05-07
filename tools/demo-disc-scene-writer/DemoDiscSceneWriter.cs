@@ -299,8 +299,8 @@ namespace helengine.demo_disc_scene_writer {
         /// <returns>Baked demo-disc menu definition.</returns>
         MenuDefinition BuildMenuDefinition() {
             return new MenuDefinition(
-                "Helengine Demo Disc",
-                "Lilac nights, bright experiments, and a little street grit.",
+                string.Empty,
+                string.Empty,
                 "main",
                 "Fonts/DemoDiscTitle.ttf",
                 "Fonts/DemoDiscBody.ttf",
@@ -472,8 +472,8 @@ namespace helengine.demo_disc_scene_writer {
             builder.AppendLine("            DemoDiscMenuTheme theme = new DemoDiscMenuTheme();");
             builder.AppendLine("            DemoDiscSceneCatalog sceneCatalog = new DemoDiscSceneCatalog();");
             builder.AppendLine("            return new MenuDefinition(");
-            builder.AppendLine("                \"Helengine Demo Disc\",");
-            builder.AppendLine("                \"Lilac nights, bright experiments, and a little street grit.\",");
+            builder.AppendLine("                string.Empty,");
+            builder.AppendLine("                string.Empty,");
             builder.AppendLine("                \"main\",");
             builder.AppendLine("                theme.TitleFontPath,");
             builder.AppendLine("                theme.BodyFontPath,");
