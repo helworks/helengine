@@ -1,4 +1,5 @@
 using helengine.demo_disc_scene_writer;
+using helengine.files;
 using Xunit;
 
 namespace helengine.editor.tests.tools {
@@ -42,6 +43,62 @@ namespace helengine.editor.tests.tools {
             Assert.True(File.Exists(Path.Combine(renderingCodeRootPath, "DirectionalShadowOrbitComponent.cs")));
             Assert.True(File.Exists(Path.Combine(renderingCodeRootPath, "DirectionalShadowSunSweepComponent.cs")));
             Assert.True(File.Exists(Path.Combine(renderingCodeRootPath, "DirectionalShadowCameraOrbitComponent.cs")));
+        }
+
+        /// <summary>
+        /// Ensures the generated directional-shadow plaza scene includes the expected authored light, camera, and attract-mode component structure.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenDirectionalShadowPlazaIsGenerated_AuthorsExpectedLightCameraAndMotionComponents() {
+            RenderingSceneWriter writer = new RenderingSceneWriter();
+
+            writer.WriteAll(ProjectRootPath);
+
+            SceneAsset sceneAsset = ReadSceneAsset("directional-shadow-plaza.helen");
+
+            Assert.Equal("Scenes/rendering/directional-shadow-plaza.helen", sceneAsset.Id);
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.DirectionalLightComponent"));
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.CameraComponent"));
+            Assert.Equal(3, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.DirectionalShadowTowerSpinComponent, gameplay"));
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.DirectionalShadowOrbitComponent, gameplay"));
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.DirectionalShadowSunSweepComponent, gameplay"));
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.DirectionalShadowCameraOrbitComponent, gameplay"));
+            Assert.Contains(sceneAsset.AssetReferences, reference => reference.RelativePath == "Engine/Models/Plane");
+            Assert.Contains(sceneAsset.AssetReferences, reference => reference.RelativePath == "Engine/Models/Cube");
+            Assert.Contains(sceneAsset.AssetReferences, reference => reference.RelativePath == "Engine/Materials/Standard");
+        }
+
+        /// <summary>
+        /// Reads one generated rendering scene asset from the isolated temp project.
+        /// </summary>
+        /// <param name="sceneFileName">Scene file name stored beneath the rendering scene folder.</param>
+        /// <returns>Deserialized scene asset.</returns>
+        SceneAsset ReadSceneAsset(string sceneFileName) {
+            string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "rendering", sceneFileName);
+            using FileStream stream = File.OpenRead(scenePath);
+            return Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
+        }
+
+        /// <summary>
+        /// Counts the number of serialized components with one specific type id across the supplied scene hierarchy.
+        /// </summary>
+        /// <param name="entities">Root or child entities to inspect.</param>
+        /// <param name="componentTypeId">Stable serialized component type id to count.</param>
+        /// <returns>Total number of matching components.</returns>
+        int CountComponents(SceneEntityAsset[] entities, string componentTypeId) {
+            int count = 0;
+            for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++) {
+                SceneEntityAsset entity = entities[entityIndex];
+                for (int componentIndex = 0; componentIndex < entity.Components.Length; componentIndex++) {
+                    if (string.Equals(entity.Components[componentIndex].ComponentTypeId, componentTypeId, StringComparison.Ordinal)) {
+                        count++;
+                    }
+                }
+
+                count += CountComponents(entity.Children, componentTypeId);
+            }
+
+            return count;
         }
     }
 }

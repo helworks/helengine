@@ -73,6 +73,10 @@ namespace helengine.demo_disc_scene_writer {
         /// Scene id written into the committed directional-shadow lab scene asset.
         /// </summary>
         const string DirectionalShadowLabSceneId = "Scenes/rendering/directional-shadow-lab.helen";
+        /// <summary>
+        /// Scene id written into the committed directional-shadow plaza showcase scene asset.
+        /// </summary>
+        const string DirectionalShadowPlazaSceneId = DirectionalShadowPlazaSceneAssetFactory.SceneId;
 
         /// Descriptor used to serialize authored mesh payloads for committed editor scenes.
         /// </summary>
@@ -109,6 +113,11 @@ namespace helengine.demo_disc_scene_writer {
         readonly RenderingShowcaseSourceWriter ShowcaseSourceWriter;
 
         /// <summary>
+        /// Builds the canonical directional-shadow plaza showcase scene asset.
+        /// </summary>
+        readonly DirectionalShadowPlazaSceneAssetFactory DirectionalShadowPlazaFactory;
+
+        /// <summary>
         /// Initializes the committed rendering scene writer with the persistence descriptors required for authored editor-scene output.
         /// </summary>
         public RenderingSceneWriter() {
@@ -119,6 +128,7 @@ namespace helengine.demo_disc_scene_writer {
             PlaceholderModel = new AuthoringPlaceholderRuntimeModel();
             PlaceholderMaterial = new RuntimeMaterial();
             ShowcaseSourceWriter = new RenderingShowcaseSourceWriter();
+            DirectionalShadowPlazaFactory = new DirectionalShadowPlazaSceneAssetFactory();
         }
 
         /// <summary>
@@ -137,10 +147,32 @@ namespace helengine.demo_disc_scene_writer {
             }
 
             ShowcaseSourceWriter.WriteDirectionalShadowPlazaSources(assetsRootPath);
+            WriteDirectionalShadowPlazaSceneAsset(assetsRootPath);
             WritePointShadowSceneAsset(assetsRootPath);
             WritePointShadowLabSceneAsset(assetsRootPath);
             WriteSpotShadowLabSceneAsset(assetsRootPath);
             WriteDirectionalShadowLabSceneAsset(assetsRootPath);
+        }
+
+        /// <summary>
+        /// Writes the committed directional-shadow plaza showcase scene asset.
+        /// </summary>
+        /// <param name="assetsRootPath">Assets root path inside the target project.</param>
+        void WriteDirectionalShadowPlazaSceneAsset(string assetsRootPath) {
+            string scenePath = Path.Combine(assetsRootPath, DirectionalShadowPlazaSceneId.Replace('/', Path.DirectorySeparatorChar));
+            string sceneDirectoryPath = Path.GetDirectoryName(scenePath);
+            if (string.IsNullOrWhiteSpace(sceneDirectoryPath)) {
+                throw new InvalidOperationException("Directional-shadow plaza scene directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(sceneDirectoryPath);
+            SceneAsset sceneAsset = DirectionalShadowPlazaFactory.CreateSceneAsset(
+                CreateGeneratedReference("Engine/Models/Plane", PlaneModelAssetId),
+                CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId));
+
+            using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            EditorAssetBinarySerializer.Serialize(stream, sceneAsset);
         }
 
         /// <summary>

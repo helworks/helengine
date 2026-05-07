@@ -110,8 +110,9 @@ namespace gameplay.rendering {
             double z = OrbitCenter.Z + (Math.Cos(angleRadians) * OrbitRadius);
             Parent.LocalPosition = new float3((float)x, OrbitCenter.Y + OrbitHeight, (float)z);
 
+            double inwardYawRadians = Math.Atan2(OrbitCenter.X - x, -(OrbitCenter.Z - z));
             float4 orientation;
-            float4.CreateFromYawPitchRoll((float)(angleRadians + Math.PI), 0f, 0f, out orientation);
+            float4.CreateFromYawPitchRoll((float)inwardYawRadians, 0f, 0f, out orientation);
             orientation.Normalize();
             Parent.LocalOrientation = orientation;
         }
@@ -221,7 +222,7 @@ namespace gameplay.rendering {
             double z = OrbitCenter.Z + (Math.Cos(angleRadians) * OrbitRadius);
             Parent.LocalPosition = new float3((float)x, OrbitCenter.Y + OrbitHeight, (float)z);
 
-            double inwardYawRadians = Math.Atan2(OrbitCenter.X - x, OrbitCenter.Z - z);
+            double inwardYawRadians = Math.Atan2(OrbitCenter.X - x, -(OrbitCenter.Z - z));
             float4 orientation;
             float4.CreateFromYawPitchRoll((float)inwardYawRadians, LookDownPitchRadians, 0f, out orientation);
             orientation.Normalize();
