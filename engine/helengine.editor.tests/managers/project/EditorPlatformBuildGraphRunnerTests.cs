@@ -530,6 +530,14 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies the shared Windows build graph still succeeds after the native rounded-rect path moves to the SDF renderer.
+    /// </summary>
+    [Fact]
+    public void Execute_WhenBuildingCommittedPointShadowSceneForWindows_WithRoundedRectSdfParity_Succeeds() {
+        Execute_WhenBuildingCommittedPointShadowSceneForWindows_Succeeds();
+    }
+
+    /// <summary>
     /// Verifies project bootstrap can still resolve the installed Windows selection model when the editor runs from a git worktree copy.
     /// </summary>
     [Fact]
