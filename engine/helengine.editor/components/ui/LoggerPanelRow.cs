@@ -10,11 +10,13 @@ namespace helengine.editor {
         /// <param name="background">Background sprite component.</param>
         /// <param name="labelHost">Entity hosting the text label.</param>
         /// <param name="label">Text component for the log message.</param>
-        public LoggerPanelRow(EditorEntity entity, SpriteComponent background, EditorEntity labelHost, TextComponent label) {
+        /// <param name="interactable">Interactable region used for row pointer input.</param>
+        public LoggerPanelRow(EditorEntity entity, SpriteComponent background, EditorEntity labelHost, TextComponent label, InteractableComponent interactable) {
             Entity = entity;
             Background = background;
             LabelHost = labelHost;
             Label = label;
+            Interactable = interactable;
         }
 
         /// <summary>
@@ -36,5 +38,10 @@ namespace helengine.editor {
         /// Gets the text component for the log message.
         /// </summary>
         public TextComponent Label { get; }
+
+        /// <summary>
+        /// Gets the interactable region used for pointer input.
+        /// </summary>
+        public InteractableComponent Interactable { get; }
     }
 }

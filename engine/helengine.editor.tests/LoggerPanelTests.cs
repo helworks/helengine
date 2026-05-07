@@ -61,6 +61,68 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a plain row click focuses and selects only the clicked row.
+        /// </summary>
+        [Fact]
+        public void HandleRowPressed_WhenPlainClickOccurs_SelectsOnlyThatRow() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 3, false, false);
+
+                Assert.Equal(3, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(3, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(new[] { 3 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures a control-click toggles the clicked row while preserving the existing selection set.
+        /// </summary>
+        [Fact]
+        public void HandleRowPressed_WhenControlClickOccurs_TogglesThatRowInsideSelection() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
+                InvokePrivate(panel, "HandleRowPressed", 3, true, false);
+
+                Assert.Equal(3, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(3, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(new[] { 1, 3 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+
+                InvokePrivate(panel, "HandleRowPressed", 1, true, false);
+
+                Assert.Equal(1, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(1, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(new[] { 3 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures a shift-click expands selection to the inclusive range from the current anchor.
+        /// </summary>
+        [Fact]
+        public void HandleRowPressed_WhenShiftClickOccurs_SelectsInclusiveRangeFromAnchor() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3", "row-4");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
+                InvokePrivate(panel, "HandleRowPressed", 4, false, true);
+
+                Assert.Equal(4, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(1, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(new[] { 1, 2, 3, 4 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>
@@ -70,6 +132,36 @@ namespace helengine.editor.tests {
         T GetPrivateField<T>(object target, string fieldName) {
             FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
             return Assert.IsType<T>(field.GetValue(target));
+        }
+
+        /// <summary>
+        /// Invokes one non-public instance method with the supplied arguments.
+        /// </summary>
+        /// <param name="target">Object that owns the method.</param>
+        /// <param name="methodName">Name of the method to invoke.</param>
+        /// <param name="arguments">Arguments passed to the invoked method.</param>
+        static void InvokePrivate(object target, string methodName, params object[] arguments) {
+            MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(method);
+            method.Invoke(target, arguments);
+        }
+
+        /// <summary>
+        /// Creates one logger panel populated with the supplied entry messages.
+        /// </summary>
+        /// <param name="messages">Messages to enqueue into the logger panel.</param>
+        /// <returns>Populated logger panel.</returns>
+        LoggerPanel CreatePanelWithEntries(params string[] messages) {
+            LoggerPanel panel = new LoggerPanel(CreateFont()) {
+                Size = new int2(320, 240)
+            };
+
+            for (int messageIndex = 0; messageIndex < messages.Length; messageIndex++) {
+                Logger.WriteLine(messages[messageIndex]);
+            }
+
+            panel.FlushPendingEntries();
+            return panel;
         }
 
         /// <summary>

@@ -55,6 +55,10 @@ namespace helengine.editor {
         /// Pool of row visuals used to display log entries.
         /// </summary>
         readonly List<LoggerPanelRow> rows;
+        /// <summary>
+        /// Tracks the currently selected logger row indices.
+        /// </summary>
+        readonly HashSet<int> SelectedRowIndices;
 
         /// <summary>
         /// Synchronizes access to pending entries.
@@ -65,6 +69,14 @@ namespace helengine.editor {
         /// Tracks whether the panel finished initialization.
         /// </summary>
         bool isInitialized;
+        /// <summary>
+        /// Index of the currently focused logger row.
+        /// </summary>
+        int FocusedRowIndex;
+        /// <summary>
+        /// Index of the current multi-selection anchor row.
+        /// </summary>
+        int AnchorRowIndex;
 
         /// <summary>
         /// Initializes a new logger panel with the provided font.
@@ -95,7 +107,10 @@ namespace helengine.editor {
             pendingEntries = new List<LogEntry>(32);
             stagedEntries = new List<LogEntry>(32);
             rows = new List<LoggerPanelRow>(32);
+            SelectedRowIndices = new HashSet<int>();
             syncRoot = new object();
+            FocusedRowIndex = -1;
+            AnchorRowIndex = -1;
 
             AddComponent(new LoggerPanelUpdater(this));
 
@@ -224,6 +239,10 @@ namespace helengine.editor {
             background.RenderOrder2D = rowBackgroundOrder;
             rowEntity.AddComponent(background);
 
+            var interactable = new InteractableComponent();
+            interactable.Size = new int2(Math.Max(Size.X, MinSize.X), GetRowHeightPixels());
+            rowEntity.AddComponent(interactable);
+
             var labelHost = new EditorEntity();
             labelHost.LayerMask = LayerMask;
             labelHost.Position = new float3(GetRowPaddingPixels(), 2, 0.2f);
@@ -239,7 +258,7 @@ namespace helengine.editor {
 
             contentRoot.AddChild(rowEntity);
 
-            return new LoggerPanelRow(rowEntity, background, labelHost, text);
+            return new LoggerPanelRow(rowEntity, background, labelHost, text, interactable);
         }
 
         /// <summary>
@@ -263,6 +282,7 @@ namespace helengine.editor {
                 row.Entity.Enabled = true;
                 row.Entity.Position = new float3(0, i * GetRowHeightPixels(), 0.1f);
                 row.Background.Size = new int2(rowWidth, GetRowHeightPixels());
+                row.Interactable.Size = new int2(rowWidth, GetRowHeightPixels());
 
                 bool alternate = i % 2 == 1;
                 row.Background.Color = alternate ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
@@ -315,6 +335,67 @@ namespace helengine.editor {
             }
 
             return ThemeManager.Colors.InputForegroundPrimary;
+        }
+
+        /// <summary>
+        /// Applies row selection changes for one pressed logger row.
+        /// </summary>
+        /// <param name="rowIndex">Row index that was pressed.</param>
+        /// <param name="isControlPressed">True when the control modifier is active.</param>
+        /// <param name="isShiftPressed">True when the shift modifier is active.</param>
+        void HandleRowPressed(int rowIndex, bool isControlPressed, bool isShiftPressed) {
+            if (rowIndex < 0 || rowIndex >= entries.Count) {
+                return;
+            }
+
+            if (isShiftPressed && AnchorRowIndex >= 0) {
+                FocusedRowIndex = rowIndex;
+                SelectRangeFromAnchor(rowIndex);
+                return;
+            }
+
+            FocusedRowIndex = rowIndex;
+            AnchorRowIndex = rowIndex;
+
+            if (isControlPressed) {
+                ToggleRowSelection(rowIndex);
+                return;
+            }
+
+            SelectSingleRow(rowIndex);
+        }
+
+        /// <summary>
+        /// Replaces the current selection with one row.
+        /// </summary>
+        /// <param name="rowIndex">Row index that should remain selected.</param>
+        void SelectSingleRow(int rowIndex) {
+            SelectedRowIndices.Clear();
+            SelectedRowIndices.Add(rowIndex);
+        }
+
+        /// <summary>
+        /// Toggles one row inside the current selection set.
+        /// </summary>
+        /// <param name="rowIndex">Row index to toggle.</param>
+        void ToggleRowSelection(int rowIndex) {
+            if (!SelectedRowIndices.Add(rowIndex)) {
+                SelectedRowIndices.Remove(rowIndex);
+            }
+        }
+
+        /// <summary>
+        /// Selects the inclusive range between the current anchor and the supplied row.
+        /// </summary>
+        /// <param name="rowIndex">Target row that closes the selected range.</param>
+        void SelectRangeFromAnchor(int rowIndex) {
+            SelectedRowIndices.Clear();
+
+            int rangeStart = Math.Min(AnchorRowIndex, rowIndex);
+            int rangeEnd = Math.Max(AnchorRowIndex, rowIndex);
+            for (int selectedRowIndex = rangeStart; selectedRowIndex <= rangeEnd; selectedRowIndex++) {
+                SelectedRowIndices.Add(selectedRowIndex);
+            }
         }
     }
 }
