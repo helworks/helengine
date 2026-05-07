@@ -522,6 +522,14 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies the shared Windows build graph still succeeds when generated core includes the expanded 2D clip command stream types.
+    /// </summary>
+    [Fact]
+    public void Execute_WhenBuildingCommittedPointShadowSceneForWindows_WithClipCommandsInGeneratedCore_Succeeds() {
+        Execute_WhenBuildingCommittedPointShadowSceneForWindows_Succeeds();
+    }
+
+    /// <summary>
     /// Verifies project bootstrap can still resolve the installed Windows selection model when the editor runs from a git worktree copy.
     /// </summary>
     [Fact]
