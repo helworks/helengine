@@ -248,6 +248,45 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
+        /// Ensures regenerated demo menu panels no longer author the static subtitle entity beneath the heading.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuSceneIsGenerated_DoesNotBakeStaticPanelDescriptionEntities() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            SceneAsset sceneAsset = ReadGeneratedSceneAsset();
+            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
+
+            foreach (SceneEntityAsset panelEntity in generatedRoot.Children.Where(child => child.Name.StartsWith("Panel-", StringComparison.Ordinal))) {
+                Assert.DoesNotContain(
+                    panelEntity.Children,
+                    child => child.Id.Contains("-description", StringComparison.Ordinal) && !child.Id.StartsWith("selected-description-", StringComparison.Ordinal));
+            }
+        }
+
+        /// <summary>
+        /// Ensures regenerated demo menu panels no longer author the decorative left accent bar and still keep the selected-description entity.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuSceneIsGenerated_RemovesPanelAccentBarAndKeepsSelectedDescriptionEntity() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            SceneAsset sceneAsset = ReadGeneratedSceneAsset();
+            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
+
+            foreach (SceneEntityAsset panelEntity in generatedRoot.Children.Where(child => child.Name.StartsWith("Panel-", StringComparison.Ordinal))) {
+                Assert.DoesNotContain(panelEntity.Children, child => child.Id.EndsWith("-accent", StringComparison.Ordinal));
+                Assert.Contains(panelEntity.Children, child => child.Id.StartsWith("selected-description-", StringComparison.Ordinal));
+            }
+        }
+
+        /// <summary>
         /// Initializes a core instance so camera components can allocate their render queues during deserialization.
         /// </summary>
         void InitializeCore() {
