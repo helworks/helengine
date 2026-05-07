@@ -177,6 +177,20 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Inserts a text payload at the caret, replacing the active selection when one exists.
+        /// </summary>
+        /// <param name="text">Text payload to insert.</param>
+        public void InsertText(string text) {
+            string textValue = text ?? string.Empty;
+            RemoveSelection();
+
+            int insertionIndex = ClampCursor(CursorPositionValue);
+            TextValue = TextValue.Insert(insertionIndex, textValue);
+            CursorPositionValue = insertionIndex + textValue.Length;
+            SelectionAnchorPositionValue = CursorPositionValue;
+        }
+
+        /// <summary>
         /// Updates the selection so the supplied anchor stays fixed while the caret moves.
         /// </summary>
         /// <param name="anchorPosition">Fixed end of the selection.</param>
@@ -199,6 +213,18 @@ namespace helengine {
         public void SelectAll() {
             SelectionAnchorPositionValue = 0;
             CursorPositionValue = TextValue.Length;
+        }
+
+        /// <summary>
+        /// Returns the currently selected text payload.
+        /// </summary>
+        /// <returns>Selected text payload, or an empty string when no selection exists.</returns>
+        public string GetSelectedText() {
+            if (!HasSelection) {
+                return string.Empty;
+            }
+
+            return TextValue.Substring(SelectionStart, SelectionEnd - SelectionStart);
         }
 
         /// <summary>

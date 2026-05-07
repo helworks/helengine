@@ -342,14 +342,16 @@ namespace helengine {
             }
 
             // Handle keyboard input
-            var inputManager = Core.Instance.Input;
+            InputSystem inputManager = Core.Instance.Input;
             bool isShiftPressed = inputManager.IsKeyDown(Keys.LeftShift) || inputManager.IsKeyDown(Keys.RightShift);
+            bool isControlPressed = inputManager.IsKeyDown(Keys.LeftControl) || inputManager.IsKeyDown(Keys.RightControl);
+            bool isAltPressed = inputManager.IsKeyDown(Keys.LeftAlt) || inputManager.IsKeyDown(Keys.RightAlt);
             
             // Process newly pressed keys
             for (int i = 0; i < 255; i++) {
                 Keys key = (Keys)i;
                 if (inputManager.WasKeyPressed(key)) {
-                    HandleKeyPress(key, isShiftPressed);
+                    HandleKeyPress(key, isShiftPressed, isControlPressed, isAltPressed);
                 }
             }
         }
@@ -387,9 +389,23 @@ namespace helengine {
         /// </summary>
         /// <param name="key">Key pressed.</param>
         /// <param name="isShiftPressed">True when either shift key is pressed.</param>
-        void HandleKeyPress(Keys key, bool isShiftPressed) {
+        /// <param name="isControlPressed">True when either control key is pressed.</param>
+        /// <param name="isAltPressed">True when either alt key is pressed.</param>
+        void HandleKeyPress(Keys key, bool isShiftPressed, bool isControlPressed, bool isAltPressed) {
             bool textChanged = false;
             bool layoutChanged = false;
+            if (TryHandleShortcut(key, isShiftPressed, isControlPressed, isAltPressed, out textChanged, out layoutChanged)) {
+                if (textChanged || layoutChanged) {
+                    UpdateTextDisplay();
+                }
+
+                if (textChanged) {
+                    TextChanged?.Invoke(this);
+                }
+
+                return;
+            }
+
             switch (key) {
                 case Keys.Back:
                     string previousBackspaceText = EditState.Text;
@@ -451,6 +467,73 @@ namespace helengine {
             if (textChanged) {
                 TextChanged?.Invoke(this);
             }
+        }
+
+        /// <summary>
+        /// Attempts to resolve one registered textbox shortcut before ordinary key editing runs.
+        /// </summary>
+        /// <param name="key">Key pressed on the current frame.</param>
+        /// <param name="isShiftPressed">True when either shift key is pressed.</param>
+        /// <param name="isControlPressed">True when either control key is pressed.</param>
+        /// <param name="isAltPressed">True when either alt key is pressed.</param>
+        /// <param name="textChanged">Receives whether the shortcut changed the text payload.</param>
+        /// <param name="layoutChanged">Receives whether the shortcut changed caret or selection layout.</param>
+        /// <returns>True when a registered shortcut consumed the key press.</returns>
+        bool TryHandleShortcut(
+            Keys key,
+            bool isShiftPressed,
+            bool isControlPressed,
+            bool isAltPressed,
+            out bool textChanged,
+            out bool layoutChanged) {
+            textChanged = false;
+            layoutChanged = false;
+
+            TextBoxShortcutRegistry shortcutRegistry = Core.Instance.TextBoxShortcutRegistry;
+            if (shortcutRegistry == null) {
+                return false;
+            }
+
+            if (shortcutRegistry.SelectAllShortcut != null
+                && shortcutRegistry.SelectAllShortcut.Matches(key, isControlPressed, isShiftPressed, isAltPressed)) {
+                bool hadSelection = EditState.HasSelection;
+                int previousSelectionStart = EditState.SelectionStart;
+                int previousSelectionEnd = EditState.SelectionEnd;
+                EditState.SelectAll();
+                layoutChanged = !hadSelection
+                    || previousSelectionStart != EditState.SelectionStart
+                    || previousSelectionEnd != EditState.SelectionEnd;
+                return true;
+            }
+
+            if (shortcutRegistry.CopyShortcut != null
+                && shortcutRegistry.CopyShortcut.Matches(key, isControlPressed, isShiftPressed, isAltPressed)) {
+                if (EditState.HasSelection) {
+                    Core.Instance.TextClipboardService.WriteText(EditState.GetSelectedText());
+                }
+
+                return true;
+            }
+
+            if (shortcutRegistry.PasteShortcut != null
+                && shortcutRegistry.PasteShortcut.Matches(key, isControlPressed, isShiftPressed, isAltPressed)) {
+                if (!Core.Instance.TextClipboardService.HasText()) {
+                    return true;
+                }
+
+                string previousText = EditState.Text;
+                int previousSelectionStart = EditState.SelectionStart;
+                int previousSelectionEnd = EditState.SelectionEnd;
+                bool hadSelection = EditState.HasSelection;
+                EditState.InsertText(Core.Instance.TextClipboardService.ReadText());
+                textChanged = previousText != EditState.Text;
+                layoutChanged = hadSelection
+                    || previousSelectionStart != EditState.SelectionStart
+                    || previousSelectionEnd != EditState.SelectionEnd;
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>

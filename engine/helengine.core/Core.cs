@@ -27,6 +27,14 @@ namespace helengine {
         /// Attached physics runtime advanced by the core update loop when one has been configured.
         /// </summary>
         IPhysicsRuntime PhysicsRuntimeValue;
+        /// <summary>
+        /// Clipboard service used by textbox shortcut commands.
+        /// </summary>
+        ITextClipboardService TextClipboardServiceValue;
+        /// <summary>
+        /// Registry that stores the active textbox shortcut bindings.
+        /// </summary>
+        TextBoxShortcutRegistry TextBoxShortcutRegistryValue;
 
         /// <summary>
         /// Initializes a new core instance with default initialization options.
@@ -50,6 +58,8 @@ namespace helengine {
             PhysicsSchedulerValue = CreatePhysicsScheduler(InitializationOptions);
             Input = new InputSystem();
             PointerInteractionSystem = new PointerInteractionSystem(this, Input);
+            TextClipboardServiceValue = new NullTextClipboardService();
+            TextBoxShortcutRegistryValue = new TextBoxShortcutRegistry();
         }
 
         /// <summary>
@@ -147,6 +157,16 @@ namespace helengine {
         public RuntimeComponentRegistry SceneRuntimeComponentRegistry { get; private set; }
 
         /// <summary>
+        /// Gets the clipboard service used by textbox shortcut commands.
+        /// </summary>
+        public ITextClipboardService TextClipboardService => TextClipboardServiceValue;
+
+        /// <summary>
+        /// Gets the registry that stores the active textbox shortcut bindings.
+        /// </summary>
+        public TextBoxShortcutRegistry TextBoxShortcutRegistry => TextBoxShortcutRegistryValue;
+
+        /// <summary>
         /// Initializes core systems with rendering and input capture.
         /// </summary>
         /// <param name="render3D">3D renderer instance.</param>
@@ -204,6 +224,18 @@ namespace helengine {
             }
 
             SceneRuntimeComponentRegistry.Register(deserializer);
+        }
+
+        /// <summary>
+        /// Replaces the clipboard service used by textbox shortcut commands.
+        /// </summary>
+        /// <param name="clipboardService">Clipboard service exposed by the active host.</param>
+        public void SetTextClipboardService(ITextClipboardService clipboardService) {
+            if (clipboardService == null) {
+                throw new ArgumentNullException(nameof(clipboardService));
+            }
+
+            TextClipboardServiceValue = clipboardService;
         }
 
         /// <summary>

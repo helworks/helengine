@@ -64,7 +64,7 @@ namespace helengine.editor.tests {
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
 
-            Entity textHost = Assert.Single(entity.Children);
+            Entity textHost = Assert.Single(entity.Children, child => child.Components.OfType<TextComponent>().Any());
 
             Assert.Equal(6f, textHost.LocalPosition.Y);
             Assert.Equal(0.1f, textHost.LocalPosition.Z);
@@ -192,6 +192,80 @@ namespace helengine.editor.tests {
             Core.Instance.Update();
 
             Assert.Equal("Nb", textBox.Text);
+        }
+
+        /// <summary>
+        /// Ensures the textbox selects all text when the registered select-all shortcut is pressed.
+        /// </summary>
+        [Fact]
+        public void TextBoxComponent_WhenSelectAllShortcutIsPressed_SelectsAllText() {
+            InitializeCore();
+            EditorEntity entity = new EditorEntity();
+            TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
+            entity.AddComponent(textBox);
+            textBox.Text = "Name";
+            textBox.IsFocused = true;
+
+            ((TestInputBackend)Core.Instance.InputSystem.Backend).SetKeyboardState(new KeyboardState(Keys.LeftControl, Keys.A));
+            Core.Instance.Update();
+
+            TextBoxEditState editState = GetPrivateField<TextBoxEditState>(textBox, "EditState");
+            Assert.True(editState.HasSelection);
+            Assert.Equal(0, editState.SelectionStart);
+            Assert.Equal(4, editState.SelectionEnd);
+        }
+
+        /// <summary>
+        /// Ensures copy and paste shortcuts use the configured clipboard service instead of inserting shortcut characters.
+        /// </summary>
+        [Fact]
+        public void TextBoxComponent_WhenCopyAndPasteShortcutsArePressed_UsesTheClipboardService() {
+            InitializeCore();
+            TestTextClipboardService clipboardService = new TestTextClipboardService();
+            Core.Instance.SetTextClipboardService(clipboardService);
+            EditorEntity entity = new EditorEntity();
+            TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
+            entity.AddComponent(textBox);
+            textBox.Text = "Name";
+            textBox.IsFocused = true;
+
+            InvokePrivate(textBox, "OnCursorEvent", new int2(18, 10), new int2(0, 0), PointerInteraction.Press);
+            InvokePrivate(textBox, "OnCursorEvent", new int2(42, 10), new int2(24, 0), PointerInteraction.Hover);
+
+            ((TestInputBackend)Core.Instance.InputSystem.Backend).SetKeyboardState(new KeyboardState(Keys.LeftControl, Keys.C));
+            Core.Instance.Update();
+
+            Assert.Equal("ame", clipboardService.Text);
+
+            textBox.Text = string.Empty;
+            textBox.IsFocused = true;
+
+            ((TestInputBackend)Core.Instance.InputSystem.Backend).SetKeyboardState(new KeyboardState(Keys.LeftControl, Keys.V));
+            Core.Instance.Update();
+
+            Assert.Equal("ame", textBox.Text);
+        }
+
+        /// <summary>
+        /// Ensures the textbox honors a custom select-all shortcut registered through the textbox shortcut registry.
+        /// </summary>
+        [Fact]
+        public void TextBoxComponent_WhenShortcutRegistryOverridesSelectAllKey_UsesTheRegisteredShortcut() {
+            InitializeCore();
+            Core.Instance.TextBoxShortcutRegistry.SelectAllShortcut = new TextBoxShortcutBinding(Keys.F2, false, false, false);
+            EditorEntity entity = new EditorEntity();
+            TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
+            entity.AddComponent(textBox);
+            textBox.Text = "Name";
+            textBox.IsFocused = true;
+
+            ((TestInputBackend)Core.Instance.InputSystem.Backend).SetKeyboardState(new KeyboardState(Keys.F2));
+            Core.Instance.Update();
+
+            TextBoxEditState editState = GetPrivateField<TextBoxEditState>(textBox, "EditState");
+            Assert.True(editState.HasSelection);
+            Assert.Equal(0, editState.SelectionStart);
+            Assert.Equal(4, editState.SelectionEnd);
         }
 
         /// <summary>

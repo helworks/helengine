@@ -152,6 +152,7 @@ namespace helengine.editor.app {
                 ContentRootPath = projectAssetsRootPath
             };
             core.Initialize(renderer3D, renderer2D, inputBackend, initOptions);
+            core.SetTextClipboardService(new SystemTextClipboardService());
 
             int renderWidth = Math.Max(1, ClientSize.Width);
             int renderHeight = Math.Max(1, ClientSize.Height);

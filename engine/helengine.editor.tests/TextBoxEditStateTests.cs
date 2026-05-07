@@ -133,5 +133,32 @@ namespace helengine.editor.tests {
             Assert.Equal(1, state.CursorPosition);
             Assert.False(state.HasSelection);
         }
+
+        /// <summary>
+        /// Ensures reading the selected text returns the active selection range only.
+        /// </summary>
+        [Fact]
+        public void GetSelectedText_WhenSelectionExists_ReturnsTheSelectedSubstring() {
+            TextBoxEditState state = new TextBoxEditState("abcdef");
+
+            state.SetSelection(1, 4);
+
+            Assert.Equal("bcd", state.GetSelectedText());
+        }
+
+        /// <summary>
+        /// Ensures inserting a text payload replaces the active selection and moves the caret to the end of the inserted text.
+        /// </summary>
+        [Fact]
+        public void InsertText_WhenSelectionExists_ReplacesTheSelectionWithTheProvidedText() {
+            TextBoxEditState state = new TextBoxEditState("abcdef");
+
+            state.SetSelection(2, 5);
+            state.InsertText("XYZ");
+
+            Assert.Equal("abXYZf", state.Text);
+            Assert.Equal(5, state.CursorPosition);
+            Assert.False(state.HasSelection);
+        }
     }
 }
