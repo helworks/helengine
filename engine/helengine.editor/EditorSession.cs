@@ -495,7 +495,8 @@ namespace helengine.editor {
                 LayerMask = EditorLayerMasks.EditorUi
             };
             var keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent {
-                UpdateOrder = core.ObjectManager.GetUpdateOrderForLayer(1)
+                UpdateOrder = core.ObjectManager.GetUpdateOrderForLayer(1),
+                SaveShortcutRequested = HandleGlobalSaveShortcut
             };
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
 
@@ -1414,6 +1415,57 @@ namespace helengine.editor {
             }
 
             HandleSceneSaveRequested(CurrentScenePath);
+        }
+
+        /// <summary>
+        /// Handles the editor-global Ctrl+S shortcut by routing into the existing Save Map flow when editor-global input is not blocked.
+        /// </summary>
+        void HandleGlobalSaveShortcut() {
+            if (unsavedChangesDialog != null && unsavedChangesDialog.Enabled) {
+                return;
+            }
+
+            if (saveFileDialog != null && saveFileDialog.Enabled) {
+                return;
+            }
+
+            if (openFileDialog != null && openFileDialog.Enabled) {
+                return;
+            }
+
+            if (reparentEntityDialog != null && reparentEntityDialog.Enabled) {
+                return;
+            }
+
+            if (platformsDialog != null && platformsDialog.Enabled) {
+                return;
+            }
+
+            if (profilesDialog != null && profilesDialog.Enabled) {
+                return;
+            }
+
+            if (buildDialog != null && buildDialog.Enabled) {
+                return;
+            }
+
+            if (buildDialogCopySettingsDialog != null && buildDialogCopySettingsDialog.Enabled) {
+                return;
+            }
+
+            if (sceneSettingsDialog != null && sceneSettingsDialog.Enabled) {
+                return;
+            }
+
+            if (preferencesDialog != null && preferencesDialog.Enabled) {
+                return;
+            }
+
+            if (assetPickerModal != null && assetPickerModal.Enabled) {
+                return;
+            }
+
+            HandleSaveMapRequested();
         }
 
         /// <summary>

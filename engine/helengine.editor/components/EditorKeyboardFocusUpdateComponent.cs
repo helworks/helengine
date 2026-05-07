@@ -4,6 +4,11 @@ namespace helengine.editor {
     /// </summary>
     public class EditorKeyboardFocusUpdateComponent : UpdateComponent {
         /// <summary>
+        /// Callback invoked when the editor-global save shortcut is pressed.
+        /// </summary>
+        public Action SaveShortcutRequested { get; set; }
+
+        /// <summary>
         /// Routes per-frame input into the shared keyboard-focus service.
         /// </summary>
         public override void Update() {
@@ -25,6 +30,10 @@ namespace helengine.editor {
                     EditorKeyboardFocusService.HandleCtrlTab(!shiftPressed);
                 } else {
                     EditorKeyboardFocusService.HandleTab(!shiftPressed);
+                }
+            } else if (controlPressed && input.WasKeyPressed(Keys.S)) {
+                if (SaveShortcutRequested != null) {
+                    SaveShortcutRequested();
                 }
             } else if (input.WasKeyPressed(Keys.Enter)) {
                 EditorKeyboardFocusService.HandleActivationKey(Keys.Enter);
