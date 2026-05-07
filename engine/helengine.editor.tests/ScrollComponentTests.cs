@@ -108,6 +108,34 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures scrolling still uses the fixed clipped viewport bounds when the scroll component lives on a translated child root.
+        /// </summary>
+        [Fact]
+        public void ScrollComponent_WhenOwnedByScrollingChild_UsesAncestorClipBoundsForWheelHitTesting() {
+            EditorEntity viewport = new EditorEntity {
+                Position = new float3(20f, 30f, 0f)
+            };
+            viewport.AddComponent(new ClipRectComponent {
+                Size = new int2(160, 100)
+            });
+
+            EditorEntity itemsRoot = new EditorEntity();
+            viewport.AddChild(itemsRoot);
+
+            ScrollComponent scroll = new ScrollComponent {
+                Size = new int2(160, 100),
+                ItemCount = 24,
+                VisibleItemCount = 8
+            };
+            itemsRoot.AddComponent(scroll);
+
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(40, 50, -120, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.Equal(1, scroll.ScrollOffset);
+        }
+
+        /// <summary>
         /// Advances the simulated raw input state by one engine frame.
         /// </summary>
         /// <param name="mouseState">Mouse state to expose during the frame.</param>

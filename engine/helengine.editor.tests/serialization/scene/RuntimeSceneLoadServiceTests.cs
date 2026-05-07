@@ -459,6 +459,63 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures keyboard navigation keeps the selected scene row inside the visible scroll window.
+        /// </summary>
+        [Fact]
+        public void Load_WhenMenuSelectionMovesPastVisibleSceneRows_ScrollsTheItemsRoot() {
+            string projectRootPath = Path.Combine(TempRootPath, "menu-selection-scroll-project");
+            string buildRootPath = PackageDemoMenuScene(projectRootPath, "menu-selection-scroll-build");
+            MenuComponent menuHostComponent = LoadPackagedMenu(buildRootPath);
+            TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
+            ScrollComponent scrollComponent = FindPanelScrollComponent(menuHostComponent, "main");
+
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Down));
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Down));
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            Assert.Equal(1, scrollComponent.ScrollOffset);
+            Assert.Equal(new float3(0f, -(DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing), 0f), scrollComponent.Parent.LocalPosition);
+            Assert.Equal("scene-beta", menuHostComponent.SelectedItemId);
+        }
+
+        /// <summary>
+        /// Ensures mouse-wheel input inside the scene-list viewport advances the reusable scroll component and translates the baked item root.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneListViewportReceivesMouseWheel_ScrollsTheItemsRoot() {
+            string projectRootPath = Path.Combine(TempRootPath, "menu-wheel-scroll-project");
+            string buildRootPath = PackageDemoMenuScene(projectRootPath, "menu-wheel-scroll-build");
+            MenuComponent menuHostComponent = LoadPackagedMenu(buildRootPath);
+            TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
+            ScrollComponent scrollComponent = FindPanelScrollComponent(menuHostComponent, "main");
+
+            input.SetMouseState(CreateMouseStateInsidePanelViewport(menuHostComponent, "main", 0, ButtonState.Released));
+            Core.Instance.Update();
+
+            input.SetMouseState(CreateMouseStateInsidePanelViewport(menuHostComponent, "main", -120, ButtonState.Released));
+            Core.Instance.Update();
+
+            Assert.Equal(1, scrollComponent.ScrollOffset);
+            Assert.Equal(new float3(0f, -(DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing), 0f), scrollComponent.Parent.LocalPosition);
+        }
+
+        /// <summary>
         /// Ensures packaged runtime scene loading materializes eligible scripted components through the ordinal automatic fallback path.
         /// </summary>
         [Fact]
@@ -770,12 +827,15 @@ namespace helengine.editor.tests.serialization.scene {
                     new byte4(210, 210, 220, 255),
                     new[] {
                     new MenuPanelDefinition(
-                            "main",
+                        "main",
                             "Main Menu",
                             "Runtime test panel.",
-                            4,
+                            2,
                             new[] {
                                 new MenuItemDefinition("open-options", "Options", "Opens the options panel.", true, new MenuActionDefinition(MenuActionKind.OpenPanel, "options")),
+                                new MenuItemDefinition("scene-alpha", "Scene Alpha", "Preview alpha district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
+                                new MenuItemDefinition("scene-beta", "Scene Beta", "Preview beta district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
+                                new MenuItemDefinition("scene-gamma", "Scene Gamma", "Preview gamma district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
                                 new MenuItemDefinition("back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
                             }),
                         new MenuPanelDefinition(
@@ -881,6 +941,47 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Finds the baked runtime panel entity that owns the supplied stable panel id.
+        /// </summary>
+        /// <param name="menuHostComponent">Loaded menu host component to inspect.</param>
+        /// <param name="panelId">Stable panel id to resolve.</param>
+        /// <returns>Panel entity whose metadata matches the requested id.</returns>
+        Entity FindPanelEntity(MenuComponent menuHostComponent, string panelId) {
+            if (menuHostComponent == null) {
+                throw new ArgumentNullException(nameof(menuHostComponent));
+            }
+            if (string.IsNullOrWhiteSpace(panelId)) {
+                throw new ArgumentException("Panel id must be provided.", nameof(panelId));
+            }
+
+            List<Entity> panelEntities = new List<Entity>();
+            CollectEntitiesWithComponent<MenuPanelComponent>(menuHostComponent.Parent, panelEntities);
+            for (int panelIndex = 0; panelIndex < panelEntities.Count; panelIndex++) {
+                Entity panelEntity = panelEntities[panelIndex];
+                MenuPanelComponent panelComponent = Assert.IsType<MenuPanelComponent>(Assert.Single(panelEntity.Components, component => component is MenuPanelComponent));
+                if (string.Equals(panelComponent.PanelId, panelId, StringComparison.Ordinal)) {
+                    return panelEntity;
+                }
+            }
+
+            throw new InvalidOperationException($"Could not find baked menu panel '{panelId}'.");
+        }
+
+        /// <summary>
+        /// Finds the row-based scroll component baked beneath one runtime menu panel.
+        /// </summary>
+        /// <param name="menuHostComponent">Loaded menu host component to inspect.</param>
+        /// <param name="panelId">Stable panel id whose scroll component should be resolved.</param>
+        /// <returns>Resolved panel scroll component.</returns>
+        ScrollComponent FindPanelScrollComponent(MenuComponent menuHostComponent, string panelId) {
+            Entity panelEntity = FindPanelEntity(menuHostComponent, panelId);
+            List<Entity> scrollEntities = new List<Entity>();
+            CollectEntitiesWithComponent<ScrollComponent>(panelEntity, scrollEntities);
+            Entity scrollEntity = Assert.Single(scrollEntities);
+            return Assert.IsType<ScrollComponent>(Assert.Single(scrollEntity.Components, component => component is ScrollComponent));
+        }
+
+        /// <summary>
         /// Creates one mouse state positioned inside the supplied menu row.
         /// </summary>
         /// <param name="runtimeItem">Runtime item whose bounds should receive the pointer.</param>
@@ -892,6 +993,25 @@ namespace helengine.editor.tests.serialization.scene {
             int pointerX = (int)itemEntity.Position.X + (background.Size.X / 2);
             int pointerY = (int)itemEntity.Position.Y + (background.Size.Y / 2);
             return new MouseState(pointerX, pointerY, 0, leftButtonState, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+        }
+
+        /// <summary>
+        /// Creates one mouse state positioned inside the clipped scene-list viewport for the supplied panel.
+        /// </summary>
+        /// <param name="menuHostComponent">Loaded menu host component that owns the panel.</param>
+        /// <param name="panelId">Stable panel id whose viewport should receive the pointer.</param>
+        /// <param name="wheelDelta">Mouse-wheel delta to expose for the frame.</param>
+        /// <param name="leftButtonState">Left mouse button state to emit.</param>
+        /// <returns>Mouse state centered inside the panel viewport.</returns>
+        MouseState CreateMouseStateInsidePanelViewport(MenuComponent menuHostComponent, string panelId, int wheelDelta, ButtonState leftButtonState) {
+            Entity panelEntity = FindPanelEntity(menuHostComponent, panelId);
+            List<Entity> clipEntities = new List<Entity>();
+            CollectEntitiesWithComponent<ClipRectComponent>(panelEntity, clipEntities);
+            Entity viewportEntity = Assert.Single(clipEntities);
+            ClipRectComponent clipComponent = Assert.IsType<ClipRectComponent>(Assert.Single(viewportEntity.Components, component => component is ClipRectComponent));
+            int pointerX = (int)viewportEntity.Position.X + (clipComponent.Size.X / 2);
+            int pointerY = (int)viewportEntity.Position.Y + (clipComponent.Size.Y / 2);
+            return new MouseState(pointerX, pointerY, wheelDelta, leftButtonState, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
         }
 
         /// <summary>

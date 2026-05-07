@@ -153,11 +153,11 @@ namespace helengine {
                 return false;
             }
 
-            float3 origin = Parent.Position;
-            return x >= origin.X &&
-                   x < origin.X + SizeValue.X &&
-                   y >= origin.Y &&
-                   y < origin.Y + SizeValue.Y;
+            float4 viewportRect = ResolveViewportRect();
+            return x >= viewportRect.X &&
+                   x < viewportRect.X + viewportRect.Z &&
+                   y >= viewportRect.Y &&
+                   y < viewportRect.Y + viewportRect.W;
         }
 
         /// <summary>
@@ -251,6 +251,58 @@ namespace helengine {
             }
 
             return scrollOffset;
+        }
+
+        /// <summary>
+        /// Resolves the screen-space viewport rectangle used for pointer hit testing.
+        /// </summary>
+        /// <returns>Viewport rectangle expressed as X, Y, Width, Height.</returns>
+        float4 ResolveViewportRect() {
+            if (TryResolveAncestorClipRect(out float4 clipRect)) {
+                return clipRect;
+            }
+
+            float3 origin = Parent.Position;
+            return new float4(origin.X, origin.Y, SizeValue.X, SizeValue.Y);
+        }
+
+        /// <summary>
+        /// Attempts to resolve the nearest ancestor clip rectangle that should own pointer hit testing for this scroll component.
+        /// </summary>
+        /// <param name="clipRect">Resolved ancestor clip rectangle when one exists.</param>
+        /// <returns>True when an ancestor clip region was found.</returns>
+        bool TryResolveAncestorClipRect(out float4 clipRect) {
+            Entity ancestorEntity = Parent;
+            while (ancestorEntity != null) {
+                if (TryResolveClipRect(ancestorEntity, out clipRect)) {
+                    return true;
+                }
+
+                ancestorEntity = ancestorEntity.Parent;
+            }
+
+            clipRect = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Attempts to resolve one clip rectangle declared directly on the supplied entity.
+        /// </summary>
+        /// <param name="entity">Entity whose clip-region components should be inspected.</param>
+        /// <param name="clipRect">Resolved clip rectangle when one exists.</param>
+        /// <returns>True when the entity exposes a clip region.</returns>
+        bool TryResolveClipRect(Entity entity, out float4 clipRect) {
+            if (entity != null && entity.Components != null) {
+                for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                    if (entity.Components[componentIndex] is IClipRegion2D clipRegion) {
+                        clipRect = clipRegion.GetClipRect();
+                        return true;
+                    }
+                }
+            }
+
+            clipRect = default;
+            return false;
         }
     }
 }
