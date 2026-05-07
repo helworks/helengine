@@ -406,6 +406,59 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures the packaged runtime menu responds to keyboard confirmation in the player-style input path.
+        /// </summary>
+        [Fact]
+        public void Load_WhenMenuReceivesKeyboardConfirm_OpensTheSelectedPanel() {
+            string projectRootPath = Path.Combine(TempRootPath, "menu-keyboard-project");
+            string buildRootPath = PackageDemoMenuScene(projectRootPath, "menu-keyboard-build");
+            MenuComponent menuHostComponent = LoadPackagedMenu(buildRootPath);
+            TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
+
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Enter));
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            Assert.Equal("options", menuHostComponent.ActivePanelId);
+        }
+
+        /// <summary>
+        /// Ensures the packaged runtime menu responds to mouse activation over a visible menu row.
+        /// </summary>
+        [Fact]
+        public void Load_WhenMenuItemIsClickedWithTheMouse_OpensTheTargetPanel() {
+            string projectRootPath = Path.Combine(TempRootPath, "menu-mouse-project");
+            string buildRootPath = PackageDemoMenuScene(projectRootPath, "menu-mouse-build");
+            MenuComponent menuHostComponent = LoadPackagedMenu(buildRootPath);
+            TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
+            MouseState releasedState = CreateMouseStateInsideMenuItem(menuHostComponent, "open-options", ButtonState.Released);
+            MouseState pressedState = CreateMouseStateInsideMenuItem(menuHostComponent, "open-options", ButtonState.Pressed);
+
+            input.SetMouseState(releasedState);
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetMouseState(pressedState);
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            input.SetMouseState(releasedState);
+            input.EarlyUpdate();
+            menuHostComponent.Update();
+            input.Update();
+
+            Assert.Equal("options", menuHostComponent.ActivePanelId);
+        }
+
+        /// <summary>
         /// Ensures packaged runtime scene loading materializes eligible scripted components through the ordinal automatic fallback path.
         /// </summary>
         [Fact]
@@ -735,6 +788,110 @@ namespace helengine.editor.tests.serialization.scene {
                                 new MenuItemDefinition("options-back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
                             })
                     }));
+        }
+
+        /// <summary>
+        /// Packages the baked demo menu scene into one temporary build root.
+        /// </summary>
+        /// <param name="projectRootPath">Temporary project root that should receive authored content.</param>
+        /// <param name="buildFolderName">Unique build folder name under the temporary root.</param>
+        /// <returns>Packaged build output root.</returns>
+        string PackageDemoMenuScene(string projectRootPath, string buildFolderName) {
+            string assetsRootPath = Path.Combine(projectRootPath, "assets");
+            string buildRootPath = Path.Combine(TempRootPath, buildFolderName);
+            Directory.CreateDirectory(assetsRootPath);
+            Directory.CreateDirectory(buildRootPath);
+
+            string titleFontPath = Path.Combine(assetsRootPath, "Fonts", "DemoDiscTitle.ttf");
+            Directory.CreateDirectory(Path.GetDirectoryName(titleFontPath));
+            File.WriteAllBytes(titleFontPath, new byte[] { 1, 2, 3, 4 });
+
+            string bodyFontPath = Path.Combine(assetsRootPath, "Fonts", "DemoDiscBody.ttf");
+            Directory.CreateDirectory(Path.GetDirectoryName(bodyFontPath));
+            File.WriteAllBytes(bodyFontPath, new byte[] { 5, 6, 7, 8 });
+
+            SceneAsset authoredSceneAsset = BuildDemoMenuSceneAsset();
+            string authoredScenePath = Path.Combine(assetsRootPath, "Scenes", "TestMenu.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(authoredScenePath));
+            using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                EditorAssetBinarySerializer.Serialize(authoredSceneStream, authoredSceneAsset);
+            }
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                projectRootPath,
+                new IAssetImporterRegistration[] {
+                    new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" })
+                },
+                CreateFont());
+            packager.Package(new[] { "Scenes/TestMenu.helen" }, buildRootPath);
+            return buildRootPath;
+        }
+
+        /// <summary>
+        /// Loads the packaged demo menu scene and returns its baked runtime host component.
+        /// </summary>
+        /// <param name="buildRootPath">Packaged build output root.</param>
+        /// <returns>Loaded runtime menu host component.</returns>
+        MenuComponent LoadPackagedMenu(string buildRootPath) {
+            SceneAsset sceneAsset;
+            string packagedScenePath = Path.Combine(
+                buildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            using (FileStream packagedSceneStream = File.OpenRead(packagedScenePath)) {
+                sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            }
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                buildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            Entity loadedRoot = Assert.Single(loadedRoots, entity => entity.Components.Any(component => component is MenuComponent));
+            return Assert.IsType<MenuComponent>(Assert.Single(loadedRoot.Components, component => component is MenuComponent));
+        }
+
+        /// <summary>
+        /// Finds one baked runtime item by stable item id.
+        /// </summary>
+        /// <param name="menuHostComponent">Loaded menu host component to inspect.</param>
+        /// <param name="itemId">Stable item id to resolve.</param>
+        /// <returns>Runtime item whose metadata matches the requested id.</returns>
+        Entity FindMenuItemEntity(MenuComponent menuHostComponent, string itemId) {
+            if (menuHostComponent == null) {
+                throw new ArgumentNullException(nameof(menuHostComponent));
+            }
+            if (string.IsNullOrWhiteSpace(itemId)) {
+                throw new ArgumentException("Menu item id must be provided.", nameof(itemId));
+            }
+
+            List<Entity> itemEntities = new List<Entity>();
+            CollectEntitiesWithComponent<MenuItemComponent>(menuHostComponent.Parent, itemEntities);
+            for (int itemIndex = 0; itemIndex < itemEntities.Count; itemIndex++) {
+                Entity itemEntity = itemEntities[itemIndex];
+                MenuItemComponent itemComponent = Assert.IsType<MenuItemComponent>(Assert.Single(itemEntity.Components, component => component is MenuItemComponent));
+                if (!string.Equals(itemComponent.ItemId, itemId, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                return itemEntity;
+            }
+
+            throw new InvalidOperationException($"Could not find baked menu item '{itemId}'.");
+        }
+
+        /// <summary>
+        /// Creates one mouse state positioned inside the supplied menu row.
+        /// </summary>
+        /// <param name="runtimeItem">Runtime item whose bounds should receive the pointer.</param>
+        /// <param name="leftButtonState">Left mouse button state to emit.</param>
+        /// <returns>Mouse state centered inside the menu row.</returns>
+        MouseState CreateMouseStateInsideMenuItem(MenuComponent menuHostComponent, string itemId, ButtonState leftButtonState) {
+            Entity itemEntity = FindMenuItemEntity(menuHostComponent, itemId);
+            RoundedRectComponent background = Assert.IsType<RoundedRectComponent>(Assert.Single(itemEntity.Components, component => component is RoundedRectComponent));
+            int pointerX = (int)itemEntity.Position.X + (background.Size.X / 2);
+            int pointerY = (int)itemEntity.Position.Y + (background.Size.Y / 2);
+            return new MouseState(pointerX, pointerY, 0, leftButtonState, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
         }
 
         /// <summary>

@@ -173,6 +173,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures runtime-style input capture exposes keyboard transitions without requiring an explicit activation call first.
+        /// </summary>
+        [Fact]
+        public void EarlyUpdate_WhenKeyboardStateChangesWithoutExplicitActivation_StillCapturesThePressedKey() {
+            TestInputBackend input = InitializeCore();
+
+            input.SetKeyboardState(new KeyboardState());
+            input.EarlyUpdate();
+            input.Update();
+
+            input.SetKeyboardState(new KeyboardState(Keys.Enter));
+            input.EarlyUpdate();
+
+            Assert.True(Core.Instance.InputSystem.WasKeyPressed(Keys.Enter));
+        }
+
+        /// <summary>
         /// Ensures the shared input layer leaves edge positions unchanged when pointer wrapping is disabled.
         /// </summary>
         [Fact]

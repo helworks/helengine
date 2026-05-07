@@ -47,6 +47,10 @@ namespace helengine {
         /// Previous primary gamepad state used for edge detection.
         /// </summary>
         InputGamepadState PreviousGamepadState;
+        /// <summary>
+        /// Menu item that owns the active pointer press, if any.
+        /// </summary>
+        MenuItemRuntime PressedPointerItem;
 
         /// <summary>
         /// Backing field for the active panel id.
@@ -138,6 +142,7 @@ namespace helengine {
             }
 
             HandleKeyboardInput(inputSystem);
+            HandleMouseInput(inputSystem);
             HandleGamepadInput(inputSystem);
         }
 
@@ -248,6 +253,7 @@ namespace helengine {
             ActivePanel = nextPanel;
             ActivePanel.RootEntity.Enabled = true;
             ActivePanelIdValue = nextPanel.Definition.PanelId;
+            PressedPointerItem = null;
             SetSelection(nextPanel, ResolveSelectedIndex(nextPanel));
         }
 
@@ -393,6 +399,35 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Handles pointer hover and click activation for the active baked panel.
+        /// </summary>
+        /// <param name="inputSystem">Input system supplying the current frame state.</param>
+        void HandleMouseInput(InputSystem inputSystem) {
+            if (ActivePanel == null) {
+                PressedPointerItem = null;
+                return;
+            }
+
+            MenuItemRuntime hoveredItem = FindHoveredItem(ActivePanel, inputSystem.GetMouseX(), inputSystem.GetMouseY());
+            if (hoveredItem != null && hoveredItem.Index != ActivePanel.SelectedItemIndex) {
+                SetSelection(ActivePanel, hoveredItem.Index);
+            }
+
+            if (inputSystem.WasMouseLeftButtonPressed()) {
+                PressedPointerItem = hoveredItem;
+                return;
+            }
+
+            if (inputSystem.WasMouseLeftButtonReleased()) {
+                if (IsSameRuntimeItem(PressedPointerItem, hoveredItem)) {
+                    ExecuteAction(hoveredItem.Definition);
+                }
+
+                PressedPointerItem = null;
+            }
+        }
+
+        /// <summary>
         /// Handles d-pad and face-button navigation for the primary gamepad.
         /// </summary>
         /// <param name="inputSystem">Input system supplying the current frame state.</param>
@@ -426,6 +461,67 @@ namespace helengine {
         /// <returns>True when the button was pressed this frame.</returns>
         bool WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button) {
             return currentState.IsButtonDown(button) && !previousState.IsButtonDown(button);
+        }
+
+        /// <summary>
+        /// Resolves the active baked menu item currently under the supplied pointer position.
+        /// </summary>
+        /// <param name="panelRuntime">Panel whose items should be tested.</param>
+        /// <param name="pointerX">Pointer X coordinate in window space.</param>
+        /// <param name="pointerY">Pointer Y coordinate in window space.</param>
+        /// <returns>Hovered baked menu item, or null when the pointer is outside every row.</returns>
+        MenuItemRuntime FindHoveredItem(MenuPanelRuntime panelRuntime, int pointerX, int pointerY) {
+            if (panelRuntime == null) {
+                throw new ArgumentNullException(nameof(panelRuntime));
+            }
+
+            for (int itemIndex = 0; itemIndex < panelRuntime.Items.Length; itemIndex++) {
+                MenuItemRuntime runtimeItem = panelRuntime.Items[itemIndex];
+                if (!ContainsPointer(runtimeItem, pointerX, pointerY)) {
+                    continue;
+                }
+
+                return runtimeItem;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Returns whether the supplied pointer lies inside one baked menu row background.
+        /// </summary>
+        /// <param name="runtimeItem">Runtime item whose row bounds should be evaluated.</param>
+        /// <param name="pointerX">Pointer X coordinate in window space.</param>
+        /// <param name="pointerY">Pointer Y coordinate in window space.</param>
+        /// <returns>True when the pointer is inside the row bounds.</returns>
+        bool ContainsPointer(MenuItemRuntime runtimeItem, int pointerX, int pointerY) {
+            if (runtimeItem == null) {
+                throw new ArgumentNullException(nameof(runtimeItem));
+            }
+
+            float3 position = runtimeItem.Entity.Position;
+            int width = runtimeItem.Background.Size.X;
+            int height = runtimeItem.Background.Size.Y;
+            return pointerX >= position.X
+                && pointerX < position.X + width
+                && pointerY >= position.Y
+                && pointerY < position.Y + height;
+        }
+
+        /// <summary>
+        /// Returns whether two baked runtime item references point at the same logical menu row.
+        /// </summary>
+        /// <param name="left">First runtime item to compare.</param>
+        /// <param name="right">Second runtime item to compare.</param>
+        /// <returns>True when both runtime items identify the same panel row.</returns>
+        bool IsSameRuntimeItem(MenuItemRuntime left, MenuItemRuntime right) {
+            if (left == null || right == null) {
+                return false;
+            }
+
+            return left.Index == right.Index
+                && string.Equals(left.Definition.PanelId, right.Definition.PanelId, StringComparison.Ordinal)
+                && string.Equals(left.Definition.ItemId, right.Definition.ItemId, StringComparison.Ordinal);
         }
 
         /// <summary>

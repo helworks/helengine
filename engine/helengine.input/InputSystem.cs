@@ -84,6 +84,7 @@ public sealed class InputSystem {
         SeenActionIds = new List<int>();
         keyboardState = new KeyboardState();
         mouseState = new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+        KeyboardIsActive = true;
         CurrentFrame = new InputFrameState {
             Keyboard = keyboardState,
             Mouse = mouseState
