@@ -14,7 +14,19 @@ namespace helengine.editor {
         readonly IReadOnlyList<IAssetImporterRegistration> Importers;
         readonly FontAsset DefaultFontAsset;
         readonly AssetFileHasher FileHasher;
+        readonly IScriptTypeResolver ScriptTypeResolver;
 
+        /// <summary>
+        /// Initializes one asset-cook service for the supplied project and optional script resolver.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative source project root path.</param>
+        /// <param name="requiredEngineVersion">Exact engine version required by the current project build.</param>
+        /// <param name="projectId">Stable project identifier reported to platform builders.</param>
+        /// <param name="projectVersion">Human-visible project version reported to platform builders.</param>
+        /// <param name="importers">Importer registrations supplied by the editor host.</param>
+        /// <param name="defaultFontAsset">Default font asset packaged for player builds.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
+        /// <param name="fileHasher">Optional file hasher override used by tests.</param>
         public EditorPlatformAssetCookService(
             string projectRootPath,
             string requiredEngineVersion,
@@ -22,6 +34,7 @@ namespace helengine.editor {
             string projectVersion,
             IReadOnlyList<IAssetImporterRegistration> importers,
             FontAsset defaultFontAsset,
+            IScriptTypeResolver scriptTypeResolver = null,
             AssetFileHasher fileHasher = null) {
             ProjectRootPath = string.IsNullOrWhiteSpace(projectRootPath)
                 ? throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath))
@@ -31,6 +44,7 @@ namespace helengine.editor {
             ProjectVersion = projectVersion ?? throw new ArgumentNullException(nameof(projectVersion));
             Importers = importers ?? throw new ArgumentNullException(nameof(importers));
             DefaultFontAsset = defaultFontAsset;
+            ScriptTypeResolver = scriptTypeResolver;
             FileHasher = fileHasher ?? new AssetFileHasher();
         }
 
@@ -69,7 +83,8 @@ namespace helengine.editor {
                 DefaultFontAsset,
                 effectiveMaterialBuilder,
                 selectedBuildProfileId,
-                selectedGraphicsProfileId);
+                selectedGraphicsProfileId,
+                ScriptTypeResolver);
             packager.Package(orderedSceneIds, fullOutputRootPath);
 
             PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, fullOutputRootPath);

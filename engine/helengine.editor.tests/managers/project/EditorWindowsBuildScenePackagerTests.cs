@@ -1,5 +1,6 @@
 using System.Reflection;
 using helengine.baseplatform.Definitions;
+using helengine.editor.tests.serialization.scene;
 using helengine.editor.tests.testing;
 using Xunit;
 
@@ -447,6 +448,68 @@ namespace helengine.editor.tests {
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             Entity loadedRoot = Assert.Single(loadedRoots);
             Assert.IsType<LineRendererComponent>(Assert.Single(loadedRoot.Components, loadedComponent => loadedComponent is LineRendererComponent));
+        }
+
+        /// <summary>
+        /// Ensures the Windows packager can package reflected project script components when their serialized type id only resolves through the loaded gameplay resolver.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsResolverOnlyScriptComponent_UsesAutomaticFallback() {
+            string sceneId = "Scenes/ScriptComponentScene.helen";
+            ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
+            TestScriptSerializableComponent component = new TestScriptSerializableComponent {
+                DisplayName = "Orbit Camera",
+                Visible = true,
+                SortOrder = 7
+            };
+            SceneComponentAssetRecord serializedRecord = persistenceRegistry.GetDescriptor(component)
+                .SerializeComponent(component, 0, new EntityComponentSaveState());
+            SceneComponentAssetRecord componentRecord = new SceneComponentAssetRecord {
+                ComponentTypeId = "city.rendering.DirectionalShadowCameraOrbitComponent, gameplay",
+                ComponentIndex = serializedRecord.ComponentIndex,
+                Payload = serializedRecord.Payload
+            };
+
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "script-root",
+                        Name = "ScriptRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            componentRecord
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            });
+
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition,
+                null,
+                new FakeScriptTypeResolver(typeof(TestScriptSerializableComponent)));
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedScenePath = Path.Combine(
+                BuildRootPath,
+                EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
+            SceneComponentAssetRecord packagedRecord = Assert.Single(packagedRoot.Components);
+            Assert.Equal("city.rendering.DirectionalShadowCameraOrbitComponent, gameplay", packagedRecord.ComponentTypeId);
+            Assert.NotEmpty(packagedRecord.Payload);
         }
 
         /// <summary>

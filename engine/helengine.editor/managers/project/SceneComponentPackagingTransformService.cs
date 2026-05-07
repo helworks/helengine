@@ -284,6 +284,7 @@ namespace helengine.editor {
         /// <param name="materialBuilder">Optional builder used to translate schema-driven material settings.</param>
         /// <param name="selectedBuildProfileId">Selected build profile id for the current packaging operation.</param>
         /// <param name="selectedGraphicsProfileId">Selected graphics profile id for the current packaging operation.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
         public SceneComponentPackagingTransformService(
             string assetsRootPath,
             ContentManager projectContentManager,
@@ -294,7 +295,8 @@ namespace helengine.editor {
             string targetPlatformId = "",
             IPlatformAssetBuilder materialBuilder = null,
             string selectedBuildProfileId = "",
-            string selectedGraphicsProfileId = "") {
+            string selectedGraphicsProfileId = "",
+            IScriptTypeResolver scriptTypeResolver = null) {
             AssetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
                 ? throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath))
                 : Path.GetFullPath(assetsRootPath);
@@ -309,14 +311,14 @@ namespace helengine.editor {
             SelectedBuildProfileId = selectedBuildProfileId ?? string.Empty;
             SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
             ScriptComponentSchemaBuilder = new ScriptComponentReflectionSchemaBuilder();
-            AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder);
+            AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder, scriptTypeResolver);
             CameraComponentDescriptor = new CameraComponentPersistenceDescriptor();
             RoundedRectComponentDescriptor = new RoundedRectComponentPersistenceDescriptor();
             DemoMenuBuildComponentDescriptor = new MenuComponentPersistenceDescriptor();
             DemoMenuPanelComponentDescriptor = new MenuPanelComponentPersistenceDescriptor();
             DemoMenuItemComponentDescriptor = new MenuItemComponentPersistenceDescriptor();
             DemoMenuSelectedDescriptionComponentDescriptor = new MenuSelectedDescriptionComponentPersistenceDescriptor();
-            PersistenceRegistry = new ComponentPersistenceRegistry();
+            PersistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);
             PersistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
             PersistenceRegistry.Register(CameraComponentDescriptor);
             PersistenceRegistry.Register(new TextComponentPersistenceDescriptor());

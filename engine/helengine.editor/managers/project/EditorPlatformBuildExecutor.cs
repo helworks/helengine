@@ -26,6 +26,7 @@ namespace helengine.editor {
         /// <param name="platformDescriptor">Loaded platform descriptor that carries the builder assembly path.</param>
         /// <param name="defaultFontAsset">Default font asset packaged for player builds.</param>
         /// <param name="buildGraphRunner">Optional override used by tests.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
         public EditorPlatformBuildExecutor(
             string projectRootPath,
             string requiredEngineVersion,
@@ -34,7 +35,8 @@ namespace helengine.editor {
             IReadOnlyList<IAssetImporterRegistration> importers,
             AvailablePlatformDescriptor platformDescriptor,
             FontAsset defaultFontAsset = null,
-            EditorPlatformBuildGraphRunner buildGraphRunner = null) {
+            EditorPlatformBuildGraphRunner buildGraphRunner = null,
+            IScriptTypeResolver scriptTypeResolver = null) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -70,7 +72,8 @@ namespace helengine.editor {
                 platformDescriptor,
                 defaultFontAsset,
                 new EditorPlatformAssetBuilderLoader(),
-                new EditorGeneratedCoreRegenerationService());
+                new EditorGeneratedCoreRegenerationService(),
+                scriptTypeResolver);
         }
 
         /// <summary>

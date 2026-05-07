@@ -624,6 +624,12 @@ namespace helengine.editor {
             titleBar.AddPointLightRequested += HandleAddPointLightRequested;
             titleBar.AddDirectionalLightRequested += HandleAddDirectionalLightRequested;
             AttachScaleSensitiveDialogHandlers();
+            EditorBuildExecutionResult startupProjectLibraryLoadResult = LoadProjectLibrariesOnStartup(
+                scriptHotReloadService,
+                titleBar.ApplyProjectMenus);
+            if (!startupProjectLibraryLoadResult.Succeeded) {
+                Logger.WriteError(startupProjectLibraryLoadResult.Message);
+            }
 
             sceneHierarchyPanel.Size = new int2(280, 600);
             assetBrowserPanel.Size = new int2(500, 240);

@@ -39,6 +39,19 @@ namespace helengine.editor {
         readonly EditorPlatformContainerWriter ContainerWriter;
         readonly EditorPlatformArtifactVariantResolver ArtifactVariantResolver;
 
+        /// <summary>
+        /// Initializes one build-graph runner for the supplied project and platform descriptor.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative source project root path.</param>
+        /// <param name="requiredEngineVersion">Exact engine version required by the current project build.</param>
+        /// <param name="projectId">Stable project identifier reported to builders.</param>
+        /// <param name="projectVersion">Human-visible project version reported to builders.</param>
+        /// <param name="importers">Importer registrations supplied by the editor host.</param>
+        /// <param name="platformDescriptor">Installed platform descriptor selected for execution.</param>
+        /// <param name="defaultFontAsset">Default font asset packaged for player builds.</param>
+        /// <param name="builderLoader">Builder loader used to hydrate platform asset builders.</param>
+        /// <param name="generatedCoreRegenerationService">Generated-core regeneration service used during codegen.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
         public EditorPlatformBuildGraphRunner(
             string projectRootPath,
             string requiredEngineVersion,
@@ -48,7 +61,8 @@ namespace helengine.editor {
             AvailablePlatformDescriptor platformDescriptor,
             FontAsset defaultFontAsset,
             EditorPlatformAssetBuilderLoader builderLoader,
-            EditorGeneratedCoreRegenerationService generatedCoreRegenerationService)
+            EditorGeneratedCoreRegenerationService generatedCoreRegenerationService,
+            IScriptTypeResolver scriptTypeResolver = null)
             : this(
                 projectRootPath,
                 requiredEngineVersion,
@@ -59,7 +73,8 @@ namespace helengine.editor {
                 defaultFontAsset,
                 builderLoader,
                 generatedCoreRegenerationService,
-                null) {
+                null,
+                scriptTypeResolver) {
         }
 
         internal EditorPlatformBuildGraphRunner(
@@ -72,7 +87,8 @@ namespace helengine.editor {
             FontAsset defaultFontAsset,
             EditorPlatformAssetBuilderLoader builderLoader,
             EditorGeneratedCoreRegenerationService generatedCoreRegenerationService,
-            EditorPlatformBuildGraphWorkspaceFactory workspaceFactory) {
+            EditorPlatformBuildGraphWorkspaceFactory workspaceFactory,
+            IScriptTypeResolver scriptTypeResolver = null) {
             ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
             RequiredEngineVersion = requiredEngineVersion ?? throw new ArgumentNullException(nameof(requiredEngineVersion));
             ProjectId = projectId ?? throw new ArgumentNullException(nameof(projectId));
@@ -90,7 +106,8 @@ namespace helengine.editor {
                 ProjectId,
                 ProjectVersion,
                 Importers,
-                DefaultFontAsset);
+                DefaultFontAsset,
+                scriptTypeResolver);
             CodeModuleManifestService = new EditorCodeModuleManifestService(ProjectRootPath);
             CodeCookService = new EditorPlatformCodeCookService(ProjectRootPath);
             LayoutPlanService = new EditorPlatformLayoutPlanService();

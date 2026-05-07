@@ -252,7 +252,7 @@ namespace helengine.editor {
         /// <param name="importers">Importer registrations supplied by the editor host.</param>
         /// <param name="targetPlatformId">Platform id that should be reported to the asset-import pipeline.</param>
         public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers, string targetPlatformId)
-            : this(projectRootPath, importers, targetPlatformId, null, null) {
+            : this(projectRootPath, importers, targetPlatformId, (PlatformDefinition)null, null, null) {
         }
 
         /// <summary>
@@ -262,7 +262,7 @@ namespace helengine.editor {
         /// <param name="importers">Importer registrations supplied by the editor host.</param>
         /// <param name="platformDefinition">Builder-provided platform definition that carries compatibility metadata.</param>
         public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers, PlatformDefinition platformDefinition)
-            : this(projectRootPath, importers, platformDefinition?.PlatformId, platformDefinition, null) {
+            : this(projectRootPath, importers, platformDefinition?.PlatformId, platformDefinition, null, null) {
         }
 
         /// <summary>
@@ -272,12 +272,14 @@ namespace helengine.editor {
         /// <param name="importers">Importer registrations supplied by the editor host.</param>
         /// <param name="platformDefinition">Builder-provided platform definition that carries compatibility metadata.</param>
         /// <param name="defaultFontAsset">Packaged default font asset used by player builds.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
         public EditorPlatformBuildScenePackager(
             string projectRootPath,
             IReadOnlyList<IAssetImporterRegistration> importers,
             PlatformDefinition platformDefinition,
-            FontAsset defaultFontAsset)
-            : this(projectRootPath, importers, platformDefinition?.PlatformId, platformDefinition, defaultFontAsset) {
+            FontAsset defaultFontAsset,
+            IScriptTypeResolver scriptTypeResolver = null)
+            : this(projectRootPath, importers, platformDefinition?.PlatformId, platformDefinition, defaultFontAsset, scriptTypeResolver) {
         }
 
         /// <summary>
@@ -288,12 +290,14 @@ namespace helengine.editor {
         /// <param name="targetPlatformId">Platform id that should be reported to the asset-import pipeline.</param>
         /// <param name="platformDefinition">Optional builder-provided platform definition that carries compatibility metadata.</param>
         /// <param name="defaultFontAsset">Packaged default font asset used by player builds.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
         EditorPlatformBuildScenePackager(
             string projectRootPath,
             IReadOnlyList<IAssetImporterRegistration> importers,
             string targetPlatformId,
             PlatformDefinition platformDefinition,
-            FontAsset defaultFontAsset)
+            FontAsset defaultFontAsset,
+            IScriptTypeResolver scriptTypeResolver)
             : this(
                 projectRootPath,
                 importers,
@@ -302,7 +306,8 @@ namespace helengine.editor {
                 defaultFontAsset,
                 null,
                 string.Empty,
-                string.Empty) {
+                string.Empty,
+                scriptTypeResolver) {
         }
 
         /// <summary>
@@ -329,7 +334,8 @@ namespace helengine.editor {
                 null,
                 materialBuilder,
                 selectedBuildProfileId,
-                selectedGraphicsProfileId) {
+                selectedGraphicsProfileId,
+                null) {
         }
 
         /// <summary>
@@ -342,6 +348,7 @@ namespace helengine.editor {
         /// <param name="materialBuilder">Builder used to translate schema-driven material settings during packaging.</param>
         /// <param name="selectedBuildProfileId">Selected build profile id for the current packaging operation.</param>
         /// <param name="selectedGraphicsProfileId">Selected graphics profile id for the current packaging operation.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
         public EditorPlatformBuildScenePackager(
             string projectRootPath,
             IReadOnlyList<IAssetImporterRegistration> importers,
@@ -349,7 +356,8 @@ namespace helengine.editor {
             FontAsset defaultFontAsset,
             IPlatformAssetBuilder materialBuilder,
             string selectedBuildProfileId,
-            string selectedGraphicsProfileId)
+            string selectedGraphicsProfileId,
+            IScriptTypeResolver scriptTypeResolver = null)
             : this(
                 projectRootPath,
                 importers,
@@ -358,7 +366,8 @@ namespace helengine.editor {
                 defaultFontAsset,
                 materialBuilder,
                 selectedBuildProfileId,
-                selectedGraphicsProfileId) {
+                selectedGraphicsProfileId,
+                scriptTypeResolver) {
         }
 
         /// <summary>
@@ -372,6 +381,7 @@ namespace helengine.editor {
         /// <param name="materialBuilder">Builder used to translate schema-driven material settings during packaging.</param>
         /// <param name="selectedBuildProfileId">Selected build profile id for the current packaging operation.</param>
         /// <param name="selectedGraphicsProfileId">Selected graphics profile id for the current packaging operation.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
         EditorPlatformBuildScenePackager(
             string projectRootPath,
             IReadOnlyList<IAssetImporterRegistration> importers,
@@ -380,7 +390,8 @@ namespace helengine.editor {
             FontAsset defaultFontAsset,
             IPlatformAssetBuilder materialBuilder,
             string selectedBuildProfileId,
-            string selectedGraphicsProfileId) {
+            string selectedGraphicsProfileId,
+            IScriptTypeResolver scriptTypeResolver) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -426,7 +437,8 @@ namespace helengine.editor {
                 TargetPlatformId,
                 MaterialBuilder,
                 SelectedBuildProfileId,
-                SelectedGraphicsProfileId);
+                SelectedGraphicsProfileId,
+                scriptTypeResolver);
         }
 
         /// <summary>
