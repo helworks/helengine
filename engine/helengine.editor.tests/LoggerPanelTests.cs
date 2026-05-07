@@ -11,6 +11,10 @@ namespace helengine.editor.tests {
         /// Temporary content root used by the logger panel tests.
         /// </summary>
         readonly string TempRootPath;
+        /// <summary>
+        /// Deterministic input backend used by logger panel keyboard tests.
+        /// </summary>
+        readonly TestInputBackend InputBackend;
 
         /// <summary>
         /// Initializes the core services required by the logger panel tests.
@@ -22,7 +26,8 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-            core.Initialize(null, new TestRenderManager2D(), null);
+            InputBackend = new TestInputBackend();
+            core.Initialize(null, new TestRenderManager2D(), InputBackend);
         }
 
         /// <summary>
@@ -200,6 +205,226 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures pressing Down moves focus and collapses selection to the next row.
+        /// </summary>
+        [Fact]
+        public void UpdateKeyboardInput_WhenDownIsPressed_SelectsOnlyTheNextFocusedRow() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
+
+                AdvanceKeyboardFrame(new KeyboardState(Keys.Down));
+                InvokePrivate(panel, "UpdateKeyboardInput");
+
+                Assert.Equal(2, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(2, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(new[] { 2 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures Shift+Down extends the selected range from the current anchor.
+        /// </summary>
+        [Fact]
+        public void UpdateKeyboardInput_WhenShiftDownIsPressed_ExtendsSelectionFromAnchor() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
+
+                AdvanceKeyboardFrame(new KeyboardState(Keys.LeftShift, Keys.Down));
+                InvokePrivate(panel, "UpdateKeyboardInput");
+
+                Assert.Equal(2, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(1, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(new[] { 1, 2 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures Control+Down moves focus while leaving the existing multi-selection unchanged.
+        /// </summary>
+        [Fact]
+        public void UpdateKeyboardInput_WhenControlDownIsPressed_MovesFocusWithoutClearingSelection() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
+                InvokePrivate(panel, "HandleRowPressed", 3, true, false);
+
+                AdvanceKeyboardFrame(new KeyboardState(Keys.LeftControl, Keys.Down));
+                InvokePrivate(panel, "UpdateKeyboardInput");
+
+                Assert.Equal(3, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(3, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(new[] { 1, 3 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures Control+Space toggles the focused row inside the selection set.
+        /// </summary>
+        [Fact]
+        public void UpdateKeyboardInput_WhenControlSpaceIsPressed_TogglesTheFocusedRow() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
+                InvokePrivate(panel, "HandleRowPressed", 3, true, false);
+
+                AdvanceKeyboardFrame(new KeyboardState(Keys.LeftControl, Keys.Space));
+                InvokePrivate(panel, "UpdateKeyboardInput");
+
+                Assert.Equal(3, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(3, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(new[] { 1 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures Control+C copies the focused row when no explicit selection remains.
+        /// </summary>
+        [Fact]
+        public void UpdateKeyboardInput_WhenControlCIsPressedWithNoSelection_CopiesTheFocusedRow() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+            TestTextClipboardService clipboardService = new TestTextClipboardService();
+            Core.Instance.SetTextClipboardService(clipboardService);
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 2, false, false);
+                GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").Clear();
+                List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
+
+                AdvanceKeyboardFrame(new KeyboardState(Keys.LeftControl, Keys.C));
+                InvokePrivate(panel, "UpdateKeyboardInput");
+
+                Assert.Equal(rows[2].Label.Text, clipboardService.ReadText());
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures focused-row scrolling advances when keyboard focus moves past the visible logger viewport.
+        /// </summary>
+        [Fact]
+        public void EnsureFocusedRowVisible_WhenFocusMovesPastVisibleWindow_AdjustsScrollOffset() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3", "row-4", "row-5", "row-6");
+            panel.MinSize = new int2(0, 0);
+            panel.Size = new int2(320, 44);
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 0, false, false);
+
+                AdvanceKeyboardFrame(new KeyboardState(Keys.Down));
+                InvokePrivate(panel, "UpdateKeyboardInput");
+                AdvanceKeyboardFrame(new KeyboardState());
+                AdvanceKeyboardFrame(new KeyboardState(Keys.Down));
+                InvokePrivate(panel, "UpdateKeyboardInput");
+                AdvanceKeyboardFrame(new KeyboardState());
+                AdvanceKeyboardFrame(new KeyboardState(Keys.Down));
+                InvokePrivate(panel, "UpdateKeyboardInput");
+
+                Assert.Equal(3, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.True(GetPrivateField<int>(panel, "FirstVisibleRowIndex") > 0);
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures selected rows use the selected background tint during layout.
+        /// </summary>
+        [Fact]
+        public void LayoutRows_WhenRowIsSelected_UsesSelectedBackgroundTint() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
+                SetPrivateField(panel, "IsKeyboardFocused", false);
+                InvokePrivate(panel, "LayoutRows");
+
+                List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
+                Assert.Equal(ThemeManager.Colors.AccentSecondary, rows[1].Background.Color);
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures the focused selected row uses a stronger focused tint than selection alone.
+        /// </summary>
+        [Fact]
+        public void LayoutRows_WhenRowIsFocusedAndSelected_UsesFocusedSelectedTint() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
+                SetPrivateField(panel, "IsKeyboardFocused", true);
+                InvokePrivate(panel, "LayoutRows");
+
+                List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
+                Assert.Equal(ThemeManager.Colors.AccentPrimary, rows[1].Background.Color);
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures trimming old entries shifts selection, focus, and anchor indices downward.
+        /// </summary>
+        [Fact]
+        public void AppendEntry_WhenOldRowsAreTrimmed_ShiftsSelectionFocusAndAnchorDownward() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 1, false, false);
+                InvokePrivate(panel, "HandleRowPressed", 3, true, false);
+
+                for (int entryIndex = 0; entryIndex < LoggerPanel.MaxEntries - 2; entryIndex++) {
+                    InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Info, $"extra-{entryIndex}", DateTime.UtcNow.AddSeconds(entryIndex)));
+                }
+
+                Assert.Equal(1, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(1, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(new[] { 1 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
+        /// Ensures focus clamps to the nearest remaining row when trimming removes the previously focused row.
+        /// </summary>
+        [Fact]
+        public void AppendEntry_WhenTrimRemovesFocusedRow_ClampsFocusToTheNearestRemainingRow() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1");
+
+            try {
+                InvokePrivate(panel, "HandleRowPressed", 0, false, false);
+
+                for (int entryIndex = 0; entryIndex < LoggerPanel.MaxEntries - 1; entryIndex++) {
+                    InvokePrivate(panel, "AppendEntry", new LogEntry(LogLevel.Info, $"trim-{entryIndex}", DateTime.UtcNow.AddSeconds(entryIndex)));
+                }
+
+                Assert.Equal(0, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(0, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Empty(GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices"));
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>
@@ -221,6 +446,28 @@ namespace helengine.editor.tests {
             MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.NotNull(method);
             method.Invoke(target, arguments);
+        }
+
+        /// <summary>
+        /// Writes one non-public instance field.
+        /// </summary>
+        /// <param name="target">Object that owns the field.</param>
+        /// <param name="fieldName">Name of the field to write.</param>
+        /// <param name="value">Value to assign.</param>
+        static void SetPrivateField(object target, string fieldName, object value) {
+            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            field.SetValue(target, value);
+        }
+
+        /// <summary>
+        /// Advances one keyboard frame through the active deterministic input backend.
+        /// </summary>
+        /// <param name="keyboardState">Keyboard state to expose for the frame.</param>
+        void AdvanceKeyboardFrame(KeyboardState keyboardState) {
+            InputBackend.SetKeyboardState(keyboardState);
+            InputBackend.EarlyUpdate();
+            InputBackend.Update();
         }
 
         /// <summary>

@@ -21,6 +21,8 @@ namespace helengine.editor {
         /// </summary>
         public override void Update() {
             panel.FlushPendingEntries();
+            panel.UpdateContextMenuInput();
+            panel.UpdateKeyboardInput();
         }
     }
 }

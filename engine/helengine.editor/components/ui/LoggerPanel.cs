@@ -67,6 +67,14 @@ namespace helengine.editor {
         /// Menu items available for the logger row context menu.
         /// </summary>
         readonly List<ContextMenuItem> RowContextMenuItems;
+        /// <summary>
+        /// Scroll controller that keeps the focused logger row inside the visible panel body.
+        /// </summary>
+        readonly ScrollComponent ScrollComponent;
+        /// <summary>
+        /// Keyboard-focus target that routes logger keyboard commands while the panel is focused.
+        /// </summary>
+        readonly EditorFocusTarget FocusTarget;
 
         /// <summary>
         /// Synchronizes access to pending entries.
@@ -85,6 +93,14 @@ namespace helengine.editor {
         /// Index of the current multi-selection anchor row.
         /// </summary>
         int AnchorRowIndex;
+        /// <summary>
+        /// Index of the first visible logger row in the panel body.
+        /// </summary>
+        int FirstVisibleRowIndex;
+        /// <summary>
+        /// Tracks whether the logger focus target is currently active.
+        /// </summary>
+        bool IsKeyboardFocused;
 
         /// <summary>
         /// Initializes a new logger panel with the provided font.
@@ -119,11 +135,31 @@ namespace helengine.editor {
             syncRoot = new object();
             FocusedRowIndex = -1;
             AnchorRowIndex = -1;
+            FirstVisibleRowIndex = 0;
             RowContextMenuItems = new List<ContextMenuItem> {
                 new ContextMenuItem("Copy", HandleCopyContextMenuRequested)
             };
             RowContextMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             AddChild(RowContextMenu.Entity);
+            ScrollComponent = new ScrollComponent();
+            ScrollComponent.Size = new int2(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y));
+            ScrollComponent.VisibleItemCount = GetVisibleRowCapacity();
+            ScrollComponent.ScrollOffsetChanged += HandleScrollOffsetChanged;
+            contentRoot.AddComponent(ScrollComponent);
+
+            FocusTarget = new EditorFocusTarget(
+                this,
+                0,
+                true,
+                () => Enabled && entries.Count > 0,
+                point => ContainsContentPoint(point),
+                isFocused => {
+                    IsKeyboardFocused = isFocused;
+                    LayoutRows();
+                },
+                CanActivateWithKey,
+                HandleActivationKey);
+            EditorKeyboardFocusService.RegisterTarget(FocusTarget);
 
             AddComponent(new LoggerPanelUpdater(this));
 
@@ -137,6 +173,7 @@ namespace helengine.editor {
         /// </summary>
         public void Detach() {
             Logger.MessageLogged -= HandleMessageLogged;
+            EditorKeyboardFocusService.UnregisterTarget(FocusTarget);
         }
 
         /// <summary>
@@ -198,7 +235,14 @@ namespace helengine.editor {
             if (entries.Count > MaxEntries) {
                 int removeCount = entries.Count - MaxEntries;
                 entries.RemoveRange(0, removeCount);
+                ShiftSelectionStateAfterTrim(removeCount);
             }
+
+            ScrollComponent.ItemCount = entries.Count;
+            ScrollComponent.VisibleItemCount = GetVisibleRowCapacity();
+            ScrollComponent.ClampScrollOffset();
+            FirstVisibleRowIndex = ScrollComponent.ScrollOffset;
+            UpdateContentRootPosition();
         }
 
         /// <summary>
@@ -218,7 +262,7 @@ namespace helengine.editor {
         /// </summary>
         protected override void HandleUiMetricsApplied() {
             MinSize = new int2(UiMetrics.ScalePixels(260), UiMetrics.ScalePixels(160));
-            contentRoot.Position = new float3(0f, TitleBarHeightPixels, 0.05f);
+            UpdateContentRootPosition();
         }
 
         /// <summary>
@@ -280,6 +324,13 @@ namespace helengine.editor {
         void LayoutRows() {
             EnsureRowCount(entries.Count);
 
+            ScrollComponent.Size = new int2(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y));
+            ScrollComponent.ItemCount = entries.Count;
+            ScrollComponent.VisibleItemCount = GetVisibleRowCapacity();
+            ScrollComponent.ClampScrollOffset();
+            FirstVisibleRowIndex = ScrollComponent.ScrollOffset;
+            UpdateContentRootPosition();
+
             int rowWidth = Math.Max(Size.X, MinSize.X);
             float lineHeight = (float)Math.Max(font.LineHeight, 1.0);
             float verticalOffset = (float)Math.Round((GetRowHeightPixels() - lineHeight) * 0.5, MidpointRounding.AwayFromZero);
@@ -297,9 +348,7 @@ namespace helengine.editor {
                 row.Background.Size = new int2(rowWidth, GetRowHeightPixels());
                 row.Interactable.Size = new int2(rowWidth, GetRowHeightPixels());
 
-                bool alternate = i % 2 == 1;
-                row.Background.Color = alternate ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
-
+                row.Background.Color = ResolveRowBackgroundColor(i);
                 row.LabelHost.Position = new float3(GetRowPaddingPixels(), verticalOffset, 0.2f);
                 row.Label.Size = new int2(Math.Max(0, rowWidth - (GetRowPaddingPixels() * 2)), (int)Math.Ceiling(lineHeight));
                 row.Label.Color = ResolveTextColor(entry.Level);
@@ -364,6 +413,7 @@ namespace helengine.editor {
             if (isShiftPressed && AnchorRowIndex >= 0) {
                 FocusedRowIndex = rowIndex;
                 SelectRangeFromAnchor(rowIndex);
+                EnsureFocusedRowVisible();
                 return;
             }
 
@@ -372,10 +422,14 @@ namespace helengine.editor {
 
             if (isControlPressed) {
                 ToggleRowSelection(rowIndex);
+                EnsureFocusedRowVisible();
+                EditorKeyboardFocusService.SetFocusedTarget(FocusTarget);
                 return;
             }
 
             SelectSingleRow(rowIndex);
+            EnsureFocusedRowVisible();
+            EditorKeyboardFocusService.SetFocusedTarget(FocusTarget);
         }
 
         /// <summary>
@@ -431,6 +485,8 @@ namespace helengine.editor {
             }
 
             RowContextMenu.Show(RowContextMenuItems, localPointerPosition, GetContextMenuHostSize());
+            EnsureFocusedRowVisible();
+            EditorKeyboardFocusService.SetFocusedTarget(FocusTarget);
         }
 
         /// <summary>
@@ -453,7 +509,11 @@ namespace helengine.editor {
         /// <returns>Joined logger text payload for the current selection.</returns>
         string BuildSelectedRowsText() {
             if (SelectedRowIndices.Count == 0) {
-                return string.Empty;
+                if (FocusedRowIndex < 0 || FocusedRowIndex >= entries.Count) {
+                    return string.Empty;
+                }
+
+                return FormatEntry(entries[FocusedRowIndex]);
             }
 
             List<string> lines = new List<string>(SelectedRowIndices.Count);
@@ -476,6 +536,290 @@ namespace helengine.editor {
             return new int2(
                 Math.Max(Size.X, MinSize.X),
                 Math.Max(Size.Y + TitleBarHeightPixels, MinSize.Y + TitleBarHeightPixels));
+        }
+
+        /// <summary>
+        /// Resolves the background color that should be used for one row index.
+        /// </summary>
+        /// <param name="rowIndex">Row index whose color should be resolved.</param>
+        /// <returns>Background color for the row.</returns>
+        byte4 ResolveRowBackgroundColor(int rowIndex) {
+            bool isSelected = SelectedRowIndices.Contains(rowIndex);
+            bool isFocused = FocusedRowIndex == rowIndex && IsKeyboardFocused;
+            if (isSelected && isFocused) {
+                return ThemeManager.Colors.AccentPrimary;
+            }
+
+            if (isSelected) {
+                return ThemeManager.Colors.AccentSecondary;
+            }
+
+            if (isFocused) {
+                return ThemeManager.Colors.AccentTertiary;
+            }
+
+            return rowIndex % 2 == 1
+                ? ThemeManager.Colors.SurfaceInput
+                : ThemeManager.Colors.SurfacePrimary;
+        }
+
+        /// <summary>
+        /// Updates logger keyboard interaction for the current frame when the logger focus target is active.
+        /// </summary>
+        internal void UpdateKeyboardInput() {
+            if (!IsKeyboardFocused) {
+                return;
+            }
+
+            InputSystem input = Core.Instance.Input;
+            bool isShiftPressed = input.IsKeyDown(Keys.LeftShift) || input.IsKeyDown(Keys.RightShift);
+            bool isControlPressed = input.IsKeyDown(Keys.LeftControl) || input.IsKeyDown(Keys.RightControl);
+
+            if (input.WasKeyPressed(Keys.Down)) {
+                MoveFocusBy(1, isControlPressed, isShiftPressed);
+            } else if (input.WasKeyPressed(Keys.Up)) {
+                MoveFocusBy(-1, isControlPressed, isShiftPressed);
+            } else if (isControlPressed && input.WasKeyPressed(Keys.Space)) {
+                ToggleFocusedRowSelection();
+            } else if (isControlPressed && input.WasKeyPressed(Keys.C)) {
+                CopySelection();
+            }
+        }
+
+        /// <summary>
+        /// Updates logger context-menu visibility from right-click input.
+        /// </summary>
+        internal void UpdateContextMenuInput() {
+            InputSystem input = Core.Instance.Input;
+            if (!input.WasMouseRightButtonPressed()) {
+                return;
+            }
+
+            int2 pointer = input.GetMousePosition();
+            if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
+                return;
+            }
+            if (!ContainsContentPoint(pointer)) {
+                RowContextMenu.Hide();
+                return;
+            }
+
+            if (!TryGetRowAtScreenPoint(pointer, out int rowIndex)) {
+                RowContextMenu.Hide();
+                return;
+            }
+
+            int2 localPosition = new int2(
+                pointer.X - (int)Math.Round(Position.X),
+                pointer.Y - (int)Math.Round(Position.Y));
+            HandleRowRightPressed(rowIndex, localPosition);
+        }
+
+        /// <summary>
+        /// Resolves whether the logger focus target should activate for the supplied key.
+        /// </summary>
+        /// <param name="key">Activation key to evaluate.</param>
+        /// <returns>True when the logger target handles the key.</returns>
+        bool CanActivateWithKey(Keys key) {
+            return false;
+        }
+
+        /// <summary>
+        /// Routes one activation key from the editor keyboard-focus service into logger keyboard handling.
+        /// </summary>
+        /// <param name="key">Activation key to process.</param>
+        void HandleActivationKey(Keys key) {
+        }
+
+        /// <summary>
+        /// Moves the focused row by one offset and updates selection according to the supplied modifier semantics.
+        /// </summary>
+        /// <param name="delta">Relative row movement to apply.</param>
+        /// <param name="preserveSelection">True when the existing selection set should remain unchanged.</param>
+        /// <param name="extendSelection">True when selection should expand from the current anchor.</param>
+        void MoveFocusBy(int delta, bool preserveSelection, bool extendSelection) {
+            if (entries.Count == 0) {
+                return;
+            }
+
+            int nextRowIndex = FocusedRowIndex;
+            if (nextRowIndex < 0) {
+                nextRowIndex = delta >= 0 ? 0 : entries.Count - 1;
+            } else {
+                nextRowIndex += delta;
+            }
+
+            if (nextRowIndex < 0) {
+                nextRowIndex = 0;
+            } else if (nextRowIndex >= entries.Count) {
+                nextRowIndex = entries.Count - 1;
+            }
+
+            FocusedRowIndex = nextRowIndex;
+            if (extendSelection) {
+                if (AnchorRowIndex < 0) {
+                    AnchorRowIndex = nextRowIndex;
+                }
+
+                SelectRangeFromAnchor(nextRowIndex);
+            } else if (preserveSelection) {
+                if (AnchorRowIndex < 0) {
+                    AnchorRowIndex = nextRowIndex;
+                }
+            } else {
+                AnchorRowIndex = nextRowIndex;
+                SelectSingleRow(nextRowIndex);
+            }
+
+            EnsureFocusedRowVisible();
+            LayoutRows();
+        }
+
+        /// <summary>
+        /// Toggles the focused row inside the current selection set.
+        /// </summary>
+        void ToggleFocusedRowSelection() {
+            if (FocusedRowIndex < 0 || FocusedRowIndex >= entries.Count) {
+                return;
+            }
+
+            AnchorRowIndex = FocusedRowIndex;
+            ToggleRowSelection(FocusedRowIndex);
+            EnsureFocusedRowVisible();
+            LayoutRows();
+        }
+
+        /// <summary>
+        /// Adjusts the scroll offset so the focused row remains inside the visible window.
+        /// </summary>
+        void EnsureFocusedRowVisible() {
+            if (FocusedRowIndex < 0 || entries.Count == 0) {
+                return;
+            }
+
+            int visibleRowCapacity = GetVisibleRowCapacity();
+            if (FocusedRowIndex < FirstVisibleRowIndex) {
+                ScrollComponent.ScrollTo(FocusedRowIndex);
+            } else if (FocusedRowIndex >= FirstVisibleRowIndex + visibleRowCapacity) {
+                ScrollComponent.ScrollTo(FocusedRowIndex - visibleRowCapacity + 1);
+            }
+        }
+
+        /// <summary>
+        /// Returns the number of full rows visible inside the current logger body viewport.
+        /// </summary>
+        /// <returns>Visible logger row capacity.</returns>
+        int GetVisibleRowCapacity() {
+            int rowHeight = GetRowHeightPixels();
+            if (rowHeight <= 0) {
+                return 1;
+            }
+
+            return Math.Max(1, Math.Max(Size.Y, MinSize.Y) / rowHeight);
+        }
+
+        /// <summary>
+        /// Updates the content root translation from the current scroll offset.
+        /// </summary>
+        void UpdateContentRootPosition() {
+            contentRoot.Position = new float3(0f, TitleBarHeightPixels - (FirstVisibleRowIndex * GetRowHeightPixels()), 0.05f);
+        }
+
+        /// <summary>
+        /// Returns true when the provided screen point lies inside the logger content body.
+        /// </summary>
+        /// <param name="point">Screen point to evaluate.</param>
+        /// <returns>True when the point lies inside the logger content area.</returns>
+        bool ContainsContentPoint(int2 point) {
+            int panelX = (int)Math.Round(Position.X);
+            int panelY = (int)Math.Round(Position.Y);
+            int panelWidth = Math.Max(Size.X, MinSize.X);
+            int panelHeight = Math.Max(Size.Y, MinSize.Y);
+            return point.X >= panelX &&
+                   point.X < panelX + panelWidth &&
+                   point.Y >= panelY + TitleBarHeightPixels &&
+                   point.Y < panelY + TitleBarHeightPixels + panelHeight;
+        }
+
+        /// <summary>
+        /// Attempts to resolve one logger row index for the supplied screen-space pointer.
+        /// </summary>
+        /// <param name="pointer">Pointer position in screen coordinates.</param>
+        /// <param name="rowIndex">Resolved row index when one exists.</param>
+        /// <returns>True when a visible logger row was found.</returns>
+        bool TryGetRowAtScreenPoint(int2 pointer, out int rowIndex) {
+            if (!ContainsContentPoint(pointer)) {
+                rowIndex = -1;
+                return false;
+            }
+
+            int localY = pointer.Y - (int)Math.Round(Position.Y) - TitleBarHeightPixels;
+            int rowIndexCandidate = FirstVisibleRowIndex + (localY / Math.Max(1, GetRowHeightPixels()));
+            if (rowIndexCandidate < 0 || rowIndexCandidate >= entries.Count) {
+                rowIndex = -1;
+                return false;
+            }
+
+            rowIndex = rowIndexCandidate;
+            return true;
+        }
+
+        /// <summary>
+        /// Rebuilds content position after the row scroll offset changes.
+        /// </summary>
+        /// <param name="scrollComponent">Scroll controller that raised the change.</param>
+        /// <param name="scrollOffset">Current scroll offset in item units.</param>
+        void HandleScrollOffsetChanged(ScrollComponent scrollComponent, int scrollOffset) {
+            FirstVisibleRowIndex = scrollOffset;
+            UpdateContentRootPosition();
+        }
+
+        /// <summary>
+        /// Shifts selection, focus, and anchor state after old rows are trimmed from the front of the logger.
+        /// </summary>
+        /// <param name="removeCount">Number of rows removed from the front of the logger.</param>
+        void ShiftSelectionStateAfterTrim(int removeCount) {
+            if (removeCount <= 0) {
+                return;
+            }
+
+            HashSet<int> shiftedSelection = new HashSet<int>();
+            foreach (int selectedRowIndex in SelectedRowIndices) {
+                int shiftedRowIndex = selectedRowIndex - removeCount;
+                if (shiftedRowIndex >= 0) {
+                    shiftedSelection.Add(shiftedRowIndex);
+                }
+            }
+
+            SelectedRowIndices.Clear();
+            foreach (int shiftedRowIndex in shiftedSelection) {
+                SelectedRowIndices.Add(shiftedRowIndex);
+            }
+
+            FocusedRowIndex -= removeCount;
+            AnchorRowIndex -= removeCount;
+            FirstVisibleRowIndex = Math.Max(0, FirstVisibleRowIndex - removeCount);
+
+            if (entries.Count == 0) {
+                FocusedRowIndex = -1;
+                AnchorRowIndex = -1;
+                SelectedRowIndices.Clear();
+                FirstVisibleRowIndex = 0;
+                return;
+            }
+
+            int lastRemainingIndex = entries.Count - 1;
+            if (FocusedRowIndex < 0) {
+                FocusedRowIndex = 0;
+            } else if (FocusedRowIndex > lastRemainingIndex) {
+                FocusedRowIndex = lastRemainingIndex;
+            }
+
+            if (AnchorRowIndex < 0) {
+                AnchorRowIndex = 0;
+            } else if (AnchorRowIndex > lastRemainingIndex) {
+                AnchorRowIndex = lastRemainingIndex;
+            }
         }
     }
 }
