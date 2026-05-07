@@ -287,6 +287,24 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
+        /// Ensures regenerated demo menu panels still keep the dynamic selected-description text target after static cleanup.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuSceneIsGenerated_KeepsSelectedDescriptionEntityPerPanel() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            SceneAsset sceneAsset = ReadGeneratedSceneAsset();
+            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
+
+            foreach (SceneEntityAsset panelEntity in generatedRoot.Children.Where(child => child.Name.StartsWith("Panel-", StringComparison.Ordinal))) {
+                Assert.Single(panelEntity.Children.Where(child => child.Id.StartsWith("selected-description-", StringComparison.Ordinal)));
+            }
+        }
+
+        /// <summary>
         /// Initializes a core instance so camera components can allocate their render queues during deserialization.
         /// </summary>
         void InitializeCore() {
