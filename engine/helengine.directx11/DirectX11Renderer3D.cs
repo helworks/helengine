@@ -554,6 +554,7 @@ namespace helengine.directx11 {
             material.SupportsNormalMapping = !string.IsNullOrWhiteSpace(materialAsset.NormalTextureAssetId);
             material.SupportsEmissive = !string.IsNullOrWhiteSpace(materialAsset.EmissiveTextureAssetId);
             material.ApplyConstantBufferDefaults(materialAsset.ConstantBuffers ?? Array.Empty<MaterialConstantBufferAsset>());
+            StandardMaterialTextureBindingDefaults.Apply(material);
             RegisterMaterial(material);
             return material;
         }
@@ -1303,6 +1304,8 @@ namespace helengine.directx11 {
         protected virtual void DrawShadowCaster(IDrawable3D drawable, float4x4 lightViewProjection) {
             if (drawable?.Parent == null || !drawable.Parent.Enabled) {
                 return;
+            } else if (!ShouldMaterialCastShadows(drawable.Material)) {
+                return;
             }
 
             var deviceContext = Device.ImmediateContext;
@@ -1340,6 +1343,8 @@ namespace helengine.directx11 {
         /// <param name="lightRange">Point-light effective range.</param>
         protected virtual void DrawPointShadowCaster(IDrawable3D drawable, float4x4 lightViewProjection, float3 lightPosition, float lightRange) {
             if (drawable?.Parent == null || !drawable.Parent.Enabled) {
+                return;
+            } else if (!ShouldMaterialCastShadows(drawable.Material)) {
                 return;
             }
 
@@ -1445,11 +1450,7 @@ namespace helengine.directx11 {
                     DirectX11MaterialResource missingMaterial = GetMissingMaterial();
                     ApplyMaterial(missingMaterial, missingMaterial);
                 } else {
-                    RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
-                    if (rootMaterial is not DirectX11MaterialResource directX11Material) {
-                        throw new InvalidOperationException("Drawable materials must resolve to DirectX11MaterialResource through their parent chain.");
-                    }
-
+                    DirectX11MaterialResource directX11Material = ResolveDirectX11Material(runtimeMaterial);
                     ApplyMaterial(directX11Material, runtimeMaterial);
                 }
             }
@@ -1777,6 +1778,37 @@ namespace helengine.directx11 {
                 context.PixelShader.SetShaderResource(0, null);
                 context.PixelShader.SetSampler(0, null);
             }
+        }
+
+        /// <summary>
+        /// Resolves the DirectX11 root material that owns the concrete shader resource for one runtime material chain.
+        /// </summary>
+        /// <param name="runtimeMaterial">Runtime material whose root should be resolved.</param>
+        /// <returns>Resolved DirectX11 root material.</returns>
+        DirectX11MaterialResource ResolveDirectX11Material(RuntimeMaterial runtimeMaterial) {
+            if (runtimeMaterial == null) {
+                throw new ArgumentNullException(nameof(runtimeMaterial));
+            }
+
+            RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
+            if (rootMaterial is not DirectX11MaterialResource directX11Material) {
+                throw new InvalidOperationException("Drawable materials must resolve to DirectX11MaterialResource through their parent chain.");
+            }
+
+            return directX11Material;
+        }
+
+        /// <summary>
+        /// Determines whether one runtime material chain should contribute geometry to DirectX11 shadow-map passes.
+        /// </summary>
+        /// <param name="runtimeMaterial">Runtime material assigned to the drawable, or <c>null</c> for the missing-material path.</param>
+        /// <returns>True when the DirectX11 shadow passes should render the drawable.</returns>
+        bool ShouldMaterialCastShadows(RuntimeMaterial runtimeMaterial) {
+            if (runtimeMaterial == null) {
+                return true;
+            }
+
+            return ResolveDirectX11Material(runtimeMaterial).CastsShadows;
         }
 
         /// <summary>

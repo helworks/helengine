@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Relative packaged scene path used as the Windows main scene.
         /// </summary>
-        public const string MainSceneRelativePath = "cooked/scenes/main.hasset";
+        public const string MainSceneRelativePath = PackagedScenePathResolver.MainSceneRelativePath;
 
         /// <summary>
         /// Current payload version for serialized mesh component scene records.
@@ -21,7 +21,7 @@ namespace helengine.editor {
         /// <summary>
         /// Current payload version for serialized camera component scene records.
         /// </summary>
-        const byte CameraComponentPayloadVersion = 2;
+        const byte CameraComponentPayloadVersion = 3;
 
         /// <summary>
         /// Current payload version for serialized FPS component scene records.
@@ -104,9 +104,18 @@ namespace helengine.editor {
         const string PlaneGeneratedAssetId = "engine:model:plane";
 
         /// <summary>
+        /// Stable generated model asset id for the built-in sphere primitive.
+        /// </summary>
+        const string SphereGeneratedAssetId = "engine:model:sphere";
+
+        /// <summary>
         /// Stable generated material asset id for the built-in standard material.
         /// </summary>
         const string StandardGeneratedMaterialAssetId = "engine:material:standard";
+        /// <summary>
+        /// Folder name used for packaged imported texture assets referenced by material albedo bindings.
+        /// </summary>
+        const string ImportedTextureDirectoryName = "imported";
 
         /// <summary>
         /// Shader source file used by the packaged generated standard material.
@@ -596,7 +605,8 @@ namespace helengine.editor {
 
                 if (string.Equals(reference.ProviderId, EngineGeneratedProviderId, StringComparison.Ordinal) &&
                     (string.Equals(reference.AssetId, CubeGeneratedAssetId, StringComparison.Ordinal) ||
-                     string.Equals(reference.AssetId, PlaneGeneratedAssetId, StringComparison.Ordinal))) {
+                     string.Equals(reference.AssetId, PlaneGeneratedAssetId, StringComparison.Ordinal) ||
+                     string.Equals(reference.AssetId, SphereGeneratedAssetId, StringComparison.Ordinal))) {
                     return RewriteGeneratedModelReference(reference, buildRootPath);
                 }
 
@@ -667,6 +677,8 @@ namespace helengine.editor {
             IReadOnlyList<PlatformComponentCompatibilityDefinition> componentCompatibilities) {
             Dictionary<string, PlatformComponentCompatibilityDefinition> lookup =
                 new Dictionary<string, PlatformComponentCompatibilityDefinition>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, PlatformComponentCompatibilityDefinition> defaultCompatibilityLookup =
+                new Dictionary<string, PlatformComponentCompatibilityDefinition>(StringComparer.OrdinalIgnoreCase);
             HashSet<string> builderCompatibilityTypeIds =
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -674,6 +686,7 @@ namespace helengine.editor {
             for (int index = 0; index < defaultCompatibilities.Length; index++) {
                 PlatformComponentCompatibilityDefinition compatibility = defaultCompatibilities[index];
                 lookup.Add(compatibility.ComponentTypeId, compatibility);
+                defaultCompatibilityLookup.Add(compatibility.ComponentTypeId, compatibility);
             }
 
             if (componentCompatibilities == null) {
@@ -689,10 +702,37 @@ namespace helengine.editor {
                     throw new InvalidOperationException($"Platform compatibility metadata already contains an entry for '{compatibility.ComponentTypeId}'.");
                 }
 
+                if (ShouldPreserveDefaultCompatibility(defaultCompatibilityLookup, compatibility)) {
+                    continue;
+                }
+
                 lookup[compatibility.ComponentTypeId] = compatibility;
             }
 
             return lookup;
+        }
+
+        /// <summary>
+        /// Returns true when one builder-provided compatibility would weaken a required built-in transform contract.
+        /// </summary>
+        /// <param name="defaultCompatibilityLookup">Built-in default compatibility metadata keyed by serialized component type id.</param>
+        /// <param name="builderCompatibility">Builder-provided compatibility metadata under evaluation.</param>
+        /// <returns>True when the built-in compatibility must be preserved; otherwise false.</returns>
+        static bool ShouldPreserveDefaultCompatibility(
+            IReadOnlyDictionary<string, PlatformComponentCompatibilityDefinition> defaultCompatibilityLookup,
+            PlatformComponentCompatibilityDefinition builderCompatibility) {
+            if (defaultCompatibilityLookup == null) {
+                throw new ArgumentNullException(nameof(defaultCompatibilityLookup));
+            } else if (builderCompatibility == null) {
+                throw new ArgumentNullException(nameof(builderCompatibility));
+            }
+
+            if (!defaultCompatibilityLookup.TryGetValue(builderCompatibility.ComponentTypeId, out PlatformComponentCompatibilityDefinition defaultCompatibility)) {
+                return false;
+            }
+
+            return defaultCompatibility.CompatibilityKind == PlatformComponentCompatibilityKind.Transform
+                && builderCompatibility.CompatibilityKind == PlatformComponentCompatibilityKind.PassThrough;
         }
 
         /// <summary>
@@ -860,13 +900,15 @@ namespace helengine.editor {
             using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1 && version != CameraComponentPayloadVersion) {
+            if (version != 1 && version != 2 && version != CameraComponentPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
             }
 
             byte cameraDrawOrder = reader.ReadByte();
             ushort layerMask = reader.ReadUInt16();
             float4 viewport = ReadFloat4(reader);
+            float nearPlaneDistance = version >= CameraComponentPayloadVersion ? reader.ReadSingle() : 0.1f;
+            float farPlaneDistance = version >= CameraComponentPayloadVersion ? reader.ReadSingle() : 100f;
             CameraClearSettings clearSettings = ReadClearSettings(reader);
             CameraRenderSettings renderSettings = version >= 2 ? ReadRenderSettings(reader) : new CameraRenderSettings();
 
@@ -876,6 +918,8 @@ namespace helengine.editor {
             writer.WriteByte(cameraDrawOrder);
             writer.WriteUInt16(NormalizePackagedCameraLayerMask(layerMask));
             WriteFloat4(writer, viewport);
+            writer.WriteSingle(nearPlaneDistance);
+            writer.WriteSingle(farPlaneDistance);
             WriteClearSettings(writer, clearSettings);
             WriteRenderSettings(writer, renderSettings);
 
@@ -1031,6 +1075,12 @@ namespace helengine.editor {
                 return CreateFileSystemReference(relativePath);
             }
 
+            if (string.Equals(reference.AssetId, SphereGeneratedAssetId, StringComparison.Ordinal)) {
+                string relativePath = "cooked/engine/models/sphere.hasset";
+                WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GenerateSphereMesh(float3.Zero, float3.One));
+                return CreateFileSystemReference(relativePath);
+            }
+
             throw new InvalidOperationException($"Unsupported generated model asset id '{reference.AssetId}'.");
         }
 
@@ -1109,10 +1159,59 @@ namespace helengine.editor {
             }
 
             RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
+            CopyReferencedDiffuseTextureAsset(materialAsset, buildRootPath);
 
             string relativePath = NormalizeRelativePath(reference.RelativePath);
             WriteAsset(Path.Combine(buildRootPath, relativePath), materialAsset);
             return CreateFileSystemReference(relativePath);
+        }
+
+        /// <summary>
+        /// Copies one imported diffuse texture asset referenced by a material into the packaged content root.
+        /// </summary>
+        /// <param name="materialAsset">Material asset whose imported diffuse texture should be packaged.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        void CopyReferencedDiffuseTextureAsset(MaterialAsset materialAsset, string buildRootPath) {
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
+                return;
+            }
+
+            string sourcePath = ResolveImportedTextureAssetPath(materialAsset.DiffuseTextureAssetId);
+            TextureAsset textureAsset = ProjectContentManager.Load<TextureAsset>(sourcePath, EditorContentProcessorIds.TextureAsset);
+            string cookedRelativePath = BuildImportedTextureCookedRelativePath(materialAsset.DiffuseTextureAssetId);
+            WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
+        }
+
+        /// <summary>
+        /// Resolves one imported texture asset id to the serialized cache file produced by the project asset importer.
+        /// </summary>
+        /// <param name="assetId">Imported texture asset identifier stored on the material asset.</param>
+        /// <returns>Absolute path to the serialized cached texture asset.</returns>
+        string ResolveImportedTextureAssetPath(string assetId) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            return Path.Combine(ProjectRootPath, "cache", assetId);
+        }
+
+        /// <summary>
+        /// Builds the packaged relative path used for one imported texture asset.
+        /// </summary>
+        /// <param name="assetId">Imported texture asset identifier stored on the material asset.</param>
+        /// <returns>Cooked relative path under the build root.</returns>
+        string BuildImportedTextureCookedRelativePath(string assetId) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            return NormalizeRelativePath(Path.Combine(ImportedTextureDirectoryName, assetId));
         }
 
         /// <summary>
@@ -1332,15 +1431,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="sceneId">Project-relative scene id.</param>
         /// <param name="sceneIndex">Zero-based selection index used to reserve the canonical main-scene path.</param>
-        /// <returns>Packaged scene relative path beneath the `scenes` folder.</returns>
+        /// <returns>Packaged scene relative path beneath the cooked scenes root.</returns>
         string BuildPackagedSceneRelativePath(string sceneId, int sceneIndex) {
-            if (sceneIndex == 0) {
-                return MainSceneRelativePath;
-            }
-
-            string normalizedSceneId = NormalizeRelativePath(sceneId);
-            string changedExtensionPath = Path.ChangeExtension(normalizedSceneId, ".hasset");
-            return NormalizeRelativePath(Path.Combine("scenes", changedExtensionPath));
+            return PackagedScenePathResolver.BuildRelativePath(sceneId, sceneIndex);
         }
 
         /// <summary>

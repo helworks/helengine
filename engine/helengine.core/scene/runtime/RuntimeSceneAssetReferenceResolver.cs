@@ -7,6 +7,10 @@ namespace helengine {
         /// Folder name used for packaged shader assets.
         /// </summary>
         const string ShaderDirectoryName = "cooked/shaders";
+        /// <summary>
+        /// Folder name used for packaged imported texture assets.
+        /// </summary>
+        const string ImportedTextureDirectoryName = "cooked/imported";
 
         /// <summary>
         /// Folder name used for packaged font assets.
@@ -86,8 +90,32 @@ namespace helengine {
             ShaderAsset shaderAsset = AssetContentManager.Load<ShaderAsset>(
                 ResolveShaderPackagePath(materialAsset.ShaderAssetId),
                 RuntimeContentProcessorIds.ShaderAsset);
-            return Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset);
+            return runtimeMaterial;
 #endif
+        }
+
+        /// <summary>
+        /// Applies one authored diffuse texture to the resolved runtime material when the packaged material asset references one.
+        /// </summary>
+        /// <param name="runtimeMaterial">Runtime material that should receive the diffuse texture.</param>
+        /// <param name="materialAsset">Packaged material asset that declares the authored diffuse texture asset id.</param>
+        void ApplyMaterialDiffuseTexture(RuntimeMaterial runtimeMaterial, MaterialAsset materialAsset) {
+            if (runtimeMaterial == null) {
+                throw new ArgumentNullException(nameof(runtimeMaterial));
+            }
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+            if (string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
+                return;
+            }
+
+            string diffuseTexturePath = ResolveImportedTexturePackagePath(materialAsset.DiffuseTextureAssetId);
+            TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, RuntimeContentProcessorIds.TextureAsset);
+            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+            runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
         }
 
         /// <summary>
@@ -138,6 +166,19 @@ namespace helengine {
 
             string fileName = string.Concat(shaderAssetId, ".", ShaderTargetNames.GetTargetName(ShaderTarget), ShaderPackageExtension);
             return Path.Combine(ContentRootPath, ShaderDirectoryName, fileName);
+        }
+
+        /// <summary>
+        /// Resolves one imported texture asset id into the packaged texture-asset path used by shader-backed player builds.
+        /// </summary>
+        /// <param name="assetId">Imported texture asset identifier stored on the packaged material asset.</param>
+        /// <returns>Absolute packaged texture-asset path.</returns>
+        string ResolveImportedTexturePackagePath(string assetId) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new InvalidOperationException("Packaged material assets must include a diffuse texture asset id before resolving imported textures.");
+            }
+
+            return Path.Combine(ContentRootPath, ImportedTextureDirectoryName, assetId);
         }
 
         /// <summary>

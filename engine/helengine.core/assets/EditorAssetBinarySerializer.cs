@@ -16,7 +16,7 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 6;
+        public const byte CurrentVersion = 7;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -183,7 +183,7 @@ namespace helengine {
                 case EditorAssetBinaryValueKind.TextAsset:
                     return ReadTextAsset(reader);
                 case EditorAssetBinaryValueKind.MaterialAsset:
-                    return ReadMaterialAsset(reader);
+                    return ReadMaterialAsset(reader, version);
                 case EditorAssetBinaryValueKind.Ps2MaterialAsset:
                     return ReadPs2MaterialAsset(reader);
                 case EditorAssetBinaryValueKind.AnimationClipAsset:
@@ -284,6 +284,7 @@ namespace helengine {
             writer.WriteString(asset.VertexProgram);
             writer.WriteString(asset.PixelProgram);
             writer.WriteString(asset.Variant);
+            writer.WriteString(asset.DiffuseTextureAssetId);
             WriteMaterialRenderState(writer, asset.RenderState);
             writer.WriteArray(asset.ConstantBuffers, WriteMaterialConstantBufferAsset);
         }
@@ -293,13 +294,16 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized material asset.</returns>
-        static MaterialAsset ReadMaterialAsset(EngineBinaryReader reader) {
+        static MaterialAsset ReadMaterialAsset(EngineBinaryReader reader, byte version) {
             var materialAsset = new MaterialAsset {
                 Id = reader.ReadString(),
                 ShaderAssetId = reader.ReadString(),
                 VertexProgram = reader.ReadString(),
                 PixelProgram = reader.ReadString(),
                 Variant = reader.ReadString(),
+                DiffuseTextureAssetId = version >= 7
+                    ? reader.ReadString()
+                    : string.Empty,
                 RenderState = ReadMaterialRenderState(reader),
                 ConstantBuffers = reader.ReadArray(ReadMaterialConstantBufferAsset) ?? Array.Empty<MaterialConstantBufferAsset>()
             };

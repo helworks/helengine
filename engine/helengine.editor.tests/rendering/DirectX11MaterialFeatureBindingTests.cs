@@ -25,7 +25,12 @@ namespace helengine.editor.tests.rendering {
                 EmissiveTextureAssetId = "textures/emissive"
             };
             ShaderAsset shaderAsset = new ShaderAsset {
-                Id = "shader/test"
+                Id = "shader/test",
+                Programs = new[] {
+                    CreateProgram("VS", ShaderStage.Vertex),
+                    CreateProgram("PS", ShaderStage.Pixel)
+                },
+                Binaries = Array.Empty<ShaderBinaryAsset>()
             };
             TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
 
@@ -58,6 +63,54 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures one textured standard-material layout keeps the authored diffuse binding available on the runtime material.
+        /// </summary>
+        [Fact]
+        public void BuildMaterialFromRaw_WhenMaterialExposesDiffuseTextureBinding_PreservesTheDiffuseTextureBinding() {
+            MaterialAsset materialAsset = new MaterialAsset {
+                Id = "materials/test",
+                ShaderAssetId = "shader/test",
+                VertexProgram = "VS",
+                PixelProgram = "PS",
+                Variant = "default"
+            };
+            ShaderAsset shaderAsset = new ShaderAsset {
+                Id = "shader/test",
+                Programs = new[] {
+                    CreateProgram("VS", ShaderStage.Vertex),
+                    CreateProgram("PS", ShaderStage.Pixel, CreateBinding(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, ShaderResourceType.Texture2D, 0, 0, 0))
+                },
+                Binaries = Array.Empty<ShaderBinaryAsset>()
+            };
+            TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
+
+            RuntimeMaterial material = renderer.BuildMaterialFromRaw(materialAsset, shaderAsset);
+
+            Assert.Equal(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, material.Layout.TextureBindings[0].Name);
+        }
+
+        /// <summary>
+        /// Ensures DirectX11 shadow-caster eligibility stays on the DirectX11 material root instead of leaking into shared material state.
+        /// </summary>
+        [Fact]
+        public void ShouldMaterialCastShadows_WhenDirectX11RootDisablesShadowCasting_ReturnsFalse() {
+            DirectX11ShaderResource shaderResource = (DirectX11ShaderResource)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11ShaderResource));
+            var rootMaterial = new DirectX11MaterialResource(shaderResource);
+            RuntimeMaterial childMaterial = new RuntimeMaterial();
+            TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
+            MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ShouldMaterialCastShadows", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(method);
+
+            rootMaterial.CastsShadows = false;
+            childMaterial.SetParentMaterial(rootMaterial);
+
+            bool castsShadows = Assert.IsType<bool>(method.Invoke(renderer, new object[] { childMaterial }));
+
+            Assert.False(castsShadows);
+        }
+
+        /// <summary>
         /// Creates one runtime material with a single texture binding that matches the viewport canvas-plane shader.
         /// </summary>
         /// <returns>Runtime material configured with a `CanvasTexture` binding.</returns>
@@ -75,6 +128,45 @@ namespace helengine.editor.tests.rendering {
                 Array.Empty<MaterialLayoutBinding>(),
                 Array.Empty<MaterialLayoutBinding>()));
             return material;
+        }
+
+        /// <summary>
+        /// Creates one shader program asset with the supplied bindings.
+        /// </summary>
+        /// <param name="name">Program name.</param>
+        /// <param name="stage">Shader stage for the program.</param>
+        /// <param name="bindings">Bindings declared by the program.</param>
+        /// <returns>Shader program asset for layout-builder tests.</returns>
+        static ShaderProgramAsset CreateProgram(string name, ShaderStage stage, params ShaderBindingAsset[] bindings) {
+            return new ShaderProgramAsset {
+                Name = name,
+                Stage = stage,
+                EntryPoint = name,
+                Bindings = bindings,
+                Inputs = Array.Empty<ShaderVertexElementAsset>(),
+                Outputs = Array.Empty<ShaderVertexElementAsset>(),
+                Variants = Array.Empty<ShaderVariantAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Creates one shader binding asset with the supplied layout metadata.
+        /// </summary>
+        /// <param name="name">Binding name.</param>
+        /// <param name="resourceType">Shader resource kind exposed by the binding.</param>
+        /// <param name="set">Logical descriptor set index.</param>
+        /// <param name="slot">Logical binding slot inside the descriptor set.</param>
+        /// <param name="size">Byte size for constant-buffer bindings, or zero for other resource kinds.</param>
+        /// <returns>Shader binding asset configured for layout tests.</returns>
+        static ShaderBindingAsset CreateBinding(string name, ShaderResourceType resourceType, int set, int slot, int size) {
+            return new ShaderBindingAsset {
+                Name = name,
+                Type = resourceType,
+                Set = set,
+                Slot = slot,
+                Size = size,
+                Members = Array.Empty<ShaderConstantMemberAsset>()
+            };
         }
 
         /// <summary>

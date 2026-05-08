@@ -291,6 +291,7 @@ namespace helengine.vulkan {
             material.SetLayout(layout);
             material.SetRenderState(materialAsset.RenderState);
             material.ApplyConstantBufferDefaults(materialAsset.ConstantBuffers ?? Array.Empty<MaterialConstantBufferAsset>());
+            StandardMaterialTextureBindingDefaults.Apply(material);
             material.MaterialDescriptorSet = AllocateMaterialDescriptorSet();
             RegisterMaterial(material);
             return material;

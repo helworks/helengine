@@ -1,6 +1,7 @@
 using helengine.baseplatform.Builders;
 using helengine.baseplatform.Requests;
 using helengine.baseplatform.Results;
+using System.Reflection;
 
 namespace helengine.editor {
     /// <summary>
@@ -15,7 +16,7 @@ namespace helengine.editor {
         /// <summary>
         /// Current payload version for serialized camera component scene records.
         /// </summary>
-        const byte CameraComponentPayloadVersion = 2;
+        const byte CameraComponentPayloadVersion = 3;
 
         /// <summary>
         /// Current payload version for serialized FPS component scene records.
@@ -68,6 +69,16 @@ namespace helengine.editor {
         const string CameraViewportFieldName = "Viewport";
 
         /// <summary>
+        /// Stable tagged field name used for camera near clip-plane persistence.
+        /// </summary>
+        const string CameraNearPlaneDistanceFieldName = "NearPlaneDistance";
+
+        /// <summary>
+        /// Stable tagged field name used for camera far clip-plane persistence.
+        /// </summary>
+        const string CameraFarPlaneDistanceFieldName = "FarPlaneDistance";
+
+        /// <summary>
         /// Stable tagged field name used for camera clear-settings persistence.
         /// </summary>
         const string CameraClearSettingsFieldName = "ClearSettings";
@@ -108,6 +119,46 @@ namespace helengine.editor {
         const string SpotLightComponentTypeId = "helengine.SpotLightComponent";
 
         /// <summary>
+        /// Authored city-script type id for directional-shadow camera orbit motion.
+        /// </summary>
+        const string CityDirectionalShadowCameraOrbitComponentTypeId = "city.rendering.DirectionalShadowCameraOrbitComponent, gameplay";
+
+        /// <summary>
+        /// Authored gameplay-script type id for directional-shadow camera orbit motion.
+        /// </summary>
+        const string GameplayDirectionalShadowCameraOrbitComponentTypeId = "gameplay.rendering.DirectionalShadowCameraOrbitComponent, gameplay";
+
+        /// <summary>
+        /// Authored city-script type id for directional-shadow orbit motion.
+        /// </summary>
+        const string CityDirectionalShadowOrbitComponentTypeId = "city.rendering.DirectionalShadowOrbitComponent, gameplay";
+
+        /// <summary>
+        /// Authored gameplay-script type id for directional-shadow orbit motion.
+        /// </summary>
+        const string GameplayDirectionalShadowOrbitComponentTypeId = "gameplay.rendering.DirectionalShadowOrbitComponent, gameplay";
+
+        /// <summary>
+        /// Authored city-script type id for directional-shadow sun sweep motion.
+        /// </summary>
+        const string CityDirectionalShadowSunSweepComponentTypeId = "city.rendering.DirectionalShadowSunSweepComponent, gameplay";
+
+        /// <summary>
+        /// Authored gameplay-script type id for directional-shadow sun sweep motion.
+        /// </summary>
+        const string GameplayDirectionalShadowSunSweepComponentTypeId = "gameplay.rendering.DirectionalShadowSunSweepComponent, gameplay";
+
+        /// <summary>
+        /// Authored city-script type id for directional-shadow tower spin motion.
+        /// </summary>
+        const string CityDirectionalShadowTowerSpinComponentTypeId = "city.rendering.DirectionalShadowTowerSpinComponent, gameplay";
+
+        /// <summary>
+        /// Authored gameplay-script type id for directional-shadow tower spin motion.
+        /// </summary>
+        const string GameplayDirectionalShadowTowerSpinComponentTypeId = "gameplay.rendering.DirectionalShadowTowerSpinComponent, gameplay";
+
+        /// <summary>
         /// Generated provider id reserved for the editor's built-in font asset.
         /// </summary>
         const string EditorGeneratedProviderId = "editor";
@@ -143,9 +194,18 @@ namespace helengine.editor {
         const string PlaneGeneratedAssetId = "engine:model:plane";
 
         /// <summary>
+        /// Stable generated model asset id for the built-in sphere primitive.
+        /// </summary>
+        const string SphereGeneratedAssetId = "engine:model:sphere";
+
+        /// <summary>
         /// Stable generated material asset id for the built-in standard material.
         /// </summary>
         const string StandardGeneratedMaterialAssetId = "engine:material:standard";
+        /// <summary>
+        /// Folder name used for packaged imported texture assets referenced by material albedo bindings.
+        /// </summary>
+        const string ImportedTextureDirectoryName = "imported";
 
         /// <summary>
         /// Shader source file used by the packaged generated standard material.
@@ -436,6 +496,10 @@ namespace helengine.editor {
                 return true;
             }
 
+            if (TryRewriteDirectionalShadowMotionComponentRecord(record, out transformedRecord)) {
+                return true;
+            }
+
             if (TryRewriteAutomaticComponentRecord(record, out transformedRecord)) {
                 return true;
             }
@@ -463,6 +527,45 @@ namespace helengine.editor {
                 descriptor = null;
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Rewrites one authored directional-shadow motion script component into its built-in player component counterpart when supported.
+        /// </summary>
+        /// <param name="record">Serialized component record to rewrite.</param>
+        /// <param name="transformedRecord">Rewritten component record when successful.</param>
+        /// <returns>True when the record was rewritten to a built-in player component; otherwise false.</returns>
+        bool TryRewriteDirectionalShadowMotionComponentRecord(SceneComponentAssetRecord record, out SceneComponentAssetRecord transformedRecord) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            if (string.Equals(record.ComponentTypeId, CityDirectionalShadowCameraOrbitComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(record.ComponentTypeId, GameplayDirectionalShadowCameraOrbitComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteDirectionalShadowCameraOrbitComponentRecord(record);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, CityDirectionalShadowOrbitComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(record.ComponentTypeId, GameplayDirectionalShadowOrbitComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteDirectionalShadowOrbitComponentRecord(record);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, CityDirectionalShadowSunSweepComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(record.ComponentTypeId, GameplayDirectionalShadowSunSweepComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteDirectionalShadowSunSweepComponentRecord(record);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, CityDirectionalShadowTowerSpinComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(record.ComponentTypeId, GameplayDirectionalShadowTowerSpinComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteDirectionalShadowTowerSpinComponentRecord(record);
+                return true;
+            }
+
+            transformedRecord = null;
+            return false;
         }
 
         /// <summary>
@@ -496,6 +599,184 @@ namespace helengine.editor {
             };
 
             return true;
+        }
+
+        /// <summary>
+        /// Rewrites one authored directional-shadow camera-orbit script record into the built-in player component form.
+        /// </summary>
+        /// <param name="record">Serialized authored script record to rewrite.</param>
+        /// <returns>Rewritten player component record.</returns>
+        SceneComponentAssetRecord RewriteDirectionalShadowCameraOrbitComponentRecord(SceneComponentAssetRecord record) {
+            Component sourceComponent = DeserializeAuthoredDirectionalShadowComponent(record);
+            DirectionalShadowCameraOrbitComponent component = new DirectionalShadowCameraOrbitComponent {
+                OrbitCenter = ReadRequiredFloat3MemberValue(sourceComponent, "OrbitCenter"),
+                OrbitRadius = ReadRequiredSingleMemberValue(sourceComponent, "OrbitRadius"),
+                OrbitHeight = ReadRequiredSingleMemberValue(sourceComponent, "OrbitHeight"),
+                BaseAngleRadians = ReadRequiredSingleMemberValue(sourceComponent, "BaseAngleRadians"),
+                AngularSpeedRadians = ReadRequiredSingleMemberValue(sourceComponent, "AngularSpeedRadians"),
+                LookDownPitchRadians = ReadRequiredSingleMemberValue(sourceComponent, "LookDownPitchRadians")
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(DirectionalShadowMotionComponentScenePayloadSerializer.CurrentVersion);
+            DirectionalShadowMotionComponentScenePayloadSerializer.WriteCameraOrbit(writer, component);
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = DirectionalShadowCameraOrbitComponent.SerializedComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Rewrites one authored directional-shadow orbit script record into the built-in player component form.
+        /// </summary>
+        /// <param name="record">Serialized authored script record to rewrite.</param>
+        /// <returns>Rewritten player component record.</returns>
+        SceneComponentAssetRecord RewriteDirectionalShadowOrbitComponentRecord(SceneComponentAssetRecord record) {
+            Component sourceComponent = DeserializeAuthoredDirectionalShadowComponent(record);
+            DirectionalShadowOrbitComponent component = new DirectionalShadowOrbitComponent {
+                OrbitCenter = ReadRequiredFloat3MemberValue(sourceComponent, "OrbitCenter"),
+                OrbitRadius = ReadRequiredSingleMemberValue(sourceComponent, "OrbitRadius"),
+                OrbitHeight = ReadRequiredSingleMemberValue(sourceComponent, "OrbitHeight"),
+                BaseAngleRadians = ReadRequiredSingleMemberValue(sourceComponent, "BaseAngleRadians"),
+                AngularSpeedRadians = ReadRequiredSingleMemberValue(sourceComponent, "AngularSpeedRadians")
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(DirectionalShadowMotionComponentScenePayloadSerializer.CurrentVersion);
+            DirectionalShadowMotionComponentScenePayloadSerializer.WriteOrbit(writer, component);
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = DirectionalShadowOrbitComponent.SerializedComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Rewrites one authored directional-shadow sun-sweep script record into the built-in player component form.
+        /// </summary>
+        /// <param name="record">Serialized authored script record to rewrite.</param>
+        /// <returns>Rewritten player component record.</returns>
+        SceneComponentAssetRecord RewriteDirectionalShadowSunSweepComponentRecord(SceneComponentAssetRecord record) {
+            Component sourceComponent = DeserializeAuthoredDirectionalShadowComponent(record);
+            DirectionalShadowSunSweepComponent component = new DirectionalShadowSunSweepComponent {
+                MinYawRadians = ReadRequiredSingleMemberValue(sourceComponent, "MinYawRadians"),
+                MaxYawRadians = ReadRequiredSingleMemberValue(sourceComponent, "MaxYawRadians"),
+                PitchRadians = ReadRequiredSingleMemberValue(sourceComponent, "PitchRadians"),
+                SweepSpeedRadians = ReadRequiredSingleMemberValue(sourceComponent, "SweepSpeedRadians")
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(DirectionalShadowMotionComponentScenePayloadSerializer.CurrentVersion);
+            DirectionalShadowMotionComponentScenePayloadSerializer.WriteSunSweep(writer, component);
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = DirectionalShadowSunSweepComponent.SerializedComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Rewrites one authored directional-shadow tower-spin script record into the built-in player component form.
+        /// </summary>
+        /// <param name="record">Serialized authored script record to rewrite.</param>
+        /// <returns>Rewritten player component record.</returns>
+        SceneComponentAssetRecord RewriteDirectionalShadowTowerSpinComponentRecord(SceneComponentAssetRecord record) {
+            Component sourceComponent = DeserializeAuthoredDirectionalShadowComponent(record);
+            DirectionalShadowTowerSpinComponent component = new DirectionalShadowTowerSpinComponent {
+                BaseYawRadians = ReadRequiredSingleMemberValue(sourceComponent, "BaseYawRadians"),
+                AngularSpeedRadians = ReadRequiredSingleMemberValue(sourceComponent, "AngularSpeedRadians")
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(DirectionalShadowMotionComponentScenePayloadSerializer.CurrentVersion);
+            DirectionalShadowMotionComponentScenePayloadSerializer.WriteTowerSpin(writer, component);
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = DirectionalShadowTowerSpinComponent.SerializedComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Deserializes one authored directional-shadow script component through the shared persistence registry.
+        /// </summary>
+        /// <param name="record">Serialized authored script record to materialize.</param>
+        /// <returns>Materialized authored script component.</returns>
+        Component DeserializeAuthoredDirectionalShadowComponent(SceneComponentAssetRecord record) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+            if (!TryResolvePersistenceDescriptor(record.ComponentTypeId, out IComponentPersistenceDescriptor descriptor)) {
+                throw new InvalidOperationException($"No scene persistence descriptor is registered for '{record.ComponentTypeId}'.");
+            }
+
+            return descriptor.DeserializeComponent(record, null, null);
+        }
+
+        /// <summary>
+        /// Reads one required public float member value from the supplied component instance.
+        /// </summary>
+        /// <param name="component">Component instance that owns the member.</param>
+        /// <param name="memberName">Exact public member name to read.</param>
+        /// <returns>Decoded float member value.</returns>
+        static float ReadRequiredSingleMemberValue(Component component, string memberName) {
+            object value = ReadRequiredMemberValue(component, memberName);
+            if (value is not float floatValue) {
+                throw new InvalidOperationException($"Component member '{component.GetType().FullName}.{memberName}' must be a float.");
+            }
+
+            return floatValue;
+        }
+
+        /// <summary>
+        /// Reads one required public <see cref="float3"/> member value from the supplied component instance.
+        /// </summary>
+        /// <param name="component">Component instance that owns the member.</param>
+        /// <param name="memberName">Exact public member name to read.</param>
+        /// <returns>Decoded <see cref="float3"/> member value.</returns>
+        static float3 ReadRequiredFloat3MemberValue(Component component, string memberName) {
+            object value = ReadRequiredMemberValue(component, memberName);
+            if (value is not float3 floatValue) {
+                throw new InvalidOperationException($"Component member '{component.GetType().FullName}.{memberName}' must be a float3.");
+            }
+
+            return floatValue;
+        }
+
+        /// <summary>
+        /// Reads one required public instance member value from the supplied component.
+        /// </summary>
+        /// <param name="component">Component instance that owns the member.</param>
+        /// <param name="memberName">Exact public member name to read.</param>
+        /// <returns>Member value read from the component.</returns>
+        static object ReadRequiredMemberValue(Component component, string memberName) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+            if (string.IsNullOrWhiteSpace(memberName)) {
+                throw new ArgumentException("Member name must be provided.", nameof(memberName));
+            }
+
+            PropertyInfo propertyInfo = component.GetType().GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public);
+            if (propertyInfo != null) {
+                if (propertyInfo.GetMethod == null || !propertyInfo.GetMethod.IsPublic) {
+                    throw new InvalidOperationException($"Component member '{component.GetType().FullName}.{memberName}' must expose a public getter.");
+                }
+
+                return propertyInfo.GetValue(component);
+            }
+
+            FieldInfo fieldInfo = component.GetType().GetField(memberName, BindingFlags.Instance | BindingFlags.Public);
+            if (fieldInfo != null) {
+                return fieldInfo.GetValue(component);
+            }
+
+            throw new InvalidOperationException($"Component member '{component.GetType().FullName}.{memberName}' is required for directional-shadow packaging.");
         }
 
         /// <summary>
@@ -536,6 +817,8 @@ namespace helengine.editor {
                 out byte cameraDrawOrder,
                 out ushort layerMask,
                 out float4 viewport,
+                out float nearPlaneDistance,
+                out float farPlaneDistance,
                 out CameraClearSettings clearSettings,
                 out CameraRenderSettings renderSettings);
 
@@ -545,6 +828,8 @@ namespace helengine.editor {
             writer.WriteByte(cameraDrawOrder);
             writer.WriteUInt16(NormalizePackagedCameraLayerMask(layerMask));
             WriteFloat4(writer, viewport);
+            writer.WriteSingle(nearPlaneDistance);
+            writer.WriteSingle(farPlaneDistance);
             WriteClearSettings(writer, clearSettings);
             WriteRenderSettings(writer, renderSettings ?? new CameraRenderSettings());
 
@@ -603,6 +888,8 @@ namespace helengine.editor {
             out byte cameraDrawOrder,
             out ushort layerMask,
             out float4 viewport,
+            out float nearPlaneDistance,
+            out float farPlaneDistance,
             out CameraClearSettings clearSettings,
             out CameraRenderSettings renderSettings) {
             if (record == null) {
@@ -616,6 +903,8 @@ namespace helengine.editor {
                     out cameraDrawOrder,
                     out layerMask,
                     out viewport,
+                    out nearPlaneDistance,
+                    out farPlaneDistance,
                     out clearSettings,
                     out renderSettings);
                 return;
@@ -626,6 +915,8 @@ namespace helengine.editor {
                 out cameraDrawOrder,
                 out layerMask,
                 out viewport,
+                out nearPlaneDistance,
+                out farPlaneDistance,
                 out clearSettings,
                 out renderSettings);
         }
@@ -906,6 +1197,8 @@ namespace helengine.editor {
             out byte cameraDrawOrder,
             out ushort layerMask,
             out float4 viewport,
+            out float nearPlaneDistance,
+            out float farPlaneDistance,
             out CameraClearSettings clearSettings,
             out CameraRenderSettings renderSettings) {
             if (record == null) {
@@ -918,6 +1211,8 @@ namespace helengine.editor {
             cameraDrawOrder = 0;
             layerMask = 0b11111111;
             viewport = new float4(0f, 0f, 1f, 1f);
+            nearPlaneDistance = 0.1f;
+            farPlaneDistance = 100f;
             clearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
             renderSettings = new CameraRenderSettings();
 
@@ -938,6 +1233,18 @@ namespace helengine.editor {
             if (reader.TryGetFieldReader(CameraViewportFieldName, out EngineBinaryReader viewportReader)) {
                 using (viewportReader) {
                     viewport = viewportReader.ReadFloat4();
+                }
+            }
+
+            if (reader.TryGetFieldReader(CameraNearPlaneDistanceFieldName, out EngineBinaryReader nearPlaneDistanceReader)) {
+                using (nearPlaneDistanceReader) {
+                    nearPlaneDistance = nearPlaneDistanceReader.ReadSingle();
+                }
+            }
+
+            if (reader.TryGetFieldReader(CameraFarPlaneDistanceFieldName, out EngineBinaryReader farPlaneDistanceReader)) {
+                using (farPlaneDistanceReader) {
+                    farPlaneDistance = farPlaneDistanceReader.ReadSingle();
                 }
             }
 
@@ -968,6 +1275,8 @@ namespace helengine.editor {
             out byte cameraDrawOrder,
             out ushort layerMask,
             out float4 viewport,
+            out float nearPlaneDistance,
+            out float farPlaneDistance,
             out CameraClearSettings clearSettings,
             out CameraRenderSettings renderSettings) {
             if (record == null) {
@@ -980,15 +1289,22 @@ namespace helengine.editor {
             using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1 && version != CameraComponentPayloadVersion) {
+            if (version != 1 && version != 2 && version != CameraComponentPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
             }
 
             cameraDrawOrder = reader.ReadByte();
             layerMask = reader.ReadUInt16();
             viewport = ReadFloat4(reader);
+            if (version >= CameraComponentPayloadVersion) {
+                nearPlaneDistance = reader.ReadSingle();
+                farPlaneDistance = reader.ReadSingle();
+            } else {
+                nearPlaneDistance = 0.1f;
+                farPlaneDistance = 100f;
+            }
             clearSettings = ReadClearSettings(reader);
-            renderSettings = version >= CameraComponentPayloadVersion
+            renderSettings = version >= 2
                 ? ReadRenderSettings(reader)
                 : new CameraRenderSettings();
         }
@@ -1335,6 +1651,12 @@ namespace helengine.editor {
                 return CreateFileSystemReference(relativePath);
             }
 
+            if (string.Equals(reference.AssetId, SphereGeneratedAssetId, StringComparison.Ordinal)) {
+                string relativePath = "cooked/engine/models/sphere.hasset";
+                WriteAsset(Path.Combine(buildRootPath, relativePath), ModelUtils.GenerateSphereMesh(float3.Zero, float3.One));
+                return CreateFileSystemReference(relativePath);
+            }
+
             throw new InvalidOperationException($"Unsupported generated model asset id '{reference.AssetId}'.");
         }
 
@@ -1372,10 +1694,64 @@ namespace helengine.editor {
             }
 
             RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
+            CopyReferencedDiffuseTextureAsset(materialAsset, buildRootPath);
 
             string relativePath = NormalizeRelativePath(reference.RelativePath);
             CopyFile(fullPath, Path.Combine(buildRootPath, relativePath));
             return CreateFileSystemReference(relativePath);
+        }
+
+        /// <summary>
+        /// Copies one imported diffuse texture asset referenced by a material into the packaged content root.
+        /// </summary>
+        /// <param name="materialAsset">Material asset whose imported diffuse texture should be packaged.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        void CopyReferencedDiffuseTextureAsset(MaterialAsset materialAsset, string buildRootPath) {
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
+                return;
+            }
+
+            string sourcePath = ResolveImportedTextureAssetPath(materialAsset.DiffuseTextureAssetId);
+            TextureAsset textureAsset = ProjectContentManager.Load<TextureAsset>(sourcePath, EditorContentProcessorIds.TextureAsset);
+            string cookedRelativePath = BuildImportedTextureCookedRelativePath(materialAsset.DiffuseTextureAssetId);
+            WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
+        }
+
+        /// <summary>
+        /// Resolves one imported texture asset id to the serialized cache file produced by the project asset importer.
+        /// </summary>
+        /// <param name="assetId">Imported texture asset identifier stored on the material asset.</param>
+        /// <returns>Absolute path to the serialized cached texture asset.</returns>
+        string ResolveImportedTextureAssetPath(string assetId) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            string projectRootPath = Path.GetDirectoryName(AssetsRootPath);
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new InvalidOperationException("Project root path could not be resolved from the assets root.");
+            }
+
+            return Path.Combine(projectRootPath, "cache", assetId);
+        }
+
+        /// <summary>
+        /// Builds the packaged relative path used for one imported texture asset.
+        /// </summary>
+        /// <param name="assetId">Imported texture asset identifier stored on the material asset.</param>
+        /// <returns>Cooked relative path under the build root.</returns>
+        string BuildImportedTextureCookedRelativePath(string assetId) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            return NormalizeRelativePath(Path.Combine(ImportedTextureDirectoryName, assetId));
         }
 
         /// <summary>

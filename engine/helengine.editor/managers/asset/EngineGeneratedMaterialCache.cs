@@ -91,7 +91,9 @@ namespace helengine.editor {
                 PixelProgram = StandardPixelProgramName,
                 Variant = DefaultVariantName
             };
-            return renderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            RuntimeMaterial runtimeMaterial = renderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            StandardMaterialTextureBindingDefaults.Apply(runtimeMaterial);
+            return runtimeMaterial;
         }
     }
 }

@@ -32,6 +32,11 @@ namespace helengine {
         public string Variant;
 
         /// <summary>
+        /// Gets or sets the asset identifier for the authored albedo texture bound by this material.
+        /// </summary>
+        public string DiffuseTextureAssetId;
+
+        /// <summary>
         /// Gets or sets the asset identifier for the authored normal texture bound by this material.
         /// </summary>
         public string NormalTextureAssetId;

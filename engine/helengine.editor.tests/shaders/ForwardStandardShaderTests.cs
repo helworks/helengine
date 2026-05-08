@@ -3,11 +3,11 @@ using Xunit;
 
 namespace helengine.editor.tests.shaders {
     /// <summary>
-    /// Verifies the built-in forward standard shader compiles for both renderer backends and keeps the material layout engine-managed.
+    /// Verifies the built-in forward standard shader compiles for both renderer backends and exposes the expected albedo-texture material contract.
     /// </summary>
     public class ForwardStandardShaderTests {
         /// <summary>
-        /// Ensures the built-in forward standard shader compiles for DirectX11 and exposes no user-authored material bindings.
+        /// Ensures the built-in forward standard shader compiles for DirectX11 and exposes one authored diffuse-texture binding.
         /// </summary>
         [Fact]
         public void LoadShaderAsset_WhenCompilingForDirectX11_ProducesAnEmptyMaterialLayout() {
@@ -15,7 +15,7 @@ namespace helengine.editor.tests.shaders {
         }
 
         /// <summary>
-        /// Ensures the built-in forward standard shader compiles for Vulkan and exposes no user-authored material bindings.
+        /// Ensures the built-in forward standard shader compiles for Vulkan and exposes one authored diffuse-texture binding.
         /// </summary>
         [Fact]
         public void LoadShaderAsset_WhenCompilingForVulkan_ProducesAnEmptyMaterialLayout() {
@@ -35,9 +35,10 @@ namespace helengine.editor.tests.shaders {
 
             MaterialLayout layout = MaterialLayoutBuilder.Build(CreateMaterialAsset(shaderAsset.Id), shaderAsset);
 
-            Assert.Empty(layout.TextureBindings);
-            Assert.Empty(layout.ConstantBufferBindings);
-            Assert.Empty(layout.SamplerBindings);
+            Assert.Contains(layout.TextureBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
+            Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == "ForwardLightBuffer");
+            Assert.Contains(layout.ConstantBufferBindings, binding => binding.Name == "ShadowBuffer");
+            Assert.Contains(layout.SamplerBindings, binding => binding.Name == StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName + "Sampler");
         }
 
         /// <summary>

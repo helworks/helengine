@@ -51,6 +51,8 @@ TextureCube pointShadowTexture1 : register(t3);
 TextureCube pointShadowTexture2 : register(t4);
 TextureCube pointShadowTexture3 : register(t5);
 SamplerState pointShadowSampler : register(s2);
+Texture2D DiffuseTexture : register(t0);
+SamplerState DiffuseTextureSampler : register(s0);
 
 struct VS_IN
 {
@@ -64,6 +66,7 @@ struct PS_IN
     float4 pos : SV_POSITION;
     float3 worldPos : TEXCOORD0;
     float3 normal : TEXCOORD1;
+    float2 texCoord : TEXCOORD2;
 };
 
 PS_IN VS(VS_IN input)
@@ -73,6 +76,7 @@ PS_IN VS(VS_IN input)
     output.pos = mul(float4(input.pos, 1.0f), worldViewProj);
     output.worldPos = worldPosition.xyz;
     output.normal = mul(float4(input.normal, 0.0f), normalMatrix).xyz;
+    output.texCoord = input.texCoord;
     return output;
 }
 
@@ -244,7 +248,7 @@ float3 EvaluateForwardLight(
 
 float4 PS(PS_IN input) : SV_Target
 {
-    float3 surfaceColor = float3(0.78f, 0.80f, 0.84f);
+    float3 surfaceColor = DiffuseTexture.Sample(DiffuseTextureSampler, input.texCoord).rgb;
     float3 ambientColor = float3(0.12f, 0.13f, 0.15f);
     float3 normal = normalize(input.normal);
     float3 viewDirection = normalize(cameraPosition.xyz - input.worldPos);

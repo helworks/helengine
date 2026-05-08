@@ -42,20 +42,11 @@ namespace helengine.editor.tests.testing {
             }
 
             var material = new TestRuntimeMaterial();
-            material.SetLayout(new MaterialLayout(
-                materialAsset.ShaderAssetId,
-                materialAsset.VertexProgram,
-                materialAsset.PixelProgram,
-                materialAsset.Variant,
-                materialAsset.RenderState ?? new MaterialRenderState(),
-                new[] {
-                    new MaterialLayoutBinding("LabelTexture", ShaderResourceType.Texture2D, 0, 0, 0)
-                },
-                Array.Empty<MaterialLayoutBinding>(),
-                Array.Empty<MaterialLayoutBinding>()));
+            material.SetLayout(MaterialLayoutBuilder.Build(materialAsset, shaderAsset));
             material.LightingModel = RuntimeMaterialLightingModel.MetalRoughPbr;
             material.SupportsNormalMapping = !string.IsNullOrWhiteSpace(materialAsset.NormalTextureAssetId);
             material.SupportsEmissive = !string.IsNullOrWhiteSpace(materialAsset.EmissiveTextureAssetId);
+            StandardMaterialTextureBindingDefaults.Apply(material);
             return material;
         }
 

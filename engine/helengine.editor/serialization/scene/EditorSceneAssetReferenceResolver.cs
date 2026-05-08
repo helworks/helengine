@@ -17,6 +17,10 @@ namespace helengine.editor {
         /// Absolute path to the project assets folder.
         /// </summary>
         readonly string AssetsRootPath;
+        /// <summary>
+        /// Absolute path to the project imported-asset cache folder.
+        /// </summary>
+        readonly string ImportRootPath;
 
         /// <summary>
         /// Content manager used to load file-backed model and material assets.
@@ -46,6 +50,7 @@ namespace helengine.editor {
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "assets"));
+            ImportRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "cache"));
             AssetContentManager = assetContentManager;
         }
 
@@ -68,6 +73,7 @@ namespace helengine.editor {
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "assets"));
+            ImportRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "cache"));
             AssetContentManager = assetContentManager;
             FileSystemModelResolver = fileSystemModelResolver;
         }
@@ -99,6 +105,7 @@ namespace helengine.editor {
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "assets"));
+            ImportRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "cache"));
             AssetContentManager = assetContentManager;
             FileSystemModelResolver = fileSystemModelResolver;
             FileSystemFontResolver = fileSystemFontResolver;
@@ -209,7 +216,49 @@ namespace helengine.editor {
             }
 
             ShaderAsset shaderAsset = EditorShaderPackageService.LoadShaderAsset(materialAsset.ShaderAssetId);
-            return Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset);
+            return runtimeMaterial;
+        }
+
+        /// <summary>
+        /// Applies one authored diffuse texture to the resolved runtime material when the material asset references one.
+        /// </summary>
+        /// <param name="runtimeMaterial">Runtime material that should receive the diffuse texture.</param>
+        /// <param name="materialAsset">Serialized material asset that declares the authored diffuse texture asset id.</param>
+        void ApplyMaterialDiffuseTexture(RuntimeMaterial runtimeMaterial, MaterialAsset materialAsset) {
+            if (runtimeMaterial == null) {
+                throw new ArgumentNullException(nameof(runtimeMaterial));
+            }
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+            if (string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
+                return;
+            }
+
+            string diffuseTexturePath = ResolveImportedTextureAssetPath(materialAsset.DiffuseTextureAssetId);
+            TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, EditorContentProcessorIds.TextureAsset);
+            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+            runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
+        }
+
+        /// <summary>
+        /// Resolves one imported texture asset id to the serialized cache file produced by the project asset importer.
+        /// </summary>
+        /// <param name="assetId">Imported texture asset identifier stored on the material asset.</param>
+        /// <returns>Absolute path to the serialized cached texture asset.</returns>
+        string ResolveImportedTextureAssetPath(string assetId) {
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            string fullPath = Path.GetFullPath(Path.Combine(ImportRootPath, assetId));
+            if (!IsPathInsideImportRoot(fullPath)) {
+                throw new InvalidOperationException("Imported texture asset references must stay inside the project cache folder.");
+            }
+
+            return fullPath;
         }
 
         /// <summary>
@@ -303,6 +352,30 @@ namespace helengine.editor {
                 rootWithSeparator = AssetsRootPath;
             } else {
                 rootWithSeparator = AssetsRootPath + Path.DirectorySeparatorChar;
+            }
+
+            return fullPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Determines whether one absolute path points inside the project imported-asset cache folder.
+        /// </summary>
+        /// <param name="fullPath">Absolute path to validate.</param>
+        /// <returns>True when the path points inside the current project cache folder.</returns>
+        bool IsPathInsideImportRoot(string fullPath) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                return false;
+            }
+
+            if (string.Equals(fullPath, ImportRootPath, StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+
+            string rootWithSeparator;
+            if (ImportRootPath.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)) {
+                rootWithSeparator = ImportRootPath;
+            } else {
+                rootWithSeparator = ImportRootPath + Path.DirectorySeparatorChar;
             }
 
             return fullPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
