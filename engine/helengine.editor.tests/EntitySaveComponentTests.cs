@@ -60,6 +60,36 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures per-component save-state can store and retrieve one platform override entry.
+        /// </summary>
+        [Fact]
+        public void EntityComponentSaveState_WhenPlatformOverrideIsStored_CanReadItBack() {
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            MeshComponent component = new MeshComponent();
+            EntityComponentSaveState saveState = saveComponent.GetOrCreateComponentState(component);
+            Type overrideStateType = ResolveRequiredType("helengine.EntityComponentPlatformOverrideState");
+            object overrideState = Activator.CreateInstance(overrideStateType);
+
+            overrideStateType.GetProperty("PlatformId").SetValue(overrideState, "windows");
+            overrideStateType.GetProperty("Payload").SetValue(overrideState, new byte[] { 1, 2, 3, 4 });
+
+            MethodInfo setMethod = typeof(EntityComponentSaveState).GetMethod("SetPlatformOverride", BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(setMethod);
+            setMethod.Invoke(saveState, new[] { "windows", overrideState });
+
+            MethodInfo tryGetMethod = typeof(EntityComponentSaveState).GetMethod("TryGetPlatformOverride", BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(tryGetMethod);
+
+            object[] arguments = new object[] { "windows", null };
+            bool found = Assert.IsType<bool>(tryGetMethod.Invoke(saveState, arguments));
+
+            Assert.True(found);
+            Assert.NotNull(arguments[1]);
+            Assert.Equal("windows", Assert.IsType<string>(overrideStateType.GetProperty("PlatformId").GetValue(arguments[1])));
+            Assert.Equal(new byte[] { 1, 2, 3, 4 }, Assert.IsType<byte[]>(overrideStateType.GetProperty("Payload").GetValue(arguments[1])));
+        }
+
+        /// <summary>
         /// Reads the active component rows from the properties view.
         /// </summary>
         /// <param name="view">View whose active rows should be inspected.</param>
@@ -67,6 +97,17 @@ namespace helengine.editor.tests {
         List<ComponentPropertyRow> GetActiveRows(ComponentPropertiesView view) {
             FieldInfo field = typeof(ComponentPropertiesView).GetField("ActiveRows", BindingFlags.Instance | BindingFlags.NonPublic);
             return Assert.IsType<List<ComponentPropertyRow>>(field.GetValue(view));
+        }
+
+        /// <summary>
+        /// Resolves one required runtime type from the editor assembly.
+        /// </summary>
+        /// <param name="typeName">Assembly-qualified full name to resolve.</param>
+        /// <returns>Resolved runtime type.</returns>
+        Type ResolveRequiredType(string typeName) {
+            Type type = typeof(EntityComponentSaveState).Assembly.GetType(typeName, false);
+            Assert.NotNull(type);
+            return type;
         }
 
         /// <summary>

@@ -1,3 +1,4 @@
+using System.Reflection;
 using helengine.editor;
 using helengine.editor.tests.testing;
 using Xunit;
@@ -461,6 +462,56 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures editor-only component platform overrides round-trip through scene save and load without adding duplicate live components.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenCameraHasWindowsOverride_RoundTripsOverrideMetadataWithoutAddingExtraLiveComponents() {
+            EditorEntity root = CreateUserEntity("Camera", float3.Zero, float3.One, float4.Identity);
+            CameraComponent camera = new CameraComponent {
+                FarPlaneDistance = 100f
+            };
+            root.AddComponent(camera);
+
+            CameraComponent windowsOverrideCamera = new CameraComponent {
+                FarPlaneDistance = 200f
+            };
+
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
+            registry.Register(descriptor);
+
+            SceneComponentAssetRecord overrideRecord = descriptor.SerializeComponent(windowsOverrideCamera, 0, null);
+            AttachPlatformOverridePayload(root, camera, "windows", overrideRecord.Payload);
+
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CameraPlatformOverride.helen");
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
+
+            EditorEntity loadedRoot = Assert.Single(loadedRoots);
+            CameraComponent loadedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedRoot.Components, component => component is CameraComponent));
+            Assert.Equal(100f, loadedCamera.FarPlaneDistance);
+
+            EntitySaveComponent saveComponent = GetSaveComponent(loadedRoot);
+            Assert.True(saveComponent.TryGetComponentState(loadedCamera, out EntityComponentSaveState loadedSaveState));
+            Assert.True(TryGetPlatformOverride(loadedSaveState, "windows", out object loadedOverrideState));
+
+            Type overrideStateType = ResolveRequiredType("helengine.EntityComponentPlatformOverrideState");
+            byte[] loadedPayload = Assert.IsType<byte[]>(overrideStateType.GetProperty("Payload").GetValue(loadedOverrideState));
+
+            Assert.Equal(overrideRecord.Payload, loadedPayload);
+            Assert.Single(loadedRoot.Components, component => component is CameraComponent);
+        }
+
+        /// <summary>
         /// Creates one user-authored editor entity configured for scene serialization.
         /// </summary>
         /// <param name="name">Display name assigned to the entity.</param>
@@ -489,6 +540,44 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Attaches one editor-only platform override payload to one persisted component.
+        /// </summary>
+        /// <param name="entity">Entity that owns the component.</param>
+        /// <param name="component">Component whose save-state should receive the override.</param>
+        /// <param name="platformId">Platform identifier that owns the override.</param>
+        /// <param name="payload">Serialized override payload.</param>
+        void AttachPlatformOverridePayload(EditorEntity entity, Component component, string platformId, byte[] payload) {
+            EntitySaveComponent saveComponent = GetSaveComponent(entity);
+            EntityComponentSaveState saveState = saveComponent.GetOrCreateComponentState(component);
+            Type overrideStateType = ResolveRequiredType("helengine.EntityComponentPlatformOverrideState");
+            object overrideState = Activator.CreateInstance(overrideStateType);
+
+            overrideStateType.GetProperty("PlatformId").SetValue(overrideState, platformId);
+            overrideStateType.GetProperty("Payload").SetValue(overrideState, payload);
+
+            MethodInfo setMethod = typeof(EntityComponentSaveState).GetMethod("SetPlatformOverride", BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(setMethod);
+            setMethod.Invoke(saveState, new[] { platformId, overrideState });
+        }
+
+        /// <summary>
+        /// Attempts to read one platform override entry from one component save-state.
+        /// </summary>
+        /// <param name="saveState">Component save-state that owns the override entries.</param>
+        /// <param name="platformId">Platform identifier to resolve.</param>
+        /// <param name="overrideState">Resolved override entry when one exists.</param>
+        /// <returns>True when the requested override exists.</returns>
+        bool TryGetPlatformOverride(EntityComponentSaveState saveState, string platformId, out object overrideState) {
+            MethodInfo tryGetMethod = typeof(EntityComponentSaveState).GetMethod("TryGetPlatformOverride", BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(tryGetMethod);
+
+            object[] arguments = new object[] { platformId, null };
+            bool found = Assert.IsType<bool>(tryGetMethod.Invoke(saveState, arguments));
+            overrideState = arguments[1];
+            return found;
+        }
+
+        /// <summary>
         /// Finds the mesh component attached to one editor entity.
         /// </summary>
         /// <param name="entity">Entity whose mesh component should be returned.</param>
@@ -513,6 +602,17 @@ namespace helengine.editor.tests.serialization.scene {
                 16f,
                 1,
                 1);
+        }
+
+        /// <summary>
+        /// Resolves one required editor runtime type by full name.
+        /// </summary>
+        /// <param name="typeName">Full type name to resolve from the editor assembly.</param>
+        /// <returns>Resolved runtime type.</returns>
+        Type ResolveRequiredType(string typeName) {
+            Type type = typeof(EntityComponentSaveState).Assembly.GetType(typeName, false);
+            Assert.NotNull(type);
+            return type;
         }
     }
 }

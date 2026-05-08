@@ -219,6 +219,9 @@ namespace helengine.editor.tests {
             ComponentAddDialog dialog = GetPrivateField<ComponentAddDialog>(panel, "AddComponentDialog");
             dialog.Hide();
 
+            FieldInfo blockersField = typeof(EditorInputCaptureService).GetField("Blockers", BindingFlags.Static | BindingFlags.NonPublic);
+            System.Collections.IDictionary blockers = Assert.IsAssignableFrom<System.Collections.IDictionary>(blockersField.GetValue(null));
+            Assert.True(blockers.Count == 0, "Remaining blockers: " + string.Join(", ", blockers.Keys.Cast<object>().Select(value => value.GetType().FullName)));
             Assert.False(EditorInputCaptureService.IsPointerBlocked(new int2(100, 100)));
         }
 
@@ -352,6 +355,27 @@ namespace helengine.editor.tests {
 
             Assert.Equal(ComponentAddDialog.PanelWidth - (ComponentAddDialog.PanelPadding * 2), addButton.Size.X);
             Assert.Equal(ComponentAddDialog.FooterButtonHeight, addButton.Size.Y);
+        }
+
+        /// <summary>
+        /// Ensures entity inspection shows one shared platform tab strip directly under the entity identity controls.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenEntityIsSelected_ShowsPlatformTabsDirectlyUnderEntityName() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Cube"
+            };
+            entity.AddComponent(new CameraComponent());
+
+            panel.ShowEntityProperties(entity);
+
+            PlatformTabStripView tabStrip = GetPrivateField<PlatformTabStripView>(panel, "ComponentPlatformTabStrip");
+            EditorEntity nameRow = GetPrivateField<EditorEntity>(panel, "NameRow");
+
+            Assert.True(tabStrip.Root.Enabled);
+            Assert.Equal("common", tabStrip.SelectedPlatformId);
+            Assert.True(tabStrip.Root.Position.Y >= nameRow.Position.Y);
         }
 
         /// <summary>

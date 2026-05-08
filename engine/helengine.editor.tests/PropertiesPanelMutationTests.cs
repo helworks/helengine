@@ -186,6 +186,37 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures editing a component on a platform tab creates an independent override without mutating the common live component.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenWindowsTabScalarFieldIsSubmitted_CreatesIndependentOverrideWithoutChangingTheCommonComponent() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Camera"
+            };
+            CameraComponent camera = new CameraComponent {
+                FarPlaneDistance = 100f
+            };
+            entity.AddComponent(camera);
+
+            panel.ShowEntityProperties(entity);
+            SelectInspectorPlatform(panel, "windows");
+
+            ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            ComponentPropertyRow farPlaneRow = GetSingleRow(view, "Far Plane Distance");
+            farPlaneRow.ScalarField.Text = "200";
+
+            MethodInfo submitMethod = typeof(ComponentPropertiesView).GetMethod("HandleScalarSubmitted", BindingFlags.Instance | BindingFlags.NonPublic);
+            submitMethod.Invoke(view, new object[] { farPlaneRow.ScalarField });
+
+            Assert.Equal(100f, camera.FarPlaneDistance);
+
+            EntitySaveComponent saveComponent = GetSaveComponent(entity);
+            EntityComponentSaveState saveState = saveComponent.GetOrCreateComponentState(camera);
+            Assert.True(HasPlatformOverride(saveState, "windows"));
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>
@@ -238,6 +269,38 @@ namespace helengine.editor.tests {
         void InvokeNestedSectionToggle(ComponentPropertiesView view, ComponentPropertyRow row) {
             MethodInfo toggleMethod = typeof(ComponentPropertiesView).GetMethod("HandleCustomSectionPressed", BindingFlags.Instance | BindingFlags.NonPublic);
             toggleMethod.Invoke(view, new object[] { row });
+        }
+
+        /// <summary>
+        /// Switches the component inspector into one platform context.
+        /// </summary>
+        /// <param name="panel">Panel whose platform context should change.</param>
+        /// <param name="platformId">Platform identifier to activate.</param>
+        void SelectInspectorPlatform(PropertiesPanel panel, string platformId) {
+            MethodInfo method = panel.GetType().GetMethod("HandleComponentPlatformTabChanged", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(method);
+            method.Invoke(panel, new object[] { platformId });
+        }
+
+        /// <summary>
+        /// Returns whether one component save-state exposes one platform override entry.
+        /// </summary>
+        /// <param name="saveState">Save-state whose platform override entry should be checked.</param>
+        /// <param name="platformId">Platform identifier to resolve.</param>
+        /// <returns>True when one override entry exists for the platform.</returns>
+        bool HasPlatformOverride(EntityComponentSaveState saveState, string platformId) {
+            MethodInfo method = typeof(EntityComponentSaveState).GetMethod("HasPlatformOverride", BindingFlags.Instance | BindingFlags.Public);
+            Assert.NotNull(method);
+            return Assert.IsType<bool>(method.Invoke(saveState, new object[] { platformId }));
+        }
+
+        /// <summary>
+        /// Retrieves the hidden save component attached to one editor entity.
+        /// </summary>
+        /// <param name="entity">Entity whose save component should be returned.</param>
+        /// <returns>Attached hidden save component.</returns>
+        EntitySaveComponent GetSaveComponent(EditorEntity entity) {
+            return Assert.IsType<EntitySaveComponent>(Assert.Single(entity.Components, component => component is EntitySaveComponent));
         }
 
         /// <summary>
