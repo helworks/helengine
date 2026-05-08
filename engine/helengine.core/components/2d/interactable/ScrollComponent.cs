@@ -1,8 +1,8 @@
 namespace helengine {
     /// <summary>
-    /// Tracks wheel-driven list scrolling for a rectangular viewport and exposes the current offset in item units.
+    /// Tracks wheel-driven list scrolling for a rectangular viewport, acts as its own clip region, derives the visible range when needed, and can translate a bound content root automatically.
     /// </summary>
-    public class ScrollComponent : UpdateComponent {
+    public class ScrollComponent : UpdateComponent, IClipRegion2D {
         /// <summary>
         /// Standard mouse-wheel delta used to represent one notch on Windows-compatible devices.
         /// </summary>
@@ -19,7 +19,12 @@ namespace helengine {
         int ItemCountValue;
 
         /// <summary>
-        /// Number of items visible inside the current viewport.
+        /// Pixel height or extent consumed by one item in the scrolling content.
+        /// </summary>
+        int ItemExtentValue = 1;
+
+        /// <summary>
+        /// Number of items visible inside the current viewport, or zero when the component should derive it automatically.
         /// </summary>
         int VisibleItemCountValue;
 
@@ -37,6 +42,11 @@ namespace helengine {
         /// Tracks whether wheel scrolling should only occur while the pointer is inside the viewport.
         /// </summary>
         bool RequiresPointerInsideValue = true;
+
+        /// <summary>
+        /// Optional content root that should be translated when the scroll offset changes.
+        /// </summary>
+        Entity ContentRootValue;
 
         /// <summary>
         /// Raised when the scroll offset changes because of wheel input or an explicit scroll request.
@@ -74,9 +84,10 @@ namespace helengine {
 
         /// <summary>
         /// Gets or sets the number of items visible in the viewport.
+        /// When set to zero, the component derives the value from the viewport height and item extent.
         /// </summary>
         public int VisibleItemCount {
-            get { return VisibleItemCountValue; }
+            get { return GetVisibleItemCount(); }
             set {
                 if (value < 0) {
                     throw new ArgumentOutOfRangeException(nameof(value), "Visible item count must be zero or greater.");
@@ -88,16 +99,43 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets or sets the item extent used when the visible item count is derived automatically.
+        /// </summary>
+        public int ItemExtent {
+            get { return ItemExtentValue; }
+            set {
+                if (value < 1) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Item extent must be at least one.");
+                }
+
+                ItemExtentValue = value;
+                ClampScrollOffset();
+                ApplyContentRootOffset();
+            }
+        }
+
+        /// <summary>
         /// Gets the maximum scroll offset allowed by the current item and viewport counts.
         /// </summary>
         public int MaximumScrollOffset {
-            get { return Math.Max(0, ItemCountValue - VisibleItemCountValue); }
+            get { return Math.Max(0, ItemCountValue - GetVisibleItemCount()); }
         }
 
         /// <summary>
         /// Gets the current scroll offset in item units.
         /// </summary>
         public int ScrollOffset { get; private set; }
+
+        /// <summary>
+        /// Gets or sets the content root that should move in response to the current scroll offset.
+        /// </summary>
+        public Entity ContentRoot {
+            get { return ContentRootValue; }
+            set {
+                ContentRootValue = value;
+                ApplyContentRootOffset();
+            }
+        }
 
         /// <summary>
         /// Gets or sets the number of items to move for each wheel notch.
@@ -153,7 +191,7 @@ namespace helengine {
                 return false;
             }
 
-            float4 viewportRect = ResolveViewportRect();
+            float4 viewportRect = GetClipRect();
             return x >= viewportRect.X &&
                    x < viewportRect.X + viewportRect.Z &&
                    y >= viewportRect.Y &&
@@ -164,14 +202,14 @@ namespace helengine {
         /// Resets the scroll offset to the first visible item without raising a change event.
         /// </summary>
         public void ResetScrollOffset() {
-            ScrollOffset = 0;
+            SetScrollOffset(0, false);
         }
 
         /// <summary>
         /// Clamps the current scroll offset to the active item range without raising a change event.
         /// </summary>
         public void ClampScrollOffset() {
-            ScrollOffset = ClampOffset(ScrollOffset);
+            SetScrollOffset(ScrollOffset, false);
         }
 
         /// <summary>
@@ -232,7 +270,33 @@ namespace helengine {
                 ScrollOffsetChanged(this, ScrollOffset);
             }
 
+            ApplyContentRootOffset();
             return true;
+        }
+
+        /// <summary>
+        /// Applies the current scroll offset to the bound content root when one exists.
+        /// </summary>
+        void ApplyContentRootOffset() {
+            if (ContentRootValue == null) {
+                return;
+            }
+
+            float3 position = ContentRootValue.LocalPosition;
+            ContentRootValue.LocalPosition = new float3(position.X, -(ScrollOffset * ItemExtentValue), position.Z);
+        }
+
+        /// <summary>
+        /// Gets the clip rectangle used by descendants and pointer hit testing.
+        /// </summary>
+        /// <returns>Viewport rectangle expressed as X, Y, Width, Height.</returns>
+        public float4 GetClipRect() {
+            if (Parent == null) {
+                throw new InvalidOperationException("Scroll components require an attached parent entity.");
+            }
+
+            float3 origin = Parent.Position;
+            return new float4(origin.X, origin.Y, SizeValue.X, SizeValue.Y);
         }
 
         /// <summary>
@@ -254,55 +318,20 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves the screen-space viewport rectangle used for pointer hit testing.
+        /// Resolves the item count visible in the current viewport.
         /// </summary>
-        /// <returns>Viewport rectangle expressed as X, Y, Width, Height.</returns>
-        float4 ResolveViewportRect() {
-            if (TryResolveAncestorClipRect(out float4 clipRect)) {
-                return clipRect;
+        /// <returns>Visible item count derived from the viewport or an explicit override.</returns>
+        int GetVisibleItemCount() {
+            if (VisibleItemCountValue > 0) {
+                return VisibleItemCountValue;
             }
 
-            float3 origin = Parent.Position;
-            return new float4(origin.X, origin.Y, SizeValue.X, SizeValue.Y);
-        }
-
-        /// <summary>
-        /// Attempts to resolve the nearest ancestor clip rectangle that should own pointer hit testing for this scroll component.
-        /// </summary>
-        /// <param name="clipRect">Resolved ancestor clip rectangle when one exists.</param>
-        /// <returns>True when an ancestor clip region was found.</returns>
-        bool TryResolveAncestorClipRect(out float4 clipRect) {
-            Entity ancestorEntity = Parent;
-            while (ancestorEntity != null) {
-                if (TryResolveClipRect(ancestorEntity, out clipRect)) {
-                    return true;
-                }
-
-                ancestorEntity = ancestorEntity.Parent;
+            int extent = ItemExtentValue;
+            if (extent <= 0) {
+                return 1;
             }
 
-            clipRect = new float4(0, 0, 0, 0);
-            return false;
-        }
-
-        /// <summary>
-        /// Attempts to resolve one clip rectangle declared directly on the supplied entity.
-        /// </summary>
-        /// <param name="entity">Entity whose clip-region components should be inspected.</param>
-        /// <param name="clipRect">Resolved clip rectangle when one exists.</param>
-        /// <returns>True when the entity exposes a clip region.</returns>
-        bool TryResolveClipRect(Entity entity, out float4 clipRect) {
-            if (entity != null && entity.Components != null) {
-                for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
-                    if (entity.Components[componentIndex] is IClipRegion2D clipRegion) {
-                        clipRect = clipRegion.GetClipRect();
-                        return true;
-                    }
-                }
-            }
-
-            clipRect = new float4(0, 0, 0, 0);
-            return false;
+            return Math.Max(1, (SizeValue.Y + extent - 1) / extent);
         }
     }
 }

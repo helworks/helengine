@@ -39,10 +39,11 @@ public class IPlatformAssetBuilderMetadataTests {
             "directx11",
             "standard-shader",
             new Dictionary<string, string> {
+                ["use-custom-shader"] = "false",
                 ["shader-asset-id"] = "ForwardStandardShader",
                 ["vertex-program"] = "ForwardStandardShader.vs",
                 ["pixel-program"] = "ForwardStandardShader.ps",
-                ["variant"] = "default",
+                ["variant"] = "Mesh",
                 ["base-color"] = "#336699"
             }));
 

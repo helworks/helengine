@@ -22,7 +22,7 @@ public sealed class MaterialAssetSchemaSettingsServiceTests {
 
         Assert.Equal("shader-textured", selectedSchema.SchemaId);
         Assert.Equal("shader-textured", settings.SchemaId);
-        Assert.Equal("default", settings.FieldValues["variant"]);
+        Assert.Equal("false", settings.FieldValues["use-custom-shader"]);
         Assert.Equal("Textures/Diffuse.png", settings.FieldValues["texture-id"]);
         Assert.False(settings.FieldValues.ContainsKey("obsolete"));
     }
@@ -35,7 +35,7 @@ public sealed class MaterialAssetSchemaSettingsServiceTests {
         MaterialAssetProcessorSettings settings = new MaterialAssetProcessorSettings();
         settings.SchemaId = "shader-textured";
         settings.FieldValues["texture-id"] = "Textures/Brick.png";
-        settings.FieldValues["variant"] = "skinned";
+        settings.FieldValues["use-custom-shader"] = "true";
         settings.FieldValues["obsolete"] = "remove-me";
 
         MaterialAssetSchemaSettingsService service = new MaterialAssetSchemaSettingsService();
@@ -46,7 +46,7 @@ public sealed class MaterialAssetSchemaSettingsServiceTests {
         Assert.Equal("fixed-textured", settings.SchemaId);
         Assert.Equal("Textures/Brick.png", settings.FieldValues["texture-id"]);
         Assert.Equal("true", settings.FieldValues["lighting-enabled"]);
-        Assert.False(settings.FieldValues.ContainsKey("variant"));
+        Assert.False(settings.FieldValues.ContainsKey("use-custom-shader"));
         Assert.False(settings.FieldValues.ContainsKey("obsolete"));
     }
 
@@ -62,19 +62,19 @@ public sealed class MaterialAssetSchemaSettingsServiceTests {
                 ["directx11"],
                 [
                     new PlatformMaterialFieldDefinition(
+                        "use-custom-shader",
+                        "Use Custom Shader",
+                        PlatformMaterialFieldKind.Boolean,
+                        "false",
+                        true,
+                        []),
+                    new PlatformMaterialFieldDefinition(
                         "texture-id",
                         "Texture",
                         PlatformMaterialFieldKind.AssetReference,
                         "Textures/Diffuse.png",
                         true,
-                        []),
-                    new PlatformMaterialFieldDefinition(
-                        "variant",
-                        "Variant",
-                        PlatformMaterialFieldKind.Choice,
-                        "default",
-                        true,
-                        ["default", "skinned"])
+                        [])
                 ]),
             new PlatformMaterialSchemaDefinition(
                 "fixed-textured",

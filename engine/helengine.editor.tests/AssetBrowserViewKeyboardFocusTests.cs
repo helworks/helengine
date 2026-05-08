@@ -131,6 +131,57 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the browser derives the visible item count from the viewport and uses the scroll component as the clip region.
+        /// </summary>
+        [Fact]
+        public void AssetBrowserView_WhenEntriesExceedViewport_ScrollsAutomatically() {
+            string projectRoot = CreateProjectRoot();
+            Directory.CreateDirectory(Path.Combine(projectRoot, "assets", "buffer"));
+            Directory.CreateDirectory(Path.Combine(projectRoot, "assets", "folder"));
+            Directory.CreateDirectory(Path.Combine(projectRoot, "assets", "home"));
+            Directory.CreateDirectory(Path.Combine(projectRoot, "assets", "logger"));
+            Directory.CreateDirectory(Path.Combine(projectRoot, "assets", "model"));
+            Directory.CreateDirectory(Path.Combine(projectRoot, "assets", "output"));
+            Directory.CreateDirectory(Path.Combine(projectRoot, "assets", "robot"));
+            Directory.CreateDirectory(Path.Combine(projectRoot, "assets", "ruler"));
+
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = projectRoot
+            });
+            TestInputBackend input = new TestInputBackend();
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input);
+
+            AssetBrowserView browserView = new AssetBrowserView(
+                CreateFont(),
+                projectRoot,
+                EditorLayerMasks.EditorUi,
+                1,
+                2,
+                3,
+                4);
+
+            int browserHeight = AssetBrowserView.ToolbarHeight + (AssetBrowserView.RowHeight * 4) - 1;
+            browserView.UpdateLayout(320, browserHeight);
+
+            ScrollComponent scrollComponent = GetPrivateField<ScrollComponent>(browserView, "ListScrollComponent");
+            EditorEntity listRoot = GetPrivateField<EditorEntity>(browserView, "ListRoot");
+            float4 clipRect = scrollComponent.GetClipRect();
+
+            Assert.Equal(320f, clipRect.Z);
+            Assert.Equal((float)AssetBrowserView.ToolbarHeight, clipRect.Y);
+            Assert.Equal((float)(AssetBrowserView.RowHeight * 4 - 1), clipRect.W);
+            Assert.Equal(4, scrollComponent.VisibleItemCount);
+            Assert.Equal(0, scrollComponent.ScrollOffset);
+            Assert.Equal(0f, listRoot.LocalPosition.Y);
+
+            input.SetMouseState(new MouseState(40, 60, -120, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            Core.Instance.Update();
+
+            Assert.Equal(1, scrollComponent.ScrollOffset);
+            Assert.Equal(-AssetBrowserView.RowHeight, listRoot.LocalPosition.Y);
+        }
+
+        /// <summary>
         /// Creates a temporary project root with an assets directory.
         /// </summary>
         /// <returns>Path to the new project root.</returns>

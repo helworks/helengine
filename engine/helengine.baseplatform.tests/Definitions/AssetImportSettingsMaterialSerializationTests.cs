@@ -44,8 +44,8 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings();
         platformSettings.Model.FlipWinding = true;
         platformSettings.Material.SchemaId = "standard-shader";
+        platformSettings.Material.FieldValues["use-custom-shader"] = "false";
         platformSettings.Material.FieldValues["shader-asset-id"] = "shaders/test";
-        platformSettings.Material.FieldValues["variant"] = "default";
         settings.Processor.Platforms["windows"] = platformSettings;
 
         using MemoryStream stream = new MemoryStream();
@@ -57,8 +57,8 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         Assert.Equal("helengine.material", deserialized.Importer.ImporterId);
         Assert.True(deserialized.Processor.Platforms["windows"].Model.FlipWinding);
         Assert.Equal("standard-shader", deserialized.Processor.Platforms["windows"].Material.SchemaId);
+        Assert.Equal("false", deserialized.Processor.Platforms["windows"].Material.FieldValues["use-custom-shader"]);
         Assert.Equal("shaders/test", deserialized.Processor.Platforms["windows"].Material.FieldValues["shader-asset-id"]);
-        Assert.Equal("default", deserialized.Processor.Platforms["windows"].Material.FieldValues["variant"]);
     }
 
     /// <summary>
@@ -71,7 +71,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
             ShaderAssetId = "shaders/test",
             VertexProgram = "Test.vs",
             PixelProgram = "Test.ps",
-            Variant = "default"
+            Variant = "Mesh"
         };
         string materialAssetPath = Path.Combine(TempRootPath, "Test.helmat");
         File.WriteAllBytes(materialAssetPath, Array.Empty<byte>());
@@ -102,6 +102,13 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
                     ["directx11"],
                     [
                         new PlatformMaterialFieldDefinition(
+                            "use-custom-shader",
+                            "Use Custom Shader",
+                            PlatformMaterialFieldKind.Boolean,
+                            "false",
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
                             "shader-asset-id",
                             "Shader Asset",
                             PlatformMaterialFieldKind.AssetReference,
@@ -123,13 +130,6 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
                             true,
                             []),
                         new PlatformMaterialFieldDefinition(
-                            "variant",
-                            "Variant",
-                            PlatformMaterialFieldKind.Choice,
-                            "default",
-                            true,
-                            ["default"]),
-                        new PlatformMaterialFieldDefinition(
                             "base-color",
                             "Base Color",
                             PlatformMaterialFieldKind.Color,
@@ -148,10 +148,10 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
 
         Assert.True(File.Exists(materialAssetPath + ".hasset"));
         Assert.Equal("standard-shader", settings.Processor.Platforms["windows"].Material.SchemaId);
+        Assert.Equal("false", settings.Processor.Platforms["windows"].Material.FieldValues["use-custom-shader"]);
         Assert.Equal("shaders/test", settings.Processor.Platforms["windows"].Material.FieldValues["shader-asset-id"]);
         Assert.Equal("Test.vs", settings.Processor.Platforms["windows"].Material.FieldValues["vertex-program"]);
         Assert.Equal("Test.ps", settings.Processor.Platforms["windows"].Material.FieldValues["pixel-program"]);
-        Assert.Equal("default", settings.Processor.Platforms["windows"].Material.FieldValues["variant"]);
         Assert.Equal("#ffffff", settings.Processor.Platforms["windows"].Material.FieldValues["base-color"]);
     }
 
@@ -164,7 +164,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
             ShaderAssetId = "shaders/test",
             VertexProgram = "Test.vs",
             PixelProgram = "Test.ps",
-            Variant = "default"
+            Variant = "Mesh"
         };
 
         AssetImportSettings settings = new AssetImportSettings();
@@ -180,6 +180,6 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         Assert.Equal(string.Empty, materialAsset.ShaderAssetId);
         Assert.Equal(string.Empty, materialAsset.VertexProgram);
         Assert.Equal(string.Empty, materialAsset.PixelProgram);
-        Assert.Equal(string.Empty, materialAsset.Variant);
+        Assert.Equal("Mesh", materialAsset.Variant);
     }
 }

@@ -108,16 +108,13 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures scrolling still uses the fixed clipped viewport bounds when the scroll component lives on a translated child root.
+        /// Ensures scrolling uses the viewport bounds exposed by the scroll component itself.
         /// </summary>
         [Fact]
-        public void ScrollComponent_WhenOwnedByScrollingChild_UsesAncestorClipBoundsForWheelHitTesting() {
+        public void ScrollComponent_WhenViewportIsOwnedByTheScrollComponent_UsesItsOwnClipBoundsForWheelHitTesting() {
             EditorEntity viewport = new EditorEntity {
                 Position = new float3(20f, 30f, 0f)
             };
-            viewport.AddComponent(new ClipRectComponent {
-                Size = new int2(160, 100)
-            });
 
             EditorEntity itemsRoot = new EditorEntity();
             viewport.AddChild(itemsRoot);
@@ -127,12 +124,47 @@ namespace helengine.editor.tests {
                 ItemCount = 24,
                 VisibleItemCount = 8
             };
-            itemsRoot.AddComponent(scroll);
+            viewport.AddComponent(scroll);
+            scroll.ContentRoot = itemsRoot;
 
             AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             AdvanceInput(new MouseState(40, 50, -120, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
 
             Assert.Equal(1, scroll.ScrollOffset);
+        }
+
+        /// <summary>
+        /// Ensures the scroll component can derive its visible item count and translate a bound content root automatically.
+        /// </summary>
+        [Fact]
+        public void ScrollComponent_WhenVisibleCountIsAuto_UsesViewportAndItemExtent() {
+            EditorEntity viewport = new EditorEntity {
+                Position = new float3(20f, 30f, 0f)
+            };
+
+            EditorEntity itemsRoot = new EditorEntity();
+            viewport.AddChild(itemsRoot);
+
+            ScrollComponent scroll = new ScrollComponent {
+                Size = new int2(160, 100),
+                ItemCount = 24,
+                ItemExtent = 12
+            };
+            viewport.AddComponent(scroll);
+            scroll.ContentRoot = itemsRoot;
+
+            Assert.Equal(9, scroll.VisibleItemCount);
+            float4 clipRect = scroll.GetClipRect();
+            Assert.Equal(20f, clipRect.X);
+            Assert.Equal(30f, clipRect.Y);
+            Assert.Equal(160f, clipRect.Z);
+            Assert.Equal(100f, clipRect.W);
+
+            AdvanceInput(new MouseState(40, 50, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceInput(new MouseState(40, 50, -120, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.Equal(1, scroll.ScrollOffset);
+            Assert.Equal(-12f, itemsRoot.LocalPosition.Y);
         }
 
         /// <summary>

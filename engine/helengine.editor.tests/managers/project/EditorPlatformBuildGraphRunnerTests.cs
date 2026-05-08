@@ -559,6 +559,14 @@ public class EditorPlatformBuildGraphRunnerTests {
             Assert.Equal("standard-shader", selectionModel.MaterialSchemas[0].SchemaId);
             Assert.Contains(
                 selectionModel.MaterialSchemas[0].Fields,
+                field => field.FieldId == "use-custom-shader"
+                    && field.FieldKind == PlatformMaterialFieldKind.Boolean
+                    && field.DefaultValue == "false");
+            Assert.DoesNotContain(
+                selectionModel.MaterialSchemas[0].Fields,
+                field => field.FieldId == "variant");
+            Assert.Contains(
+                selectionModel.MaterialSchemas[0].Fields,
                 field => field.FieldId == "base-color"
                     && field.FieldKind == PlatformMaterialFieldKind.Color
                     && field.DefaultValue == "#ffffff");

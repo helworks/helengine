@@ -86,13 +86,17 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity ListRoot;
         /// <summary>
-        /// Host entity for list background hit testing.
+        /// Viewport host that owns the list scroll component and hit target.
         /// </summary>
         readonly EditorEntity ListHitHost;
         /// <summary>
         /// Interactable used to clear selection when clicking empty space.
         /// </summary>
         readonly InteractableComponent ListHitInteractable;
+        /// <summary>
+        /// Scroll controller that applies wheel input to the asset list content root.
+        /// </summary>
+        readonly ScrollComponent ListScrollComponent;
         /// <summary>
         /// Current entries displayed in the list.
         /// </summary>
@@ -289,7 +293,12 @@ namespace helengine.editor {
                 LayerMask = layerMask,
                 Position = float3.Zero
             };
-            Root.AddChild(ListRoot);
+            ListHitHost.AddChild(ListRoot);
+
+            ListScrollComponent = new ScrollComponent();
+            ListScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
+            ListScrollComponent.ContentRoot = ListRoot;
+            ListHitHost.AddComponent(ListScrollComponent);
 
             Entries = new List<AssetBrowserEntry>(64);
             Rows = new List<AssetBrowserRow>(32);
@@ -583,9 +592,17 @@ namespace helengine.editor {
             int rowWidth = Math.Max(1, Size.X);
             int toolbarHeight = GetToolbarHeightPixels();
             int rowHeight = GetRowHeightPixels();
+            int listHeight = Math.Max(0, Size.Y - toolbarHeight);
             int iconSize = GetIconSizePixels();
             int iconPadding = GetIconPaddingPixels();
             int labelPadding = GetLabelPaddingPixels();
+
+            ListHitHost.Position = new float3(0f, toolbarHeight, 0.05f);
+            ListHitInteractable.Size = new int2(rowWidth, listHeight);
+            ListScrollComponent.Size = new int2(rowWidth, listHeight);
+            ListScrollComponent.ItemExtent = rowHeight;
+            ListScrollComponent.ItemCount = Entries.Count;
+            ListScrollComponent.ClampScrollOffset();
 
             for (int i = 0; i < Rows.Count; i++) {
                 var row = Rows[i];
@@ -603,9 +620,9 @@ namespace helengine.editor {
                 }
 
                 var entry = Entries[i];
-                row.Entity.Enabled = true;
                 row.Entry = entry;
-                row.Entity.Position = new float3(0, toolbarHeight + i * rowHeight, 0.1f);
+                row.Entity.Position = new float3(0f, i * rowHeight, 0.1f);
+                row.Entity.Enabled = true;
 
                 bool alternate = i % 2 == 1;
                 byte4 baseColor = alternate ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
@@ -646,10 +663,6 @@ namespace helengine.editor {
                 row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
                 row.Label.Size = new int2(Math.Max(0, rowWidth - (int)labelX - labelPadding), (int)MathF.Ceiling(labelMetrics.Height));
             }
-
-            int listHeight = Math.Max(0, Size.Y - toolbarHeight);
-            ListHitHost.Position = new float3(0f, toolbarHeight, 0.05f);
-            ListHitInteractable.Size = new int2(rowWidth, listHeight);
         }
 
         /// <summary>

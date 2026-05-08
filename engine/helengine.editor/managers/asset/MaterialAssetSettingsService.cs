@@ -26,9 +26,34 @@ namespace helengine.editor {
         const string PixelProgramFieldId = "pixel-program";
 
         /// <summary>
-        /// Field id used by shader-backed schemas for the shader variant identifier.
+        /// Field id used by shader-backed schemas to toggle custom shader overrides.
         /// </summary>
-        const string VariantFieldId = "variant";
+        const string UseCustomShaderFieldId = "use-custom-shader";
+
+        /// <summary>
+        /// Schema id used by the Windows standard material path.
+        /// </summary>
+        const string StandardShaderSchemaId = "standard-shader";
+
+        /// <summary>
+        /// Default shader asset id used by the standard material path.
+        /// </summary>
+        const string StandardShaderAssetId = "ForwardStandardShader";
+
+        /// <summary>
+        /// Default vertex program used by the standard material path.
+        /// </summary>
+        const string StandardVertexProgramName = "ForwardStandardShader.vs";
+
+        /// <summary>
+        /// Default pixel program used by the standard material path.
+        /// </summary>
+        const string StandardPixelProgramName = "ForwardStandardShader.ps";
+
+        /// <summary>
+        /// Mesh-derived variant used for ordinary material assets.
+        /// </summary>
+        const string MeshVariantName = "Mesh";
 
         /// <summary>
         /// Loads one material-settings sidecar or creates seeded defaults when the sidecar is missing or incomplete.
@@ -132,10 +157,22 @@ namespace helengine.editor {
             }
 
             bool changed = false;
-            changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, value => materialAsset.ShaderAssetId = value, true);
-            changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, value => materialAsset.VertexProgram = value, true);
-            changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, value => materialAsset.PixelProgram = value, true);
-            changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, VariantFieldId, materialAsset.Variant, value => materialAsset.Variant = value, true);
+            if (IsStandardShaderSchema(platformSettings.Material.SchemaId)) {
+                bool useCustomShader = IsCustomShaderEnabled(platformSettings.Material.FieldValues);
+                if (useCustomShader) {
+                    changed |= ApplyCustomShaderCompatibilityField(platformSettings.Material.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, StandardShaderAssetId, value => materialAsset.ShaderAssetId = value);
+                    changed |= ApplyCustomShaderCompatibilityField(platformSettings.Material.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, StandardVertexProgramName, value => materialAsset.VertexProgram = value);
+                    changed |= ApplyCustomShaderCompatibilityField(platformSettings.Material.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, StandardPixelProgramName, value => materialAsset.PixelProgram = value);
+                } else {
+                    changed |= ApplyStandardShaderCompatibilityFields(materialAsset);
+                }
+            } else {
+                changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, value => materialAsset.ShaderAssetId = value, true);
+                changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, value => materialAsset.VertexProgram = value, true);
+                changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, value => materialAsset.PixelProgram = value, true);
+            }
+
+            changed |= ApplyMaterialVariant(materialAsset, MeshVariantName);
             return changed;
         }
 
@@ -315,8 +352,6 @@ namespace helengine.editor {
                 return materialAsset.VertexProgram ?? string.Empty;
             } else if (string.Equals(field.FieldId, PixelProgramFieldId, StringComparison.OrdinalIgnoreCase)) {
                 return materialAsset.PixelProgram ?? string.Empty;
-            } else if (string.Equals(field.FieldId, VariantFieldId, StringComparison.OrdinalIgnoreCase)) {
-                return materialAsset.Variant ?? string.Empty;
             }
 
             return field.DefaultValue ?? string.Empty;
@@ -361,6 +396,125 @@ namespace helengine.editor {
             }
 
             applyValue(nextValue);
+            return true;
+        }
+
+        /// <summary>
+        /// Determines whether the active material settings enable custom shader overrides.
+        /// </summary>
+        /// <param name="fieldValues">Serialized material field values keyed by field id.</param>
+        /// <returns>True when custom shader mode is enabled.</returns>
+        bool IsCustomShaderEnabled(Dictionary<string, string> fieldValues) {
+            if (fieldValues == null) {
+                return false;
+            }
+
+            string customShaderValue;
+            if (!fieldValues.TryGetValue(UseCustomShaderFieldId, out customShaderValue)) {
+                return false;
+            }
+
+            return string.Equals(customShaderValue, "true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Determines whether one material schema uses the standard shader compatibility path.
+        /// </summary>
+        /// <param name="schemaId">Material schema identifier to inspect.</param>
+        /// <returns>True when the schema uses the standard shader path.</returns>
+        bool IsStandardShaderSchema(string schemaId) {
+            return string.Equals(schemaId, StandardShaderSchemaId, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Applies the standard shader compatibility payload to the material asset.
+        /// </summary>
+        /// <param name="materialAsset">Material asset to update.</param>
+        /// <returns>True when the material asset changed.</returns>
+        bool ApplyStandardShaderCompatibilityFields(MaterialAsset materialAsset) {
+            bool changed = false;
+            changed |= ApplyFixedCompatibilityField(materialAsset.ShaderAssetId, StandardShaderAssetId, value => materialAsset.ShaderAssetId = value);
+            changed |= ApplyFixedCompatibilityField(materialAsset.VertexProgram, StandardVertexProgramName, value => materialAsset.VertexProgram = value);
+            changed |= ApplyFixedCompatibilityField(materialAsset.PixelProgram, StandardPixelProgramName, value => materialAsset.PixelProgram = value);
+            return changed;
+        }
+
+        /// <summary>
+        /// Applies one custom-shader compatibility field while preserving the current material value until the user authors a replacement.
+        /// </summary>
+        /// <param name="fieldValues">Serialized material field values keyed by field id.</param>
+        /// <param name="fieldId">Field identifier to inspect.</param>
+        /// <param name="currentValue">Current value stored on the material asset.</param>
+        /// <param name="fallbackValue">Fallback value used when the current material value is blank.</param>
+        /// <param name="applyValue">Callback that writes the updated value back to the material asset.</param>
+        /// <returns>True when the material asset changed.</returns>
+        bool ApplyCustomShaderCompatibilityField(
+            Dictionary<string, string> fieldValues,
+            string fieldId,
+            string currentValue,
+            string fallbackValue,
+            Action<string> applyValue) {
+            if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            } else if (string.IsNullOrWhiteSpace(fieldId)) {
+                throw new ArgumentException("Field id must be provided.", nameof(fieldId));
+            } else if (applyValue == null) {
+                throw new ArgumentNullException(nameof(applyValue));
+            }
+
+            string nextValue;
+            if (fieldValues.TryGetValue(fieldId, out nextValue) && !string.IsNullOrWhiteSpace(nextValue)) {
+                if (string.Equals(currentValue ?? string.Empty, nextValue, StringComparison.Ordinal)) {
+                    return false;
+                }
+
+                applyValue(nextValue);
+                return true;
+            }
+
+            string resolvedValue = string.IsNullOrWhiteSpace(currentValue) ? fallbackValue : currentValue;
+            if (string.Equals(currentValue ?? string.Empty, resolvedValue ?? string.Empty, StringComparison.Ordinal)) {
+                return false;
+            }
+
+            applyValue(resolvedValue ?? string.Empty);
+            return true;
+        }
+
+        /// <summary>
+        /// Applies one fixed compatibility value to the target material asset when the value changes.
+        /// </summary>
+        /// <param name="currentValue">Current value stored on the material asset.</param>
+        /// <param name="nextValue">Value to apply when it differs.</param>
+        /// <param name="applyValue">Callback that writes the updated value back to the material asset.</param>
+        /// <returns>True when the material asset changed.</returns>
+        bool ApplyFixedCompatibilityField(string currentValue, string nextValue, Action<string> applyValue) {
+            if (string.Equals(currentValue ?? string.Empty, nextValue ?? string.Empty, StringComparison.Ordinal)) {
+                return false;
+            }
+
+            applyValue(nextValue ?? string.Empty);
+            return true;
+        }
+
+        /// <summary>
+        /// Applies one mesh-derived material variant to the compatibility payload when the value changes.
+        /// </summary>
+        /// <param name="materialAsset">Material asset to update.</param>
+        /// <param name="variantName">Mesh-derived variant name to apply.</param>
+        /// <returns>True when the material variant changed.</returns>
+        bool ApplyMaterialVariant(MaterialAsset materialAsset, string variantName) {
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            } else if (string.IsNullOrWhiteSpace(variantName)) {
+                throw new ArgumentException("Variant name must be provided.", nameof(variantName));
+            }
+
+            if (string.Equals(materialAsset.Variant ?? string.Empty, variantName, StringComparison.Ordinal)) {
+                return false;
+            }
+
+            materialAsset.Variant = variantName;
             return true;
         }
     }

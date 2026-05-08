@@ -1,5 +1,10 @@
 using System.Reflection;
+using helengine.baseplatform.Builders;
 using helengine.baseplatform.Definitions;
+using helengine.baseplatform.Descriptors;
+using helengine.baseplatform.Requests;
+using helengine.baseplatform.Reporting;
+using helengine.baseplatform.Results;
 using helengine.editor.tests.serialization.scene;
 using helengine.editor.tests.testing;
 using Xunit;
@@ -176,7 +181,92 @@ namespace helengine.editor.tests {
             Assert.Equal(shaderAssetId, materialAsset.ShaderAssetId);
             Assert.Equal(shaderAssetId + ".vs", materialAsset.VertexProgram);
             Assert.Equal(shaderAssetId + ".ps", materialAsset.PixelProgram);
-            Assert.Equal("default", materialAsset.Variant);
+            Assert.Equal("Mesh", materialAsset.Variant);
+        }
+
+        /// <summary>
+        /// Ensures custom shader mode stays opt-in while the packager still supplies the standard shader defaults and mesh variant.
+        /// </summary>
+        [Fact]
+        public void Package_WhenCustomShaderIsDisabled_UsesMeshVariantAndStandardShaderDefaults() {
+            string sceneId = "Scenes/TestScene.helen";
+            string materialRelativePath = "Materials/TestMaterial.helmat";
+            string shaderAssetId = "ForwardStandardShader";
+
+            WriteShaderCachePackage(shaderAssetId, ShaderCompileTarget.DirectX11);
+            WriteBlankMaterialAsset(materialRelativePath);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            RecordingMaterialBuilder materialBuilder = new RecordingMaterialBuilder(CreateWindowsMaterialBuilderDefinition());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "windows",
+                materialBuilder,
+                "debug",
+                "directx11");
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            Assert.NotNull(materialBuilder.LastMaterialCookRequest);
+            Assert.Equal("false", materialBuilder.LastMaterialCookRequest.FieldValues["use-custom-shader"]);
+            Assert.Equal("Mesh", materialBuilder.LastMaterialCookRequest.FieldValues["variant"]);
+            Assert.Equal(shaderAssetId, materialBuilder.LastMaterialCookRequest.FieldValues["shader-asset-id"]);
+            Assert.Equal(shaderAssetId + ".vs", materialBuilder.LastMaterialCookRequest.FieldValues["vertex-program"]);
+            Assert.Equal(shaderAssetId + ".ps", materialBuilder.LastMaterialCookRequest.FieldValues["pixel-program"]);
+        }
+
+        /// <summary>
+        /// Ensures generated standard materials are cooked through the active material builder instead of being written as raw desktop material assets.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneReferencesGeneratedStandardMaterial_CooksPs2MaterialAsset() {
+            string sceneId = "Scenes/GeneratedStandardMaterialScene.helen";
+            WriteSceneAsset(sceneId, CreateGeneratedStandardMaterialReference());
+
+            RecordingMaterialBuilder materialBuilder = new RecordingMaterialBuilder(
+                CreatePs2MaterialBuilderDefinition(),
+                request => new PlatformMaterialCookResult(
+                    AssetSerializer.SerializeToBytes(new Ps2MaterialAsset {
+                        RendererFamilyId = "ps2-standard-forward",
+                        LightingMode = Ps2MaterialLightingMode.Unlit,
+                        AlphaMode = Ps2MaterialAlphaMode.Opaque,
+                        RenderClass = Ps2RenderClass.Opaque,
+                        TextureRelativePath = string.Empty,
+                        DoubleSided = false,
+                        CastShadows = false,
+                        UseVertexColor = false,
+                        ExpensiveModeAllowed = false,
+                        Roughness = 0f,
+                        SpecularStrength = 0f,
+                        EmissiveStrength = 0f
+                    }),
+                    Array.Empty<string>()));
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "ps2",
+                materialBuilder,
+                "debug",
+                "ps2-standard-forward");
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            Assert.NotNull(materialBuilder.LastMaterialCookRequest);
+            Assert.Equal("ps2-unlit-textured", materialBuilder.LastMaterialCookRequest.SchemaId);
+            Assert.Equal("opaque", materialBuilder.LastMaterialCookRequest.FieldValues["alpha-mode"]);
+            Assert.Equal("false", materialBuilder.LastMaterialCookRequest.FieldValues["double-sided"]);
+            Assert.Equal("multiply", materialBuilder.LastMaterialCookRequest.FieldValues["vertex-color-mode"]);
+
+            string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "engine", "materials", "standard.hasset");
+            using FileStream stream = File.OpenRead(cookedMaterialPath);
+            Ps2MaterialAsset cookedMaterial = Assert.IsType<Ps2MaterialAsset>(AssetSerializer.Deserialize(stream));
+
+            Assert.Equal("ps2-standard-forward", cookedMaterial.RendererFamilyId);
+            Assert.Equal(Ps2MaterialLightingMode.Unlit, cookedMaterial.LightingMode);
+            Assert.Equal(Ps2MaterialAlphaMode.Opaque, cookedMaterial.AlphaMode);
+            Assert.Equal(Ps2RenderClass.Opaque, cookedMaterial.RenderClass);
         }
 
         /// <summary>
@@ -1279,6 +1369,44 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Writes one serialized scene asset that references the supplied generated material from a mesh component payload.
+        /// </summary>
+        /// <param name="sceneId">Scene asset id to write.</param>
+        /// <param name="materialReference">Generated material reference to encode.</param>
+        void WriteSceneAsset(string sceneId, SceneAssetReference materialReference) {
+            if (materialReference == null) {
+                throw new ArgumentNullException(nameof(materialReference));
+            }
+
+            string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "root-entity",
+                        Name = "Root",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.MeshComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteMeshComponentPayload(materialReference)
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, sceneAsset);
+        }
+
+        /// <summary>
         /// Writes one serialized scene asset that contains a single component record with the supplied type id and payload.
         /// </summary>
         /// <param name="sceneId">Scene asset id to write.</param>
@@ -1341,6 +1469,19 @@ namespace helengine.editor.tests {
                 RelativePath = "generated/editor/fonts/ui.hefont",
                 ProviderId = "editor",
                 AssetId = "ui-font"
+            };
+        }
+
+        /// <summary>
+        /// Creates the generated scene reference used for the engine's built-in standard material.
+        /// </summary>
+        /// <returns>Generated engine standard-material scene reference.</returns>
+        static SceneAssetReference CreateGeneratedStandardMaterialReference() {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = EngineGeneratedAssetProvider.StandardMaterialRelativePath,
+                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
+                AssetId = EngineGeneratedMaterialCache.StandardAssetId
             };
         }
 
@@ -1501,6 +1642,28 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Writes one serialized material asset without authored shader fields so the packager must supply them.
+        /// </summary>
+        /// <param name="materialRelativePath">Project-relative material path to write.</param>
+        void WriteBlankMaterialAsset(string materialRelativePath) {
+            string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
+
+            MaterialAsset materialAsset = new MaterialAsset {
+                Id = materialRelativePath,
+                ShaderAssetId = string.Empty,
+                VertexProgram = string.Empty,
+                PixelProgram = string.Empty,
+                Variant = string.Empty,
+                RenderState = new MaterialRenderState(),
+                ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>()
+            };
+
+            using FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, materialAsset);
+        }
+
+        /// <summary>
         /// Writes one malformed material settings sidecar that names the platform but omits schema and field values.
         /// </summary>
         /// <param name="materialRelativePath">Project-relative material path whose sidecar should be written.</param>
@@ -1577,6 +1740,27 @@ namespace helengine.editor.tests {
                 ProviderId = string.Empty,
                 AssetId = string.Empty
             });
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(meshComponent, 0, saveState);
+            return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one mesh-component payload that points at one generated material reference.
+        /// </summary>
+        /// <param name="materialReference">Generated material reference to encode.</param>
+        /// <returns>Serialized mesh component payload.</returns>
+        byte[] WriteMeshComponentPayload(SceneAssetReference materialReference) {
+            if (materialReference == null) {
+                throw new ArgumentNullException(nameof(materialReference));
+            }
+
+            MeshComponentPersistenceDescriptor descriptor = new MeshComponentPersistenceDescriptor();
+            MeshComponent meshComponent = new MeshComponent {
+                Material = new TestRuntimeMaterial()
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference("Material", materialReference);
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(meshComponent, 0, saveState);
             return record.Payload;
@@ -2082,6 +2266,151 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates one minimal Windows platform definition that publishes the standard material schema for cook request verification.
+        /// </summary>
+        /// <returns>Minimal Windows platform definition with the standard-shader material schema.</returns>
+        static PlatformDefinition CreateWindowsMaterialBuilderDefinition() {
+            return new PlatformDefinition(
+                "windows",
+                "Windows DirectX",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "debug",
+                        "Debug",
+                        "Debug player build",
+                        "directx11",
+                        [])
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "directx11",
+                        "DirectX 11",
+                        "Default Windows renderer",
+                        [])
+                ],
+                [
+                    new PlatformAssetRequirementDefinition(
+                        "texture",
+                        "Texture",
+                        true,
+                        ["png", "tga"])
+                ],
+                [
+                    new PlatformMaterialSchemaDefinition(
+                        "standard-shader",
+                        "Standard Shader",
+                        ["directx11"],
+                        [
+                            new PlatformMaterialFieldDefinition(
+                                "use-custom-shader",
+                                "Use Custom Shader",
+                                PlatformMaterialFieldKind.Boolean,
+                                "false",
+                                true,
+                                []),
+                            new PlatformMaterialFieldDefinition(
+                                "shader-asset-id",
+                                "Shader Asset",
+                                PlatformMaterialFieldKind.AssetReference,
+                                string.Empty,
+                                true,
+                                []),
+                            new PlatformMaterialFieldDefinition(
+                                "vertex-program",
+                                "Vertex Program",
+                                PlatformMaterialFieldKind.Text,
+                                string.Empty,
+                                true,
+                                []),
+                            new PlatformMaterialFieldDefinition(
+                                "pixel-program",
+                                "Pixel Program",
+                                PlatformMaterialFieldKind.Text,
+                                string.Empty,
+                                true,
+                                []),
+                            new PlatformMaterialFieldDefinition(
+                                "base-color",
+                                "Base Color",
+                                PlatformMaterialFieldKind.Color,
+                                "#ffffff",
+                                false,
+                                [])
+                        ])
+                ],
+                [],
+                [],
+                [],
+                []);
+        }
+
+        /// <summary>
+        /// Creates one minimal PS2 platform definition that publishes the standard renderer-family material schema for cook verification.
+        /// </summary>
+        /// <returns>Minimal PS2 platform definition with one generated standard material schema.</returns>
+        static PlatformDefinition CreatePs2MaterialBuilderDefinition() {
+            return new PlatformDefinition(
+                "ps2",
+                "PS2",
+                [
+                    new PlatformBuildProfileDefinition(
+                        "debug",
+                        "Debug",
+                        "Debug player build",
+                        "ps2-standard-forward",
+                        [])
+                ],
+                [
+                    new PlatformGraphicsProfileDefinition(
+                        "ps2-standard-forward",
+                        "PS2 Standard Forward",
+                        "Standard PS2 forward renderer",
+                        [])
+                ],
+                Array.Empty<PlatformAssetRequirementDefinition>(),
+                [
+                    new PlatformMaterialSchemaDefinition(
+                        "ps2-unlit-textured",
+                        "PS2 Unlit Textured",
+                        ["ps2-standard-forward"],
+                        [
+                            new PlatformMaterialFieldDefinition(
+                                "texture-relative-path",
+                                "Texture",
+                                PlatformMaterialFieldKind.Text,
+                                string.Empty,
+                                false,
+                                []),
+                            new PlatformMaterialFieldDefinition(
+                                "alpha-mode",
+                                "Alpha Mode",
+                                PlatformMaterialFieldKind.Choice,
+                                "opaque",
+                                true,
+                                ["opaque", "alpha-test", "alpha-blend", "additive"]),
+                            new PlatformMaterialFieldDefinition(
+                                "double-sided",
+                                "Double Sided",
+                                PlatformMaterialFieldKind.Boolean,
+                                "false",
+                                true,
+                                []),
+                            new PlatformMaterialFieldDefinition(
+                                "vertex-color-mode",
+                                "Vertex Color",
+                                PlatformMaterialFieldKind.Choice,
+                                "multiply",
+                                true,
+                                ["multiply", "ignore"])
+                        ])
+                ],
+                Array.Empty<PlatformComponentCompatibilityDefinition>(),
+                Array.Empty<PlatformCodegenProfileDefinition>(),
+                Array.Empty<PlatformStorageProfileDefinition>(),
+                Array.Empty<PlatformMediaProfileDefinition>());
+        }
+
+        /// <summary>
         /// Writes the stable editor-font reference used by packaged FPS overlays.
         /// </summary>
         /// <param name="writer">Writer receiving the reference payload.</param>
@@ -2091,6 +2420,82 @@ namespace helengine.editor.tests {
             writer.WriteString("generated/editor/fonts/ui.hefont");
             writer.WriteString("editor");
             writer.WriteString("ui-font");
+        }
+
+        /// <summary>
+        /// Records the last material cook request passed into the fake builder.
+        /// </summary>
+        sealed class RecordingMaterialBuilder : IPlatformAssetBuilder {
+            /// <summary>
+            /// Gets the factory that creates cooked material results for incoming requests.
+            /// </summary>
+            readonly Func<PlatformMaterialCookRequest, PlatformMaterialCookResult> CookMaterialFactory;
+
+            /// <summary>
+            /// Creates one recording builder that returns an empty cooked payload.
+            /// </summary>
+            /// <param name="definition">Builder definition exposed to the packager.</param>
+            public RecordingMaterialBuilder(PlatformDefinition definition)
+                : this(
+                    definition,
+                    request => new PlatformMaterialCookResult(Array.Empty<byte>(), Array.Empty<string>())) {
+            }
+
+            /// <summary>
+            /// Creates one recording builder that returns the supplied cooked material result.
+            /// </summary>
+            /// <param name="definition">Builder definition exposed to the packager.</param>
+            /// <param name="cookMaterialFactory">Factory used to produce the cooked material result.</param>
+            public RecordingMaterialBuilder(
+                PlatformDefinition definition,
+                Func<PlatformMaterialCookRequest, PlatformMaterialCookResult> cookMaterialFactory) {
+                Definition = definition ?? throw new ArgumentNullException(nameof(definition));
+                CookMaterialFactory = cookMaterialFactory ?? throw new ArgumentNullException(nameof(cookMaterialFactory));
+                Descriptor = new PlatformBuilderDescriptor(
+                    "test.material.builder",
+                    "1.0.0",
+                    "windows",
+                    new EngineCompatibilityRange("1.0.0", "999.0.0"),
+                    new ManifestCompatibilityRange(1, 1),
+                    ["windows"],
+                    ["debug"]);
+            }
+
+            /// <summary>
+            /// Gets the builder descriptor exposed to the packager.
+            /// </summary>
+            public PlatformBuilderDescriptor Descriptor { get; }
+
+            /// <summary>
+            /// Gets the platform definition exposed to the packager.
+            /// </summary>
+            public PlatformDefinition Definition { get; }
+
+            /// <summary>
+            /// Gets the last request passed to the material cooker.
+            /// </summary>
+            public PlatformMaterialCookRequest LastMaterialCookRequest { get; private set; }
+
+            /// <summary>
+            /// Records the incoming cook request and returns a minimal cooked payload.
+            /// </summary>
+            /// <param name="request">Material cook request to capture.</param>
+            /// <returns>Empty cooked payload with no shader dependencies.</returns>
+            public PlatformMaterialCookResult CookMaterial(PlatformMaterialCookRequest request) {
+                LastMaterialCookRequest = request;
+                return CookMaterialFactory(request);
+            }
+
+            /// <summary>
+            /// This recording builder never runs a full platform build.
+            /// </summary>
+            public Task<PlatformBuildReport> BuildAsync(
+                PlatformBuildRequest request,
+                IPlatformBuildProgressReporter progressReporter,
+                IPlatformBuildDiagnosticReporter diagnosticReporter,
+                CancellationToken cancellationToken) {
+                throw new NotSupportedException("The recording builder is only used for material cooking tests.");
+            }
         }
     }
 }

@@ -37,12 +37,12 @@ public sealed class EditorPlatformBuildSelectionModelTests {
                     ["directx11"],
                     [
                         new PlatformMaterialFieldDefinition(
-                            "variant",
-                            "Variant",
-                            PlatformMaterialFieldKind.Choice,
-                            "default",
+                            "use-custom-shader",
+                            "Use Custom Shader",
+                            PlatformMaterialFieldKind.Boolean,
+                            "false",
                             true,
-                            ["default", "skinned"])
+                            [])
                     ]),
                 new PlatformMaterialSchemaDefinition(
                     "portable-fallback",

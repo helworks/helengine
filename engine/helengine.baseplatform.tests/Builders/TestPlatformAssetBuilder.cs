@@ -61,6 +61,13 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
                     ["directx11"],
                     [
                         new PlatformMaterialFieldDefinition(
+                            "use-custom-shader",
+                            "Use Custom Shader",
+                            PlatformMaterialFieldKind.Boolean,
+                            "false",
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
                             "shader-asset-id",
                             "Shader Asset",
                             PlatformMaterialFieldKind.AssetReference,
@@ -81,13 +88,6 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
                             string.Empty,
                             true,
                             []),
-                        new PlatformMaterialFieldDefinition(
-                            "variant",
-                            "Variant",
-                            PlatformMaterialFieldKind.Choice,
-                            "default",
-                            true,
-                            ["default", "skinned"]),
                         new PlatformMaterialFieldDefinition(
                             BaseColorFieldId,
                             "Base Color",

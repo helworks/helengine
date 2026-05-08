@@ -43,10 +43,10 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     }
 
     /// <summary>
-    /// Ensures packaging uses the target platform sidecar settings instead of stale top-level material fields when a builder is available.
-    /// </summary>
-    [Fact]
-    public void Package_when_builder_is_available_uses_target_platform_material_sidecar_values() {
+        /// Ensures packaging uses the target platform sidecar settings instead of stale top-level material fields when custom shader mode is enabled.
+        /// </summary>
+        [Fact]
+        public void Package_when_builder_is_available_uses_target_platform_material_sidecar_values() {
         string sceneId = "Scenes/TestScene.helen";
         string materialRelativePath = "Materials/TestMaterial.helmat";
         SeedBuiltInStandardShaderAsset(ShaderCompileTarget.DirectX11);
@@ -71,10 +71,11 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         Assert.Equal("CookedShader", packagedMaterial.ShaderAssetId);
         Assert.Equal("CookedShader.vs", packagedMaterial.VertexProgram);
         Assert.Equal("CookedShader.ps", packagedMaterial.PixelProgram);
+        Assert.Equal("Mesh", packagedMaterial.Variant);
         Assert.Single(packagedMaterial.ConstantBuffers);
         Assert.Equal("BaseColorBuffer", packagedMaterial.ConstantBuffers[0].Name);
         Assert.Equal(16, packagedMaterial.ConstantBuffers[0].Data.Length);
-        Assert.Equal(new[] { "CookedShader" }, result.ReferencedShaderAssetIds);
+        Assert.Equal(new[] { "ForwardStandardShader", "CookedShader" }, result.ReferencedShaderAssetIds);
     }
 
     /// <summary>
@@ -104,10 +105,10 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         AssetImportSettings settings = Assert.IsType<AssetImportSettings>(loadMethod.Invoke(packager, [materialPath, materialRelativePath, materialAsset]));
 
         Assert.Equal("standard-shader", settings.Processor.Platforms["windows"].Material.SchemaId);
+        Assert.Equal("false", settings.Processor.Platforms["windows"].Material.FieldValues["use-custom-shader"]);
         Assert.Equal("StaleShader", settings.Processor.Platforms["windows"].Material.FieldValues["shader-asset-id"]);
         Assert.Equal("StaleShader.vs", settings.Processor.Platforms["windows"].Material.FieldValues["vertex-program"]);
         Assert.Equal("StaleShader.ps", settings.Processor.Platforms["windows"].Material.FieldValues["pixel-program"]);
-        Assert.Equal("default", settings.Processor.Platforms["windows"].Material.FieldValues["variant"]);
         Assert.True(File.Exists(materialPath + ".hasset"));
     }
 
@@ -159,7 +160,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             ShaderAssetId = shaderAssetId,
             VertexProgram = string.Concat(shaderAssetId, ".vs"),
             PixelProgram = string.Concat(shaderAssetId, ".ps"),
-            Variant = "default",
+            Variant = "Mesh",
             RenderState = new MaterialRenderState(),
             ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>()
         };
@@ -181,10 +182,10 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
 
         AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings();
         platformSettings.Material.SchemaId = "standard-shader";
+        platformSettings.Material.FieldValues["use-custom-shader"] = "true";
         platformSettings.Material.FieldValues["shader-asset-id"] = "CookedShader";
         platformSettings.Material.FieldValues["vertex-program"] = "CookedShader.vs";
         platformSettings.Material.FieldValues["pixel-program"] = "CookedShader.ps";
-        platformSettings.Material.FieldValues["variant"] = "default";
         platformSettings.Material.FieldValues["base-color"] = "#336699";
         settings.Processor.Platforms["windows"] = platformSettings;
 

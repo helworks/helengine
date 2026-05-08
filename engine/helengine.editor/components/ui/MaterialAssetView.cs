@@ -36,6 +36,11 @@ namespace helengine.editor {
         const string ShaderAssetIdFieldId = "shader-asset-id";
 
         /// <summary>
+        /// Field id used to toggle custom shader overrides.
+        /// </summary>
+        const string UseCustomShaderFieldId = "use-custom-shader";
+
+        /// <summary>
         /// Field id used by compatibility shader-backed schemas for vertex program assignment.
         /// </summary>
         const string VertexProgramFieldId = "vertex-program";
@@ -44,16 +49,6 @@ namespace helengine.editor {
         /// Field id used by compatibility shader-backed schemas for pixel program assignment.
         /// </summary>
         const string PixelProgramFieldId = "pixel-program";
-
-        /// <summary>
-        /// Field id used by compatibility shader-backed schemas for variant assignment.
-        /// </summary>
-        const string VariantFieldId = "variant";
-
-        /// <summary>
-        /// Default shader variant mirrored into compatibility fields.
-        /// </summary>
-        const string DefaultVariant = "default";
 
         /// <summary>
         /// Font used for text elements.
@@ -480,6 +475,9 @@ namespace helengine.editor {
 
             materialSettings.FieldValues[fieldId] = isChecked ? "true" : "false";
             SaveCurrentMaterialState();
+            if (string.Equals(fieldId, UseCustomShaderFieldId, StringComparison.OrdinalIgnoreCase)) {
+                RebuildFieldRows();
+            }
             UpdateDisplayedValues();
         }
 
@@ -537,7 +535,7 @@ namespace helengine.editor {
             materialSettings.FieldValues[fieldId] = shaderId ?? string.Empty;
             materialSettings.FieldValues[VertexProgramFieldId] = string.IsNullOrWhiteSpace(shaderId) ? string.Empty : string.Concat(shaderId, ".vs");
             materialSettings.FieldValues[PixelProgramFieldId] = string.IsNullOrWhiteSpace(shaderId) ? string.Empty : string.Concat(shaderId, ".ps");
-            materialSettings.FieldValues[VariantFieldId] = string.IsNullOrWhiteSpace(shaderId) ? string.Empty : DefaultVariant;
+            materialSettings.FieldValues[UseCustomShaderFieldId] = "true";
         }
 
         /// <summary>
@@ -593,12 +591,17 @@ namespace helengine.editor {
             ClearFieldRows();
 
             PlatformMaterialSchemaDefinition materialSchema = EnsureActiveSchema();
+            MaterialAssetProcessorSettings materialSettings = GetActiveMaterialSettings();
             if (materialSchema == null) {
                 return;
             }
 
             for (int index = 0; index < materialSchema.Fields.Length; index++) {
                 PlatformMaterialFieldDefinition field = materialSchema.Fields[index];
+                if (!ShouldRenderField(field, materialSettings)) {
+                    continue;
+                }
+
                 MaterialAssetFieldEditorRow row = CreateFieldRow(field);
                 FieldRows.Add(row);
                 RootEntity.AddChild(row.LabelHost);
@@ -1071,6 +1074,57 @@ namespace helengine.editor {
         bool IsShaderPickerField(PlatformMaterialFieldDefinition field) {
             return field.FieldKind == PlatformMaterialFieldKind.AssetReference &&
                 string.Equals(field.FieldId, ShaderAssetIdFieldId, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Determines whether one field should be shown for the active material settings.
+        /// </summary>
+        /// <param name="field">Field definition to evaluate.</param>
+        /// <param name="materialSettings">Active material settings that control conditional visibility.</param>
+        /// <returns>True when the field should be shown in the editor.</returns>
+        bool ShouldRenderField(PlatformMaterialFieldDefinition field, MaterialAssetProcessorSettings materialSettings) {
+            if (field == null) {
+                throw new ArgumentNullException(nameof(field));
+            }
+
+            if (string.Equals(field.FieldId, UseCustomShaderFieldId, StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+
+            if (IsCustomShaderEnabled(materialSettings)) {
+                return true;
+            }
+
+            return !IsShaderOverrideField(field);
+        }
+
+        /// <summary>
+        /// Determines whether custom-shader mode is enabled in the active material settings.
+        /// </summary>
+        /// <param name="materialSettings">Active material settings to inspect.</param>
+        /// <returns>True when custom shader mode is enabled.</returns>
+        bool IsCustomShaderEnabled(MaterialAssetProcessorSettings materialSettings) {
+            if (materialSettings == null || materialSettings.FieldValues == null) {
+                return false;
+            }
+
+            string customShaderValue;
+            if (!materialSettings.FieldValues.TryGetValue(UseCustomShaderFieldId, out customShaderValue)) {
+                return false;
+            }
+
+            return string.Equals(customShaderValue, "true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Determines whether one field belongs to the shader override block that stays hidden in standard mode.
+        /// </summary>
+        /// <param name="field">Field definition to evaluate.</param>
+        /// <returns>True when the field should only be shown while custom shader mode is enabled.</returns>
+        bool IsShaderOverrideField(PlatformMaterialFieldDefinition field) {
+            return string.Equals(field.FieldId, ShaderAssetIdFieldId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(field.FieldId, VertexProgramFieldId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(field.FieldId, PixelProgramFieldId, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

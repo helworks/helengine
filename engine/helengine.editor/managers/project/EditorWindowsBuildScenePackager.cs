@@ -118,6 +118,11 @@ namespace helengine.editor {
         const string StandardShaderFileName = "ForwardStandardShader.hlsl";
 
         /// <summary>
+        /// Stable shader asset identifier used by the packaged standard material.
+        /// </summary>
+        const string StandardShaderAssetId = "ForwardStandardShader";
+
+        /// <summary>
         /// Vertex program name used by the packaged generated standard material.
         /// </summary>
         const string StandardVertexProgramName = "ForwardStandardShader.vs";
@@ -126,6 +131,41 @@ namespace helengine.editor {
         /// Pixel program name used by the packaged generated standard material.
         /// </summary>
         const string StandardPixelProgramName = "ForwardStandardShader.ps";
+
+        /// <summary>
+        /// Field id used to toggle custom shader overrides in the material schema.
+        /// </summary>
+        const string UseCustomShaderFieldId = "use-custom-shader";
+
+        /// <summary>
+        /// Field id used for the shader asset identifier in the material schema.
+        /// </summary>
+        const string ShaderAssetIdFieldId = "shader-asset-id";
+
+        /// <summary>
+        /// Field id used for the vertex program identifier in the material schema.
+        /// </summary>
+        const string VertexProgramFieldId = "vertex-program";
+
+        /// <summary>
+        /// Field id used for the pixel program identifier in the material schema.
+        /// </summary>
+        const string PixelProgramFieldId = "pixel-program";
+
+        /// <summary>
+        /// Field id used for the mesh-derived variant forwarded to the builder.
+        /// </summary>
+        const string VariantFieldId = "variant";
+
+        /// <summary>
+        /// Schema id used by the standard Windows material path.
+        /// </summary>
+        const string StandardShaderSchemaId = "standard-shader";
+
+        /// <summary>
+        /// Mesh-derived material variant used by scene packaging.
+        /// </summary>
+        const string MeshVariantName = "Mesh";
 
         /// <summary>
         /// Shader variant name used by the packaged generated standard material.
@@ -1337,6 +1377,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Material '{reference.RelativePath}' is missing a schema id for target platform '{TargetPlatformId}'.");
             }
 
+            Dictionary<string, string> fieldValues = BuildMaterialCookFieldValues(materialAsset, platformMaterialSettings);
             return new PlatformMaterialCookRequest(
                 materialAsset.Id ?? reference.RelativePath,
                 reference.RelativePath,
@@ -1344,7 +1385,99 @@ namespace helengine.editor {
                 SelectedBuildProfileId,
                 SelectedGraphicsProfileId,
                 platformMaterialSettings.SchemaId,
-                platformMaterialSettings.FieldValues);
+                fieldValues);
+        }
+
+        /// <summary>
+        /// Builds the final field-value map used for one material cook request.
+        /// </summary>
+        /// <param name="materialSettings">Target-platform material settings to translate.</param>
+        /// <returns>Field-value map ready for builder consumption.</returns>
+        Dictionary<string, string> BuildMaterialCookFieldValues(MaterialAsset materialAsset, MaterialAssetProcessorSettings materialSettings) {
+            if (materialSettings == null) {
+                throw new ArgumentNullException(nameof(materialSettings));
+            } else if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+
+            Dictionary<string, string> fieldValues = materialSettings.FieldValues != null
+                ? new Dictionary<string, string>(materialSettings.FieldValues, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            bool useCustomShader = IsCustomShaderEnabled(fieldValues);
+            fieldValues[VariantFieldId] = MeshVariantName;
+            if (IsStandardShaderSchema(materialSettings.SchemaId) && !useCustomShader) {
+                ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
+                fieldValues[ShaderAssetIdFieldId] = shaderAsset.Id;
+                fieldValues[VertexProgramFieldId] = StandardVertexProgramName;
+                fieldValues[PixelProgramFieldId] = StandardPixelProgramName;
+            } else if (IsStandardShaderSchema(materialSettings.SchemaId)) {
+                ResolveCustomShaderCookField(fieldValues, materialAsset, ShaderAssetIdFieldId, StandardShaderAssetId);
+                ResolveCustomShaderCookField(fieldValues, materialAsset, VertexProgramFieldId, StandardVertexProgramName);
+                ResolveCustomShaderCookField(fieldValues, materialAsset, PixelProgramFieldId, StandardPixelProgramName);
+            }
+
+            return fieldValues;
+        }
+
+        /// <summary>
+        /// Preserves an authored custom shader field when present, otherwise falls back to the current material value or the supplied default.
+        /// </summary>
+        /// <param name="fieldValues">Field values being prepared for the cook request.</param>
+        /// <param name="materialAsset">Current material asset used as the fallback source.</param>
+        /// <param name="fieldId">Field identifier to resolve.</param>
+        /// <param name="fallbackValue">Fallback value used when the material asset is blank.</param>
+        void ResolveCustomShaderCookField(
+            Dictionary<string, string> fieldValues,
+            MaterialAsset materialAsset,
+            string fieldId,
+            string fallbackValue) {
+            if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            } else if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            } else if (string.IsNullOrWhiteSpace(fieldId)) {
+                throw new ArgumentException("Field id must be provided.", nameof(fieldId));
+            }
+
+            string currentValue;
+            if (fieldValues.TryGetValue(fieldId, out currentValue) && !string.IsNullOrWhiteSpace(currentValue)) {
+                return;
+            }
+
+            string fallbackFieldValue = fieldId == ShaderAssetIdFieldId ? materialAsset.ShaderAssetId : fieldId == VertexProgramFieldId ? materialAsset.VertexProgram : materialAsset.PixelProgram;
+            if (string.IsNullOrWhiteSpace(fallbackFieldValue)) {
+                fallbackFieldValue = fallbackValue;
+            }
+
+            fieldValues[fieldId] = fallbackFieldValue ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Determines whether custom shader overrides are enabled in one field-value map.
+        /// </summary>
+        /// <param name="fieldValues">Material field values keyed by field id.</param>
+        /// <returns>True when custom shader mode is enabled.</returns>
+        bool IsCustomShaderEnabled(Dictionary<string, string> fieldValues) {
+            if (fieldValues == null) {
+                return false;
+            }
+
+            string customShaderValue;
+            if (!fieldValues.TryGetValue(UseCustomShaderFieldId, out customShaderValue)) {
+                return false;
+            }
+
+            return string.Equals(customShaderValue, "true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Determines whether one schema should use the standard shader defaults.
+        /// </summary>
+        /// <param name="schemaId">Material schema identifier to inspect.</param>
+        /// <returns>True when the schema uses the standard shader path.</returns>
+        bool IsStandardShaderSchema(string schemaId) {
+            return string.Equals(schemaId, StandardShaderSchemaId, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -1355,14 +1488,36 @@ namespace helengine.editor {
             ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
             WriteAsset(Path.Combine(buildRootPath, StandardGeneratedShaderRelativePath), shaderAsset);
 
-            MaterialAsset materialAsset = new MaterialAsset {
-                Id = "Engine.Materials.Standard.material",
-                ShaderAssetId = shaderAsset.Id,
-                VertexProgram = StandardVertexProgramName,
-                PixelProgram = StandardPixelProgramName,
-                Variant = StandardShaderVariantName
-            };
-            WriteAsset(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), materialAsset);
+            if (MaterialBuilder == null) {
+                MaterialAsset materialAsset = new MaterialAsset {
+                    Id = "Engine.Materials.Standard.material",
+                    ShaderAssetId = shaderAsset.Id,
+                    VertexProgram = StandardVertexProgramName,
+                    PixelProgram = StandardPixelProgramName,
+                    Variant = StandardShaderVariantName
+                };
+                WriteAsset(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), materialAsset);
+                return;
+            }
+
+            MaterialAssetProcessorSettings standardMaterialSettings = new MaterialAssetProcessorSettings();
+            MaterialAssetSchemaSettingsService schemaSettingsService = new MaterialAssetSchemaSettingsService();
+            if (schemaSettingsService.EnsureSelectedSchema(standardMaterialSettings, MaterialBuilder.Definition.MaterialSchemas) == null) {
+                throw new InvalidOperationException("The generated standard material requires at least one material schema.");
+            }
+
+            Dictionary<string, string> standardMaterialFieldValues = BuildMaterialCookFieldValues(new MaterialAsset(), standardMaterialSettings);
+            standardMaterialFieldValues[VariantFieldId] = StandardShaderVariantName;
+            PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(new PlatformMaterialCookRequest(
+                StandardGeneratedMaterialAssetId,
+                EngineGeneratedAssetProvider.StandardMaterialRelativePath,
+                TargetPlatformId,
+                SelectedBuildProfileId,
+                SelectedGraphicsProfileId,
+                standardMaterialSettings.SchemaId,
+                standardMaterialFieldValues));
+            RememberReferencedShaderAssetIds(cookResult.ReferencedShaderAssetIds);
+            WriteBytes(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), cookResult.CookedMaterialBytes);
         }
 
         /// <summary>
