@@ -207,6 +207,7 @@ namespace helengine.editor.tests {
             Assert.False(Core.Instance.InputSystem.WasKeyPressed(Keys.Enter));
         }
 
+#if DESKTOP_PLATFORM
         /// <summary>
         /// Ensures enabling background input allows inactive hosts to report keyboard and mouse-button input.
         /// </summary>
@@ -228,6 +229,7 @@ namespace helengine.editor.tests {
             Assert.True(Core.Instance.InputSystem.WasKeyPressed(Keys.Enter));
             Assert.Equal(ButtonState.Pressed, Core.Instance.InputSystem.CurrentFrame.Mouse.LeftButton);
         }
+#endif
 
         /// <summary>
         /// Ensures the shared input layer leaves edge positions unchanged when pointer wrapping is disabled.

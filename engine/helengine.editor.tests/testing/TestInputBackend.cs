@@ -23,7 +23,9 @@ namespace helengine.editor.tests.testing {
         /// <summary>
         /// Gets or sets whether the backend should continue reporting keyboard and button input while inactive.
         /// </summary>
+#if DESKTOP_PLATFORM
         public bool ReceiveInputInBackground { get; set; }
+#endif
 
         /// <summary>
         /// Gets or sets the gamepad states returned by the backend.
@@ -120,9 +122,15 @@ namespace helengine.editor.tests.testing {
         /// </summary>
         /// <returns>Mouse state supplied by the test.</returns>
         KeyboardState CaptureKeyboardState() {
+#if DESKTOP_PLATFORM
             if (IsForegroundActive || ReceiveInputInBackground) {
                 return KeyboardState;
             }
+#else
+            if (IsForegroundActive) {
+                return KeyboardState;
+            }
+#endif
 
             return new KeyboardState();
         }
@@ -133,9 +141,15 @@ namespace helengine.editor.tests.testing {
         /// <returns>Mouse state supplied by the test.</returns>
         MouseState CaptureMouseState() {
             MouseState state = MouseState;
+#if DESKTOP_PLATFORM
             if (IsForegroundActive || ReceiveInputInBackground) {
                 return state;
             }
+#else
+            if (IsForegroundActive) {
+                return state;
+            }
+#endif
 
             state.LeftButton = ButtonState.Released;
             state.MiddleButton = ButtonState.Released;

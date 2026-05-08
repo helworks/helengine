@@ -56,6 +56,17 @@ namespace helengine {
             throw new NotSupportedException("This renderer does not support material creation.");
         }
 
+#if PS2_PLATFORM
+        /// <summary>
+        /// Builds a runtime material from one PS2-cooked material payload.
+        /// </summary>
+        /// <param name="materialAsset">PS2-native cooked material payload.</param>
+        /// <returns>Runtime material instance.</returns>
+        public virtual RuntimeMaterial BuildMaterialFromCooked(Ps2MaterialAsset materialAsset) {
+            throw new NotSupportedException("This renderer does not support PS2 cooked material creation.");
+        }
+#endif
+
         /// <summary>
         /// Invalidates shader resources associated with a compiled shader asset.
         /// </summary>

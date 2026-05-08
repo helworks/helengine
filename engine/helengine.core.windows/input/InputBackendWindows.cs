@@ -96,7 +96,9 @@ namespace helengine {
         /// <summary>
         /// Gets or sets whether the backend should continue reporting keyboard and button input while its host window is not foreground active.
         /// </summary>
+#if DESKTOP_PLATFORM
         public bool ReceiveInputInBackground { get; set; }
+#endif
 
         /// <summary>
         /// Captures the current raw input frame from the attached window.
@@ -137,10 +139,12 @@ namespace helengine {
         /// </summary>
         /// <returns>Keyboard state for the current frame.</returns>
         KeyboardState CaptureKeyboardState() {
+#if DESKTOP_PLATFORM
             if (!ReceiveInputInBackground && !IsWindowForegroundActive()) {
                 CapturedKeys.Clear();
                 return new KeyboardState();
             }
+#endif
 
             if (!GetKeyboardState(KeyStateBytes)) {
                 return new KeyboardState(CapturedKeys, Console.CapsLock, Console.NumberLock);
@@ -177,9 +181,13 @@ namespace helengine {
                 mouseState.Y = pos.Y;
             }
 
+#if DESKTOP_PLATFORM
             if (!ReceiveInputInBackground && !IsWindowForegroundActive()) {
                 ReleaseAllButtons(ref mouseState);
             } else {
+#else
+            {
+#endif
                 MouseButtons buttons = Control.MouseButtons;
                 mouseState.LeftButton = (buttons & MouseButtons.Left) == MouseButtons.Left ? ButtonState.Pressed : ButtonState.Released;
                 mouseState.MiddleButton = (buttons & MouseButtons.Middle) == MouseButtons.Middle ? ButtonState.Pressed : ButtonState.Released;

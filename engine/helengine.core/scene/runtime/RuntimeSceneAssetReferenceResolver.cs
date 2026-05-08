@@ -78,11 +78,16 @@ namespace helengine {
             }
 
             string fullPath = ResolveFileBackedAssetPath(reference);
+#if PS2_PLATFORM
+            Ps2MaterialAsset materialAsset = AssetContentManager.Load<Ps2MaterialAsset>(fullPath, RuntimeContentProcessorIds.MaterialAsset);
+            return Core.Instance.RenderManager3D.BuildMaterialFromCooked(materialAsset);
+#else
             MaterialAsset materialAsset = AssetContentManager.Load<MaterialAsset>(fullPath, RuntimeContentProcessorIds.MaterialAsset);
             ShaderAsset shaderAsset = AssetContentManager.Load<ShaderAsset>(
                 ResolveShaderPackagePath(materialAsset.ShaderAssetId),
                 RuntimeContentProcessorIds.ShaderAsset);
             return Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+#endif
         }
 
         /// <summary>
@@ -122,7 +127,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves one shader asset id into the packaged shader-asset path used by Windows player builds.
+        /// Resolves one shader asset id into the packaged shader-asset path used by shader-backed player builds.
         /// </summary>
         /// <param name="shaderAssetId">Shader asset identifier stored on the packaged material asset.</param>
         /// <returns>Absolute packaged shader-asset path.</returns>

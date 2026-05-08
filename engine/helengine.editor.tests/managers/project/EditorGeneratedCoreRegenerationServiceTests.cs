@@ -99,6 +99,33 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             symbols,
             symbol => Assert.Equal("HELENGINE_INPUT_KEYBOARD", symbol),
             symbol => Assert.Equal("HELENGINE_INPUT_MOUSE", symbol),
+            symbol => Assert.Equal("DESKTOP_PLATFORM", symbol),
+            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol),
+            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", symbol));
+    }
+
+    /// <summary>
+    /// Verifies PS2 builds exclude desktop-only input symbols and include the PS2 runtime symbol.
+    /// </summary>
+    [Fact]
+    public void Resolve_portable_input_preprocessor_symbols_returns_ps2_runtime_symbol_without_desktop_input_symbols() {
+        PlatformDefinition definition = new(
+            "ps2",
+            "PS2",
+            Array.Empty<PlatformBuildProfileDefinition>(),
+            Array.Empty<PlatformGraphicsProfileDefinition>(),
+            Array.Empty<PlatformAssetRequirementDefinition>(),
+            Array.Empty<PlatformMaterialSchemaDefinition>(),
+            Array.Empty<PlatformComponentCompatibilityDefinition>(),
+            Array.Empty<PlatformCodegenProfileDefinition>(),
+            Array.Empty<PlatformStorageProfileDefinition>(),
+            Array.Empty<PlatformMediaProfileDefinition>());
+
+        IReadOnlyList<string> symbols = EditorGeneratedCoreRegenerationService.ResolvePortableInputPreprocessorSymbols(definition);
+
+        Assert.Collection(
+            symbols,
+            symbol => Assert.Equal("PS2_PLATFORM", symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol),
             symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", symbol));
     }
@@ -143,6 +170,42 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("--preset", arguments);
         Assert.Contains("ps2-lite", arguments);
         Assert.DoesNotContain($"{PlatformCodegenSettingIds.PresetId}=ps2-lite", arguments);
+    }
+
+    /// <summary>
+    /// Verifies generated-core regeneration disables project-defined preprocessor symbols so platform-specific symbols come only from the selected build target.
+    /// </summary>
+    [Fact]
+    public void Build_arguments_disables_project_defined_preprocessor_symbols() {
+        PlatformDefinition platformDefinition = new(
+            "ps2",
+            "PS2",
+            Array.Empty<PlatformBuildProfileDefinition>(),
+            Array.Empty<PlatformGraphicsProfileDefinition>(),
+            Array.Empty<PlatformAssetRequirementDefinition>(),
+            Array.Empty<PlatformMaterialSchemaDefinition>(),
+            Array.Empty<PlatformComponentCompatibilityDefinition>(),
+            Array.Empty<PlatformCodegenProfileDefinition>(),
+            Array.Empty<PlatformStorageProfileDefinition>(),
+            Array.Empty<PlatformMediaProfileDefinition>());
+        PlatformCodegenProfileDefinition codegenProfile = new(
+            "default",
+            "Default",
+            "Default codegen profile",
+            PlatformCodegenLanguage.Cpp,
+            PlatformSerializationEndianness.LittleEndian,
+            []);
+
+        IReadOnlyList<string> arguments = EditorGeneratedCoreRegenerationService.BuildArguments(
+            @"C:\tmp\fixture.csproj",
+            @"C:\tmp\generated",
+            platformDefinition,
+            codegenProfile,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            []);
+
+        Assert.Contains("--set", arguments);
+        Assert.Contains("include-project-defined-preprocessor-symbols=false", arguments);
     }
 
     /// <summary>
@@ -273,6 +336,28 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated camera-render-settings source normalizes enum member access for C++ compilation.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_fixes_camera_render_settings_enum_member_access() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-camera-render-settings-enums");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string sourcePath = Path.Combine(generatedCoreRootPath, "CameraRenderSettings.cpp");
+        File.WriteAllText(
+            sourcePath,
+            "CameraRenderSettings::CameraRenderSettings() {" + Environment.NewLine
+            + "    this->set_DepthPrepassMode(this->DepthPrepassMode::Auto);" + Environment.NewLine
+            + "    this->set_PostProcessTier(this->PostProcessTier::High);" + Environment.NewLine
+            + "}" + Environment.NewLine);
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedSource = File.ReadAllText(sourcePath);
+        Assert.Contains("this->set_DepthPrepassMode(::DepthPrepassMode::Auto);", normalizedSource);
+        Assert.Contains("this->set_PostProcessTier(::PostProcessTier::High);", normalizedSource);
+    }
+
+    /// <summary>
     /// Verifies generated dictionary runtime support gains a Clear helper required by converted menu code.
     /// </summary>
     [Fact]
@@ -300,6 +385,39 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         string normalized = File.ReadAllText(dictionaryPath);
         Assert.Contains("void Clear()", normalized);
         Assert.Contains("this->clear();", normalized);
+    }
+
+    /// <summary>
+    /// Verifies generated array runtime support value-initializes allocated storage so pointer elements start as null.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_value_initializes_runtime_array_storage() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-runtime-array");
+        Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "runtime"));
+        string arrayPath = Path.Combine(generatedCoreRootPath, "runtime", "array.hpp");
+        File.WriteAllText(
+            arrayPath,
+            "#pragma once\n"
+            + "template<typename T>\n"
+            + "class Array {\n"
+            + "public:\n"
+            + "    explicit Array(int32_t length)\n"
+            + "        : Length(length), Data(length > 0 ? new T[length] : nullptr) {\n"
+            + "    }\n"
+            + "\n"
+            + "    Array(std::initializer_list<T> values)\n"
+            + "        : Length(static_cast<int32_t>(values.size())), Data(values.size() > 0 ? new T[values.size()] : nullptr) {\n"
+            + "    }\n"
+            + "};\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalized = File.ReadAllText(arrayPath);
+        Assert.Contains("new T[length]()", normalized);
+        Assert.Contains("new T[values.size()]()", normalized);
+        Assert.DoesNotContain("new T[length]()()", normalized);
+        Assert.DoesNotContain("new T[values.size()]()()", normalized);
     }
 
     /// <summary>
@@ -786,5 +904,46 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
 
         string normalizedSource = File.ReadAllText(sourcePath);
         Assert.Contains("#include \"system/io/directory.hpp\"", normalizedSource);
+    }
+
+    /// <summary>
+    /// Verifies generated component and entity headers drop the heavy includes that create the native component inheritance cycle during Windows export.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_removes_component_entity_include_cycle_headers() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-component-entity-include-cycle");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string componentHeaderPath = Path.Combine(generatedCoreRootPath, "Component.hpp");
+        string entityHeaderPath = Path.Combine(generatedCoreRootPath, "Entity.hpp");
+        File.WriteAllText(
+            componentHeaderPath,
+            "#pragma once\n"
+            + "class Entity;\n"
+            + "#include \"Entity.hpp\"\n"
+            + "class Component {};\n");
+        File.WriteAllText(
+            entityHeaderPath,
+            "#pragma once\n"
+            + "class Component;\n"
+            + "class Core;\n"
+            + "class ObjectManager;\n"
+            + "class ComponentExecutionPolicy;\n"
+            + "#include \"Component.hpp\"\n"
+            + "#include \"ComponentExecutionPolicy.hpp\"\n"
+            + "#include \"Core.hpp\"\n"
+            + "#include \"ObjectManager.hpp\"\n"
+            + "#include \"float4.hpp\"\n"
+            + "class Entity {};\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedComponentHeader = File.ReadAllText(componentHeaderPath);
+        string normalizedEntityHeader = File.ReadAllText(entityHeaderPath);
+        Assert.DoesNotContain("#include \"Entity.hpp\"", normalizedComponentHeader, StringComparison.Ordinal);
+        Assert.DoesNotContain("#include \"Component.hpp\"", normalizedEntityHeader, StringComparison.Ordinal);
+        Assert.DoesNotContain("#include \"ComponentExecutionPolicy.hpp\"", normalizedEntityHeader, StringComparison.Ordinal);
+        Assert.DoesNotContain("#include \"Core.hpp\"", normalizedEntityHeader, StringComparison.Ordinal);
+        Assert.DoesNotContain("#include \"ObjectManager.hpp\"", normalizedEntityHeader, StringComparison.Ordinal);
+        Assert.Contains("#include \"float4.hpp\"", normalizedEntityHeader, StringComparison.Ordinal);
     }
 }

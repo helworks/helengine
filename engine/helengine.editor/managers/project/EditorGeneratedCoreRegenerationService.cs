@@ -229,7 +229,9 @@ namespace helengine.editor {
                 "--language",
                 codegenProfile.OutputLanguage.ToString().ToLowerInvariant(),
                 "--endianness",
-                codegenProfile.Endianness == PlatformSerializationEndianness.LittleEndian ? "little" : "big"
+                codegenProfile.Endianness == PlatformSerializationEndianness.LittleEndian ? "little" : "big",
+                "--set",
+                "include-project-defined-preprocessor-symbols=false"
             ];
 
             if (selectedCodegenOptionValues.TryGetValue(PlatformCodegenSettingIds.PresetId, out string presetId)
@@ -274,6 +276,15 @@ namespace helengine.editor {
                 return [
                     "HELENGINE_INPUT_KEYBOARD",
                     "HELENGINE_INPUT_MOUSE",
+                    "DESKTOP_PLATFORM",
+                    "HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION",
+                    "HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION"
+                ];
+            }
+
+            if (string.Equals(platformDefinition.PlatformId, "ps2", StringComparison.OrdinalIgnoreCase)) {
+                return [
+                    "PS2_PLATFORM",
                     "HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION",
                     "HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION"
                 ];
@@ -694,6 +705,18 @@ namespace helengine.editor {
                 return contents;
             }
 
+            if (string.Equals(fileName, "Component.hpp", StringComparison.OrdinalIgnoreCase)) {
+                return RemoveGeneratedIncludeLine(contents, "#include \"Entity.hpp\"");
+            }
+
+            if (string.Equals(fileName, "Entity.hpp", StringComparison.OrdinalIgnoreCase)) {
+                string updatedContents = RemoveGeneratedIncludeLine(contents, "#include \"Component.hpp\"");
+                updatedContents = RemoveGeneratedIncludeLine(updatedContents, "#include \"ComponentExecutionPolicy.hpp\"");
+                updatedContents = RemoveGeneratedIncludeLine(updatedContents, "#include \"Core.hpp\"");
+                updatedContents = RemoveGeneratedIncludeLine(updatedContents, "#include \"ObjectManager.hpp\"");
+                return updatedContents;
+            }
+
             if (string.Equals(fileName, "ButtonComponent.hpp", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(fileName, "ComboBoxComponent.hpp", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(fileName, "ScrollComponent.hpp", StringComparison.OrdinalIgnoreCase)
@@ -827,6 +850,12 @@ namespace helengine.editor {
                 return updatedContents;
             }
 
+            if (string.Equals(fileName, "CameraRenderSettings.cpp", StringComparison.OrdinalIgnoreCase)) {
+                string updatedContents = contents.Replace("this->DepthPrepassMode::", "::DepthPrepassMode::");
+                updatedContents = updatedContents.Replace("this->PostProcessTier::", "::PostProcessTier::");
+                return updatedContents;
+            }
+
             if (string.Equals(fileName, "CoreInitializationOptions.cpp", StringComparison.OrdinalIgnoreCase)
                 && contents.Contains("AppContext::BaseDirectory", StringComparison.Ordinal)
                 && !contents.Contains("#include \"system/app_context.hpp\"", StringComparison.Ordinal)) {
@@ -851,6 +880,11 @@ namespace helengine.editor {
             if (string.Equals(fileName, "native_dictionary.hpp", StringComparison.OrdinalIgnoreCase)
                 && !contents.Contains("void Clear()", StringComparison.Ordinal)) {
                 return InsertNativeDictionaryClearHelper(contents);
+            }
+
+            if (string.Equals(fileName, "array.hpp", StringComparison.OrdinalIgnoreCase)
+                && contents.Contains("new T[length]", StringComparison.Ordinal)) {
+                return InsertRuntimeArrayValueInitialization(contents);
             }
 
             if (string.Equals(fileName, "native_string.hpp", StringComparison.OrdinalIgnoreCase)
@@ -890,6 +924,27 @@ namespace helengine.editor {
             }
 
             return contents;
+        }
+
+        /// <summary>
+        /// Rewrites the bundled native Array support so newly allocated storage value-initializes every slot.
+        /// </summary>
+        /// <param name="contents">Current array runtime header contents.</param>
+        /// <returns>Updated array runtime header contents.</returns>
+        static string InsertRuntimeArrayValueInitialization(string contents) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            string updatedContents = contents.Replace(
+                "new T[length] : nullptr",
+                "new T[length]() : nullptr",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "new T[values.size()] : nullptr",
+                "new T[values.size()]() : nullptr",
+                StringComparison.Ordinal);
+            return updatedContents;
         }
 
         /// <summary>
@@ -1266,6 +1321,22 @@ namespace helengine.editor {
             }
 
             return contents + newline + implementation;
+        }
+
+        /// <summary>
+        /// Removes every exact generated include line from one file while preserving the surrounding newline style.
+        /// </summary>
+        /// <param name="contents">Current generated file contents.</param>
+        /// <param name="includeLine">Exact include directive that should be removed.</param>
+        /// <returns>Updated file contents without the include directive.</returns>
+        static string RemoveGeneratedIncludeLine(string contents, string includeLine) {
+            if (string.IsNullOrEmpty(contents) || string.IsNullOrWhiteSpace(includeLine)) {
+                return contents;
+            }
+
+            string updatedContents = contents.Replace(includeLine + "\r\n", string.Empty, StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(includeLine + "\n", string.Empty, StringComparison.Ordinal);
+            return updatedContents.Replace(includeLine, string.Empty, StringComparison.Ordinal);
         }
 
         /// <summary>

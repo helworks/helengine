@@ -71,7 +71,9 @@ public sealed class InputSystem {
     /// <summary>
     /// Tracks whether the active backend should continue reporting input while its host is not foreground active.
     /// </summary>
+#if DESKTOP_PLATFORM
     bool ReceiveInputInBackground;
+#endif
     /// <summary>
     /// Optional frame callback invoked after input capture and before pointer-wrap state is committed.
     /// </summary>
@@ -141,10 +143,12 @@ public sealed class InputSystem {
     /// Enables or disables raw keyboard and mouse-button capture while the host window is not foreground active.
     /// </summary>
     /// <param name="isEnabled">True when the backend should continue reporting background input.</param>
+#if DESKTOP_PLATFORM
     public void SetBackgroundInputEnabled(bool isEnabled) {
         ReceiveInputInBackground = isEnabled;
         ApplyBackgroundInputPolicy();
     }
+#endif
 
     /// <summary>
     /// Replaces the keyboard state exposed by this system when deterministic test input is needed.
@@ -738,11 +742,13 @@ public sealed class InputSystem {
     /// Applies the current background-input policy to the active backend when one is available.
     /// </summary>
     void ApplyBackgroundInputPolicy() {
+#if DESKTOP_PLATFORM
         if (Backend == null) {
             return;
         }
 
         Backend.ReceiveInputInBackground = ReceiveInputInBackground;
+#endif
     }
 
     /// <summary>
