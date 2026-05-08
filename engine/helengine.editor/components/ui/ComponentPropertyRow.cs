@@ -44,9 +44,24 @@ namespace helengine.editor {
         public TextComponent Label { get; }
 
         /// <summary>
+        /// Gets or sets the common live component attached to the entity.
+        /// </summary>
+        public Component CommonComponent { get; set; }
+
+        /// <summary>
         /// Gets or sets the component that owns the property.
         /// </summary>
         public Component TargetComponent { get; set; }
+
+        /// <summary>
+        /// Gets or sets the hidden save component attached to the owning entity.
+        /// </summary>
+        public EntitySaveComponent SaveComponent { get; set; }
+
+        /// <summary>
+        /// Gets or sets the platform id currently being edited by the row.
+        /// </summary>
+        public string EditingPlatformId { get; set; }
 
         /// <summary>
         /// Gets or sets the bound property metadata.

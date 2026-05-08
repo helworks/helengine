@@ -36,6 +36,30 @@ namespace helengine.editor {
         /// </summary>
         const int ComponentSectionSpacing = 10;
         /// <summary>
+        /// Height of the shared component platform tab strip.
+        /// </summary>
+        const int ComponentPlatformTabHeight = 24;
+        /// <summary>
+        /// Width reserved for each shared component platform tab.
+        /// </summary>
+        const int ComponentPlatformTabWidth = 96;
+        /// <summary>
+        /// Spacing between the entity name row and the shared component platform strip.
+        /// </summary>
+        const int ComponentPlatformTabTopSpacing = 6;
+        /// <summary>
+        /// Spacing between the shared component platform strip and the transform rows.
+        /// </summary>
+        const int ComponentPlatformTabBottomSpacing = 8;
+        /// <summary>
+        /// Width reserved for each overflow arrow in the component platform strip.
+        /// </summary>
+        const int ComponentPlatformArrowButtonWidth = 22;
+        /// <summary>
+        /// Default component platform ids shown by the inspector when no explicit project selection is supplied.
+        /// </summary>
+        static readonly string[] DefaultComponentPlatformIds = new[] { "common", "windows", "ps2", "gamecube", "wii" };
+        /// <summary>
         /// Height of the add-component button.
         /// </summary>
         const int AddComponentButtonHeight = 24;
@@ -169,6 +193,10 @@ namespace helengine.editor {
         /// </summary>
         readonly TextBoxComponent NameField;
         /// <summary>
+        /// Shared platform tab strip shown below the selected entity name.
+        /// </summary>
+        readonly PlatformTabStripView ComponentPlatformTabStrip;
+        /// <summary>
         /// Row entity for position fields.
         /// </summary>
         readonly EditorEntity PositionRow;
@@ -232,6 +260,10 @@ namespace helengine.editor {
         /// Cached text value for the name field.
         /// </summary>
         string NameTextCache;
+        /// <summary>
+        /// Currently selected component platform id shown by the inspector.
+        /// </summary>
+        string SelectedComponentPlatformId;
         /// <summary>
         /// Currently selected entity, if any.
         /// </summary>
@@ -454,11 +486,21 @@ namespace helengine.editor {
             CreateTransformRow("Position", out PositionRow, out PositionLabel, out PositionFieldHosts, out PositionFields);
             CreateTransformRow("Rotation", out RotationRow, out RotationLabel, out RotationFieldHosts, out RotationFields);
             CreateTransformRow("Scale", out ScaleRow, out ScaleLabel, out ScaleFieldHosts, out ScaleFields);
+            ComponentPlatformTabStrip = new PlatformTabStripView(
+                font,
+                EditorLayerMasks.PropertiesPanelContent,
+                ComponentPlatformTabWidth,
+                ComponentPlatformTabHeight,
+                0,
+                ComponentPlatformArrowButtonWidth);
+            ScrollContentRoot.AddChild(ComponentPlatformTabStrip.Root);
+            ComponentPlatformTabStrip.Root.Enabled = false;
 
             PositionTextCache = new string[3];
             RotationTextCache = new string[3];
             ScaleTextCache = new string[3];
             NameTextCache = string.Empty;
+            SelectedComponentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
 
             HookNameEvents(NameField);
             HookTransformEvents(PositionFields);
@@ -507,6 +549,7 @@ namespace helengine.editor {
             HideRemoveComponentDialog();
             importSettingsView.Show(importerIds, settings, supportedPlatforms, activePlatformId, entry.EntryKind);
             MaterialView.Hide();
+            ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);
             ComponentView.Hide();
             ApplyLines(Array.Empty<string>());
@@ -531,6 +574,7 @@ namespace helengine.editor {
             HideRemoveComponentDialog();
             importSettingsView.Hide();
             MaterialView.Hide();
+            ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);
             ComponentView.Hide();
             ApplyLines(new[] {
@@ -549,6 +593,7 @@ namespace helengine.editor {
             HideRemoveComponentDialog();
             importSettingsView.Hide();
             MaterialView.Hide();
+            ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);
             ComponentView.Hide();
             ApplyLines(Array.Empty<string>());
@@ -581,6 +626,7 @@ namespace helengine.editor {
             HideRemoveComponentDialog();
             importSettingsView.Hide();
             MaterialView.Show(entry, materialAsset, settings, supportedPlatforms, activePlatformId, selectionModelResolver);
+            ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);
             ComponentView.Hide();
             ApplyLines(Array.Empty<string>());
@@ -599,6 +645,7 @@ namespace helengine.editor {
             currentEntry = null;
             importSettingsView.Hide();
             MaterialView.Hide();
+            ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);
             ComponentView.Hide();
             ApplyLines(new[] {
@@ -651,9 +698,12 @@ namespace helengine.editor {
             importSettingsView.Hide();
             MaterialView.Hide();
             SelectedEntity = entity;
+            SelectedComponentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
+            ComponentPlatformTabStrip.SetPlatforms(DefaultComponentPlatformIds, SelectedComponentPlatformId, HandleComponentPlatformTabChanged);
+            ComponentPlatformTabStrip.Root.Enabled = true;
             ApplyLines(Array.Empty<string>());
             SyncTransformFields(entity);
-            ComponentView.ShowComponents(entity);
+            ComponentView.ShowComponents(entity, SelectedComponentPlatformId);
             SetTransformVisible(true);
             LayoutLines();
         }
@@ -714,6 +764,24 @@ namespace helengine.editor {
         /// </summary>
         void HandleRemoveComponentCanceled() {
             HideRemoveComponentDialog();
+        }
+
+        /// <summary>
+        /// Handles shared component platform tab selection changes and refreshes the component inspector in that context.
+        /// </summary>
+        /// <param name="platformId">Platform id selected by the shared strip.</param>
+        void HandleComponentPlatformTabChanged(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+            if (SelectedEntity == null) {
+                return;
+            }
+
+            SelectedComponentPlatformId = platformId;
+            ComponentPlatformTabStrip.SetSelectedPlatform(platformId);
+            ComponentView.ShowComponents(SelectedEntity, platformId);
+            LayoutLines();
         }
 
         /// <summary>
@@ -1007,7 +1075,9 @@ namespace helengine.editor {
 
             int rowTop = 0;
             LayoutNameRow(labelWidth, nameFieldWidth, rowTop);
-            rowTop += TransformRowHeight + rowSpacing;
+            rowTop += TransformRowHeight + ComponentPlatformTabTopSpacing;
+            LayoutComponentPlatformTabs(rowTop, maxWidth);
+            rowTop += ComponentPlatformTabHeight + ComponentPlatformTabBottomSpacing;
             LayoutTransformRow(PositionRow, PositionLabel, PositionFieldHosts, PositionFields, labelWidth, fieldWidth, rowTop);
             rowTop += TransformRowHeight + rowSpacing;
             LayoutTransformRow(RotationRow, RotationLabel, RotationFieldHosts, RotationFields, labelWidth, fieldWidth, rowTop);
@@ -1509,7 +1579,22 @@ namespace helengine.editor {
         /// <returns>Height in pixels.</returns>
         int GetTransformSectionHeight() {
             int rowSpacing = LineSpacing + 2;
-            return (TransformRowHeight * 4) + (rowSpacing * 3);
+            return (TransformRowHeight * 4) + (rowSpacing * 2) + ComponentPlatformTabTopSpacing + ComponentPlatformTabHeight + ComponentPlatformTabBottomSpacing;
+        }
+
+        /// <summary>
+        /// Lays out the shared component platform tab strip directly under the entity name row.
+        /// </summary>
+        /// <param name="top">Top offset within the transform root.</param>
+        /// <param name="maxWidth">Maximum width available to the strip.</param>
+        void LayoutComponentPlatformTabs(int top, int maxWidth) {
+            ComponentPlatformTabStrip.Root.Enabled = ShowTransformControls && SelectedEntity != null;
+            if (!ComponentPlatformTabStrip.Root.Enabled) {
+                return;
+            }
+
+            int absoluteTop = (int)Math.Round(TransformRoot.Position.Y + top);
+            ComponentPlatformTabStrip.UpdateLayout(ContentPadding, absoluteTop, Math.Max(1, maxWidth));
         }
 
         /// <summary>

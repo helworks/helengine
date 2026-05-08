@@ -148,6 +148,10 @@ namespace helengine.editor {
         /// </summary>
         readonly ReflectedComponentPropertyDescriptorBuilder DescriptorBuilder;
         /// <summary>
+        /// Builds and persists detached component overrides for non-common platform tabs.
+        /// </summary>
+        readonly ComponentPlatformEditingService PlatformEditingService;
+        /// <summary>
         /// Render order used for label text.
         /// </summary>
         readonly byte TextOrder;
@@ -167,6 +171,10 @@ namespace helengine.editor {
         /// Entity currently being inspected.
         /// </summary>
         Entity CurrentEntity;
+        /// <summary>
+        /// Platform id currently being edited by the component inspector.
+        /// </summary>
+        string CurrentPlatformId;
         /// <summary>
         /// Last left offset used during layout.
         /// </summary>
@@ -267,9 +275,11 @@ namespace helengine.editor {
             MaterialLabels = new Dictionary<RuntimeMaterial, string>();
             FontLabels = new Dictionary<FontAsset, string>();
             DescriptorBuilder = new ReflectedComponentPropertyDescriptorBuilder();
+            PlatformEditingService = new ComponentPlatformEditingService();
             CollapsedStates = new Dictionary<Component, bool>();
             CustomEditorExpandedStates = new Dictionary<string, bool>();
             TextOrder = RenderOrder2D.PanelForeground;
+            CurrentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
         }
 
         /// <summary>
@@ -292,11 +302,23 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entity">Entity to inspect.</param>
         public void ShowComponents(Entity entity) {
+            ShowComponents(entity, ComponentPlatformEditingService.CommonPlatformId);
+        }
+
+        /// <summary>
+        /// Shows component properties for the specified entity in one selected platform context.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <param name="platformId">Platform context displayed by the inspector.</param>
+        public void ShowComponents(Entity entity, string platformId) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
             CurrentEntity = entity;
+            CurrentPlatformId = platformId;
             ClearActiveRows();
             ClearActiveSections();
             if (entity.Components == null || entity.Components.Count == 0) {
@@ -305,19 +327,22 @@ namespace helengine.editor {
                 return;
             }
 
+            EntitySaveComponent saveComponent = ResolveEntitySaveComponent(entity);
+
             RootEntity.Enabled = true;
 
             for (int i = 0; i < entity.Components.Count; i++) {
-                Component component = entity.Components[i];
-                if (component == null) {
+                Component commonComponent = entity.Components[i];
+                if (commonComponent == null) {
                     continue;
                 }
-                if (component is IEditorHiddenComponent) {
+                if (commonComponent is IEditorHiddenComponent) {
                     continue;
                 }
 
-                ComponentSectionView section = AcquireSection(component);
-                AddPropertyRows(section, component);
+                Component editableComponent = ResolveEditableComponent(commonComponent, saveComponent, platformId);
+                ComponentSectionView section = AcquireSection(commonComponent);
+                AddPropertyRows(section, commonComponent, editableComponent, saveComponent, platformId);
                 ActiveSections.Add(section);
             }
 
@@ -336,7 +361,29 @@ namespace helengine.editor {
             RootEntity.Enabled = false;
             LayoutHeightValue = 0;
             CurrentEntity = null;
+            CurrentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
             HasLayoutState = false;
+        }
+
+        /// <summary>
+        /// Resolves the effective editable component for the requested platform.
+        /// </summary>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="saveComponent">Hidden save component attached to the entity.</param>
+        /// <param name="platformId">Platform context displayed by the inspector.</param>
+        /// <returns>Effective editable component for the supplied platform.</returns>
+        Component ResolveEditableComponent(Component commonComponent, EntitySaveComponent saveComponent, string platformId) {
+            if (commonComponent == null) {
+                throw new ArgumentNullException(nameof(commonComponent));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+            if (saveComponent == null) {
+                return commonComponent;
+            }
+
+            return PlatformEditingService.ResolveEditableComponent(commonComponent, saveComponent, platformId);
         }
 
         /// <summary>
@@ -389,7 +436,10 @@ namespace helengine.editor {
             for (int i = 0; i < ActiveRows.Count; i++) {
                 ComponentPropertyRow row = ActiveRows[i];
                 row.Entity.Enabled = false;
+                row.CommonComponent = null;
                 row.TargetComponent = null;
+                row.SaveComponent = null;
+                row.EditingPlatformId = null;
                 row.Property = null;
                 row.ValueType = null;
                 row.CustomEditorTypeId = null;
@@ -421,18 +471,26 @@ namespace helengine.editor {
         /// <summary>
         /// Adds editable rows for the properties of a component.
         /// </summary>
-        /// <param name="component">Component to inspect.</param>
-        void AddPropertyRows(ComponentSectionView section, Component component) {
-            List<ReflectedComponentPropertyDescriptor> descriptors = DescriptorBuilder.Build(component.GetType());
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current platform.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Platform context currently shown by the inspector.</param>
+        void AddPropertyRows(
+            ComponentSectionView section,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId) {
+            List<ReflectedComponentPropertyDescriptor> descriptors = DescriptorBuilder.Build(editableComponent.GetType());
             for (int index = 0; index < descriptors.Count; index++) {
                 ReflectedComponentPropertyDescriptor descriptor = descriptors[index];
                 if (descriptor.IsCustomEditor) {
-                    AddCustomEditorRows(section, component, descriptor);
+                    AddCustomEditorRows(section, commonComponent, editableComponent, saveComponent, platformId, descriptor);
                     continue;
                 }
 
                 ComponentPropertyRow row = AcquireRow(descriptor.RowKind);
-                BindPropertyRow(row, component, descriptor);
+                BindPropertyRow(row, commonComponent, editableComponent, saveComponent, platformId, descriptor);
                 UpdateRowValue(row);
                 section.Rows.Add(row);
                 ActiveRows.Add(row);
@@ -443,14 +501,32 @@ namespace helengine.editor {
         /// Adds the rows required by one provider-backed custom property editor.
         /// </summary>
         /// <param name="section">Section receiving the rows.</param>
-        /// <param name="component">Component that owns the custom editor property.</param>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current platform.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Platform context currently shown by the inspector.</param>
         /// <param name="descriptor">Provider-backed property descriptor.</param>
-        void AddCustomEditorRows(ComponentSectionView section, Component component, ReflectedComponentPropertyDescriptor descriptor) {
+        void AddCustomEditorRows(
+            ComponentSectionView section,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            ReflectedComponentPropertyDescriptor descriptor) {
             if (section == null) {
                 throw new ArgumentNullException(nameof(section));
             }
-            if (component == null) {
-                throw new ArgumentNullException(nameof(component));
+            if (commonComponent == null) {
+                throw new ArgumentNullException(nameof(commonComponent));
+            }
+            if (editableComponent == null) {
+                throw new ArgumentNullException(nameof(editableComponent));
+            }
+            if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
             if (descriptor == null) {
                 throw new ArgumentNullException(nameof(descriptor));
@@ -460,7 +536,7 @@ namespace helengine.editor {
             }
 
             ComponentPropertyRow sectionRow = AcquireRow(ComponentPropertyRowKind.CustomSection);
-            BindCustomSectionRow(sectionRow, component, descriptor);
+            BindCustomSectionRow(sectionRow, commonComponent, editableComponent, saveComponent, platformId, descriptor);
             section.Rows.Add(sectionRow);
             ActiveRows.Add(sectionRow);
             if (!sectionRow.IsExpanded) {
@@ -468,7 +544,7 @@ namespace helengine.editor {
             }
 
             if (string.Equals(sectionRow.CustomEditorTypeId, CameraClearSettingsPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
-                AddCameraClearSettingsRows(section, component, descriptor, sectionRow);
+                AddCameraClearSettingsRows(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow);
             }
         }
 
@@ -476,10 +552,22 @@ namespace helengine.editor {
         /// Associates a row with a component property and resets the label text.
         /// </summary>
         /// <param name="row">Row to bind.</param>
-        /// <param name="component">Component owning the property.</param>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current platform.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Platform context currently shown by the inspector.</param>
         /// <param name="descriptor">Reflected property descriptor.</param>
-        void BindPropertyRow(ComponentPropertyRow row, Component component, ReflectedComponentPropertyDescriptor descriptor) {
-            row.TargetComponent = component;
+        void BindPropertyRow(
+            ComponentPropertyRow row,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            ReflectedComponentPropertyDescriptor descriptor) {
+            row.CommonComponent = commonComponent;
+            row.TargetComponent = editableComponent;
+            row.SaveComponent = saveComponent;
+            row.EditingPlatformId = platformId;
             row.Property = descriptor.Property;
             row.ValueType = descriptor.Property.PropertyType;
             row.Label.Text = descriptor.DisplayName;
@@ -491,20 +579,41 @@ namespace helengine.editor {
         /// Associates one custom section row with its provider-backed property descriptor.
         /// </summary>
         /// <param name="row">Row to bind.</param>
-        /// <param name="component">Component that owns the custom editor property.</param>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current platform.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Platform context currently shown by the inspector.</param>
         /// <param name="descriptor">Provider-backed property descriptor.</param>
-        void BindCustomSectionRow(ComponentPropertyRow row, Component component, ReflectedComponentPropertyDescriptor descriptor) {
+        void BindCustomSectionRow(
+            ComponentPropertyRow row,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            ReflectedComponentPropertyDescriptor descriptor) {
             if (row == null) {
                 throw new ArgumentNullException(nameof(row));
             }
-            if (component == null) {
-                throw new ArgumentNullException(nameof(component));
+            if (commonComponent == null) {
+                throw new ArgumentNullException(nameof(commonComponent));
+            }
+            if (editableComponent == null) {
+                throw new ArgumentNullException(nameof(editableComponent));
+            }
+            if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
             if (descriptor == null) {
                 throw new ArgumentNullException(nameof(descriptor));
             }
 
-            row.TargetComponent = component;
+            row.CommonComponent = commonComponent;
+            row.TargetComponent = editableComponent;
+            row.SaveComponent = saveComponent;
+            row.EditingPlatformId = platformId;
             row.Property = descriptor.Property;
             row.ValueType = descriptor.Property.PropertyType;
             row.CustomEditorTypeId = descriptor.CustomEditor.EditorTypeId;
@@ -513,7 +622,7 @@ namespace helengine.editor {
             row.Label.Text = descriptor.DisplayName;
             row.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
             row.Entity.Enabled = true;
-            row.IsExpanded = CustomEditorExpandedStates.TryGetValue(BuildCustomEditorStateKey(component, descriptor.Property), out bool isExpanded) && isExpanded;
+            row.IsExpanded = CustomEditorExpandedStates.TryGetValue(BuildCustomEditorStateKey(editableComponent, descriptor.Property), out bool isExpanded) && isExpanded;
             UpdateCustomSectionVisual(row, false);
         }
 
@@ -521,24 +630,43 @@ namespace helengine.editor {
         /// Adds the nested rows used by the camera clear settings custom editor.
         /// </summary>
         /// <param name="section">Section receiving the nested rows.</param>
-        /// <param name="component">Component that owns the clear settings property.</param>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current platform.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Platform context currently shown by the inspector.</param>
         /// <param name="descriptor">Provider-backed property descriptor.</param>
         /// <param name="sectionRow">Top-level custom section row.</param>
-        void AddCameraClearSettingsRows(ComponentSectionView section, Component component, ReflectedComponentPropertyDescriptor descriptor, ComponentPropertyRow sectionRow) {
-            AddNestedBooleanRow(section, component, descriptor, sectionRow, "Clear Color Enabled", nameof(CameraClearSettings.ClearColorEnabled));
-            AddNestedVector4Row(section, component, descriptor, sectionRow, "Clear Color", nameof(CameraClearSettings.ClearColor));
-            AddNestedBooleanRow(section, component, descriptor, sectionRow, "Clear Depth Enabled", nameof(CameraClearSettings.ClearDepthEnabled));
-            AddNestedScalarRow(section, component, descriptor, sectionRow, "Clear Depth", nameof(CameraClearSettings.ClearDepth), typeof(float));
-            AddNestedBooleanRow(section, component, descriptor, sectionRow, "Clear Stencil Enabled", nameof(CameraClearSettings.ClearStencilEnabled));
-            AddNestedScalarRow(section, component, descriptor, sectionRow, "Clear Stencil", nameof(CameraClearSettings.ClearStencil), typeof(byte));
+        void AddCameraClearSettingsRows(
+            ComponentSectionView section,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            ReflectedComponentPropertyDescriptor descriptor,
+            ComponentPropertyRow sectionRow) {
+            AddNestedBooleanRow(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, "Clear Color Enabled", nameof(CameraClearSettings.ClearColorEnabled));
+            AddNestedVector4Row(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, "Clear Color", nameof(CameraClearSettings.ClearColor));
+            AddNestedBooleanRow(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, "Clear Depth Enabled", nameof(CameraClearSettings.ClearDepthEnabled));
+            AddNestedScalarRow(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, "Clear Depth", nameof(CameraClearSettings.ClearDepth), typeof(float));
+            AddNestedBooleanRow(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, "Clear Stencil Enabled", nameof(CameraClearSettings.ClearStencilEnabled));
+            AddNestedScalarRow(section, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, "Clear Stencil", nameof(CameraClearSettings.ClearStencil), typeof(byte));
         }
 
         /// <summary>
         /// Adds one nested boolean row inside the camera clear settings section.
         /// </summary>
-        void AddNestedBooleanRow(ComponentSectionView section, Component component, ReflectedComponentPropertyDescriptor descriptor, ComponentPropertyRow sectionRow, string label, string nestedMemberName) {
+        void AddNestedBooleanRow(
+            ComponentSectionView section,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            ReflectedComponentPropertyDescriptor descriptor,
+            ComponentPropertyRow sectionRow,
+            string label,
+            string nestedMemberName) {
             ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Boolean);
-            BindNestedPropertyRow(row, component, descriptor, sectionRow, label, nestedMemberName, typeof(bool));
+            BindNestedPropertyRow(row, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, label, nestedMemberName, typeof(bool));
             UpdateRowValue(row);
             section.Rows.Add(row);
             ActiveRows.Add(row);
@@ -547,9 +675,19 @@ namespace helengine.editor {
         /// <summary>
         /// Adds one nested scalar row inside the camera clear settings section.
         /// </summary>
-        void AddNestedScalarRow(ComponentSectionView section, Component component, ReflectedComponentPropertyDescriptor descriptor, ComponentPropertyRow sectionRow, string label, string nestedMemberName, Type valueType) {
+        void AddNestedScalarRow(
+            ComponentSectionView section,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            ReflectedComponentPropertyDescriptor descriptor,
+            ComponentPropertyRow sectionRow,
+            string label,
+            string nestedMemberName,
+            Type valueType) {
             ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Scalar);
-            BindNestedPropertyRow(row, component, descriptor, sectionRow, label, nestedMemberName, valueType);
+            BindNestedPropertyRow(row, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, label, nestedMemberName, valueType);
             UpdateRowValue(row);
             section.Rows.Add(row);
             ActiveRows.Add(row);
@@ -558,9 +696,18 @@ namespace helengine.editor {
         /// <summary>
         /// Adds one nested Vector4 row inside the camera clear settings section.
         /// </summary>
-        void AddNestedVector4Row(ComponentSectionView section, Component component, ReflectedComponentPropertyDescriptor descriptor, ComponentPropertyRow sectionRow, string label, string nestedMemberName) {
+        void AddNestedVector4Row(
+            ComponentSectionView section,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            ReflectedComponentPropertyDescriptor descriptor,
+            ComponentPropertyRow sectionRow,
+            string label,
+            string nestedMemberName) {
             ComponentPropertyRow row = AcquireRow(ComponentPropertyRowKind.Vector4);
-            BindNestedPropertyRow(row, component, descriptor, sectionRow, label, nestedMemberName, typeof(float4));
+            BindNestedPropertyRow(row, commonComponent, editableComponent, saveComponent, platformId, descriptor, sectionRow, label, nestedMemberName, typeof(float4));
             UpdateRowValue(row);
             section.Rows.Add(row);
             ActiveRows.Add(row);
@@ -569,12 +716,31 @@ namespace helengine.editor {
         /// <summary>
         /// Associates one nested provider-backed row with the owning property and nested member metadata.
         /// </summary>
-        void BindNestedPropertyRow(ComponentPropertyRow row, Component component, ReflectedComponentPropertyDescriptor descriptor, ComponentPropertyRow sectionRow, string label, string nestedMemberName, Type valueType) {
+        void BindNestedPropertyRow(
+            ComponentPropertyRow row,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            ReflectedComponentPropertyDescriptor descriptor,
+            ComponentPropertyRow sectionRow,
+            string label,
+            string nestedMemberName,
+            Type valueType) {
             if (row == null) {
                 throw new ArgumentNullException(nameof(row));
             }
-            if (component == null) {
-                throw new ArgumentNullException(nameof(component));
+            if (commonComponent == null) {
+                throw new ArgumentNullException(nameof(commonComponent));
+            }
+            if (editableComponent == null) {
+                throw new ArgumentNullException(nameof(editableComponent));
+            }
+            if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
             if (descriptor == null) {
                 throw new ArgumentNullException(nameof(descriptor));
@@ -592,7 +758,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(valueType));
             }
 
-            row.TargetComponent = component;
+            row.CommonComponent = commonComponent;
+            row.TargetComponent = editableComponent;
+            row.SaveComponent = saveComponent;
+            row.EditingPlatformId = platformId;
             row.Property = descriptor.Property;
             row.ValueType = valueType;
             row.CustomEditorTypeId = sectionRow.CustomEditorTypeId;
@@ -1282,6 +1451,61 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Ensures the supplied row targets the effective editable component for its current platform context.
+        /// </summary>
+        /// <param name="row">Row whose editable component should be resolved.</param>
+        void EnsureEditableComponentForRow(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (row.CommonComponent == null || row.TargetComponent == null) {
+                return;
+            }
+            if (row.SaveComponent == null || string.IsNullOrWhiteSpace(row.EditingPlatformId)) {
+                return;
+            }
+            if (string.Equals(row.EditingPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+            if (!ReferenceEquals(row.TargetComponent, row.CommonComponent)) {
+                return;
+            }
+
+            Component editableOverrideComponent = PlatformEditingService.EnsurePlatformOverrideComponent(row.CommonComponent, row.SaveComponent, row.EditingPlatformId);
+            RetargetRowsForEditableComponent(row.CommonComponent, row.EditingPlatformId, editableOverrideComponent);
+        }
+
+        /// <summary>
+        /// Retargets every visible row that edits the same common component and platform context.
+        /// </summary>
+        /// <param name="commonComponent">Common live component whose rows should be retargeted.</param>
+        /// <param name="platformId">Platform context whose rows should be retargeted.</param>
+        /// <param name="editableComponent">Effective editable component that should back those rows.</param>
+        void RetargetRowsForEditableComponent(Component commonComponent, string platformId, Component editableComponent) {
+            if (commonComponent == null) {
+                throw new ArgumentNullException(nameof(commonComponent));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+            if (editableComponent == null) {
+                throw new ArgumentNullException(nameof(editableComponent));
+            }
+
+            for (int index = 0; index < ActiveRows.Count; index++) {
+                ComponentPropertyRow activeRow = ActiveRows[index];
+                if (!ReferenceEquals(activeRow.CommonComponent, commonComponent)) {
+                    continue;
+                }
+                if (!string.Equals(activeRow.EditingPlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                activeRow.TargetComponent = editableComponent;
+            }
+        }
+
+        /// <summary>
         /// Applies one effective row value back to the owning component property.
         /// </summary>
         /// <param name="row">Row being updated.</param>
@@ -1294,6 +1518,8 @@ namespace helengine.editor {
                 return;
             }
 
+            EnsureEditableComponentForRow(row);
+
             if (!string.IsNullOrWhiteSpace(row.NestedMemberName)
                 && string.Equals(row.CustomEditorTypeId, CameraClearSettingsPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
                 CameraClearSettings settings = ReadCameraClearSettings(row);
@@ -1301,14 +1527,38 @@ namespace helengine.editor {
                 if (!TrySetSuppressedCameraPropertyValue(row, settings)) {
                     row.Property.SetValue(row.TargetComponent, settings);
                 }
+                PersistPlatformOverrideIfNeeded(row);
                 return;
             }
 
             if (TrySetSuppressedCameraPropertyValue(row, value)) {
+                PersistPlatformOverrideIfNeeded(row);
                 return;
             }
 
             row.Property.SetValue(row.TargetComponent, value);
+            PersistPlatformOverrideIfNeeded(row);
+        }
+
+        /// <summary>
+        /// Persists the current row target back into the editor-only platform override metadata when required.
+        /// </summary>
+        /// <param name="row">Row whose editable component should be persisted.</param>
+        void PersistPlatformOverrideIfNeeded(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (row.CommonComponent == null || row.TargetComponent == null) {
+                return;
+            }
+            if (row.SaveComponent == null || string.IsNullOrWhiteSpace(row.EditingPlatformId)) {
+                return;
+            }
+            if (string.Equals(row.EditingPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+
+            PlatformEditingService.PersistPlatformOverride(row.CommonComponent, row.TargetComponent, row.SaveComponent, row.EditingPlatformId);
         }
 
         /// <summary>
@@ -1452,12 +1702,14 @@ namespace helengine.editor {
             }
 
             try {
+                EnsureEditableComponentForRow(row);
                 RuntimeMaterial material = LoadMaterial(entry);
                 row.Property.SetValue(row.TargetComponent, material);
                 if (entry != null && material != null) {
                     MaterialLabels[material] = entry.Name ?? string.Empty;
                 }
                 StorePickedAssetReference(row, entry);
+                PersistPlatformOverrideIfNeeded(row);
                 UpdateMaterialRow(row);
                 EditorSceneMutationService.MarkSceneMutated();
             } catch (Exception ex) {
@@ -1476,12 +1728,14 @@ namespace helengine.editor {
             }
 
             try {
+                EnsureEditableComponentForRow(row);
                 FontAsset font = LoadFont(entry);
                 row.Property.SetValue(row.TargetComponent, font);
                 if (entry != null && font != null) {
                     FontLabels[font] = entry.Name ?? string.Empty;
                 }
                 StorePickedAssetReference(row, entry);
+                PersistPlatformOverrideIfNeeded(row);
                 UpdateFontRow(row);
                 EditorSceneMutationService.MarkSceneMutated();
             } catch (Exception ex) {
@@ -2413,12 +2667,14 @@ namespace helengine.editor {
             }
 
             try {
+                EnsureEditableComponentForRow(row);
                 RuntimeModel model = LoadModel(entry);
                 row.Property.SetValue(row.TargetComponent, model);
                 if (entry != null) {
                     ModelLabels[model] = entry.Name ?? string.Empty;
                 }
                 StorePickedAssetReference(row, entry);
+                PersistPlatformOverrideIfNeeded(row);
                 UpdateModelRow(row);
                 EditorSceneMutationService.MarkSceneMutated();
             } catch (Exception ex) {
@@ -2438,43 +2694,44 @@ namespace helengine.editor {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
             }
-            if (row.TargetComponent == null || row.Property == null) {
+            if (row.TargetComponent == null || row.Property == null || row.CommonComponent == null) {
                 return;
             }
-
-            if (!TryGetEntitySaveComponent(row.TargetComponent, out EntitySaveComponent saveComponent)) {
+            if (row.SaveComponent == null) {
                 return;
             }
 
             SceneAssetReference assetReference = AssetReferenceFactory.CreateFromEntry(entry);
-            saveComponent.SetAssetReference(row.TargetComponent, row.Property.Name, assetReference);
+            PlatformEditingService.StoreAssetReference(
+                row.CommonComponent,
+                row.TargetComponent,
+                row.SaveComponent,
+                row.EditingPlatformId ?? ComponentPlatformEditingService.CommonPlatformId,
+                row.Property.Name,
+                assetReference);
         }
 
         /// <summary>
-        /// Attempts to read the hidden save component attached to the row's owning entity.
+        /// Resolves the hidden save component attached to one inspected entity.
         /// </summary>
-        /// <param name="component">Component whose owning entity should be inspected.</param>
-        /// <param name="saveComponent">Hidden save component when one is attached.</param>
-        /// <returns>True when the owning entity exposes one save component.</returns>
-        bool TryGetEntitySaveComponent(Component component, out EntitySaveComponent saveComponent) {
-            if (component == null) {
-                throw new ArgumentNullException(nameof(component));
+        /// <param name="entity">Entity whose hidden save component should be returned.</param>
+        /// <returns>Hidden save component when one is attached; otherwise null.</returns>
+        EntitySaveComponent ResolveEntitySaveComponent(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
             }
 
-            saveComponent = null;
-            Entity entity = component.Parent;
             if (entity == null || entity.Components == null) {
-                return false;
+                return null;
             }
 
             for (int i = 0; i < entity.Components.Count; i++) {
                 if (entity.Components[i] is EntitySaveComponent entitySaveComponent) {
-                    saveComponent = entitySaveComponent;
-                    return true;
+                    return entitySaveComponent;
                 }
             }
 
-            return false;
+            return null;
         }
 
         /// <summary>

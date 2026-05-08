@@ -60,6 +60,14 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Enumerates every named asset reference stored in this component save-state.
+        /// </summary>
+        /// <returns>Named asset references stored for the component.</returns>
+        public IEnumerable<KeyValuePair<string, SceneAssetReference>> EnumerateNamedAssetReferences() {
+            return AssetReferencesByName;
+        }
+
+        /// <summary>
         /// Stores one named platform override payload for this component.
         /// </summary>
         /// <param name="platformId">Platform identifier that owns the override payload.</param>
