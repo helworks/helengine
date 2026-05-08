@@ -40,6 +40,10 @@ namespace helengine {
                     continue;
                 }
 
+                if (!IsInsideActiveClipRegions(interactable, pointerX, pointerY)) {
+                    continue;
+                }
+
                 float3 position = interactable.Parent.Position;
                 float4 rect = new float4(position.X, position.Y, interactable.Size.X, interactable.Size.Y);
                 if (!rect.Contains(pointerX, pointerY)) {
@@ -57,6 +61,37 @@ namespace helengine {
             }
 
             return hit;
+        }
+
+        /// <summary>
+        /// Determines whether one pointer position lies inside every active clip region that constrains an interactable.
+        /// </summary>
+        /// <param name="interactable">Interactable whose ancestor clip regions should be checked.</param>
+        /// <param name="pointerX">Pointer X coordinate in window space.</param>
+        /// <param name="pointerY">Pointer Y coordinate in window space.</param>
+        /// <returns>True when the pointer is inside every clip region, or when no clip regions are present.</returns>
+        static bool IsInsideActiveClipRegions(IInteractable2D interactable, int pointerX, int pointerY) {
+            if (interactable == null || interactable.Parent == null) {
+                return false;
+            }
+
+            Entity current = interactable.Parent;
+            while (current != null) {
+                if (current.Components != null) {
+                    for (int componentIndex = 0; componentIndex < current.Components.Count; componentIndex++) {
+                        if (current.Components[componentIndex] is IClipRegion2D clipRegion) {
+                            float4 clipRect = clipRegion.GetClipRect();
+                            if (!GeometryUtils.IsPointInsideRect(pointerX, pointerY, new float3(clipRect.X, clipRect.Y, 0f), (int)clipRect.Z, (int)clipRect.W)) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+
+                current = current.Parent;
+            }
+
+            return true;
         }
 
         /// <summary>

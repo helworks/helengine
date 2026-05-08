@@ -62,6 +62,64 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures clipped descendants do not block hit testing for controls above the viewport.
+        /// </summary>
+        [Fact]
+        public void ResolveTopInteractableAt_WhenAClippedRowOverlapsTheToolbar_IgnoresTheRowOutsideItsViewport() {
+            InitializeCore();
+            CameraComponent camera = CreateCamera(new float4(0f, 0f, 320f, 180f), EditorLayerMasks.EditorUi);
+
+            InteractableComponent toolbarInteractable = CreateInteractableEntity(new float3(0f, 0f, 0f), new int2(120, 24), 2);
+
+            EditorEntity clipHost = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.EditorUi,
+                Position = new float3(0f, 24f, 0f)
+            };
+
+            ScrollComponent scrollComponent = new ScrollComponent {
+                Size = new int2(120, 24)
+            };
+            clipHost.AddComponent(scrollComponent);
+
+            EditorEntity contentRoot = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.EditorUi,
+                LocalPosition = new float3(0f, -24f, 0f)
+            };
+            clipHost.AddChild(contentRoot);
+            scrollComponent.ContentRoot = contentRoot;
+
+            EditorEntity rowEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.EditorUi,
+                LocalPosition = float3.Zero
+            };
+            contentRoot.AddChild(rowEntity);
+
+            SpriteComponent rowSprite = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Size = new int2(120, 24),
+                RenderOrder2D = 7
+            };
+            rowEntity.AddComponent(rowSprite);
+
+            InteractableComponent rowInteractable = new InteractableComponent {
+                Size = new int2(120, 24)
+            };
+            rowEntity.AddComponent(rowInteractable);
+
+            IInteractable2D hit = PointerInteractableHitResolver.ResolveTopInteractableAt(
+                Core.Instance.ObjectManager.Interactables,
+                Core.Instance.ObjectManager.Drawables2D,
+                camera,
+                12,
+                12);
+
+            Assert.Same(toolbarInteractable, hit);
+        }
+
+        /// <summary>
         /// Initializes the lightweight core services required by pointer hit-resolution tests.
         /// </summary>
         void InitializeCore() {
