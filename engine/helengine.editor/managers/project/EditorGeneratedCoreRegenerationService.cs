@@ -872,6 +872,11 @@ namespace helengine.editor {
                 return InsertNativeNumberFiniteHelpers(contents);
             }
 
+            if (string.Equals(fileName, "math.hpp", StringComparison.OrdinalIgnoreCase)
+                && !contents.Contains("static double Atan2(", StringComparison.Ordinal)) {
+                return InsertNativeMathAtan2Helpers(contents);
+            }
+
             if (string.Equals(fileName, "path.cpp", StringComparison.OrdinalIgnoreCase)
                 && !contents.Contains("Path::ChangeExtension", StringComparison.Ordinal)) {
                 return InsertPs2PathSupport(InsertPathChangeExtensionImplementation(contents));
@@ -1095,6 +1100,35 @@ namespace helengine.editor {
             }
 
             return contents + newline + helperMethods;
+        }
+
+        /// <summary>
+        /// Inserts the missing native `Math.Atan2` and `MathF.Atan2` helpers required by transpiled orbit and gizmo code.
+        /// </summary>
+        /// <param name="contents">Current native math support contents.</param>
+        /// <returns>Updated native math support contents.</returns>
+        static string InsertNativeMathAtan2Helpers(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("static double Atan2(", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string updatedContents = contents.Replace(
+                "    template <typename TValue>\r\n    static double Sqrt(TValue value) {",
+                "    template <typename TY, typename TX>\r\n    static double Atan2(TY y, TX x) {\r\n        return std::atan2(static_cast<double>(y), static_cast<double>(x));\r\n    }\r\n\r\n    template <typename TValue>\r\n    static double Sqrt(TValue value) {",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "    template <typename TValue>\n    static double Sqrt(TValue value) {",
+                "    template <typename TY, typename TX>\n    static double Atan2(TY y, TX x) {\n        return std::atan2(static_cast<double>(y), static_cast<double>(x));\n    }\n\n    template <typename TValue>\n    static double Sqrt(TValue value) {",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "    template <typename TValue>\r\n    static float Sqrt(TValue value) {",
+                "    template <typename TY, typename TX>\r\n    static float Atan2(TY y, TX x) {\r\n        return static_cast<float>(Math::Atan2(y, x));\r\n    }\r\n\r\n    template <typename TValue>\r\n    static float Sqrt(TValue value) {",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "    template <typename TValue>\n    static float Sqrt(TValue value) {",
+                "    template <typename TY, typename TX>\n    static float Atan2(TY y, TX x) {\n        return static_cast<float>(Math::Atan2(y, x));\n    }\n\n    template <typename TValue>\n    static float Sqrt(TValue value) {",
+                StringComparison.Ordinal);
+            return updatedContents;
         }
 
         /// <summary>
@@ -1666,6 +1700,7 @@ namespace helengine.editor {
 
             string amalgamatedSourceContents = amalgamatedBuilder.ToString();
             File.WriteAllText(amalgamatedSourcePath, amalgamatedSourceContents);
+            File.WriteAllText(legacyUnitySourcePath, amalgamatedSourceContents);
         }
 
         /// <summary>

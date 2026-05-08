@@ -1620,13 +1620,29 @@ namespace helengine.editor {
         /// <returns>Packaged file-backed font reference.</returns>
         SceneAssetReference RewriteFileSystemFontReference(SceneAssetReference reference, string buildRootPath) {
             string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
-            if (!AssetImportManager.TryLoadFontAsset(sourcePath, out FontAsset fontAsset) || fontAsset == null) {
-                throw new InvalidOperationException($"Font source '{reference.RelativePath}' could not be imported for packaging.");
+            string cookedRelativePath = BuildCookedFontRelativePath(reference.RelativePath);
+            if (string.Equals(Path.GetExtension(reference.RelativePath), ".hefont", StringComparison.OrdinalIgnoreCase)) {
+                CopyFile(sourcePath, Path.Combine(buildRootPath, cookedRelativePath));
+                return CreateFontFileReference(cookedRelativePath);
             }
 
-            string cookedRelativePath = BuildCookedFontRelativePath(reference.RelativePath);
+            FontAsset fontAsset = LoadImportedFontAssetForPackaging(reference, sourcePath);
             WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), fontAsset);
             return CreateFontFileReference(cookedRelativePath);
+        }
+
+        /// <summary>
+        /// Loads one imported source-font asset for packaging after the importer has produced a packaged `FontAsset`.
+        /// </summary>
+        /// <param name="reference">Serialized font reference being packaged.</param>
+        /// <param name="sourcePath">Absolute project path resolved from the scene reference.</param>
+        /// <returns>Loaded font asset ready to be written into the package.</returns>
+        FontAsset LoadImportedFontAssetForPackaging(SceneAssetReference reference, string sourcePath) {
+            if (AssetImportManager.TryLoadFontAsset(sourcePath, out FontAsset importedFontAsset)) {
+                return importedFontAsset;
+            }
+
+            throw new InvalidOperationException($"Font source '{reference.RelativePath}' could not be imported for packaging.");
         }
 
         SceneAssetReference RewriteModelReference(SceneAssetReference reference, string buildRootPath) {
