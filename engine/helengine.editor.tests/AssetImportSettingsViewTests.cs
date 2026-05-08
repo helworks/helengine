@@ -243,14 +243,14 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Counts the visible rows currently shown by one scene hierarchy panel.
+        /// Counts the flattened hierarchy nodes currently shown by one scene hierarchy panel.
         /// </summary>
         /// <param name="panel">Hierarchy panel to inspect.</param>
-        /// <returns>Number of visible hierarchy rows.</returns>
+        /// <returns>Number of flattened hierarchy nodes.</returns>
         int GetHierarchyNodeCount(SceneHierarchyPanel panel) {
-            FieldInfo rowsField = typeof(SceneHierarchyPanel).GetField("rows", BindingFlags.Instance | BindingFlags.NonPublic);
-            var rows = Assert.IsType<List<SceneHierarchyRow>>(rowsField.GetValue(panel));
-            return rows.Count;
+            FieldInfo nodesField = typeof(SceneHierarchyPanel).GetField("nodes", BindingFlags.Instance | BindingFlags.NonPublic);
+            var nodes = Assert.IsAssignableFrom<System.Collections.ICollection>(nodesField.GetValue(panel));
+            return nodes.Count;
         }
 
         /// <summary>
