@@ -117,7 +117,7 @@ namespace helengine.editor {
                 MergeGeneratedSourceTree(portableInputOutputRoot, generatedCoreOutputRoot);
                 MergeBundledRuntimeSupportTree(bundledRuntimeSupportRootPath, generatedCoreOutputRoot);
                 NormalizeGeneratedNativeSources(generatedCoreOutputRoot);
-                RewriteUnityTranslationUnit(generatedCoreOutputRoot);
+                RewriteAmalgamatedTranslationUnit(generatedCoreOutputRoot);
             } finally {
                 Directory.CreateDirectory(Path.GetDirectoryName(logPath) ?? tempRoot);
                 File.WriteAllText(logPath, logBuilder.ToString());
@@ -1340,10 +1340,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Writes a full unity translation unit that includes every generated native core source file in a stable order.
+        /// Writes a full amalgamated translation unit that includes every generated native core source file in a stable order.
         /// </summary>
         /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
-        internal static void RewriteUnityTranslationUnit(string generatedCoreRootPath) {
+        internal static void RewriteAmalgamatedTranslationUnit(string generatedCoreRootPath) {
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             }
@@ -1352,8 +1352,9 @@ namespace helengine.editor {
                 return;
             }
 
-            string unitySourcePath = Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp");
-            string[] excludedUnitySourceRelativePaths = new[] {
+            string amalgamatedSourcePath = Path.Combine(generatedCoreRootPath, "helengine_core_amalgamated.cpp");
+            string legacyUnitySourcePath = Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp");
+            string[] excludedAmalgamatedSourceRelativePaths = new[] {
                 "runtime/runtime_startup_manifest.cpp",
                 "runtime/runtime_code_module_manifest.cpp"
             };
@@ -1361,23 +1362,24 @@ namespace helengine.editor {
             string[] discoveredFiles = Directory.GetFiles(generatedCoreRootPath, "*.cpp", SearchOption.AllDirectories);
             for (int index = 0; index < discoveredFiles.Length; index++) {
                 string sourceFilePath = discoveredFiles[index];
-                if (string.Equals(Path.GetFileName(sourceFilePath), "helengine_core_unity.cpp", StringComparison.OrdinalIgnoreCase)) {
+                if (string.Equals(Path.GetFileName(sourceFilePath), "helengine_core_amalgamated.cpp", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(Path.GetFileName(sourceFilePath), "helengine_core_unity.cpp", StringComparison.OrdinalIgnoreCase)) {
                     continue;
                 }
 
                 sourceFiles.Add(sourceFilePath);
             }
 
-            sourceFiles.Sort(CompareUnitySourcePaths);
+            sourceFiles.Sort(CompareAmalgamatedSourcePaths);
 
-            StringBuilder unityBuilder = new();
-            unityBuilder.AppendLine("// Generated compile-validation unity translation unit.");
-            unityBuilder.AppendLine();
+            StringBuilder amalgamatedBuilder = new();
+            amalgamatedBuilder.AppendLine("// Generated compile-validation amalgamated translation unit.");
+            amalgamatedBuilder.AppendLine();
             for (int index = 0; index < sourceFiles.Count; index++) {
                 string relativePath = Path.GetRelativePath(generatedCoreRootPath, sourceFiles[index]).Replace('\\', '/');
                 bool excludedSource = false;
-                for (int excludeIndex = 0; excludeIndex < excludedUnitySourceRelativePaths.Length; excludeIndex++) {
-                    if (string.Equals(relativePath, excludedUnitySourceRelativePaths[excludeIndex], StringComparison.OrdinalIgnoreCase)) {
+                for (int excludeIndex = 0; excludeIndex < excludedAmalgamatedSourceRelativePaths.Length; excludeIndex++) {
+                    if (string.Equals(relativePath, excludedAmalgamatedSourceRelativePaths[excludeIndex], StringComparison.OrdinalIgnoreCase)) {
                         excludedSource = true;
                         break;
                     }
@@ -1387,12 +1389,15 @@ namespace helengine.editor {
                     continue;
                 }
 
-                unityBuilder.Append("#include \"");
-                unityBuilder.Append(relativePath);
-                unityBuilder.AppendLine("\"");
+                amalgamatedBuilder.Append("#include \"");
+                amalgamatedBuilder.Append(relativePath);
+                amalgamatedBuilder.AppendLine("\"");
             }
 
-            File.WriteAllText(unitySourcePath, unityBuilder.ToString());
+            File.WriteAllText(amalgamatedSourcePath, amalgamatedBuilder.ToString());
+            if (File.Exists(legacyUnitySourcePath)) {
+                File.Delete(legacyUnitySourcePath);
+            }
         }
 
         /// <summary>
@@ -1401,9 +1406,9 @@ namespace helengine.editor {
         /// <param name="left">Left source path.</param>
         /// <param name="right">Right source path.</param>
         /// <returns>Sort comparison result.</returns>
-        static int CompareUnitySourcePaths(string left, string right) {
-            int leftPriority = GetUnitySourcePriority(left);
-            int rightPriority = GetUnitySourcePriority(right);
+        static int CompareAmalgamatedSourcePaths(string left, string right) {
+            int leftPriority = GetAmalgamatedSourcePriority(left);
+            int rightPriority = GetAmalgamatedSourcePriority(right);
             if (leftPriority != rightPriority) {
                 return leftPriority.CompareTo(rightPriority);
             }
@@ -1412,11 +1417,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns the sort priority used by the unity translation unit generator.
+        /// Returns the sort priority used by the amalgamated translation unit generator.
         /// </summary>
         /// <param name="sourcePath">Absolute generated source path.</param>
         /// <returns>Lower values sort earlier.</returns>
-        static int GetUnitySourcePriority(string sourcePath) {
+        static int GetAmalgamatedSourcePriority(string sourcePath) {
             string fileName = Path.GetFileName(sourcePath);
             if (string.Equals(fileName, "ButtonState.cpp", StringComparison.OrdinalIgnoreCase)) return 0;
             if (string.Equals(fileName, "KeyState.cpp", StringComparison.OrdinalIgnoreCase)) return 1;

@@ -838,10 +838,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies unity translation regeneration excludes only the separately linked runtime manifest sources.
+    /// Verifies amalgamated translation regeneration excludes only the separately linked runtime manifest sources.
     /// </summary>
     [Fact]
-    public void Rewrite_unity_translation_unit_excludes_only_runtime_manifest_sources() {
+    public void Rewrite_amalgamated_translation_unit_excludes_only_runtime_manifest_sources() {
         string generatedCoreRootPath = Path.Combine(RootPath, "rewrite-unity-exclusions");
         Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "runtime"));
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// foo\n");
@@ -849,16 +849,17 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "Ps2MaterialAsset.cpp"), "// material\n");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_startup_manifest.cpp"), "// startup\n");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_code_module_manifest.cpp"), "// code module\n");
-        File.WriteAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"), "// old unity\n");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "helengine_core_amalgamated.cpp"), "// old amalgamated\n");
 
-        EditorGeneratedCoreRegenerationService.RewriteUnityTranslationUnit(generatedCoreRootPath);
+        EditorGeneratedCoreRegenerationService.RewriteAmalgamatedTranslationUnit(generatedCoreRootPath);
 
-        string unitySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"));
-        Assert.Contains("#include \"Foo.cpp\"", unitySource);
-        Assert.Contains("#include \"RendererBackendCapabilityProfile.cpp\"", unitySource);
-        Assert.Contains("#include \"Ps2MaterialAsset.cpp\"", unitySource);
-        Assert.DoesNotContain("runtime/runtime_startup_manifest.cpp", unitySource);
-        Assert.DoesNotContain("runtime/runtime_code_module_manifest.cpp", unitySource);
+        string amalgamatedSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_amalgamated.cpp"));
+        Assert.Contains("#include \"Foo.cpp\"", amalgamatedSource);
+        Assert.Contains("#include \"RendererBackendCapabilityProfile.cpp\"", amalgamatedSource);
+        Assert.Contains("#include \"Ps2MaterialAsset.cpp\"", amalgamatedSource);
+        Assert.DoesNotContain("runtime/runtime_startup_manifest.cpp", amalgamatedSource);
+        Assert.DoesNotContain("runtime/runtime_code_module_manifest.cpp", amalgamatedSource);
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp")));
     }
 
     /// <summary>

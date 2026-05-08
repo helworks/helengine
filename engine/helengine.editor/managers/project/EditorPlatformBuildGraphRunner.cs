@@ -219,6 +219,7 @@ namespace helengine.editor {
         /// <param name="generatedCoreRootPath">Generated core source root that will be compiled into the native player.</param>
         void FinalizeGeneratedCoreSources(string generatedCoreRootPath) {
             EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+            EditorGeneratedCoreRegenerationService.RewriteAmalgamatedTranslationUnit(generatedCoreRootPath);
         }
 
         /// <summary>
