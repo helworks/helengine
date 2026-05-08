@@ -489,15 +489,34 @@ namespace helengine.directx11 {
         /// <param name="data">Raw model asset data.</param>
         /// <returns>GPU-ready model resource.</returns>
         public override RuntimeModel BuildModelFromRaw(ModelAsset data) {
+            if (data == null) {
+                throw new ArgumentNullException(nameof(data));
+            }
+            if (data.Positions == null || data.Positions.Length == 0) {
+                throw new ArgumentException("Model data must include positions.", nameof(data));
+            }
+
             var model = new DirectX11ModelResource();
             var vertices = new VertexPositionNormalUV[data.Positions.Length];
             ModelAssetIndexData indexData = ModelAssetIndexData.Resolve(data);
+            float3 boundsMin = data.Positions[0];
+            float3 boundsMax = data.Positions[0];
 
             for (int i = 0; i < data.Positions.Length; i++) {
                 float3 pos = data.Positions[i];
                 float3 normal = data.Normals[i];
                 float2 tex = data.TexCoords[i];
                 vertices[i] = new VertexPositionNormalUV(pos, normal, tex);
+                if (i > 0) {
+                    boundsMin = new float3(
+                        Math.Min(boundsMin.X, pos.X),
+                        Math.Min(boundsMin.Y, pos.Y),
+                        Math.Min(boundsMin.Z, pos.Z));
+                    boundsMax = new float3(
+                        Math.Max(boundsMax.X, pos.X),
+                        Math.Max(boundsMax.Y, pos.Y),
+                        Math.Max(boundsMax.Z, pos.Z));
+                }
             }
 
             model.VertexBuffer = Buffer.Create(Device, BindFlags.VertexBuffer, vertices);
@@ -513,8 +532,8 @@ namespace helengine.directx11 {
                 }
             }
 
+            model.SetBounds(boundsMin, boundsMax);
             model.SetSubmeshes(ModelSubmeshResolver.BuildRuntimeSubmeshes(data));
-            model.SetBounds(data.BoundsMin, data.BoundsMax);
 
             return model;
         }
@@ -556,6 +575,8 @@ namespace helengine.directx11 {
             material.LightingModel = RuntimeMaterialLightingModel.MetalRoughPbr;
             material.SupportsNormalMapping = !string.IsNullOrWhiteSpace(materialAsset.NormalTextureAssetId);
             material.SupportsEmissive = !string.IsNullOrWhiteSpace(materialAsset.EmissiveTextureAssetId);
+            material.CastsShadows = materialAsset.CastsShadows;
+            material.ReceivesShadows = materialAsset.ReceivesShadows;
             material.ApplyConstantBufferDefaults(materialAsset.ConstantBuffers ?? Array.Empty<MaterialConstantBufferAsset>());
             StandardMaterialTextureBindingDefaults.Apply(material);
             RegisterMaterial(material);
@@ -1524,7 +1545,8 @@ namespace helengine.directx11 {
                         World = worldTransposed,
                         WorldViewProj = worldViewProjTransposed,
                         NormalMatrix = normalMatrix,
-                        CameraPosition = new float4(currentCameraPosition.X, currentCameraPosition.Y, currentCameraPosition.Z, 0f)
+                        CameraPosition = new float4(currentCameraPosition.X, currentCameraPosition.Y, currentCameraPosition.Z, 0f),
+                        MaterialFlags = new float4(runtimeMaterial.ReceivesShadows ? 1f : 0f, 0f, 0f, 0f)
                     };
                     context.UpdateSubresource(ref standardData, constantBuffer);
                 } else {

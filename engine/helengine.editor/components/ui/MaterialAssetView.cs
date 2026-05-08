@@ -36,9 +36,24 @@ namespace helengine.editor {
         const string ShaderAssetIdFieldId = "shader-asset-id";
 
         /// <summary>
+        /// Field id used by compatibility shader-backed schemas for texture assignment.
+        /// </summary>
+        const string TextureAssetIdFieldId = "texture-id";
+
+        /// <summary>
         /// Field id used to toggle custom shader overrides.
         /// </summary>
         const string UseCustomShaderFieldId = "use-custom-shader";
+
+        /// <summary>
+        /// Field id used by compatibility shader-backed schemas to toggle shadow casting.
+        /// </summary>
+        const string CastsShadowFieldId = "casts-shadow";
+
+        /// <summary>
+        /// Field id used by compatibility shader-backed schemas to toggle shadow receiving.
+        /// </summary>
+        const string ReceivesShadowFieldId = "receives-shadow";
 
         /// <summary>
         /// Field id used by compatibility shader-backed schemas for vertex program assignment.
@@ -91,6 +106,16 @@ namespace helengine.editor {
         readonly Dictionary<string, MaterialAssetPlatformPanel> PlatformPanels;
 
         /// <summary>
+        /// Shared host entity used to keep the color picker outside the scrollable inspector content.
+        /// </summary>
+        readonly EditorEntity ColorPickerHost;
+
+        /// <summary>
+        /// Shared color picker overlay reused by all material color fields.
+        /// </summary>
+        readonly EditorColorPickerOverlayComponent ColorPickerOverlay;
+
+        /// <summary>
         /// Service used to load and save material settings sidecars.
         /// </summary>
         readonly MaterialAssetSettingsService SettingsService;
@@ -126,6 +151,21 @@ namespace helengine.editor {
         string CurrentPlatformId;
 
         /// <summary>
+        /// Active color field currently being edited by the shared color picker.
+        /// </summary>
+        EditorColorFieldControl ActiveColorFieldControl;
+
+        /// <summary>
+        /// Platform identifier that owns the active color field.
+        /// </summary>
+        string ActiveColorFieldPlatformId;
+
+        /// <summary>
+        /// Field identifier owned by the active color field.
+        /// </summary>
+        string ActiveColorFieldId;
+
+        /// <summary>
         /// Cached layout height.
         /// </summary>
         int LayoutHeight;
@@ -140,7 +180,16 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the view entities.</param>
-        public MaterialAssetView(FontAsset font, ushort layerMask) {
+        public MaterialAssetView(FontAsset font, ushort layerMask) : this(font, layerMask, null) {
+        }
+
+        /// <summary>
+        /// Initializes a new view for material asset editing with a separate host for shared overlay UI.
+        /// </summary>
+        /// <param name="font">Font used for text rendering.</param>
+        /// <param name="layerMask">Layer mask applied to the view entities.</param>
+        /// <param name="overlayHost">Entity that should host non-scrolling overlay UI such as the color picker.</param>
+        public MaterialAssetView(FontAsset font, ushort layerMask, EditorEntity overlayHost) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -161,6 +210,17 @@ namespace helengine.editor {
             PlatformTabStrip.SetRenderOrders(RenderOrder2D.PanelSurface, TextOrder);
             PlatformTabStrip.Root.Position = float3.Zero;
             RootEntity.AddChild(PlatformTabStrip.Root);
+
+            if (overlayHost != null) {
+                ColorPickerHost = overlayHost;
+            } else {
+                ColorPickerHost = RootEntity;
+            }
+
+            ColorPickerOverlay = new EditorColorPickerOverlayComponent(font, layerMask);
+            ColorPickerOverlay.ColorChanged += HandleSharedColorPickerChanged;
+            ColorPickerOverlay.Closed += HandleSharedColorPickerClosed;
+            ColorPickerHost.AddComponent(ColorPickerOverlay);
 
             StatusHost = CreateTextHost(layerMask, out StatusText, string.Empty);
             RootEntity.AddChild(StatusHost);
@@ -238,6 +298,10 @@ namespace helengine.editor {
         public void Hide() {
             if (CurrentEntry != null && CurrentSettings != null) {
                 SyncCurrentFieldValues(CurrentPlatformId, saveToDisk: true);
+            }
+
+            if (ColorPickerOverlay != null && ColorPickerOverlay.IsOpen) {
+                ColorPickerOverlay.Close();
             }
 
             ClearPlatformPanels();
@@ -426,20 +490,121 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Requests a shader pick from the asset picker service for one asset-reference field.
+        /// Handles live color updates from one schema-driven color field.
         /// </summary>
-        /// <param name="fieldId">Builder-defined field identifier that should receive the shader asset id.</param>
-        void RequestShaderPick(string platformId, string fieldId) {
+        /// <param name="platformId">Platform identifier that owns the field.</param>
+        /// <param name="fieldId">Builder-defined field identifier whose value changed.</param>
+        /// <param name="color">Current color value.</param>
+        void HandleColorFieldChanged(string platformId, string fieldId, byte4 color) {
+            if (string.IsNullOrWhiteSpace(fieldId)) {
+                throw new ArgumentException("Field id must be provided.", nameof(fieldId));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
+            if (materialSettings == null) {
+                return;
+            }
+
+            materialSettings.FieldValues[fieldId] = EditorColorUtils.FormatHtmlColor(color);
+        }
+
+        /// <summary>
+        /// Handles color-field submission and persists the committed value.
+        /// </summary>
+        /// <param name="platformId">Platform identifier that owns the field.</param>
+        /// <param name="fieldId">Builder-defined field identifier whose value changed.</param>
+        /// <param name="color">Committed color value.</param>
+        void HandleColorFieldSubmitted(string platformId, string fieldId, byte4 color) {
+            HandleColorFieldChanged(platformId, fieldId, color);
+            SaveCurrentMaterialState(platformId);
+            UpdateDisplayedValues(platformId);
+        }
+
+        /// <summary>
+        /// Opens the shared color picker for one field control.
+        /// </summary>
+        /// <param name="platformId">Platform identifier that owns the field.</param>
+        /// <param name="fieldId">Builder-defined field identifier being edited.</param>
+        /// <param name="colorControl">Color field control that requested the picker.</param>
+        void HandleColorFieldPickerRequested(string platformId, string fieldId, EditorColorFieldControl colorControl) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            } else if (string.IsNullOrWhiteSpace(fieldId)) {
+                throw new ArgumentException("Field id must be provided.", nameof(fieldId));
+            } else if (colorControl == null) {
+                throw new ArgumentNullException(nameof(colorControl));
+            }
+
+            if (ColorPickerOverlay.IsOpen &&
+                ActiveColorFieldControl == colorControl &&
+                string.Equals(ActiveColorFieldPlatformId, platformId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(ActiveColorFieldId, fieldId, StringComparison.OrdinalIgnoreCase)) {
+                ColorPickerOverlay.Close();
+                return;
+            }
+
+            ActiveColorFieldControl = colorControl;
+            ActiveColorFieldPlatformId = platformId;
+            ActiveColorFieldId = fieldId;
+            if (colorControl.SwatchButtonControl.Parent != null) {
+                float3 anchorPosition = colorControl.SwatchButtonControl.Parent.Position;
+                ColorPickerOverlay.SetAnchorPosition(anchorPosition.X, anchorPosition.Y, colorControl.SwatchButtonControl.Size.Y);
+            }
+            ColorPickerOverlay.Open(colorControl.Value);
+        }
+
+        /// <summary>
+        /// Applies shared picker updates to the active color field.
+        /// </summary>
+        /// <param name="color">Current color from the shared picker.</param>
+        void HandleSharedColorPickerChanged(byte4 color) {
+            if (ActiveColorFieldControl == null) {
+                return;
+            }
+
+            ActiveColorFieldControl.SetValue(color);
+            HandleColorFieldChanged(ActiveColorFieldPlatformId, ActiveColorFieldId, color);
+        }
+
+        /// <summary>
+        /// Persists the active color field when the shared picker closes.
+        /// </summary>
+        void HandleSharedColorPickerClosed() {
+            if (ActiveColorFieldControl == null) {
+                return;
+            }
+
+            SaveCurrentMaterialState(ActiveColorFieldPlatformId);
+            UpdateDisplayedValues(ActiveColorFieldPlatformId);
+            ActiveColorFieldControl = null;
+            ActiveColorFieldPlatformId = null;
+            ActiveColorFieldId = null;
+        }
+
+        /// <summary>
+        /// Requests an asset pick from the asset picker service for one asset-reference field.
+        /// </summary>
+        /// <param name="platformId">Platform identifier that owns the field.</param>
+        /// <param name="fieldId">Builder-defined field identifier that should receive the selected asset id.</param>
+        void RequestAssetPick(string platformId, string fieldId) {
             if (CurrentEntry == null || CurrentAsset == null || CurrentSettings == null) {
                 return;
             }
 
-            EditorAssetPickerService.RequestPick(entry => HandleShaderPicked(platformId, fieldId, entry), EditorFileTemplateRegistry.ShaderExtension);
+            if (string.Equals(fieldId, TextureAssetIdFieldId, StringComparison.OrdinalIgnoreCase)) {
+                string textureExtensionFilter = string.Join(";", TextureImportFormatCatalog.AllTextureExtensions);
+                EditorAssetPickerService.RequestPick(entry => HandleTexturePicked(platformId, fieldId, entry), textureExtensionFilter);
+            } else {
+                EditorAssetPickerService.RequestPick(entry => HandleShaderPicked(platformId, fieldId, entry), EditorFileTemplateRegistry.ShaderExtension);
+            }
         }
 
         /// <summary>
         /// Handles shader selections from the asset picker.
         /// </summary>
+        /// <param name="platformId">Platform identifier that owns the field.</param>
         /// <param name="fieldId">Builder-defined field identifier that should receive the shader asset id.</param>
         /// <param name="entry">Picked asset entry.</param>
         void HandleShaderPicked(string platformId, string fieldId, AssetBrowserEntry entry) {
@@ -461,9 +626,38 @@ namespace helengine.editor {
                 UpdateFieldControlsFromSettings(platformId);
                 SaveCurrentMaterialState(platformId);
                 UpdateDisplayedValues(platformId);
-                RefreshShaderResources(CurrentAsset.ShaderAssetId);
             } catch (Exception ex) {
                 Logger.WriteError($"Failed to assign platform shader: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles texture selections from the asset picker.
+        /// </summary>
+        /// <param name="platformId">Platform identifier that owns the field.</param>
+        /// <param name="fieldId">Builder-defined field identifier that should receive the texture asset id.</param>
+        /// <param name="entry">Picked asset entry.</param>
+        void HandleTexturePicked(string platformId, string fieldId, AssetBrowserEntry entry) {
+            if (string.IsNullOrWhiteSpace(fieldId)) {
+                throw new ArgumentException("Field id must be provided.", nameof(fieldId));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+            if (entry == null || CurrentEntry == null || CurrentAsset == null || CurrentSettings == null) {
+                return;
+            }
+            if (entry.IsDirectory) {
+                return;
+            }
+
+            try {
+                string textureId = ShaderAssetIdUtils.BuildShaderAssetId(entry.FullPath);
+                ApplyTextureIdToActivePlatform(platformId, fieldId, textureId);
+                UpdateFieldControlsFromSettings(platformId);
+                SaveCurrentMaterialState(platformId);
+                UpdateDisplayedValues(platformId);
+            } catch (Exception ex) {
+                Logger.WriteError($"Failed to assign platform texture: {ex.Message}");
             }
         }
 
@@ -485,6 +679,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Applies one texture assignment to the active platform settings payload.
+        /// </summary>
+        /// <param name="platformId">Platform identifier that owns the field.</param>
+        /// <param name="fieldId">Builder-defined field identifier that stores the texture asset id.</param>
+        /// <param name="textureId">Texture identifier to apply.</param>
+        void ApplyTextureIdToActivePlatform(string platformId, string fieldId, string textureId) {
+            MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
+            if (materialSettings == null) {
+                throw new InvalidOperationException("Active platform material settings are not available.");
+            }
+
+            materialSettings.FieldValues[fieldId] = textureId ?? string.Empty;
+        }
+
+        /// <summary>
         /// Saves the material sidecar and mirrors the active platform fields back into the raw material asset for compatibility.
         /// </summary>
         void SaveCurrentMaterialState(string platformId) {
@@ -495,6 +704,7 @@ namespace helengine.editor {
             SettingsService.ApplyPlatformCompatibilityFields(CurrentAsset, CurrentSettings, platformId);
             SaveMaterialAsset(CurrentEntry.FullPath, CurrentAsset);
             SettingsService.Save(CurrentEntry.FullPath, CurrentSettings);
+            RefreshShaderResources(CurrentAsset.ShaderAssetId);
         }
 
         /// <summary>
@@ -581,14 +791,23 @@ namespace helengine.editor {
                 CheckBoxComponent checkBox = new CheckBoxComponent(new int2(RowHeight, RowHeight), Font);
                 checkBox.CheckedChanged += (component, isChecked) => HandleBooleanFieldChanged(platformId, field.FieldId, isChecked);
                 valueHost.AddComponent(checkBox);
-                return new MaterialAssetFieldEditorRow(field.FieldId, field.FieldKind, labelHost, labelText, valueHost, null, null, checkBox, null, null);
+                return new MaterialAssetFieldEditorRow(field.FieldId, field.FieldKind, labelHost, labelText, valueHost, null, null, checkBox, null, null, null);
             }
 
             if (field.FieldKind == PlatformMaterialFieldKind.Choice) {
                 ComboBoxComponent comboBox = new ComboBoxComponent(new int2(180, RowHeight), Font, field.AllowedValues, -1);
                 comboBox.SelectionChanged += (index, value) => HandleChoiceFieldChanged(platformId, field.FieldId, value);
                 valueHost.AddComponent(comboBox);
-                return new MaterialAssetFieldEditorRow(field.FieldId, field.FieldKind, labelHost, labelText, valueHost, null, comboBox, null, null, null);
+                return new MaterialAssetFieldEditorRow(field.FieldId, field.FieldKind, labelHost, labelText, valueHost, null, comboBox, null, null, null, null);
+            }
+
+            if (field.FieldKind == PlatformMaterialFieldKind.Color) {
+                EditorColorFieldControl colorControl = new EditorColorFieldControl(Font, RootEntity.LayerMask);
+                colorControl.ColorChanged += color => HandleColorFieldChanged(platformId, field.FieldId, color);
+                colorControl.Submitted += color => HandleColorFieldSubmitted(platformId, field.FieldId, color);
+                colorControl.PickerRequested += () => HandleColorFieldPickerRequested(platformId, field.FieldId, colorControl);
+                valueHost.AddChild(colorControl);
+                return new MaterialAssetFieldEditorRow(field.FieldId, field.FieldKind, labelHost, labelText, valueHost, null, null, null, null, null, colorControl);
             }
 
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, RowHeight), Font);
@@ -596,15 +815,15 @@ namespace helengine.editor {
             textBox.Submitted += currentTextBox => HandleTextFieldSubmitted(platformId, field.FieldId, currentTextBox);
             valueHost.AddComponent(textBox);
 
-            if (IsShaderPickerField(field)) {
+            if (IsAssetPickerField(field)) {
                 EditorEntity buttonHost = new EditorEntity();
                 buttonHost.LayerMask = RootEntity.LayerMask;
-                ButtonComponent button = new ButtonComponent("Pick", new int2(ButtonWidth, RowHeight), Font, () => RequestShaderPick(platformId, field.FieldId));
+                ButtonComponent button = new ButtonComponent("Pick", new int2(ButtonWidth, RowHeight), Font, () => RequestAssetPick(platformId, field.FieldId));
                 buttonHost.AddComponent(button);
-                return new MaterialAssetFieldEditorRow(field.FieldId, field.FieldKind, labelHost, labelText, valueHost, textBox, null, null, buttonHost, button);
+                return new MaterialAssetFieldEditorRow(field.FieldId, field.FieldKind, labelHost, labelText, valueHost, textBox, null, null, buttonHost, button, null);
             }
 
-            return new MaterialAssetFieldEditorRow(field.FieldId, field.FieldKind, labelHost, labelText, valueHost, textBox, null, null, null, null);
+            return new MaterialAssetFieldEditorRow(field.FieldId, field.FieldKind, labelHost, labelText, valueHost, textBox, null, null, null, null, null);
         }
 
         /// <summary>
@@ -657,6 +876,8 @@ namespace helengine.editor {
                     materialSettings.FieldValues[row.FieldId] = row.ComboBox.HasSelection ? row.ComboBox.SelectedItem ?? string.Empty : string.Empty;
                 } else if (row.CheckBox != null) {
                     materialSettings.FieldValues[row.FieldId] = row.CheckBox.IsChecked ? "true" : "false";
+                } else if (row.ColorControl != null) {
+                    materialSettings.FieldValues[row.FieldId] = EditorColorUtils.FormatHtmlColor(row.ColorControl.Value);
                 }
             }
 
@@ -914,6 +1135,16 @@ namespace helengine.editor {
 
             if (row.CheckBox != null) {
                 row.CheckBox.IsChecked = ParseBooleanValue(value);
+                return;
+            }
+
+            if (row.ColorControl != null) {
+                byte4 color;
+                if (!EditorColorUtils.TryParseHtmlColor(value, out color) && !EditorColorUtils.TryParseHtmlColor(field.DefaultValue, out color)) {
+                    color = new byte4(255, 255, 255, 255);
+                }
+
+                row.ColorControl.SetValue(color);
             }
         }
 
@@ -1046,6 +1277,8 @@ namespace helengine.editor {
                 row.ComboBox.Size = new int2(valueWidth, RowHeight);
             } else if (row.CheckBox != null) {
                 row.CheckBox.Size = new int2(RowHeight, RowHeight);
+            } else if (row.ColorControl != null) {
+                row.ColorControl.Size = new int2(valueWidth, RowHeight);
             }
 
             if (row.ButtonHost != null) {
@@ -1055,13 +1288,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Determines whether one field should expose the shader picker convenience button.
+        /// Determines whether one field should expose the asset picker convenience button.
         /// </summary>
         /// <param name="field">Field definition to evaluate.</param>
-        /// <returns>True when the field should expose the shader picker.</returns>
-        bool IsShaderPickerField(PlatformMaterialFieldDefinition field) {
+        /// <returns>True when the field should expose the asset picker.</returns>
+        bool IsAssetPickerField(PlatformMaterialFieldDefinition field) {
             return field.FieldKind == PlatformMaterialFieldKind.AssetReference &&
-                string.Equals(field.FieldId, ShaderAssetIdFieldId, StringComparison.OrdinalIgnoreCase);
+                (string.Equals(field.FieldId, ShaderAssetIdFieldId, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(field.FieldId, TextureAssetIdFieldId, StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>

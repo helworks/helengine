@@ -25,5 +25,10 @@ namespace helengine {
         /// World-space camera position used by the pixel shader to evaluate the Blinn-Phong highlight.
         /// </summary>
         public float4 CameraPosition;
+
+        /// <summary>
+        /// Packed per-material flags consumed by the built-in standard shader.
+        /// </summary>
+        public float4 MaterialFlags;
     }
 }

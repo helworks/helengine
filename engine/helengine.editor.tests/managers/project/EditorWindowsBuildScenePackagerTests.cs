@@ -214,6 +214,9 @@ namespace helengine.editor.tests {
             Assert.Equal(shaderAssetId, materialBuilder.LastMaterialCookRequest.FieldValues["shader-asset-id"]);
             Assert.Equal(shaderAssetId + ".vs", materialBuilder.LastMaterialCookRequest.FieldValues["vertex-program"]);
             Assert.Equal(shaderAssetId + ".ps", materialBuilder.LastMaterialCookRequest.FieldValues["pixel-program"]);
+            Assert.Equal(string.Empty, materialBuilder.LastMaterialCookRequest.FieldValues["texture-id"]);
+            Assert.Equal("true", materialBuilder.LastMaterialCookRequest.FieldValues["casts-shadow"]);
+            Assert.Equal("true", materialBuilder.LastMaterialCookRequest.FieldValues["receives-shadow"]);
         }
 
         /// <summary>
@@ -267,6 +270,7 @@ namespace helengine.editor.tests {
             Assert.Equal(Ps2MaterialLightingMode.Unlit, cookedMaterial.LightingMode);
             Assert.Equal(Ps2MaterialAlphaMode.Opaque, cookedMaterial.AlphaMode);
             Assert.Equal(Ps2RenderClass.Opaque, cookedMaterial.RenderClass);
+            Assert.False(File.Exists(Path.Combine(BuildRootPath, "cooked", "shaders", "ForwardStandardShader.dx11.hasset")));
         }
 
         /// <summary>
@@ -2313,6 +2317,27 @@ namespace helengine.editor.tests {
                                 "Shader Asset",
                                 PlatformMaterialFieldKind.AssetReference,
                                 string.Empty,
+                                true,
+                                []),
+                            new PlatformMaterialFieldDefinition(
+                                "texture-id",
+                                "Texture",
+                                PlatformMaterialFieldKind.AssetReference,
+                                string.Empty,
+                                true,
+                                []),
+                            new PlatformMaterialFieldDefinition(
+                                "casts-shadow",
+                                "Casts Shadow",
+                                PlatformMaterialFieldKind.Boolean,
+                                "true",
+                                true,
+                                []),
+                            new PlatformMaterialFieldDefinition(
+                                "receives-shadow",
+                                "Receives Shadow",
+                                PlatformMaterialFieldKind.Boolean,
+                                "true",
                                 true,
                                 []),
                             new PlatformMaterialFieldDefinition(

@@ -4,6 +4,7 @@ cbuffer TransformBuffer : register(b0)
     float4x4 worldViewProj;
     float4x4 normalMatrix;
     float4 cameraPosition;
+    float4 materialFlags;
 };
 
 cbuffer ForwardLightBuffer : register(b1)
@@ -152,36 +153,39 @@ float3 EvaluateForwardLight(
         return float3(0.0f, 0.0f, 0.0f);
     }
 
-    if (shadowSlotMetadata.x > 0.5f && shadowSlotMetadata.z < 1.5f && shadowMetadata.x > 0.5f)
+    if (materialFlags.x > 0.5f)
     {
-        float4 shadowClip = mul(float4(worldPos, 1.0f), worldToShadowClip);
-        if (abs(shadowClip.w) > 0.0001f)
+        if (shadowSlotMetadata.x > 0.5f && shadowSlotMetadata.z < 1.5f && shadowMetadata.x > 0.5f)
         {
-            float3 shadowNdc = shadowClip.xyz / shadowClip.w;
-            float2 shadowUv = float2((shadowNdc.x * 0.5f) + 0.5f, (-shadowNdc.y * 0.5f) + 0.5f);
-            if (shadowUv.x >= 0.0f && shadowUv.x <= 1.0f && shadowUv.y >= 0.0f && shadowUv.y <= 1.0f && shadowNdc.z >= 0.0f && shadowNdc.z <= 1.0f)
+            float4 shadowClip = mul(float4(worldPos, 1.0f), worldToShadowClip);
+            if (abs(shadowClip.w) > 0.0001f)
             {
-                float2 atlasUv = shadowAtlasRect.xy + (shadowUv * shadowAtlasRect.zw);
-                float sampledDepth = shadowAtlasTexture.Sample(shadowAtlasSampler, atlasUv).r;
-                float shadowBias = 0.0015f;
-                float shadowVisibility = (shadowNdc.z - shadowBias) <= sampledDepth ? 1.0f : 0.0f;
-                attenuation *= lerp(1.0f, shadowVisibility, shadowSlotMetadata.y);
+                float3 shadowNdc = shadowClip.xyz / shadowClip.w;
+                float2 shadowUv = float2((shadowNdc.x * 0.5f) + 0.5f, (-shadowNdc.y * 0.5f) + 0.5f);
+                if (shadowUv.x >= 0.0f && shadowUv.x <= 1.0f && shadowUv.y >= 0.0f && shadowUv.y <= 1.0f && shadowNdc.z >= 0.0f && shadowNdc.z <= 1.0f)
+                {
+                    float2 atlasUv = shadowAtlasRect.xy + (shadowUv * shadowAtlasRect.zw);
+                    float sampledDepth = shadowAtlasTexture.Sample(shadowAtlasSampler, atlasUv).r;
+                    float shadowBias = 0.0015f;
+                    float shadowVisibility = (shadowNdc.z - shadowBias) <= sampledDepth ? 1.0f : 0.0f;
+                    attenuation *= lerp(1.0f, shadowVisibility, shadowSlotMetadata.y);
+                }
             }
         }
-    }
-    else if (shadowSlotMetadata.x > 0.5f && shadowSlotMetadata.z > 1.5f && lightType == 1)
-    {
-        float3 lightToSurface = worldPos - positionAndRange.xyz;
-        float distanceToSurface = length(lightToSurface);
-        if (distanceToSurface > 0.0001f && positionAndRange.w > 0.0f)
+        else if (shadowSlotMetadata.x > 0.5f && shadowSlotMetadata.z > 1.5f && lightType == 1)
         {
-            int pointShadowTextureIndex = (int)(shadowSlotMetadata.w + 0.5f);
-            float3 sampleDirection = lightToSurface / distanceToSurface;
-            float currentDepth = saturate(distanceToSurface / positionAndRange.w);
-            float sampledDepth = SamplePointShadowTexture(pointShadowTextureIndex, sampleDirection);
-            float shadowBias = 0.01f;
-            float shadowVisibility = (currentDepth - shadowBias) <= sampledDepth ? 1.0f : 0.0f;
-            attenuation *= lerp(1.0f, shadowVisibility, shadowSlotMetadata.y);
+            float3 lightToSurface = worldPos - positionAndRange.xyz;
+            float distanceToSurface = length(lightToSurface);
+            if (distanceToSurface > 0.0001f && positionAndRange.w > 0.0f)
+            {
+                int pointShadowTextureIndex = (int)(shadowSlotMetadata.w + 0.5f);
+                float3 sampleDirection = lightToSurface / distanceToSurface;
+                float currentDepth = saturate(distanceToSurface / positionAndRange.w);
+                float sampledDepth = SamplePointShadowTexture(pointShadowTextureIndex, sampleDirection);
+                float shadowBias = 0.01f;
+                float shadowVisibility = (currentDepth - shadowBias) <= sampledDepth ? 1.0f : 0.0f;
+                attenuation *= lerp(1.0f, shadowVisibility, shadowSlotMetadata.y);
+            }
         }
     }
 

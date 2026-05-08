@@ -21,6 +21,8 @@ namespace helengine.editor.tests.rendering {
                 VertexProgram = "VS",
                 PixelProgram = "PS",
                 Variant = "default",
+                CastsShadows = false,
+                ReceivesShadows = false,
                 NormalTextureAssetId = "textures/normal",
                 EmissiveTextureAssetId = "textures/emissive"
             };
@@ -39,6 +41,8 @@ namespace helengine.editor.tests.rendering {
             Assert.Equal(RuntimeMaterialLightingModel.MetalRoughPbr, material.LightingModel);
             Assert.True(material.SupportsNormalMapping);
             Assert.True(material.SupportsEmissive);
+            Assert.False(material.CastsShadows);
+            Assert.False(material.ReceivesShadows);
         }
 
         /// <summary>

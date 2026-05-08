@@ -184,6 +184,20 @@ namespace helengine.vulkan {
                 throw new ArgumentException("Model data must include matching texture coordinates.", nameof(data));
             }
 
+            float3 boundsMin = data.Positions[0];
+            float3 boundsMax = data.Positions[0];
+            for (int i = 1; i < data.Positions.Length; i++) {
+                float3 position = data.Positions[i];
+                boundsMin = new float3(
+                    Math.Min(boundsMin.X, position.X),
+                    Math.Min(boundsMin.Y, position.Y),
+                    Math.Min(boundsMin.Z, position.Z));
+                boundsMax = new float3(
+                    Math.Max(boundsMax.X, position.X),
+                    Math.Max(boundsMax.Y, position.Y),
+                    Math.Max(boundsMax.Z, position.Z));
+            }
+
             ModelAssetIndexData indexData = ModelAssetIndexData.Resolve(data);
             var vertices = new VulkanVertex3D[data.Positions.Length];
             for (int i = 0; i < data.Positions.Length; i++) {
@@ -229,8 +243,8 @@ namespace helengine.vulkan {
                 IndexCount = indexCount,
                 Uses32BitIndices = uses32BitIndices
             };
+            model.SetBounds(boundsMin, boundsMax);
             model.SetSubmeshes(ModelSubmeshResolver.BuildRuntimeSubmeshes(data));
-            model.SetBounds(data.BoundsMin, data.BoundsMax);
 
             return model;
         }
@@ -292,6 +306,8 @@ namespace helengine.vulkan {
             MaterialLayout layout = MaterialLayoutBuilder.Build(materialAsset, shaderAsset);
             material.SetLayout(layout);
             material.SetRenderState(materialAsset.RenderState);
+            material.CastsShadows = materialAsset.CastsShadows;
+            material.ReceivesShadows = materialAsset.ReceivesShadows;
             material.ApplyConstantBufferDefaults(materialAsset.ConstantBuffers ?? Array.Empty<MaterialConstantBufferAsset>());
             StandardMaterialTextureBindingDefaults.Apply(material);
             material.MaterialDescriptorSet = AllocateMaterialDescriptorSet();
@@ -449,7 +465,7 @@ namespace helengine.vulkan {
 
                 uint dynamicOffset = ReserveTransformSlot();
                 if (BuiltInMaterialIds.UsesStandardMeshTransform(rootMaterial.Id)) {
-                    StandardMeshShaderData transformData = BuildStandardMeshShaderData(drawable.Parent);
+                    StandardMeshShaderData transformData = BuildStandardMeshShaderData(drawable.Parent, runtimeMaterial);
                     UpdateTransformBuffer(transformData, dynamicOffset);
                 } else {
                     float4x4 transformData = BuildWorldViewProjectionMatrix(drawable.Parent);
@@ -726,7 +742,7 @@ namespace helengine.vulkan {
         /// </summary>
         /// <param name="entity">Entity to build transform data for.</param>
         /// <returns>Per-draw standard mesh shader data.</returns>
-        StandardMeshShaderData BuildStandardMeshShaderData(Entity entity) {
+        StandardMeshShaderData BuildStandardMeshShaderData(Entity entity, RuntimeMaterial runtimeMaterial) {
             float4 orientation = entity.Orientation;
             float4x4 rotation;
             float4x4.CreateFromQuaternion(ref orientation, out rotation);
@@ -758,7 +774,8 @@ namespace helengine.vulkan {
                 World = worldTransposed,
                 WorldViewProj = transposed,
                 NormalMatrix = normalMatrix,
-                CameraPosition = new float4(currentCameraPosition.X, currentCameraPosition.Y, currentCameraPosition.Z, 0f)
+                CameraPosition = new float4(currentCameraPosition.X, currentCameraPosition.Y, currentCameraPosition.Z, 0f),
+                MaterialFlags = new float4(runtimeMaterial.ReceivesShadows ? 1f : 0f, 0f, 0f, 0f)
             };
         }
 

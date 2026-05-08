@@ -75,6 +75,27 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
                             true,
                             []),
                         new PlatformMaterialFieldDefinition(
+                            "texture-id",
+                            "Texture",
+                            PlatformMaterialFieldKind.AssetReference,
+                            string.Empty,
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "casts-shadow",
+                            "Casts Shadow",
+                            PlatformMaterialFieldKind.Boolean,
+                            "true",
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "receives-shadow",
+                            "Receives Shadow",
+                            PlatformMaterialFieldKind.Boolean,
+                            "true",
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
                             "vertex-program",
                             "Vertex Program",
                             PlatformMaterialFieldKind.Text,
@@ -139,6 +160,9 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
         string vertexProgram = ReadRequiredField(request.FieldValues, "vertex-program");
         string pixelProgram = ReadRequiredField(request.FieldValues, "pixel-program");
         string variant = ReadRequiredField(request.FieldValues, "variant");
+        string textureAssetId = request.FieldValues != null && request.FieldValues.TryGetValue("texture-id", out string textureValue) ? textureValue : string.Empty;
+        bool castsShadows = request.FieldValues != null && request.FieldValues.TryGetValue("casts-shadow", out string castsShadowValue) ? string.Equals(castsShadowValue, "true", StringComparison.OrdinalIgnoreCase) : true;
+        bool receivesShadows = request.FieldValues != null && request.FieldValues.TryGetValue("receives-shadow", out string receivesShadowValue) ? string.Equals(receivesShadowValue, "true", StringComparison.OrdinalIgnoreCase) : true;
         string baseColor = request.FieldValues != null && request.FieldValues.TryGetValue(BaseColorFieldId, out string baseColorValue) ? baseColorValue : "#ffffff";
 
         MaterialAsset materialAsset = new MaterialAsset {
@@ -146,6 +170,9 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
             ShaderAssetId = shaderAssetId,
             VertexProgram = vertexProgram,
             PixelProgram = pixelProgram,
+            DiffuseTextureAssetId = textureAssetId ?? string.Empty,
+            CastsShadows = castsShadows,
+            ReceivesShadows = receivesShadows,
             Variant = variant,
             RenderState = new MaterialRenderState(),
             ConstantBuffers = [

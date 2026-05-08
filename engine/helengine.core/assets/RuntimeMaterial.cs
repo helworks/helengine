@@ -23,6 +23,8 @@ namespace helengine {
             LightingModel = RuntimeMaterialLightingModel.Unlit;
             SupportsNormalMapping = false;
             SupportsEmissive = false;
+            CastsShadows = true;
+            ReceivesShadows = true;
         }
 
         /// <summary>
@@ -55,6 +57,15 @@ namespace helengine {
         /// </summary>
         public bool SupportsEmissive { get; set; }
 
+        /// <summary>
+        /// Gets or sets whether this runtime material contributes geometry to shadow-map passes.
+        /// </summary>
+        public bool CastsShadows { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether this runtime material receives shadow attenuation during lighting.
+        /// </summary>
+        public bool ReceivesShadows { get; set; }
 
         /// <summary>
         /// Gets the parent material whose layout, render state, and default values are inherited by this material.

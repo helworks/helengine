@@ -68,39 +68,126 @@ public sealed class MaterialAssetViewTests : IDisposable {
         Assert.Equal(["Standard Shader"], linuxPanel.SchemaComboBoxControl.Items);
         Assert.Equal("Standard Shader", windowsPanel.SchemaComboBoxControl.SelectedItem);
         Assert.Equal("Standard Shader", linuxPanel.SchemaComboBoxControl.SelectedItem);
-        Assert.Equal(["use-custom-shader", "base-color"], windowsPanel.FieldRows.Select(row => row.FieldId).ToArray());
-        Assert.Equal(["use-custom-shader", "base-color"], linuxPanel.FieldRows.Select(row => row.FieldId).ToArray());
+        Assert.Equal(["use-custom-shader", "texture-id", "casts-shadow", "receives-shadow", "base-color"], windowsPanel.FieldRows.Select(row => row.FieldId).ToArray());
+        Assert.Equal(["use-custom-shader", "texture-id", "casts-shadow", "receives-shadow", "base-color"], linuxPanel.FieldRows.Select(row => row.FieldId).ToArray());
 
         MaterialAssetFieldEditorRow customShaderRow = Assert.Single(windowsPanel.FieldRows, row => row.FieldId == "use-custom-shader");
-        CheckBoxComponent checkBox = Assert.IsType<CheckBoxComponent>(customShaderRow.CheckBox);
-        InvokePrivate(checkBox, "SetCheckedState", true, true);
+        Assert.IsType<CheckBoxComponent>(customShaderRow.CheckBox);
 
-        Assert.Equal(
-            [
-                "use-custom-shader",
-                "shader-asset-id",
-                "vertex-program",
-                "pixel-program",
-                "base-color"
-            ],
-            windowsPanel.FieldRows.Select(row => row.FieldId).ToArray());
-        Assert.Equal(["use-custom-shader", "base-color"], linuxPanel.FieldRows.Select(row => row.FieldId).ToArray());
+        MaterialAssetFieldEditorRow textureRow = Assert.Single(windowsPanel.FieldRows, row => row.FieldId == "texture-id");
+        Assert.NotNull(textureRow.Button);
+
+        string requestedExtensionFilter = string.Empty;
+        Action<AssetPickerRequest> pickerHandler = request => requestedExtensionFilter = request.ExtensionFilter;
+        EditorAssetPickerService.PickRequested += pickerHandler;
+
+        try {
+            textureRow.Button.ActivateFromKey(Keys.Enter);
+        } finally {
+            EditorAssetPickerService.PickRequested -= pickerHandler;
+        }
+
+        Assert.Equal(string.Join(";", TextureImportFormatCatalog.AllTextureExtensions), requestedExtensionFilter);
 
         InvokePrivate(tabStrip, "HandleTabFocusChanged", "linux", true);
 
         Assert.Equal("linux", tabStrip.SelectedPlatformId);
         Assert.True(linuxPanel.Root.Enabled);
         Assert.False(windowsPanel.Root.Enabled);
-        Assert.Equal(
-            [
-                "use-custom-shader",
-                "shader-asset-id",
-                "vertex-program",
-                "pixel-program",
-                "base-color"
-            ],
-            windowsPanel.FieldRows.Select(row => row.FieldId).ToArray());
-        Assert.Equal(["use-custom-shader", "base-color"], linuxPanel.FieldRows.Select(row => row.FieldId).ToArray());
+        Assert.Equal(["use-custom-shader", "texture-id", "casts-shadow", "receives-shadow", "base-color"], windowsPanel.FieldRows.Select(row => row.FieldId).ToArray());
+        Assert.Equal(["use-custom-shader", "texture-id", "casts-shadow", "receives-shadow", "base-color"], linuxPanel.FieldRows.Select(row => row.FieldId).ToArray());
+    }
+
+    /// <summary>
+    /// Verifies that the schema selector row uses a wide split so the combo box does not overlap the label text.
+    /// </summary>
+    [Fact]
+    public void UpdateLayout_when_schema_row_is_laid_out_uses_a_forty_sixty_split() {
+        MaterialAssetPlatformPanel panel = new MaterialAssetPlatformPanel("windows", CreateFont(), 1, RenderOrder2D.PanelForeground);
+
+        panel.UpdateLayout(0, 0, 200);
+
+        EditorEntity schemaLabelHost = GetPrivateField<EditorEntity>(panel, "SchemaLabelHost");
+        TextComponent schemaLabelText = GetPrivateField<TextComponent>(panel, "SchemaLabelText");
+        EditorEntity schemaComboHost = GetPrivateField<EditorEntity>(panel, "SchemaComboHost");
+
+        Assert.Equal(0f, schemaLabelHost.Position.X);
+        Assert.Equal(80, schemaLabelText.Size.X);
+        Assert.Equal(88f, schemaComboHost.Position.X);
+        Assert.Equal(112, panel.SchemaComboBoxControl.Size.X);
+    }
+
+    /// <summary>
+    /// Verifies that the shared color picker is hosted outside the scrollable material editor tree.
+    /// </summary>
+    [Fact]
+    public void Show_when_color_picker_is_requested_hosts_the_overlay_under_the_modal_root() {
+        EditorEntity modalHost = new EditorEntity {
+            LayerMask = 1
+        };
+        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1, modalHost);
+        string materialPath = Path.Combine(TempRootPath, "Test.helmat");
+        File.WriteAllBytes(materialPath, Array.Empty<byte>());
+
+        view.Show(
+            AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.helmat", materialPath, ".helmat", AssetEntryKind.Material),
+            new MaterialAsset {
+                Id = "Materials/Test.helmat"
+            },
+            CreateSettings(useCustomShader: false),
+            ["windows"],
+            "windows",
+            platformId => EditorPlatformBuildSelectionModel.From(CreatePlatformDefinition(platformId)));
+
+        Dictionary<string, MaterialAssetPlatformPanel> panels = GetPrivateField<Dictionary<string, MaterialAssetPlatformPanel>>(view, "PlatformPanels");
+        MaterialAssetPlatformPanel windowsPanel = panels["windows"];
+        MaterialAssetFieldEditorRow colorRow = Assert.Single(windowsPanel.FieldRows, row => row.FieldId == "base-color");
+        InteractableComponent interactable = GetPrivateField<InteractableComponent>(colorRow.ColorControl.SwatchButtonControl, "interactableComponent");
+        interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Hover);
+        interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Press);
+        interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Release);
+
+        EditorColorPickerOverlayComponent overlay = Assert.Single(modalHost.Components.OfType<EditorColorPickerOverlayComponent>());
+        EditorEntity overlayRoot = GetPrivateField<EditorEntity>(overlay, "OverlayRoot");
+        RoundedRectComponent overlayBackground = GetPrivateField<RoundedRectComponent>(overlay, "OverlayBackground");
+        ButtonComponent closeButton = GetPrivateField<ButtonComponent>(overlay, "CloseButton");
+
+        Assert.True(overlay.IsOpen);
+        Assert.Same(modalHost, overlayRoot.Parent);
+        Assert.Equal(RenderOrder2D.ModalOverlayBackground, overlayBackground.RenderOrder2D);
+        Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(closeButton, "BackgroundRenderOrder"));
+        Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(closeButton, "TextRenderOrder"));
+    }
+
+    /// <summary>
+    /// Verifies that disabling custom shader mode does not leave disposed row interactables in the pointer hit list.
+    /// </summary>
+    [Fact]
+    public void Show_when_custom_shader_is_disabled_does_not_leave_stale_interactables() {
+        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1);
+        string materialPath = Path.Combine(TempRootPath, "Test.helmat");
+        File.WriteAllBytes(materialPath, Array.Empty<byte>());
+
+        view.Show(
+            AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.helmat", materialPath, ".helmat", AssetEntryKind.Material),
+            new MaterialAsset {
+                Id = "Materials/Test.helmat"
+            },
+            CreateSettings(useCustomShader: true),
+            ["windows"],
+            "windows",
+            platformId => EditorPlatformBuildSelectionModel.From(CreatePlatformDefinition(platformId)));
+
+        Dictionary<string, MaterialAssetPlatformPanel> panels = GetPrivateField<Dictionary<string, MaterialAssetPlatformPanel>>(view, "PlatformPanels");
+        MaterialAssetPlatformPanel windowsPanel = panels["windows"];
+        MaterialAssetFieldEditorRow customShaderRow = Assert.Single(windowsPanel.FieldRows, row => row.FieldId == "use-custom-shader");
+        CheckBoxComponent checkBox = Assert.IsType<CheckBoxComponent>(customShaderRow.CheckBox);
+        InteractableComponent interactable = GetPrivateField<InteractableComponent>(checkBox, "Interactable");
+
+        InvokePrivate(checkBox, "SetCheckedState", false, true);
+
+        Assert.DoesNotContain(Core.Instance.ObjectManager.Interactables, candidate => candidate.Parent == null);
+        Assert.DoesNotContain(Core.Instance.ObjectManager.Interactables, candidate => ReferenceEquals(candidate, interactable) && candidate.Parent == null);
     }
 
     /// <summary>
@@ -164,9 +251,15 @@ public sealed class MaterialAssetViewTests : IDisposable {
         settings.Processor.Platforms["linux"] = new AssetPlatformProcessorSettings();
         settings.Processor.Platforms["windows"].Material.SchemaId = "standard-shader";
         settings.Processor.Platforms["windows"].Material.FieldValues["use-custom-shader"] = useCustomShader ? "true" : "false";
+        settings.Processor.Platforms["windows"].Material.FieldValues["texture-id"] = "textures/diffuse.png";
+        settings.Processor.Platforms["windows"].Material.FieldValues["casts-shadow"] = "true";
+        settings.Processor.Platforms["windows"].Material.FieldValues["receives-shadow"] = "true";
         settings.Processor.Platforms["windows"].Material.FieldValues["base-color"] = "#ffffff";
         settings.Processor.Platforms["linux"].Material.SchemaId = "standard-shader";
         settings.Processor.Platforms["linux"].Material.FieldValues["use-custom-shader"] = "false";
+        settings.Processor.Platforms["linux"].Material.FieldValues["texture-id"] = "textures/diffuse.png";
+        settings.Processor.Platforms["linux"].Material.FieldValues["casts-shadow"] = "true";
+        settings.Processor.Platforms["linux"].Material.FieldValues["receives-shadow"] = "true";
         settings.Processor.Platforms["linux"].Material.FieldValues["base-color"] = "#ffffff";
         return settings;
     }
@@ -206,6 +299,27 @@ public sealed class MaterialAssetViewTests : IDisposable {
                             "Shader Asset",
                             PlatformMaterialFieldKind.AssetReference,
                             string.Empty,
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "texture-id",
+                            "Texture",
+                            PlatformMaterialFieldKind.AssetReference,
+                            string.Empty,
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "casts-shadow",
+                            "Casts Shadow",
+                            PlatformMaterialFieldKind.Boolean,
+                            "true",
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "receives-shadow",
+                            "Receives Shadow",
+                            PlatformMaterialFieldKind.Boolean,
+                            "true",
                             true,
                             []),
                         new PlatformMaterialFieldDefinition(

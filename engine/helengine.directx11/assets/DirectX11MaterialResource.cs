@@ -18,6 +18,7 @@ namespace helengine.directx11 {
             PixelProgram = string.Empty;
             Variant = string.Empty;
             CastsShadows = true;
+            ReceivesShadows = true;
         }
 
         /// <summary>
@@ -44,6 +45,7 @@ namespace helengine.directx11 {
             PixelProgram = pixelProgram ?? string.Empty;
             Variant = variant ?? string.Empty;
             CastsShadows = true;
+            ReceivesShadows = true;
         }
 
         /// <summary>
@@ -70,12 +72,6 @@ namespace helengine.directx11 {
         /// Gets the shader variant name used by this material.
         /// </summary>
         public string Variant { get; }
-
-        /// <summary>
-        /// Gets or sets whether this DirectX11 material root should contribute geometry to shadow-map passes.
-        /// Child runtime materials inherit this eligibility by resolving back to their DirectX11 root material.
-        /// </summary>
-        public bool CastsShadows { get; set; }
 
         /// <summary>
         /// Gets whether this resource uses the compact Windows-forward PBR material path.

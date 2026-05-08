@@ -46,6 +46,9 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         platformSettings.Material.SchemaId = "standard-shader";
         platformSettings.Material.FieldValues["use-custom-shader"] = "false";
         platformSettings.Material.FieldValues["shader-asset-id"] = "shaders/test";
+        platformSettings.Material.FieldValues["texture-id"] = "textures/test";
+        platformSettings.Material.FieldValues["casts-shadow"] = "true";
+        platformSettings.Material.FieldValues["receives-shadow"] = "true";
         settings.Processor.Platforms["windows"] = platformSettings;
 
         using MemoryStream stream = new MemoryStream();
@@ -59,6 +62,9 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         Assert.Equal("standard-shader", deserialized.Processor.Platforms["windows"].Material.SchemaId);
         Assert.Equal("false", deserialized.Processor.Platforms["windows"].Material.FieldValues["use-custom-shader"]);
         Assert.Equal("shaders/test", deserialized.Processor.Platforms["windows"].Material.FieldValues["shader-asset-id"]);
+        Assert.Equal("textures/test", deserialized.Processor.Platforms["windows"].Material.FieldValues["texture-id"]);
+        Assert.Equal("true", deserialized.Processor.Platforms["windows"].Material.FieldValues["casts-shadow"]);
+        Assert.Equal("true", deserialized.Processor.Platforms["windows"].Material.FieldValues["receives-shadow"]);
     }
 
     /// <summary>
@@ -71,6 +77,9 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
             ShaderAssetId = "shaders/test",
             VertexProgram = "Test.vs",
             PixelProgram = "Test.ps",
+            DiffuseTextureAssetId = "textures/test",
+            CastsShadows = false,
+            ReceivesShadows = true,
             Variant = "Mesh"
         };
         string materialAssetPath = Path.Combine(TempRootPath, "Test.helmat");
@@ -116,6 +125,27 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
                             true,
                             []),
                         new PlatformMaterialFieldDefinition(
+                            "texture-id",
+                            "Texture",
+                            PlatformMaterialFieldKind.AssetReference,
+                            string.Empty,
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "casts-shadow",
+                            "Casts Shadow",
+                            PlatformMaterialFieldKind.Boolean,
+                            "true",
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
+                            "receives-shadow",
+                            "Receives Shadow",
+                            PlatformMaterialFieldKind.Boolean,
+                            "true",
+                            true,
+                            []),
+                        new PlatformMaterialFieldDefinition(
                             "vertex-program",
                             "Vertex Program",
                             PlatformMaterialFieldKind.Text,
@@ -150,9 +180,49 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         Assert.Equal("standard-shader", settings.Processor.Platforms["windows"].Material.SchemaId);
         Assert.Equal("false", settings.Processor.Platforms["windows"].Material.FieldValues["use-custom-shader"]);
         Assert.Equal("shaders/test", settings.Processor.Platforms["windows"].Material.FieldValues["shader-asset-id"]);
+        Assert.Equal("textures/test", settings.Processor.Platforms["windows"].Material.FieldValues["texture-id"]);
+        Assert.Equal("false", settings.Processor.Platforms["windows"].Material.FieldValues["casts-shadow"]);
+        Assert.Equal("true", settings.Processor.Platforms["windows"].Material.FieldValues["receives-shadow"]);
         Assert.Equal("Test.vs", settings.Processor.Platforms["windows"].Material.FieldValues["vertex-program"]);
         Assert.Equal("Test.ps", settings.Processor.Platforms["windows"].Material.FieldValues["pixel-program"]);
         Assert.Equal("#ffffff", settings.Processor.Platforms["windows"].Material.FieldValues["base-color"]);
+    }
+
+    /// <summary>
+    /// Verifies standard shader compatibility fields mirror authored texture and shadow values back into the raw material payload.
+    /// </summary>
+    [Fact]
+    public void ApplyPlatformCompatibilityFields_when_standard_shader_fields_are_present_mirrors_texture_and_shadow_values() {
+        MaterialAsset materialAsset = new MaterialAsset {
+            ShaderAssetId = "shaders/test",
+            VertexProgram = "Test.vs",
+            PixelProgram = "Test.ps",
+            DiffuseTextureAssetId = string.Empty,
+            CastsShadows = true,
+            ReceivesShadows = true,
+            Variant = "Mesh"
+        };
+
+        AssetImportSettings settings = new AssetImportSettings();
+        settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings();
+        settings.Processor.Platforms["windows"].Material.SchemaId = "standard-shader";
+        settings.Processor.Platforms["windows"].Material.FieldValues["use-custom-shader"] = "false";
+        settings.Processor.Platforms["windows"].Material.FieldValues["texture-id"] = "Textures/Brick.png";
+        settings.Processor.Platforms["windows"].Material.FieldValues["casts-shadow"] = "false";
+        settings.Processor.Platforms["windows"].Material.FieldValues["receives-shadow"] = "false";
+
+        MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+
+        bool changed = service.ApplyPlatformCompatibilityFields(materialAsset, settings, "windows");
+
+        Assert.True(changed);
+        Assert.Equal("ForwardStandardShader", materialAsset.ShaderAssetId);
+        Assert.Equal("ForwardStandardShader.vs", materialAsset.VertexProgram);
+        Assert.Equal("ForwardStandardShader.ps", materialAsset.PixelProgram);
+        Assert.Equal("Textures/Brick.png", materialAsset.DiffuseTextureAssetId);
+        Assert.False(materialAsset.CastsShadows);
+        Assert.False(materialAsset.ReceivesShadows);
+        Assert.Equal("Mesh", materialAsset.Variant);
     }
 
     /// <summary>

@@ -90,6 +90,8 @@ namespace helengine.editor.tests {
             Assert.Equal(RuntimeMaterialLightingModel.Unlit, material.LightingModel);
             Assert.False(material.SupportsNormalMapping);
             Assert.False(material.SupportsEmissive);
+            Assert.True(material.CastsShadows);
+            Assert.True(material.ReceivesShadows);
         }
 
         /// <summary>

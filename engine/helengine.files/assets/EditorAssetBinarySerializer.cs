@@ -235,8 +235,6 @@ namespace helengine.files {
             writer.WriteArray(asset.TexCoords, WriteFloat2);
             writer.WriteArray(asset.Indices16, WriteUInt16Value);
             writer.WriteArray(asset.Indices32, WriteUInt32Value);
-            writer.WriteFloat3(asset.BoundsMin);
-            writer.WriteFloat3(asset.BoundsMax);
             writer.WriteArray(asset.Submeshes, WriteModelSubmeshAsset);
         }
 
@@ -250,27 +248,15 @@ namespace helengine.files {
                 throw new ArgumentNullException(nameof(reader));
             }
 
-            ModelAsset modelAsset = new ModelAsset {
+            return new ModelAsset {
                 Id = reader.ReadString(),
                 Positions = reader.ReadArray(ReadFloat3),
                 Normals = reader.ReadArray(ReadFloat3),
                 TexCoords = reader.ReadArray(ReadFloat2),
                 Indices16 = reader.ReadArray(ReadUInt16Value),
                 Indices32 = reader.ReadArray(ReadUInt32Value),
-                BoundsMin = version >= 9
-                    ? reader.ReadFloat3()
-                    : default,
-                BoundsMax = version >= 9
-                    ? reader.ReadFloat3()
-                    : default,
                 Submeshes = version >= 8 ? reader.ReadArray(ReadModelSubmeshAsset) : null
             };
-
-            if (version < 9) {
-                ModelAssetBounds.Apply(modelAsset);
-            }
-
-            return modelAsset;
         }
 
         /// <summary>
@@ -341,6 +327,8 @@ namespace helengine.files {
             writer.WriteString(asset.PixelProgram);
             writer.WriteString(asset.Variant);
             writer.WriteString(asset.DiffuseTextureAssetId);
+            writer.WriteByte(asset.CastsShadows ? (byte)1 : (byte)0);
+            writer.WriteByte(asset.ReceivesShadows ? (byte)1 : (byte)0);
             WriteMaterialRenderState(writer, asset.RenderState);
             writer.WriteArray(asset.ConstantBuffers, WriteMaterialConstantBufferAsset);
         }
@@ -360,6 +348,12 @@ namespace helengine.files {
                 DiffuseTextureAssetId = version >= 7
                     ? reader.ReadString()
                     : string.Empty,
+                CastsShadows = version >= 9
+                    ? reader.ReadByte() != 0
+                    : true,
+                ReceivesShadows = version >= 9
+                    ? reader.ReadByte() != 0
+                    : true,
                 RenderState = ReadMaterialRenderState(reader),
                 ConstantBuffers = reader.ReadArray(ReadMaterialConstantBufferAsset) ?? Array.Empty<MaterialConstantBufferAsset>()
             };

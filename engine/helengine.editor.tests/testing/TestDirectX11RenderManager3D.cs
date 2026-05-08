@@ -46,6 +46,8 @@ namespace helengine.editor.tests.testing {
             material.LightingModel = RuntimeMaterialLightingModel.MetalRoughPbr;
             material.SupportsNormalMapping = !string.IsNullOrWhiteSpace(materialAsset.NormalTextureAssetId);
             material.SupportsEmissive = !string.IsNullOrWhiteSpace(materialAsset.EmissiveTextureAssetId);
+            material.CastsShadows = materialAsset.CastsShadows;
+            material.ReceivesShadows = materialAsset.ReceivesShadows;
             StandardMaterialTextureBindingDefaults.Apply(material);
             return material;
         }

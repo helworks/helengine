@@ -18,6 +18,7 @@ namespace helengine.editor {
         /// <param name="checkBox">Check box used by boolean-backed field kinds.</param>
         /// <param name="buttonHost">Optional host entity for an auxiliary action button.</param>
         /// <param name="button">Optional auxiliary action button.</param>
+        /// <param name="colorControl">Optional reusable color field control.</param>
         public MaterialAssetFieldEditorRow(
             string fieldId,
             PlatformMaterialFieldKind fieldKind,
@@ -28,7 +29,8 @@ namespace helengine.editor {
             ComboBoxComponent comboBox,
             CheckBoxComponent checkBox,
             EditorEntity buttonHost,
-            ButtonComponent button) {
+            ButtonComponent button,
+            EditorColorFieldControl colorControl) {
             if (string.IsNullOrWhiteSpace(fieldId)) {
                 throw new ArgumentException("Field id must be provided.", nameof(fieldId));
             } else if (labelHost == null) {
@@ -49,6 +51,7 @@ namespace helengine.editor {
             CheckBox = checkBox;
             ButtonHost = buttonHost;
             Button = button;
+            ColorControl = colorControl;
         }
 
         /// <summary>
@@ -100,5 +103,10 @@ namespace helengine.editor {
         /// Gets the optional auxiliary action button.
         /// </summary>
         public ButtonComponent Button { get; }
+
+        /// <summary>
+        /// Gets the optional reusable color field control.
+        /// </summary>
+        public EditorColorFieldControl ColorControl { get; }
     }
 }

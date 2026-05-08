@@ -162,27 +162,28 @@ public sealed class MaterialAssetPlatformPanel : IDisposable {
     /// </summary>
     /// <param name="materialSchemas">Schemas available to the panel's platform.</param>
     /// <param name="selectedSchemaId">Schema identifier that should be selected.</param>
-        public void UpdateSchemaPicker(
-            IReadOnlyList<PlatformMaterialSchemaDefinition> materialSchemas,
-            string selectedSchemaId) {
-            if (materialSchemas == null) {
-                throw new ArgumentNullException(nameof(materialSchemas));
-            }
-
-            List<string> schemaDisplayNames = new List<string>(materialSchemas.Count);
-            for (int index = 0; index < materialSchemas.Count; index++) {
-                PlatformMaterialSchemaDefinition materialSchema = materialSchemas[index];
-                schemaDisplayNames.Add(materialSchema.DisplayName);
-            }
-
-            IsUpdatingSchemaSelection = true;
-            try {
-                SchemaComboBox.SetItems(schemaDisplayNames, FindSchemaIndex(materialSchemas, selectedSchemaId));
-            } finally {
-                IsUpdatingSchemaSelection = false;
-            }
-            SchemaComboBox.IsOpen = false;
+    public void UpdateSchemaPicker(
+        IReadOnlyList<PlatformMaterialSchemaDefinition> materialSchemas,
+        string selectedSchemaId) {
+        if (materialSchemas == null) {
+            throw new ArgumentNullException(nameof(materialSchemas));
         }
+
+        List<string> schemaDisplayNames = new List<string>(materialSchemas.Count);
+        for (int index = 0; index < materialSchemas.Count; index++) {
+            PlatformMaterialSchemaDefinition materialSchema = materialSchemas[index];
+            schemaDisplayNames.Add(materialSchema.DisplayName);
+        }
+
+        IsUpdatingSchemaSelection = true;
+        try {
+            SchemaComboBox.SetItems(schemaDisplayNames, FindSchemaIndex(materialSchemas, selectedSchemaId));
+        } finally {
+            IsUpdatingSchemaSelection = false;
+        }
+
+        SchemaComboBox.IsOpen = false;
+    }
 
     /// <summary>
     /// Adds one field row to the panel.
@@ -225,7 +226,16 @@ public sealed class MaterialAssetPlatformPanel : IDisposable {
     /// <param name="width">Available width in pixels.</param>
     public void UpdateLayout(int left, int top, int width) {
         int safeWidth = Math.Max(0, width);
-        int labelWidth = Math.Min(LabelWidth, safeWidth);
+        int labelWidth = (int)Math.Round(safeWidth * 0.4, MidpointRounding.AwayFromZero);
+        if (labelWidth > safeWidth) {
+            labelWidth = safeWidth;
+        }
+
+        int comboWidth = safeWidth - labelWidth - ControlSpacing;
+        if (comboWidth < 1) {
+            comboWidth = 1;
+        }
+
         int currentTop = 0;
 
         RootValue.Position = new float3(left, top, 0.1f);
@@ -234,6 +244,7 @@ public sealed class MaterialAssetPlatformPanel : IDisposable {
 
         int comboLeft = labelWidth + ControlSpacing;
         SchemaComboHost.Position = new float3(comboLeft, currentTop, 0.2f);
+        SchemaComboBox.Size = new int2(comboWidth, RowHeight);
 
         currentTop += RowHeight + RowSpacing;
         for (int index = 0; index < FieldRowsValue.Count; index++) {
@@ -295,6 +306,8 @@ public sealed class MaterialAssetPlatformPanel : IDisposable {
             row.ComboBox.Size = new int2(valueWidth, RowHeight);
         } else if (row.CheckBox != null) {
             row.CheckBox.Size = new int2(RowHeight, RowHeight);
+        } else if (row.ColorControl != null) {
+            row.ColorControl.Size = new int2(valueWidth, RowHeight);
         }
 
         if (row.ButtonHost != null) {

@@ -252,6 +252,8 @@ namespace helengine.editor.tests {
             Assert.Equal(asset.PixelProgram, deserialized.PixelProgram);
             Assert.Equal(asset.Variant, deserialized.Variant);
             Assert.Equal(asset.DiffuseTextureAssetId, deserialized.DiffuseTextureAssetId);
+            Assert.Equal(asset.CastsShadows, deserialized.CastsShadows);
+            Assert.Equal(asset.ReceivesShadows, deserialized.ReceivesShadows);
             Assert.Equal(asset.RenderState.BlendMode, deserialized.RenderState.BlendMode);
             Assert.Equal(asset.RenderState.CullMode, deserialized.RenderState.CullMode);
             Assert.Equal(asset.RenderState.DepthTestEnabled, deserialized.RenderState.DepthTestEnabled);
@@ -296,22 +298,6 @@ namespace helengine.editor.tests {
             Assert.Equal(asset.Normals, deserialized.Normals);
             Assert.Equal(asset.TexCoords, deserialized.TexCoords);
             Assert.Equal(asset.Indices16, deserialized.Indices16);
-        }
-
-        /// <summary>
-        /// Ensures model asset bounds round-trip through the HELE asset serializer.
-        /// </summary>
-        [Fact]
-        public void AssetSerializer_ModelAsset_WithBounds_RoundTrips() {
-            ModelAsset asset = CreateModelAsset();
-            asset.BoundsMin = new float3(-2f, -3f, -4f);
-            asset.BoundsMax = new float3(5f, 6f, 7f);
-
-            byte[] data = AssetSerializer.SerializeToBytes(asset);
-            ModelAsset deserialized = (ModelAsset)AssetSerializer.DeserializeFromBytes(data);
-
-            Assert.Equal(asset.BoundsMin, deserialized.BoundsMin);
-            Assert.Equal(asset.BoundsMax, deserialized.BoundsMax);
         }
 
         /// <summary>
@@ -595,6 +581,8 @@ namespace helengine.editor.tests {
                 PixelProgram = "ProgramPixel",
                 Variant = "Default",
                 DiffuseTextureAssetId = "textures/diffuse",
+                CastsShadows = false,
+                ReceivesShadows = true,
                 RenderState = new MaterialRenderState {
                     BlendMode = MaterialBlendMode.AlphaBlend,
                     CullMode = MaterialCullMode.None,

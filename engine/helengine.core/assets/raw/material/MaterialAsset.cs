@@ -9,6 +9,8 @@ namespace helengine {
         public MaterialAsset() {
             RenderState = new MaterialRenderState();
             ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>();
+            CastsShadows = true;
+            ReceivesShadows = true;
         }
 
         /// <summary>
@@ -55,5 +57,15 @@ namespace helengine {
         /// Gets or sets the authored default constant-buffer payloads keyed by shader binding name.
         /// </summary>
         public MaterialConstantBufferAsset[] ConstantBuffers;
+
+        /// <summary>
+        /// Gets or sets whether the material contributes geometry to shadow-map passes.
+        /// </summary>
+        public bool CastsShadows;
+
+        /// <summary>
+        /// Gets or sets whether the material receives shadow attenuation during lighting.
+        /// </summary>
+        public bool ReceivesShadows;
     }
 }

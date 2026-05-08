@@ -57,6 +57,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures multi-extension picker filters match any of the authored extensions in the list.
+        /// </summary>
+        [Fact]
+        public void DoesEntryMatchExtensionFilter_when_multiple_extensions_are_provided_matches_any_token() {
+            AssetBrowserView browserView = new AssetBrowserView(CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4);
+            browserView.SetExtensionFilter(".png;.jpg");
+
+            MethodInfo method = typeof(AssetBrowserView).GetMethod("DoesEntryMatchExtensionFilter", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(method);
+
+            AssetBrowserEntry pngEntry = AssetBrowserEntry.CreateFileSystemFile("Diffuse.png", "Textures/Diffuse.png", Path.Combine(ProjectRootPath, "assets", "Textures", "Diffuse.png"), ".png", AssetEntryKind.Model);
+            AssetBrowserEntry jpgEntry = AssetBrowserEntry.CreateFileSystemFile("Diffuse.jpg", "Textures/Diffuse.jpg", Path.Combine(ProjectRootPath, "assets", "Textures", "Diffuse.jpg"), ".jpg", AssetEntryKind.Model);
+            AssetBrowserEntry gifEntry = AssetBrowserEntry.CreateFileSystemFile("Diffuse.gif", "Textures/Diffuse.gif", Path.Combine(ProjectRootPath, "assets", "Textures", "Diffuse.gif"), ".gif", AssetEntryKind.Model);
+
+            Assert.True(InvokeBooleanPrivate(browserView, method, pngEntry));
+            Assert.True(InvokeBooleanPrivate(browserView, method, jpgEntry));
+            Assert.False(InvokeBooleanPrivate(browserView, method, gifEntry));
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>
@@ -66,6 +86,24 @@ namespace helengine.editor.tests {
         T GetPrivateField<T>(object target, string fieldName) {
             FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
             return Assert.IsType<T>(field.GetValue(target));
+        }
+
+        /// <summary>
+        /// Invokes one private boolean method on an object instance.
+        /// </summary>
+        /// <param name="target">Object that owns the method.</param>
+        /// <param name="method">Private method to invoke.</param>
+        /// <param name="argument">Method argument.</param>
+        /// <returns>Boolean result returned by the private method.</returns>
+        static bool InvokeBooleanPrivate(object target, MethodInfo method, object argument) {
+            if (target == null) {
+                throw new ArgumentNullException(nameof(target));
+            } else if (method == null) {
+                throw new ArgumentNullException(nameof(method));
+            }
+
+            object result = method.Invoke(target, [argument]);
+            return Assert.IsType<bool>(result);
         }
 
         /// <summary>

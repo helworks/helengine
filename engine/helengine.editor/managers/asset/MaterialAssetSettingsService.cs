@@ -16,6 +16,11 @@ namespace helengine.editor {
         const string ShaderAssetIdFieldId = "shader-asset-id";
 
         /// <summary>
+        /// Field id used by shader-backed schemas for the texture asset identifier.
+        /// </summary>
+        const string TextureAssetIdFieldId = "texture-id";
+
+        /// <summary>
         /// Field id used by shader-backed schemas for the vertex program identifier.
         /// </summary>
         const string VertexProgramFieldId = "vertex-program";
@@ -29,6 +34,16 @@ namespace helengine.editor {
         /// Field id used by shader-backed schemas to toggle custom shader overrides.
         /// </summary>
         const string UseCustomShaderFieldId = "use-custom-shader";
+
+        /// <summary>
+        /// Field id used by shader-backed schemas to toggle shadow casting.
+        /// </summary>
+        const string CastsShadowFieldId = "casts-shadow";
+
+        /// <summary>
+        /// Field id used by shader-backed schemas to toggle shadow receiving.
+        /// </summary>
+        const string ReceivesShadowFieldId = "receives-shadow";
 
         /// <summary>
         /// Schema id used by the Windows standard material path.
@@ -172,6 +187,9 @@ namespace helengine.editor {
                 changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, value => materialAsset.PixelProgram = value, true);
             }
 
+            changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, TextureAssetIdFieldId, materialAsset.DiffuseTextureAssetId, value => materialAsset.DiffuseTextureAssetId = value, true);
+            changed |= ApplyBooleanCompatibilityField(platformSettings.Material.FieldValues, CastsShadowFieldId, materialAsset.CastsShadows, value => materialAsset.CastsShadows = value);
+            changed |= ApplyBooleanCompatibilityField(platformSettings.Material.FieldValues, ReceivesShadowFieldId, materialAsset.ReceivesShadows, value => materialAsset.ReceivesShadows = value);
             changed |= ApplyMaterialVariant(materialAsset, MeshVariantName);
             return changed;
         }
@@ -348,10 +366,16 @@ namespace helengine.editor {
         string ResolveSeedValue(PlatformMaterialFieldDefinition field, MaterialAsset materialAsset) {
             if (string.Equals(field.FieldId, ShaderAssetIdFieldId, StringComparison.OrdinalIgnoreCase)) {
                 return materialAsset.ShaderAssetId ?? string.Empty;
+            } else if (string.Equals(field.FieldId, TextureAssetIdFieldId, StringComparison.OrdinalIgnoreCase)) {
+                return materialAsset.DiffuseTextureAssetId ?? string.Empty;
             } else if (string.Equals(field.FieldId, VertexProgramFieldId, StringComparison.OrdinalIgnoreCase)) {
                 return materialAsset.VertexProgram ?? string.Empty;
             } else if (string.Equals(field.FieldId, PixelProgramFieldId, StringComparison.OrdinalIgnoreCase)) {
                 return materialAsset.PixelProgram ?? string.Empty;
+            } else if (string.Equals(field.FieldId, CastsShadowFieldId, StringComparison.OrdinalIgnoreCase)) {
+                return materialAsset.CastsShadows ? "true" : "false";
+            } else if (string.Equals(field.FieldId, ReceivesShadowFieldId, StringComparison.OrdinalIgnoreCase)) {
+                return materialAsset.ReceivesShadows ? "true" : "false";
             }
 
             return field.DefaultValue ?? string.Empty;
@@ -396,6 +420,41 @@ namespace helengine.editor {
             }
 
             applyValue(nextValue);
+            return true;
+        }
+
+        /// <summary>
+        /// Applies one serialized boolean compatibility field to the target material asset.
+        /// </summary>
+        /// <param name="fieldValues">Serialized field values published for one platform.</param>
+        /// <param name="fieldId">Compatibility field identifier to read.</param>
+        /// <param name="currentValue">Current value stored on the material asset.</param>
+        /// <param name="applyValue">Callback that writes the updated value back to the material asset.</param>
+        /// <returns>True when the material asset changed.</returns>
+        bool ApplyBooleanCompatibilityField(
+            Dictionary<string, string> fieldValues,
+            string fieldId,
+            bool currentValue,
+            Action<bool> applyValue) {
+            if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            } else if (string.IsNullOrWhiteSpace(fieldId)) {
+                throw new ArgumentException("Field id must be provided.", nameof(fieldId));
+            } else if (applyValue == null) {
+                throw new ArgumentNullException(nameof(applyValue));
+            }
+
+            string nextValue;
+            if (!fieldValues.TryGetValue(fieldId, out nextValue)) {
+                return false;
+            }
+
+            bool nextBooleanValue = string.Equals(nextValue, "true", StringComparison.OrdinalIgnoreCase);
+            if (currentValue == nextBooleanValue) {
+                return false;
+            }
+
+            applyValue(nextBooleanValue);
             return true;
         }
 

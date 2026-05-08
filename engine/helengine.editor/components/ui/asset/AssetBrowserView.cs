@@ -975,7 +975,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Determines whether one entry matches the active extension filter, including virtual generated entries.
+        /// Determines whether one entry matches the active extension filter, including compound multi-extension filters and virtual generated entries.
         /// </summary>
         /// <param name="entry">Entry to validate against the current filter.</param>
         /// <returns>True when the entry should remain visible.</returns>
@@ -984,20 +984,32 @@ namespace helengine.editor {
                 return false;
             }
 
-            if (string.Equals(entry.Extension, ExtensionFilter, StringComparison.OrdinalIgnoreCase)) {
-                return true;
+            string[] extensionFilters = ExtensionFilter.Split(new[] { ';', '|', ',' }, StringSplitOptions.RemoveEmptyEntries);
+            for (int index = 0; index < extensionFilters.Length; index++) {
+                string normalizedFilter = NormalizeExtensionFilter(extensionFilters[index]);
+                if (string.IsNullOrWhiteSpace(normalizedFilter)) {
+                    continue;
+                }
+
+                if (string.Equals(entry.Extension, normalizedFilter, StringComparison.OrdinalIgnoreCase)) {
+                    return true;
+                }
+
+                if (!entry.IsGenerated) {
+                    continue;
+                }
+
+                string generatedExtension = GetGeneratedEntryExtension(entry.EntryKind);
+                if (string.IsNullOrWhiteSpace(generatedExtension)) {
+                    continue;
+                }
+
+                if (string.Equals(generatedExtension, normalizedFilter, StringComparison.OrdinalIgnoreCase)) {
+                    return true;
+                }
             }
 
-            if (!entry.IsGenerated) {
-                return false;
-            }
-
-            string generatedExtension = GetGeneratedEntryExtension(entry.EntryKind);
-            if (string.IsNullOrWhiteSpace(generatedExtension)) {
-                return false;
-            }
-
-            return string.Equals(generatedExtension, ExtensionFilter, StringComparison.OrdinalIgnoreCase);
+            return false;
         }
 
         /// <summary>
@@ -1017,7 +1029,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Normalizes an extension filter to ensure a leading dot.
+        /// Normalizes an extension filter list to ensure every token has a leading dot and the stored value uses a stable separator.
         /// </summary>
         /// <param name="extensionFilter">Extension filter to normalize.</param>
         /// <returns>Normalized extension filter.</returns>
@@ -1026,12 +1038,30 @@ namespace helengine.editor {
                 return string.Empty;
             }
 
-            string trimmed = extensionFilter.Trim();
-            if (trimmed.StartsWith(".")) {
-                return trimmed;
+            string[] parts = extensionFilter.Split(new[] { ';', '|', ',' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) {
+                return string.Empty;
             }
 
-            return "." + trimmed;
+            List<string> normalizedExtensions = new List<string>(parts.Length);
+            for (int index = 0; index < parts.Length; index++) {
+                string trimmed = parts[index].Trim();
+                if (string.IsNullOrWhiteSpace(trimmed)) {
+                    continue;
+                }
+
+                if (!trimmed.StartsWith(".")) {
+                    trimmed = "." + trimmed;
+                }
+
+                normalizedExtensions.Add(trimmed);
+            }
+
+            if (normalizedExtensions.Count == 0) {
+                return string.Empty;
+            }
+
+            return string.Join(";", normalizedExtensions);
         }
     }
 }

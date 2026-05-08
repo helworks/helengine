@@ -441,7 +441,7 @@ namespace helengine.editor {
             importSettingsView.ApplyRequested += HandleImportSettingsApplyRequested;
             ScrollContentRoot.AddChild(importSettingsView.Root);
 
-            MaterialView = new MaterialAssetView(font, EditorLayerMasks.PropertiesPanelContent);
+            MaterialView = new MaterialAssetView(font, EditorLayerMasks.PropertiesPanelContent, ModalHost);
             ScrollContentRoot.AddChild(MaterialView.Root);
 
             TransformRoot = new EditorEntity();
