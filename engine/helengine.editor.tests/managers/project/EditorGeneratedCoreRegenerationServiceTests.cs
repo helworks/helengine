@@ -531,7 +531,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
 
         string normalized = File.ReadAllText(sourcePath);
-        Assert.Contains("#if defined(PS2_PLATFORM)", normalized);
+        Assert.Contains("#if HE_CPP_PLATFORM_PS2", normalized);
         Assert.Contains("return CombinePs2Path(left, right);", normalized);
         Assert.Contains("return GetPs2DirectoryName(path);", normalized);
         Assert.Contains("return GetPs2FileName(path);", normalized);
@@ -540,13 +540,14 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies generated native file support resolves PS2 disc reads through `fopen`-compatible paths and appends the ISO9660 version suffix when required.
+    /// Verifies generated native file support resolves PS2 packaged file reads through the builder-emitted physical path manifest instead of reconstructing disc aliases at runtime.
     /// </summary>
     [Fact]
     public void Normalize_generated_native_sources_rewrites_file_support_for_ps2_disc_reads() {
         string generatedCoreRootPath = Path.Combine(RootPath, "normalize-ps2-file-support");
         Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "system", "io"));
         string filePath = Path.Combine(generatedCoreRootPath, "system", "io", "file.cpp");
+        string fileStreamHeaderPath = Path.Combine(generatedCoreRootPath, "system", "io", "file-stream.hpp");
         string fileStreamPath = Path.Combine(generatedCoreRootPath, "system", "io", "file-stream.cpp");
         File.WriteAllText(
             filePath,
@@ -568,6 +569,26 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             + "\treturn new FileStream(filePath, FileMode::Open, FileAccess::Read, FileShare::Read);\n"
             + "}\n");
         File.WriteAllText(
+            fileStreamHeaderPath,
+            "#ifndef FILE_STREAM_HPP\n"
+            + "#define FILE_STREAM_HPP\n"
+            + "\n"
+            + "#include \"stream.hpp\"\n"
+            + "#include <cstdio>\n"
+            + "#include <string>\n"
+            + "\n"
+            + "class FileStream : public Stream {\n"
+            + "private:\n"
+            + "    std::FILE* file;\n"
+            + "    size_t position;\n"
+            + "    size_t length;\n"
+            + "\n"
+            + "public:\n"
+            + "    FileStream(const char* path, FileMode mode);\n"
+            + "};\n"
+            + "\n"
+            + "#endif // FILE_STREAM_HPP\n");
+        File.WriteAllText(
             fileStreamPath,
             "#include \"file-stream.hpp\"\n"
             + "#include <stdexcept>\n"
@@ -582,13 +603,39 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
 
         string normalizedFile = File.ReadAllText(filePath);
+        string normalizedFileStreamHeader = File.ReadAllText(fileStreamHeaderPath);
         string normalizedFileStream = File.ReadAllText(fileStreamPath);
+        Assert.Contains("#include \"runtime/runtime_ps2_asset_path_manifest.hpp\"", normalizedFile);
         Assert.Contains("#include <cstdio>", normalizedFile);
+        Assert.Contains("#include <libcdvd.h>", normalizedFile);
+        Assert.Contains("#if HE_CPP_PLATFORM_PS2", normalizedFile);
+        Assert.Contains("NormalizePs2RuntimeAssetLookupPath", normalizedFile);
+        Assert.Contains("BuildPs2RuntimeAssetLogicalLookupPath", normalizedFile);
+        Assert.Contains("he_get_runtime_ps2_asset_physical_path(assetLookupPath.c_str())", normalizedFile);
+        Assert.Contains("physicalPath == nullptr || physicalPath[0] == '\\0') && assetLookupPath.rfind(\"cdrom0:\", 0) == 0", normalizedFile);
+        Assert.Contains("he_get_runtime_ps2_asset_physical_path(logicalLookupPath.c_str())", normalizedFile);
+        Assert.Contains("ResolvePs2DiscSearchPath", normalizedFile);
+        Assert.Contains("std::string physicalPs2Path = ResolvePs2DiscSearchPath(fileName);", normalizedFile);
+        Assert.Contains("return sceCdSearchFile(&fileInfo, physicalPs2Path.c_str()) != 0;", normalizedFile);
         Assert.Contains("std::FILE* file = std::fopen(ResolvePs2DiscReadPath(fileName).c_str(), \"rb\");", normalizedFile);
         Assert.Contains("return new FileStream(ResolvePs2DiscReadPath(filePath), FileMode::Open, FileAccess::Read, FileShare::Read);", normalizedFile);
-        Assert.Contains("file = std::fopen(ResolvePs2DiscReadPath(path).c_str(), GetFileMode(mode));", normalizedFileStream);
-        Assert.Contains("if (path.rfind(\"cdrom0:\", 0) != 0)", normalizedFileStream);
-        Assert.Contains("return path + \";1\";", normalizedFileStream);
+        Assert.Contains("#include <vector>", normalizedFileStreamHeader);
+        Assert.Contains("bool usesMemoryBuffer;", normalizedFileStreamHeader);
+        Assert.Contains("std::vector<uint8_t> memoryBuffer;", normalizedFileStreamHeader);
+        Assert.Contains("#include \"runtime/runtime_ps2_asset_path_manifest.hpp\"", normalizedFileStream);
+        Assert.Contains("#include <libcdvd.h>", normalizedFileStream);
+        Assert.Contains("#include <malloc.h>", normalizedFileStream);
+        Assert.Contains("#if HE_CPP_PLATFORM_PS2", normalizedFileStream);
+        Assert.Contains("NormalizePs2RuntimeAssetLookupPath", normalizedFileStream);
+        Assert.Contains("BuildPs2RuntimeAssetLogicalLookupPath", normalizedFileStream);
+        Assert.Contains("he_get_runtime_ps2_asset_physical_path(assetLookupPath.c_str())", normalizedFileStream);
+        Assert.Contains("physicalPath == nullptr || physicalPath[0] == '\\0') && assetLookupPath.rfind(\"cdrom0:\", 0) == 0", normalizedFileStream);
+        Assert.Contains("he_get_runtime_ps2_asset_physical_path(logicalLookupPath.c_str())", normalizedFileStream);
+        Assert.Contains("ResolvePs2DiscSearchPath", normalizedFileStream);
+        Assert.Contains("std::vector<uint8_t> ReadPs2DiscFile(const std::string& path)", normalizedFileStream);
+        Assert.Contains("sceCdSearchFile(&fileInfo, ResolvePs2DiscSearchPath(path).c_str()) == 0", normalizedFileStream);
+        Assert.Contains("if (!ResolvePs2DiscPhysicalPath(path).empty())", normalizedFileStream);
+        Assert.Contains("memoryBuffer = ReadPs2DiscFile(path);", normalizedFileStream);
     }
 
     /// <summary>
