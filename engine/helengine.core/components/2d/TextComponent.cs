@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders text using a provided font asset via the 2D render manager.
     /// </summary>
-    public class TextComponent : Component, ITextDrawable2D {
+    public class TextComponent : Component, ITextDrawable2D, IAnchorSizeProvider {
         /// <summary>
         /// Stores the current text content so selection state can clamp itself when the text changes.
         /// </summary>
@@ -77,6 +77,11 @@ namespace helengine {
         /// Gets or sets the layout size of the rendered text.
         /// </summary>
         public int2 Size { get; set; }
+
+        /// <summary>
+        /// Gets the local size used by anchored layout calculations.
+        /// </summary>
+        public int2 AnchorSize => Size;
 
         /// <summary>
         /// Gets or sets the color tint applied to the glyphs.

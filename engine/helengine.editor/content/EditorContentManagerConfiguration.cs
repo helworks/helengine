@@ -42,6 +42,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Ensures the editor-specific asset processors needed by the properties panel and asset browser are registered.
+        /// </summary>
+        /// <param name="contentManager">Content manager to configure.</param>
+        public static void ConfigureEditorContentManager(ContentManager contentManager) {
+            if (contentManager == null) {
+                throw new ArgumentNullException(nameof(contentManager));
+            }
+
+            ConfigureSharedAssetContentManager(contentManager);
+            RegisterProcessorIfMissing(
+                contentManager,
+                RuntimeContentProcessorIds.FontAsset,
+                new BinaryContentProcessor<global::helengine.FontAsset>(global::helengine.FontAssetBinarySerializer.Deserialize),
+                new[] { ".hefont" });
+        }
+
+        /// <summary>
         /// Ensures the project-specific processors needed for asset importing are registered.
         /// </summary>
         /// <param name="contentManager">Content manager to configure.</param>

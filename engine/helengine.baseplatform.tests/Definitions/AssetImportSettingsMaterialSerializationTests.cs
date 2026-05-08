@@ -128,7 +128,14 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
                             PlatformMaterialFieldKind.Choice,
                             "default",
                             true,
-                            ["default"])
+                            ["default"]),
+                        new PlatformMaterialFieldDefinition(
+                            "base-color",
+                            "Base Color",
+                            PlatformMaterialFieldKind.Color,
+                            "#ffffff",
+                            false,
+                            [])
                     ])
             ]);
 
@@ -145,6 +152,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         Assert.Equal("Test.vs", settings.Processor.Platforms["windows"].Material.FieldValues["vertex-program"]);
         Assert.Equal("Test.ps", settings.Processor.Platforms["windows"].Material.FieldValues["pixel-program"]);
         Assert.Equal("default", settings.Processor.Platforms["windows"].Material.FieldValues["variant"]);
+        Assert.Equal("#ffffff", settings.Processor.Platforms["windows"].Material.FieldValues["base-color"]);
     }
 
     /// <summary>

@@ -167,10 +167,10 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies asset cooking falls back to compatibility material packaging when the active builder publishes no material schemas.
+    /// Verifies the Windows builder publishes material schema metadata and cooks materials with a base-color buffer.
     /// </summary>
     [Fact]
-    public void Cook_when_builder_definition_publishes_no_material_schemas_packages_material_without_builder_material_cook() {
+    public void Cook_when_builder_definition_publishes_standard_material_schema_cooks_material_with_base_color_buffer() {
         string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
         string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
         EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(Path.Combine(sourceProjectRootPath, "project.heproj"));
@@ -202,7 +202,15 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
 
         Assert.Equal(sceneId, manifest.StartupSceneId);
         Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "PhysicsTrigger.hasset")));
-        Assert.True(File.Exists(Path.Combine(BuildRootPath, "Materials", "physics", "PhysicsDemoNeutral.helmat")));
+        string cookedMaterialPath = Path.Combine(BuildRootPath, "Materials", "physics", "PhysicsDemoNeutral.helmat");
+        Assert.True(File.Exists(cookedMaterialPath));
+
+        using FileStream stream = new FileStream(cookedMaterialPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        MaterialAsset cookedMaterial = Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(stream));
+        Assert.Equal("PhysicsDemoShader", cookedMaterial.ShaderAssetId);
+        Assert.Single(cookedMaterial.ConstantBuffers);
+        Assert.Equal("BaseColorBuffer", cookedMaterial.ConstantBuffers[0].Name);
+        Assert.Equal(16, cookedMaterial.ConstantBuffers[0].Data.Length);
     }
 
     void WriteSceneAsset(string sceneId, SceneAssetReference[] assetReferences) {

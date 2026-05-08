@@ -14,6 +14,16 @@ namespace helengine.baseplatform.tests.Builders;
 /// </summary>
 public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
     /// <summary>
+    /// Stable material field identifier used for the authored base color.
+    /// </summary>
+    const string BaseColorFieldId = "base-color";
+
+    /// <summary>
+    /// Constant-buffer name used for the authored base color payload.
+    /// </summary>
+    const string BaseColorBufferName = "BaseColorBuffer";
+
+    /// <summary>
     /// Initializes one minimal test builder.
     /// </summary>
     public TestPlatformAssetBuilder() {
@@ -77,7 +87,14 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
                             PlatformMaterialFieldKind.Choice,
                             "default",
                             true,
-                            ["default", "skinned"])
+                            ["default", "skinned"]),
+                        new PlatformMaterialFieldDefinition(
+                            BaseColorFieldId,
+                            "Base Color",
+                            PlatformMaterialFieldKind.Color,
+                            "#ffffff",
+                            false,
+                            [])
                     ])
             ],
             [
@@ -122,6 +139,7 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
         string vertexProgram = ReadRequiredField(request.FieldValues, "vertex-program");
         string pixelProgram = ReadRequiredField(request.FieldValues, "pixel-program");
         string variant = ReadRequiredField(request.FieldValues, "variant");
+        string baseColor = request.FieldValues != null && request.FieldValues.TryGetValue(BaseColorFieldId, out string baseColorValue) ? baseColorValue : "#ffffff";
 
         MaterialAsset materialAsset = new MaterialAsset {
             Id = request.MaterialAssetId,
@@ -130,7 +148,12 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
             PixelProgram = pixelProgram,
             Variant = variant,
             RenderState = new MaterialRenderState(),
-            ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>()
+            ConstantBuffers = [
+                new MaterialConstantBufferAsset {
+                    Name = BaseColorBufferName,
+                    Data = CreateFloat4ConstantBufferData(ParseBaseColor(baseColor))
+                }
+            ]
         };
 
         return new PlatformMaterialCookResult(global::helengine.editor.AssetSerializer.SerializeToBytes(materialAsset), [shaderAssetId]);
@@ -171,5 +194,57 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
         }
 
         return value;
+    }
+
+    /// <summary>
+    /// Parses one serialized base-color string into a normalized floating-point color.
+    /// </summary>
+    /// <param name="serializedColor">Serialized color string in <c>#RRGGBB</c> or <c>#RRGGBBAA</c> form.</param>
+    /// <returns>Normalized color value.</returns>
+    static float4 ParseBaseColor(string serializedColor) {
+        if (string.IsNullOrWhiteSpace(serializedColor)) {
+            return new float4(1f, 1f, 1f, 1f);
+        }
+
+        string normalized = serializedColor.Trim();
+        if (normalized.StartsWith("#", StringComparison.Ordinal)) {
+            normalized = normalized.Substring(1);
+        }
+
+        if (normalized.Length != 6 && normalized.Length != 8) {
+            throw new InvalidOperationException("Base color must use #RRGGBB or #RRGGBBAA.");
+        }
+
+        byte alpha = 255;
+        int offset = 0;
+        if (normalized.Length == 8) {
+            alpha = Convert.ToByte(normalized.Substring(0, 2), 16);
+            offset = 2;
+        }
+
+        byte red = Convert.ToByte(normalized.Substring(offset, 2), 16);
+        byte green = Convert.ToByte(normalized.Substring(offset + 2, 2), 16);
+        byte blue = Convert.ToByte(normalized.Substring(offset + 4, 2), 16);
+
+        return new float4(
+            red / 255f,
+            green / 255f,
+            blue / 255f,
+            alpha / 255f);
+    }
+
+    /// <summary>
+    /// Packs one floating-point color into a 16-byte constant-buffer payload.
+    /// </summary>
+    /// <param name="value">Normalized color value to encode.</param>
+    /// <returns>Packed constant-buffer bytes.</returns>
+    static byte[] CreateFloat4ConstantBufferData(float4 value) {
+        using MemoryStream stream = new MemoryStream();
+        using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+        writer.WriteSingle(value.X);
+        writer.WriteSingle(value.Y);
+        writer.WriteSingle(value.Z);
+        writer.WriteSingle(value.W);
+        return stream.ToArray();
     }
 }

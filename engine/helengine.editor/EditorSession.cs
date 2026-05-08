@@ -432,7 +432,8 @@ namespace helengine.editor {
             ActiveProjectPlatform = ProjectLocalSettingsService.LoadActivePlatform();
             availablePlatformProviderResolver = CreateAvailablePlatformProviderResolver();
             platformCatalogService = CreatePlatformCatalogService();
-            EditorContentManager = this.core.GetContentManager();
+            EditorContentManager = new ContentManager(ResolveAssetsRootPath(this.projectPath));
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(EditorContentManager);
             this.uiFont = uiFont ?? throw new ArgumentNullException(nameof(uiFont));
             snapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
             toolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
@@ -3080,7 +3081,7 @@ namespace helengine.editor {
 
             string projectRootPath = ResolveProjectRootPath(projectPath);
             string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
-            ContentManager projectContentManager = core.GetContentManager(projectAssetsRootPath);
+            ContentManager projectContentManager = new ContentManager(projectAssetsRootPath);
             var manager = new AssetImportManager(projectRootPath, projectContentManager);
             manager.CurrentPlatformId = ActiveProjectPlatform;
             for (int i = 0; i < importers.Count; i++) {

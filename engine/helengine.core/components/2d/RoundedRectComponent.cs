@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Renders a rounded rectangle shape using the 2D render manager.
     /// </summary>
-    public class RoundedRectComponent : Component, IRoundedRectDrawable2D {
+    public class RoundedRectComponent : Component, IRoundedRectDrawable2D, IAnchorSizeProvider {
         byte renderOrder2D;
 
         /// <summary>
@@ -52,6 +52,11 @@ namespace helengine {
         /// Gets or sets the destination size.
         /// </summary>
         public int2 Size { get; set; }
+
+        /// <summary>
+        /// Gets the local size used by anchored layout calculations.
+        /// </summary>
+        public int2 AnchorSize => Size;
 
         /// <summary>
         /// Gets or sets the corner radius.

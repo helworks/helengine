@@ -235,10 +235,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures asset-import managers register the shared material processor needed by the material settings view.
+        /// Ensures the editor content manager registers the shared material processor needed by the material settings view.
         /// </summary>
         [Fact]
-        public void AssetImportManager_WhenLoadingSerializedMaterial_RegistersEditorMaterialProcessor() {
+        public void EditorContentManagerConfiguration_WhenLoadingSerializedMaterial_RegistersEditorMaterialProcessor() {
             string materialPath = Path.Combine(AssetsRootPath, "demo.material");
             MaterialAsset materialAsset = new MaterialAsset {
                 Id = "Materials/Demo.material",
@@ -249,7 +249,7 @@ namespace helengine.editor.tests {
             }
 
             ContentManager contentManager = new ContentManager(AssetsRootPath);
-            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(contentManager);
 
             MaterialAsset loadedMaterialAsset = contentManager.Load<MaterialAsset>(materialPath, EditorContentProcessorIds.MaterialAsset);
 

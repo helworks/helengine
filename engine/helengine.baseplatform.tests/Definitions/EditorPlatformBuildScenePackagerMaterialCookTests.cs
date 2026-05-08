@@ -71,6 +71,9 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         Assert.Equal("CookedShader", packagedMaterial.ShaderAssetId);
         Assert.Equal("CookedShader.vs", packagedMaterial.VertexProgram);
         Assert.Equal("CookedShader.ps", packagedMaterial.PixelProgram);
+        Assert.Single(packagedMaterial.ConstantBuffers);
+        Assert.Equal("BaseColorBuffer", packagedMaterial.ConstantBuffers[0].Name);
+        Assert.Equal(16, packagedMaterial.ConstantBuffers[0].Data.Length);
         Assert.Equal(new[] { "CookedShader" }, result.ReferencedShaderAssetIds);
     }
 
@@ -182,6 +185,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         platformSettings.Material.FieldValues["vertex-program"] = "CookedShader.vs";
         platformSettings.Material.FieldValues["pixel-program"] = "CookedShader.ps";
         platformSettings.Material.FieldValues["variant"] = "default";
+        platformSettings.Material.FieldValues["base-color"] = "#336699";
         settings.Processor.Platforms["windows"] = platformSettings;
 
         using FileStream stream = new FileStream(materialPath + ".hasset", FileMode.Create, FileAccess.Write, FileShare.None);

@@ -162,7 +162,12 @@ namespace helengine.editor {
                 ProviderTypeName = providerTypeName,
                 InitialPanelId = definition.InitialPanelId
             };
+            ViewportComponent viewportComponent = new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(DemoMenuLayout.CanvasWidth, DemoMenuLayout.CanvasHeight)
+            };
             SceneComponentAssetRecord buildRecord = DemoMenuBuildDescriptor.SerializeComponent(buildComponent, 0, null);
+            SceneComponentAssetRecord viewportRecord = AutomaticDescriptor.SerializeComponent(viewportComponent, 1, null);
 
             return new SceneEntityAsset {
                 Id = "demo-disc-menu-root",
@@ -170,7 +175,7 @@ namespace helengine.editor {
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
-                Components = new[] { buildRecord },
+                Components = new[] { buildRecord, viewportRecord },
                 Children = new[] {
                     BuildGeneratedRootEntityAsset(definition)
                 }
@@ -182,13 +187,6 @@ namespace helengine.editor {
         /// </summary>
         SceneEntityAsset BuildGeneratedRootEntityAsset(MenuDefinition definition) {
             List<SceneEntityAsset> children = new List<SceneEntityAsset>();
-            children.Add(BuildBackgroundEntityAsset("demo-disc-menu-background", new float3(0f, 0f, 0f), new int2(DemoMenuLayout.CanvasWidth, DemoMenuLayout.CanvasHeight), 0f, 0f, definition.BackgroundColor, definition.BackgroundColor, 10));
-            if (!string.IsNullOrWhiteSpace(definition.Title)) {
-                children.Add(BuildTextEntityAsset("demo-disc-menu-title", new float3(96f, 56f, 0.1f), definition.Title, definition.TitleFontPath, definition.TextColor, new int2(600, 64), 40));
-            }
-            if (!string.IsNullOrWhiteSpace(definition.Subtitle)) {
-                children.Add(BuildTextEntityAsset("demo-disc-menu-subtitle", new float3(100f, 118f, 0.1f), definition.Subtitle, definition.BodyFontPath, definition.MutedTextColor, new int2(700, 36), 41));
-            }
 
             for (int panelIndex = 0; panelIndex < definition.Panels.Length; panelIndex++) {
                 children.Add(BuildPanelEntityAsset(definition, definition.Panels[panelIndex]));
@@ -212,14 +210,17 @@ namespace helengine.editor {
             MenuPanelComponent panelComponent = new MenuPanelComponent {
                 PanelId = panelDefinition.PanelId
             };
+            AnchorComponent panelAnchor = new AnchorComponent();
+            panelAnchor.SetAnchorDistances(left: 88f, top: 190f);
             SceneComponentAssetRecord panelRecord = DemoMenuPanelDescriptor.SerializeComponent(panelComponent, 0, null);
+            SceneComponentAssetRecord panelAnchorRecord = AutomaticDescriptor.SerializeComponent(panelAnchor, 1, null);
             MenuItemDefinition firstItem = ResolveFirstEnabledItem(panelDefinition);
 
             List<SceneEntityAsset> children = new List<SceneEntityAsset>();
-            children.Add(BuildBackgroundEntityAsset($"panel-{panelDefinition.PanelId}-surface", new float3(88f, 190f, 0f), new int2(DemoMenuLayout.PanelWidth, DemoMenuLayout.PanelHeight), 18f, 3f, definition.SurfaceColor, definition.SurfaceBorderColor, 30));
-            children.Add(BuildBackgroundEntityAsset($"panel-{panelDefinition.PanelId}-top-band", new float3(88f, 190f, 0f), new int2(DemoMenuLayout.PanelWidth, 18), 9f, 0f, definition.AccentColor, definition.AccentColor, 31));
-            children.Add(BuildTextEntityAsset($"panel-{panelDefinition.PanelId}-heading", new float3(120f, 220f, 0.1f), panelDefinition.Heading, definition.BodyFontPath, definition.TextColor, new int2(420, 36), 41));
-            children.Add(BuildSelectedDescriptionEntityAsset(panelDefinition.PanelId, new float3(120f, 600f, 0.1f), firstItem.Description, definition.BodyFontPath, definition.MutedTextColor));
+            children.Add(BuildBackgroundEntityAsset($"panel-{panelDefinition.PanelId}-surface", new float3(0f, 0f, 0f), new int2(DemoMenuLayout.PanelWidth, DemoMenuLayout.PanelHeight), 18f, 3f, definition.SurfaceColor, definition.SurfaceBorderColor, 30));
+            children.Add(BuildBackgroundEntityAsset($"panel-{panelDefinition.PanelId}-top-band", new float3(0f, 0f, 0f), new int2(DemoMenuLayout.PanelWidth, 18), 9f, 0f, definition.AccentColor, definition.AccentColor, 31));
+            children.Add(BuildTextEntityAsset($"panel-{panelDefinition.PanelId}-heading", new float3(32f, 30f, 0.1f), panelDefinition.Heading, definition.BodyFontPath, definition.TextColor, new int2(420, 36), 41));
+            children.Add(BuildSelectedDescriptionEntityAsset(panelDefinition.PanelId, new float3(32f, 410f, 0.1f), firstItem.Description, definition.BodyFontPath, definition.MutedTextColor));
 
             List<SceneEntityAsset> itemChildren = new List<SceneEntityAsset>();
             int itemInsertIndex = 0;
@@ -239,10 +240,10 @@ namespace helengine.editor {
             return new SceneEntityAsset {
                 Id = $"panel-{panelDefinition.PanelId}",
                 Name = $"Panel-{panelDefinition.PanelId}",
-                LocalPosition = float3.Zero,
+                LocalPosition = new float3(88f, 190f, 0f),
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
-                Components = new[] { panelRecord },
+                Components = new[] { panelRecord, panelAnchorRecord },
                 Children = children.ToArray()
             };
         }
@@ -346,7 +347,7 @@ namespace helengine.editor {
             return new SceneEntityAsset {
                 Id = $"panel-{panelDefinition.PanelId}-items-viewport",
                 Name = $"Panel-{panelDefinition.PanelId}-ItemsViewport",
-                LocalPosition = new float3(120f, 280f, 0f),
+                LocalPosition = new float3(32f, 90f, 0f),
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
                 Components = new[] {
@@ -427,15 +428,19 @@ namespace helengine.editor {
         /// <summary>
         /// Builds one baked text entity.
         /// </summary>
-        SceneEntityAsset BuildTextEntityAsset(string entityId, float3 localPosition, string text, string fontPath, byte4 color, int2 size, byte renderOrder2D) {
+        SceneEntityAsset BuildTextEntityAsset(string entityId, float3 localPosition, string text, string fontPath, byte4 color, int2 size, byte renderOrder2D, AnchorComponent anchorComponent = null) {
             SceneComponentAssetRecord textRecord = SerializeTextComponent(text, fontPath, color, size, renderOrder2D);
+            List<SceneComponentAssetRecord> componentRecords = new List<SceneComponentAssetRecord> { textRecord };
+            if (anchorComponent != null) {
+                componentRecords.Add(AutomaticDescriptor.SerializeComponent(anchorComponent, 1, null));
+            }
             return new SceneEntityAsset {
                 Id = entityId,
                 Name = entityId,
                 LocalPosition = localPosition,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
-                Components = new[] { textRecord },
+                Components = componentRecords.ToArray(),
                 Children = Array.Empty<SceneEntityAsset>()
             };
         }

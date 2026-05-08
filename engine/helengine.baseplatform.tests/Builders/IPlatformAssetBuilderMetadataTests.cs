@@ -42,11 +42,15 @@ public class IPlatformAssetBuilderMetadataTests {
                 ["shader-asset-id"] = "ForwardStandardShader",
                 ["vertex-program"] = "ForwardStandardShader.vs",
                 ["pixel-program"] = "ForwardStandardShader.ps",
-                ["variant"] = "default"
+                ["variant"] = "default",
+                ["base-color"] = "#336699"
             }));
 
         MaterialAsset materialAsset = Assert.IsType<MaterialAsset>(AssetSerializer.DeserializeFromBytes(result.CookedMaterialBytes));
         Assert.Equal("ForwardStandardShader", materialAsset.ShaderAssetId);
+        Assert.Single(materialAsset.ConstantBuffers);
+        Assert.Equal("BaseColorBuffer", materialAsset.ConstantBuffers[0].Name);
+        Assert.Equal(16, materialAsset.ConstantBuffers[0].Data.Length);
         Assert.Equal(new[] { "ForwardStandardShader" }, result.ReferencedShaderAssetIds);
     }
 }

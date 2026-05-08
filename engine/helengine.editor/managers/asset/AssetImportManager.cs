@@ -122,7 +122,6 @@ namespace helengine.editor {
             fileHasher = new AssetFileHasher();
             AssetContentManager = contentManager;
             ModelAssetProcessor = new ModelAssetProcessor();
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(AssetContentManager);
             EditorContentManagerConfiguration.ConfigureProjectContentManager(AssetContentManager);
 
             Directory.CreateDirectory(this.projectRootPath);

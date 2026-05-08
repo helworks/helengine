@@ -555,6 +555,13 @@ public class EditorPlatformBuildGraphRunnerTests {
             EditorPlatformBuildSelectionModel selectionModel = bootstrap.ResolveSelectionModel("windows");
 
             Assert.NotNull(selectionModel);
+            Assert.NotEmpty(selectionModel.MaterialSchemas);
+            Assert.Equal("standard-shader", selectionModel.MaterialSchemas[0].SchemaId);
+            Assert.Contains(
+                selectionModel.MaterialSchemas[0].Fields,
+                field => field.FieldId == "base-color"
+                    && field.FieldKind == PlatformMaterialFieldKind.Color
+                    && field.DefaultValue == "#ffffff");
         } finally {
             if (Directory.Exists(workspaceRootPath)) {
                 Directory.Delete(workspaceRootPath, true);

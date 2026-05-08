@@ -4,9 +4,34 @@ namespace helengine {
     /// </summary>
     public class AnchorComponent : Component {
         /// <summary>
-        /// Stores the active anchor configuration.
+        /// Bit flag used to mark a left-edge anchor.
         /// </summary>
-        AnchorData anchorData;
+        public const byte LeftAnchorFlag = 1;
+
+        /// <summary>
+        /// Bit flag used to mark a right-edge anchor.
+        /// </summary>
+        public const byte RightAnchorFlag = 2;
+
+        /// <summary>
+        /// Bit flag used to mark a top-edge anchor.
+        /// </summary>
+        public const byte TopAnchorFlag = 4;
+
+        /// <summary>
+        /// Bit flag used to mark a bottom-edge anchor.
+        /// </summary>
+        public const byte BottomAnchorFlag = 8;
+
+        /// <summary>
+        /// Stores the active anchor edge flags.
+        /// </summary>
+        public byte AnchorFlags { get; set; }
+
+        /// <summary>
+        /// Stores the active anchor distances in left, right, top, bottom order.
+        /// </summary>
+        public float4 AnchorDistances { get; set; }
 
         /// <summary>
         /// Tracks the current ancestor bounds provider used to resolve parent-relative anchors.
@@ -21,7 +46,7 @@ namespace helengine {
         /// <summary>
         /// Gets a value indicating whether anchoring is currently enabled.
         /// </summary>
-        public bool IsAnchored => anchorData != null;
+        public bool IsAnchored => AnchorFlags != 0;
 
         /// <summary>
         /// Enables anchoring with specific sides. The entity will maintain its distance from the resolved parent bounds.
@@ -40,19 +65,38 @@ namespace helengine {
                 throw new InvalidOperationException("AnchorComponent must be attached before anchoring can be enabled.");
             }
 
+            RefreshSubscriptions();
             int2 anchorBounds = GetAnchorBounds();
             int2 anchoredSize = GetAnchorSize();
             float3 localPosition = Parent.LocalPosition;
 
-            anchorData = new AnchorData {
-                LeftDistance = left ? localPosition.X : null,
-                RightDistance = right ? anchorBounds.X - localPosition.X - anchoredSize.X : null,
-                TopDistance = top ? localPosition.Y : null,
-                BottomDistance = bottom ? anchorBounds.Y - localPosition.Y - anchoredSize.Y : null
-            };
+            byte anchorFlags = 0;
+            float4 anchorDistances = new float4(0f, 0f, 0f, 0f);
 
-            RefreshSubscriptions();
-            RefreshAnchoring();
+            if (left) {
+                anchorFlags |= LeftAnchorFlag;
+                anchorDistances.X = localPosition.X;
+            }
+            if (right) {
+                anchorFlags |= RightAnchorFlag;
+                anchorDistances.Y = anchorBounds.X - localPosition.X - anchoredSize.X;
+            }
+            if (top) {
+                anchorFlags |= TopAnchorFlag;
+                anchorDistances.Z = localPosition.Y;
+            }
+            if (bottom) {
+                anchorFlags |= BottomAnchorFlag;
+                anchorDistances.W = anchorBounds.Y - localPosition.Y - anchoredSize.Y;
+            }
+
+            AnchorFlags = anchorFlags;
+            AnchorDistances = anchorDistances;
+
+            if (Parent != null && Core.Instance != null && Core.Instance.RenderManager3D != null) {
+                RefreshSubscriptions();
+                RefreshAnchoring();
+            }
         }
 
         /// <summary>
@@ -61,7 +105,8 @@ namespace helengine {
         public void DisableAnchoring() {
             DetachFromBoundsProvider();
             DetachFromWindowResize();
-            anchorData = null;
+            AnchorFlags = 0;
+            AnchorDistances = new float4(0f, 0f, 0f, 0f);
         }
 
         /// <summary>
@@ -72,29 +117,44 @@ namespace helengine {
         /// <param name="top">Distance from the top edge of the parent bounds.</param>
         /// <param name="bottom">Distance from the bottom edge of the parent bounds.</param>
         public void SetAnchorDistances(Nullable<float> left = null, Nullable<float> right = null, Nullable<float> top = null, Nullable<float> bottom = null) {
-            if (anchorData == null) {
-                anchorData = new AnchorData();
-            }
-
-            anchorData.LeftDistance = left;
-            anchorData.RightDistance = right;
-            anchorData.TopDistance = top;
-            anchorData.BottomDistance = bottom;
-
             if (!left.HasValue && !right.HasValue && !top.HasValue && !bottom.HasValue) {
                 DisableAnchoring();
                 return;
             }
 
-            RefreshSubscriptions();
-            RefreshAnchoring();
+            byte anchorFlags = 0;
+            float4 anchorDistances = new float4(0f, 0f, 0f, 0f);
+            if (left.HasValue) {
+                anchorFlags |= LeftAnchorFlag;
+                anchorDistances.X = left.Value;
+            }
+            if (right.HasValue) {
+                anchorFlags |= RightAnchorFlag;
+                anchorDistances.Y = right.Value;
+            }
+            if (top.HasValue) {
+                anchorFlags |= TopAnchorFlag;
+                anchorDistances.Z = top.Value;
+            }
+            if (bottom.HasValue) {
+                anchorFlags |= BottomAnchorFlag;
+                anchorDistances.W = bottom.Value;
+            }
+
+            AnchorFlags = anchorFlags;
+            AnchorDistances = anchorDistances;
+
+            if (Parent != null && Core.Instance != null && Core.Instance.RenderManager3D != null) {
+                RefreshSubscriptions();
+                RefreshAnchoring();
+            }
         }
 
         /// <summary>
         /// Refreshes the anchored position from the current bounds provider and stored distances.
         /// </summary>
         public void RefreshAnchoring() {
-            if (anchorData == null || Parent == null) {
+            if (!IsAnchored || Parent == null) {
                 return;
             }
 
@@ -104,16 +164,16 @@ namespace helengine {
             int2 anchorSize = GetAnchorSize();
             float3 localPosition = Parent.LocalPosition;
 
-            if (anchorData.LeftDistance.HasValue) {
-                localPosition.X = anchorData.LeftDistance.Value;
-            } else if (anchorData.RightDistance.HasValue) {
-                localPosition.X = anchorBounds.X - anchorData.RightDistance.Value - anchorSize.X;
+            if ((AnchorFlags & LeftAnchorFlag) != 0) {
+                localPosition.X = AnchorDistances.X;
+            } else if ((AnchorFlags & RightAnchorFlag) != 0) {
+                localPosition.X = anchorBounds.X - AnchorDistances.Y - anchorSize.X;
             }
 
-            if (anchorData.TopDistance.HasValue) {
-                localPosition.Y = anchorData.TopDistance.Value;
-            } else if (anchorData.BottomDistance.HasValue) {
-                localPosition.Y = anchorBounds.Y - anchorData.BottomDistance.Value - anchorSize.Y;
+            if ((AnchorFlags & TopAnchorFlag) != 0) {
+                localPosition.Y = AnchorDistances.Z;
+            } else if ((AnchorFlags & BottomAnchorFlag) != 0) {
+                localPosition.Y = anchorBounds.Y - AnchorDistances.W - anchorSize.Y;
             }
 
             Parent.LocalPosition = localPosition;
@@ -125,7 +185,7 @@ namespace helengine {
         /// <param name="entity">Entity receiving the component.</param>
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
-            if (anchorData != null) {
+            if (IsAnchored) {
                 RefreshSubscriptions();
                 RefreshAnchoring();
             }
@@ -138,6 +198,26 @@ namespace helengine {
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
             DisableAnchoring();
+        }
+
+        /// <summary>
+        /// Rebinds the current provider subscriptions when the parent entity changes enabled state.
+        /// </summary>
+        /// <param name="newEnabled">New enabled state.</param>
+        public override void ParentEnabledChange(bool newEnabled) {
+            base.ParentEnabledChange(newEnabled);
+
+            if (!IsAnchored) {
+                return;
+            }
+
+            if (newEnabled) {
+                RefreshSubscriptions();
+                RefreshAnchoring();
+            } else {
+                DetachFromBoundsProvider();
+                DetachFromWindowResize();
+            }
         }
 
         /// <summary>
@@ -196,6 +276,9 @@ namespace helengine {
             if (IsSubscribedToWindowResize) {
                 return;
             }
+            if (Core.Instance == null || Core.Instance.RenderManager3D == null) {
+                return;
+            }
 
             Core.Instance.RenderManager3D.WindowResized += HandleWindowResized;
             IsSubscribedToWindowResize = true;
@@ -223,6 +306,14 @@ namespace helengine {
             while (current != null) {
                 if (current is IAnchorBoundsProvider provider) {
                     return provider;
+                }
+
+                if (current.Components != null) {
+                    for (int i = 0; i < current.Components.Count; i++) {
+                        if (current.Components[i] is IAnchorBoundsProvider componentProvider) {
+                            return componentProvider;
+                        }
+                    }
                 }
 
                 current = current.Parent;
@@ -302,37 +393,12 @@ namespace helengine {
             var info = "Anchored to: ";
             var anchors = new List<string>();
 
-            if (anchorData.LeftDistance.HasValue) anchors.Add($"Left ({anchorData.LeftDistance.Value:F1}px)");
-            if (anchorData.RightDistance.HasValue) anchors.Add($"Right ({anchorData.RightDistance.Value:F1}px)");
-            if (anchorData.TopDistance.HasValue) anchors.Add($"Top ({anchorData.TopDistance.Value:F1}px)");
-            if (anchorData.BottomDistance.HasValue) anchors.Add($"Bottom ({anchorData.BottomDistance.Value:F1}px)");
+            if ((AnchorFlags & LeftAnchorFlag) != 0) anchors.Add($"Left ({AnchorDistances.X:F1}px)");
+            if ((AnchorFlags & RightAnchorFlag) != 0) anchors.Add($"Right ({AnchorDistances.Y:F1}px)");
+            if ((AnchorFlags & TopAnchorFlag) != 0) anchors.Add($"Top ({AnchorDistances.Z:F1}px)");
+            if ((AnchorFlags & BottomAnchorFlag) != 0) anchors.Add($"Bottom ({AnchorDistances.W:F1}px)");
 
             return info + string.Join(", ", anchors);
-        }
-
-        /// <summary>
-        /// Internal data structure used to store anchor distances.
-        /// </summary>
-        private class AnchorData {
-            /// <summary>
-            /// Distance from the left edge of the parent bounds in pixels.
-            /// </summary>
-            public Nullable<float> LeftDistance { get; set; }
-
-            /// <summary>
-            /// Distance from the right edge of the parent bounds in pixels.
-            /// </summary>
-            public Nullable<float> RightDistance { get; set; }
-
-            /// <summary>
-            /// Distance from the top edge of the parent bounds in pixels.
-            /// </summary>
-            public Nullable<float> TopDistance { get; set; }
-
-            /// <summary>
-            /// Distance from the bottom edge of the parent bounds in pixels.
-            /// </summary>
-            public Nullable<float> BottomDistance { get; set; }
         }
     }
 }

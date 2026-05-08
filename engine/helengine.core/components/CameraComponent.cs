@@ -14,6 +14,11 @@ namespace helengine {
         ushort layerMask;
 
         /// <summary>
+        /// Cached viewport rectangle used by render backends and editor previews.
+        /// </summary>
+        float4 viewportValue;
+
+        /// <summary>
         /// Cached authored render intent resolved by active backends.
         /// </summary>
         CameraRenderSettings RenderSettingsValue;
@@ -39,11 +44,16 @@ namespace helengine {
         RenderList3D renderList3D;
 
         /// <summary>
+        /// Raised whenever the authored viewport rectangle changes.
+        /// </summary>
+        public event Action ViewportChanged;
+
+        /// <summary>
         /// Initializes a new camera component with default lists and viewport.
         /// </summary>
         public CameraComponent() {
             LayerMask = 0b11111111;
-            Viewport = new float4(0, 0, 1, 1);
+            viewportValue = new float4(0, 0, 1, 1);
             NearPlaneDistanceValue = 0.1f;
             FarPlaneDistanceValue = 100f;
             ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
@@ -76,7 +86,15 @@ namespace helengine {
         /// Gets or sets the viewport rectangle.
         /// </summary>
         [EditorPropertyHidden]
-        public float4 Viewport { get; set; }
+        public float4 Viewport {
+            get { return viewportValue; }
+            set {
+                if (viewportValue.X != value.X || viewportValue.Y != value.Y || viewportValue.Z != value.Z || viewportValue.W != value.W) {
+                    viewportValue = value;
+                    RaiseViewportChanged();
+                }
+            }
+        }
 
         /// <summary>
         /// Gets or sets the near clip-plane distance used for perspective projection creation.
@@ -193,6 +211,15 @@ namespace helengine {
                 Core.Instance.ObjectManager.RegisterCamera(this);
             } else {
                 Core.Instance.ObjectManager.RemoveCamera(this);
+            }
+        }
+
+        /// <summary>
+        /// Raises the viewport changed event after the stored rectangle is updated.
+        /// </summary>
+        void RaiseViewportChanged() {
+            if (ViewportChanged != null) {
+                ViewportChanged();
             }
         }
     }

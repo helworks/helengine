@@ -160,6 +160,37 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
+        /// Ensures the generated menu scene bakes the responsive viewport and panel anchor metadata.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuSceneIsGenerated_BakesViewportAndPanelAnchorComponentsForResponsiveLayout() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            SceneAsset sceneAsset = ReadGeneratedSceneAsset();
+            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
+            SceneEntityAsset panelEntity = Assert.Single(generatedRoot.Children, entity => string.Equals(entity.Id, "panel-main", StringComparison.Ordinal));
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            string viewportTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(ViewportComponent));
+            string anchorTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(AnchorComponent));
+
+            SceneComponentAssetRecord viewportRecord = Assert.Single(menuEntity.Components, component => string.Equals(component.ComponentTypeId, viewportTypeId, StringComparison.Ordinal));
+            SceneComponentAssetRecord panelAnchorRecord = Assert.Single(panelEntity.Components, component => string.Equals(component.ComponentTypeId, anchorTypeId, StringComparison.Ordinal));
+
+            ViewportComponent viewportComponent = Assert.IsType<ViewportComponent>(
+                descriptor.DeserializeComponent(viewportRecord, null, new TestSceneAssetReferenceResolver()));
+            AnchorComponent panelAnchorComponent = Assert.IsType<AnchorComponent>(
+                descriptor.DeserializeComponent(panelAnchorRecord, null, new TestSceneAssetReferenceResolver()));
+
+            Assert.Equal(ViewportComponent.ScreenBindingMode, viewportComponent.BindingMode);
+            Assert.Equal(new int2(DemoMenuLayout.CanvasWidth, DemoMenuLayout.CanvasHeight), viewportComponent.FixedSize);
+            Assert.Equal((byte)(AnchorComponent.LeftAnchorFlag | AnchorComponent.TopAnchorFlag), panelAnchorComponent.AnchorFlags);
+            Assert.Equal(new float4(88f, 0f, 190f, 0f), panelAnchorComponent.AnchorDistances);
+        }
+
+        /// <summary>
         /// Ensures generated demo-disc source files are written beneath the codebase folder instead of the asset root.
         /// </summary>
         [Fact]
