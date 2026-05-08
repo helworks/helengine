@@ -60,6 +60,38 @@ namespace helengine.directx11 {
         DepthStencilState depthStencilState2D;
         RoundedRectBackend roundedRectBackend = RoundedRectBackend.Sdf;
         Dictionary<(int Radius, int Border), NineSliceCacheEntry> nineSliceCache = new();
+        /// <summary>
+        /// Reusable helper that resolves nested clip chains for the current drawable.
+        /// </summary>
+        readonly ClipRegionStackBuilder2D ClipRegionStackBuilder;
+        /// <summary>
+        /// Clip owners currently active in the render traversal.
+        /// </summary>
+        readonly List<IClipRegion2D> ActiveClipChain;
+        /// <summary>
+        /// Clip owners resolved for the drawable currently being visited.
+        /// </summary>
+        readonly List<IClipRegion2D> NextClipChain;
+        /// <summary>
+        /// Effective clip rectangles for the active clip chain.
+        /// </summary>
+        readonly List<float4> ActiveClipRects;
+        /// <summary>
+        /// Left edge of the current camera scissor rectangle.
+        /// </summary>
+        int currentScissorLeft;
+        /// <summary>
+        /// Top edge of the current camera scissor rectangle.
+        /// </summary>
+        int currentScissorTop;
+        /// <summary>
+        /// Right edge of the current camera scissor rectangle.
+        /// </summary>
+        int currentScissorRight;
+        /// <summary>
+        /// Bottom edge of the current camera scissor rectangle.
+        /// </summary>
+        int currentScissorBottom;
 
         /// <summary>
         /// Initializes the 2D renderer and builds the required GPU resources.
@@ -68,13 +100,18 @@ namespace helengine.directx11 {
         public DirectX11Renderer2D(DirectX11Renderer3D parentRenderer) {
             this.parentRenderer = parentRenderer;
             Device = parentRenderer.Device;
+            ClipRegionStackBuilder = new ClipRegionStackBuilder2D();
+            ActiveClipChain = new List<IClipRegion2D>();
+            NextClipChain = new List<IClipRegion2D>();
+            ActiveClipRects = new List<float4>();
 
             InitializeSpritePipeline();
 
             var rasterizerDesc = new RasterizerStateDescription {
                 CullMode = CullMode.None,
                 FillMode = FillMode.Solid,
-                IsDepthClipEnabled = false
+                IsDepthClipEnabled = false,
+                IsScissorEnabled = true
             };
             rasterizerState2D = new RasterizerState(Device, rasterizerDesc);
 
@@ -115,6 +152,14 @@ namespace helengine.directx11 {
 
             float4 viewport = camera.Viewport;
             Device.ImmediateContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
+            currentScissorLeft = (int)Math.Round(viewport.X);
+            currentScissorTop = (int)Math.Round(viewport.Y);
+            currentScissorRight = (int)Math.Round(viewport.X + viewport.Z);
+            currentScissorBottom = (int)Math.Round(viewport.Y + viewport.W);
+            ApplyCameraScissor();
+            ActiveClipChain.Clear();
+            NextClipChain.Clear();
+            ActiveClipRects.Clear();
             float4x4.CreateOrthographicOffCenter(
                 viewport.X,
                 viewport.X + viewport.Z,
@@ -137,6 +182,8 @@ namespace helengine.directx11 {
                 return;
             }
 
+            ClipRegionStackBuilder.BuildClipChain(drawable, NextClipChain);
+            SyncClipTransitions();
             drawable.Draw();
         }
 
@@ -410,6 +457,87 @@ namespace helengine.directx11 {
             context.InputAssembler.InputLayout = basicColorInputLayout;
             context.VertexShader.Set(basicColorVertexShader);
             context.PixelShader.Set(basicColorPixelShader);
+        }
+
+        /// <summary>
+        /// Synchronizes the active clip stack with the drawable currently being visited and applies the resulting scissor rectangle.
+        /// </summary>
+        void SyncClipTransitions() {
+            int sharedPrefixLength = GetSharedPrefixLength();
+
+            while (ActiveClipChain.Count > sharedPrefixLength) {
+                ActiveClipChain.RemoveAt(ActiveClipChain.Count - 1);
+                ActiveClipRects.RemoveAt(ActiveClipRects.Count - 1);
+            }
+
+            while (ActiveClipChain.Count < NextClipChain.Count) {
+                IClipRegion2D clipRegion = NextClipChain[ActiveClipChain.Count];
+                float4 resolvedRect = ResolveClipRectForPush(clipRegion);
+                ActiveClipChain.Add(clipRegion);
+                ActiveClipRects.Add(resolvedRect);
+            }
+
+            if (ActiveClipRects.Count > 0) {
+                ApplyClipScissor(ActiveClipRects[ActiveClipRects.Count - 1]);
+            } else {
+                ApplyCameraScissor();
+            }
+        }
+
+        /// <summary>
+        /// Returns the number of leading clip owners shared between the current and next clip chains.
+        /// </summary>
+        /// <returns>Shared clip-chain prefix length.</returns>
+        int GetSharedPrefixLength() {
+            int sharedPrefixLength = 0;
+            int maxSharedLength = Math.Min(ActiveClipChain.Count, NextClipChain.Count);
+            while (sharedPrefixLength < maxSharedLength &&
+                   ReferenceEquals(ActiveClipChain[sharedPrefixLength], NextClipChain[sharedPrefixLength])) {
+                sharedPrefixLength++;
+            }
+
+            return sharedPrefixLength;
+        }
+
+        /// <summary>
+        /// Resolves one clip region against the current active clip stack.
+        /// </summary>
+        /// <param name="clipRegion">Clip region to resolve.</param>
+        /// <returns>Effective clip rectangle in logical screen coordinates.</returns>
+        float4 ResolveClipRectForPush(IClipRegion2D clipRegion) {
+            float4 resolvedRect = clipRegion.GetClipRect();
+            if (ActiveClipRects.Count <= 0) {
+                return resolvedRect;
+            }
+
+            float4 currentRect = ActiveClipRects[ActiveClipRects.Count - 1];
+            return ClipRegionStackBuilder.Intersect(currentRect, resolvedRect);
+        }
+
+        /// <summary>
+        /// Restores the camera viewport scissor after the clip stack empties.
+        /// </summary>
+        void ApplyCameraScissor() {
+            Device.ImmediateContext.Rasterizer.SetScissorRectangle(
+                currentScissorLeft,
+                currentScissorTop,
+                currentScissorRight,
+                currentScissorBottom);
+        }
+
+        /// <summary>
+        /// Applies one resolved clip rectangle to the active DirectX scissor state.
+        /// </summary>
+        /// <param name="clipRect">Logical clip rectangle resolved for the current drawable.</param>
+        void ApplyClipScissor(float4 clipRect) {
+            float4 viewportRect = new float4(currentScissorLeft, currentScissorTop, currentScissorRight - currentScissorLeft, currentScissorBottom - currentScissorTop);
+            float4 effectiveRect = ClipRegionStackBuilder.Intersect(viewportRect, clipRect);
+
+            int scissorLeft = (int)Math.Round(effectiveRect.X);
+            int scissorTop = (int)Math.Round(effectiveRect.Y);
+            int scissorRight = (int)Math.Round(effectiveRect.X + effectiveRect.Z);
+            int scissorBottom = (int)Math.Round(effectiveRect.Y + effectiveRect.W);
+            Device.ImmediateContext.Rasterizer.SetScissorRectangle(scissorLeft, scissorTop, scissorRight, scissorBottom);
         }
 
         /// <summary>
