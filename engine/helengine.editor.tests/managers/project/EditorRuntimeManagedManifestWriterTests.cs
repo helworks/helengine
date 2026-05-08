@@ -47,7 +47,7 @@ public sealed class EditorRuntimeManagedManifestWriterTests : IDisposable {
                     "Scenes/Bootstrap.helen",
                     Array.Empty<PlatformBuildPayloadReference>(),
                     [
-                        new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, "cooked/scenes/main.hasset")
+                        new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, "cooked/scenes/Bootstrap.hasset")
                     ]),
                 new PlatformBuildScene(
                     "Scenes/TestPlayableScene.helen",
@@ -55,7 +55,7 @@ public sealed class EditorRuntimeManagedManifestWriterTests : IDisposable {
                     "Scenes/TestPlayableScene.helen",
                     Array.Empty<PlatformBuildPayloadReference>(),
                     [
-                        new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, "scenes/Scenes/TestPlayableScene.hasset")
+                        new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, "cooked/scenes/TestPlayableScene.hasset")
                     ])
             ],
             Array.Empty<PlatformBuildAsset>(),
@@ -79,6 +79,6 @@ public sealed class EditorRuntimeManagedManifestWriterTests : IDisposable {
         Assert.Contains("\"StartupSceneId\": \"Scenes/Bootstrap.helen\"", startupJson);
         Assert.Contains("\"Value\": \"windows-loose-files\"", startupJson);
         Assert.Contains("\"SceneId\": \"Scenes/TestPlayableScene.helen\"", sceneCatalogJson);
-        Assert.Contains("\"CookedRelativePath\": \"scenes/Scenes/TestPlayableScene.hasset\"", sceneCatalogJson);
+        Assert.Contains("\"CookedRelativePath\": \"cooked/scenes/TestPlayableScene.hasset\"", sceneCatalogJson);
     }
 }

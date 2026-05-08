@@ -9,11 +9,6 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorPlatformBuildScenePackager {
         /// <summary>
-        /// Relative packaged scene path used as the Windows main scene.
-        /// </summary>
-        public const string MainSceneRelativePath = PackagedScenePathResolver.MainSceneRelativePath;
-
-        /// <summary>
         /// Current payload version for serialized mesh component scene records.
         /// </summary>
         const byte MeshComponentPayloadVersion = 1;

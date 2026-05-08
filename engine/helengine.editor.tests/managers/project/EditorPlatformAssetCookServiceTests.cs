@@ -77,12 +77,55 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.Equal(startupSceneId, manifest.StartupSceneId);
         Assert.Contains(manifest.CookedArtifacts, artifact => artifact.RelativePath.EndsWith(".hasset", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(manifest.CookedArtifacts, artifact => artifact.RelativePath.EndsWith(".obj", StringComparison.OrdinalIgnoreCase));
-        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "main.hasset")));
+        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "MainMenu.hasset")));
         Assert.False(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "startup.hasset")));
-        Assert.True(File.Exists(Path.Combine(BuildRootPath, "scenes", "Scenes", "Level01.hasset")));
+        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "Level01.hasset")));
         Assert.False(File.Exists(Path.Combine(BuildRootPath, "Models", "Sponza.obj")));
         Assert.Contains(manifest.Scenes[0].ResolvedMetadata, entry => entry.Key == PlatformBuildSceneMetadataKeys.CookedRelativePath);
         Assert.Contains(manifest.Scenes[0].ResolvedMetadata, entry => entry.Key == PlatformBuildSceneMetadataKeys.Physics3DSceneFeatureFlags && entry.Value == "0");
+    }
+
+    /// <summary>
+    /// Verifies secondary scene outputs stay beneath `cooked/scenes` and do not duplicate the authored `scenes/` root segment.
+    /// </summary>
+    [Fact]
+    public void Cook_when_secondary_scene_uses_lowercase_scenes_root_writes_it_beneath_cooked_scenes_without_duplicate_root_segment() {
+        string startupSceneId = "scenes/menu.helen";
+        string secondarySceneId = "scenes/rendering/directional_shadow_plaza.helen";
+
+        WriteSceneAsset(startupSceneId, Array.Empty<SceneAssetReference>());
+        WriteSceneAsset(secondarySceneId, Array.Empty<SceneAssetReference>());
+
+        EditorPlatformAssetCookService service = new(
+            ProjectRootPath,
+            "1.0.0-engine",
+            "game",
+            "1.0.0",
+            Array.Empty<IAssetImporterRegistration>(),
+            null);
+
+        PlatformBuildManifest manifest = service.Cook(
+            new helengine.baseplatform.Definitions.PlatformDefinition(
+                "windows",
+                "Windows",
+                Array.Empty<helengine.baseplatform.Definitions.PlatformBuildProfileDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformGraphicsProfileDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformAssetRequirementDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformMaterialSchemaDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformComponentCompatibilityDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformCodegenProfileDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformStorageProfileDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformMediaProfileDefinition>()),
+            new[] { startupSceneId, secondarySceneId },
+            BuildRootPath,
+            new[] { "windows" });
+
+        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "menu.hasset")));
+        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "rendering", "directional_shadow_plaza.hasset")));
+        Assert.Contains(
+            manifest.Scenes[1].ResolvedMetadata,
+            entry => entry.Key == PlatformBuildSceneMetadataKeys.CookedRelativePath
+                && entry.Value == "cooked/scenes/rendering/directional_shadow_plaza.hasset");
     }
 
     /// <summary>
@@ -120,7 +163,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             "directx11");
 
         Assert.Equal("Scenes/rendering/point-shadow.helen", manifest.StartupSceneId);
-        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "main.hasset")));
+        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "rendering", "point-shadow.hasset")));
     }
 
     /// <summary>
@@ -158,7 +201,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             "directx11");
 
         Assert.Equal(sceneId, manifest.StartupSceneId);
-        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "main.hasset")));
+        Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "PhysicsTrigger.hasset")));
         Assert.True(File.Exists(Path.Combine(BuildRootPath, "Materials", "physics", "PhysicsDemoNeutral.helmat")));
     }
 

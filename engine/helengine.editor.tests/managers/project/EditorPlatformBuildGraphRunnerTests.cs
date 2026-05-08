@@ -98,7 +98,7 @@ public class EditorPlatformBuildGraphRunnerTests {
                     new PlatformBuildScene(
                         "Scenes/Main.helen",
                         "Main",
-                        "cooked/scenes/main.hasset",
+                        "cooked/scenes/Main.hasset",
                         [],
                         [])
                 ],

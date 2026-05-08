@@ -42,11 +42,11 @@ public sealed class RuntimeSceneCatalogTests : IDisposable {
               "Entries": [
                 {
                   "SceneId": "Scenes/Bootstrap.helen",
-                  "CookedRelativePath": "cooked/scenes/main.hasset"
+                  "CookedRelativePath": "cooked/scenes/Bootstrap.hasset"
                 },
                 {
                   "SceneId": "Scenes/TestPlayableScene.helen",
-                  "CookedRelativePath": "scenes/Scenes/TestPlayableScene.hasset"
+                  "CookedRelativePath": "cooked/scenes/TestPlayableScene.hasset"
                 }
               ]
             }
@@ -56,9 +56,9 @@ public sealed class RuntimeSceneCatalogTests : IDisposable {
 
         Assert.Equal(2, catalog.Entries.Length);
         Assert.Equal("Scenes/Bootstrap.helen", catalog.Entries[0].SceneId);
-        Assert.Equal("cooked/scenes/main.hasset", catalog.Entries[0].CookedRelativePath);
+        Assert.Equal("cooked/scenes/Bootstrap.hasset", catalog.Entries[0].CookedRelativePath);
         Assert.True(catalog.TryGetEntry("Scenes/TestPlayableScene.helen", out RuntimeSceneCatalogEntry entry));
-        Assert.Equal("scenes/Scenes/TestPlayableScene.hasset", entry.CookedRelativePath);
+        Assert.Equal("cooked/scenes/TestPlayableScene.hasset", entry.CookedRelativePath);
     }
 
     /// <summary>
@@ -68,8 +68,8 @@ public sealed class RuntimeSceneCatalogTests : IDisposable {
     public void Constructor_whenSceneIdsAreDuplicated_throws() {
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new RuntimeSceneCatalog(
             [
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "scenes/Scenes/TestPlayableScene.hasset"),
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "scenes/Scenes/TestPlayableScene-copy.hasset")
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene-copy.hasset")
             ]));
 
         Assert.Contains("Scenes/TestPlayableScene.helen", exception.Message);
@@ -82,8 +82,8 @@ public sealed class RuntimeSceneCatalogTests : IDisposable {
     public void Constructor_whenCookedRelativePathUsesBackslashes_normalizesToForwardSlashes() {
         RuntimeSceneCatalogEntry entry = new RuntimeSceneCatalogEntry(
             "Scenes/TestPlayableScene.helen",
-            @"scenes\Scenes\TestPlayableScene.hasset");
+            @"cooked\scenes\TestPlayableScene.hasset");
 
-        Assert.Equal("scenes/Scenes/TestPlayableScene.hasset", entry.CookedRelativePath);
+        Assert.Equal("cooked/scenes/TestPlayableScene.hasset", entry.CookedRelativePath);
     }
 }

@@ -30,6 +30,25 @@ namespace helengine.editor.tests.managers.physics {
         }
 
         /// <summary>
+        /// Resolves the packaged scene file path for one authored scene inside the supplied build output root.
+        /// </summary>
+        /// <param name="buildRootPath">Build output root that contains packaged scene assets.</param>
+        /// <param name="sceneId">Authored scene id whose packaged output should be resolved.</param>
+        /// <returns>Absolute packaged scene file path for the authored scene.</returns>
+        static string GetPackagedScenePath(string buildRootPath, string sceneId) {
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
+            }
+
+            return Path.Combine(
+                buildRootPath,
+                PackagedScenePathResolver.BuildRelativePath(sceneId, 0).Replace('/', Path.DirectorySeparatorChar));
+        }
+
+        /// <summary>
         /// Ensures the scene catalog exposes every planned physics validation scenario in a stable order.
         /// </summary>
         [Fact]
@@ -249,7 +268,7 @@ namespace helengine.editor.tests.managers.physics {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(TempProjectRootPath);
             packager.Package(new[] { PhysicsValidationSceneCatalog.KinematicPushSceneId }, buildRootPath);
 
-            string packagedScenePath = Path.Combine(buildRootPath, EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string packagedScenePath = GetPackagedScenePath(buildRootPath, PhysicsValidationSceneCatalog.KinematicPushSceneId);
             SceneAsset sceneAsset;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
                 sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
@@ -291,7 +310,7 @@ namespace helengine.editor.tests.managers.physics {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(TempProjectRootPath);
             packager.Package(new[] { PhysicsValidationSceneCatalog.CharacterMovingPlatformSceneId }, buildRootPath);
 
-            string packagedScenePath = Path.Combine(buildRootPath, EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string packagedScenePath = GetPackagedScenePath(buildRootPath, PhysicsValidationSceneCatalog.CharacterMovingPlatformSceneId);
             SceneAsset sceneAsset;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
                 sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
@@ -331,7 +350,7 @@ namespace helengine.editor.tests.managers.physics {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(TempProjectRootPath);
             packager.Package(new[] { PhysicsValidationSceneCatalog.CharacterSlopeSceneId }, buildRootPath);
 
-            string packagedScenePath = Path.Combine(buildRootPath, EditorPlatformBuildScenePackager.MainSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string packagedScenePath = GetPackagedScenePath(buildRootPath, PhysicsValidationSceneCatalog.CharacterSlopeSceneId);
             SceneAsset sceneAsset;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
                 sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));

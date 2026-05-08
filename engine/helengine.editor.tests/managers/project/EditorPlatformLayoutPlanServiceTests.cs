@@ -25,13 +25,13 @@ public sealed class EditorPlatformLayoutPlanServiceTests {
                         "MainMenu",
                         "Scenes/MainMenu.helen",
                         [
-                            new PlatformBuildPayloadReference("scenes/main.hasset", "scenes/main.hasset")
+                            new PlatformBuildPayloadReference("cooked/scenes/MainMenu.hasset", "cooked/scenes/MainMenu.hasset")
                         ],
                         [])
                 ],
                 [],
                 [
-                    new PlatformBuildArtifact("scenes/main.hasset", "scene:main-menu", "sha256:scene", "scene", "shared")
+                    new PlatformBuildArtifact("cooked/scenes/MainMenu.hasset", "scene:main-menu", "sha256:scene", "scene", "shared")
                 ],
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
@@ -72,28 +72,28 @@ public sealed class EditorPlatformLayoutPlanServiceTests {
                         "Menu",
                         "Scenes/Menu.helen",
                         [
-                            new PlatformBuildPayloadReference("scenes/Scenes/Menu.hasset", "scenes/Scenes/Menu.hasset")
+                            new PlatformBuildPayloadReference("cooked/scenes/Menu.hasset", "cooked/scenes/Menu.hasset")
                         ],
                         [
                             new KeyValuePair<string, string>("build-order-index", "0"),
-                            new KeyValuePair<string, string>("cooked-relative-path", "scenes/Scenes/Menu.hasset")
+                            new KeyValuePair<string, string>("cooked-relative-path", "cooked/scenes/Menu.hasset")
                         ]),
                     new PlatformBuildScene(
                         "Scenes/LevelOne.helen",
                         "Level One",
                         "Scenes/LevelOne.helen",
                         [
-                            new PlatformBuildPayloadReference("scenes/Scenes/LevelOne.hasset", "scenes/Scenes/LevelOne.hasset")
+                            new PlatformBuildPayloadReference("cooked/scenes/LevelOne.hasset", "cooked/scenes/LevelOne.hasset")
                         ],
                         [
                             new KeyValuePair<string, string>("build-order-index", "1"),
-                            new KeyValuePair<string, string>("cooked-relative-path", "scenes/Scenes/LevelOne.hasset")
+                            new KeyValuePair<string, string>("cooked-relative-path", "cooked/scenes/LevelOne.hasset")
                         ])
                 ],
                 [],
                 [
-                    new PlatformBuildArtifact("scenes/Scenes/LevelOne.hasset", "scene:level-one", "sha256:level", "scene", "shared"),
-                    new PlatformBuildArtifact("scenes/Scenes/Menu.hasset", "scene:menu", "sha256:menu", "scene", "shared")
+                    new PlatformBuildArtifact("cooked/scenes/LevelOne.hasset", "scene:level-one", "sha256:level", "scene", "shared"),
+                    new PlatformBuildArtifact("cooked/scenes/Menu.hasset", "scene:menu", "sha256:menu", "scene", "shared")
                 ],
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),

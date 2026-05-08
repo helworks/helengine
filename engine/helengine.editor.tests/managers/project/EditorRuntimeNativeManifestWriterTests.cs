@@ -43,7 +43,7 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
             "Scenes/NewScene.helen",
             Array.Empty<PlatformBuildPayloadReference>(),
             [
-                new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, "cooked/scenes/main.hasset"),
+                new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, "cooked/scenes/NewScene.hasset"),
                 new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.Physics3DSceneFeatureFlags, "33")
             ]);
 
@@ -90,7 +90,7 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
         string physicsSource = File.ReadAllText(physicsSourcePath);
 
         Assert.Contains("he_get_runtime_startup_scene_relative_path", startupSource);
-        Assert.Contains("cooked/scenes/main.hasset", startupSource);
+        Assert.Contains("cooked/scenes/NewScene.hasset", startupSource);
         Assert.Contains("he_runtime_physics3d_scene_feature_flags", physicsSource);
         Assert.Contains("\"Scenes/NewScene.helen\"", physicsSource);
         Assert.Contains("33u", physicsSource);
