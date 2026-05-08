@@ -39,6 +39,7 @@ namespace helengine.editor.tests {
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             AssetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             AssetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
+            AssetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
         }
 
         /// <summary>
@@ -68,6 +69,26 @@ namespace helengine.editor.tests {
 
             Assert.True(resolved);
             Assert.IsType<TexturePreviewSource>(source);
+        }
+
+        /// <summary>
+        /// Ensures a selected model asset resolves to the model preview source.
+        /// </summary>
+        [Fact]
+        public void TryResolve_WhenModelAssetIsSelected_ReturnsModelPreviewSource() {
+            PreviewSourceResolver resolver = CreateResolver();
+            string sourcePath = WriteSourceModel("Preview.obj");
+            AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile(
+                "Preview.obj",
+                "Models/Preview.obj",
+                sourcePath,
+                ".obj",
+                AssetEntryKind.Model);
+
+            bool resolved = resolver.TryResolve(entry, null, out IPreviewSource source);
+
+            Assert.True(resolved);
+            Assert.IsType<ModelPreviewSource>(source);
         }
 
         /// <summary>
@@ -119,6 +140,21 @@ namespace helengine.editor.tests {
         /// <param name="fileName">Source file name to create.</param>
         /// <returns>Absolute path to the created source file.</returns>
         string WriteSourceTexture(string fileName) {
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new ArgumentException("File name must be provided.", nameof(fileName));
+            }
+
+            string sourcePath = Path.Combine(AssetsRootPath, fileName);
+            File.WriteAllBytes(sourcePath, new byte[] { 1, 2, 3, 4 });
+            return sourcePath;
+        }
+
+        /// <summary>
+        /// Writes one minimal model source file inside the temporary assets root.
+        /// </summary>
+        /// <param name="fileName">Source file name to create.</param>
+        /// <returns>Absolute path to the created source file.</returns>
+        string WriteSourceModel(string fileName) {
             if (string.IsNullOrWhiteSpace(fileName)) {
                 throw new ArgumentException("File name must be provided.", nameof(fileName));
             }

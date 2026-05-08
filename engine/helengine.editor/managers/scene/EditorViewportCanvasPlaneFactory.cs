@@ -50,7 +50,7 @@ namespace helengine.editor {
         /// <returns>Model asset whose top edge samples the top of the preview render target.</returns>
         static ModelAsset CreateCanvasPlaneModelAsset() {
             float halfSize = CanvasPlaneMeshSize * 0.5f;
-            return new ModelAsset {
+            ModelAsset modelAsset = new ModelAsset {
                 Positions = [
                     new float3(-halfSize, -halfSize, 0f),
                     new float3(halfSize, -halfSize, 0f),
@@ -88,6 +88,8 @@ namespace helengine.editor {
                     4, 6, 7
                 ]
             };
+            ModelAssetBounds.Apply(modelAsset);
+            return modelAsset;
         }
     }
 }

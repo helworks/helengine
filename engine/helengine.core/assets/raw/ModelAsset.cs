@@ -4,6 +4,16 @@ namespace helengine {
     /// </summary>
     public class ModelAsset : Asset {
         /// <summary>
+        /// Minimum corner of the model's axis-aligned bounds.
+        /// </summary>
+        public float3 BoundsMin;
+
+        /// <summary>
+        /// Maximum corner of the model's axis-aligned bounds.
+        /// </summary>
+        public float3 BoundsMax;
+
+        /// <summary>
         /// Vertex positions.
         /// </summary>
         public float3[] Positions;

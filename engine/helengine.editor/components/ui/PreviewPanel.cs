@@ -68,6 +68,10 @@ namespace helengine.editor {
         /// Tracks whether a middle-mouse drag is currently active on the texture preview.
         /// </summary>
         bool IsMiddleMouseDragging;
+        /// <summary>
+        /// Tracks whether a left-mouse drag is currently active on an interactive non-texture preview.
+        /// </summary>
+        bool IsLeftMouseDragging;
 
         /// <summary>
         /// Initializes a new preview panel with the provided font.
@@ -197,8 +201,13 @@ namespace helengine.editor {
                 return;
             }
 
-            HandlePreviewWheelInput();
-            HandlePreviewPanInput();
+            if (IsTexturePreviewSource()) {
+                HandlePreviewWheelInput();
+                HandlePreviewPanInput();
+            } else if (ActivePreviewSourceValue is IPreviewInteractionSource interactionSource) {
+                HandlePreviewInteractionInput(interactionSource);
+            }
+
             ActivePreviewSourceValue.Update();
             textureSprite.Texture = ActivePreviewSourceValue.Texture;
             LayoutPreview();
@@ -309,12 +318,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resets the zoom and pan state used exclusively by texture previews.
+        /// Resets the interaction state used by the currently active preview source.
         /// </summary>
         void ResetTexturePreviewLayout() {
             TextureZoomScale = 1d;
             TexturePanOffset = new float2(0f, 0f);
             IsMiddleMouseDragging = false;
+            IsLeftMouseDragging = false;
         }
 
         /// <summary>
@@ -414,6 +424,57 @@ namespace helengine.editor {
             TexturePanOffset = new float2(
                 TexturePanOffset.X + delta.X,
                 TexturePanOffset.Y + delta.Y);
+        }
+
+        /// <summary>
+        /// Handles wheel and left-drag input for interactive preview sources.
+        /// </summary>
+        /// <param name="interactionSource">Active preview source that accepts pointer interaction.</param>
+        void HandlePreviewInteractionInput(IPreviewInteractionSource interactionSource) {
+            if (interactionSource == null) {
+                throw new ArgumentNullException(nameof(interactionSource));
+            }
+
+            InputSystem input = Core.Instance.Input;
+            int2 pointer = input.GetMousePosition();
+            if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
+                IsLeftMouseDragging = false;
+                return;
+            }
+
+            if (!IsPointerInsideContent(pointer)) {
+                IsLeftMouseDragging = false;
+                return;
+            }
+
+            int wheelDelta = input.GetMouseScrollWheelDelta();
+            if (wheelDelta != 0) {
+                interactionSource.HandleMouseWheel(wheelDelta);
+            }
+
+            if (input.WasMouseLeftButtonPressed()) {
+                IsLeftMouseDragging = true;
+            }
+
+            if (!IsLeftMouseDragging) {
+                if (input.GetMouseLeftButtonState() == ButtonState.Released) {
+                    IsLeftMouseDragging = false;
+                }
+
+                return;
+            }
+
+            if (input.GetMouseLeftButtonState() == ButtonState.Released) {
+                IsLeftMouseDragging = false;
+                return;
+            }
+
+            int2 delta = input.GetMouseDelta();
+            if (delta.X == 0 && delta.Y == 0) {
+                return;
+            }
+
+            interactionSource.HandleMouseDrag(delta);
         }
 
         /// <summary>

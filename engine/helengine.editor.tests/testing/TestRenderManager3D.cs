@@ -69,7 +69,10 @@ namespace helengine.editor.tests.testing {
             }
 
             BuiltModelAssetsValue.Add(data);
-            return new TestRuntimeModel();
+            TestRuntimeModel model = new TestRuntimeModel();
+            model.SetBounds(data.BoundsMin, data.BoundsMax);
+            model.SetSubmeshes(ModelSubmeshResolver.BuildRuntimeSubmeshes(data));
+            return model;
         }
 
         /// <summary>

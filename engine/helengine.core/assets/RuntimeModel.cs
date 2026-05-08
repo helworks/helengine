@@ -8,12 +8,24 @@ namespace helengine {
         /// </summary>
         protected RuntimeModel() {
             Submeshes = Array.Empty<RuntimeSubmesh>();
+            BoundsMin = float3.Zero;
+            BoundsMax = float3.Zero;
         }
 
         /// <summary>
         /// Gets the runtime submesh draw ranges exposed by the model resource.
         /// </summary>
         public RuntimeSubmesh[] Submeshes { get; private set; }
+
+        /// <summary>
+        /// Gets the minimum corner of the model's cached axis-aligned bounds.
+        /// </summary>
+        public float3 BoundsMin { get; private set; }
+
+        /// <summary>
+        /// Gets the maximum corner of the model's cached axis-aligned bounds.
+        /// </summary>
+        public float3 BoundsMax { get; private set; }
 
         /// <summary>
         /// Replaces the runtime submesh collection exposed by the model resource.
@@ -35,6 +47,16 @@ namespace helengine {
             }
 
             Submeshes = copiedSubmeshes;
+        }
+
+        /// <summary>
+        /// Replaces the cached bounds exposed by the model resource.
+        /// </summary>
+        /// <param name="boundsMin">Minimum corner of the model bounds.</param>
+        /// <param name="boundsMax">Maximum corner of the model bounds.</param>
+        public void SetBounds(float3 boundsMin, float3 boundsMax) {
+            BoundsMin = boundsMin;
+            BoundsMax = boundsMax;
         }
     }
 }
