@@ -874,7 +874,19 @@ namespace helengine.editor {
 
             if (string.Equals(fileName, "path.cpp", StringComparison.OrdinalIgnoreCase)
                 && !contents.Contains("Path::ChangeExtension", StringComparison.Ordinal)) {
-                return InsertPathChangeExtensionImplementation(contents);
+                return InsertPs2PathSupport(InsertPathChangeExtensionImplementation(contents));
+            }
+
+            if (string.Equals(fileName, "path.cpp", StringComparison.OrdinalIgnoreCase)) {
+                return InsertPs2PathSupport(contents);
+            }
+
+            if (string.Equals(fileName, "file.cpp", StringComparison.OrdinalIgnoreCase)) {
+                return InsertPs2FileSupport(contents);
+            }
+
+            if (string.Equals(fileName, "file-stream.cpp", StringComparison.OrdinalIgnoreCase)) {
+                return InsertPs2FileStreamSupport(contents);
             }
 
             if (string.Equals(fileName, "native_dictionary.hpp", StringComparison.OrdinalIgnoreCase)
@@ -1324,6 +1336,264 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Inserts PS2-specific device-path handling into generated native path support so `cdrom0:` roots avoid `std::filesystem` normalization.
+        /// </summary>
+        /// <param name="contents">Current path source contents.</param>
+        /// <returns>Updated path source contents.</returns>
+        static string InsertPs2PathSupport(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("CombinePs2Path", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            string helpers = "#if defined(PS2_PLATFORM)" + newline
+                + "namespace {" + newline
+                + "    bool IsPs2DevicePath(const std::string& path) {" + newline
+                + "        return path.rfind(\"cdrom0:\", 0) == 0" + newline
+                + "            || path.rfind(\"host:\", 0) == 0" + newline
+                + "            || path.rfind(\"mc0:\", 0) == 0" + newline
+                + "            || path.rfind(\"mc1:\", 0) == 0" + newline
+                + "            || path.rfind(\"mass:\", 0) == 0;" + newline
+                + "    }" + newline + newline
+                + "    std::string NormalizePs2Path(const std::string& path) {" + newline
+                + "        if (path.empty()) {" + newline
+                + "            return path;" + newline
+                + "        }" + newline
+                + "        std::string normalized = path;" + newline
+                + "        std::replace(normalized.begin(), normalized.end(), '/', '\\\\');" + newline
+                + "        const std::size_t deviceSeparatorIndex = normalized.find(':');" + newline
+                + "        if (deviceSeparatorIndex == std::string::npos) {" + newline
+                + "            return normalized;" + newline
+                + "        }" + newline
+                + "        std::string prefix = normalized.substr(0, deviceSeparatorIndex + 1);" + newline
+                + "        std::string suffix = normalized.substr(deviceSeparatorIndex + 1);" + newline
+                + "        while (!suffix.empty() && suffix.front() == '\\\\') {" + newline
+                + "            suffix.erase(suffix.begin());" + newline
+                + "        }" + newline
+                + "        std::string collapsedSuffix;" + newline
+                + "        bool previousWasSeparator = false;" + newline
+                + "        for (char character : suffix) {" + newline
+                + "            if (character == '\\\\') {" + newline
+                + "                if (!previousWasSeparator) {" + newline
+                + "                    collapsedSuffix.push_back(character);" + newline
+                + "                }" + newline
+                + "                previousWasSeparator = true;" + newline
+                + "                continue;" + newline
+                + "            }" + newline
+                + "            collapsedSuffix.push_back(character);" + newline
+                + "            previousWasSeparator = false;" + newline
+                + "        }" + newline
+                + "        if (collapsedSuffix.empty()) {" + newline
+                + "            return prefix + \"\\\\\";" + newline
+                + "        }" + newline
+                + "        return prefix + \"\\\\\" + collapsedSuffix;" + newline
+                + "    }" + newline + newline
+                + "    std::string CombinePs2Path(const std::string& left, const std::string& right) {" + newline
+                + "        if (left.empty()) {" + newline
+                + "            return NormalizePs2Path(right);" + newline
+                + "        }" + newline
+                + "        if (right.empty()) {" + newline
+                + "            return NormalizePs2Path(left);" + newline
+                + "        }" + newline
+                + "        if (IsPs2DevicePath(right)) {" + newline
+                + "            return NormalizePs2Path(right);" + newline
+                + "        }" + newline
+                + "        std::string normalizedLeft = NormalizePs2Path(left);" + newline
+                + "        std::string normalizedRight = NormalizePs2Path(right);" + newline
+                + "        while (!normalizedRight.empty() && normalizedRight.front() == '\\\\') {" + newline
+                + "            normalizedRight.erase(normalizedRight.begin());" + newline
+                + "        }" + newline
+                + "        if (normalizedLeft.back() != '\\\\') {" + newline
+                + "            normalizedLeft.push_back('\\\\');" + newline
+                + "        }" + newline
+                + "        return normalizedLeft + normalizedRight;" + newline
+                + "    }" + newline + newline
+                + "    std::string GetPs2DirectoryName(const std::string& path) {" + newline
+                + "        std::string normalized = NormalizePs2Path(path);" + newline
+                + "        std::size_t separatorIndex = normalized.find_last_of(\"\\\\/\");" + newline
+                + "        if (separatorIndex == std::string::npos) {" + newline
+                + "            return std::string();" + newline
+                + "        }" + newline
+                + "        if (separatorIndex > 0 && normalized[separatorIndex - 1] == ':') {" + newline
+                + "            return normalized.substr(0, separatorIndex + 1);" + newline
+                + "        }" + newline
+                + "        return normalized.substr(0, separatorIndex);" + newline
+                + "    }" + newline + newline
+                + "    std::string GetPs2FileName(const std::string& path) {" + newline
+                + "        std::string normalized = NormalizePs2Path(path);" + newline
+                + "        std::size_t separatorIndex = normalized.find_last_of(\"\\\\/\");" + newline
+                + "        std::string fileName = separatorIndex == std::string::npos ? normalized : normalized.substr(separatorIndex + 1);" + newline
+                + "        std::size_t versionSeparatorIndex = fileName.find(';');" + newline
+                + "        if (versionSeparatorIndex != std::string::npos) {" + newline
+                + "            fileName = fileName.substr(0, versionSeparatorIndex);" + newline
+                + "        }" + newline
+                + "        return fileName;" + newline
+                + "    }" + newline
+                + "}" + newline
+                + "#endif" + newline + newline;
+            string updatedContents = contents;
+            if (!updatedContents.Contains("#include <algorithm>", StringComparison.Ordinal)) {
+                updatedContents = InsertIncludeAfterOwnHeader(updatedContents, "#include <algorithm>");
+            }
+            if (updatedContents.Contains("#include <filesystem>" + newline, StringComparison.Ordinal)) {
+                updatedContents = updatedContents.Replace("#include <filesystem>" + newline, "#include <filesystem>" + newline + newline + helpers, StringComparison.Ordinal);
+            } else if (updatedContents.Contains("#include <filesystem>\n", StringComparison.Ordinal)) {
+                updatedContents = updatedContents.Replace("#include <filesystem>\n", "#include <filesystem>\n\n" + helpers.Replace(newline, "\n", StringComparison.Ordinal), StringComparison.Ordinal);
+            } else {
+                updatedContents += newline + helpers;
+            }
+
+            updatedContents = updatedContents.Replace(
+                "    return (std::filesystem::path(left) / right).lexically_normal().string();",
+                "#if defined(PS2_PLATFORM)" + newline
+                + "    if (IsPs2DevicePath(left) || IsPs2DevicePath(right)) {" + newline
+                + "        return CombinePs2Path(left, right);" + newline
+                + "    }" + newline
+                + "#endif" + newline
+                + "    return (std::filesystem::path(left) / right).lexically_normal().string();",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "    return std::filesystem::path(path).parent_path().string();",
+                "#if defined(PS2_PLATFORM)" + newline
+                + "    if (IsPs2DevicePath(path)) {" + newline
+                + "        return GetPs2DirectoryName(path);" + newline
+                + "    }" + newline
+                + "#endif" + newline
+                + "    return std::filesystem::path(path).parent_path().string();",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "    return std::filesystem::path(path).filename().string();",
+                "#if defined(PS2_PLATFORM)" + newline
+                + "    if (IsPs2DevicePath(path)) {" + newline
+                + "        return GetPs2FileName(path);" + newline
+                + "    }" + newline
+                + "#endif" + newline
+                + "    return std::filesystem::path(path).filename().string();",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "    return std::filesystem::path(path).lexically_normal().string();",
+                "#if defined(PS2_PLATFORM)" + newline
+                + "    if (IsPs2DevicePath(path)) {" + newline
+                + "        return NormalizePs2Path(path);" + newline
+                + "    }" + newline
+                + "#endif" + newline
+                + "    return std::filesystem::path(path).lexically_normal().string();",
+                StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace(
+                "    return std::filesystem::path(path).is_absolute();",
+                "#if defined(PS2_PLATFORM)" + newline
+                + "    if (IsPs2DevicePath(path)) {" + newline
+                + "        return true;" + newline
+                + "    }" + newline
+                + "#endif" + newline
+                + "    return std::filesystem::path(path).is_absolute();",
+                StringComparison.Ordinal);
+            return updatedContents;
+        }
+
+        /// <summary>
+        /// Inserts PS2-specific disc-read handling into generated native file helpers so existence checks and open calls resolve ISO9660 versioned paths.
+        /// </summary>
+        /// <param name="contents">Current file helper source contents.</param>
+        /// <returns>Updated file helper source contents.</returns>
+        static string InsertPs2FileSupport(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("ResolvePs2DiscReadPath", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            string helpers = "#if defined(PS2_PLATFORM)" + newline
+                + "namespace {" + newline
+                + "    std::string ResolvePs2DiscReadPath(const std::string& path) {" + newline
+                + "        if (path.rfind(\"cdrom0:\", 0) != 0) {" + newline
+                + "            return path;" + newline
+                + "        }" + newline
+                + "        if (path.find(';') != std::string::npos) {" + newline
+                + "            return path;" + newline
+                + "        }" + newline
+                + "        return path + \";1\";" + newline
+                + "    }" + newline
+                + "}" + newline
+                + "#endif" + newline + newline;
+            string updatedContents = contents;
+            if (!updatedContents.Contains("#include <cstdio>", StringComparison.Ordinal)) {
+                updatedContents = InsertIncludeAfterOwnHeader(updatedContents, "#include <cstdio>");
+            }
+            if (updatedContents.Contains("#include <fstream>", StringComparison.Ordinal)) {
+                updatedContents = updatedContents.Replace("#include <fstream>" + newline, "#include <fstream>" + newline + helpers, StringComparison.Ordinal);
+            } else {
+                updatedContents = helpers + updatedContents;
+            }
+
+            updatedContents = Regex.Replace(
+                updatedContents,
+                @"std::ifstream file\(fileName\);\s*return file\.good\(\);",
+                "#if defined(PS2_PLATFORM)" + newline
+                + "\tstd::FILE* file = std::fopen(ResolvePs2DiscReadPath(fileName).c_str(), \"rb\");" + newline
+                + "\tif (file == nullptr) {" + newline
+                + "\t\treturn false;" + newline
+                + "\t}" + newline
+                + "\tstd::fclose(file);" + newline
+                + "\treturn true;" + newline
+                + "#else" + newline
+                + "\tstd::ifstream file(fileName);" + newline
+                + "\treturn file.good();" + newline
+                + "#endif",
+                RegexOptions.CultureInvariant);
+            updatedContents = updatedContents.Replace(
+                "\treturn new FileStream(filePath, FileMode::Open, FileAccess::Read, FileShare::Read);",
+                "#if defined(PS2_PLATFORM)" + newline
+                + "\treturn new FileStream(ResolvePs2DiscReadPath(filePath), FileMode::Open, FileAccess::Read, FileShare::Read);" + newline
+                + "#else" + newline
+                + "\treturn new FileStream(filePath, FileMode::Open, FileAccess::Read, FileShare::Read);" + newline
+                + "#endif",
+                StringComparison.Ordinal);
+            return updatedContents;
+        }
+
+        /// <summary>
+        /// Inserts PS2-specific disc-read handling into generated file-stream construction so direct native stream creation can open ISO9660 versioned paths.
+        /// </summary>
+        /// <param name="contents">Current file-stream source contents.</param>
+        /// <returns>Updated file-stream source contents.</returns>
+        static string InsertPs2FileStreamSupport(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("ResolvePs2DiscReadPath", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            string helpers = "#if defined(PS2_PLATFORM)" + newline
+                + "namespace {" + newline
+                + "    std::string ResolvePs2DiscReadPath(const std::string& path) {" + newline
+                + "        if (path.rfind(\"cdrom0:\", 0) != 0) {" + newline
+                + "            return path;" + newline
+                + "        }" + newline
+                + "        if (path.find(';') != std::string::npos) {" + newline
+                + "            return path;" + newline
+                + "        }" + newline
+                + "        return path + \";1\";" + newline
+                + "    }" + newline
+                + "}" + newline
+                + "#endif" + newline + newline;
+            string updatedContents = contents;
+            if (updatedContents.Contains("#include <stdexcept>" + newline, StringComparison.Ordinal)) {
+                updatedContents = updatedContents.Replace("#include <stdexcept>" + newline, "#include <stdexcept>" + newline + helpers, StringComparison.Ordinal);
+            } else {
+                updatedContents = helpers + updatedContents;
+            }
+
+            updatedContents = updatedContents.Replace(
+                "    file = std::fopen(path, GetFileMode(mode));",
+                "#if defined(PS2_PLATFORM)" + newline
+                + "    file = std::fopen(ResolvePs2DiscReadPath(path).c_str(), GetFileMode(mode));" + newline
+                + "#else" + newline
+                + "    file = std::fopen(path, GetFileMode(mode));" + newline
+                + "#endif",
+                StringComparison.Ordinal);
+            return updatedContents;
+        }
+
+        /// <summary>
         /// Removes every exact generated include line from one file while preserving the surrounding newline style.
         /// </summary>
         /// <param name="contents">Current generated file contents.</param>
@@ -1394,10 +1664,8 @@ namespace helengine.editor {
                 amalgamatedBuilder.AppendLine("\"");
             }
 
-            File.WriteAllText(amalgamatedSourcePath, amalgamatedBuilder.ToString());
-            if (File.Exists(legacyUnitySourcePath)) {
-                File.Delete(legacyUnitySourcePath);
-            }
+            string amalgamatedSourceContents = amalgamatedBuilder.ToString();
+            File.WriteAllText(amalgamatedSourcePath, amalgamatedSourceContents);
         }
 
         /// <summary>

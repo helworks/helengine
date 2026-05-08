@@ -461,6 +461,137 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated native path support rewrites PS2 device-root path handling so packaged disc assets can be resolved without `std::filesystem`.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_path_support_for_ps2_device_roots() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-ps2-path-support");
+        Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "system", "io"));
+        string sourcePath = Path.Combine(generatedCoreRootPath, "system", "io", "path.cpp");
+        File.WriteAllText(
+            sourcePath,
+            "#include \"path.hpp\"\n"
+            + "\n"
+            + "#include \"helcpp_config.hpp\"\n"
+            + "\n"
+            + "#include <filesystem>\n"
+            + "\n"
+            + "std::string Path::Combine(const std::string& left, const std::string& right) {\n"
+            + "    if (left.empty()) {\n"
+            + "        return right;\n"
+            + "    }\n"
+            + "\n"
+            + "    if (right.empty()) {\n"
+            + "        return left;\n"
+            + "    }\n"
+            + "\n"
+            + "    return (std::filesystem::path(left) / right).lexically_normal().string();\n"
+            + "}\n"
+            + "\n"
+            + "std::string Path::GetDirectoryName(const std::string& path) {\n"
+            + "    if (path.empty()) {\n"
+            + "        return std::string();\n"
+            + "    }\n"
+            + "\n"
+            + "    return std::filesystem::path(path).parent_path().string();\n"
+            + "}\n"
+            + "\n"
+            + "std::string Path::GetFileName(const std::string& path) {\n"
+            + "    if (path.empty()) {\n"
+            + "        return std::string();\n"
+            + "    }\n"
+            + "\n"
+            + "    return std::filesystem::path(path).filename().string();\n"
+            + "}\n"
+            + "\n"
+            + "std::string Path::GetFullPath(const std::string& path) {\n"
+            + "#if !HE_CPP_PLATFORM_IS_WINDOWS_HOST\n"
+            + "    if (path.empty()) {\n"
+            + "        return std::string(\".\");\n"
+            + "    }\n"
+            + "\n"
+            + "    return std::filesystem::path(path).lexically_normal().string();\n"
+            + "#else\n"
+            + "    if (path.empty()) {\n"
+            + "        return std::filesystem::current_path().string();\n"
+            + "    }\n"
+            + "\n"
+            + "    return std::filesystem::absolute(std::filesystem::path(path)).lexically_normal().string();\n"
+            + "#endif\n"
+            + "}\n"
+            + "\n"
+            + "bool Path::IsPathRooted(const std::string& path) {\n"
+            + "    if (path.empty()) {\n"
+            + "        return false;\n"
+            + "    }\n"
+            + "\n"
+            + "    return std::filesystem::path(path).is_absolute();\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalized = File.ReadAllText(sourcePath);
+        Assert.Contains("#if defined(PS2_PLATFORM)", normalized);
+        Assert.Contains("return CombinePs2Path(left, right);", normalized);
+        Assert.Contains("return GetPs2DirectoryName(path);", normalized);
+        Assert.Contains("return GetPs2FileName(path);", normalized);
+        Assert.Contains("return NormalizePs2Path(path);", normalized);
+        Assert.Contains("if (IsPs2DevicePath(path)) {", normalized);
+    }
+
+    /// <summary>
+    /// Verifies generated native file support resolves PS2 disc reads through `fopen`-compatible paths and appends the ISO9660 version suffix when required.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_file_support_for_ps2_disc_reads() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-ps2-file-support");
+        Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "system", "io"));
+        string filePath = Path.Combine(generatedCoreRootPath, "system", "io", "file.cpp");
+        string fileStreamPath = Path.Combine(generatedCoreRootPath, "system", "io", "file-stream.cpp");
+        File.WriteAllText(
+            filePath,
+            "#include \"file.hpp\"\n"
+            + "#include <fstream>\n"
+            + "\n"
+            + "bool File::Exists(const char* fileName) {\n"
+            + "\tif (!fileName)\n"
+            + "\t{\n"
+            + "\t\treturn false;\n"
+            + "\t}\n"
+            + "\n"
+            + "\tstd::ifstream file(fileName);\n"
+            + "\treturn file.good();\n"
+            + "}\n"
+            + "\n"
+            + "FileStream* File::OpenRead(const char* filePath)\n"
+            + "{\n"
+            + "\treturn new FileStream(filePath, FileMode::Open, FileAccess::Read, FileShare::Read);\n"
+            + "}\n");
+        File.WriteAllText(
+            fileStreamPath,
+            "#include \"file-stream.hpp\"\n"
+            + "#include <stdexcept>\n"
+            + "\n"
+            + "FileStream::FileStream(const char* path, FileMode mode) : file(nullptr), position(0), length(0) {\n"
+            + "    file = std::fopen(path, GetFileMode(mode));\n"
+            + "    if (!file) {\n"
+            + "        throw std::runtime_error(std::string(\"Failed to open file: \") + path);\n"
+            + "    }\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedFile = File.ReadAllText(filePath);
+        string normalizedFileStream = File.ReadAllText(fileStreamPath);
+        Assert.Contains("#include <cstdio>", normalizedFile);
+        Assert.Contains("std::FILE* file = std::fopen(ResolvePs2DiscReadPath(fileName).c_str(), \"rb\");", normalizedFile);
+        Assert.Contains("return new FileStream(ResolvePs2DiscReadPath(filePath), FileMode::Open, FileAccess::Read, FileShare::Read);", normalizedFile);
+        Assert.Contains("file = std::fopen(ResolvePs2DiscReadPath(path).c_str(), GetFileMode(mode));", normalizedFileStream);
+        Assert.Contains("if (path.rfind(\"cdrom0:\", 0) != 0)", normalizedFileStream);
+        Assert.Contains("return path + \";1\";", normalizedFileStream);
+    }
+
+    /// <summary>
     /// Verifies bundled native Action support accepts captured callables emitted by generated UI code.
     /// </summary>
     [Fact]
