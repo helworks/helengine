@@ -117,7 +117,6 @@ namespace helengine.directx11 {
         /// Rasterizer state used for 3D rendering.
         /// </summary>
         RasterizerState rasterizerState3D;
-        /// <summary>
         /// Depth-stencil state used for 3D rendering.
         /// </summary>
         DepthStencilState depthStencilState3D;
@@ -291,6 +290,7 @@ namespace helengine.directx11 {
             var rasterizerDesc3D = new RasterizerStateDescription {
                 CullMode = CullMode.Back,
                 FillMode = FillMode.Solid,
+                IsFrontCounterClockwise = true,
                 IsDepthClipEnabled = true
             };
             rasterizerState3D = new RasterizerState(Device, rasterizerDesc3D);
@@ -1908,6 +1908,7 @@ namespace helengine.directx11 {
             var rasterizerDesc = new RasterizerStateDescription {
                 CullMode = cullMode,
                 FillMode = FillMode.Solid,
+                IsFrontCounterClockwise = true,
                 IsDepthClipEnabled = true
             };
             RasterizerState state = new RasterizerState(Device, rasterizerDesc);

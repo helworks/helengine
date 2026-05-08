@@ -143,6 +143,72 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures large directional shadow distances still cover geometry close to the camera instead of pushing the whole shadow box too far ahead.
+        /// </summary>
+        [Fact]
+        public void BuildShadowViewProjectionMatrix_WhenDirectionalShadowDistanceIsLarge_KeepsNearCameraGeometryInsideTheShadowVolume() {
+            InitializeCore();
+
+            Entity cameraEntity = CreateEntity(float3.Zero);
+            CameraComponent camera = new CameraComponent();
+            cameraEntity.AddComponent(camera);
+
+            Entity directionalEntity = CreateEntity(float3.Zero);
+            DirectionalLightComponent directionalLight = new DirectionalLightComponent {
+                ShadowDistance = 200f
+            };
+            directionalEntity.AddComponent(directionalLight);
+            RenderFrameLightSubmission directionalSubmission = new RenderFrameLightSubmission(directionalLight, 10);
+            DirectX11ShadowAtlasAllocation allocation = new DirectX11ShadowAtlasAllocation(directionalSubmission, 0, 0, 1024, 1024);
+            DirectX11ShadowShaderDataBuilder builder = new DirectX11ShadowShaderDataBuilder();
+
+            float4x4 lightViewProjection = builder.BuildShadowViewProjectionMatrix(camera, allocation);
+            float3 nearCameraPointClip = TransformPointToNormalizedDeviceCoordinates(new float3(0f, 0f, -10f), lightViewProjection);
+            float3 distantPointClip = TransformPointToNormalizedDeviceCoordinates(new float3(0f, 0f, -150f), lightViewProjection);
+
+            Assert.InRange(nearCameraPointClip.X, -1f, 1f);
+            Assert.InRange(nearCameraPointClip.Y, -1f, 1f);
+            Assert.InRange(nearCameraPointClip.Z, 0f, 1f);
+            Assert.InRange(distantPointClip.X, -1f, 1f);
+            Assert.InRange(distantPointClip.Y, -1f, 1f);
+            Assert.InRange(distantPointClip.Z, 0f, 1f);
+        }
+
+        /// <summary>
+        /// Ensures directional shadow targeting follows the camera view ahead of the camera instead of centering the shadow box on the camera position itself.
+        /// </summary>
+        [Fact]
+        public void BuildShadowViewProjectionMatrix_WhenCameraLooksTowardDistantSceneCenter_KeepsVisibleSceneAheadInsideDirectionalShadowVolume() {
+            InitializeCore();
+
+            Entity cameraEntity = CreateEntity(new float3(0.136f, 24f, 67.999863f));
+            float4 cameraOrientation;
+            float4.CreateFromYawPitchRoll(0f, -0.32f, 0f, out cameraOrientation);
+            cameraEntity.LocalOrientation = cameraOrientation;
+            CameraComponent camera = new CameraComponent();
+            cameraEntity.AddComponent(camera);
+
+            Entity directionalEntity = CreateEntity(float3.Zero);
+            float4 directionalOrientation;
+            float4.CreateFromYawPitchRoll(0f, -0.95f, 0f, out directionalOrientation);
+            directionalEntity.LocalOrientation = directionalOrientation;
+            DirectionalLightComponent directionalLight = new DirectionalLightComponent {
+                ShadowDistance = 60f
+            };
+            directionalEntity.AddComponent(directionalLight);
+            RenderFrameLightSubmission directionalSubmission = new RenderFrameLightSubmission(directionalLight, 10);
+            DirectX11ShadowAtlasAllocation allocation = new DirectX11ShadowAtlasAllocation(directionalSubmission, 0, 0, 1024, 1024);
+            DirectX11ShadowShaderDataBuilder builder = new DirectX11ShadowShaderDataBuilder();
+
+            float4x4 lightViewProjection = builder.BuildShadowViewProjectionMatrix(camera, allocation);
+            float3 clipPoint = TransformPointToNormalizedDeviceCoordinates(float3.Zero, lightViewProjection);
+
+            Assert.InRange(clipPoint.X, -1f, 1f);
+            Assert.InRange(clipPoint.Y, -1f, 1f);
+            Assert.InRange(clipPoint.Z, 0f, 1f);
+        }
+
+        /// <summary>
         /// Ensures the point-shadow cube Z faces align with the engine forward convention instead of mirroring across the light.
         /// </summary>
         [Fact]

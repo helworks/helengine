@@ -9,6 +9,16 @@ namespace helengine.directx11 {
         static readonly float3 DefaultUp = new float3(0f, 1f, 0f);
 
         /// <summary>
+        /// Default camera forward axis used to place directional shadow focus points ahead of the camera.
+        /// </summary>
+        static readonly float3 ForwardAxis = new float3(0f, 0f, -1f);
+
+        /// <summary>
+        /// Fraction of the authored shadow distance used to focus directional shadow coverage ahead of the camera.
+        /// </summary>
+        const float DirectionalShadowFocusDistanceFactor = 0.5f;
+
+        /// <summary>
         /// Builds atlas-shadow shader data for the selected forward-light set and planned shadow resources of the current camera frame.
         /// </summary>
         /// <param name="camera">Camera whose frame is currently being rendered.</param>
@@ -192,12 +202,13 @@ namespace helengine.directx11 {
                 float3 rotatedForward = LightDirectionUtility.GetEntityForwardDirection(entity);
                 float3 lightDirection = Normalize(new float3(-rotatedForward.X, -rotatedForward.Y, -rotatedForward.Z));
                 float shadowDistance = (float)Math.Max(1.0, directionalLight.ShadowDistance);
-                float3 target = camera.Parent.Position;
-                float3 lightPosition = target + (lightDirection * (float)(shadowDistance * 0.5));
+                float3 target = BuildDirectionalShadowTarget(camera.Parent, shadowDistance);
+                float depthRange = shadowDistance * 2f;
+                float3 lightPosition = target + (lightDirection * shadowDistance);
                 float3 up = Math.Abs(float3.Dot(lightDirection, DefaultUp)) > 0.99f ? new float3(0f, 0f, 1f) : DefaultUp;
                 float4x4.CreateLookAt(ref lightPosition, ref target, ref up, out view);
                 float halfDistance = (float)(shadowDistance * 0.5);
-                float4x4.CreateOrthographicOffCenter(-halfDistance, halfDistance, -halfDistance, halfDistance, 0.1f, shadowDistance, out projection);
+                float4x4.CreateOrthographicOffCenter(-halfDistance, halfDistance, -halfDistance, halfDistance, 0.1f, depthRange, out projection);
             } else if (light.LightType == LightType.Spot) {
                 SpotLightComponent spotLight = (SpotLightComponent)light;
                 float3 lightDirection = Normalize(LightDirectionUtility.GetEntityForwardDirection(entity));
@@ -255,6 +266,22 @@ namespace helengine.directx11 {
             float4x4 viewProjection;
             float4x4.Multiply(ref view, ref projection, out viewProjection);
             return viewProjection;
+        }
+
+        /// <summary>
+        /// Builds the directional-shadow focus point ahead of one camera so the shadow box follows the visible scene instead of the camera origin.
+        /// </summary>
+        /// <param name="cameraEntity">Camera entity whose orientation defines the visible forward direction.</param>
+        /// <param name="shadowDistance">Authored directional shadow distance used to size the focus offset.</param>
+        /// <returns>World-space point used as the center of the directional shadow box.</returns>
+        float3 BuildDirectionalShadowTarget(Entity cameraEntity, float shadowDistance) {
+            if (cameraEntity == null) {
+                throw new ArgumentNullException(nameof(cameraEntity));
+            }
+
+            float3 cameraForward = float4.RotateVector(ForwardAxis, cameraEntity.Orientation);
+            float focusDistance = shadowDistance * DirectionalShadowFocusDistanceFactor;
+            return cameraEntity.Position + (cameraForward * focusDistance);
         }
 
         /// <summary>
