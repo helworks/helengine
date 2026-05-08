@@ -19,6 +19,11 @@ namespace helengine.editor {
         readonly SceneEntityReferenceTable EntityReferenceTable;
 
         /// <summary>
+        /// Service that unwraps editor-only component platform override metadata from serialized component payloads.
+        /// </summary>
+        readonly ComponentPlatformOverridePayloadService OverridePayloadService;
+
+        /// <summary>
         /// Initializes a new scene load service.
         /// </summary>
         /// <param name="persistenceRegistry">Registry used to deserialize persisted components.</param>
@@ -27,6 +32,7 @@ namespace helengine.editor {
             PersistenceRegistry = persistenceRegistry ?? throw new ArgumentNullException(nameof(persistenceRegistry));
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             EntityReferenceTable = new SceneEntityReferenceTable();
+            OverridePayloadService = new ComponentPlatformOverridePayloadService();
         }
 
         /// <summary>
@@ -86,8 +92,10 @@ namespace helengine.editor {
             for (int i = 0; i < componentRecords.Length; i++) {
                 SceneComponentAssetRecord record = componentRecords[i];
                 IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(record.ComponentTypeId);
-                Component component = descriptor.DeserializeComponent(record, saveComponent, ReferenceResolver);
+                SceneComponentAssetRecord baseRecord = OverridePayloadService.UnwrapBaseRecord(record);
+                Component component = descriptor.DeserializeComponent(baseRecord, saveComponent, ReferenceResolver);
                 entity.AddComponent(component);
+                RestorePlatformOverrides(record, saveComponent, component);
             }
 
             EditorSceneCameraSuppressionService.AttachAndSuppress(entity);
@@ -102,6 +110,34 @@ namespace helengine.editor {
             }
 
             return entity;
+        }
+
+        /// <summary>
+        /// Restores editor-only component platform override metadata into the hidden save component after the base component loads.
+        /// </summary>
+        /// <param name="persistedRecord">Serialized component record that may contain platform override metadata.</param>
+        /// <param name="saveComponent">Hidden entity save component that owns the component save-state.</param>
+        /// <param name="component">Loaded live base component instance.</param>
+        void RestorePlatformOverrides(SceneComponentAssetRecord persistedRecord, EntitySaveComponent saveComponent, Component component) {
+            if (persistedRecord == null) {
+                throw new ArgumentNullException(nameof(persistedRecord));
+            } else if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            if (saveComponent == null) {
+                return;
+            }
+
+            IReadOnlyList<EntityComponentPlatformOverrideState> overrideStates = OverridePayloadService.ReadOverrideStates(persistedRecord);
+            if (overrideStates.Count < 1) {
+                return;
+            }
+
+            EntityComponentSaveState saveState = saveComponent.GetOrCreateComponentState(component);
+            for (int index = 0; index < overrideStates.Count; index++) {
+                saveState.SetPlatformOverride(overrideStates[index].PlatformId, overrideStates[index]);
+            }
         }
 
         /// <summary>

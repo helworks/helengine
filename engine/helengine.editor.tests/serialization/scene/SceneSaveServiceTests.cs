@@ -465,23 +465,26 @@ namespace helengine.editor.tests.serialization.scene {
         /// Ensures editor-only component platform overrides round-trip through scene save and load without adding duplicate live components.
         /// </summary>
         [Fact]
-        public void SaveAndLoad_WhenCameraHasWindowsOverride_RoundTripsOverrideMetadataWithoutAddingExtraLiveComponents() {
-            EditorEntity root = CreateUserEntity("Camera", float3.Zero, float3.One, float4.Identity);
-            CameraComponent camera = new CameraComponent {
-                FarPlaneDistance = 100f
+        public void SaveAndLoad_WhenComponentHasWindowsOverride_RoundTripsOverrideMetadataWithoutAddingExtraLiveComponents() {
+            EditorEntity root = CreateUserEntity("Scripted", float3.Zero, float3.One, float4.Identity);
+            TestScriptSerializableComponent component = new TestScriptSerializableComponent {
+                DisplayName = "Common",
+                Visible = true,
+                SortOrder = 100
             };
-            root.AddComponent(camera);
+            root.AddComponent(component);
 
-            CameraComponent windowsOverrideCamera = new CameraComponent {
-                FarPlaneDistance = 200f
+            TestScriptSerializableComponent windowsOverrideComponent = new TestScriptSerializableComponent {
+                DisplayName = "Windows",
+                Visible = false,
+                SortOrder = 200
             };
 
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            CameraComponentPersistenceDescriptor descriptor = new CameraComponentPersistenceDescriptor();
-            registry.Register(descriptor);
+            IComponentPersistenceDescriptor descriptor = registry.GetDescriptor(component);
 
-            SceneComponentAssetRecord overrideRecord = descriptor.SerializeComponent(windowsOverrideCamera, 0, null);
-            AttachPlatformOverridePayload(root, camera, "windows", overrideRecord.Payload);
+            SceneComponentAssetRecord overrideRecord = descriptor.SerializeComponent(windowsOverrideComponent, 0, null);
+            AttachPlatformOverridePayload(root, component, "windows", overrideRecord.Payload);
 
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CameraPlatformOverride.helen");
@@ -497,18 +500,20 @@ namespace helengine.editor.tests.serialization.scene {
             IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
 
             EditorEntity loadedRoot = Assert.Single(loadedRoots);
-            CameraComponent loadedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedRoot.Components, component => component is CameraComponent));
-            Assert.Equal(100f, loadedCamera.FarPlaneDistance);
+            TestScriptSerializableComponent loadedComponent = Assert.IsType<TestScriptSerializableComponent>(Assert.Single(loadedRoot.Components, loadedComponent => loadedComponent is TestScriptSerializableComponent));
+            Assert.Equal("Common", loadedComponent.DisplayName);
+            Assert.True(loadedComponent.Visible);
+            Assert.Equal(100, loadedComponent.SortOrder);
 
             EntitySaveComponent saveComponent = GetSaveComponent(loadedRoot);
-            Assert.True(saveComponent.TryGetComponentState(loadedCamera, out EntityComponentSaveState loadedSaveState));
+            Assert.True(saveComponent.TryGetComponentState(loadedComponent, out EntityComponentSaveState loadedSaveState));
             Assert.True(TryGetPlatformOverride(loadedSaveState, "windows", out object loadedOverrideState));
 
             Type overrideStateType = ResolveRequiredType("helengine.EntityComponentPlatformOverrideState");
             byte[] loadedPayload = Assert.IsType<byte[]>(overrideStateType.GetProperty("Payload").GetValue(loadedOverrideState));
 
             Assert.Equal(overrideRecord.Payload, loadedPayload);
-            Assert.Single(loadedRoot.Components, component => component is CameraComponent);
+            Assert.Single(loadedRoot.Components, loadedComponent => loadedComponent is TestScriptSerializableComponent);
         }
 
         /// <summary>

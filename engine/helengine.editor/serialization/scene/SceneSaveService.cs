@@ -24,6 +24,11 @@ namespace helengine.editor {
         readonly SceneEntityReferenceTable EntityReferenceTable;
 
         /// <summary>
+        /// Service that wraps component payloads with editor-only platform override metadata.
+        /// </summary>
+        readonly ComponentPlatformOverridePayloadService OverridePayloadService;
+
+        /// <summary>
         /// Initializes a new scene save service for one project root.
         /// </summary>
         /// <param name="projectRootPath">Project root that owns the assets folder.</param>
@@ -40,6 +45,7 @@ namespace helengine.editor {
             AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
             PersistenceRegistry = persistenceRegistry;
             EntityReferenceTable = new SceneEntityReferenceTable();
+            OverridePayloadService = new ComponentPlatformOverridePayloadService();
         }
 
         /// <summary>
@@ -150,7 +156,8 @@ namespace helengine.editor {
                     }
 
                     IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(component);
-                    componentRecords.Add(descriptor.SerializeComponent(component, persistedComponentIndex, saveState));
+                    SceneComponentAssetRecord baseRecord = descriptor.SerializeComponent(component, persistedComponentIndex, saveState);
+                    componentRecords.Add(OverridePayloadService.Wrap(baseRecord, saveState));
                     AppendAssetReferences(saveState, assetReferences, assetReferenceKeys);
                     persistedComponentIndex++;
                 }
@@ -199,6 +206,36 @@ namespace helengine.editor {
             }
 
             foreach (SceneAssetReference reference in saveState.EnumerateAssetReferences()) {
+                if (reference == null) {
+                    continue;
+                }
+
+                string referenceKey = BuildAssetReferenceKey(reference);
+                if (assetReferenceKeys.Add(referenceKey)) {
+                    assetReferences.Add(reference);
+                }
+            }
+
+            foreach (EntityComponentPlatformOverrideState overrideState in saveState.EnumeratePlatformOverrides()) {
+                AppendPlatformOverrideAssetReferences(overrideState, assetReferences, assetReferenceKeys);
+            }
+        }
+
+        /// <summary>
+        /// Appends one platform override payload's asset references to the scene dependency list.
+        /// </summary>
+        /// <param name="overrideState">Platform override payload whose asset references should be appended.</param>
+        /// <param name="assetReferences">Scene-level dependency list being populated.</param>
+        /// <param name="assetReferenceKeys">Deduplication keys for already-queued references.</param>
+        void AppendPlatformOverrideAssetReferences(
+            EntityComponentPlatformOverrideState overrideState,
+            List<SceneAssetReference> assetReferences,
+            HashSet<string> assetReferenceKeys) {
+            if (overrideState == null) {
+                return;
+            }
+
+            foreach (SceneAssetReference reference in overrideState.EnumerateAssetReferences()) {
                 if (reference == null) {
                     continue;
                 }
