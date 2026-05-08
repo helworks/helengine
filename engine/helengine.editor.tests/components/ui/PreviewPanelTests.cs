@@ -11,6 +11,10 @@ namespace helengine.editor.tests {
         /// Temporary content root used by the panel tests.
         /// </summary>
         readonly string TempRootPath;
+        /// <summary>
+        /// Deterministic input backend used to feed wheel and pointer state into the preview panel.
+        /// </summary>
+        readonly TestInputBackend Input;
 
         /// <summary>
         /// Initializes the core services required by the preview panel tests.
@@ -18,11 +22,12 @@ namespace helengine.editor.tests {
         public PreviewPanelTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-preview-panel-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
+            Input = new TestInputBackend();
 
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input);
         }
 
         /// <summary>
@@ -83,6 +88,138 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures texture previews show their resolution label beneath the image.
+        /// </summary>
+        [Fact]
+        public void SetPreviewSource_WhenTexturePreviewIsAssigned_ShowsTheResolutionLabel() {
+            PreviewPanel panel = new PreviewPanel(CreateFont());
+            TexturePreviewSource source = new TexturePreviewSource(new TestRuntimeTexture {
+                Width = 120,
+                Height = 80
+            });
+
+            panel.SetPreviewSource(source);
+
+            EditorEntity resolutionLabelHost = GetPrivateField<EditorEntity>(panel, "resolutionLabelHost");
+            TextComponent resolutionLabelText = GetPrivateField<TextComponent>(panel, "resolutionLabelText");
+
+            Assert.True(resolutionLabelHost.Enabled);
+            Assert.Equal("120 x 80", resolutionLabelText.Text);
+        }
+
+        /// <summary>
+        /// Ensures non-texture previews hide the resolution label instead of leaving stale text visible.
+        /// </summary>
+        [Fact]
+        public void SetPreviewSource_WhenNonTexturePreviewIsAssigned_HidesTheResolutionLabel() {
+            PreviewPanel panel = new PreviewPanel(CreateFont());
+
+            panel.SetPreviewSource(new TexturePreviewSource(new TestRuntimeTexture {
+                Width = 120,
+                Height = 80
+            }));
+            panel.SetPreviewSource(new TestPreviewSource(new TestRuntimeTexture {
+                Width = 120,
+                Height = 80
+            }));
+
+            EditorEntity resolutionLabelHost = GetPrivateField<EditorEntity>(panel, "resolutionLabelHost");
+            TextComponent resolutionLabelText = GetPrivateField<TextComponent>(panel, "resolutionLabelText");
+
+            Assert.False(resolutionLabelHost.Enabled);
+            Assert.Equal(string.Empty, resolutionLabelText.Text);
+        }
+
+        /// <summary>
+        /// Ensures wheel scrolling zooms a texture preview around the cursor position.
+        /// </summary>
+        [Fact]
+        public void UpdatePreviewSource_WhenWheelScrollsOverTexturePreview_ZoomsAroundTheCursor() {
+            PreviewPanel panel = new PreviewPanel(CreateFont()) {
+                Size = new int2(416, 312)
+            };
+            panel.SetPreviewSource(new TexturePreviewSource(new TestRuntimeTexture {
+                Width = 100,
+                Height = 50
+            }));
+
+            EditorEntity textureHost = GetPrivateField<EditorEntity>(panel, "textureHost");
+            SpriteComponent textureSprite = GetPrivateField<SpriteComponent>(panel, "textureSprite");
+            float3 initialPosition = textureHost.Position;
+
+            int pointerX = (int)Math.Round(initialPosition.X) + 100;
+            int pointerY = (int)Math.Round(initialPosition.Y) + 50;
+
+            CompleteInputFrame(new MouseState(
+                pointerX,
+                pointerY,
+                0,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released));
+            AdvanceInputFrame(new MouseState(
+                pointerX,
+                pointerY,
+                120,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released));
+
+            panel.UpdatePreviewSource();
+            Input.Update();
+
+            Assert.Equal(new int2(440, 220), textureSprite.Size);
+            Assert.Equal(initialPosition.X - 10f, textureHost.Position.X);
+            Assert.Equal(initialPosition.Y - 5f, textureHost.Position.Y);
+        }
+
+        /// <summary>
+        /// Ensures middle mouse dragging pans the visible texture preview.
+        /// </summary>
+        [Fact]
+        public void UpdatePreviewSource_WhenMiddleMouseDragsTexturePreview_PansTheTexture() {
+            PreviewPanel panel = new PreviewPanel(CreateFont()) {
+                Size = new int2(416, 312)
+            };
+            panel.SetPreviewSource(new TexturePreviewSource(new TestRuntimeTexture {
+                Width = 100,
+                Height = 50
+            }));
+
+            EditorEntity textureHost = GetPrivateField<EditorEntity>(panel, "textureHost");
+            float3 initialPosition = textureHost.LocalPosition;
+
+            CompleteInputFrame(new MouseState(
+                (int)Math.Round(initialPosition.X) + 100,
+                (int)Math.Round(initialPosition.Y) + 50,
+                0,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released));
+            AdvanceInputFrame(new MouseState(
+                (int)Math.Round(initialPosition.X) + 120,
+                (int)Math.Round(initialPosition.Y) + 70,
+                0,
+                ButtonState.Released,
+                ButtonState.Pressed,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released));
+
+            panel.UpdatePreviewSource();
+            Input.Update();
+
+            Assert.Equal(initialPosition.X + 20f, textureHost.LocalPosition.X);
+            Assert.Equal(initialPosition.Y + 20f, textureHost.LocalPosition.Y);
+        }
+
+        /// <summary>
         /// Creates a small font asset that can satisfy dockable layout requirements.
         /// </summary>
         /// <returns>Font asset with basic glyph metrics for the current test.</returns>
@@ -95,8 +232,19 @@ namespace helengine.editor.tests {
                 ['i'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
                 ['n'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['r'] = new FontChar(new float4(0f, 0f, 6f, 12f), 0f, 6f, 0f, 0f),
+                ['x'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['v'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['w'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f)
+                ['w'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f),
+                ['0'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['1'] = new FontChar(new float4(0f, 0f, 5f, 12f), 0f, 5f, 0f, 0f),
+                ['2'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['3'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['4'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['5'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['6'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['7'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['8'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['9'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)
             };
 
             return new FontAsset(
@@ -109,6 +257,25 @@ namespace helengine.editor.tests {
                 16f,
                 64,
                 64);
+        }
+
+        /// <summary>
+        /// Captures one full input frame so the next frame reports wheel deltas correctly.
+        /// </summary>
+        /// <param name="mouseState">Mouse state to expose for the frame.</param>
+        void CompleteInputFrame(MouseState mouseState) {
+            Input.SetMouseState(mouseState);
+            Input.EarlyUpdate();
+            Input.Update();
+        }
+
+        /// <summary>
+        /// Captures the next input frame without finalizing it, which keeps the wheel delta available for preview updates.
+        /// </summary>
+        /// <param name="mouseState">Mouse state to expose for the frame.</param>
+        void AdvanceInputFrame(MouseState mouseState) {
+            Input.SetMouseState(mouseState);
+            Input.EarlyUpdate();
         }
 
         /// <summary>

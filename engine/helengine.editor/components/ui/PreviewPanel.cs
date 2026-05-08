@@ -7,6 +7,22 @@ namespace helengine.editor {
         /// Padding applied around the preview image.
         /// </summary>
         const int ContentPadding = 8;
+        /// <summary>
+        /// Vertical spacing reserved between the preview image and the resolution caption.
+        /// </summary>
+        const int ResolutionLabelGap = 6;
+        /// <summary>
+        /// Minimum zoom multiplier allowed for texture previews.
+        /// </summary>
+        const double MinimumZoomScale = 0.25d;
+        /// <summary>
+        /// Maximum zoom multiplier allowed for texture previews.
+        /// </summary>
+        const double MaximumZoomScale = 16.0d;
+        /// <summary>
+        /// Multiplier applied for each scroll-wheel notch while zooming a texture preview.
+        /// </summary>
+        const double ZoomStepFactor = 1.1d;
 
         /// <summary>
         /// Render order used for the preview sprite.
@@ -25,6 +41,14 @@ namespace helengine.editor {
         /// </summary>
         readonly SpriteComponent textureSprite;
         /// <summary>
+        /// Entity that positions the resolution caption beneath texture previews.
+        /// </summary>
+        readonly EditorEntity resolutionLabelHost;
+        /// <summary>
+        /// Text component that renders the texture resolution caption.
+        /// </summary>
+        readonly TextComponent resolutionLabelText;
+        /// <summary>
         /// Currently active preview source.
         /// </summary>
         IPreviewSource ActivePreviewSourceValue;
@@ -32,6 +56,18 @@ namespace helengine.editor {
         /// Tracks whether the panel finished initialization.
         /// </summary>
         bool isInitialized;
+        /// <summary>
+        /// Current zoom factor applied to texture previews, relative to the fitted size.
+        /// </summary>
+        double TextureZoomScale;
+        /// <summary>
+        /// Additional translation applied to texture previews after cursor-centered zooming.
+        /// </summary>
+        float2 TexturePanOffset;
+        /// <summary>
+        /// Tracks whether a middle-mouse drag is currently active on the texture preview.
+        /// </summary>
+        bool IsMiddleMouseDragging;
 
         /// <summary>
         /// Initializes a new preview panel with the provided font.
@@ -70,6 +106,18 @@ namespace helengine.editor {
             textureSprite.Color = new byte4(255, 255, 255, 255);
             textureSprite.Size = new int2(1, 1);
             textureHost.AddComponent(textureSprite);
+
+            resolutionLabelHost = new EditorEntity();
+            resolutionLabelHost.LayerMask = LayerMask;
+            resolutionLabelHost.Enabled = false;
+            contentRoot.AddChild(resolutionLabelHost);
+
+            resolutionLabelText = new TextComponent();
+            resolutionLabelText.Font = TitleFont;
+            resolutionLabelText.Text = string.Empty;
+            resolutionLabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            resolutionLabelText.RenderOrder2D = spriteOrder;
+            resolutionLabelHost.AddComponent(resolutionLabelText);
 
             ClearPreview();
             AddComponent(new PreviewPanelUpdater(this));
@@ -122,6 +170,7 @@ namespace helengine.editor {
                 return;
             }
 
+            ResetTexturePreviewLayout();
             ActivePreviewSourceValue.Resize(GetContentSize());
             textureSprite.Texture = ActivePreviewSourceValue.Texture;
             LayoutPreview();
@@ -136,6 +185,7 @@ namespace helengine.editor {
             }
 
             ActivePreviewSourceValue = null;
+            ResetTexturePreviewLayout();
             ClearPreviewVisuals();
         }
 
@@ -147,6 +197,8 @@ namespace helengine.editor {
                 return;
             }
 
+            HandlePreviewWheelInput();
+            HandlePreviewPanInput();
             ActivePreviewSourceValue.Update();
             textureSprite.Texture = ActivePreviewSourceValue.Texture;
             LayoutPreview();
@@ -175,6 +227,7 @@ namespace helengine.editor {
             MinSize = new int2(UiMetrics.ScalePixels(220), UiMetrics.ScalePixels(160));
             contentRoot.Position = new float3(0f, TitleBarHeightPixels, 0.05f);
             textureHost.Position = new float3(GetContentPaddingPixels(), GetContentPaddingPixels(), 0.2f);
+            resolutionLabelText.Font = TitleFont;
         }
 
         /// <summary>
@@ -183,28 +236,64 @@ namespace helengine.editor {
         void LayoutPreview() {
             if (ActivePreviewSourceValue == null || ActivePreviewSourceValue.Texture == null) {
                 textureHost.Enabled = false;
+                resolutionLabelHost.Enabled = false;
                 return;
             }
 
+            RuntimeTexture texture = ActivePreviewSourceValue.Texture;
+            if (IsTexturePreviewSource()) {
+                LayoutTexturePreview(texture);
+                return;
+            }
+
+            LayoutGenericPreview(texture);
+        }
+
+        /// <summary>
+        /// Lays out a texture preview using the current zoom factor and caption state.
+        /// </summary>
+        /// <param name="texture">Texture currently exposed by the active preview source.</param>
+        void LayoutTexturePreview(RuntimeTexture texture) {
             textureHost.Enabled = true;
+            resolutionLabelHost.Enabled = true;
+
             int2 contentSize = GetContentSize();
-            int availableWidth = contentSize.X;
-            int availableHeight = contentSize.Y;
-            int sourceWidth = Math.Max(1, ActivePreviewSourceValue.Texture.Width);
-            int sourceHeight = Math.Max(1, ActivePreviewSourceValue.Texture.Height);
+            string labelText = BuildResolutionLabelText(texture);
+            int2 labelSize = GetResolutionLabelSize(labelText);
+            resolutionLabelText.Text = labelText;
+            resolutionLabelText.Size = labelSize;
 
-            double widthScale = availableWidth / (double)sourceWidth;
-            double heightScale = availableHeight / (double)sourceHeight;
-            double scale = Math.Min(widthScale, heightScale);
+            int2 textureViewportSize = GetTextureViewportSize(contentSize, labelSize);
+            int2 targetSize = GetTextureDisplaySize(texture, textureViewportSize, TextureZoomScale);
+            float2 centeredPosition = GetCenteredTexturePosition(textureViewportSize, targetSize);
 
-            int targetWidth = Math.Max(1, (int)Math.Round(sourceWidth * scale));
-            int targetHeight = Math.Max(1, (int)Math.Round(sourceHeight * scale));
+            textureHost.Position = new float3(
+                centeredPosition.X + TexturePanOffset.X,
+                centeredPosition.Y + TexturePanOffset.Y,
+                0.2f);
+            textureSprite.Size = targetSize;
+            resolutionLabelHost.Position = new float3(
+                GetContentPaddingPixels() + Math.Max(0, (textureViewportSize.X - labelSize.X) / 2),
+                GetContentPaddingPixels() + textureViewportSize.Y + ResolutionLabelGap,
+                0.2f);
+        }
 
-            int offsetX = GetContentPaddingPixels() + (availableWidth - targetWidth) / 2;
-            int offsetY = GetContentPaddingPixels() + (availableHeight - targetHeight) / 2;
+        /// <summary>
+        /// Lays out a non-texture preview without the resolution caption or zoom offset.
+        /// </summary>
+        /// <param name="texture">Texture currently exposed by the active preview source.</param>
+        void LayoutGenericPreview(RuntimeTexture texture) {
+            textureHost.Enabled = true;
+            resolutionLabelHost.Enabled = false;
+            resolutionLabelText.Text = string.Empty;
+            resolutionLabelText.Size = new int2(1, 1);
 
-            textureHost.Position = new float3(offsetX, offsetY, 0.2f);
-            textureSprite.Size = new int2(targetWidth, targetHeight);
+            int2 contentSize = GetContentSize();
+            int2 targetSize = GetTextureDisplaySize(texture, contentSize, 1d);
+            float2 centeredPosition = GetCenteredTexturePosition(contentSize, targetSize);
+
+            textureHost.Position = new float3(centeredPosition.X, centeredPosition.Y, 0.2f);
+            textureSprite.Size = targetSize;
         }
 
         /// <summary>
@@ -214,6 +303,204 @@ namespace helengine.editor {
             textureSprite.Texture = null;
             textureSprite.Size = new int2(1, 1);
             textureHost.Enabled = false;
+            resolutionLabelHost.Enabled = false;
+            resolutionLabelText.Text = string.Empty;
+            resolutionLabelText.Size = new int2(1, 1);
+        }
+
+        /// <summary>
+        /// Resets the zoom and pan state used exclusively by texture previews.
+        /// </summary>
+        void ResetTexturePreviewLayout() {
+            TextureZoomScale = 1d;
+            TexturePanOffset = new float2(0f, 0f);
+            IsMiddleMouseDragging = false;
+        }
+
+        /// <summary>
+        /// Handles wheel zoom input for the active texture preview.
+        /// </summary>
+        void HandlePreviewWheelInput() {
+            if (!IsTexturePreviewSource() || ActivePreviewSourceValue.Texture == null) {
+                return;
+            }
+
+            InputSystem input = Core.Instance.Input;
+            int wheelDelta = input.GetMouseScrollWheelDelta();
+            if (wheelDelta == 0) {
+                return;
+            }
+
+            int2 pointer = input.GetMousePosition();
+            if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
+                return;
+            }
+
+            if (!IsPointerInsideContent(pointer)) {
+                return;
+            }
+
+            int2 contentSize = GetContentSize();
+            string labelText = BuildResolutionLabelText(ActivePreviewSourceValue.Texture);
+            int2 labelSize = GetResolutionLabelSize(labelText);
+            int2 textureViewportSize = GetTextureViewportSize(contentSize, labelSize);
+            int2 currentSize = textureSprite.Size;
+            if (currentSize.X <= 0 || currentSize.Y <= 0) {
+                return;
+            }
+
+            double zoomNotches = wheelDelta / 120.0d;
+            double nextZoomScale = TextureZoomScale * Math.Pow(ZoomStepFactor, zoomNotches);
+            nextZoomScale = Math.Max(MinimumZoomScale, Math.Min(MaximumZoomScale, nextZoomScale));
+            if (Math.Abs(nextZoomScale - TextureZoomScale) < 0.000001d) {
+                return;
+            }
+
+            float3 contentOrigin = contentRoot.Position;
+            float pointerLocalX = pointer.X - contentOrigin.X;
+            float pointerLocalY = pointer.Y - contentOrigin.Y;
+            float currentLeft = textureHost.LocalPosition.X;
+            float currentTop = textureHost.LocalPosition.Y;
+            double anchorX = (pointerLocalX - currentLeft) / (double)currentSize.X;
+            double anchorY = (pointerLocalY - currentTop) / (double)currentSize.Y;
+
+            TextureZoomScale = nextZoomScale;
+
+            int2 nextSize = GetTextureDisplaySize(ActivePreviewSourceValue.Texture, textureViewportSize, TextureZoomScale);
+            float2 centeredPosition = GetCenteredTexturePosition(textureViewportSize, nextSize);
+            float desiredLeft = pointerLocalX - (float)(anchorX * nextSize.X);
+            float desiredTop = pointerLocalY - (float)(anchorY * nextSize.Y);
+            TexturePanOffset = new float2(desiredLeft - centeredPosition.X, desiredTop - centeredPosition.Y);
+        }
+
+        /// <summary>
+        /// Handles middle-mouse drag input for texture previews.
+        /// </summary>
+        void HandlePreviewPanInput() {
+            if (!IsTexturePreviewSource() || ActivePreviewSourceValue.Texture == null) {
+                IsMiddleMouseDragging = false;
+                return;
+            }
+
+            InputSystem input = Core.Instance.Input;
+            int2 pointer = input.GetMousePosition();
+            if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
+                IsMiddleMouseDragging = false;
+                return;
+            }
+
+            if (input.WasMouseMiddleButtonPressed()) {
+                IsMiddleMouseDragging = IsPointerInsideContent(pointer);
+            }
+
+            if (!IsMiddleMouseDragging) {
+                if (input.GetMouseMiddleButtonState() == ButtonState.Released) {
+                    IsMiddleMouseDragging = false;
+                }
+
+                return;
+            }
+
+            if (input.GetMouseMiddleButtonState() == ButtonState.Released) {
+                IsMiddleMouseDragging = false;
+                return;
+            }
+
+            int2 delta = input.GetMouseDelta();
+            if (delta.X == 0 && delta.Y == 0) {
+                return;
+            }
+
+            TexturePanOffset = new float2(
+                TexturePanOffset.X + delta.X,
+                TexturePanOffset.Y + delta.Y);
+        }
+
+        /// <summary>
+        /// Returns true when the active preview source exposes a texture preview.
+        /// </summary>
+        /// <returns>True when the panel is currently showing a texture preview.</returns>
+        bool IsTexturePreviewSource() {
+            return ActivePreviewSourceValue is TexturePreviewSource;
+        }
+
+        /// <summary>
+        /// Builds the caption text used beneath a texture preview.
+        /// </summary>
+        /// <param name="texture">Texture to describe.</param>
+        /// <returns>Human-readable resolution string.</returns>
+        string BuildResolutionLabelText(RuntimeTexture texture) {
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+
+            return texture.Width + " x " + texture.Height;
+        }
+
+        /// <summary>
+        /// Measures the caption text used beneath a texture preview.
+        /// </summary>
+        /// <param name="labelText">Caption text to measure.</param>
+        /// <returns>Measured label size in pixels.</returns>
+        int2 GetResolutionLabelSize(string labelText) {
+            if (TitleFont == null) {
+                return new int2(1, 1);
+            }
+
+            float2 measured = TitleFont.MeasureString(labelText);
+            int width = Math.Max(1, (int)Math.Ceiling(measured.X));
+            int height = Math.Max(1, (int)Math.Ceiling(TitleFont.LineHeight));
+            return new int2(width, height);
+        }
+
+        /// <summary>
+        /// Computes the usable preview viewport after subtracting the caption space when needed.
+        /// </summary>
+        /// <param name="contentSize">Panel content size available before caption layout.</param>
+        /// <param name="labelSize">Measured caption size.</param>
+        /// <returns>Usable image viewport size in pixels.</returns>
+        int2 GetTextureViewportSize(int2 contentSize, int2 labelSize) {
+            int viewportHeight = contentSize.Y;
+            if (labelSize.Y > 0) {
+                viewportHeight = Math.Max(1, viewportHeight - labelSize.Y - ResolutionLabelGap);
+            }
+
+            return new int2(Math.Max(1, contentSize.X), Math.Max(1, viewportHeight));
+        }
+
+        /// <summary>
+        /// Computes the displayed size of one texture for the supplied viewport and zoom scale.
+        /// </summary>
+        /// <param name="texture">Texture being laid out.</param>
+        /// <param name="viewportSize">Available viewport size in pixels.</param>
+        /// <param name="zoomScale">Additional zoom multiplier to apply.</param>
+        /// <returns>Scaled texture size in pixels.</returns>
+        int2 GetTextureDisplaySize(RuntimeTexture texture, int2 viewportSize, double zoomScale) {
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+
+            int sourceWidth = Math.Max(1, texture.Width);
+            int sourceHeight = Math.Max(1, texture.Height);
+            double widthScale = viewportSize.X / (double)sourceWidth;
+            double heightScale = viewportSize.Y / (double)sourceHeight;
+            double scale = Math.Min(widthScale, heightScale) * zoomScale;
+
+            int targetWidth = Math.Max(1, (int)Math.Round(sourceWidth * scale));
+            int targetHeight = Math.Max(1, (int)Math.Round(sourceHeight * scale));
+            return new int2(targetWidth, targetHeight);
+        }
+
+        /// <summary>
+        /// Computes the top-left position used to center one texture inside a viewport.
+        /// </summary>
+        /// <param name="viewportSize">Available viewport size in pixels.</param>
+        /// <param name="displaySize">Current texture size in pixels.</param>
+        /// <returns>Centered top-left position relative to the preview content root.</returns>
+        float2 GetCenteredTexturePosition(int2 viewportSize, int2 displaySize) {
+            float left = GetContentPaddingPixels() + (viewportSize.X - displaySize.X) * 0.5f;
+            float top = GetContentPaddingPixels() + (viewportSize.Y - displaySize.Y) * 0.5f;
+            return new float2(left, top);
         }
 
         /// <summary>
@@ -232,6 +519,23 @@ namespace helengine.editor {
         /// <returns>Scaled preview content padding in pixels.</returns>
         int GetContentPaddingPixels() {
             return UiMetrics.ScalePixels(ContentPadding);
+        }
+
+        /// <summary>
+        /// Returns true when the pointer lies inside the preview content area below the title bar.
+        /// </summary>
+        /// <param name="pointer">Pointer position in screen coordinates.</param>
+        /// <returns>True when the pointer is inside the preview body.</returns>
+        bool IsPointerInsideContent(int2 pointer) {
+            int panelLeft = (int)Math.Round(Position.X);
+            int panelTop = (int)Math.Round(Position.Y) + TitleBarHeightPixels;
+            int panelWidth = Size.X;
+            int panelHeight = Size.Y;
+
+            return pointer.X >= panelLeft &&
+                   pointer.X < panelLeft + panelWidth &&
+                   pointer.Y >= panelTop &&
+                   pointer.Y < panelTop + panelHeight;
         }
     }
 }
