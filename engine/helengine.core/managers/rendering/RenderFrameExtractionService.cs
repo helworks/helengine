@@ -27,14 +27,20 @@ namespace helengine {
             }
 
             RenderFrameDrawableClassifier classifier = new RenderFrameDrawableClassifier();
-            RenderFrameDrawableSubmission[] drawableSubmissions = new RenderFrameDrawableSubmission[drawables.Count];
+            List<RenderFrameDrawableSubmission> drawableSubmissions = new List<RenderFrameDrawableSubmission>(drawables.Count);
             List<RenderFrameShadowCasterSubmission> shadowCasterSubmissions = new List<RenderFrameShadowCasterSubmission>(drawables.Count);
             for (int drawableIndex = 0; drawableIndex < drawables.Count; drawableIndex++) {
                 IDrawable3D drawable = drawables[drawableIndex];
-                RenderFrameDrawableSubmission submission = classifier.Classify(drawable);
-                drawableSubmissions[drawableIndex] = submission;
-                if (!submission.IsTransparent) {
-                    shadowCasterSubmissions.Add(new RenderFrameShadowCasterSubmission(drawable));
+                RenderFrameDrawableSubmission[] submissions = classifier.Classify(drawable);
+                for (int submissionIndex = 0; submissionIndex < submissions.Length; submissionIndex++) {
+                    RenderFrameDrawableSubmission submission = submissions[submissionIndex];
+                    drawableSubmissions.Add(submission);
+                    if (!submission.IsTransparent) {
+                        shadowCasterSubmissions.Add(new RenderFrameShadowCasterSubmission(
+                            submission.Drawable,
+                            submission.SubmeshIndex,
+                            submission.Material));
+                    }
                 }
             }
 
@@ -48,7 +54,7 @@ namespace helengine {
             for (int index = 0; index < cameras.Count; index++) {
                 frames[index] = new RenderFrame(
                     cameras[index],
-                    drawableSubmissions,
+                    drawableSubmissions.ToArray(),
                     lightSubmissions,
                     shadowCasterSubmissions.ToArray());
             }

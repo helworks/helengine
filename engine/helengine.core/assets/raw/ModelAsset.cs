@@ -27,5 +27,10 @@ namespace helengine {
         /// Index buffer using 32-bit indices.
         /// </summary>
         public uint[] Indices32;
+
+        /// <summary>
+        /// Authored submesh ranges and their material slot names.
+        /// </summary>
+        public ModelSubmeshAsset[] Submeshes;
     }
 }

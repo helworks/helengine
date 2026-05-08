@@ -28,6 +28,7 @@ namespace helengine.editor.assimp {
             float3[] positions = new float3[totalVertices];
             float3[] normals = new float3[totalVertices];
             float2[] texCoords = new float2[totalVertices];
+            List<ModelSubmeshAsset> submeshes = new List<ModelSubmeshAsset>(scene.MeshCount);
             int vertexOffset = 0;
             int indexOffset = 0;
             bool uses32BitIndices = totalVertices > ushort.MaxValue + 1;
@@ -42,11 +43,18 @@ namespace helengine.editor.assimp {
             for (int meshIndex = 0; meshIndex < scene.MeshCount; meshIndex++) {
                 Mesh mesh = scene.Meshes[meshIndex];
                 CopyMeshVertices(mesh, positions, normals, texCoords, vertexOffset);
+                int submeshIndexStart = indexOffset;
                 if (uses32BitIndices) {
                     CopyMeshIndices32(mesh, indices32, vertexOffset, ref indexOffset);
                 } else {
                     CopyMeshIndices16(mesh, indices16, vertexOffset, ref indexOffset);
                 }
+
+                submeshes.Add(new ModelSubmeshAsset {
+                    MaterialSlotName = ResolveMaterialSlotName(scene, mesh, meshIndex),
+                    IndexStart = submeshIndexStart,
+                    IndexCount = indexOffset - submeshIndexStart
+                });
 
                 vertexOffset += mesh.VertexCount;
             }
@@ -56,8 +64,39 @@ namespace helengine.editor.assimp {
                 Normals = normals,
                 TexCoords = texCoords,
                 Indices16 = indices16,
-                Indices32 = indices32
+                Indices32 = indices32,
+                Submeshes = submeshes.ToArray()
             };
+        }
+
+        /// <summary>
+        /// Resolves the stable material slot name associated with one imported mesh.
+        /// </summary>
+        /// <param name="scene">Imported scene that owns the mesh.</param>
+        /// <param name="mesh">Mesh whose material slot should be resolved.</param>
+        /// <param name="meshIndex">Zero-based mesh index used for fallback naming.</param>
+        /// <returns>Stable material slot name for the mesh.</returns>
+        string ResolveMaterialSlotName(Scene scene, Mesh mesh, int meshIndex) {
+            if (scene == null) {
+                throw new ArgumentNullException(nameof(scene));
+            } else if (mesh == null) {
+                throw new ArgumentNullException(nameof(mesh));
+            } else if (meshIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(meshIndex), "Mesh index must be non-negative.");
+            }
+
+            if (mesh.MaterialIndex >= 0 && mesh.MaterialIndex < scene.MaterialCount) {
+                Material material = scene.Materials[mesh.MaterialIndex];
+                if (material != null && !string.IsNullOrWhiteSpace(material.Name)) {
+                    return material.Name;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(mesh.Name)) {
+                return mesh.Name;
+            }
+
+            return string.Concat("Material", meshIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
 
         /// <summary>

@@ -32,6 +32,72 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures one drawable with mixed opaque and transparent submesh materials still plans both forward passes.
+        /// </summary>
+        [Fact]
+        public void RenderCamera_WhenSingleDrawableContainsMixedSubmeshTransparency_BuildsOpaqueTransparentAndPresentPlan() {
+            InitializeCore();
+            RecordingPlannedRenderer renderer = RecordingPlannedRenderer.Create();
+            CameraComponent camera = new CameraComponent();
+            camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
+            camera.RenderQueue3D.Add(new TestDrawable3D(
+                new[] { MaterialBlendMode.Opaque, MaterialBlendMode.AlphaBlend },
+                new[] {
+                    new RuntimeSubmesh {
+                        MaterialSlotName = "Walls",
+                        IndexStart = 0,
+                        IndexCount = 12
+                    },
+                    new RuntimeSubmesh {
+                        MaterialSlotName = "Glass",
+                        IndexStart = 12,
+                        IndexCount = 6
+                    }
+                }));
+
+            renderer.RenderPlannedCamera(new DirectX11SwapChainSurface(), camera);
+
+            Assert.Equal(
+                [
+                    RenderPassKind.OpaqueForward,
+                    RenderPassKind.TransparentForward,
+                    RenderPassKind.Present
+                ],
+                renderer.LastPlannedPasses);
+        }
+
+        /// <summary>
+        /// Ensures the live DirectX11 execution path receives distinct submesh submissions when one drawable mixes opaque and transparent materials.
+        /// </summary>
+        [Fact]
+        public void RenderCamera_WhenSingleDrawableContainsMixedSubmeshTransparency_ExecutesDistinctSubmeshVisits() {
+            InitializeCore();
+            SubmissionRecordingRenderer renderer = SubmissionRecordingRenderer.Create();
+            CameraComponent camera = new CameraComponent();
+            camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
+            camera.RenderQueue3D.Add(new TestDrawable3D(
+                new[] { MaterialBlendMode.Opaque, MaterialBlendMode.AlphaBlend },
+                new[] {
+                    new RuntimeSubmesh {
+                        MaterialSlotName = "Walls",
+                        IndexStart = 0,
+                        IndexCount = 12
+                    },
+                    new RuntimeSubmesh {
+                        MaterialSlotName = "Glass",
+                        IndexStart = 12,
+                        IndexCount = 6
+                    }
+                }));
+
+            renderer.RenderPlannedCamera(new DirectX11SwapChainSurface(), camera);
+
+            Assert.Equal(2, renderer.VisitedSubmeshIndices.Count);
+            Assert.Equal(0, renderer.VisitedSubmeshIndices[0]);
+            Assert.Equal(1, renderer.VisitedSubmeshIndices[1]);
+        }
+
+        /// <summary>
         /// Ensures depth-prepass camera settings affect the live render-plan path before pass execution.
         /// </summary>
         [Fact]
@@ -232,12 +298,39 @@ namespace helengine.editor.tests.rendering {
             /// </summary>
             /// <param name="blendMode">Blend mode exposed by the runtime material.</param>
             public TestDrawable3D(MaterialBlendMode blendMode) {
-                Model = new TestRuntimeModel();
-                RuntimeMaterial material = new RuntimeMaterial();
-                material.SetRenderState(new MaterialRenderState {
-                    BlendMode = blendMode
-                });
+                RuntimeMaterial material = CreateMaterial(blendMode);
+                Model = CreateModelWithSubmeshes(
+                    new[] {
+                        new RuntimeSubmesh {
+                            MaterialSlotName = "Default",
+                            IndexStart = 0,
+                            IndexCount = 3
+                        }
+                    });
+                Materials = new[] { material };
                 Material = material;
+            }
+
+            /// <summary>
+            /// Initializes one test drawable with explicit material slots and submesh ranges.
+            /// </summary>
+            /// <param name="blendModes">Blend modes exposed by the runtime materials.</param>
+            /// <param name="submeshes">Runtime submesh ranges attached to the model.</param>
+            public TestDrawable3D(MaterialBlendMode[] blendModes, RuntimeSubmesh[] submeshes) {
+                if (blendModes == null) {
+                    throw new ArgumentNullException(nameof(blendModes));
+                } else if (submeshes == null) {
+                    throw new ArgumentNullException(nameof(submeshes));
+                }
+
+                RuntimeMaterial[] materials = new RuntimeMaterial[blendModes.Length];
+                for (int materialIndex = 0; materialIndex < blendModes.Length; materialIndex++) {
+                    materials[materialIndex] = CreateMaterial(blendModes[materialIndex]);
+                }
+
+                Model = CreateModelWithSubmeshes(submeshes);
+                Materials = materials;
+                Material = materials.Length == 0 ? null : materials[0];
             }
 
             /// <summary>
@@ -259,6 +352,39 @@ namespace helengine.editor.tests.rendering {
             /// Gets or sets the runtime material.
             /// </summary>
             public RuntimeMaterial Material { get; set; }
+
+            /// <summary>
+            /// Gets the runtime materials bound to each submesh slot.
+            /// </summary>
+            public RuntimeMaterial[] Materials { get; }
+
+            /// <summary>
+            /// Creates one runtime material with the requested blend mode.
+            /// </summary>
+            /// <param name="blendMode">Blend mode assigned to the runtime material.</param>
+            /// <returns>Configured runtime material.</returns>
+            static RuntimeMaterial CreateMaterial(MaterialBlendMode blendMode) {
+                RuntimeMaterial material = new RuntimeMaterial();
+                material.SetRenderState(new MaterialRenderState {
+                    BlendMode = blendMode
+                });
+                return material;
+            }
+
+            /// <summary>
+            /// Creates one runtime model carrying the supplied submesh ranges.
+            /// </summary>
+            /// <param name="submeshes">Runtime submeshes to attach to the model.</param>
+            /// <returns>Configured runtime model.</returns>
+            static RuntimeModel CreateModelWithSubmeshes(RuntimeSubmesh[] submeshes) {
+                if (submeshes == null) {
+                    throw new ArgumentNullException(nameof(submeshes));
+                }
+
+                TestRuntimeModel model = new TestRuntimeModel();
+                model.SetSubmeshes(submeshes);
+                return model;
+            }
         }
 
         /// <summary>
@@ -584,6 +710,74 @@ namespace helengine.editor.tests.rendering {
             /// <returns>Capability profile used to build the test render plan.</returns>
             public override RendererBackendCapabilityProfile GetCapabilityProfile() {
                 return CapabilityProfile;
+            }
+        }
+
+        /// <summary>
+        /// DirectX11-shaped renderer that records the submesh submissions reaching the live geometry execution path.
+        /// </summary>
+        sealed class SubmissionRecordingRenderer : TestDirectX11RenderManager3D {
+            /// <summary>
+            /// Initializes one submission recorder with no captured submesh visits.
+            /// </summary>
+            SubmissionRecordingRenderer() {
+                VisitedSubmeshIndices = new List<int>();
+            }
+
+            /// <summary>
+            /// Gets the zero-based submesh indices visited by the live geometry execution path.
+            /// </summary>
+            public List<int> VisitedSubmeshIndices { get; private set; }
+
+            /// <summary>
+            /// Creates one uninitialized renderer recorder instance.
+            /// </summary>
+            /// <returns>Renderer recorder that executes planned passes without constructing DirectX11.</returns>
+            public static SubmissionRecordingRenderer Create() {
+                SubmissionRecordingRenderer renderer = (SubmissionRecordingRenderer)RuntimeHelpers.GetUninitializedObject(typeof(SubmissionRecordingRenderer));
+                renderer.VisitedSubmeshIndices = new List<int>();
+                return renderer;
+            }
+
+            /// <summary>
+            /// Exposes the protected planned camera path for the test surface and camera.
+            /// </summary>
+            /// <param name="surface">Placeholder output surface.</param>
+            /// <param name="camera">Camera whose render queue should be extracted and executed.</param>
+            public void RenderPlannedCamera(DirectX11SwapChainSurface surface, CameraComponent camera) {
+                RenderCamera(surface, camera);
+            }
+
+            /// <summary>
+            /// Suppresses GPU preparation so the live pass executor can run in a test-only environment.
+            /// </summary>
+            /// <param name="context">Execution context built by the renderer.</param>
+            protected override void PrepareCameraFrame(DirectX11RenderPassExecutionContext context) {
+                if (context == null) {
+                    throw new ArgumentNullException(nameof(context));
+                }
+            }
+
+            /// <summary>
+            /// Records one visited geometry submission instead of issuing GPU commands.
+            /// </summary>
+            /// <param name="submission">Drawable submission reaching the live geometry execution path.</param>
+            protected override void Visit(RenderFrameDrawableSubmission submission) {
+                if (submission == null) {
+                    throw new ArgumentNullException(nameof(submission));
+                }
+
+                VisitedSubmeshIndices.Add(submission.SubmeshIndex);
+            }
+
+            /// <summary>
+            /// Suppresses present execution because the test only inspects geometry-submission routing.
+            /// </summary>
+            /// <param name="context">Execution context for the pass.</param>
+            public override void ExecutePresentPass(DirectX11RenderPassExecutionContext context) {
+                if (context == null) {
+                    throw new ArgumentNullException(nameof(context));
+                }
             }
         }
     }

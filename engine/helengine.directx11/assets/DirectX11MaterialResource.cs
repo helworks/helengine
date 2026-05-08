@@ -17,6 +17,7 @@ namespace helengine.directx11 {
             VertexProgram = string.Empty;
             PixelProgram = string.Empty;
             Variant = string.Empty;
+            CastsShadows = true;
         }
 
         /// <summary>
@@ -42,6 +43,7 @@ namespace helengine.directx11 {
             VertexProgram = vertexProgram ?? string.Empty;
             PixelProgram = pixelProgram ?? string.Empty;
             Variant = variant ?? string.Empty;
+            CastsShadows = true;
         }
 
         /// <summary>
@@ -68,6 +70,11 @@ namespace helengine.directx11 {
         /// Gets the shader variant name used by this material.
         /// </summary>
         public string Variant { get; }
+
+        /// <summary>
+        /// Gets or sets whether geometry using this DirectX11 root material contributes to shadow-map rendering.
+        /// </summary>
+        public bool CastsShadows { get; set; }
 
         /// <summary>
         /// Gets whether this resource uses the compact Windows-forward PBR material path.

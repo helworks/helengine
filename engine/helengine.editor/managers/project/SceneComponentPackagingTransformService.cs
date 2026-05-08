@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Current payload version for serialized mesh component scene records.
         /// </summary>
-        const byte MeshComponentPayloadVersion = 1;
+        const byte MeshComponentPayloadVersion = MeshComponentScenePayloadSerializer.CurrentVersion;
 
         /// <summary>
         /// Current payload version for serialized camera component scene records.
@@ -42,6 +42,11 @@ namespace helengine.editor {
         /// Stable tagged field name used for mesh material-reference persistence.
         /// </summary>
         const string MeshMaterialReferenceFieldName = "MaterialReference";
+
+        /// <summary>
+        /// Stable tagged field name used for mesh material-reference array persistence.
+        /// </summary>
+        const string MeshMaterialReferencesFieldName = "MaterialReferences";
 
         /// <summary>
         /// Stable tagged field name used for mesh render-order persistence.
@@ -789,15 +794,16 @@ namespace helengine.editor {
             ReadMeshComponentRecord(
                 record,
                 out SceneAssetReference modelReference,
-                out SceneAssetReference materialReference,
+                out SceneAssetReference[] materialReferences,
                 out byte renderOrder3D);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(MeshComponentPayloadVersion);
-            WriteOptionalReference(writer, RewriteModelReference(modelReference, buildRootPath));
-            WriteOptionalReference(writer, RewriteMaterialReference(materialReference, buildRootPath));
-            writer.WriteByte(renderOrder3D);
+            MeshComponentScenePayloadSerializer.Write(
+                writer,
+                RewriteModelReference(modelReference, buildRootPath),
+                RewriteMaterialReferences(materialReferences, buildRootPath),
+                renderOrder3D);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = record.ComponentTypeId,
@@ -850,7 +856,7 @@ namespace helengine.editor {
         void ReadMeshComponentRecord(
             SceneComponentAssetRecord record,
             out SceneAssetReference modelReference,
-            out SceneAssetReference materialReference,
+            out SceneAssetReference[] materialReferences,
             out byte renderOrder3D) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
@@ -860,7 +866,7 @@ namespace helengine.editor {
                 ReadTaggedMeshComponentRecord(
                     record,
                     out modelReference,
-                    out materialReference,
+                    out materialReferences,
                     out renderOrder3D);
                 return;
             } catch (EndOfStreamException) {
@@ -870,7 +876,7 @@ namespace helengine.editor {
             ReadLegacyVersionedMeshComponentRecord(
                 record,
                 out modelReference,
-                out materialReference,
+                out materialReferences,
                 out renderOrder3D);
         }
 
@@ -1314,12 +1320,12 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="record">Scene component record to interpret.</param>
         /// <param name="modelReference">Persisted model reference.</param>
-        /// <param name="materialReference">Persisted material reference.</param>
+        /// <param name="materialReferences">Persisted material references ordered by submesh slot.</param>
         /// <param name="renderOrder3D">Persisted render order.</param>
         void ReadTaggedMeshComponentRecord(
             SceneComponentAssetRecord record,
             out SceneAssetReference modelReference,
-            out SceneAssetReference materialReference,
+            out SceneAssetReference[] materialReferences,
             out byte renderOrder3D) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
@@ -1329,7 +1335,7 @@ namespace helengine.editor {
             }
 
             modelReference = null;
-            materialReference = null;
+            materialReferences = Array.Empty<SceneAssetReference>();
             renderOrder3D = 0;
 
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
@@ -1342,7 +1348,16 @@ namespace helengine.editor {
 
             if (reader.TryGetFieldReader(MeshMaterialReferenceFieldName, out EngineBinaryReader materialReferenceReader)) {
                 using (materialReferenceReader) {
-                    materialReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(materialReferenceReader);
+                    SceneAssetReference materialReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(materialReferenceReader);
+                    materialReferences = materialReference == null
+                        ? Array.Empty<SceneAssetReference>()
+                        : new[] { materialReference };
+                }
+            }
+
+            if (reader.TryGetFieldReader(MeshMaterialReferencesFieldName, out EngineBinaryReader materialReferencesReader)) {
+                using (materialReferencesReader) {
+                    materialReferences = SceneComponentBinaryFieldEncoding.ReadOptionalReferenceArray(materialReferencesReader);
                 }
             }
 
@@ -1358,12 +1373,12 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="record">Scene component record to interpret.</param>
         /// <param name="modelReference">Persisted model reference.</param>
-        /// <param name="materialReference">Persisted material reference.</param>
+        /// <param name="materialReferences">Persisted material references ordered by submesh slot.</param>
         /// <param name="renderOrder3D">Persisted render order.</param>
         void ReadLegacyVersionedMeshComponentRecord(
             SceneComponentAssetRecord record,
             out SceneAssetReference modelReference,
-            out SceneAssetReference materialReference,
+            out SceneAssetReference[] materialReferences,
             out byte renderOrder3D) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
@@ -1374,14 +1389,26 @@ namespace helengine.editor {
 
             using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != MeshComponentPayloadVersion) {
-                throw new InvalidOperationException($"Unsupported mesh component payload version '{version}'.");
+            MeshComponentScenePayloadSerializer.Read(reader, out modelReference, out materialReferences, out renderOrder3D);
+        }
+
+        /// <summary>
+        /// Rewrites one ordered material-reference array into packaged file-backed material references.
+        /// </summary>
+        /// <param name="materialReferences">Authored material references ordered by submesh slot.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Packaged material references ordered by submesh slot.</returns>
+        SceneAssetReference[] RewriteMaterialReferences(SceneAssetReference[] materialReferences, string buildRootPath) {
+            if (materialReferences == null) {
+                throw new ArgumentNullException(nameof(materialReferences));
             }
 
-            modelReference = ReadOptionalReference(reader);
-            materialReference = ReadOptionalReference(reader);
-            renderOrder3D = reader.ReadByte();
+            SceneAssetReference[] rewrittenReferences = new SceneAssetReference[materialReferences.Length];
+            for (int materialIndex = 0; materialIndex < materialReferences.Length; materialIndex++) {
+                rewrittenReferences[materialIndex] = RewriteMaterialReference(materialReferences[materialIndex], buildRootPath);
+            }
+
+            return rewrittenReferences;
         }
 
         /// <summary>

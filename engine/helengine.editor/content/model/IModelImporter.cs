@@ -7,7 +7,7 @@ namespace helengine.editor {
         /// Imports a model asset from the given data stream.
         /// </summary>
         /// <param name="stream">Stream containing model data.</param>
-        /// <returns>Loaded <see cref="ModelAsset"/> instance.</returns>
-        ModelAsset ImportModel(Stream stream);
+        /// <returns>Imported model payload together with any generated material assets.</returns>
+        ImportedModelAssetSet ImportModel(Stream stream);
     }
 }

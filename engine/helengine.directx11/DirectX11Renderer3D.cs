@@ -513,6 +513,8 @@ namespace helengine.directx11 {
                 }
             }
 
+            model.SetSubmeshes(ModelSubmeshResolver.BuildRuntimeSubmeshes(data));
+
             return model;
         }
 
@@ -1157,7 +1159,7 @@ namespace helengine.directx11 {
                             continue;
                         }
 
-                        DrawPointShadowCaster(shadowCaster.Drawable, lightViewProjection, pointLight.Parent.Position, pointLight.Range);
+                        DrawPointShadowCaster(shadowCaster, lightViewProjection, pointLight.Parent.Position, pointLight.Range);
                     }
                 }
             }
@@ -1291,7 +1293,7 @@ namespace helengine.directx11 {
                         continue;
                     }
 
-                    DrawShadowCaster(shadowCaster.Drawable, lightViewProjection);
+                    DrawShadowCaster(shadowCaster, lightViewProjection);
                 }
             }
         }
@@ -1299,24 +1301,24 @@ namespace helengine.directx11 {
         /// <summary>
         /// Draws one shadow-caster submission using the current depth-only shadow shader pass.
         /// </summary>
-        /// <param name="drawable">Drawable to render into the shadow atlas.</param>
+        /// <param name="submission">Shadow-caster submission to render into the shadow atlas.</param>
         /// <param name="lightViewProjection">Untransposed light view-projection matrix for the active atlas tile.</param>
-        protected virtual void DrawShadowCaster(IDrawable3D drawable, float4x4 lightViewProjection) {
-            if (drawable?.Parent == null || !drawable.Parent.Enabled) {
+        protected virtual void DrawShadowCaster(RenderFrameShadowCasterSubmission submission, float4x4 lightViewProjection) {
+            if (submission?.Drawable?.Parent == null || !submission.Drawable.Parent.Enabled) {
                 return;
-            } else if (!ShouldMaterialCastShadows(drawable.Material)) {
+            } else if (!ShouldMaterialCastShadows(submission.Material)) {
                 return;
             }
 
             var deviceContext = Device.ImmediateContext;
-            var data = (DirectX11ModelResource)drawable.Model;
+            var data = (DirectX11ModelResource)submission.Drawable.Model;
             deviceContext.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, Utilities.SizeOf<VertexPositionNormalUV>(), 0));
             if (data.IndexBuffer != null && data.IndexCount > 0) {
                 Format indexFormat = data.Uses32BitIndices ? Format.R32_UInt : Format.R16_UInt;
                 deviceContext.InputAssembler.SetIndexBuffer(data.IndexBuffer, indexFormat, 0);
             }
 
-            float4x4 world = BuildDrawableWorldMatrix(drawable);
+            float4x4 world = BuildDrawableWorldMatrix(submission.Drawable);
             float4x4 worldLightViewProjection;
             float4x4.Multiply(ref world, ref lightViewProjection, out worldLightViewProjection);
             float4x4 worldLightViewProjectionTransposed;
@@ -1327,36 +1329,32 @@ namespace helengine.directx11 {
                 color = new float4(0f, 0f, 0f, 0f)
             };
             deviceContext.UpdateSubresource(ref shadowData, customPassConstantBuffer);
-            if (data.IndexBuffer != null && data.IndexCount > 0) {
-                deviceContext.DrawIndexed(data.IndexCount, 0, 0);
-            } else {
-                deviceContext.Draw(data.VertexCount, 0);
-            }
+            DrawSubmesh(data, ResolveSubmesh(data, submission.SubmeshIndex));
         }
 
         /// <summary>
         /// Draws one shadow-caster submission into the active point-shadow cube face.
         /// </summary>
-        /// <param name="drawable">Drawable to render into the active point-shadow cube face.</param>
+        /// <param name="submission">Shadow-caster submission to render into the active point-shadow cube face.</param>
         /// <param name="lightViewProjection">Untransposed point-light view-projection matrix for the active cube face.</param>
         /// <param name="lightPosition">Point-light position in world space.</param>
         /// <param name="lightRange">Point-light effective range.</param>
-        protected virtual void DrawPointShadowCaster(IDrawable3D drawable, float4x4 lightViewProjection, float3 lightPosition, float lightRange) {
-            if (drawable?.Parent == null || !drawable.Parent.Enabled) {
+        protected virtual void DrawPointShadowCaster(RenderFrameShadowCasterSubmission submission, float4x4 lightViewProjection, float3 lightPosition, float lightRange) {
+            if (submission?.Drawable?.Parent == null || !submission.Drawable.Parent.Enabled) {
                 return;
-            } else if (!ShouldMaterialCastShadows(drawable.Material)) {
+            } else if (!ShouldMaterialCastShadows(submission.Material)) {
                 return;
             }
 
             var deviceContext = Device.ImmediateContext;
-            var data = (DirectX11ModelResource)drawable.Model;
+            var data = (DirectX11ModelResource)submission.Drawable.Model;
             deviceContext.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(data.VertexBuffer, Utilities.SizeOf<VertexPositionNormalUV>(), 0));
             if (data.IndexBuffer != null && data.IndexCount > 0) {
                 Format indexFormat = data.Uses32BitIndices ? Format.R32_UInt : Format.R16_UInt;
                 deviceContext.InputAssembler.SetIndexBuffer(data.IndexBuffer, indexFormat, 0);
             }
 
-            float4x4 world = BuildDrawableWorldMatrix(drawable);
+            float4x4 world = BuildDrawableWorldMatrix(submission.Drawable);
             float4x4 worldLightViewProjection;
             float4x4.Multiply(ref world, ref lightViewProjection, out worldLightViewProjection);
             float4x4 worldTransposed;
@@ -1370,11 +1368,7 @@ namespace helengine.directx11 {
                 LightPositionAndRange = new float4(lightPosition.X, lightPosition.Y, lightPosition.Z, lightRange)
             };
             deviceContext.UpdateSubresource(ref shadowData, pointShadowDepthConstantBuffer);
-            if (data.IndexBuffer != null && data.IndexCount > 0) {
-                deviceContext.DrawIndexed(data.IndexCount, 0, 0);
-            } else {
-                deviceContext.Draw(data.VertexCount, 0);
-            }
+            DrawSubmesh(data, ResolveSubmesh(data, submission.SubmeshIndex));
         }
 
         /// <summary>
@@ -1430,7 +1424,7 @@ namespace helengine.directx11 {
                     continue;
                 }
 
-                Visit(submission.Drawable);
+                Visit(submission);
             }
         }
 
@@ -1439,12 +1433,30 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="drawable">Drawable to render.</param>
         public void Visit(IDrawable3D drawable) {
-            if (drawable?.Parent == null || !drawable.Parent.Enabled) {
+            if (drawable == null) {
+                throw new ArgumentNullException(nameof(drawable));
+            }
+
+            Visit(new RenderFrameDrawableSubmission(
+                drawable,
+                0,
+                drawable.Material,
+                false,
+                new RenderFrameBatchingMetadata(false, false, false)));
+        }
+
+        /// <summary>
+        /// Draws one extracted 3D submission encountered during queue traversal.
+        /// </summary>
+        /// <param name="submission">Drawable submission to render.</param>
+        protected virtual void Visit(RenderFrameDrawableSubmission submission) {
+            if (submission?.Drawable?.Parent == null || !submission.Drawable.Parent.Enabled) {
                 return;
             }
 
             var context = Device.ImmediateContext;
-            RuntimeMaterial runtimeMaterial = drawable.Material;
+            IDrawable3D drawable = submission.Drawable;
+            RuntimeMaterial runtimeMaterial = submission.Material;
             if (!isCustomPassActive) {
                 if (runtimeMaterial == null) {
                     DirectX11MaterialResource missingMaterial = GetMissingMaterial();
@@ -1519,10 +1531,52 @@ namespace helengine.directx11 {
                 }
             }
 
-            if (data.IndexBuffer != null && data.IndexCount > 0) {
-                context.DrawIndexed(data.IndexCount, 0, 0);
+            DrawSubmesh(data, ResolveSubmesh(data, submission.SubmeshIndex));
+        }
+
+        /// <summary>
+        /// Resolves one runtime submesh from the supplied model resource.
+        /// </summary>
+        /// <param name="model">Model resource that owns the submesh ranges.</param>
+        /// <param name="submeshIndex">Zero-based submesh index to resolve.</param>
+        /// <returns>Resolved runtime submesh.</returns>
+        protected virtual RuntimeSubmesh ResolveSubmesh(DirectX11ModelResource model, int submeshIndex) {
+            if (model == null) {
+                throw new ArgumentNullException(nameof(model));
+            } else if (submeshIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(submeshIndex), "Submesh index must be non-negative.");
+            }
+
+            if (model.Submeshes != null && submeshIndex < model.Submeshes.Length) {
+                return model.Submeshes[submeshIndex];
+            }
+
+            return new RuntimeSubmesh {
+                MaterialSlotName = string.Empty,
+                IndexStart = 0,
+                IndexCount = model.IndexBuffer != null && model.IndexCount > 0
+                    ? model.IndexCount
+                    : model.VertexCount
+            };
+        }
+
+        /// <summary>
+        /// Draws one resolved submesh from the currently bound model resource.
+        /// </summary>
+        /// <param name="model">Model resource currently bound to the input assembler.</param>
+        /// <param name="submesh">Resolved submesh range to draw.</param>
+        protected virtual void DrawSubmesh(DirectX11ModelResource model, RuntimeSubmesh submesh) {
+            if (model == null) {
+                throw new ArgumentNullException(nameof(model));
+            } else if (submesh == null) {
+                throw new ArgumentNullException(nameof(submesh));
+            }
+
+            var context = Device.ImmediateContext;
+            if (model.IndexBuffer != null && model.IndexCount > 0) {
+                context.DrawIndexed(submesh.IndexCount, submesh.IndexStart, 0);
             } else {
-                context.Draw(data.VertexCount, 0);
+                context.Draw(submesh.IndexCount, submesh.IndexStart);
             }
         }
 

@@ -22,6 +22,9 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
+            if (version == 1) {
+                return LightComponentScenePayloadSerializer.ReadDirectionalLightVersion1(reader);
+            }
             if (version != LightComponentScenePayloadSerializer.CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported directional light payload version '{version}'.");
             }

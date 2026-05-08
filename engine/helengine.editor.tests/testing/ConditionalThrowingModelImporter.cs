@@ -45,8 +45,8 @@ namespace helengine.editor.tests.testing {
         /// Imports one model and throws when the configured marker is present in the source text.
         /// </summary>
         /// <param name="stream">Stream containing source model data.</param>
-        /// <returns>Model asset with deterministic geometry when the import succeeds.</returns>
-        public ModelAsset ImportModel(Stream stream) {
+        /// <returns>Imported model payload with deterministic geometry when the import succeeds.</returns>
+        public ImportedModelAssetSet ImportModel(Stream stream) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }
@@ -60,7 +60,7 @@ namespace helengine.editor.tests.testing {
                 throw new InvalidOperationException(FailureMessage);
             }
 
-            return new ModelAsset {
+            ModelAsset modelAsset = new ModelAsset {
                 Positions = new[] {
                     new float3(0f, 0f, 0f),
                     new float3(1f, 0f, 0f),
@@ -76,8 +76,16 @@ namespace helengine.editor.tests.testing {
                     new float2(1f, 0f),
                     new float2(0f, 1f)
                 },
-                Indices16 = new ushort[] { 0, 1, 2 }
+                Indices16 = new ushort[] { 0, 1, 2 },
+                Submeshes = new[] {
+                    new ModelSubmeshAsset {
+                        IndexStart = 0,
+                        IndexCount = 3,
+                        MaterialSlotName = "Default"
+                    }
+                }
             };
+            return new ImportedModelAssetSet(modelAsset, Array.Empty<ImportedModelMaterialAsset>());
         }
     }
 }

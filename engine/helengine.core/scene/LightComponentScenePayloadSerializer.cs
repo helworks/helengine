@@ -40,6 +40,21 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Reads one legacy directional-light payload that predates the explicit shadow-distance field.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the legacy directional-light payload.</param>
+        /// <returns>Directional light reconstructed from the legacy payload.</returns>
+        public static DirectionalLightComponent ReadDirectionalLightVersion1(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            DirectionalLightComponent lightComponent = new DirectionalLightComponent();
+            ReadCommonLightFields(reader, lightComponent);
+            return lightComponent;
+        }
+
+        /// <summary>
         /// Writes the point-light payload fields into the supplied writer.
         /// </summary>
         /// <param name="writer">Destination writer receiving the payload.</param>
@@ -61,6 +76,22 @@ namespace helengine {
         /// <param name="reader">Source reader positioned at the point-light payload.</param>
         /// <returns>Point light reconstructed from the payload.</returns>
         public static PointLightComponent ReadPointLight(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            PointLightComponent lightComponent = new PointLightComponent();
+            ReadCommonLightFields(reader, lightComponent);
+            lightComponent.Range = reader.ReadSingle();
+            return lightComponent;
+        }
+
+        /// <summary>
+        /// Reads one legacy point-light payload that uses runtime payload version 1.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the legacy point-light payload.</param>
+        /// <returns>Point light reconstructed from the legacy payload.</returns>
+        public static PointLightComponent ReadPointLightVersion1(EngineBinaryReader reader) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -95,6 +126,24 @@ namespace helengine {
         /// <param name="reader">Source reader positioned at the spot-light payload.</param>
         /// <returns>Spot light reconstructed from the payload.</returns>
         public static SpotLightComponent ReadSpotLight(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            SpotLightComponent lightComponent = new SpotLightComponent();
+            ReadCommonLightFields(reader, lightComponent);
+            lightComponent.Range = reader.ReadSingle();
+            lightComponent.InnerConeAngleDegrees = reader.ReadSingle();
+            lightComponent.OuterConeAngleDegrees = reader.ReadSingle();
+            return lightComponent;
+        }
+
+        /// <summary>
+        /// Reads one legacy spot-light payload that uses runtime payload version 1.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the legacy spot-light payload.</param>
+        /// <returns>Spot light reconstructed from the legacy payload.</returns>
+        public static SpotLightComponent ReadSpotLightVersion1(EngineBinaryReader reader) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }

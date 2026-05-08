@@ -14,6 +14,11 @@ namespace helengine.editor {
         const string MaterialReferenceFieldName = "MaterialReference";
 
         /// <summary>
+        /// Stable tagged field name used for mesh material-reference array persistence.
+        /// </summary>
+        const string MaterialReferencesFieldName = "MaterialReferences";
+
+        /// <summary>
         /// Stable save-state slot name used for mesh model references.
         /// </summary>
         const string ModelReferenceName = "Model";
@@ -57,10 +62,11 @@ namespace helengine.editor {
             }
 
             SceneAssetReference modelReference = ResolveRequiredAssetReference(meshComponent.Model, saveState, ModelReferenceName);
-            SceneAssetReference materialReference = ResolveRequiredAssetReference(meshComponent.Material, saveState, MaterialReferenceName);
+            SceneAssetReference[] materialReferences = ResolveMaterialReferences(meshComponent, saveState);
             EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
             writer.WriteField(ModelReferenceFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(fieldWriter, modelReference));
-            writer.WriteField(MaterialReferenceFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(fieldWriter, materialReference));
+            writer.WriteField(MaterialReferenceFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(fieldWriter, materialReferences.Length == 0 ? null : materialReferences[0]));
+            writer.WriteField(MaterialReferencesFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(fieldWriter, materialReferences));
             writer.WriteField(RenderOrder3DFieldName, fieldWriter => fieldWriter.WriteByte(meshComponent.RenderOrder3D));
 
             return new SceneComponentAssetRecord {
@@ -105,17 +111,9 @@ namespace helengine.editor {
                 }
             }
 
-            if (reader.TryGetFieldReader(MaterialReferenceFieldName, out EngineBinaryReader materialReferenceReader)) {
-                using (materialReferenceReader) {
-                    SceneAssetReference materialReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(materialReferenceReader);
-                    if (materialReference != null) {
-                        meshComponent.Material = referenceResolver.ResolveMaterial(materialReference);
-                        if (saveComponent != null) {
-                            saveComponent.SetAssetReference(meshComponent, MaterialReferenceName, materialReference);
-                        }
-                    }
-                }
-            }
+            SceneAssetReference[] materialReferences = ReadMaterialReferences(reader);
+            meshComponent.SetMaterials(ResolveMaterials(materialReferences, referenceResolver));
+            RestoreMaterialReferenceState(saveComponent, meshComponent, materialReferences);
 
             if (reader.TryGetFieldReader(RenderOrder3DFieldName, out EngineBinaryReader renderOrder3DReader)) {
                 using (renderOrder3DReader) {
@@ -142,6 +140,120 @@ namespace helengine.editor {
             }
 
             return reference;
+        }
+
+        /// <summary>
+        /// Resolves the ordered material references required by the current mesh component.
+        /// </summary>
+        /// <param name="meshComponent">Mesh component being serialized.</param>
+        /// <param name="saveState">Editor-time save metadata associated with the component.</param>
+        /// <returns>Ordered material references by submesh slot.</returns>
+        SceneAssetReference[] ResolveMaterialReferences(MeshComponent meshComponent, EntityComponentSaveState saveState) {
+            if (meshComponent == null) {
+                throw new ArgumentNullException(nameof(meshComponent));
+            }
+
+            RuntimeMaterial[] runtimeMaterials = meshComponent.Materials;
+            if (runtimeMaterials.Length == 0) {
+                return Array.Empty<SceneAssetReference>();
+            }
+
+            SceneAssetReference[] references = new SceneAssetReference[runtimeMaterials.Length];
+            for (int materialIndex = 0; materialIndex < runtimeMaterials.Length; materialIndex++) {
+                references[materialIndex] = ResolveRequiredAssetReference(
+                    runtimeMaterials[materialIndex],
+                    saveState,
+                    BuildMaterialReferenceName(materialIndex));
+            }
+
+            return references;
+        }
+
+        /// <summary>
+        /// Reads one ordered material-reference array from the tagged mesh payload, falling back to the legacy single-material field when required.
+        /// </summary>
+        /// <param name="reader">Tagged field reader positioned at the mesh payload.</param>
+        /// <returns>Ordered material references by submesh slot.</returns>
+        static SceneAssetReference[] ReadMaterialReferences(EditorTaggedSceneComponentFieldReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            if (reader.TryGetFieldReader(MaterialReferencesFieldName, out EngineBinaryReader materialReferencesReader)) {
+                using (materialReferencesReader) {
+                    return SceneComponentBinaryFieldEncoding.ReadOptionalReferenceArray(materialReferencesReader);
+                }
+            }
+
+            if (reader.TryGetFieldReader(MaterialReferenceFieldName, out EngineBinaryReader materialReferenceReader)) {
+                using (materialReferenceReader) {
+                    SceneAssetReference materialReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(materialReferenceReader);
+                    return materialReference == null
+                        ? Array.Empty<SceneAssetReference>()
+                        : new[] { materialReference };
+                }
+            }
+
+            return Array.Empty<SceneAssetReference>();
+        }
+
+        /// <summary>
+        /// Resolves one stable save-state material-reference name for the supplied slot index.
+        /// </summary>
+        /// <param name="slotIndex">Zero-based material slot index.</param>
+        /// <returns>Stable save-state reference name.</returns>
+        static string BuildMaterialReferenceName(int slotIndex) {
+            if (slotIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(slotIndex), "Material slot index must be non-negative.");
+            }
+
+            return slotIndex == 0
+                ? MaterialReferenceName
+                : string.Concat(MaterialReferenceName, "[", slotIndex.ToString(), "]");
+        }
+
+        /// <summary>
+        /// Resolves one ordered runtime material array from serialized scene references.
+        /// </summary>
+        /// <param name="references">Serialized scene references ordered by submesh slot.</param>
+        /// <param name="referenceResolver">Resolver used to rebuild runtime materials.</param>
+        /// <returns>Ordered runtime materials by submesh slot.</returns>
+        static RuntimeMaterial[] ResolveMaterials(SceneAssetReference[] references, ISceneAssetReferenceResolver referenceResolver) {
+            if (references == null) {
+                throw new ArgumentNullException(nameof(references));
+            } else if (referenceResolver == null) {
+                throw new ArgumentNullException(nameof(referenceResolver));
+            }
+
+            RuntimeMaterial[] runtimeMaterials = new RuntimeMaterial[references.Length];
+            for (int materialIndex = 0; materialIndex < references.Length; materialIndex++) {
+                if (references[materialIndex] != null) {
+                    runtimeMaterials[materialIndex] = referenceResolver.ResolveMaterial(references[materialIndex]);
+                }
+            }
+
+            return runtimeMaterials;
+        }
+
+        /// <summary>
+        /// Restores one ordered material-reference array into the editor save state for the supplied mesh component.
+        /// </summary>
+        /// <param name="saveComponent">Save component that should receive restored metadata.</param>
+        /// <param name="meshComponent">Mesh component that owns the restored references.</param>
+        /// <param name="references">Serialized scene references ordered by submesh slot.</param>
+        static void RestoreMaterialReferenceState(
+            EntitySaveComponent saveComponent,
+            MeshComponent meshComponent,
+            SceneAssetReference[] references) {
+            if (saveComponent == null || meshComponent == null || references == null) {
+                return;
+            }
+
+            for (int materialIndex = 0; materialIndex < references.Length; materialIndex++) {
+                if (references[materialIndex] != null) {
+                    saveComponent.SetAssetReference(meshComponent, BuildMaterialReferenceName(materialIndex), references[materialIndex]);
+                }
+            }
         }
     }
 }

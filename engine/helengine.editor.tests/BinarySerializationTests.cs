@@ -319,6 +319,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures model assets preserve authored submesh metadata through the HELE asset serializer.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_ModelAssetWithSubmeshes_RoundTrips() {
+            ModelAsset asset = CreateModelAssetWithSubmeshes();
+
+            byte[] data = AssetSerializer.SerializeToBytes(asset);
+            ModelAsset deserialized = (ModelAsset)AssetSerializer.DeserializeFromBytes(data);
+
+            Assert.NotNull(deserialized.Submeshes);
+            Assert.Equal(2, deserialized.Submeshes.Length);
+            Assert.Equal("Body", deserialized.Submeshes[0].MaterialSlotName);
+            Assert.Equal(0, deserialized.Submeshes[0].IndexStart);
+            Assert.Equal(3, deserialized.Submeshes[0].IndexCount);
+            Assert.Equal("Trim", deserialized.Submeshes[1].MaterialSlotName);
+            Assert.Equal(3, deserialized.Submeshes[1].IndexStart);
+            Assert.Equal(3, deserialized.Submeshes[1].IndexCount);
+        }
+
+        /// <summary>
         /// Ensures nested shader assets round-trip through the HELE asset serializer.
         /// </summary>
         [Fact]
@@ -620,6 +640,47 @@ namespace helengine.editor.tests {
                     new float2(2f, 2f)
                 },
                 Indices32 = new uint[] { 0u, 1u, 2u }
+            };
+        }
+
+        /// <summary>
+        /// Creates a representative model asset with authored submesh metadata for serializer testing.
+        /// </summary>
+        /// <returns>Model asset with two authored submeshes.</returns>
+        static ModelAsset CreateModelAssetWithSubmeshes() {
+            return new ModelAsset {
+                Id = "model/submeshes",
+                Positions = new[] {
+                    new float3(0f, 0f, 0f),
+                    new float3(1f, 0f, 0f),
+                    new float3(0f, 1f, 0f),
+                    new float3(1f, 1f, 0f)
+                },
+                Normals = new[] {
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f)
+                },
+                TexCoords = new[] {
+                    new float2(0f, 0f),
+                    new float2(1f, 0f),
+                    new float2(0f, 1f),
+                    new float2(1f, 1f)
+                },
+                Indices16 = new ushort[] { 0, 1, 2, 1, 3, 2 },
+                Submeshes = new[] {
+                    new ModelSubmeshAsset {
+                        MaterialSlotName = "Body",
+                        IndexStart = 0,
+                        IndexCount = 3
+                    },
+                    new ModelSubmeshAsset {
+                        MaterialSlotName = "Trim",
+                        IndexStart = 3,
+                        IndexCount = 3
+                    }
+                }
             };
         }
 

@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>
         /// Current payload version for serialized camera component scene records.
         /// </summary>
-        const byte CurrentVersion = 2;
+        const byte CurrentVersion = 3;
 
         /// <summary>
         /// Stable serialized component id for camera components.
@@ -28,16 +28,22 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1 && version != CurrentVersion) {
+            if (version != 1 && version != 2 && version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
             }
 
             CameraComponent cameraComponent = new CameraComponent {
                 CameraDrawOrder = reader.ReadByte(),
                 LayerMask = reader.ReadUInt16(),
-                Viewport = ReadFloat4(reader),
-                ClearSettings = ReadClearSettings(reader)
+                Viewport = ReadFloat4(reader)
             };
+
+            if (version >= CurrentVersion) {
+                cameraComponent.NearPlaneDistance = reader.ReadSingle();
+                cameraComponent.FarPlaneDistance = reader.ReadSingle();
+            }
+
+            cameraComponent.ClearSettings = ReadClearSettings(reader);
             if (version >= 2) {
                 cameraComponent.RenderSettings = ReadRenderSettings(reader);
             }

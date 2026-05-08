@@ -113,5 +113,72 @@ namespace helengine {
 
             return modelData;
         }
+
+        /// <summary>
+        /// Generates a UV sphere mesh centered at the given position with the specified per-axis scale.
+        /// </summary>
+        /// <param name="position">Sphere center position.</param>
+        /// <param name="scale">Per-axis scale applied to the unit sphere.</param>
+        /// <returns>Generated model asset.</returns>
+        public static ModelAsset GenerateSphereMesh(float3 position, float3 scale) {
+            const int LatitudeSegments = 12;
+            const int LongitudeSegments = 24;
+
+            ModelAsset modelData = new ModelAsset();
+            modelData.Id = new Guid().ToString();
+
+            List<float3> positions = new List<float3>((LatitudeSegments + 1) * (LongitudeSegments + 1));
+            List<float3> normals = new List<float3>((LatitudeSegments + 1) * (LongitudeSegments + 1));
+            List<float2> texCoords = new List<float2>((LatitudeSegments + 1) * (LongitudeSegments + 1));
+            List<ushort> indices = new List<ushort>(LatitudeSegments * LongitudeSegments * 6);
+
+            for (int latitudeIndex = 0; latitudeIndex <= LatitudeSegments; latitudeIndex++) {
+                double latitudeProgress = (double)latitudeIndex / LatitudeSegments;
+                double theta = latitudeProgress * Math.PI;
+                double sinTheta = Math.Sin(theta);
+                double cosTheta = Math.Cos(theta);
+
+                for (int longitudeIndex = 0; longitudeIndex <= LongitudeSegments; longitudeIndex++) {
+                    double longitudeProgress = (double)longitudeIndex / LongitudeSegments;
+                    double phi = longitudeProgress * Math.PI * 2d;
+                    double sinPhi = Math.Sin(phi);
+                    double cosPhi = Math.Cos(phi);
+
+                    float3 normal = new float3(
+                        (float)(sinTheta * cosPhi),
+                        (float)cosTheta,
+                        (float)(sinTheta * sinPhi));
+                    normals.Add(normal);
+                    positions.Add(new float3(
+                        position.X + (normal.X * scale.X),
+                        position.Y + (normal.Y * scale.Y),
+                        position.Z + (normal.Z * scale.Z)));
+                    texCoords.Add(new float2((float)longitudeProgress, 1f - (float)latitudeProgress));
+                }
+            }
+
+            int vertexStride = LongitudeSegments + 1;
+            for (int latitudeIndex = 0; latitudeIndex < LatitudeSegments; latitudeIndex++) {
+                for (int longitudeIndex = 0; longitudeIndex < LongitudeSegments; longitudeIndex++) {
+                    int topLeft = (latitudeIndex * vertexStride) + longitudeIndex;
+                    int bottomLeft = topLeft + vertexStride;
+                    int topRight = topLeft + 1;
+                    int bottomRight = bottomLeft + 1;
+
+                    indices.Add((ushort)topLeft);
+                    indices.Add((ushort)bottomLeft);
+                    indices.Add((ushort)topRight);
+                    indices.Add((ushort)topRight);
+                    indices.Add((ushort)bottomLeft);
+                    indices.Add((ushort)bottomRight);
+                }
+            }
+
+            modelData.Positions = positions.ToArray();
+            modelData.Normals = normals.ToArray();
+            modelData.TexCoords = texCoords.ToArray();
+            modelData.Indices16 = indices.ToArray();
+            return modelData;
+        }
     }
 }

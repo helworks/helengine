@@ -103,6 +103,55 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures importer-generated material assets are written next to the source model using their deterministic relative paths.
+        /// </summary>
+        [Fact]
+        public void ImportModel_WhenImporterReturnsGeneratedMaterials_WritesSiblingHelmatAssets() {
+            string sourcePath = WriteSourceModel("sponza.obj");
+            TestModelImporter modelImporter = new TestModelImporter {
+                GeneratedMaterials = new[] {
+                    CreateGeneratedMaterial("Fabric", "sponza/Fabric.helmat", "Textures/Fabric.png"),
+                    CreateGeneratedMaterial("Wood", "sponza/Wood.helmat", "Textures/Wood.png")
+                }
+            };
+            AssetImportManager manager = CreateManager(modelImporter);
+
+            manager.ImportModel(sourcePath);
+
+            string firstMaterialPath = Path.Combine(AssetsRootPath, "sponza", "Fabric.helmat");
+            string secondMaterialPath = Path.Combine(AssetsRootPath, "sponza", "Wood.helmat");
+            Assert.True(File.Exists(firstMaterialPath));
+            Assert.True(File.Exists(secondMaterialPath));
+            Assert.Equal("Textures/Fabric.png", ReadMaterialAsset(firstMaterialPath).DiffuseTextureAssetId);
+            Assert.Equal("Textures/Wood.png", ReadMaterialAsset(secondMaterialPath).DiffuseTextureAssetId);
+        }
+
+        /// <summary>
+        /// Ensures reimporting a model rewrites previously generated material assets in place.
+        /// </summary>
+        [Fact]
+        public void ImportModel_WhenReimportingGeneratedMaterials_UpdatesExistingHelmatInPlace() {
+            string sourcePath = WriteSourceModel("sponza.obj");
+            TestModelImporter modelImporter = new TestModelImporter {
+                GeneratedMaterials = new[] {
+                    CreateGeneratedMaterial("Fabric", "sponza/Fabric.helmat", "Textures/FabricA.png")
+                }
+            };
+            AssetImportManager manager = CreateManager(modelImporter);
+
+            manager.ImportModel(sourcePath);
+            modelImporter.GeneratedMaterials = new[] {
+                CreateGeneratedMaterial("Fabric", "sponza/Fabric.helmat", "Textures/FabricB.png")
+            };
+
+            manager.ImportModel(sourcePath);
+
+            string materialPath = Path.Combine(AssetsRootPath, "sponza", "Fabric.helmat");
+            Assert.True(File.Exists(materialPath));
+            Assert.Equal("Textures/FabricB.png", ReadMaterialAsset(materialPath).DiffuseTextureAssetId);
+        }
+
+        /// <summary>
         /// Ensures platform-specific model processor settings flip triangle winding during model import.
         /// </summary>
         [Fact]
@@ -353,6 +402,47 @@ namespace helengine.editor.tests {
             string sourcePath = Path.Combine(AssetsRootPath, fileName);
             File.WriteAllText(sourcePath, contents);
             return sourcePath;
+        }
+
+        /// <summary>
+        /// Creates one generated material asset description used by importer-manager tests.
+        /// </summary>
+        /// <param name="materialName">Stable material name.</param>
+        /// <param name="relativePath">Relative path where the generated material should be written.</param>
+        /// <param name="diffuseTextureAssetId">Diffuse texture asset id to serialize.</param>
+        /// <returns>Generated material asset description.</returns>
+        ImportedModelMaterialAsset CreateGeneratedMaterial(string materialName, string relativePath, string diffuseTextureAssetId) {
+            if (string.IsNullOrWhiteSpace(materialName)) {
+                throw new ArgumentException("Material name must be provided.", nameof(materialName));
+            } else if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
+            }
+
+            return new ImportedModelMaterialAsset(
+                materialName,
+                relativePath,
+                new MaterialAsset {
+                    Id = relativePath,
+                    ShaderAssetId = BuiltInMaterialIds.StandardMaterialShaderAssetId,
+                    VertexProgram = "ForwardStandardShader.vs",
+                    PixelProgram = "ForwardStandardShader.ps",
+                    Variant = "default",
+                    DiffuseTextureAssetId = diffuseTextureAssetId
+                });
+        }
+
+        /// <summary>
+        /// Reads one serialized material asset from disk.
+        /// </summary>
+        /// <param name="materialPath">Absolute path to the material asset file.</param>
+        /// <returns>Deserialized material asset.</returns>
+        MaterialAsset ReadMaterialAsset(string materialPath) {
+            if (string.IsNullOrWhiteSpace(materialPath)) {
+                throw new ArgumentException("Material path must be provided.", nameof(materialPath));
+            }
+
+            using FileStream stream = new FileStream(materialPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(stream));
         }
     }
 }

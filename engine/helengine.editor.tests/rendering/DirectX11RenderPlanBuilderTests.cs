@@ -113,6 +113,11 @@ namespace helengine.editor.tests.rendering {
             /// Gets or sets the runtime material used to render this drawable.
             /// </summary>
             public RuntimeMaterial Material { get; set; }
+
+            /// <summary>
+            /// Gets the runtime materials bound to each submesh slot.
+            /// </summary>
+            public RuntimeMaterial[] Materials => Material == null ? Array.Empty<RuntimeMaterial>() : new[] { Material };
         }
     }
 }

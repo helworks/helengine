@@ -115,6 +115,50 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures one drawable with mixed opaque and transparent submesh materials is split into independent render-frame submissions.
+        /// </summary>
+        [Fact]
+        public void Extract_WhenDrawableContainsMixedSubmeshMaterials_SplitsOpaqueAndTransparentSubmissions() {
+            Core core = new Core(new CoreInitializationOptions {
+                RenderList3DInitialCapacity = 4,
+                RenderList2DInitialCapacity = 4
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            CameraComponent camera = new CameraComponent();
+            TestDrawable3D drawable = new TestDrawable3D(
+                new[] { MaterialBlendMode.Opaque, MaterialBlendMode.AlphaBlend },
+                new[] {
+                    new RuntimeSubmesh {
+                        MaterialSlotName = "Walls",
+                        IndexStart = 0,
+                        IndexCount = 12
+                    },
+                    new RuntimeSubmesh {
+                        MaterialSlotName = "Glass",
+                        IndexStart = 12,
+                        IndexCount = 6
+                    }
+                });
+            RenderFrameExtractionService extractionService = new RenderFrameExtractionService();
+
+            RenderFrameExtractionResult result = extractionService.Extract(
+                new[] { camera },
+                new IDrawable3D[] { drawable },
+                Array.Empty<LightComponent>(),
+                new RendererBackendCapabilityProfile(true, false, true, true, 32, 4));
+
+            RenderFrame frame = Assert.Single(result.Frames);
+            Assert.Equal(2, frame.DrawableSubmissions.Count);
+            Assert.Equal(0, frame.DrawableSubmissions[0].SubmeshIndex);
+            Assert.False(frame.DrawableSubmissions[0].IsTransparent);
+            Assert.Equal(1, frame.DrawableSubmissions[1].SubmeshIndex);
+            Assert.True(frame.DrawableSubmissions[1].IsTransparent);
+            RenderFrameShadowCasterSubmission shadowCasterSubmission = Assert.Single(frame.ShadowCasterSubmissions);
+            Assert.Same(drawable, shadowCasterSubmission.Drawable);
+            Assert.Equal(0, shadowCasterSubmission.SubmeshIndex);
+        }
+
+        /// <summary>
         /// Ensures extracted frames include light submissions with stable authored light types and computed relative importance.
         /// </summary>
         [Fact]
@@ -156,12 +200,39 @@ namespace helengine.editor.tests.rendering {
             /// </summary>
             /// <param name="blendMode">Blend mode assigned to the runtime material.</param>
             public TestDrawable3D(MaterialBlendMode blendMode) {
-                Model = new TestRuntimeModel();
-                RuntimeMaterial material = new RuntimeMaterial();
-                material.SetRenderState(new MaterialRenderState {
-                    BlendMode = blendMode
-                });
+                RuntimeMaterial material = CreateMaterial(blendMode);
+                Model = CreateModelWithSubmeshes(
+                    new[] {
+                        new RuntimeSubmesh {
+                            MaterialSlotName = "Default",
+                            IndexStart = 0,
+                            IndexCount = 3
+                        }
+                    });
+                Materials = new[] { material };
                 Material = material;
+            }
+
+            /// <summary>
+            /// Initializes one test drawable with explicit material slots and submesh ranges.
+            /// </summary>
+            /// <param name="blendModes">Blend modes assigned to each runtime material slot.</param>
+            /// <param name="submeshes">Runtime submeshes referenced by the drawable model.</param>
+            public TestDrawable3D(MaterialBlendMode[] blendModes, RuntimeSubmesh[] submeshes) {
+                if (blendModes == null) {
+                    throw new ArgumentNullException(nameof(blendModes));
+                } else if (submeshes == null) {
+                    throw new ArgumentNullException(nameof(submeshes));
+                }
+
+                RuntimeMaterial[] materials = new RuntimeMaterial[blendModes.Length];
+                for (int materialIndex = 0; materialIndex < blendModes.Length; materialIndex++) {
+                    materials[materialIndex] = CreateMaterial(blendModes[materialIndex]);
+                }
+
+                Model = CreateModelWithSubmeshes(submeshes);
+                Materials = materials;
+                Material = materials.Length == 0 ? null : materials[0];
             }
 
             /// <summary>
@@ -183,6 +254,39 @@ namespace helengine.editor.tests.rendering {
             /// Gets or sets the runtime material.
             /// </summary>
             public RuntimeMaterial Material { get; set; }
+
+            /// <summary>
+            /// Gets the runtime materials bound to each submesh slot.
+            /// </summary>
+            public RuntimeMaterial[] Materials { get; }
+
+            /// <summary>
+            /// Creates one runtime material with the requested blend mode.
+            /// </summary>
+            /// <param name="blendMode">Blend mode assigned to the runtime material.</param>
+            /// <returns>Configured runtime material.</returns>
+            static RuntimeMaterial CreateMaterial(MaterialBlendMode blendMode) {
+                RuntimeMaterial material = new RuntimeMaterial();
+                material.SetRenderState(new MaterialRenderState {
+                    BlendMode = blendMode
+                });
+                return material;
+            }
+
+            /// <summary>
+            /// Creates one runtime model carrying the supplied submesh ranges.
+            /// </summary>
+            /// <param name="submeshes">Runtime submeshes to attach to the model.</param>
+            /// <returns>Configured runtime model.</returns>
+            static RuntimeModel CreateModelWithSubmeshes(RuntimeSubmesh[] submeshes) {
+                if (submeshes == null) {
+                    throw new ArgumentNullException(nameof(submeshes));
+                }
+
+                TestRuntimeModel model = new TestRuntimeModel();
+                model.SetSubmeshes(submeshes);
+                return model;
+            }
         }
     }
 }

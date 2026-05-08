@@ -47,6 +47,47 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Writes one ordered optional-reference array into the supplied writer.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the encoded references.</param>
+        /// <param name="references">Ordered references to encode.</param>
+        public static void WriteOptionalReferenceArray(EngineBinaryWriter writer, SceneAssetReference[] references) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            } else if (references == null) {
+                throw new ArgumentNullException(nameof(references));
+            }
+
+            writer.WriteInt32(references.Length);
+            for (int referenceIndex = 0; referenceIndex < references.Length; referenceIndex++) {
+                WriteOptionalReference(writer, references[referenceIndex]);
+            }
+        }
+
+        /// <summary>
+        /// Reads one ordered optional-reference array from the supplied reader.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the encoded reference array.</param>
+        /// <returns>Decoded reference array.</returns>
+        public static SceneAssetReference[] ReadOptionalReferenceArray(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            int referenceCount = reader.ReadInt32();
+            if (referenceCount < 0) {
+                throw new InvalidOperationException("Scene asset reference array counts must be non-negative.");
+            }
+
+            SceneAssetReference[] references = new SceneAssetReference[referenceCount];
+            for (int referenceIndex = 0; referenceIndex < referenceCount; referenceIndex++) {
+                references[referenceIndex] = ReadOptionalReference(reader);
+            }
+
+            return references;
+        }
+
+        /// <summary>
         /// Writes one packed byte4 color into the supplied writer.
         /// </summary>
         /// <param name="writer">Destination writer receiving the color payload.</param>
