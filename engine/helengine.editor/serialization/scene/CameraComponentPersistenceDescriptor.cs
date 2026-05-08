@@ -19,6 +19,16 @@ namespace helengine.editor {
         const string ViewportFieldName = "Viewport";
 
         /// <summary>
+        /// Stable tagged field name used for camera near clip-plane persistence.
+        /// </summary>
+        const string NearPlaneDistanceFieldName = "NearPlaneDistance";
+
+        /// <summary>
+        /// Stable tagged field name used for camera far clip-plane persistence.
+        /// </summary>
+        const string FarPlaneDistanceFieldName = "FarPlaneDistance";
+
+        /// <summary>
         /// Stable tagged field name used for camera clear-settings persistence.
         /// </summary>
         const string ClearSettingsFieldName = "ClearSettings";
@@ -59,6 +69,8 @@ namespace helengine.editor {
             byte cameraDrawOrder = cameraComponent.CameraDrawOrder;
             ushort layerMask = cameraComponent.LayerMask;
             float4 viewport = cameraComponent.Viewport;
+            float nearPlaneDistance = cameraComponent.NearPlaneDistance;
+            float farPlaneDistance = cameraComponent.FarPlaneDistance;
             CameraClearSettings clearSettings = cameraComponent.ClearSettings;
             CameraRenderSettings renderSettings = new CameraRenderSettings(cameraComponent.RenderSettings);
             EditorSceneCameraSuppressionComponent suppressionState = EditorSceneCameraSuppressionService.GetSuppressionState(cameraComponent);
@@ -66,6 +78,8 @@ namespace helengine.editor {
                 cameraDrawOrder = suppressionState.CameraDrawOrder;
                 layerMask = suppressionState.LayerMask;
                 viewport = suppressionState.Viewport;
+                nearPlaneDistance = suppressionState.NearPlaneDistance;
+                farPlaneDistance = suppressionState.FarPlaneDistance;
                 clearSettings = suppressionState.ClearSettings;
                 renderSettings = new CameraRenderSettings(suppressionState.RenderSettings);
             }
@@ -74,6 +88,8 @@ namespace helengine.editor {
             writer.WriteField(CameraDrawOrderFieldName, fieldWriter => fieldWriter.WriteByte(cameraDrawOrder));
             writer.WriteField(LayerMaskFieldName, fieldWriter => fieldWriter.WriteUInt16(layerMask));
             writer.WriteField(ViewportFieldName, fieldWriter => fieldWriter.WriteFloat4(viewport));
+            writer.WriteField(NearPlaneDistanceFieldName, fieldWriter => fieldWriter.WriteSingle(nearPlaneDistance));
+            writer.WriteField(FarPlaneDistanceFieldName, fieldWriter => fieldWriter.WriteSingle(farPlaneDistance));
             writer.WriteField(ClearSettingsFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraClearSettings(fieldWriter, clearSettings));
             writer.WriteField(RenderSettingsFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraRenderSettings(fieldWriter, renderSettings));
 
@@ -120,6 +136,18 @@ namespace helengine.editor {
             if (reader.TryGetFieldReader(ViewportFieldName, out EngineBinaryReader viewportReader)) {
                 using (viewportReader) {
                     cameraComponent.Viewport = viewportReader.ReadFloat4();
+                }
+            }
+
+            if (reader.TryGetFieldReader(NearPlaneDistanceFieldName, out EngineBinaryReader nearPlaneDistanceReader)) {
+                using (nearPlaneDistanceReader) {
+                    cameraComponent.NearPlaneDistance = nearPlaneDistanceReader.ReadSingle();
+                }
+            }
+
+            if (reader.TryGetFieldReader(FarPlaneDistanceFieldName, out EngineBinaryReader farPlaneDistanceReader)) {
+                using (farPlaneDistanceReader) {
+                    cameraComponent.FarPlaneDistance = farPlaneDistanceReader.ReadSingle();
                 }
             }
 

@@ -248,6 +248,22 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
+        /// Ensures the generated baked scene no longer contains the decorative left-side root accent bar.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuSceneIsGenerated_DoesNotBakeRootAccentBarEntity() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            SceneAsset sceneAsset = ReadGeneratedSceneAsset();
+            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
+
+            Assert.DoesNotContain(generatedRoot.Children, child => string.Equals(child.Id, "demo-disc-menu-accent", StringComparison.Ordinal));
+        }
+
+        /// <summary>
         /// Ensures regenerated demo menu panels no longer author the static subtitle entity beneath the heading.
         /// </summary>
         [Fact]
@@ -346,6 +362,33 @@ namespace helengine.editor.tests.tools {
 
             Assert.Contains(itemsViewport.Components, component => string.Equals(component.ComponentTypeId, clipTypeId, StringComparison.Ordinal));
             Assert.Contains(itemsRoot.Components, component => string.Equals(component.ComponentTypeId, scrollTypeId, StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Ensures the scene-select panel shows four full rows and only a partial fifth row so scrolling remains visually obvious.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuSceneIsGenerated_LimitsSceneSelectViewportToFourAndAHalfRows() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            SceneAsset sceneAsset = ReadGeneratedSceneAsset();
+            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            SceneEntityAsset generatedRoot = Assert.Single(menuEntity.Children, entity => entity.Name == DemoMenuLayout.GeneratedRootEntityName);
+            SceneEntityAsset sceneSelectPanel = Assert.Single(generatedRoot.Children, child => string.Equals(child.Id, "panel-scene-select", StringComparison.Ordinal));
+            SceneEntityAsset itemsViewport = Assert.Single(sceneSelectPanel.Children, child => string.Equals(child.Id, "panel-scene-select-items-viewport", StringComparison.Ordinal));
+            SceneEntityAsset itemsRoot = Assert.Single(itemsViewport.Children, child => string.Equals(child.Id, "panel-scene-select-items-root", StringComparison.Ordinal));
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneComponentAssetRecord clipRecord = Assert.Single(itemsViewport.Components);
+            SceneComponentAssetRecord scrollRecord = Assert.Single(itemsRoot.Components);
+
+            ClipRectComponent clipComponent = Assert.IsType<ClipRectComponent>(descriptor.DeserializeComponent(clipRecord, null, new TestSceneAssetReferenceResolver()));
+            ScrollComponent scrollComponent = Assert.IsType<ScrollComponent>(descriptor.DeserializeComponent(scrollRecord, null, new TestSceneAssetReferenceResolver()));
+
+            Assert.Equal(4, scrollComponent.VisibleItemCount);
+            Assert.Equal(DemoMenuLayout.ButtonWidth, clipComponent.Size.X);
+            Assert.Equal(272, clipComponent.Size.Y);
         }
 
         /// <summary>

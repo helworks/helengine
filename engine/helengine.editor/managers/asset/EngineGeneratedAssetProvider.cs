@@ -31,6 +31,12 @@ namespace helengine.editor {
         /// Virtual entry path for the generated plane primitive.
         /// </summary>
         public const string PlaneRelativePath = "Engine/Models/Plane";
+
+        /// <summary>
+        /// Virtual entry path for the generated sphere primitive.
+        /// </summary>
+        public const string SphereRelativePath = "Engine/Models/Sphere";
+
         /// <summary>
         /// Virtual entry path for the generated standard material.
         /// </summary>
@@ -65,6 +71,7 @@ namespace helengine.editor {
             if (string.Equals(relativePath, EngineModelsPath, StringComparison.Ordinal)) {
                 entries.Add(AssetBrowserEntry.CreateGeneratedAsset("Cube", CubeRelativePath, AssetEntryKind.Model, ProviderId, EngineGeneratedModelCache.CubeAssetId));
                 entries.Add(AssetBrowserEntry.CreateGeneratedAsset("Plane", PlaneRelativePath, AssetEntryKind.Model, ProviderId, EngineGeneratedModelCache.PlaneAssetId));
+                entries.Add(AssetBrowserEntry.CreateGeneratedAsset("Sphere", SphereRelativePath, AssetEntryKind.Model, ProviderId, EngineGeneratedModelCache.SphereAssetId));
                 return;
             }
 

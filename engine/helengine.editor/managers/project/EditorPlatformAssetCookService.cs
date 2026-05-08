@@ -188,13 +188,7 @@ namespace helengine.editor {
         }
 
         static string BuildCookedSceneRelativePath(string sceneId, int sceneIndex) {
-            if (sceneIndex == 0) {
-                return EditorPlatformBuildScenePackager.MainSceneRelativePath;
-            }
-
-            string normalizedSceneId = NormalizeRelativePath(sceneId);
-            string changedExtensionPath = Path.ChangeExtension(normalizedSceneId, ".hasset");
-            return NormalizeRelativePath(Path.Combine("scenes", changedExtensionPath));
+            return PackagedScenePathResolver.BuildRelativePath(sceneId, sceneIndex);
         }
 
         static string ResolveArtifactKind(string relativePath) {

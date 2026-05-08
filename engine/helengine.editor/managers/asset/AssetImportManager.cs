@@ -743,12 +743,15 @@ namespace helengine.editor {
             bool settingsFileExists = File.Exists(settingsPath);
             AssetImportSettings settings = null;
             bool loadedFromDisk = settingsFileExists && TryLoadImportSettings(settingsPath, out settings);
+            bool repaired = false;
             if (!loadedFromDisk) {
                 settings = CreateDefaultSettings(sourcePath);
+            } else {
+                repaired = RepairLoadedImportSettings(sourcePath, settings);
             }
 
             UpdateSettingsChecksum(settings, sourcePath);
-            if (settingsFileExists && !loadedFromDisk) {
+            if (settingsFileExists && (!loadedFromDisk || repaired)) {
                 SaveImportSettings(sourcePath, settings);
             }
 
@@ -1226,7 +1229,11 @@ namespace helengine.editor {
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
             if (settingsFileExists && TryLoadImportSettings(settingsPath, out settings)) {
+                bool repaired = RepairLoadedImportSettings(sourcePath, settings);
                 UpdateSettingsChecksum(settings, sourcePath);
+                if (repaired) {
+                    SaveImportSettings(sourcePath, settings);
+                }
                 return true;
             }
 
@@ -1239,6 +1246,47 @@ namespace helengine.editor {
                 SaveImportSettings(sourcePath, settings);
             }
 
+            return true;
+        }
+
+        /// <summary>
+        /// Repairs loaded import settings when the importer id is missing or no longer valid for the source extension.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Loaded settings that may need importer normalization.</param>
+        /// <returns>True when the importer id was replaced with the registered default importer.</returns>
+        bool RepairLoadedImportSettings(string sourcePath, AssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string extension = Path.GetExtension(sourcePath);
+            IReadOnlyList<string> importerIds = GetImporterIdsForExtension(extension);
+            if (importerIds.Count == 0) {
+                return false;
+            }
+
+            string currentImporterId = string.Empty;
+            if (settings.Importer != null) {
+                currentImporterId = settings.Importer.ImporterId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(currentImporterId)) {
+                for (int index = 0; index < importerIds.Count; index++) {
+                    if (string.Equals(importerIds[index], currentImporterId, StringComparison.OrdinalIgnoreCase)) {
+                        return false;
+                    }
+                }
+            }
+
+            string defaultImporterId = ResolveDefaultImporter(extension);
+            if (settings.Importer == null) {
+                settings.Importer = new AssetImporterSettings();
+            }
+
+            settings.Importer.ImporterId = defaultImporterId;
             return true;
         }
 

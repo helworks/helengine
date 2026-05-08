@@ -325,7 +325,7 @@ namespace helengine.demo_disc_scene_writer {
                         "scene-select",
                         "Select Scene",
                         "Every entry here is explicitly curated and ordered from city-side code.",
-                        7,
+                        4,
                         CreateSceneSelectItems()),
                     new MenuPanelDefinition(
                         "options",
@@ -498,7 +498,7 @@ namespace helengine.demo_disc_scene_writer {
             builder.AppendLine("                        \"scene-select\",");
             builder.AppendLine("                        \"Select Scene\",");
             builder.AppendLine("                        \"Every entry here is explicitly curated and ordered from city-side code.\",");
-            builder.AppendLine("                        7,");
+            builder.AppendLine("                        4,");
             builder.AppendLine("                        sceneCatalog.CreateSceneItems()),");
             builder.AppendLine("                    new MenuPanelDefinition(");
             builder.AppendLine("                        \"options\",");

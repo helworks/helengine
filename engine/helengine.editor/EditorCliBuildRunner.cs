@@ -40,47 +40,85 @@ namespace helengine.editor {
             }
 
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(options.ProjectPath);
-            EditorBuildConfigDocument buildConfig = bootstrap.BuildConfigService.TryLoadExisting();
-            if (buildConfig == null) {
-                return EditorBuildExecutionResult.Failure($"No existing build settings were found for project '{bootstrap.ProjectDisplayName}'. Open the editor and configure a build first.");
+            EditorBuildExecutionResult scriptLoadResult = BuildAndLoadProjectScripts(
+                bootstrap,
+                out EditorGameScriptAssemblyHost assemblyHost,
+                out EditorGameScriptHotReloadService hotReloadService);
+            using (assemblyHost)
+            using (hotReloadService) {
+                if (!scriptLoadResult.Succeeded) {
+                    return scriptLoadResult;
+                }
+
+                EditorBuildConfigDocument buildConfig = bootstrap.BuildConfigService.TryLoadExisting();
+                if (buildConfig == null) {
+                    return EditorBuildExecutionResult.Failure($"No existing build settings were found for project '{bootstrap.ProjectDisplayName}'. Open the editor and configure a build first.");
+                }
+
+                EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(buildConfig, options.PlatformId);
+                if (platformConfig == null) {
+                    return EditorBuildExecutionResult.Failure($"No build settings exist for platform '{options.PlatformId}'.");
+                }
+
+                EditorPlatformBuildSelectionModel selectionModel;
+                try {
+                    selectionModel = bootstrap.ResolveSelectionModel(options.PlatformId);
+                } catch (Exception ex) {
+                    return EditorBuildExecutionResult.Failure($"Platform '{options.PlatformId}' could not load its builder metadata: {ex.Message}");
+                }
+
+                EditorBuildQueueItemFactory queueItemFactory = new EditorBuildQueueItemFactory(bootstrap.SceneCatalogService);
+                EditorBuildQueueItemDocument queueItem = queueItemFactory.Create(platformConfig, selectionModel, options.OutputDirectoryPath);
+                AvailablePlatformDescriptor platformDescriptor;
+                try {
+                    platformDescriptor = bootstrap.ResolvePlatformDescriptor(options.PlatformId);
+                } catch (Exception ex) {
+                    return EditorBuildExecutionResult.Failure(ex.Message);
+                }
+
+                EditorPlatformBuildExecutor executor = new EditorPlatformBuildExecutor(
+                    bootstrap.ProjectRootPath,
+                    bootstrap.RequiredEngineVersion,
+                    bootstrap.ProjectName,
+                    bootstrap.ProjectVersion,
+                    Importers,
+                    platformDescriptor,
+                    DefaultFontAsset,
+                    null,
+                    assemblyHost.ScriptTypeResolver);
+
+                EditorBuildExecutionResult result = executor.Execute(queueItem);
+                if (result.Succeeded && options.UseCommonOutputDirectory) {
+                    return EditorBuildExecutionResult.Success($"{result.Message} Full graph common-output mode was requested.");
+                }
+
+                return result;
+            }
+        }
+
+        /// <summary>
+        /// Generates, builds, and loads the current project's script libraries for headless build execution.
+        /// </summary>
+        /// <param name="bootstrap">Bootstrap context for the active project.</param>
+        /// <param name="assemblyHost">Loaded script assembly host when initialization succeeds.</param>
+        /// <param name="hotReloadService">Hot-reload service that owns the loaded project libraries.</param>
+        /// <returns>Structured result describing whether project libraries loaded successfully.</returns>
+        EditorBuildExecutionResult BuildAndLoadProjectScripts(
+            EditorProjectBootstrapContext bootstrap,
+            out EditorGameScriptAssemblyHost assemblyHost,
+            out EditorGameScriptHotReloadService hotReloadService) {
+            if (bootstrap == null) {
+                throw new ArgumentNullException(nameof(bootstrap));
             }
 
-            EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(buildConfig, options.PlatformId);
-            if (platformConfig == null) {
-                return EditorBuildExecutionResult.Failure($"No build settings exist for platform '{options.PlatformId}'.");
-            }
-
-            EditorPlatformBuildSelectionModel selectionModel;
-            try {
-                selectionModel = bootstrap.ResolveSelectionModel(options.PlatformId);
-            } catch (Exception ex) {
-                return EditorBuildExecutionResult.Failure($"Platform '{options.PlatformId}' could not load its builder metadata: {ex.Message}");
-            }
-
-            EditorBuildQueueItemFactory queueItemFactory = new EditorBuildQueueItemFactory(bootstrap.SceneCatalogService);
-            EditorBuildQueueItemDocument queueItem = queueItemFactory.Create(platformConfig, selectionModel, options.OutputDirectoryPath);
-            AvailablePlatformDescriptor platformDescriptor;
-            try {
-                platformDescriptor = bootstrap.ResolvePlatformDescriptor(options.PlatformId);
-            } catch (Exception ex) {
-                return EditorBuildExecutionResult.Failure(ex.Message);
-            }
-
-            EditorPlatformBuildExecutor executor = new EditorPlatformBuildExecutor(
+            EditorGameSolutionService solutionService = new EditorGameSolutionService(
                 bootstrap.ProjectRootPath,
-                bootstrap.RequiredEngineVersion,
                 bootstrap.ProjectName,
-                bootstrap.ProjectVersion,
-                Importers,
-                platformDescriptor,
-                DefaultFontAsset);
-
-            EditorBuildExecutionResult result = executor.Execute(queueItem);
-            if (result.Succeeded && options.UseCommonOutputDirectory) {
-                return EditorBuildExecutionResult.Success($"{result.Message} Full graph common-output mode was requested.");
-            }
-
-            return result;
+                new EditorVisualStudioLauncher());
+            EditorDotNetScriptBuildTool buildTool = new EditorDotNetScriptBuildTool();
+            assemblyHost = new EditorGameScriptAssemblyHost(bootstrap.ProjectRootPath);
+            hotReloadService = new EditorGameScriptHotReloadService(solutionService, buildTool, assemblyHost);
+            return hotReloadService.BuildAndReload();
         }
 
         /// <summary>

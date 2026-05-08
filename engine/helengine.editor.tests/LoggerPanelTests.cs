@@ -84,6 +84,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures clicking a live logger row through its interactable selects that row.
+        /// </summary>
+        [Fact]
+        public void LoggerRowInteractable_WhenClicked_SelectsTheClickedRow() {
+            LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
+
+            try {
+                List<LoggerPanelRow> rows = GetPrivateField<List<LoggerPanelRow>>(panel, "rows");
+
+                rows[2].Interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Press);
+                rows[2].Interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Release);
+
+                Assert.Equal(2, GetPrivateField<int>(panel, "FocusedRowIndex"));
+                Assert.Equal(2, GetPrivateField<int>(panel, "AnchorRowIndex"));
+                Assert.Equal(new[] { 2 }, GetPrivateField<HashSet<int>>(panel, "SelectedRowIndices").OrderBy(value => value));
+            } finally {
+                panel.Detach();
+            }
+        }
+
+        /// <summary>
         /// Ensures a control-click toggles the clicked row while preserving the existing selection set.
         /// </summary>
         [Fact]

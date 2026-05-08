@@ -13,7 +13,7 @@ namespace helengine.editor.app {
         /// <returns>Default importer registrations.</returns>
         public static IReadOnlyList<IAssetImporterRegistration> CreateDefault() {
             string[] textExtensions = new[] { ".txt" };
-            string[] modelExtensions = new[] { ".fbx", ".obj", ".gltf", ".glb", ".dae", ".3ds" };
+            string[] modelExtensions = new[] { ".fbx", ".obj", ".gltf", ".glb", ".dae", ".3ds", ".x" };
             string[] fontExtensions = new[] { ".ttf", ".otf" };
             List<IAssetImporterRegistration> registrations = new List<IAssetImporterRegistration>(EditorHostTextureImporterFactory.CreateDefault());
             registrations.AddRange(new IAssetImporterRegistration[] {

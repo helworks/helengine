@@ -101,6 +101,10 @@ namespace helengine.editor {
         /// Tracks whether the logger focus target is currently active.
         /// </summary>
         bool IsKeyboardFocused;
+        /// <summary>
+        /// Index of the row currently pressed by pointer input.
+        /// </summary>
+        int PressedRowIndex;
 
         /// <summary>
         /// Initializes a new logger panel with the provided font.
@@ -136,6 +140,7 @@ namespace helengine.editor {
             FocusedRowIndex = -1;
             AnchorRowIndex = -1;
             FirstVisibleRowIndex = 0;
+            PressedRowIndex = -1;
             RowContextMenuItems = new List<ContextMenuItem> {
                 new ContextMenuItem("Copy", HandleCopyContextMenuRequested)
             };
@@ -315,7 +320,10 @@ namespace helengine.editor {
 
             contentRoot.AddChild(rowEntity);
 
-            return new LoggerPanelRow(rowEntity, background, labelHost, text, interactable);
+            LoggerPanelRow row = new LoggerPanelRow(rowEntity, background, labelHost, text, interactable);
+            interactable.CursorEvent += (position, delta, state) => HandleRowCursor(row, state);
+
+            return row;
         }
 
         /// <summary>
@@ -339,11 +347,13 @@ namespace helengine.editor {
                 LoggerPanelRow row = rows[i];
                 if (i >= entries.Count) {
                     row.Entity.Enabled = false;
+                    row.RowIndex = -1;
                     continue;
                 }
 
                 LogEntry entry = entries[i];
                 row.Entity.Enabled = true;
+                row.RowIndex = i;
                 row.Entity.Position = new float3(0, i * GetRowHeightPixels(), 0.1f);
                 row.Background.Size = new int2(rowWidth, GetRowHeightPixels());
                 row.Interactable.Size = new int2(rowWidth, GetRowHeightPixels());
@@ -397,6 +407,42 @@ namespace helengine.editor {
             }
 
             return ThemeManager.Colors.InputForegroundPrimary;
+        }
+
+        /// <summary>
+        /// Routes row interactable pointer input into the shared logger selection behavior.
+        /// </summary>
+        /// <param name="row">Row receiving the pointer interaction.</param>
+        /// <param name="state">Pointer interaction state emitted by the row interactable.</param>
+        void HandleRowCursor(LoggerPanelRow row, PointerInteraction state) {
+            if (row == null || row.RowIndex < 0 || row.RowIndex >= entries.Count) {
+                return;
+            }
+
+            if (state == PointerInteraction.Press) {
+                PressedRowIndex = row.RowIndex;
+                return;
+            }
+
+            if (state == PointerInteraction.Leave) {
+                if (PressedRowIndex == row.RowIndex) {
+                    PressedRowIndex = -1;
+                }
+
+                return;
+            }
+
+            if (state != PointerInteraction.Release || PressedRowIndex != row.RowIndex) {
+                return;
+            }
+
+            PressedRowIndex = -1;
+
+            InputSystem input = Core.Instance.Input;
+            bool isShiftPressed = input.IsKeyDown(Keys.LeftShift) || input.IsKeyDown(Keys.RightShift);
+            bool isControlPressed = input.IsKeyDown(Keys.LeftControl) || input.IsKeyDown(Keys.RightControl);
+            HandleRowPressed(row.RowIndex, isControlPressed, isShiftPressed);
+            LayoutRows();
         }
 
         /// <summary>

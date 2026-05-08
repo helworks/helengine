@@ -4,6 +4,11 @@ namespace helengine {
     /// </summary>
     public static class LightComponentScenePayloadSerializer {
         /// <summary>
+        /// Legacy payload version used by the first packaged runtime light format.
+        /// </summary>
+        public const byte LegacyVersion = 1;
+
+        /// <summary>
         /// Current payload version shared by all serialized light component records.
         /// </summary>
         public const byte CurrentVersion = 2;
@@ -29,13 +34,28 @@ namespace helengine {
         /// <param name="reader">Source reader positioned at the directional-light payload.</param>
         /// <returns>Directional light reconstructed from the payload.</returns>
         public static DirectionalLightComponent ReadDirectionalLight(EngineBinaryReader reader) {
+            return ReadDirectionalLight(reader, CurrentVersion);
+        }
+
+        /// <summary>
+        /// Reads the directional-light payload fields for one specific packaged light payload version.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the directional-light payload.</param>
+        /// <param name="version">Packaged payload version that should drive compatibility behavior.</param>
+        /// <returns>Directional light reconstructed from the payload.</returns>
+        public static DirectionalLightComponent ReadDirectionalLight(EngineBinaryReader reader, byte version) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
+            }
+            if (version != LegacyVersion && version != CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported directional light payload version '{version}'.");
             }
 
             DirectionalLightComponent lightComponent = new DirectionalLightComponent();
             ReadCommonLightFields(reader, lightComponent);
-            lightComponent.ShadowDistance = reader.ReadSingle();
+            if (version >= CurrentVersion) {
+                lightComponent.ShadowDistance = reader.ReadSingle();
+            }
             return lightComponent;
         }
 
@@ -61,8 +81,21 @@ namespace helengine {
         /// <param name="reader">Source reader positioned at the point-light payload.</param>
         /// <returns>Point light reconstructed from the payload.</returns>
         public static PointLightComponent ReadPointLight(EngineBinaryReader reader) {
+            return ReadPointLight(reader, CurrentVersion);
+        }
+
+        /// <summary>
+        /// Reads the point-light payload fields for one specific packaged light payload version.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the point-light payload.</param>
+        /// <param name="version">Packaged payload version that should drive compatibility behavior.</param>
+        /// <returns>Point light reconstructed from the payload.</returns>
+        public static PointLightComponent ReadPointLight(EngineBinaryReader reader, byte version) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
+            }
+            if (version != LegacyVersion && version != CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported point light payload version '{version}'.");
             }
 
             PointLightComponent lightComponent = new PointLightComponent();
@@ -95,8 +128,21 @@ namespace helengine {
         /// <param name="reader">Source reader positioned at the spot-light payload.</param>
         /// <returns>Spot light reconstructed from the payload.</returns>
         public static SpotLightComponent ReadSpotLight(EngineBinaryReader reader) {
+            return ReadSpotLight(reader, CurrentVersion);
+        }
+
+        /// <summary>
+        /// Reads the spot-light payload fields for one specific packaged light payload version.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the spot-light payload.</param>
+        /// <param name="version">Packaged payload version that should drive compatibility behavior.</param>
+        /// <returns>Spot light reconstructed from the payload.</returns>
+        public static SpotLightComponent ReadSpotLight(EngineBinaryReader reader, byte version) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
+            }
+            if (version != LegacyVersion && version != CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported spot light payload version '{version}'.");
             }
 
             SpotLightComponent lightComponent = new SpotLightComponent();

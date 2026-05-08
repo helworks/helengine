@@ -391,13 +391,14 @@ namespace helengine {
                 string resolvedScenePath = ResolveSceneContentPath(scenePath);
                 SceneAsset sceneAsset = Core.Instance.ContentManager.Load<SceneAsset>(resolvedScenePath, RuntimeContentProcessorIds.SceneAsset);
                 Core.Instance.SceneLoadService.Load(sceneAsset);
+                if (Parent != null) {
+                    Parent.Enabled = false;
+                }
             } else if (Core.Instance.SceneManager == null) {
                 throw new InvalidOperationException("Core scene manager must be initialized before runtime menu scene loading can occur.");
             } else {
                 Core.Instance.SceneManager.LoadScene(scenePath, SceneLoadMode.Single);
             }
-
-            Parent.Enabled = false;
         }
 
         /// <summary>

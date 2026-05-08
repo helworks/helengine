@@ -183,7 +183,6 @@ namespace helengine.editor {
         SceneEntityAsset BuildGeneratedRootEntityAsset(MenuDefinition definition) {
             List<SceneEntityAsset> children = new List<SceneEntityAsset>();
             children.Add(BuildBackgroundEntityAsset("demo-disc-menu-background", new float3(0f, 0f, 0f), new int2(DemoMenuLayout.CanvasWidth, DemoMenuLayout.CanvasHeight), 0f, 0f, definition.BackgroundColor, definition.BackgroundColor, 10));
-            children.Add(BuildBackgroundEntityAsset("demo-disc-menu-accent", new float3(72f, 64f, 0f), new int2(18, 520), 9f, 0f, definition.AccentSecondaryColor, definition.AccentSecondaryColor, 20));
             if (!string.IsNullOrWhiteSpace(definition.Title)) {
                 children.Add(BuildTextEntityAsset("demo-disc-menu-title", new float3(96f, 56f, 0.1f), definition.Title, definition.TitleFontPath, definition.TextColor, new int2(600, 64), 40));
             }
@@ -402,6 +401,10 @@ namespace helengine.editor {
             int visibleItemCount = ResolveVisibleItemCount(panelDefinition);
             int viewportHeight = (visibleItemCount * DemoMenuLayout.ButtonHeight)
                 + ((visibleItemCount - 1) * DemoMenuLayout.ButtonSpacing);
+            if (string.Equals(panelDefinition.PanelId, "scene-select", StringComparison.Ordinal)) {
+                viewportHeight += DemoMenuLayout.ButtonSpacing + (DemoMenuLayout.ButtonHeight / 2);
+            }
+
             return new int2(DemoMenuLayout.ButtonWidth, viewportHeight);
         }
 

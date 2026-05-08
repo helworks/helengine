@@ -55,6 +55,7 @@ namespace helengine {
         /// </summary>
         public bool SupportsEmissive { get; set; }
 
+
         /// <summary>
         /// Gets the parent material whose layout, render state, and default values are inherited by this material.
         /// </summary>

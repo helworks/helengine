@@ -22,11 +22,12 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != LightComponentScenePayloadSerializer.CurrentVersion) {
+            if (version != LightComponentScenePayloadSerializer.LegacyVersion
+                && version != LightComponentScenePayloadSerializer.CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported directional light payload version '{version}'.");
             }
 
-            return LightComponentScenePayloadSerializer.ReadDirectionalLight(reader);
+            return LightComponentScenePayloadSerializer.ReadDirectionalLight(reader, version);
         }
     }
 }

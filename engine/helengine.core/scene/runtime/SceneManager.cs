@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Tracks loaded built scenes and raises lifecycle events without owning scene memory teardown.
+    /// Tracks loaded built scenes, loads packaged payloads, and tears down runtime scene entities during unload.
     /// </summary>
     public sealed class SceneManager {
         /// <summary>
@@ -19,6 +19,11 @@ namespace helengine {
         readonly RuntimeSceneLoadService SceneLoadService;
 
         /// <summary>
+        /// Object manager that owns live runtime entities and allows teardown of untracked startup roots.
+        /// </summary>
+        readonly ObjectManager ObjectManager;
+
+        /// <summary>
         /// Loaded scene records preserved in load order.
         /// </summary>
         readonly List<LoadedSceneRecord> LoadedSceneRecords;
@@ -34,10 +39,12 @@ namespace helengine {
         /// <param name="sceneCatalog">Catalog used to resolve built scenes by stable identifier.</param>
         /// <param name="contentManager">Runtime content manager used to read cooked scene payloads.</param>
         /// <param name="sceneLoadService">Runtime service used to materialize scene entities.</param>
-        public SceneManager(RuntimeSceneCatalog sceneCatalog, ContentManager contentManager, RuntimeSceneLoadService sceneLoadService) {
+        /// <param name="objectManager">Object manager that owns live runtime entities.</param>
+        public SceneManager(RuntimeSceneCatalog sceneCatalog, ContentManager contentManager, RuntimeSceneLoadService sceneLoadService, ObjectManager objectManager) {
             SceneCatalog = sceneCatalog ?? throw new ArgumentNullException(nameof(sceneCatalog));
             ContentManager = contentManager ?? throw new ArgumentNullException(nameof(contentManager));
             SceneLoadService = sceneLoadService ?? throw new ArgumentNullException(nameof(sceneLoadService));
+            ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             LoadedSceneRecords = new List<LoadedSceneRecord>();
             LoadedSceneRecordsById = new Dictionary<string, LoadedSceneRecord>(StringComparer.OrdinalIgnoreCase);
         }
@@ -53,7 +60,7 @@ namespace helengine {
         public event Action<SceneManager, SceneLoadedEventArgs> SceneLoaded;
 
         /// <summary>
-        /// Raised before one tracked scene record is removed so the player can destroy its memory.
+        /// Raised before one tracked scene record is removed so listeners can react while its runtime entities still exist.
         /// </summary>
         public event Action<SceneManager, SceneUnloadingEventArgs> SceneUnloading;
 
@@ -84,7 +91,11 @@ namespace helengine {
             }
 
             if (loadMode == SceneLoadMode.Single) {
-                UnloadAllScenes();
+                if (LoadedSceneRecords.Count == 0) {
+                    DisposeUntrackedRootEntities();
+                } else {
+                    UnloadAllScenes();
+                }
             }
 
             SceneLoading?.Invoke(this, new SceneLoadingEventArgs(entry.SceneId, entry.CookedRelativePath));
@@ -115,6 +126,7 @@ namespace helengine {
                 loadedSceneRecord.SceneId,
                 loadedSceneRecord.CookedRelativePath,
                 loadedSceneRecord.RootEntities));
+            DisposeSceneRoots(loadedSceneRecord.RootEntities);
             LoadedSceneRecordsById.Remove(loadedSceneRecord.SceneId);
             LoadedSceneRecords.Remove(loadedSceneRecord);
             SceneUnloaded?.Invoke(this, new SceneUnloadedEventArgs(
@@ -155,6 +167,37 @@ namespace helengine {
         void UnloadAllScenes() {
             while (LoadedSceneRecords.Count > 0) {
                 UnloadScene(LoadedSceneRecords[0].SceneId);
+            }
+        }
+
+        /// <summary>
+        /// Disposes every root entity that belongs to one loaded runtime scene.
+        /// </summary>
+        /// <param name="rootEntities">Root entities that should be torn down.</param>
+        void DisposeSceneRoots(IReadOnlyList<Entity> rootEntities) {
+            if (rootEntities == null) {
+                throw new ArgumentNullException(nameof(rootEntities));
+            }
+
+            for (int index = rootEntities.Count - 1; index >= 0; index--) {
+                rootEntities[index].Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Disposes live root entities that exist before any built scene has been tracked, such as startup scenes loaded directly by the host.
+        /// </summary>
+        void DisposeUntrackedRootEntities() {
+            List<Entity> rootEntities = new List<Entity>();
+            for (int index = 0; index < ObjectManager.Entities.Count; index++) {
+                Entity entity = ObjectManager.Entities[index];
+                if (entity.Parent == null) {
+                    rootEntities.Add(entity);
+                }
+            }
+
+            for (int index = rootEntities.Count - 1; index >= 0; index--) {
+                rootEntities[index].Dispose();
             }
         }
     }

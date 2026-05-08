@@ -122,6 +122,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures loaded texture settings with a missing importer id are repaired to the registered default importer.
+        /// </summary>
+        [Fact]
+        public void TryLoadOrCreateImportSettings_WhenTextureSettingsMissImporterId_RewritesDefaultImporter() {
+            string sourcePath = WriteSourceTexture("missing-importer.tga");
+            string settingsPath = sourcePath + ".hasset";
+            AssetImportManager manager = CreateTgaManager();
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            settings.Importer.ImporterId = string.Empty;
+            manager.SaveImportSettings(sourcePath, settings);
+
+            AssetImportSettings loadedSettings;
+            bool loaded = manager.TryLoadOrCreateImportSettings(sourcePath, out loadedSettings);
+
+            Assert.True(loaded);
+            Assert.Equal("pfim", loadedSettings.Importer.ImporterId);
+            using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                AssetImportSettings savedSettings = AssetImportSettingsBinarySerializer.Deserialize(stream);
+                Assert.Equal("pfim", savedSettings.Importer.ImporterId);
+            }
+        }
+
+        /// <summary>
         /// Ensures multiple texture importers can register the same file extension while preserving the first importer as the default.
         /// </summary>
         [Fact]
@@ -219,6 +242,18 @@ namespace helengine.editor.tests {
             ContentManager contentManager = new ContentManager(AssetsRootPath);
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
             manager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
+            return manager;
+        }
+
+        /// <summary>
+        /// Creates an import manager with the texture importers required for .tga default selection tests.
+        /// </summary>
+        /// <returns>Configured asset import manager for .tga texture coverage.</returns>
+        AssetImportManager CreateTgaManager() {
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterTextureImporter(new TextureImporterRegistration("pfim", new ConfigurableTextureImporter(new byte[] { 1, 2, 3, 4 }), new[] { ".tga" }));
+            manager.RegisterTextureImporter(new TextureImporterRegistration("magick", new ConfigurableTextureImporter(new byte[] { 9, 8, 7, 6 }), new[] { ".tga" }));
             return manager;
         }
 

@@ -14,6 +14,11 @@ namespace helengine.editor {
         public const string PlaneAssetId = "engine:model:plane";
 
         /// <summary>
+        /// Stable generated asset identifier for the built-in sphere primitive.
+        /// </summary>
+        public const string SphereAssetId = "engine:model:sphere";
+
+        /// <summary>
         /// Cached runtime models keyed by stable generated asset identifier.
         /// </summary>
         static readonly Dictionary<string, RuntimeModel> RuntimeModels = new Dictionary<string, RuntimeModel>(StringComparer.Ordinal);
@@ -65,6 +70,10 @@ namespace helengine.editor {
 
             if (string.Equals(assetId, PlaneAssetId, StringComparison.Ordinal)) {
                 return ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One);
+            }
+
+            if (string.Equals(assetId, SphereAssetId, StringComparison.Ordinal)) {
+                return ModelUtils.GenerateSphereMesh(float3.Zero, float3.One);
             }
 
             throw new InvalidOperationException($"Generated engine model '{assetId}' is not registered.");

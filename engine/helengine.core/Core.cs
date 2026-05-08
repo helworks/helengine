@@ -374,13 +374,31 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(contentManager));
             }
 
-            string runtimeSceneCatalogPath = Path.Combine(InitializationOptions.ContentRootPath, "runtime-scene-catalog.json");
-            if (!File.Exists(runtimeSceneCatalogPath)) {
+            string runtimeSceneCatalogPath = ResolveRuntimeSceneCatalogPath();
+            if (string.IsNullOrWhiteSpace(runtimeSceneCatalogPath)) {
                 return null;
             }
 
             RuntimeSceneCatalog runtimeSceneCatalog = RuntimeSceneCatalog.ReadFromFile(runtimeSceneCatalogPath);
-            return new SceneManager(runtimeSceneCatalog, contentManager, SceneLoadService);
+            return new SceneManager(runtimeSceneCatalog, contentManager, SceneLoadService, ObjectManager);
+        }
+
+        /// <summary>
+        /// Resolves the runtime scene-catalog path from the active content root using the supported packaged output layouts.
+        /// </summary>
+        /// <returns>Absolute scene-catalog path when one exists; otherwise an empty string.</returns>
+        string ResolveRuntimeSceneCatalogPath() {
+            string rootCatalogPath = Path.Combine(InitializationOptions.ContentRootPath, "runtime-scene-catalog.json");
+            if (File.Exists(rootCatalogPath)) {
+                return rootCatalogPath;
+            }
+
+            string cookedCatalogPath = Path.Combine(InitializationOptions.ContentRootPath, "cooked", "runtime-scene-catalog.json");
+            if (File.Exists(cookedCatalogPath)) {
+                return cookedCatalogPath;
+            }
+
+            return string.Empty;
         }
 
         /// <summary>

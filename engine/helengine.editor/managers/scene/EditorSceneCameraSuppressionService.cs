@@ -24,6 +24,8 @@ namespace helengine.editor {
                     cameraComponent.CameraDrawOrder,
                     cameraComponent.LayerMask,
                     cameraComponent.Viewport,
+                    cameraComponent.NearPlaneDistance,
+                    cameraComponent.FarPlaneDistance,
                     cameraComponent.ClearSettings,
                     cameraComponent.RenderSettings);
                 entity.AddComponent(suppressionComponent);
@@ -82,6 +84,14 @@ namespace helengine.editor {
                 value = suppressionState.Viewport;
                 return true;
             }
+            if (string.Equals(propertyName, nameof(CameraComponent.NearPlaneDistance), StringComparison.Ordinal)) {
+                value = suppressionState.NearPlaneDistance;
+                return true;
+            }
+            if (string.Equals(propertyName, nameof(CameraComponent.FarPlaneDistance), StringComparison.Ordinal)) {
+                value = suppressionState.FarPlaneDistance;
+                return true;
+            }
             if (string.Equals(propertyName, nameof(CameraComponent.ClearSettings), StringComparison.Ordinal)) {
                 value = suppressionState.ClearSettings;
                 return true;
@@ -125,6 +135,14 @@ namespace helengine.editor {
             }
             if (string.Equals(propertyName, nameof(CameraComponent.Viewport), StringComparison.Ordinal)) {
                 suppressionState.Viewport = (float4)value;
+                return true;
+            }
+            if (string.Equals(propertyName, nameof(CameraComponent.NearPlaneDistance), StringComparison.Ordinal)) {
+                suppressionState.NearPlaneDistance = (float)value;
+                return true;
+            }
+            if (string.Equals(propertyName, nameof(CameraComponent.FarPlaneDistance), StringComparison.Ordinal)) {
+                suppressionState.FarPlaneDistance = (float)value;
                 return true;
             }
             if (string.Equals(propertyName, nameof(CameraComponent.ClearSettings), StringComparison.Ordinal)) {

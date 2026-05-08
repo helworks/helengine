@@ -701,6 +701,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Clears the dialog backdrop state immediately after a dialog becomes hidden so modal input capture does not persist until the next layout pass.
+        /// </summary>
+        protected void HideDialogImmediately() {
+            ClearDialogBackdrop();
+        }
+
+        /// <summary>
         /// Updates the cached host size using safe minimum dimensions.
         /// </summary>
         /// <param name="width">Current host width.</param>

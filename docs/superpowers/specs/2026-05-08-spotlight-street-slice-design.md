@@ -26,14 +26,14 @@ This should feel like a small real scene, not a debug rig, while still making li
 
 ## Asset Use
 
-The scene should use the existing city project Riemers content:
+The scene should use the existing city project Riemers content for the imported geometry:
 
 - `assets/models/Riemers/lamppost.x`
 - `assets/models/Riemers/racer.x`
-- the existing Riemers texture assets already authored beside those models
-- a textured street surface using the existing Riemers street texture assets
 
-The implementation should prefer file-backed scene asset references for the Riemers content instead of generated primitives wherever the authored assets already exist.
+The implementation should prefer file-backed scene asset references for the Riemers models instead of generated primitives wherever the authored assets already exist.
+
+For this pass, the scene should stay on the current standard material path rather than expanding the renderer/material system just to bind authored albedo textures. The existing Riemers texture files should remain available for later material-system work, but they are not a blocker for the spotlight scene composition pass.
 
 ## Lighting
 
@@ -87,6 +87,6 @@ The second scene should be authored as its own canonical scene asset rather than
 The city rendering scene generator should now produce:
 
 1. the existing directional-light city-block scene
-2. a new spotlight-focused street slice using the Riemers lamppost and racer assets
+2. a new spotlight-focused street slice using the Riemers lamppost and racer models with the existing standard material path
 
 Together, these form the first two canonical rendering showcase scenes for the demo flow.

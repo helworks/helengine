@@ -17,6 +17,7 @@ namespace helengine.editor {
             LabelHost = labelHost;
             Label = label;
             Interactable = interactable;
+            RowIndex = -1;
         }
 
         /// <summary>
@@ -43,5 +44,10 @@ namespace helengine.editor {
         /// Gets the interactable region used for pointer input.
         /// </summary>
         public InteractableComponent Interactable { get; }
+
+        /// <summary>
+        /// Gets or sets the current entry index displayed by this row.
+        /// </summary>
+        public int RowIndex { get; set; }
     }
 }

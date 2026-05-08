@@ -296,6 +296,7 @@ namespace helengine.editor {
             ResetDialogPositioning();
             ResetActivationTracking();
             Enabled = false;
+            HideDialogImmediately();
             ClearSelection();
             HideRows();
         }
@@ -471,7 +472,7 @@ namespace helengine.editor {
                 }
                 row.Item = new ContextMenuItem(descriptor.DisplayName, () => { }, null, false);
                 row.BaseColor = descriptor == SelectedDescriptor ? ThemeManager.Colors.AccentPrimary : rowIndex % 2 == 1 ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
-                row.HoverColor = ThemeManager.Colors.AccentSecondary;
+                row.HoverColor = descriptor == SelectedDescriptor ? ThemeManager.Colors.AccentPrimary : ThemeManager.Colors.AccentSecondary;
                 row.PressedColor = ThemeManager.Colors.AccentPrimary;
                 row.Entity.Position = new float3(0f, rowIndex * rowStride, 0.1f);
                 row.Background.Size = new int2(contentWidth, RowHeight);
@@ -740,8 +741,10 @@ namespace helengine.editor {
 
                 if (row == SelectedRow) {
                     row.BaseColor = ThemeManager.Colors.AccentPrimary;
+                    row.HoverColor = ThemeManager.Colors.AccentPrimary;
                 } else {
                     row.BaseColor = i % 2 == 1 ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
+                    row.HoverColor = ThemeManager.Colors.AccentSecondary;
                 }
 
                 row.UpdateBackground();

@@ -37,6 +37,10 @@ namespace helengine.editor {
         /// </summary>
         readonly ContextMenu FileTemplateMenu;
         /// <summary>
+        /// Opens the current asset folder in the system file explorer.
+        /// </summary>
+        readonly Action<string> OpenFolderAction;
+        /// <summary>
         /// Menu items used to create assets.
         /// </summary>
         readonly List<ContextMenuItem> CreateAssetItems;
@@ -64,7 +68,7 @@ namespace helengine.editor {
         /// <param name="font">Font used for labels.</param>
         /// <param name="projectPath">Path to the project root.</param>
         public AssetBrowserPanel(FontAsset font, string projectPath)
-            : this(font, projectPath, EditorUiMetrics.Default) {
+            : this(font, projectPath, EditorUiMetrics.Default, OpenFolderInExplorer) {
         }
 
         /// <summary>
@@ -73,10 +77,26 @@ namespace helengine.editor {
         /// <param name="font">Font used for labels.</param>
         /// <param name="projectPath">Path to the project root.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar and browser content.</param>
-        public AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics) : base(font, metrics) {
+        public AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics)
+            : this(font, projectPath, metrics, OpenFolderInExplorer) {
+        }
+
+        /// <summary>
+        /// Initializes a new asset browser panel for the provided project path using the supplied folder launcher.
+        /// </summary>
+        /// <param name="font">Font used for labels.</param>
+        /// <param name="projectPath">Path to the project root.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar and browser content.</param>
+        /// <param name="openFolderAction">Callback used when the user chooses to open the current folder in Explorer.</param>
+        public AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics, Action<string> openFolderAction) : base(font, metrics) {
+            if (openFolderAction == null) {
+                throw new ArgumentNullException(nameof(openFolderAction));
+            }
+
             Font = font;
             Title = "Assets";
             MinSize = new int2(UiMetrics.ScalePixels(260), UiMetrics.ScalePixels(180));
+            OpenFolderAction = openFolderAction;
 
             byte toolbarOrder = RenderOrder2D.PanelSurface;
             byte rowBackgroundOrder = RenderOrder2D.PanelSurface;
@@ -114,7 +134,8 @@ namespace helengine.editor {
 
             CreateAssetItems = new List<ContextMenuItem> {
                 new ContextMenuItem("New File", ShowFileTemplateMenu, ShowFileTemplateMenu, false),
-                new ContextMenuItem("New Folder", CreateFolder, HideFileTemplateMenu, true)
+                new ContextMenuItem("New Folder", CreateFolder, HideFileTemplateMenu, true),
+                new ContextMenuItem("Show in Explorer", ShowCurrentDirectoryInExplorer)
             };
             FileTemplateItems = new List<ContextMenuItem>(4);
 
@@ -258,6 +279,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Opens the current writable asset folder in the system file explorer.
+        /// </summary>
+        void ShowCurrentDirectoryInExplorer() {
+            string directory = BrowserView.CurrentDirectoryPath;
+            if (string.IsNullOrWhiteSpace(directory)) {
+                throw new InvalidOperationException("Asset directory could not be resolved.");
+            }
+
+            OpenFolderAction(directory);
+        }
+
+        /// <summary>
         /// Shows the file template menu anchored to the last context menu position.
         /// </summary>
         void ShowFileTemplateMenu() {
@@ -349,6 +382,28 @@ namespace helengine.editor {
                    pointer.X < right &&
                    pointer.Y >= top &&
                    pointer.Y < bottom;
+        }
+
+        /// <summary>
+        /// Opens one folder path in Windows Explorer.
+        /// </summary>
+        /// <param name="folderPath">Absolute folder path to reveal.</param>
+        static void OpenFolderInExplorer(string folderPath) {
+            if (string.IsNullOrWhiteSpace(folderPath)) {
+                throw new ArgumentException("Folder path must be provided.", nameof(folderPath));
+            }
+
+            string fullFolderPath = Path.GetFullPath(folderPath);
+            System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo {
+                FileName = "explorer.exe",
+                Arguments = "\"" + fullFolderPath + "\"",
+                UseShellExecute = false
+            };
+
+            using System.Diagnostics.Process process = System.Diagnostics.Process.Start(startInfo);
+            if (process == null) {
+                throw new InvalidOperationException($"Failed to open '{fullFolderPath}' in Explorer.");
+            }
         }
     }
 }

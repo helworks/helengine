@@ -1,44 +1,61 @@
 ## Summary
 
-Add editor-only per-entity platform overrides for scenes.
+Add editor-only per-entity platform overrides for scenes using per-platform sidecar scene files.
 
-Each entity keeps one shared base definition and may optionally define sparse overrides for specific supported platforms. The Properties panel exposes `Base` plus one tab per supported project platform. The entity name stays shared and editable only on `Base`. All other entity-local state may vary by platform:
+Each authored scene keeps:
+
+- one base scene file: `scene.helen`
+- zero or more platform sidecars: `scene.windows.helen`, `scene.ps2.helen`
+
+The base file owns the shared entity tree, names, and default entity state. Sidecars own only per-platform entity-local overrides keyed by stable entity id. The Properties panel exposes `Base` plus one tab per supported project platform. The entity name stays shared and editable only on `Base`. Everything else about that entity may vary by platform:
 
 - enabled or disabled
+- transform values
 - component membership
 - component settings
 
-Overrides are resolved during packaging. Runtime players receive only the final flattened target-platform scene and do not load or understand platform-override metadata.
+The editor loads the base scene plus every discovered sidecar when a scene opens. Packaging resolves `base + target platform sidecar` into one flattened runtime scene. Runtime players do not load or understand sidecar metadata.
 
 ## Goals
 
-- Let one scene author different entity behavior and composition per target platform.
-- Keep shared edits flowing from a base entity definition unless a platform explicitly diverges.
+- Reduce git conflicts by separating shared scene edits from platform-specific edits.
+- Let one base scene author different entity behavior and composition per target platform.
+- Keep shared edits flowing from the base scene unless a platform explicitly diverges.
 - Keep hierarchy ownership local to each entity instead of letting parents remove children per platform.
-- Make the system editor-only and packaging-resolved so runtime players stay simple.
+- Keep the system editor-only and packaging-resolved so runtime players stay simple.
 - Add a `Copy From Platform...` workflow for fast override authoring.
 
 ## Non-Goals
 
 - No runtime system for interpreting platform overrides.
+- No full independent per-platform scene copies.
 - No parent-level child removal or child list mutation by platform.
-- No per-property diff encoding in the first slice.
 - No per-platform entity renaming.
 - No packaging of disabled platform entities as dormant runtime records.
 
 ## User Model
 
-Each entity has:
+Users author one base scene and optional sidecars.
 
-- one shared base state
-- zero or more platform override records keyed by platform id
+Base:
+
+- `scene.helen`
+- owns the shared entity tree
+- owns shared entity names
+- owns the default entity transforms, components, and values
+
+Platform sidecars:
+
+- `scene.windows.helen`
+- `scene.ps2.helen`
+- store only entity-local overrides keyed by stable base entity id
 
 Users edit the selected entity through platform tabs in the Properties panel:
 
-- `Base` edits shared state
-- `Windows`, `PS2`, and other supported platforms edit that entity's override for that platform
+- `Base` edits shared scene state from `scene.helen`
+- `Windows`, `PS2`, and other supported platforms edit that entity's sidecar override state
 
-If a platform tab has no explicit override yet, the entity inherits from `Base`. The first platform-specific change materializes an override for that entity.
+If a platform tab has no explicit override yet, the entity inherits from `Base`. The first platform-specific change materializes a sidecar override for that entity and platform.
 
 The entity name is always shared:
 
@@ -47,54 +64,91 @@ The entity name is always shared:
 
 To remove a child entity on one platform, the user selects that child and disables it on that platform. The parent entity never owns per-platform child removal.
 
-## Data Model
+## File Model
 
-### Scene-Level Storage
+### Base Scene File
 
-Scene files persist:
+`scene.helen` persists:
 
-- base scene entity tree
-- editor-only per-platform override metadata for entities
+- scene id
+- scene settings
+- shared root entity tree
+- stable entity ids
+- shared component payloads
+- shared asset references
 
-Platform override metadata is authoring data only. It must not be emitted into packaged runtime scenes.
+### Platform Sidecar Files
 
-### Entity-Level Storage
+`scene.<platform>.helen` persists:
 
-Each entity gains editor-side platform override storage with this conceptual shape:
+- target platform id
+- overrides keyed by stable entity id from the base scene
 
-- `PlatformOverrides`
-  - keyed by stable platform id
-  - value is one entity override record
-
-Each entity override record contains only entity-local state:
+Each sidecar override contains only entity-local platform state:
 
 - optional enabled-state override
-- platform component removals
-- platform component additions
-- platform component payload overrides
+- optional local transform override
+- component removals
+- component additions
+- full component payload overrides
 
-### Component Override Shape
+Sidecars must not own:
 
-The first slice stores full component payload overrides, not fine-grained per-property deltas.
+- entity names
+- parent-child hierarchy
+- independent root entity trees
 
-That means:
+## Data Model
 
-- if a component is overridden on one platform, the override stores one full serialized component payload for that platform
-- if a component remains inherited, no platform payload is stored
+### Live Editor Model
 
-This keeps serialization, copying, and packaging much simpler than per-property patch records.
+Each `EditorEntity` already owns an `EntitySaveComponent`. That hidden editor-only component is the correct live seam for platform override metadata.
+
+The live editor entity remains the base/shared entity state.
+
+`EntitySaveComponent` should gain editor-only platform override storage keyed by platform id.
+
+### Serialized Base Scene Model
+
+`SceneEntityAsset` stays focused on the shared entity definition:
+
+- `Id`
+- `Name`
+- local transform
+- base components
+- children
+
+The base scene file should not embed platform override data.
+
+### Serialized Sidecar Model
+
+Introduce a dedicated platform-sidecar asset model that stores:
+
+- sidecar platform id
+- entity override records keyed by entity id
+
+Each entity override record contains:
+
+- entity id
+- optional enabled override
+- optional local transform override
+- component removals
+- component additions
+- full component payload overrides
+
+The first slice stores full component payload overrides, not fine-grained per-property diffs.
 
 ## Resolution Model
 
 To resolve one entity for target platform `P`:
 
-1. Start from the base entity state.
-2. If override `P` exists, apply the entity enabled-state override.
-3. Apply component removals from override `P`.
-4. Apply component additions from override `P`.
-5. Apply full component payload overrides from override `P` to the resulting component set.
-
-The resolved entity for packaging is therefore one normal flattened entity definition.
+1. Start from the base entity state in `scene.helen`.
+2. Look up override record `P` for that entity id in `scene.P.helen`.
+3. Apply entity enabled override if present.
+4. Apply local transform override if present.
+5. Apply component removals.
+6. Apply component additions.
+7. Apply full component payload overrides to the resulting component set.
 
 Important rules:
 
@@ -117,6 +171,7 @@ The name row is always present, but:
 After the name row, all entity-local properties become platform-sensitive:
 
 - enabled toggle
+- transform rows
 - component list
 - add component
 - remove component
@@ -124,8 +179,8 @@ After the name row, all entity-local properties become platform-sensitive:
 
 Platform tab behavior:
 
-- inherited values are shown when no explicit platform override exists
-- the first edit materializes the override for that entity and platform
+- inherited values are shown when no explicit sidecar override exists
+- the first edit materializes the sidecar override for that entity and platform
 - removed components disappear from that platform tab
 - platform-added components appear only on that platform tab
 
@@ -141,7 +196,30 @@ Rules:
 - copy replaces the current target platform override for that entity
 - copy is explicit and coarse, not field-by-field merge magic
 
-This gives users a fast way to start from another resolved platform shape and then refine.
+## Scene Open And Save Behavior
+
+### Open
+
+Opening `scene.helen` should:
+
+1. load the base scene
+2. discover every matching `scene.<platform>.helen` sidecar
+3. load all valid sidecars immediately
+4. attach their override data to the loaded editor entities by stable entity id
+
+The editor should not require reopening the scene when switching tabs.
+
+### Save
+
+Saving should be split by edit scope:
+
+- editing `Base` writes only `scene.helen`
+- editing `Windows` writes only `scene.windows.helen`
+- editing `PS2` writes only `scene.ps2.helen`
+
+Base save must not rewrite unrelated sidecars except where stable entity id maintenance requires cleanup.
+
+If a base entity is removed, orphaned sidecar overrides for that entity id should be removed or flagged clearly on the next save.
 
 ## Packaging Behavior
 
@@ -149,10 +227,12 @@ Platform overrides are resolved entirely in the editor build pipeline.
 
 For target platform `P`:
 
-- the scene packager resolves each entity against `P`
-- entities disabled for `P` are omitted from the packaged scene
-- enabled entities are emitted with their resolved final component set and final component payloads
-- runtime output contains no platform override metadata
+- load `scene.helen`
+- load `scene.P.helen` when present
+- resolve each entity against `P`
+- omit entities disabled for `P`
+- emit enabled entities with their resolved final transform, component set, and component payloads
+- write one normal packaged runtime scene with no sidecar metadata
 
 This applies to every packaged target, including native players.
 
@@ -161,7 +241,7 @@ This applies to every packaged target, including native players.
 Runtime players stay unchanged conceptually:
 
 - they load one normal packaged scene
-- they do not know platform overrides exist
+- they do not know sidecars exist
 - they never evaluate platform tabs or inheritance rules
 
 This keeps runtime memory, code complexity, and native codegen scope low.
@@ -172,8 +252,8 @@ This keeps runtime memory, code complexity, and native codegen scope low.
 
 Scene authoring serialization must preserve:
 
-- base entity definition
-- editor-only per-platform entity override records
+- base scene in `scene.helen`
+- per-platform override sidecars in `scene.<platform>.helen`
 
 Packaged scene serialization must preserve only:
 
@@ -181,10 +261,10 @@ Packaged scene serialization must preserve only:
 
 ### Entity Editing
 
-The properties system needs a platform-aware entity editing context so component add/remove/property edit commands know whether they are editing:
+The properties system needs a platform-aware entity editing context so transform edits, component add/remove, and component property edits know whether they are editing:
 
 - base state
-- one platform override record
+- one platform sidecar override
 
 This context should stay in editor-side services or models, not inside runtime entity/component classes.
 
@@ -200,29 +280,34 @@ The visible platform tabs should follow the project's supported platform list. I
 - Platform-added components exist only on that entity for that platform.
 - Base edits should continue to affect platforms that still inherit.
 - Copying from another platform replaces the target override instead of silently merging ambiguous state.
+- Sidecar files must never become full scene copies.
 
 ## Testing
 
 Add coverage for at least:
 
+- opening a base scene discovers and loads all matching platform sidecars
+- saving a platform tab writes only the matching sidecar file
 - base-only entity resolves identically for multiple platforms
 - platform-disabled entity is omitted from packaged target scene
+- platform transform override changes only that platform
 - platform component removal omits only that component on that platform
 - platform component addition appears only on that platform
 - platform component payload override replaces the inherited component settings
 - child entities resolve independently from parents
 - entity name remains shared and base-only editable
 - `Copy From Platform...` produces the same resolved entity state as the source
-- properties panel shows `Base` plus supported platform tabs and enforces base-only rename behavior
+- Properties panel shows `Base` plus supported platform tabs and enforces base-only rename behavior
 
 ## Recommended First Slice
 
-1. Add editor-side scene/entity override data structures and serialization.
-2. Add platform tabs to entity properties.
-3. Support per-platform entity enabled state.
-4. Support per-platform component add/remove.
-5. Support full component payload overrides per platform.
-6. Resolve overrides in the scene packager and omit disabled entities.
-7. Add `Copy From Platform...` for entity overrides.
+1. Add sidecar asset types and sidecar discovery for `scene.<platform>.helen`.
+2. Add editor-side entity override storage on `EntitySaveComponent`.
+3. Persist and load all platform sidecars alongside the base scene.
+4. Add platform tabs to entity properties.
+5. Support per-platform entity enabled state and transforms.
+6. Support per-platform component add/remove and full component payload overrides.
+7. Resolve sidecars in the scene packager and omit disabled entities.
+8. Add `Copy From Platform...` for entity overrides.
 
-This sequence gets the full authoring model in place without dragging runtime into the feature.
+This sequence gets the sidecar authoring model in place without dragging runtime into the feature.

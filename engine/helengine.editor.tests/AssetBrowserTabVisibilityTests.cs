@@ -75,6 +75,28 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the asset browser exposes a `Show in Explorer` action that opens the current folder path.
+        /// </summary>
+        [Fact]
+        public void Constructor_AddsShowInExplorerItemThatOpensTheCurrentFolder() {
+            string launchedPath = string.Empty;
+            AssetBrowserPanel assetBrowserPanel = (AssetBrowserPanel)Activator.CreateInstance(
+                typeof(AssetBrowserPanel),
+                CreateFont(),
+                TempProjectRootPath,
+                EditorUiMetrics.Default,
+                new Action<string>(path => launchedPath = path));
+
+            List<ContextMenuItem> createAssetItems = GetPrivateField<List<ContextMenuItem>>(assetBrowserPanel, "CreateAssetItems");
+            ContextMenuItem showInExplorerItem = createAssetItems.First(value => string.Equals(value.Label, "Show in Explorer", StringComparison.Ordinal));
+            AssetBrowserView browserView = GetPrivateField<AssetBrowserView>(assetBrowserPanel, "BrowserView");
+
+            showInExplorerItem.Action();
+
+            Assert.Equal(browserView.CurrentDirectoryPath, launchedPath);
+        }
+
+        /// <summary>
         /// Counts registered 2D drawables that belong to the provided dockable hierarchy.
         /// </summary>
         /// <param name="owner">Dockable entity whose descendants should be counted.</param>
