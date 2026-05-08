@@ -174,6 +174,44 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures packaged runtime scene loading materializes mesh components that carry multiple material slots in payload version 2.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneContainsVersion2MeshComponentWithMultipleMaterialSlots_MaterializesEverySlot() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "root-entity",
+                        Name = "Root",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "Helengine.MeshComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteMeshComponentPayloadVersion2WithEmptyMaterialSlots()
+                            }
+                        }
+                    }
+                }
+            };
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            Entity loadedRoot = Assert.Single(loadedRoots);
+            MeshComponent meshComponent = Assert.IsType<MeshComponent>(Assert.Single(loadedRoot.Components, component => component is MeshComponent));
+
+            Assert.Equal((byte)21, meshComponent.RenderOrder3D);
+            Assert.Null(meshComponent.Model);
+            Assert.Null(meshComponent.Material);
+            Assert.Equal(2, meshComponent.Materials.Length);
+            Assert.Null(meshComponent.Materials[0]);
+            Assert.Null(meshComponent.Materials[1]);
+        }
+
+        /// <summary>
         /// Ensures packaged runtime scene loading materializes camera components through the registry.
         /// </summary>
         [Fact]
@@ -1082,6 +1120,22 @@ namespace helengine.editor.tests.serialization.scene {
             writer.WriteByte(0);
             writer.WriteByte(0);
             writer.WriteByte(9);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one version-2 serialized mesh component payload with two empty material slots.
+        /// </summary>
+        /// <returns>Serialized mesh component payload.</returns>
+        byte[] WriteMeshComponentPayloadVersion2WithEmptyMaterialSlots() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(2);
+            writer.WriteByte(0);
+            writer.WriteInt32(2);
+            writer.WriteByte(0);
+            writer.WriteByte(0);
+            writer.WriteByte(21);
             return stream.ToArray();
         }
 

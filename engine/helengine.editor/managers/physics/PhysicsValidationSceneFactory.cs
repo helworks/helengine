@@ -946,10 +946,11 @@ namespace helengine.editor {
 
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            WriteOptionalReference(writer, modelReference);
-            WriteOptionalReference(writer, materialReference);
-            writer.WriteByte(DefaultMeshRenderOrder);
+            MeshComponentScenePayloadSerializer.Write(
+                writer,
+                modelReference,
+                new[] { materialReference },
+                DefaultMeshRenderOrder);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.MeshComponent",

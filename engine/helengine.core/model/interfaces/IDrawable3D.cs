@@ -22,5 +22,10 @@ namespace helengine {
         /// Gets or sets the runtime material used to render this drawable.
         /// </summary>
         RuntimeMaterial Material { get; set; }
+
+        /// <summary>
+        /// Gets the runtime materials bound to each drawable submesh slot.
+        /// </summary>
+        RuntimeMaterial[] Materials { get; }
     }
 }

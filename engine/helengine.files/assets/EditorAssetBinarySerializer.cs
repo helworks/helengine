@@ -18,7 +18,7 @@ namespace helengine.files {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 7;
+        public const byte CurrentVersion = 8;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -179,7 +179,7 @@ namespace helengine.files {
                 case EditorAssetBinaryValueKind.TextureAsset:
                     return ReadTextureAsset(reader);
                 case EditorAssetBinaryValueKind.ModelAsset:
-                    return ReadModelAsset(reader);
+                    return ReadModelAsset(reader, version);
                 case EditorAssetBinaryValueKind.ShaderAsset:
                     return ReadShaderAsset(reader);
                 case EditorAssetBinaryValueKind.TextAsset:
@@ -235,6 +235,7 @@ namespace helengine.files {
             writer.WriteArray(asset.TexCoords, WriteFloat2);
             writer.WriteArray(asset.Indices16, WriteUInt16Value);
             writer.WriteArray(asset.Indices32, WriteUInt32Value);
+            writer.WriteArray(asset.Submeshes, WriteModelSubmeshAsset);
         }
 
         /// <summary>
@@ -242,14 +243,53 @@ namespace helengine.files {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized model asset.</returns>
-        static ModelAsset ReadModelAsset(EngineBinaryReader reader) {
+        static ModelAsset ReadModelAsset(EngineBinaryReader reader, byte version) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
             return new ModelAsset {
                 Id = reader.ReadString(),
                 Positions = reader.ReadArray(ReadFloat3),
                 Normals = reader.ReadArray(ReadFloat3),
                 TexCoords = reader.ReadArray(ReadFloat2),
                 Indices16 = reader.ReadArray(ReadUInt16Value),
-                Indices32 = reader.ReadArray(ReadUInt32Value)
+                Indices32 = reader.ReadArray(ReadUInt32Value),
+                Submeshes = version >= 8 ? reader.ReadArray(ReadModelSubmeshAsset) : null
+            };
+        }
+
+        /// <summary>
+        /// Writes one model submesh payload.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="submesh">Model submesh to serialize.</param>
+        static void WriteModelSubmeshAsset(EngineBinaryWriter writer, ModelSubmeshAsset submesh) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            } else if (submesh == null) {
+                throw new ArgumentNullException(nameof(submesh));
+            }
+
+            writer.WriteString(submesh.MaterialSlotName ?? string.Empty);
+            writer.WriteInt32(submesh.IndexStart);
+            writer.WriteInt32(submesh.IndexCount);
+        }
+
+        /// <summary>
+        /// Reads one model submesh payload.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized model submesh.</returns>
+        static ModelSubmeshAsset ReadModelSubmeshAsset(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            return new ModelSubmeshAsset {
+                MaterialSlotName = reader.ReadString(),
+                IndexStart = reader.ReadInt32(),
+                IndexCount = reader.ReadInt32()
             };
         }
 

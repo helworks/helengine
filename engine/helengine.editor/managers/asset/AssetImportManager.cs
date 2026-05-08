@@ -709,15 +709,16 @@ namespace helengine.editor {
             EnsureImportSettingsValid(settings);
 
             EnsureModelImporterExists(settings.Importer.ImporterId);
-            ModelAsset asset = AssetContentManager.Load<ModelAsset>(sourcePath, settings.Importer.ImporterId);
-
-            if (asset == null) {
+            ImportedModelAssetSet importedModel = AssetContentManager.Load<ImportedModelAssetSet>(sourcePath, settings.Importer.ImporterId);
+            if (importedModel == null || importedModel.ModelAsset == null) {
                 throw new InvalidOperationException($"Model importer '{settings.Importer.ImporterId}' did not return an asset.");
             }
 
+            ModelAsset asset = importedModel.ModelAsset;
             ModelAssetProcessorSettings processorSettings = GetCurrentPlatformModelProcessorSettings(settings);
             ModelAssetProcessor.Apply(asset, processorSettings);
             asset.Id = settings.Importer.AssetId;
+            WriteGeneratedModelMaterials(sourcePath, importedModel.GeneratedMaterials);
 
             string outputPath = GetModelAssetPath(settings.Importer.AssetId);
             EnsureDirectoryForFile(outputPath);
@@ -727,6 +728,36 @@ namespace helengine.editor {
 
             SaveImportSettings(sourcePath, settings);
             return asset;
+        }
+
+        /// <summary>
+        /// Writes generated model material assets next to the source model using their importer-provided relative paths.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source model file.</param>
+        /// <param name="generatedMaterials">Generated material assets to serialize.</param>
+        void WriteGeneratedModelMaterials(string sourcePath, ImportedModelMaterialAsset[] generatedMaterials) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (generatedMaterials == null) {
+                throw new ArgumentNullException(nameof(generatedMaterials));
+            }
+
+            string sourceDirectoryPath = Path.GetDirectoryName(sourcePath);
+            if (string.IsNullOrWhiteSpace(sourceDirectoryPath)) {
+                throw new InvalidOperationException("Source model directory could not be resolved.");
+            }
+
+            for (int materialIndex = 0; materialIndex < generatedMaterials.Length; materialIndex++) {
+                ImportedModelMaterialAsset generatedMaterial = generatedMaterials[materialIndex];
+                if (generatedMaterial == null) {
+                    throw new InvalidOperationException("Generated model material collections cannot contain null entries.");
+                }
+
+                string materialPath = Path.Combine(sourceDirectoryPath, generatedMaterial.RelativeMaterialPath);
+                EnsureDirectoryForFile(materialPath);
+                using FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                AssetSerializer.Serialize(stream, generatedMaterial.MaterialAsset);
+            }
         }
 
         /// <summary>

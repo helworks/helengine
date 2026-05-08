@@ -38,9 +38,11 @@ namespace helengine.editor.tests {
             HelengineAssimpImporter importer = new HelengineAssimpImporter();
 
             using FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            ModelAsset asset = importer.ImportModel(stream);
+            ImportedModelAssetSet importedModel = importer.ImportModel(stream);
+            ModelAsset asset = importedModel.ModelAsset;
 
             Assert.NotNull(asset);
+            Assert.NotNull(importedModel.GeneratedMaterials);
             Assert.Equal(3, asset.Positions.Length);
             Assert.Equal(3, asset.Normals.Length);
             Assert.Equal(3, asset.TexCoords.Length);
@@ -69,6 +71,40 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures OBJ sources that switch materials produce one submesh and one generated material asset per material.
+        /// </summary>
+        [Fact]
+        public void ImportModel_WhenObjUsesTwoMaterials_ReturnsTwoSubmeshesAndTwoGeneratedMaterials() {
+            string sourcePath = WriteObjFixtureWithMtl("sponza.obj");
+            HelengineAssimpImporter importer = new HelengineAssimpImporter();
+
+            using FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            ImportedModelAssetSet importedModel = importer.ImportModel(stream);
+
+            Assert.Equal(2, importedModel.ModelAsset.Submeshes.Length);
+            Assert.Equal("Fabric", importedModel.ModelAsset.Submeshes[0].MaterialSlotName);
+            Assert.Equal("Wood", importedModel.ModelAsset.Submeshes[1].MaterialSlotName);
+            Assert.Equal(2, importedModel.GeneratedMaterials.Length);
+        }
+
+        /// <summary>
+        /// Ensures OBJ material libraries forward `map_Kd` texture references into generated material assets.
+        /// </summary>
+        [Fact]
+        public void ImportModel_WhenMtlDefinesMapKd_SetsGeneratedMaterialDiffuseTextureAssetId() {
+            string sourcePath = WriteObjFixtureWithMtl("textured.obj");
+            HelengineAssimpImporter importer = new HelengineAssimpImporter();
+
+            using FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            ImportedModelAssetSet importedModel = importer.ImportModel(stream);
+            ImportedModelMaterialAsset generatedMaterial = Assert.Single(
+                importedModel.GeneratedMaterials,
+                value => string.Equals(value.MaterialName, "Fabric", StringComparison.Ordinal));
+
+            Assert.Equal("Textures/Fabric.png", generatedMaterial.MaterialAsset.DiffuseTextureAssetId);
+        }
+
+        /// <summary>
         /// Writes a minimal OBJ fixture with positions, texture coordinates, normals, and one face.
         /// </summary>
         /// <param name="fileName">Fixture file name.</param>
@@ -91,6 +127,54 @@ namespace helengine.editor.tests {
                     "vt 0 1",
                     "vn 0 0 1",
                     "f 1/1/1 2/2/1 3/3/1"));
+            return sourcePath;
+        }
+
+        /// <summary>
+        /// Writes an OBJ fixture and matching material library that switch between two materials.
+        /// </summary>
+        /// <param name="fileName">Fixture file name.</param>
+        /// <returns>Absolute path to the OBJ fixture.</returns>
+        string WriteObjFixtureWithMtl(string fileName) {
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new ArgumentException("File name must be provided.", nameof(fileName));
+            }
+
+            string materialLibraryPath = Path.Combine(FixtureRootPath, "sponza.mtl");
+            string textureDirectoryPath = Path.Combine(FixtureRootPath, "Textures");
+            Directory.CreateDirectory(textureDirectoryPath);
+            File.WriteAllText(
+                materialLibraryPath,
+                string.Join(
+                    Environment.NewLine,
+                    "newmtl Fabric",
+                    "map_Kd Textures/Fabric.png",
+                    string.Empty,
+                    "newmtl Wood"));
+
+            string sourcePath = Path.Combine(FixtureRootPath, fileName);
+            File.WriteAllText(
+                sourcePath,
+                string.Join(
+                    Environment.NewLine,
+                    "mtllib sponza.mtl",
+                    "v 0 0 0",
+                    "v 1 0 0",
+                    "v 0 1 0",
+                    "v 1 1 0",
+                    "v 2 1 0",
+                    "v 1 2 0",
+                    "vt 0 0",
+                    "vt 1 0",
+                    "vt 0 1",
+                    "vt 1 1",
+                    "vt 2 1",
+                    "vt 1 2",
+                    "vn 0 0 1",
+                    "usemtl Fabric",
+                    "f 1/1/1 2/2/1 3/3/1",
+                    "usemtl Wood",
+                    "f 4/4/1 5/5/1 6/6/1"));
             return sourcePath;
         }
 

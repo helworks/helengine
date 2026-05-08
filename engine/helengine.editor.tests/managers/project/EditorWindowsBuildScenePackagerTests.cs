@@ -90,6 +90,59 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures tagged mesh-component payloads that reference multiple materials are rewritten into packaged runtime payloads that preserve every material slot.
+        /// </summary>
+        [Fact]
+        public void Package_WhenTaggedMeshUsesMultipleMaterials_RewritesEveryMaterialReference() {
+            string sceneId = "Scenes/MultiMaterialScene.helen";
+            string firstMaterialRelativePath = "Materials/SponzaWalls.helmat";
+            string secondMaterialRelativePath = "Materials/SponzaTrim.helmat";
+            string shaderAssetId = "ForwardStandardShader";
+
+            WriteShaderCachePackage(shaderAssetId, ShaderCompileTarget.DirectX11);
+            WriteMaterialAsset(firstMaterialRelativePath, shaderAssetId);
+            WriteMaterialAsset(secondMaterialRelativePath, shaderAssetId);
+            WriteSceneAssetWithTaggedMultiMaterialMesh(sceneId, firstMaterialRelativePath, secondMaterialRelativePath);
+
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(
+                [
+                    new PlatformComponentCompatibilityDefinition(
+                        "helengine.MeshComponent",
+                        PlatformComponentCompatibilityKind.Transform,
+                        "Mesh components must be rewritten into packaged runtime payloads.",
+                        string.Empty)
+                ]);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            SceneAsset packagedSceneAsset;
+            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
+                packagedSceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset packagedRoot = Assert.Single(packagedSceneAsset.RootEntities);
+            SceneComponentAssetRecord meshRecord = Assert.Single(packagedRoot.Components, component => string.Equals(component.ComponentTypeId, "helengine.MeshComponent", StringComparison.Ordinal));
+
+            using MemoryStream payloadStream = new MemoryStream(meshRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(2, reader.ReadByte());
+            SceneAssetReference modelReference = ReadOptionalReference(reader);
+            int materialReferenceCount = reader.ReadInt32();
+            SceneAssetReference firstMaterialReference = ReadOptionalReference(reader);
+            SceneAssetReference secondMaterialReference = ReadOptionalReference(reader);
+            byte renderOrder3D = reader.ReadByte();
+
+            Assert.Null(modelReference);
+            Assert.Equal(2, materialReferenceCount);
+            Assert.Equal("Materials/SponzaWalls.helmat", firstMaterialReference.RelativePath);
+            Assert.Equal("Materials/SponzaTrim.helmat", secondMaterialReference.RelativePath);
+            Assert.Equal((byte)0, renderOrder3D);
+        }
+
+        /// <summary>
         /// Ensures compatibility packaging ignores malformed material sidecars that do not define a schema or field values.
         /// </summary>
         [Fact]
@@ -1527,6 +1580,95 @@ namespace helengine.editor.tests {
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(meshComponent, 0, saveState);
             return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one mesh-component payload that points at two tagged material references.
+        /// </summary>
+        /// <param name="firstMaterialRelativePath">Project-relative first material path to encode.</param>
+        /// <param name="secondMaterialRelativePath">Project-relative second material path to encode.</param>
+        /// <returns>Serialized mesh component payload.</returns>
+        byte[] WriteMeshComponentPayload(string firstMaterialRelativePath, string secondMaterialRelativePath) {
+            MeshComponentPersistenceDescriptor descriptor = new MeshComponentPersistenceDescriptor();
+            MeshComponent meshComponent = new MeshComponent();
+            meshComponent.SetMaterials(new RuntimeMaterial[] {
+                new TestRuntimeMaterial(),
+                new TestRuntimeMaterial()
+            });
+
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference("Material", new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = firstMaterialRelativePath,
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            });
+            saveState.SetAssetReference("Material[1]", new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = secondMaterialRelativePath,
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            });
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(meshComponent, 0, saveState);
+            return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one serialized scene asset that contains a tagged mesh component with two material references.
+        /// </summary>
+        /// <param name="sceneId">Scene asset id to write.</param>
+        /// <param name="firstMaterialRelativePath">Project-relative first material path to encode.</param>
+        /// <param name="secondMaterialRelativePath">Project-relative second material path to encode.</param>
+        void WriteSceneAssetWithTaggedMultiMaterialMesh(string sceneId, string firstMaterialRelativePath, string secondMaterialRelativePath) {
+            string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "root-entity",
+                        Name = "Root",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.MeshComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteMeshComponentPayload(firstMaterialRelativePath, secondMaterialRelativePath)
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+
+            using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, sceneAsset);
+        }
+
+        /// <summary>
+        /// Reads one optional scene asset reference from a packaged runtime payload.
+        /// </summary>
+        /// <param name="reader">Payload reader positioned at the optional reference flag.</param>
+        /// <returns>Decoded scene asset reference.</returns>
+        static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+
+            if (reader.ReadByte() == 0) {
+                return null;
+            }
+
+            return new SceneAssetReference {
+                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
+                RelativePath = reader.ReadString(),
+                ProviderId = reader.ReadString(),
+                AssetId = reader.ReadString()
+            };
         }
 
         /// <summary>

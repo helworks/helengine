@@ -807,6 +807,53 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies bundled native math support exposes `Atan2` helpers used by generated orbit and gizmo code.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_adds_native_math_atan2_helpers() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-native-math-atan2-helpers");
+        Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "system"));
+        string headerPath = Path.Combine(generatedCoreRootPath, "system", "math.hpp");
+        File.WriteAllText(
+            headerPath,
+            "#pragma once\n"
+            + "#include <cmath>\n"
+            + "class Math {\n"
+            + "public:\n"
+            + "    template <typename TValue>\n"
+            + "    static double Sin(TValue value) {\n"
+            + "        return std::sin(static_cast<double>(value));\n"
+            + "    }\n"
+            + "\n"
+            + "    template <typename TValue>\n"
+            + "    static double Cos(TValue value) {\n"
+            + "        return std::cos(static_cast<double>(value));\n"
+            + "    }\n"
+            + "\n"
+            + "    template <typename TValue>\n"
+            + "    static double Sqrt(TValue value) {\n"
+            + "        return std::sqrt(static_cast<double>(value));\n"
+            + "    }\n"
+            + "};\n"
+            + "\n"
+            + "class MathF {\n"
+            + "public:\n"
+            + "    template <typename TValue>\n"
+            + "    static float Sqrt(TValue value) {\n"
+            + "        return static_cast<float>(Math::Sqrt(value));\n"
+            + "    }\n"
+            + "};\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedHeader = File.ReadAllText(headerPath);
+        Assert.Contains("static double Atan2(TY y, TX x)", normalizedHeader);
+        Assert.Contains("return std::atan2(static_cast<double>(y), static_cast<double>(x));", normalizedHeader);
+        Assert.Contains("static float Atan2(TY y, TX x)", normalizedHeader);
+        Assert.Contains("return static_cast<float>(Math::Atan2(y, x));", normalizedHeader);
+    }
+
+    /// <summary>
     /// Verifies generated animation-player looping code rewrites floating-point modulo into a valid native fmod call.
     /// </summary>
     [Fact]
@@ -1076,12 +1123,13 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         EditorGeneratedCoreRegenerationService.RewriteAmalgamatedTranslationUnit(generatedCoreRootPath);
 
         string amalgamatedSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_amalgamated.cpp"));
+        string legacyUnitySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"));
         Assert.Contains("#include \"Foo.cpp\"", amalgamatedSource);
         Assert.Contains("#include \"RendererBackendCapabilityProfile.cpp\"", amalgamatedSource);
         Assert.Contains("#include \"Ps2MaterialAsset.cpp\"", amalgamatedSource);
         Assert.DoesNotContain("runtime/runtime_startup_manifest.cpp", amalgamatedSource);
         Assert.DoesNotContain("runtime/runtime_code_module_manifest.cpp", amalgamatedSource);
-        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp")));
+        Assert.Equal(amalgamatedSource, legacyUnitySource);
     }
 
     /// <summary>

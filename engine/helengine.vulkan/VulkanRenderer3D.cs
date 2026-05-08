@@ -229,6 +229,7 @@ namespace helengine.vulkan {
                 IndexCount = indexCount,
                 Uses32BitIndices = uses32BitIndices
             };
+            model.SetSubmeshes(ModelSubmeshResolver.BuildRuntimeSubmeshes(data));
 
             return model;
         }
@@ -411,16 +412,6 @@ namespace helengine.vulkan {
                 return;
             }
 
-            RuntimeMaterial runtimeMaterial = drawable.Material;
-            if (runtimeMaterial == null) {
-                return;
-            }
-
-            RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
-            if (rootMaterial is not VulkanMaterialResource material) {
-                throw new InvalidOperationException("Drawable materials must resolve to VulkanMaterialResource through their parent chain.");
-            }
-
             if (drawable.Model is not VulkanModelResource model) {
                 throw new InvalidOperationException("Drawable models must use VulkanModelResource when rendering with Vulkan.");
             }
@@ -428,9 +419,6 @@ namespace helengine.vulkan {
             if (model.VertexBuffer == null || model.VertexCount <= 0) {
                 return;
             }
-
-            Pipeline pipeline = material.EnsurePipeline(activeSurface, materialPipelineLayout);
-            context.Api.CmdBindPipeline(activeCommandBuffer, PipelineBindPoint.Graphics, pipeline);
 
             ulong vertexOffset = 0;
             VkBuffer vertexBuffer = model.VertexBuffer.Handle;
@@ -443,32 +431,100 @@ namespace helengine.vulkan {
                 context.Api.CmdBindIndexBuffer(activeCommandBuffer, model.IndexBuffer.Handle, 0, indexType);
             }
 
-            uint dynamicOffset = ReserveTransformSlot();
-            if (BuiltInMaterialIds.UsesStandardMeshTransform(rootMaterial.Id)) {
-                StandardMeshShaderData transformData = BuildStandardMeshShaderData(drawable.Parent);
-                UpdateTransformBuffer(transformData, dynamicOffset);
-            } else {
-                float4x4 transformData = BuildWorldViewProjectionMatrix(drawable.Parent);
-                UpdateTransformBuffer(transformData, dynamicOffset);
+            RuntimeSubmesh[] submeshes = ResolveSubmeshes(model);
+            for (int submeshIndex = 0; submeshIndex < submeshes.Length; submeshIndex++) {
+                RuntimeMaterial runtimeMaterial = ResolveMaterial(drawable, submeshIndex);
+                if (runtimeMaterial == null) {
+                    continue;
+                }
+
+                RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
+                if (rootMaterial is not VulkanMaterialResource material) {
+                    throw new InvalidOperationException("Drawable materials must resolve to VulkanMaterialResource through their parent chain.");
+                }
+
+                Pipeline materialPipeline = material.EnsurePipeline(activeSurface, materialPipelineLayout);
+                context.Api.CmdBindPipeline(activeCommandBuffer, PipelineBindPoint.Graphics, materialPipeline);
+
+                uint dynamicOffset = ReserveTransformSlot();
+                if (BuiltInMaterialIds.UsesStandardMeshTransform(rootMaterial.Id)) {
+                    StandardMeshShaderData transformData = BuildStandardMeshShaderData(drawable.Parent);
+                    UpdateTransformBuffer(transformData, dynamicOffset);
+                } else {
+                    float4x4 transformData = BuildWorldViewProjectionMatrix(drawable.Parent);
+                    UpdateTransformBuffer(transformData, dynamicOffset);
+                }
+
+                DescriptorSet descriptorSet = EnsureMaterialDescriptorSet(material, runtimeMaterial);
+                DescriptorSet* descriptorSets = stackalloc DescriptorSet[] { descriptorSet };
+                uint* dynamicOffsets = stackalloc uint[] { dynamicOffset };
+                context.Api.CmdBindDescriptorSets(
+                    activeCommandBuffer,
+                    PipelineBindPoint.Graphics,
+                    materialPipelineLayout,
+                    0,
+                    1,
+                    descriptorSets,
+                    1,
+                    dynamicOffsets);
+
+                DrawSubmesh(model, submeshes[submeshIndex]);
+            }
+        }
+
+        /// <summary>
+        /// Resolves the runtime submeshes that should be drawn for the supplied model.
+        /// </summary>
+        /// <param name="model">Runtime model referenced by the drawable.</param>
+        /// <returns>Runtime submeshes that should be drawn.</returns>
+        static RuntimeSubmesh[] ResolveSubmeshes(RuntimeModel model) {
+            if (model == null || model.Submeshes == null || model.Submeshes.Length == 0) {
+                throw new InvalidOperationException("Drawable models must provide at least one runtime submesh.");
             }
 
-            DescriptorSet descriptorSet = EnsureMaterialDescriptorSet(material, runtimeMaterial);
-            DescriptorSet* descriptorSets = stackalloc DescriptorSet[] { descriptorSet };
-            uint* dynamicOffsets = stackalloc uint[] { dynamicOffset };
-            context.Api.CmdBindDescriptorSets(
-                activeCommandBuffer,
-                PipelineBindPoint.Graphics,
-                materialPipelineLayout,
-                0,
-                1,
-                descriptorSets,
-                1,
-                dynamicOffsets);
+            return model.Submeshes;
+        }
+
+        /// <summary>
+        /// Resolves the runtime material bound to one submesh slot.
+        /// </summary>
+        /// <param name="drawable">Drawable that owns the material slots.</param>
+        /// <param name="submeshIndex">Zero-based submesh index to resolve.</param>
+        /// <returns>Runtime material bound to the requested submesh slot.</returns>
+        static RuntimeMaterial ResolveMaterial(IDrawable3D drawable, int submeshIndex) {
+            if (drawable == null) {
+                throw new ArgumentNullException(nameof(drawable));
+            } else if (submeshIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(submeshIndex), "Submesh index must be non-negative.");
+            }
+
+            RuntimeMaterial[] materials = drawable.Materials;
+            if (materials == null || materials.Length == 0) {
+                return drawable.Material;
+            }
+            if (submeshIndex < materials.Length) {
+                return materials[submeshIndex];
+            }
+
+            return materials[0];
+        }
+
+        /// <summary>
+        /// Draws one resolved submesh from the currently bound model resource.
+        /// </summary>
+        /// <param name="model">Model resource currently bound to the command buffer.</param>
+        /// <param name="submesh">Resolved submesh range to draw.</param>
+        unsafe void DrawSubmesh(VulkanModelResource model, RuntimeSubmesh submesh) {
+            if (model == null) {
+                throw new ArgumentNullException(nameof(model));
+            } else if (submesh == null) {
+                throw new ArgumentNullException(nameof(submesh));
+            }
 
             if (model.IndexBuffer != null && model.IndexCount > 0) {
-                context.Api.CmdDrawIndexed(activeCommandBuffer, (uint)model.IndexCount, 1, 0, 0, 0);
+                context.Api.CmdDrawIndexed(activeCommandBuffer, (uint)submesh.IndexCount, 1, (uint)submesh.IndexStart, 0, 0);
             } else {
-                context.Api.CmdDraw(activeCommandBuffer, (uint)model.VertexCount, 1, 0, 0);
+                context.Api.CmdDraw(activeCommandBuffer, (uint)submesh.IndexCount, 1, (uint)submesh.IndexStart, 0);
             }
         }
 

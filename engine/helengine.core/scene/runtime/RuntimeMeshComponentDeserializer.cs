@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>
         /// Current payload version for serialized mesh component scene records.
         /// </summary>
-        const byte CurrentVersion = 1;
+        const byte CurrentVersion = MeshComponentScenePayloadSerializer.CurrentVersion;
 
         /// <summary>
         /// Stable serialized component id for mesh components.
@@ -30,14 +30,7 @@ namespace helengine {
 
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported mesh component payload version '{version}'.");
-            }
-
-            SceneAssetReference modelReference = ReadOptionalReference(reader);
-            SceneAssetReference materialReference = ReadOptionalReference(reader);
-            byte renderOrder3D = reader.ReadByte();
+            MeshComponentScenePayloadSerializer.Read(reader, out SceneAssetReference modelReference, out SceneAssetReference[] materialReferences, out byte renderOrder3D);
 
             MeshComponent meshComponent = new MeshComponent {
                 RenderOrder3D = renderOrder3D
@@ -47,33 +40,32 @@ namespace helengine {
                 meshComponent.Model = referenceResolver.ResolveModel(modelReference);
             }
 
-            if (materialReference != null) {
-                meshComponent.Material = referenceResolver.ResolveMaterial(materialReference);
-            }
+            meshComponent.SetMaterials(ResolveMaterials(materialReferences, referenceResolver));
 
             return meshComponent;
         }
 
         /// <summary>
-        /// Reads one optional scene asset reference from the current payload position.
+        /// Resolves one ordered runtime material array from serialized scene references.
         /// </summary>
-        /// <param name="reader">Reader positioned at the optional-reference payload.</param>
-        /// <returns>Decoded scene asset reference when present; otherwise null.</returns>
-        static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
+        /// <param name="references">Serialized scene references ordered by submesh slot.</param>
+        /// <param name="referenceResolver">Resolver used to rebuild runtime materials.</param>
+        /// <returns>Ordered runtime materials by submesh slot.</returns>
+        static RuntimeMaterial[] ResolveMaterials(SceneAssetReference[] references, RuntimeSceneAssetReferenceResolver referenceResolver) {
+            if (references == null) {
+                throw new ArgumentNullException(nameof(references));
+            } else if (referenceResolver == null) {
+                throw new ArgumentNullException(nameof(referenceResolver));
             }
 
-            if (reader.ReadByte() == 0) {
-                return null;
+            RuntimeMaterial[] runtimeMaterials = new RuntimeMaterial[references.Length];
+            for (int materialIndex = 0; materialIndex < references.Length; materialIndex++) {
+                if (references[materialIndex] != null) {
+                    runtimeMaterials[materialIndex] = referenceResolver.ResolveMaterial(references[materialIndex]);
+                }
             }
 
-            return new SceneAssetReference {
-                SourceKind = (SceneAssetReferenceSourceKind)reader.ReadInt32(),
-                RelativePath = reader.ReadString(),
-                ProviderId = reader.ReadString(),
-                AssetId = reader.ReadString()
-            };
+            return runtimeMaterials;
         }
     }
 }

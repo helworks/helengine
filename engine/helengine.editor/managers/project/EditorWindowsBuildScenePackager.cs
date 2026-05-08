@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Current payload version for serialized mesh component scene records.
         /// </summary>
-        const byte MeshComponentPayloadVersion = 1;
+        const byte MeshComponentPayloadVersion = MeshComponentScenePayloadSerializer.CurrentVersion;
 
         /// <summary>
         /// Current payload version for serialized camera component scene records.
@@ -859,27 +859,40 @@ namespace helengine.editor {
         SceneComponentAssetRecord RewriteMeshComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
             using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != MeshComponentPayloadVersion) {
-                throw new InvalidOperationException($"Unsupported mesh component payload version '{version}'.");
-            }
-
-            SceneAssetReference modelReference = RewriteModelReference(ReadOptionalReference(reader), buildRootPath);
-            SceneAssetReference materialReference = RewriteMaterialReference(ReadOptionalReference(reader), buildRootPath);
-            byte renderOrder3D = reader.ReadByte();
+            MeshComponentScenePayloadSerializer.Read(reader, out SceneAssetReference modelReference, out SceneAssetReference[] materialReferences, out byte renderOrder3D);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(MeshComponentPayloadVersion);
-            WriteOptionalReference(writer, modelReference);
-            WriteOptionalReference(writer, materialReference);
-            writer.WriteByte(renderOrder3D);
+            MeshComponentScenePayloadSerializer.Write(
+                writer,
+                RewriteModelReference(modelReference, buildRootPath),
+                RewriteMaterialReferences(materialReferences, buildRootPath),
+                renderOrder3D);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = record.ComponentTypeId,
                 ComponentIndex = record.ComponentIndex,
                 Payload = writeStream.ToArray()
             };
+        }
+
+        /// <summary>
+        /// Rewrites one ordered material-reference array into packaged file-backed material references.
+        /// </summary>
+        /// <param name="materialReferences">Authored material references ordered by submesh slot.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Packaged material references ordered by submesh slot.</returns>
+        SceneAssetReference[] RewriteMaterialReferences(SceneAssetReference[] materialReferences, string buildRootPath) {
+            if (materialReferences == null) {
+                throw new ArgumentNullException(nameof(materialReferences));
+            }
+
+            SceneAssetReference[] rewrittenReferences = new SceneAssetReference[materialReferences.Length];
+            for (int materialIndex = 0; materialIndex < materialReferences.Length; materialIndex++) {
+                rewrittenReferences[materialIndex] = RewriteMaterialReference(materialReferences[materialIndex], buildRootPath);
+            }
+
+            return rewrittenReferences;
         }
 
         /// <summary>
@@ -1087,13 +1100,29 @@ namespace helengine.editor {
         /// <returns>Packaged file-backed font reference.</returns>
         SceneAssetReference RewriteFileSystemFontReference(SceneAssetReference reference, string buildRootPath) {
             string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
-            if (!AssetImportManager.TryLoadFontAsset(sourcePath, out FontAsset fontAsset) || fontAsset == null) {
-                throw new InvalidOperationException($"Font source '{reference.RelativePath}' could not be imported for packaging.");
+            string cookedRelativePath = BuildCookedFontRelativePath(reference.RelativePath);
+            if (string.Equals(Path.GetExtension(reference.RelativePath), ".hefont", StringComparison.OrdinalIgnoreCase)) {
+                CopyFile(sourcePath, Path.Combine(buildRootPath, cookedRelativePath));
+                return CreateFileSystemReference(cookedRelativePath);
             }
 
-            string cookedRelativePath = BuildCookedFontRelativePath(reference.RelativePath);
+            FontAsset fontAsset = LoadImportedFontAssetForPackaging(reference, sourcePath);
             WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), fontAsset);
             return CreateFileSystemReference(cookedRelativePath);
+        }
+
+        /// <summary>
+        /// Loads one imported source-font asset for packaging after the importer has produced a packaged `FontAsset`.
+        /// </summary>
+        /// <param name="reference">Serialized font reference being packaged.</param>
+        /// <param name="sourcePath">Absolute project path resolved from the scene reference.</param>
+        /// <returns>Loaded font asset ready to be written into the package.</returns>
+        FontAsset LoadImportedFontAssetForPackaging(SceneAssetReference reference, string sourcePath) {
+            if (AssetImportManager.TryLoadFontAsset(sourcePath, out FontAsset importedFontAsset)) {
+                return importedFontAsset;
+            }
+
+            throw new InvalidOperationException($"Font source '{reference.RelativePath}' could not be imported for packaging.");
         }
 
         /// <summary>

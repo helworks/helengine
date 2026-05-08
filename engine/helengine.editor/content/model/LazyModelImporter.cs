@@ -26,8 +26,8 @@ namespace helengine.editor {
         /// Imports one model from the supplied stream.
         /// </summary>
         /// <param name="stream">Stream containing source model bytes.</param>
-        /// <returns>Imported model asset.</returns>
-        public ModelAsset ImportModel(Stream stream) {
+        /// <returns>Imported model payload together with generated materials.</returns>
+        public ImportedModelAssetSet ImportModel(Stream stream) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }
