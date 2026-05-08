@@ -23,6 +23,15 @@ namespace helengine {
             Action onClickAction = null,
             float borderThickness = 2f) : base(text, size, font, onClickAction, borderThickness) {
             UseTopCorners();
+            SetCornerRadius((float)(size.Y * 0.3d));
+            SetTextColor(ThemeManager.Colors.AccentQuaternary);
+            SetVisualPalette(
+                ThemeManager.Colors.SurfacePrimary,
+                ThemeManager.Colors.AccentSecondary,
+                ThemeManager.Colors.AccentTertiary,
+                ThemeManager.Colors.SurfaceInput,
+                ThemeManager.Colors.AccentTertiary,
+                ThemeManager.Colors.AccentTertiary);
         }
 
         /// <summary>

@@ -52,7 +52,7 @@ namespace helengine.editor {
         /// <summary>
         /// Top margin applied before the bordered scene-list container.
         /// </summary>
-        public const int SceneListTopMargin = 8;
+        public const int SceneListTopMargin = 0;
         /// <summary>
         /// Inner padding used inside the bordered scene-list container.
         /// </summary>
@@ -194,13 +194,9 @@ namespace helengine.editor {
         /// </summary>
         readonly ScrollComponent QueueScrollComponent;
         /// <summary>
-        /// Host entities created for the currently rendered platform tabs.
+        /// Shared platform tab strip used to switch the active build platform.
         /// </summary>
-        readonly List<EditorEntity> PlatformTabHosts;
-        /// <summary>
-        /// Platform tab buttons rendered for each enabled platform.
-        /// </summary>
-        readonly List<TabComponent> PlatformTabs;
+        readonly PlatformTabStripView PlatformTabStrip;
         /// <summary>
         /// Host entities created for the currently rendered map labels.
         /// </summary>
@@ -448,8 +444,6 @@ namespace helengine.editor {
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
         public BuildDialog(FontAsset font, EditorUiMetrics metrics) : base("BuildDialog", "Build", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             SetDialogMinimumSize(PanelWidth, PanelHeight);
-            PlatformTabHosts = new List<EditorEntity>(8);
-            PlatformTabs = new List<TabComponent>(8);
             MapLabelHosts = new List<EditorEntity>(16);
             MapLabelTexts = new List<TextComponent>(16);
             MapCheckBoxHosts = new List<EditorEntity>(16);
@@ -474,6 +468,16 @@ namespace helengine.editor {
             };
             DialogPanelRoot.AddChild(BuildColumnRoot);
 
+            PlatformTabStrip = new PlatformTabStripView(
+                DialogFont,
+                LayerMask,
+                GetPlatformTabWidthPixels(),
+                GetPlatformTabHeightPixels(),
+                0,
+                GetPlatformTabHeightPixels());
+            PlatformTabStrip.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
+            BuildColumnRoot.AddChild(PlatformTabStrip.Root);
+
             SceneListRoot = new EditorEntity {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
@@ -487,6 +491,7 @@ namespace helengine.editor {
                 BorderColor = ThemeManager.Colors.AccentTertiary,
                 BorderThickness = 2f,
                 Radius = 6f,
+                Corners = RoundedRectCorners.BottomLeft | RoundedRectCorners.BottomRight,
                 RenderOrder2D = DialogPanelOrder,
                 Size = new int2(GetBuildColumnWidth(), 1)
             };
@@ -1228,26 +1233,7 @@ namespace helengine.editor {
         /// Rebuilds the platform tab buttons using the current enabled platform list.
         /// </summary>
         void RebuildPlatformTabs() {
-            ClearEntities(PlatformTabHosts);
-            PlatformTabs.Clear();
-
-            for (int index = 0; index < SupportedPlatformIds.Count; index++) {
-                string platformId = SupportedPlatformIds[index];
-                EditorEntity tabHost = new EditorEntity {
-                    LayerMask = LayerMask,
-                    Position = new float3(index * PlatformTabWidth, 0f, 0.1f),
-                    InternalEntity = true
-                };
-                BuildColumnRoot.AddChild(tabHost);
-                PlatformTabHosts.Add(tabHost);
-
-                TabComponent tabButton = new TabComponent(platformId, new int2(PlatformTabWidth, PlatformTabHeight), DialogFont, () => HandlePlatformTabClicked(platformId));
-                tabButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
-                tabButton.SetSelected(platformId == ActivePlatformId);
-
-                tabHost.AddComponent(tabButton);
-                PlatformTabs.Add(tabButton);
-            }
+            PlatformTabStrip.SetPlatforms(SupportedPlatformIds, ActivePlatformId, HandlePlatformTabClicked);
         }
 
         /// <summary>
@@ -1262,7 +1248,6 @@ namespace helengine.editor {
             SyncActivePlatformConfig();
             ActivePlatformId = platformId;
             SceneListScrollComponent.ResetScrollOffset();
-            RebuildPlatformTabs();
             RebuildActivePlatformSceneRows();
         }
 
@@ -1583,12 +1568,13 @@ namespace helengine.editor {
             int outputLabelY = outputFieldY - DialogMetrics.ScalePixels(20);
             int copySettingsButtonY = outputLabelY - DialogMetrics.ScalePixels(16) - GetFooterButtonHeightPixels();
             int debugBuildY = outputFieldY + GetOutputFieldHeightPixels() + DialogMetrics.ScalePixels(16);
+            PlatformTabStrip.UpdateLayout(0, 0, GetBuildColumnWidth());
             int sceneListTop = GetPlatformTabHeightPixels() + GetSceneListTopMarginPixels();
             int sceneListHeight = Math.Max(1, copySettingsButtonY - DialogMetrics.ScalePixels(12) - sceneListTop);
 
-            SceneListRoot.Position = new float3(SceneListShakeOffsetX, sceneListTop, 0.1f);
-            SceneListBackground.Size = new int2(GetBuildColumnWidth(), sceneListHeight);
-            SceneListItemsRoot.Position = float3.Zero;
+            SceneListRoot.Position = new float3(SceneListShakeOffsetX, sceneListTop - DialogMetrics.ScalePixels(1), 0.1f);
+            SceneListBackground.Size = new int2(GetBuildColumnWidth(), sceneListHeight + DialogMetrics.ScalePixels(1));
+            SceneListItemsRoot.Position = new float3(0f, DialogMetrics.ScalePixels(1), 0f);
             UpdateSceneListContentViewport();
             SceneListScrollComponent.VisibleItemCount = GetSceneListVisibleRowCount();
             SceneListScrollComponent.Size = new int2(GetSceneListViewportWidth(), GetSceneListViewportHeight());
@@ -2495,6 +2481,10 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Scaled scene-list top margin in pixels.</returns>
         int GetSceneListTopMarginPixels() {
+            if (SceneListTopMargin == 0) {
+                return 0;
+            }
+
             return DialogMetrics.ScalePixels(SceneListTopMargin);
         }
 
@@ -2504,6 +2494,14 @@ namespace helengine.editor {
         /// <returns>Scaled platform-tab height in pixels.</returns>
         int GetPlatformTabHeightPixels() {
             return DialogMetrics.ScalePixels(PlatformTabHeight);
+        }
+
+        /// <summary>
+        /// Returns the width used by one platform tab after applying the active dialog scaling metrics.
+        /// </summary>
+        /// <returns>Scaled platform-tab width in pixels.</returns>
+        int GetPlatformTabWidthPixels() {
+            return DialogMetrics.ScalePixels(PlatformTabWidth);
         }
 
         /// <summary>

@@ -22,7 +22,15 @@ namespace helengine.editor {
         /// <summary>
         /// Horizontal spacing between platform tab buttons.
         /// </summary>
-        const int PlatformTabSpacing = 6;
+        const int PlatformTabSpacing = 0;
+        /// <summary>
+        /// Inner padding used by the attached processor panel.
+        /// </summary>
+        const int ProcessorPanelPadding = 12;
+        /// <summary>
+        /// Vertical overlap used so the attached processor panel touches the tab row seam.
+        /// </summary>
+        const int ProcessorPanelTopOverlap = 3;
         /// <summary>
         /// Square size of the flip-winding checkbox control.
         /// </summary>
@@ -81,17 +89,17 @@ namespace helengine.editor {
         /// </summary>
         readonly TextComponent ProcessorLabelText;
         /// <summary>
-        /// Host entity for the platform tab row.
+        /// Host entity for the attached processor panel chrome.
         /// </summary>
-        readonly EditorEntity PlatformTabsHost;
+        readonly EditorEntity ProcessorPanelRoot;
         /// <summary>
-        /// Host entities for platform tab buttons.
+        /// Background used to render the attached processor panel chrome.
         /// </summary>
-        readonly List<EditorEntity> PlatformTabButtonHosts;
+        readonly RoundedRectComponent ProcessorPanelBackground;
         /// <summary>
-        /// Platform tab buttons used to change the active processor platform.
+        /// Shared platform tab strip used to switch the active processor platform.
         /// </summary>
-        readonly List<TabComponent> PlatformTabButtons;
+        readonly PlatformTabStripView PlatformTabStrip;
         /// <summary>
         /// Supported platform identifiers shown in the current tab row.
         /// </summary>
@@ -165,6 +173,10 @@ namespace helengine.editor {
         /// Tracks whether the view is visible.
         /// </summary>
         bool IsVisibleValue;
+        /// <summary>
+        /// Tracks whether the importer combo box is being synchronized from external state.
+        /// </summary>
+        bool IsUpdatingImporterSelection;
 
         /// <summary>
         /// Raised when the user clicks apply with pending importer or processor changes.
@@ -184,8 +196,6 @@ namespace helengine.editor {
             Font = font;
             ImporterIds = new List<string>(8);
             SupportedPlatformIds = new List<string>(4);
-            PlatformTabButtonHosts = new List<EditorEntity>(4);
-            PlatformTabButtons = new List<TabComponent>(4);
             TextOrder = RenderOrder2D.PanelForeground;
 
             RootEntity = new EditorEntity();
@@ -222,9 +232,24 @@ namespace helengine.editor {
             ProcessorLabelText.RenderOrder2D = TextOrder;
             ProcessorLabelHost.AddComponent(ProcessorLabelText);
 
-            PlatformTabsHost = new EditorEntity();
-            PlatformTabsHost.LayerMask = layerMask;
-            RootEntity.AddChild(PlatformTabsHost);
+            ProcessorPanelRoot = new EditorEntity();
+            ProcessorPanelRoot.LayerMask = layerMask;
+            ProcessorPanelRoot.InternalEntity = true;
+            RootEntity.AddChild(ProcessorPanelRoot);
+
+            ProcessorPanelBackground = new RoundedRectComponent {
+                FillColor = ThemeManager.Colors.SurfacePrimary,
+                BorderColor = ThemeManager.Colors.AccentTertiary,
+                BorderThickness = 2f,
+                Radius = 6f,
+                Corners = RoundedRectCorners.BottomLeft | RoundedRectCorners.BottomRight,
+                RenderOrder2D = RenderOrder2D.PanelSurface,
+                Size = new int2(1, 1)
+            };
+            ProcessorPanelRoot.AddComponent(ProcessorPanelBackground);
+
+            PlatformTabStrip = new PlatformTabStripView(font, layerMask, PlatformTabWidth, ControlHeight, PlatformTabSpacing, ControlHeight);
+            RootEntity.AddChild(PlatformTabStrip.Root);
 
             FlipWindingLabelHost = new EditorEntity();
             FlipWindingLabelHost.LayerMask = layerMask;
@@ -284,12 +309,17 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the number of platform tabs shown in the processor section.
         /// </summary>
-        public int PlatformTabCount => SupportedPlatformIds.Count;
+        public int PlatformTabCount => PlatformTabStrip.TabCount;
 
         /// <summary>
         /// Gets the currently selected processor platform identifier.
         /// </summary>
         public string SelectedPlatformId => CurrentPlatformId;
+
+        /// <summary>
+        /// Gets the shared platform tab strip used by the processor section.
+        /// </summary>
+        public PlatformTabStripView PlatformTabStripView => PlatformTabStrip;
 
         /// <summary>
         /// Gets a value indicating whether model processor controls are visible.
@@ -342,7 +372,9 @@ namespace helengine.editor {
             CurrentEntryKind = entryKind;
 
             int selectedIndex = FindImporterIndex(ActiveImporterId);
+            IsUpdatingImporterSelection = true;
             ComboBox.SetItems(ImporterIds, selectedIndex);
+            IsUpdatingImporterSelection = false;
             ComboBox.IsOpen = false;
 
             RebuildPlatformTabs();
@@ -398,26 +430,32 @@ namespace helengine.editor {
             ProcessorLabelText.Size = new int2(width, labelHeight);
 
             currentTop += labelHeight + RowSpacing;
-            PlatformTabsHost.Position = new float3(0f, currentTop, 0.1f);
-            UpdatePlatformTabLayout();
+            int tabStripTop = currentTop;
+            PlatformTabStrip.UpdateLayout(0, tabStripTop, width);
 
-            currentTop += ControlHeight + RowSpacing;
+            int processorPanelTop = tabStripTop + ControlHeight - ProcessorPanelTopOverlap;
+            int processorPanelContentTop = tabStripTop + ControlHeight + ProcessorPanelPadding;
+            currentTop = processorPanelContentTop;
             if (IsModelProcessorVisible) {
                 int labelOffsetY = (int)Math.Round((ControlHeight - labelHeight) / 2d);
-                FlipWindingLabelHost.Position = new float3(0f, currentTop + labelOffsetY, 0.1f);
-                FlipWindingLabelText.Size = new int2(width, labelHeight);
+                FlipWindingLabelHost.Position = new float3(ProcessorPanelPadding, currentTop + labelOffsetY, 0.1f);
+                FlipWindingLabelText.Size = new int2(Math.Max(1, width - (ProcessorPanelPadding * 2)), labelHeight);
 
-                FlipWindingCheckBoxHost.Position = new float3(Math.Max(0, width - FlipWindingCheckBoxSize), currentTop, 0.1f);
+                FlipWindingCheckBoxHost.Position = new float3(Math.Max(ProcessorPanelPadding, width - ProcessorPanelPadding - FlipWindingCheckBoxSize), currentTop, 0.1f);
                 currentTop += ControlHeight + RowSpacing;
             }
 
-            ApplyHost.Position = new float3(0f, currentTop, 0.1f);
+            ApplyHost.Position = new float3(ProcessorPanelPadding, currentTop, 0.1f);
 
             currentTop += ControlHeight + RowSpacing;
-            StatusHost.Position = new float3(0f, currentTop, 0.1f);
-            StatusText.Size = new int2(width, labelHeight);
+            StatusHost.Position = new float3(ProcessorPanelPadding, currentTop, 0.1f);
+            StatusText.Size = new int2(Math.Max(1, width - (ProcessorPanelPadding * 2)), labelHeight);
 
-            LayoutHeightValue = currentTop + labelHeight;
+            int processorPanelHeight = (currentTop + labelHeight + ProcessorPanelPadding) - processorPanelTop;
+            ProcessorPanelRoot.Position = new float3(0f, processorPanelTop, 0.05f);
+            ProcessorPanelBackground.Size = new int2(width, Math.Max(1, processorPanelHeight));
+
+            LayoutHeightValue = processorPanelTop + processorPanelHeight;
         }
 
         /// <summary>
@@ -426,12 +464,17 @@ namespace helengine.editor {
         /// <param name="index">Selected index.</param>
         /// <param name="value">Selected importer identifier.</param>
         void HandleComboSelectionChanged(int index, string value) {
+            if (IsUpdatingImporterSelection) {
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(value)) {
                 throw new InvalidOperationException("Importer selection was not provided.");
             }
 
             PendingImporterId = value;
             UpdateStatusText();
+            HandleApplyClicked();
         }
 
         /// <summary>
@@ -483,7 +526,8 @@ namespace helengine.editor {
         /// </summary>
         void UpdateControlState() {
             ProcessorLabelHost.Enabled = true;
-            PlatformTabsHost.Enabled = SupportedPlatformIds.Count > 0;
+            PlatformTabStrip.Root.Enabled = SupportedPlatformIds.Count > 0;
+            ProcessorPanelRoot.Enabled = SupportedPlatformIds.Count > 0;
 
             bool showModelProcessor = IsModelProcessorVisible;
             FlipWindingLabelHost.Enabled = showModelProcessor;
@@ -619,59 +663,14 @@ namespace helengine.editor {
         /// Rebuilds the platform tab buttons for the current supported platform list.
         /// </summary>
         void RebuildPlatformTabs() {
-            ClearPlatformTabs();
-
-            for (int i = 0; i < SupportedPlatformIds.Count; i++) {
-                string platformId = SupportedPlatformIds[i];
-                EditorEntity tabHost = new EditorEntity();
-                tabHost.LayerMask = RootEntity.LayerMask;
-                tabHost.InternalEntity = true;
-                PlatformTabsHost.AddChild(tabHost);
-
-                TabComponent tabButton = new TabComponent(
-                    platformId,
-                    new int2(PlatformTabWidth, ControlHeight),
-                    Font,
-                    () => HandlePlatformTabClicked(platformId));
-                tabHost.AddComponent(tabButton);
-
-                PlatformTabButtonHosts.Add(tabHost);
-                PlatformTabButtons.Add(tabButton);
-            }
-
-            UpdatePlatformTabVisualState();
-        }
-
-        /// <summary>
-        /// Removes all existing platform tab button entities.
-        /// </summary>
-        void ClearPlatformTabs() {
-            for (int i = PlatformTabButtonHosts.Count - 1; i >= 0; i--) {
-                EditorEntity tabHost = PlatformTabButtonHosts[i];
-                tabHost.Dispose();
-            }
-
-            PlatformTabButtonHosts.Clear();
-            PlatformTabButtons.Clear();
-        }
-
-        /// <summary>
-        /// Updates the tab positions within the platform-tab row.
-        /// </summary>
-        void UpdatePlatformTabLayout() {
-            for (int i = 0; i < PlatformTabButtonHosts.Count; i++) {
-                PlatformTabButtonHosts[i].Position = new float3(i * (PlatformTabWidth + PlatformTabSpacing), 0f, 0.1f);
-            }
+            PlatformTabStrip.SetPlatforms(SupportedPlatformIds, CurrentPlatformId, HandlePlatformTabClicked);
         }
 
         /// <summary>
         /// Updates the selected-state visuals for each platform tab.
         /// </summary>
         void UpdatePlatformTabVisualState() {
-            for (int i = 0; i < PlatformTabButtons.Count; i++) {
-                bool isSelected = string.Equals(SupportedPlatformIds[i], CurrentPlatformId, StringComparison.OrdinalIgnoreCase);
-                PlatformTabButtons[i].SetSelected(isSelected);
-            }
+            PlatformTabStrip.SetSelectedPlatform(CurrentPlatformId);
         }
 
         /// <summary>

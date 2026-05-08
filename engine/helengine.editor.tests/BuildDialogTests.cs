@@ -74,7 +74,8 @@ namespace helengine.editor.tests {
                     ]
                 });
 
-            List<TabComponent> platformTabs = GetPrivateField<List<TabComponent>>(dialog, "PlatformTabs");
+            PlatformTabStripView platformTabStrip = GetPrivateField<PlatformTabStripView>(dialog, "PlatformTabStrip");
+            List<TabComponent> platformTabs = GetPrivateField<List<TabComponent>>(platformTabStrip, "Tabs");
             List<TextBoxComponent> mapOrderFields = GetPrivateField<List<TextBoxComponent>>(dialog, "MapOrderFields");
             List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
             List<CheckBoxComponent> mapCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "MapCheckBoxes");
@@ -161,13 +162,18 @@ namespace helengine.editor.tests {
                     ]
                 });
 
-            List<TabComponent> platformTabs = GetPrivateField<List<TabComponent>>(dialog, "PlatformTabs");
-            List<EditorEntity> platformTabHosts = GetPrivateField<List<EditorEntity>>(dialog, "PlatformTabHosts");
+            PlatformTabStripView platformTabStrip = GetPrivateField<PlatformTabStripView>(dialog, "PlatformTabStrip");
+            List<TabComponent> platformTabs = GetPrivateField<List<TabComponent>>(platformTabStrip, "Tabs");
+            List<EditorEntity> platformTabHosts = GetPrivateField<List<EditorEntity>>(platformTabStrip, "TabHosts");
+            RoundedRectComponent sceneListBackground = GetPrivateField<RoundedRectComponent>(dialog, "SceneListBackground");
+            EditorEntity sceneListRoot = GetPrivateField<EditorEntity>(dialog, "SceneListRoot");
 
             Assert.Equal(BuildDialog.PlatformTabWidth, (int)platformTabHosts[1].LocalPosition.X);
             Assert.All(platformTabs, tab => Assert.Equal(RoundedRectCorners.TopLeft | RoundedRectCorners.TopRight, tab.Corners));
             Assert.True(platformTabs[0].IsSelected);
             Assert.False(platformTabs[1].IsSelected);
+            Assert.Equal(RoundedRectCorners.BottomLeft | RoundedRectCorners.BottomRight, sceneListBackground.Corners);
+            Assert.Equal(BuildDialog.PlatformTabHeight - 1, (int)sceneListRoot.LocalPosition.Y);
         }
 
         /// <summary>
@@ -1920,7 +1926,7 @@ namespace helengine.editor.tests {
             List<EditorEntity> mapLabelHosts = GetPrivateField<List<EditorEntity>>(dialog, "MapLabelHosts");
 
             Assert.Equal(0f, sceneListRoot.LocalPosition.X);
-            Assert.True(sceneListRoot.LocalPosition.Y >= BuildDialog.PlatformTabHeight);
+            Assert.Equal(BuildDialog.PlatformTabHeight - 1, (int)sceneListRoot.LocalPosition.Y);
             Assert.Equal(ThemeManager.Colors.AccentTertiary, sceneListBackground.BorderColor);
             Assert.Equal(2f, sceneListBackground.BorderThickness);
             Assert.Equal(BuildDialog.PanelWidth - BuildDialog.QueueColumnWidth - (BuildDialog.PanelPadding * 3), sceneListBackground.Size.X);

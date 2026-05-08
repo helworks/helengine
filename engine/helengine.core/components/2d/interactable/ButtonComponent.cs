@@ -44,6 +44,30 @@ namespace helengine {
         /// Cursor requested while the pointer hovers the button.
         /// </summary>
         PointerCursorKind HoverCursorKind;
+        /// <summary>
+        /// Fill color used while the button is idle and not focused.
+        /// </summary>
+        byte4 IdleFillColor;
+        /// <summary>
+        /// Fill color used while the button is hovered.
+        /// </summary>
+        byte4 HoverFillColor;
+        /// <summary>
+        /// Fill color used while the button is pressed.
+        /// </summary>
+        byte4 PressedFillColor;
+        /// <summary>
+        /// Fill color used while the button is focused but not hovered or pressed.
+        /// </summary>
+        byte4 FocusedFillColor;
+        /// <summary>
+        /// Border color used while the button is idle and not focused.
+        /// </summary>
+        byte4 IdleBorderColor;
+        /// <summary>
+        /// Border color used while the button is focused.
+        /// </summary>
+        byte4 FocusedBorderColor;
 
         // Child entities and components
         Entity textEntity;
@@ -135,6 +159,12 @@ namespace helengine {
             this.onClickAction = onClickAction;
             this.borderThickness = borderThickness;
             ButtonTextColor = ThemeManager.Colors.TextOnAccent;
+            IdleFillColor = ThemeManager.Colors.AccentSecondary;
+            HoverFillColor = ThemeManager.Colors.AccentPrimary;
+            PressedFillColor = ThemeManager.Colors.AccentTertiary;
+            FocusedFillColor = IdleFillColor;
+            IdleBorderColor = ThemeManager.Colors.AccentTertiary;
+            FocusedBorderColor = ThemeManager.Colors.AccentPrimary;
             Corners = RoundedRectCorners.All;
             UpdateCornerRadius();
         }
@@ -191,6 +221,31 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Sets the visual palette used for the button's idle, hover, pressed, and focused states.
+        /// </summary>
+        /// <param name="idleFillColor">Fill color used while idle and unfocused.</param>
+        /// <param name="hoverFillColor">Fill color used while hovered.</param>
+        /// <param name="pressedFillColor">Fill color used while pressed.</param>
+        /// <param name="focusedFillColor">Fill color used while focused but not hovered or pressed.</param>
+        /// <param name="idleBorderColor">Border color used while idle and unfocused.</param>
+        /// <param name="focusedBorderColor">Border color used while focused.</param>
+        public void SetVisualPalette(
+            byte4 idleFillColor,
+            byte4 hoverFillColor,
+            byte4 pressedFillColor,
+            byte4 focusedFillColor,
+            byte4 idleBorderColor,
+            byte4 focusedBorderColor) {
+            IdleFillColor = idleFillColor;
+            HoverFillColor = hoverFillColor;
+            PressedFillColor = pressedFillColor;
+            FocusedFillColor = focusedFillColor;
+            IdleBorderColor = idleBorderColor;
+            FocusedBorderColor = focusedBorderColor;
+            UpdateButtonColor();
+        }
+
+        /// <summary>
         /// Configures the button background to render with square corners.
         /// </summary>
         public void UseSquareCorners() {
@@ -212,6 +267,22 @@ namespace helengine {
 
             if (roundedRect != null) {
                 roundedRect.Corners = Corners;
+                roundedRect.Radius = CornerRadius;
+            }
+        }
+
+        /// <summary>
+        /// Overrides the rounded corner radius used by the button background.
+        /// </summary>
+        /// <param name="cornerRadius">Corner radius in pixels.</param>
+        public void SetCornerRadius(float cornerRadius) {
+            if (cornerRadius < 0f) {
+                throw new ArgumentOutOfRangeException(nameof(cornerRadius), "Corner radius must not be negative.");
+            }
+
+            CornerRadius = cornerRadius;
+
+            if (roundedRect != null) {
                 roundedRect.Radius = CornerRadius;
             }
         }
@@ -439,13 +510,15 @@ namespace helengine {
             if (roundedRect == null) return;
 
             roundedRect.BorderColor = IsKeyboardFocused
-                ? ThemeManager.Colors.AccentPrimary
+                ? FocusedBorderColor
                 : GetIdleBorderColor();
 
             if (isPressed) {
-                roundedRect.FillColor = ThemeManager.Colors.AccentTertiary;
+                roundedRect.FillColor = PressedFillColor;
             } else if (isHovering) {
-                roundedRect.FillColor = ThemeManager.Colors.AccentPrimary;
+                roundedRect.FillColor = HoverFillColor;
+            } else if (IsKeyboardFocused) {
+                roundedRect.FillColor = FocusedFillColor;
             } else {
                 roundedRect.FillColor = GetIdleFillColor();
             }
@@ -460,7 +533,7 @@ namespace helengine {
                 return TransparentBackgroundColor;
             }
 
-            return ThemeManager.Colors.AccentSecondary;
+            return IdleFillColor;
         }
 
         /// <summary>
@@ -472,7 +545,7 @@ namespace helengine {
                 return TransparentBackgroundColor;
             }
 
-            return ThemeManager.Colors.AccentTertiary;
+            return IdleBorderColor;
         }
 
         /// <summary>

@@ -53,6 +53,48 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the shared platform tab strip reveals the selected platform when the supported platform list overflows the available width.
+        /// </summary>
+        [Fact]
+        public void Show_WhenManyPlatformsAreProvided_RevealsTheSelectedPlatformInTheSharedStrip() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+
+            view.Show(
+                ["assimp"],
+                CreateSettings(false, false),
+                ["windows", "ps2", "linux", "gamecube", "wii", "xbox", "switch"],
+                "switch",
+                AssetEntryKind.Model);
+            view.UpdateLayout(0, 0, 220);
+
+            Assert.Equal("switch", view.SelectedPlatformId);
+            Assert.True(view.PlatformTabStripView.IsPlatformFullyVisible("switch"));
+        }
+
+        /// <summary>
+        /// Ensures the processor controls sit inside one attached lower panel that starts directly beneath the platform tabs.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_WhenProcessorSectionIsVisible_UsesAttachedLowerPanelChrome() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+
+            view.Show(
+                ["assimp"],
+                CreateSettings(false, false),
+                ["windows", "android"],
+                "windows",
+                AssetEntryKind.Model);
+            view.UpdateLayout(0, 0, 220);
+
+            EditorEntity processorPanelRoot = GetPrivateField<EditorEntity>(view, "ProcessorPanelRoot");
+            RoundedRectComponent processorPanelBackground = GetPrivateField<RoundedRectComponent>(view, "ProcessorPanelBackground");
+
+            Assert.Equal((int)view.PlatformTabStripView.Root.LocalPosition.Y + 21, (int)processorPanelRoot.LocalPosition.Y);
+            Assert.Equal(RoundedRectCorners.BottomLeft | RoundedRectCorners.BottomRight, processorPanelBackground.Corners);
+            Assert.True(processorPanelBackground.Size.Y > 24);
+        }
+
+        /// <summary>
         /// Ensures model assets expose the processor section and bind the flip-winding toggle to the active platform settings.
         /// </summary>
         [Fact]
@@ -95,6 +137,29 @@ namespace helengine.editor.tests {
             Assert.Equal("custom", raisedRequest.ImporterId);
             Assert.Equal("windows", raisedRequest.SelectedPlatformId);
             Assert.True(raisedRequest.ProcessorSettings.Platforms["windows"].Model.FlipWinding);
+        }
+
+        /// <summary>
+        /// Ensures changing the importer selection commits the new importer immediately instead of leaving it pending.
+        /// </summary>
+        [Fact]
+        public void Apply_WhenImporterSelectionChanges_RaisesACommitRequestImmediately() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsApplyRequest raisedRequest = null;
+            view.ApplyRequested += request => raisedRequest = request;
+
+            view.Show(
+                ["assimp", "custom"],
+                CreateSettings(false, false),
+                ["windows", "android"],
+                "windows",
+                AssetEntryKind.Model);
+
+            InvokePrivate(view, "HandleComboSelectionChanged", 1, "custom");
+
+            Assert.NotNull(raisedRequest);
+            Assert.Equal("custom", raisedRequest.ImporterId);
+            Assert.Equal("windows", raisedRequest.SelectedPlatformId);
         }
 
         /// <summary>
@@ -143,7 +208,7 @@ namespace helengine.editor.tests {
                 "windows",
                 AssetEntryKind.Model);
 
-            List<EditorEntity> previousTabHosts = new List<EditorEntity>(GetPrivateField<List<EditorEntity>>(view, "PlatformTabButtonHosts"));
+            List<EditorEntity> previousTabHosts = new List<EditorEntity>(GetPrivateField<List<EditorEntity>>(view.PlatformTabStripView, "TabHosts"));
 
             view.Show(
                 ["assimp"],
