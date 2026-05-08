@@ -648,35 +648,11 @@ namespace helengine.editor {
         void ClearPlatformTabs() {
             for (int i = PlatformTabButtonHosts.Count - 1; i >= 0; i--) {
                 EditorEntity tabHost = PlatformTabButtonHosts[i];
-                RemoveOwnedEntity(tabHost);
+                tabHost.Dispose();
             }
 
             PlatformTabButtonHosts.Clear();
             PlatformTabButtons.Clear();
-        }
-
-        /// <summary>
-        /// Removes one view-owned entity subtree from both the scene graph and the live object manager.
-        /// </summary>
-        /// <param name="entity">View-owned entity subtree to remove.</param>
-        void RemoveOwnedEntity(Entity entity) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            }
-
-            entity.Enabled = false;
-
-            if (entity.Children != null) {
-                for (int i = entity.Children.Count - 1; i >= 0; i--) {
-                    RemoveOwnedEntity(entity.Children[i]);
-                }
-            }
-
-            if (entity.Parent != null) {
-                entity.Parent.RemoveChild(entity);
-            }
-
-            Core.Instance.ObjectManager.RemoveEntity(entity);
         }
 
         /// <summary>

@@ -436,10 +436,10 @@ namespace helengine.editor {
             }
 
             for (int index = 0; index < PlatformLabelHosts.Count; index++) {
-                DialogPanelRoot.RemoveChild(PlatformLabelHosts[index]);
+                PlatformLabelHosts[index].Dispose();
             }
             for (int index = 0; index < PlatformCheckBoxHosts.Count; index++) {
-                DialogPanelRoot.RemoveChild(PlatformCheckBoxHosts[index]);
+                PlatformCheckBoxHosts[index].Dispose();
             }
 
             PlatformLabelHosts.Clear();

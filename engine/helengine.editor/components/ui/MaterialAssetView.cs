@@ -617,10 +617,10 @@ namespace helengine.editor {
         void ClearFieldRows() {
             for (int index = 0; index < FieldRows.Count; index++) {
                 MaterialAssetFieldEditorRow row = FieldRows[index];
-                RootEntity.RemoveChild(row.LabelHost);
-                RootEntity.RemoveChild(row.ValueHost);
+                row.LabelHost.Dispose();
+                row.ValueHost.Dispose();
                 if (row.ButtonHost != null) {
-                    RootEntity.RemoveChild(row.ButtonHost);
+                    row.ButtonHost.Dispose();
                 }
             }
 

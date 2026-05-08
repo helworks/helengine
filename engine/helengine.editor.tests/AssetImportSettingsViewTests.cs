@@ -130,6 +130,35 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures rebuilding the platform tabs disposes the previous tab hosts instead of leaving detached live entities behind.
+        /// </summary>
+        [Fact]
+        public void Show_WhenPlatformTabsAreRebuilt_DisposesPreviousTabHosts() {
+            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+
+            view.Show(
+                ["assimp"],
+                CreateSettings(false, false),
+                ["windows", "android"],
+                "windows",
+                AssetEntryKind.Model);
+
+            List<EditorEntity> previousTabHosts = new List<EditorEntity>(GetPrivateField<List<EditorEntity>>(view, "PlatformTabButtonHosts"));
+
+            view.Show(
+                ["assimp"],
+                CreateSettings(false, false),
+                ["windows"],
+                "windows",
+                AssetEntryKind.Model);
+
+            Assert.All(previousTabHosts, host => Assert.DoesNotContain(host, Core.Instance.ObjectManager.Entities));
+            Assert.All(previousTabHosts, host => Assert.Empty(host.Components));
+            Assert.All(previousTabHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Drawables2D, drawable => ReferenceEquals(drawable.Parent, host)));
+            Assert.All(previousTabHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Interactables, interactable => ReferenceEquals(interactable.Parent, host)));
+        }
+
+        /// <summary>
         /// Ensures the properties panel forwards the richer apply payload emitted by the asset settings view.
         /// </summary>
         [Fact]

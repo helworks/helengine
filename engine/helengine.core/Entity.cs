@@ -192,7 +192,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Removes one direct child entity and updates its effective hierarchy-enabled state.
+        /// Removes one direct child entity from this hierarchy without disposing it and updates its effective hierarchy-enabled state.
         /// </summary>
         /// <param name="entity">Child entity to remove.</param>
         public void RemoveChild(Entity entity) {
@@ -307,9 +307,28 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Performs cleanup logic for the entity.
+        /// Recursively tears down this entity subtree, detaches its components, removes it from any parent, and unregisters it from the object manager.
         /// </summary>
         public void Dispose() {
+            if (Children != null) {
+                while (Children.Count > 0) {
+                    Entity child = Children[Children.Count - 1];
+                    RemoveChild(child);
+                    child.Dispose();
+                }
+            }
+
+            if (Components != null) {
+                while (Components.Count > 0) {
+                    RemoveComponent(Components[Components.Count - 1]);
+                }
+            }
+
+            if (Parent != null) {
+                Parent.RemoveChild(this);
+            }
+
+            Core.Instance.ObjectManager.RemoveEntity(this);
         }
     }
 }

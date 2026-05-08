@@ -122,6 +122,34 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures hiding the dialog unregisters dynamic platform rows instead of leaving orphaned checkbox and label entities in the main UI graph.
+        /// </summary>
+        [Fact]
+        public void Hide_WhenClosed_UnregistersDynamicPlatformRowsWithoutLeavingTopLevelUiEntities() {
+            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+
+            dialog.Show(
+                new[] { "windows", "ps2" },
+                new[] { "windows", "ps2" },
+                "windows");
+
+            List<EditorEntity> platformCheckBoxHosts = new List<EditorEntity>(GetPrivateField<List<EditorEntity>>(dialog, "PlatformCheckBoxHosts"));
+            List<EditorEntity> platformLabelHosts = new List<EditorEntity>(GetPrivateField<List<EditorEntity>>(dialog, "PlatformLabelHosts"));
+
+            dialog.Hide();
+
+            Assert.Empty(GetPrivateField<List<EditorEntity>>(dialog, "PlatformCheckBoxHosts"));
+            Assert.Empty(GetPrivateField<List<EditorEntity>>(dialog, "PlatformLabelHosts"));
+            Assert.All(platformCheckBoxHosts, host => Assert.DoesNotContain(host, Core.Instance.ObjectManager.Entities));
+            Assert.All(platformLabelHosts, host => Assert.DoesNotContain(host, Core.Instance.ObjectManager.Entities));
+            Assert.All(platformCheckBoxHosts, host => Assert.Empty(host.Components));
+            Assert.All(platformLabelHosts, host => Assert.Empty(host.Components));
+            Assert.All(platformCheckBoxHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Drawables2D, drawable => ReferenceEquals(drawable.Parent, host)));
+            Assert.All(platformCheckBoxHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Interactables, interactable => ReferenceEquals(interactable.Parent, host)));
+            Assert.All(platformLabelHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Drawables2D, drawable => ReferenceEquals(drawable.Parent, host)));
+        }
+
+        /// <summary>
         /// Reads one non-public instance field and casts it to the requested type.
         /// </summary>
         /// <typeparam name="T">Expected field type.</typeparam>

@@ -344,15 +344,15 @@ namespace helengine.editor {
         /// </summary>
         void ClearPlatformRows() {
             for (int index = 0; index < PlatformLabelHosts.Count; index++) {
-                DialogPanelRoot.RemoveChild(PlatformLabelHosts[index]);
+                PlatformLabelHosts[index].Dispose();
             }
 
             for (int index = 0; index < PlatformStatusHosts.Count; index++) {
-                DialogPanelRoot.RemoveChild(PlatformStatusHosts[index]);
+                PlatformStatusHosts[index].Dispose();
             }
 
             for (int index = 0; index < PlatformCheckBoxHosts.Count; index++) {
-                DialogPanelRoot.RemoveChild(PlatformCheckBoxHosts[index]);
+                PlatformCheckBoxHosts[index].Dispose();
             }
 
             PlatformLabelHosts.Clear();

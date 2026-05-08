@@ -233,9 +233,7 @@ namespace helengine.editor {
         void ClearRows() {
             for (int index = Rows.Count - 1; index >= 0; index--) {
                 EditorPlatformSettingBinding row = Rows[index];
-                if (row.RowHost.Parent == RootHost) {
-                    RootHost.RemoveChild(row.RowHost);
-                }
+                row.RowHost.Dispose();
             }
 
             Rows.Clear();

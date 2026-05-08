@@ -64,6 +64,41 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures rebuilding the dialog disposes the previous dynamic row hosts instead of leaving detached live entities behind.
+        /// </summary>
+        [Fact]
+        public void Show_WhenOpenedRepeatedly_DisposesPreviousDynamicPlatformRows() {
+            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+
+            dialog.Show(
+                CreateAvailablePlatforms("windows", "linux"),
+                new List<string> {
+                    "windows"
+                });
+
+            List<EditorEntity> previousLabelHosts = new List<EditorEntity>(GetPrivateField<List<EditorEntity>>(dialog, "PlatformLabelHosts"));
+            List<EditorEntity> previousStatusHosts = new List<EditorEntity>(GetPrivateField<List<EditorEntity>>(dialog, "PlatformStatusHosts"));
+            List<EditorEntity> previousCheckBoxHosts = new List<EditorEntity>(GetPrivateField<List<EditorEntity>>(dialog, "PlatformCheckBoxHosts"));
+
+            dialog.Show(
+                CreateAvailablePlatforms("windows"),
+                new List<string> {
+                    "windows"
+                });
+
+            Assert.All(previousLabelHosts, host => Assert.DoesNotContain(host, Core.Instance.ObjectManager.Entities));
+            Assert.All(previousStatusHosts, host => Assert.DoesNotContain(host, Core.Instance.ObjectManager.Entities));
+            Assert.All(previousCheckBoxHosts, host => Assert.DoesNotContain(host, Core.Instance.ObjectManager.Entities));
+            Assert.All(previousLabelHosts, host => Assert.Empty(host.Components));
+            Assert.All(previousStatusHosts, host => Assert.Empty(host.Components));
+            Assert.All(previousCheckBoxHosts, host => Assert.Empty(host.Components));
+            Assert.All(previousLabelHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Drawables2D, drawable => ReferenceEquals(drawable.Parent, host)));
+            Assert.All(previousStatusHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Drawables2D, drawable => ReferenceEquals(drawable.Parent, host)));
+            Assert.All(previousCheckBoxHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Drawables2D, drawable => ReferenceEquals(drawable.Parent, host)));
+            Assert.All(previousCheckBoxHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Interactables, interactable => ReferenceEquals(interactable.Parent, host)));
+        }
+
+        /// <summary>
         /// Ensures platform rows are parented under the modal content root and positioned immediately during Show.
         /// </summary>
         [Fact]
