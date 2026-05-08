@@ -38,10 +38,10 @@ public sealed class MaterialAssetViewTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies the material view keeps shader override fields hidden until the custom-shader toggle is enabled.
+    /// Verifies that the material view renders one panel per platform and keeps schema controls inside each panel.
     /// </summary>
     [Fact]
-    public void Show_when_custom_shader_is_disabled_hides_shader_override_fields_until_the_toggle_is_enabled() {
+    public void Show_when_multiple_platforms_are_available_renders_separate_panels_for_each_platform() {
         MaterialAssetView view = new MaterialAssetView(CreateFont(), 1);
         string materialPath = Path.Combine(TempRootPath, "Test.helmat");
         File.WriteAllBytes(materialPath, Array.Empty<byte>());
@@ -52,19 +52,28 @@ public sealed class MaterialAssetViewTests : IDisposable {
                 Id = "Materials/Test.helmat"
             },
             CreateSettings(useCustomShader: false),
-            ["windows"],
+            ["windows", "linux"],
             "windows",
-            _ => EditorPlatformBuildSelectionModel.From(CreatePlatformDefinition()));
+            platformId => EditorPlatformBuildSelectionModel.From(CreatePlatformDefinition(platformId)));
 
-        List<MaterialAssetFieldEditorRow> initialRows = GetPrivateField<List<MaterialAssetFieldEditorRow>>(view, "FieldRows");
+        PlatformTabStripView tabStrip = GetPrivateField<PlatformTabStripView>(view, "PlatformTabStrip");
+        Dictionary<string, MaterialAssetPlatformPanel> panels = GetPrivateField<Dictionary<string, MaterialAssetPlatformPanel>>(view, "PlatformPanels");
+        MaterialAssetPlatformPanel windowsPanel = panels["windows"];
+        MaterialAssetPlatformPanel linuxPanel = panels["linux"];
 
-        Assert.Equal(["use-custom-shader", "base-color"], initialRows.Select(row => row.FieldId).ToArray());
+        Assert.Equal(2, tabStrip.TabCount);
+        Assert.Equal("windows", tabStrip.SelectedPlatformId);
+        Assert.Throws<InvalidOperationException>(() => GetPrivateField<object>(view, "PlatformComboBox"));
+        Assert.Equal(["Standard Shader"], windowsPanel.SchemaComboBoxControl.Items);
+        Assert.Equal(["Standard Shader"], linuxPanel.SchemaComboBoxControl.Items);
+        Assert.Equal("Standard Shader", windowsPanel.SchemaComboBoxControl.SelectedItem);
+        Assert.Equal("Standard Shader", linuxPanel.SchemaComboBoxControl.SelectedItem);
+        Assert.Equal(["use-custom-shader", "base-color"], windowsPanel.FieldRows.Select(row => row.FieldId).ToArray());
+        Assert.Equal(["use-custom-shader", "base-color"], linuxPanel.FieldRows.Select(row => row.FieldId).ToArray());
 
-        MaterialAssetFieldEditorRow customShaderRow = Assert.Single(initialRows, row => row.FieldId == "use-custom-shader");
+        MaterialAssetFieldEditorRow customShaderRow = Assert.Single(windowsPanel.FieldRows, row => row.FieldId == "use-custom-shader");
         CheckBoxComponent checkBox = Assert.IsType<CheckBoxComponent>(customShaderRow.CheckBox);
         InvokePrivate(checkBox, "SetCheckedState", true, true);
-
-        List<MaterialAssetFieldEditorRow> updatedRows = GetPrivateField<List<MaterialAssetFieldEditorRow>>(view, "FieldRows");
 
         Assert.Equal(
             [
@@ -74,7 +83,24 @@ public sealed class MaterialAssetViewTests : IDisposable {
                 "pixel-program",
                 "base-color"
             ],
-            updatedRows.Select(row => row.FieldId).ToArray());
+            windowsPanel.FieldRows.Select(row => row.FieldId).ToArray());
+        Assert.Equal(["use-custom-shader", "base-color"], linuxPanel.FieldRows.Select(row => row.FieldId).ToArray());
+
+        InvokePrivate(tabStrip, "HandleTabFocusChanged", "linux", true);
+
+        Assert.Equal("linux", tabStrip.SelectedPlatformId);
+        Assert.True(linuxPanel.Root.Enabled);
+        Assert.False(windowsPanel.Root.Enabled);
+        Assert.Equal(
+            [
+                "use-custom-shader",
+                "shader-asset-id",
+                "vertex-program",
+                "pixel-program",
+                "base-color"
+            ],
+            windowsPanel.FieldRows.Select(row => row.FieldId).ToArray());
+        Assert.Equal(["use-custom-shader", "base-color"], linuxPanel.FieldRows.Select(row => row.FieldId).ToArray());
     }
 
     /// <summary>
@@ -135,9 +161,13 @@ public sealed class MaterialAssetViewTests : IDisposable {
     static AssetImportSettings CreateSettings(bool useCustomShader) {
         AssetImportSettings settings = new AssetImportSettings();
         settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings();
+        settings.Processor.Platforms["linux"] = new AssetPlatformProcessorSettings();
         settings.Processor.Platforms["windows"].Material.SchemaId = "standard-shader";
         settings.Processor.Platforms["windows"].Material.FieldValues["use-custom-shader"] = useCustomShader ? "true" : "false";
         settings.Processor.Platforms["windows"].Material.FieldValues["base-color"] = "#ffffff";
+        settings.Processor.Platforms["linux"].Material.SchemaId = "standard-shader";
+        settings.Processor.Platforms["linux"].Material.FieldValues["use-custom-shader"] = "false";
+        settings.Processor.Platforms["linux"].Material.FieldValues["base-color"] = "#ffffff";
         return settings;
     }
 
@@ -145,10 +175,10 @@ public sealed class MaterialAssetViewTests : IDisposable {
     /// Creates one minimal platform definition that publishes the material schema under test.
     /// </summary>
     /// <returns>Platform definition used by the material view test.</returns>
-    static PlatformDefinition CreatePlatformDefinition() {
+    static PlatformDefinition CreatePlatformDefinition(string platformId) {
         return new PlatformDefinition(
-            "windows",
-            "Windows",
+            platformId,
+            string.Equals(platformId, "linux", StringComparison.OrdinalIgnoreCase) ? "Linux" : "Windows",
             [],
             [
                 new PlatformGraphicsProfileDefinition(

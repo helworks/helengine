@@ -66,44 +66,9 @@ namespace helengine.editor {
         readonly EditorEntity RootEntity;
 
         /// <summary>
-        /// Host entity for the platform label.
+        /// Shared platform tab strip used to switch the active platform panel.
         /// </summary>
-        readonly EditorEntity PlatformLabelHost;
-
-        /// <summary>
-        /// Text component for the platform label.
-        /// </summary>
-        readonly TextComponent PlatformLabelText;
-
-        /// <summary>
-        /// Host entity for the platform picker control.
-        /// </summary>
-        readonly EditorEntity PlatformComboHost;
-
-        /// <summary>
-        /// Combo box used to choose which platform material settings are being edited.
-        /// </summary>
-        readonly ComboBoxComponent PlatformComboBox;
-
-        /// <summary>
-        /// Host entity for the schema label.
-        /// </summary>
-        readonly EditorEntity SchemaLabelHost;
-
-        /// <summary>
-        /// Text component for the schema label.
-        /// </summary>
-        readonly TextComponent SchemaLabelText;
-
-        /// <summary>
-        /// Host entity for the schema picker control.
-        /// </summary>
-        readonly EditorEntity SchemaComboHost;
-
-        /// <summary>
-        /// Combo box used to choose which schema is active for the selected platform.
-        /// </summary>
-        readonly ComboBoxComponent SchemaComboBox;
+        readonly PlatformTabStripView PlatformTabStrip;
 
         /// <summary>
         /// Host entity for the status text.
@@ -121,14 +86,9 @@ namespace helengine.editor {
         readonly List<string> SupportedPlatformIds;
 
         /// <summary>
-        /// Schema identifiers shown in the active schema picker.
+        /// Material panels created for each supported platform.
         /// </summary>
-        readonly List<string> AvailableSchemaIds;
-
-        /// <summary>
-        /// UI rows created for the active material schema.
-        /// </summary>
-        readonly List<MaterialAssetFieldEditorRow> FieldRows;
+        readonly Dictionary<string, MaterialAssetPlatformPanel> PlatformPanels;
 
         /// <summary>
         /// Service used to load and save material settings sidecars.
@@ -176,16 +136,6 @@ namespace helengine.editor {
         bool IsViewVisible;
 
         /// <summary>
-        /// Tracks whether platform-combo updates are being applied programmatically.
-        /// </summary>
-        bool IsUpdatingPlatformSelection;
-
-        /// <summary>
-        /// Tracks whether schema-combo updates are being applied programmatically.
-        /// </summary>
-        bool IsUpdatingSchemaSelection;
-
-        /// <summary>
         /// Initializes a new view for material asset editing.
         /// </summary>
         /// <param name="font">Font used for text rendering.</param>
@@ -198,8 +148,7 @@ namespace helengine.editor {
             Font = font;
             TextOrder = RenderOrder2D.PanelForeground;
             SupportedPlatformIds = new List<string>(4);
-            AvailableSchemaIds = new List<string>(4);
-            FieldRows = new List<MaterialAssetFieldEditorRow>(8);
+            PlatformPanels = new Dictionary<string, MaterialAssetPlatformPanel>(StringComparer.OrdinalIgnoreCase);
             SettingsService = new MaterialAssetSettingsService();
             SchemaSettingsService = new MaterialAssetSchemaSettingsService();
 
@@ -207,27 +156,11 @@ namespace helengine.editor {
             RootEntity.LayerMask = layerMask;
             RootEntity.InternalEntity = true;
 
-            PlatformLabelHost = CreateTextHost(layerMask, out PlatformLabelText, "Platform");
-            RootEntity.AddChild(PlatformLabelHost);
-
-            PlatformComboHost = new EditorEntity();
-            PlatformComboHost.LayerMask = layerMask;
-            RootEntity.AddChild(PlatformComboHost);
-
-            PlatformComboBox = new ComboBoxComponent(new int2(160, RowHeight), font, Array.Empty<string>(), -1);
-            PlatformComboBox.SelectionChanged += HandlePlatformSelectionChanged;
-            PlatformComboHost.AddComponent(PlatformComboBox);
-
-            SchemaLabelHost = CreateTextHost(layerMask, out SchemaLabelText, "Schema");
-            RootEntity.AddChild(SchemaLabelHost);
-
-            SchemaComboHost = new EditorEntity();
-            SchemaComboHost.LayerMask = layerMask;
-            RootEntity.AddChild(SchemaComboHost);
-
-            SchemaComboBox = new ComboBoxComponent(new int2(180, RowHeight), font, Array.Empty<string>(), -1);
-            SchemaComboBox.SelectionChanged += HandleSchemaSelectionChanged;
-            SchemaComboHost.AddComponent(SchemaComboBox);
+            PlatformTabStrip = new PlatformTabStripView(font, layerMask, 88, RowHeight, 0, RowHeight);
+            PlatformTabStrip.Root.Enabled = false;
+            PlatformTabStrip.SetRenderOrders(RenderOrder2D.PanelSurface, TextOrder);
+            PlatformTabStrip.Root.Position = float3.Zero;
+            RootEntity.AddChild(PlatformTabStrip.Root);
 
             StatusHost = CreateTextHost(layerMask, out StatusText, string.Empty);
             RootEntity.AddChild(StatusHost);
@@ -290,13 +223,11 @@ namespace helengine.editor {
 
             SetSupportedPlatforms(supportedPlatforms);
             CurrentPlatformId = ResolveSelectedPlatformId(activePlatformId);
-            IsUpdatingPlatformSelection = true;
-            PlatformComboBox.SetItems(SupportedPlatformIds, FindPlatformIndex(CurrentPlatformId));
-            IsUpdatingPlatformSelection = false;
-            PlatformComboBox.IsOpen = false;
-
-            RebuildFieldRows();
-            UpdateDisplayedValues();
+            BuildPlatformPanels();
+            PlatformTabStrip.SetPlatforms(SupportedPlatformIds, CurrentPlatformId, HandlePlatformSelectionChanged);
+            PlatformTabStrip.SetSelectedPlatform(CurrentPlatformId);
+            UpdatePlatformVisibility();
+            UpdateDisplayedValues(CurrentPlatformId);
             IsViewVisible = true;
             RootEntity.Enabled = true;
         }
@@ -306,10 +237,11 @@ namespace helengine.editor {
         /// </summary>
         public void Hide() {
             if (CurrentEntry != null && CurrentSettings != null) {
-                SyncCurrentFieldValues(saveToDisk: true);
+                SyncCurrentFieldValues(CurrentPlatformId, saveToDisk: true);
             }
 
-            ClearFieldRows();
+            ClearPlatformPanels();
+            PlatformTabStrip.Root.Enabled = false;
             IsViewVisible = false;
             RootEntity.Enabled = false;
             CurrentEntry = null;
@@ -318,13 +250,6 @@ namespace helengine.editor {
             SelectionModelResolver = null;
             CurrentPlatformId = string.Empty;
             SupportedPlatformIds.Clear();
-            AvailableSchemaIds.Clear();
-            IsUpdatingPlatformSelection = true;
-            PlatformComboBox.SetItems(Array.Empty<string>(), -1);
-            IsUpdatingPlatformSelection = false;
-            IsUpdatingSchemaSelection = true;
-            SchemaComboBox.SetItems(Array.Empty<string>(), -1);
-            IsUpdatingSchemaSelection = false;
             StatusText.Text = string.Empty;
         }
 
@@ -341,20 +266,28 @@ namespace helengine.editor {
             }
 
             int safeWidth = Math.Max(0, width);
-            int labelWidth = Math.Min(LabelWidth, safeWidth);
             int currentTop = top;
 
-            LayoutLabelAndCombo(PlatformLabelHost, PlatformLabelText, PlatformComboHost, labelWidth, Math.Max(0, safeWidth - labelWidth - ControlSpacing), left, currentTop);
-
+            PlatformTabStrip.UpdateLayout(left, currentTop, Math.Max(1, safeWidth));
             currentTop += RowHeight + RowSpacing;
-            LayoutLabelAndCombo(SchemaLabelHost, SchemaLabelText, SchemaComboHost, labelWidth, Math.Max(0, safeWidth - labelWidth - ControlSpacing), left, currentTop);
 
-            for (int index = 0; index < FieldRows.Count; index++) {
-                currentTop += RowHeight + RowSpacing;
-                LayoutFieldRow(FieldRows[index], left, currentTop, safeWidth, labelWidth);
+            MaterialAssetPlatformPanel activePanel = GetActivePlatformPanel();
+            if (activePanel != null) {
+                activePanel.SetVisible(true);
+                activePanel.UpdateLayout(left, currentTop, safeWidth);
+                currentTop += activePanel.Height + RowSpacing;
             }
 
-            currentTop += RowHeight + RowSpacing;
+            for (int index = 0; index < SupportedPlatformIds.Count; index++) {
+                string platformId = SupportedPlatformIds[index];
+                MaterialAssetPlatformPanel panel = GetPlatformPanel(platformId);
+                if (panel == null || panel == activePanel) {
+                    continue;
+                }
+
+                panel.SetVisible(false);
+            }
+
             StatusHost.Position = new float3(left, currentTop, 0.2f);
             StatusText.Size = new int2(safeWidth, RowHeight);
 
@@ -362,23 +295,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Handles platform picker selection changes.
+        /// Handles platform tab selection changes.
         /// </summary>
-        /// <param name="index">Selected platform index.</param>
         /// <param name="value">Selected platform identifier.</param>
-        void HandlePlatformSelectionChanged(int index, string value) {
-            if (IsUpdatingPlatformSelection) {
-                return;
-            }
-
+        void HandlePlatformSelectionChanged(string value) {
             if (string.IsNullOrWhiteSpace(value)) {
                 throw new InvalidOperationException("Platform selection was not provided.");
             }
 
-            SyncCurrentFieldValues(saveToDisk: true);
+            SyncCurrentFieldValues(CurrentPlatformId, saveToDisk: true);
             CurrentPlatformId = value;
-            RebuildFieldRows();
-            UpdateDisplayedValues();
+            UpdatePlatformVisibility();
+            UpdateDisplayedValues(CurrentPlatformId);
         }
 
         /// <summary>
@@ -386,23 +314,33 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="index">Selected schema index.</param>
         /// <param name="value">Selected schema display label.</param>
-        void HandleSchemaSelectionChanged(int index, string value) {
-            if (IsUpdatingSchemaSelection) {
-                return;
-            } else if (index < 0 || index >= AvailableSchemaIds.Count) {
+        void HandleSchemaSelectionChanged(string platformId, int index, string value) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            } else if (index < 0) {
                 throw new InvalidOperationException("Schema selection index is out of range.");
             }
 
-            MaterialAssetProcessorSettings materialSettings = GetActiveMaterialSettings();
+            MaterialAssetPlatformPanel panel = GetPlatformPanel(platformId);
+            if (panel == null || panel.IsUpdatingSchemaSelectionValue) {
+                return;
+            }
+
+            MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
             if (materialSettings == null) {
                 return;
             }
 
-            string schemaId = AvailableSchemaIds[index];
-            SchemaSettingsService.SelectSchema(materialSettings, ResolveAvailableSchemas(), schemaId);
-            RebuildFieldRows();
-            SaveCurrentMaterialState();
-            UpdateDisplayedValues();
+            PlatformMaterialSchemaDefinition[] availableSchemas = ResolveAvailableSchemas(platformId);
+            if (index >= availableSchemas.Length) {
+                throw new InvalidOperationException("Schema selection index is out of range.");
+            }
+
+            string schemaId = availableSchemas[index].SchemaId;
+            SchemaSettingsService.SelectSchema(materialSettings, availableSchemas, schemaId);
+            RebuildPlatformPanel(platformId);
+            SaveCurrentMaterialState(platformId);
+            UpdateDisplayedValues(platformId);
         }
 
         /// <summary>
@@ -410,14 +348,16 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fieldId">Builder-defined field identifier whose text changed.</param>
         /// <param name="textBox">Text box whose value changed.</param>
-        void HandleTextFieldChanged(string fieldId, TextBoxComponent textBox) {
+        void HandleTextFieldChanged(string platformId, string fieldId, TextBoxComponent textBox) {
             if (string.IsNullOrWhiteSpace(fieldId)) {
                 throw new ArgumentException("Field id must be provided.", nameof(fieldId));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             } else if (textBox == null) {
                 throw new ArgumentNullException(nameof(textBox));
             }
 
-            MaterialAssetProcessorSettings materialSettings = GetActiveMaterialSettings();
+            MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
             if (materialSettings == null) {
                 return;
             }
@@ -430,10 +370,10 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fieldId">Builder-defined field identifier whose text was submitted.</param>
         /// <param name="textBox">Text box whose value was submitted.</param>
-        void HandleTextFieldSubmitted(string fieldId, TextBoxComponent textBox) {
-            HandleTextFieldChanged(fieldId, textBox);
-            SaveCurrentMaterialState();
-            UpdateDisplayedValues();
+        void HandleTextFieldSubmitted(string platformId, string fieldId, TextBoxComponent textBox) {
+            HandleTextFieldChanged(platformId, fieldId, textBox);
+            SaveCurrentMaterialState(platformId);
+            UpdateDisplayedValues(platformId);
         }
 
         /// <summary>
@@ -441,21 +381,23 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fieldId">Builder-defined field identifier whose selection changed.</param>
         /// <param name="value">Selected serialized value.</param>
-        void HandleChoiceFieldChanged(string fieldId, string value) {
+        void HandleChoiceFieldChanged(string platformId, string fieldId, string value) {
             if (string.IsNullOrWhiteSpace(fieldId)) {
                 throw new ArgumentException("Field id must be provided.", nameof(fieldId));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             } else if (value == null) {
                 throw new ArgumentNullException(nameof(value));
             }
 
-            MaterialAssetProcessorSettings materialSettings = GetActiveMaterialSettings();
+            MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
             if (materialSettings == null) {
                 return;
             }
 
             materialSettings.FieldValues[fieldId] = value;
-            SaveCurrentMaterialState();
-            UpdateDisplayedValues();
+            SaveCurrentMaterialState(platformId);
+            UpdateDisplayedValues(platformId);
         }
 
         /// <summary>
@@ -463,34 +405,36 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fieldId">Builder-defined field identifier whose value changed.</param>
         /// <param name="isChecked">Current checked state.</param>
-        void HandleBooleanFieldChanged(string fieldId, bool isChecked) {
+        void HandleBooleanFieldChanged(string platformId, string fieldId, bool isChecked) {
             if (string.IsNullOrWhiteSpace(fieldId)) {
                 throw new ArgumentException("Field id must be provided.", nameof(fieldId));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            MaterialAssetProcessorSettings materialSettings = GetActiveMaterialSettings();
+            MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
             if (materialSettings == null) {
                 return;
             }
 
             materialSettings.FieldValues[fieldId] = isChecked ? "true" : "false";
-            SaveCurrentMaterialState();
+            SaveCurrentMaterialState(platformId);
             if (string.Equals(fieldId, UseCustomShaderFieldId, StringComparison.OrdinalIgnoreCase)) {
-                RebuildFieldRows();
+                RebuildPlatformPanel(platformId);
             }
-            UpdateDisplayedValues();
+            UpdateDisplayedValues(platformId);
         }
 
         /// <summary>
         /// Requests a shader pick from the asset picker service for one asset-reference field.
         /// </summary>
         /// <param name="fieldId">Builder-defined field identifier that should receive the shader asset id.</param>
-        void RequestShaderPick(string fieldId) {
+        void RequestShaderPick(string platformId, string fieldId) {
             if (CurrentEntry == null || CurrentAsset == null || CurrentSettings == null) {
                 return;
             }
 
-            EditorAssetPickerService.RequestPick(entry => HandleShaderPicked(fieldId, entry), EditorFileTemplateRegistry.ShaderExtension);
+            EditorAssetPickerService.RequestPick(entry => HandleShaderPicked(platformId, fieldId, entry), EditorFileTemplateRegistry.ShaderExtension);
         }
 
         /// <summary>
@@ -498,9 +442,11 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fieldId">Builder-defined field identifier that should receive the shader asset id.</param>
         /// <param name="entry">Picked asset entry.</param>
-        void HandleShaderPicked(string fieldId, AssetBrowserEntry entry) {
+        void HandleShaderPicked(string platformId, string fieldId, AssetBrowserEntry entry) {
             if (string.IsNullOrWhiteSpace(fieldId)) {
                 throw new ArgumentException("Field id must be provided.", nameof(fieldId));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
             if (entry == null || CurrentEntry == null || CurrentAsset == null || CurrentSettings == null) {
                 return;
@@ -511,10 +457,10 @@ namespace helengine.editor {
 
             try {
                 string shaderId = ShaderAssetIdUtils.BuildShaderAssetId(entry.FullPath);
-                ApplyShaderIdToActivePlatform(fieldId, shaderId);
-                UpdateFieldControlsFromSettings();
-                SaveCurrentMaterialState();
-                UpdateDisplayedValues();
+                ApplyShaderIdToActivePlatform(platformId, fieldId, shaderId);
+                UpdateFieldControlsFromSettings(platformId);
+                SaveCurrentMaterialState(platformId);
+                UpdateDisplayedValues(platformId);
                 RefreshShaderResources(CurrentAsset.ShaderAssetId);
             } catch (Exception ex) {
                 Logger.WriteError($"Failed to assign platform shader: {ex.Message}");
@@ -526,8 +472,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fieldId">Builder-defined field identifier that stores the shader asset id.</param>
         /// <param name="shaderId">Shader identifier to apply.</param>
-        void ApplyShaderIdToActivePlatform(string fieldId, string shaderId) {
-            MaterialAssetProcessorSettings materialSettings = GetActiveMaterialSettings();
+        void ApplyShaderIdToActivePlatform(string platformId, string fieldId, string shaderId) {
+            MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
             if (materialSettings == null) {
                 throw new InvalidOperationException("Active platform material settings are not available.");
             }
@@ -541,12 +487,12 @@ namespace helengine.editor {
         /// <summary>
         /// Saves the material sidecar and mirrors the active platform fields back into the raw material asset for compatibility.
         /// </summary>
-        void SaveCurrentMaterialState() {
+        void SaveCurrentMaterialState(string platformId) {
             if (CurrentEntry == null || CurrentAsset == null || CurrentSettings == null) {
                 throw new InvalidOperationException("Cannot save a material view that is not bound to an asset.");
             }
 
-            SettingsService.ApplyPlatformCompatibilityFields(CurrentAsset, CurrentSettings, CurrentPlatformId);
+            SettingsService.ApplyPlatformCompatibilityFields(CurrentAsset, CurrentSettings, platformId);
             SaveMaterialAsset(CurrentEntry.FullPath, CurrentAsset);
             SettingsService.Save(CurrentEntry.FullPath, CurrentSettings);
         }
@@ -587,11 +533,16 @@ namespace helengine.editor {
         /// <summary>
         /// Rebuilds the visible field-editor rows for the active schema.
         /// </summary>
-        void RebuildFieldRows() {
-            ClearFieldRows();
+        void RebuildPlatformPanel(string platformId) {
+            MaterialAssetPlatformPanel panel = GetPlatformPanel(platformId);
+            if (panel == null) {
+                return;
+            }
 
-            PlatformMaterialSchemaDefinition materialSchema = EnsureActiveSchema();
-            MaterialAssetProcessorSettings materialSettings = GetActiveMaterialSettings();
+            panel.ClearFieldRows();
+
+            PlatformMaterialSchemaDefinition materialSchema = EnsurePlatformSchema(platformId);
+            MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
             if (materialSchema == null) {
                 return;
             }
@@ -602,67 +553,53 @@ namespace helengine.editor {
                     continue;
                 }
 
-                MaterialAssetFieldEditorRow row = CreateFieldRow(field);
-                FieldRows.Add(row);
-                RootEntity.AddChild(row.LabelHost);
-                RootEntity.AddChild(row.ValueHost);
-                if (row.ButtonHost != null) {
-                    RootEntity.AddChild(row.ButtonHost);
-                }
+                MaterialAssetFieldEditorRow row = CreateFieldRow(platformId, field);
+                panel.AddFieldRow(row);
             }
 
-            UpdateFieldControlsFromSettings();
-        }
-
-        /// <summary>
-        /// Removes the currently visible field-editor rows.
-        /// </summary>
-        void ClearFieldRows() {
-            for (int index = 0; index < FieldRows.Count; index++) {
-                MaterialAssetFieldEditorRow row = FieldRows[index];
-                row.LabelHost.Dispose();
-                row.ValueHost.Dispose();
-                if (row.ButtonHost != null) {
-                    row.ButtonHost.Dispose();
-                }
-            }
-
-            FieldRows.Clear();
+            UpdateFieldControlsFromSettings(platformId);
         }
 
         /// <summary>
         /// Creates one field-editor row for the supplied material field definition.
         /// </summary>
+        /// <param name="platformId">Platform identifier that owns the row.</param>
         /// <param name="field">Builder-defined field to render.</param>
         /// <returns>Created field-editor row.</returns>
-        MaterialAssetFieldEditorRow CreateFieldRow(PlatformMaterialFieldDefinition field) {
+        MaterialAssetFieldEditorRow CreateFieldRow(string platformId, PlatformMaterialFieldDefinition field) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            } else if (field == null) {
+                throw new ArgumentNullException(nameof(field));
+            }
+
             EditorEntity labelHost = CreateTextHost(RootEntity.LayerMask, out TextComponent labelText, field.DisplayName);
             EditorEntity valueHost = new EditorEntity();
             valueHost.LayerMask = RootEntity.LayerMask;
 
             if (field.FieldKind == PlatformMaterialFieldKind.Boolean) {
                 CheckBoxComponent checkBox = new CheckBoxComponent(new int2(RowHeight, RowHeight), Font);
-                checkBox.CheckedChanged += (component, isChecked) => HandleBooleanFieldChanged(field.FieldId, isChecked);
+                checkBox.CheckedChanged += (component, isChecked) => HandleBooleanFieldChanged(platformId, field.FieldId, isChecked);
                 valueHost.AddComponent(checkBox);
                 return new MaterialAssetFieldEditorRow(field.FieldId, field.FieldKind, labelHost, labelText, valueHost, null, null, checkBox, null, null);
             }
 
             if (field.FieldKind == PlatformMaterialFieldKind.Choice) {
                 ComboBoxComponent comboBox = new ComboBoxComponent(new int2(180, RowHeight), Font, field.AllowedValues, -1);
-                comboBox.SelectionChanged += (index, value) => HandleChoiceFieldChanged(field.FieldId, value);
+                comboBox.SelectionChanged += (index, value) => HandleChoiceFieldChanged(platformId, field.FieldId, value);
                 valueHost.AddComponent(comboBox);
                 return new MaterialAssetFieldEditorRow(field.FieldId, field.FieldKind, labelHost, labelText, valueHost, null, comboBox, null, null, null);
             }
 
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, RowHeight), Font);
-            textBox.TextChanged += currentTextBox => HandleTextFieldChanged(field.FieldId, currentTextBox);
-            textBox.Submitted += currentTextBox => HandleTextFieldSubmitted(field.FieldId, currentTextBox);
+            textBox.TextChanged += currentTextBox => HandleTextFieldChanged(platformId, field.FieldId, currentTextBox);
+            textBox.Submitted += currentTextBox => HandleTextFieldSubmitted(platformId, field.FieldId, currentTextBox);
             valueHost.AddComponent(textBox);
 
             if (IsShaderPickerField(field)) {
                 EditorEntity buttonHost = new EditorEntity();
                 buttonHost.LayerMask = RootEntity.LayerMask;
-                ButtonComponent button = new ButtonComponent("Pick", new int2(ButtonWidth, RowHeight), Font, () => RequestShaderPick(field.FieldId));
+                ButtonComponent button = new ButtonComponent("Pick", new int2(ButtonWidth, RowHeight), Font, () => RequestShaderPick(platformId, field.FieldId));
                 buttonHost.AddComponent(button);
                 return new MaterialAssetFieldEditorRow(field.FieldId, field.FieldKind, labelHost, labelText, valueHost, textBox, null, null, buttonHost, button);
             }
@@ -673,15 +610,24 @@ namespace helengine.editor {
         /// <summary>
         /// Updates field controls to reflect the active platform field-value payload.
         /// </summary>
-        void UpdateFieldControlsFromSettings() {
-            MaterialAssetProcessorSettings materialSettings = GetActiveMaterialSettings();
-            PlatformMaterialSchemaDefinition materialSchema = FindActiveSchema();
+        void UpdateFieldControlsFromSettings(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            MaterialAssetPlatformPanel panel = GetPlatformPanel(platformId);
+            if (panel == null) {
+                return;
+            }
+
+            MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
+            PlatformMaterialSchemaDefinition materialSchema = FindActiveSchema(platformId);
             if (materialSettings == null || materialSchema == null) {
                 return;
             }
 
-            for (int index = 0; index < FieldRows.Count; index++) {
-                MaterialAssetFieldEditorRow row = FieldRows[index];
+            for (int index = 0; index < panel.FieldRows.Count; index++) {
+                MaterialAssetFieldEditorRow row = panel.FieldRows[index];
                 PlatformMaterialFieldDefinition field = FindFieldDefinition(materialSchema, row.FieldId);
                 string value = ResolveFieldValue(materialSettings, field);
                 ApplyFieldValueToControl(row, field, value);
@@ -692,14 +638,19 @@ namespace helengine.editor {
         /// Synchronizes the current field controls back into the active platform settings payload.
         /// </summary>
         /// <param name="saveToDisk">True when the material asset and sidecar should be persisted after syncing.</param>
-        void SyncCurrentFieldValues(bool saveToDisk) {
-            MaterialAssetProcessorSettings materialSettings = GetActiveMaterialSettings();
+        void SyncCurrentFieldValues(string platformId, bool saveToDisk) {
+            MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
             if (materialSettings == null) {
                 return;
             }
 
-            for (int index = 0; index < FieldRows.Count; index++) {
-                MaterialAssetFieldEditorRow row = FieldRows[index];
+            MaterialAssetPlatformPanel panel = GetPlatformPanel(platformId);
+            if (panel == null) {
+                return;
+            }
+
+            for (int index = 0; index < panel.FieldRows.Count; index++) {
+                MaterialAssetFieldEditorRow row = panel.FieldRows[index];
                 if (row.TextBox != null) {
                     materialSettings.FieldValues[row.FieldId] = row.TextBox.Text ?? string.Empty;
                 } else if (row.ComboBox != null) {
@@ -710,16 +661,16 @@ namespace helengine.editor {
             }
 
             if (saveToDisk) {
-                SaveCurrentMaterialState();
+                SaveCurrentMaterialState(platformId);
             }
         }
 
         /// <summary>
-        /// Updates status text and schema label for the active platform.
+        /// Updates the status text for the currently active platform.
         /// </summary>
-        void UpdateDisplayedValues() {
-            PlatformMaterialSchemaDefinition materialSchema = FindActiveSchema();
-            StatusText.Text = string.Concat("Status: Editing ", CurrentPlatformId);
+        void UpdateDisplayedValues(string platformId) {
+            PlatformMaterialSchemaDefinition materialSchema = FindActiveSchema(platformId);
+            StatusText.Text = string.Concat("Status: Editing ", platformId);
             if (materialSchema == null) {
                 StatusText.Text = "Status: Active platform has no material schema.";
             }
@@ -729,17 +680,22 @@ namespace helengine.editor {
         /// Ensures the active platform points at one valid schema and updates the schema combo-box selection.
         /// </summary>
         /// <returns>Resolved active schema or null when no schema is available.</returns>
-        PlatformMaterialSchemaDefinition EnsureActiveSchema() {
-            MaterialAssetProcessorSettings materialSettings = GetActiveMaterialSettings();
-            PlatformMaterialSchemaDefinition[] materialSchemas = ResolveAvailableSchemas();
+        PlatformMaterialSchemaDefinition EnsurePlatformSchema(string platformId) {
+            MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
+            PlatformMaterialSchemaDefinition[] materialSchemas = ResolveAvailableSchemas(platformId);
+            MaterialAssetPlatformPanel panel = GetPlatformPanel(platformId);
             if (materialSettings == null) {
-                UpdateSchemaPicker(materialSchemas, string.Empty);
+                if (panel != null) {
+                    panel.UpdateSchemaPicker(materialSchemas, string.Empty);
+                }
                 return null;
             }
 
             PlatformMaterialSchemaDefinition materialSchema = SchemaSettingsService.EnsureSelectedSchema(materialSettings, materialSchemas);
             string schemaId = materialSchema?.SchemaId ?? string.Empty;
-            UpdateSchemaPicker(materialSchemas, schemaId);
+            if (panel != null) {
+                panel.UpdateSchemaPicker(materialSchemas, schemaId);
+            }
             return materialSchema;
         }
 
@@ -747,69 +703,70 @@ namespace helengine.editor {
         /// Finds the active material schema for the selected platform.
         /// </summary>
         /// <returns>Active schema or null when none was published.</returns>
-        PlatformMaterialSchemaDefinition FindActiveSchema() {
-            MaterialAssetProcessorSettings materialSettings = GetActiveMaterialSettings();
+        PlatformMaterialSchemaDefinition FindActiveSchema(string platformId) {
+            MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
             string schemaId = materialSettings?.SchemaId ?? string.Empty;
             if (string.IsNullOrWhiteSpace(schemaId)) {
                 return null;
             }
 
-            return FindSchemaDefinition(ResolveAvailableSchemas(), schemaId);
+            return FindSchemaDefinition(ResolveAvailableSchemas(platformId), schemaId);
+        }
+
+        /// <summary>
+        /// Updates which platform panel is currently visible.
+        /// </summary>
+        void UpdatePlatformVisibility() {
+            PlatformTabStrip.Root.Enabled = SupportedPlatformIds.Count > 0;
+
+            for (int index = 0; index < SupportedPlatformIds.Count; index++) {
+                string platformId = SupportedPlatformIds[index];
+                MaterialAssetPlatformPanel panel = GetPlatformPanel(platformId);
+                if (panel == null) {
+                    continue;
+                }
+
+                panel.SetVisible(string.Equals(platformId, CurrentPlatformId, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
+        /// <summary>
+        /// Returns the platform panel for one platform identifier.
+        /// </summary>
+        /// <param name="platformId">Platform identifier to resolve.</param>
+        /// <returns>Matching panel or null when none exists.</returns>
+        MaterialAssetPlatformPanel GetPlatformPanel(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                return null;
+            }
+
+            MaterialAssetPlatformPanel panel;
+            if (PlatformPanels.TryGetValue(platformId, out panel)) {
+                return panel;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Returns the platform panel that is currently active.
+        /// </summary>
+        /// <returns>Active platform panel or null when no platform is selected.</returns>
+        MaterialAssetPlatformPanel GetActivePlatformPanel() {
+            return GetPlatformPanel(CurrentPlatformId);
         }
 
         /// <summary>
         /// Resolves the material schemas published for the selected platform.
         /// </summary>
         /// <returns>Published material schemas for the selected platform.</returns>
-        PlatformMaterialSchemaDefinition[] ResolveAvailableSchemas() {
-            EditorPlatformBuildSelectionModel selectionModel = SelectionModelResolver?.Invoke(CurrentPlatformId);
+        PlatformMaterialSchemaDefinition[] ResolveAvailableSchemas(string platformId) {
+            EditorPlatformBuildSelectionModel selectionModel = SelectionModelResolver?.Invoke(platformId);
             if (selectionModel == null || selectionModel.MaterialSchemas == null) {
                 return Array.Empty<PlatformMaterialSchemaDefinition>();
             }
 
             return selectionModel.MaterialSchemas;
-        }
-
-        /// <summary>
-        /// Updates the schema combo-box entries and current selection.
-        /// </summary>
-        /// <param name="materialSchemas">Schemas available to the selected platform.</param>
-        /// <param name="selectedSchemaId">Schema identifier that should be selected.</param>
-        void UpdateSchemaPicker(
-            IReadOnlyList<PlatformMaterialSchemaDefinition> materialSchemas,
-            string selectedSchemaId) {
-            AvailableSchemaIds.Clear();
-            List<string> schemaDisplayNames = new List<string>(materialSchemas.Count);
-
-            for (int index = 0; index < materialSchemas.Count; index++) {
-                PlatformMaterialSchemaDefinition materialSchema = materialSchemas[index];
-                AvailableSchemaIds.Add(materialSchema.SchemaId);
-                schemaDisplayNames.Add(materialSchema.DisplayName);
-            }
-
-            IsUpdatingSchemaSelection = true;
-            SchemaComboBox.SetItems(schemaDisplayNames, FindSchemaIndex(selectedSchemaId));
-            IsUpdatingSchemaSelection = false;
-            SchemaComboBox.IsOpen = false;
-        }
-
-        /// <summary>
-        /// Finds the selected schema index inside the active schema picker list.
-        /// </summary>
-        /// <param name="schemaId">Schema identifier to locate.</param>
-        /// <returns>Matching picker index or -1 when the identifier is unavailable.</returns>
-        int FindSchemaIndex(string schemaId) {
-            if (string.IsNullOrWhiteSpace(schemaId)) {
-                return AvailableSchemaIds.Count > 0 ? 0 : -1;
-            }
-
-            for (int index = 0; index < AvailableSchemaIds.Count; index++) {
-                if (string.Equals(AvailableSchemaIds[index], schemaId, StringComparison.OrdinalIgnoreCase)) {
-                    return index;
-                }
-            }
-
-            return AvailableSchemaIds.Count > 0 ? 0 : -1;
         }
 
         /// <summary>
@@ -864,17 +821,63 @@ namespace helengine.editor {
         /// Resolves the active platform material settings payload.
         /// </summary>
         /// <returns>Material settings for the active platform, or null when unavailable.</returns>
-        MaterialAssetProcessorSettings GetActiveMaterialSettings() {
+        MaterialAssetProcessorSettings GetMaterialSettings(string platformId) {
             if (CurrentSettings == null || CurrentSettings.Processor == null || CurrentSettings.Processor.Platforms == null) {
                 return null;
             }
 
             AssetPlatformProcessorSettings platformSettings;
-            if (!CurrentSettings.Processor.Platforms.TryGetValue(CurrentPlatformId, out platformSettings) || platformSettings == null) {
+            if (!CurrentSettings.Processor.Platforms.TryGetValue(platformId, out platformSettings) || platformSettings == null) {
                 return null;
             }
 
             return platformSettings.Material;
+        }
+
+        /// <summary>
+        /// Resolves the active platform material settings payload.
+        /// </summary>
+        /// <returns>Material settings for the active platform, or null when unavailable.</returns>
+        MaterialAssetProcessorSettings GetActiveMaterialSettings() {
+            return GetMaterialSettings(CurrentPlatformId);
+        }
+
+        /// <summary>
+        /// Builds one platform panel for every supported platform identifier.
+        /// </summary>
+        void BuildPlatformPanels() {
+            ClearPlatformPanels();
+
+            for (int index = 0; index < SupportedPlatformIds.Count; index++) {
+                string platformId = SupportedPlatformIds[index];
+                MaterialAssetPlatformPanel panel = CreatePlatformPanel(platformId);
+                PlatformPanels[platformId] = panel;
+                RootEntity.AddChild(panel.Root);
+                panel.SetVisible(string.Equals(platformId, CurrentPlatformId, StringComparison.OrdinalIgnoreCase));
+                RebuildPlatformPanel(platformId);
+            }
+        }
+
+        /// <summary>
+        /// Releases all platform panels and their generated child entities.
+        /// </summary>
+        void ClearPlatformPanels() {
+            foreach (KeyValuePair<string, MaterialAssetPlatformPanel> pair in PlatformPanels) {
+                pair.Value.Dispose();
+            }
+
+            PlatformPanels.Clear();
+        }
+
+        /// <summary>
+        /// Creates one platform panel for the supplied platform identifier.
+        /// </summary>
+        /// <param name="platformId">Platform identifier represented by the new panel.</param>
+        /// <returns>Created platform panel.</returns>
+        MaterialAssetPlatformPanel CreatePlatformPanel(string platformId) {
+            MaterialAssetPlatformPanel panel = new MaterialAssetPlatformPanel(platformId, Font, RootEntity.LayerMask, TextOrder);
+            panel.SchemaComboBoxControl.SelectionChanged += (index, value) => HandleSchemaSelectionChanged(platformId, index, value);
+            return panel;
         }
 
         /// <summary>
@@ -972,21 +975,6 @@ namespace helengine.editor {
             }
 
             return SupportedPlatformIds[0];
-        }
-
-        /// <summary>
-        /// Finds the combo-box index for one platform identifier.
-        /// </summary>
-        /// <param name="platformId">Platform identifier to locate.</param>
-        /// <returns>Matching combo-box index or zero when the identifier is unavailable.</returns>
-        int FindPlatformIndex(string platformId) {
-            for (int index = 0; index < SupportedPlatformIds.Count; index++) {
-                if (string.Equals(SupportedPlatformIds[index], platformId, StringComparison.OrdinalIgnoreCase)) {
-                    return index;
-                }
-            }
-
-            return 0;
         }
 
         /// <summary>
