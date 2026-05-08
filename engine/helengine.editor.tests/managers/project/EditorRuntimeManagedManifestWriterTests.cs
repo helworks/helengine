@@ -4,7 +4,7 @@ using helengine.baseplatform.Manifest;
 namespace helengine.editor.tests.managers.project;
 
 /// <summary>
-/// Verifies the managed runtime manifest writer emits startup and scene catalog JSON files.
+/// Verifies the managed runtime manifest writer emits the scene catalog JSON file.
 /// </summary>
 public sealed class EditorRuntimeManagedManifestWriterTests : IDisposable {
     /// <summary>
@@ -30,10 +30,10 @@ public sealed class EditorRuntimeManagedManifestWriterTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures startup and runtime scene catalog files are written for managed players.
+    /// Ensures the runtime scene catalog file is written for managed players.
     /// </summary>
     [Fact]
-    public void Write_emits_runtime_startup_and_scene_catalog_json_files() {
+    public void Write_emits_runtime_scene_catalog_json_file() {
         PlatformBuildManifest manifest = new(
             2,
             "project",
@@ -65,19 +65,16 @@ public sealed class EditorRuntimeManagedManifestWriterTests : IDisposable {
             new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
 
         EditorRuntimeManagedManifestWriter writer = new();
-        writer.Write(RootPath, manifest, "windows-loose-files");
+        writer.Write(RootPath, manifest);
 
         string startupPath = Path.Combine(RootPath, "runtime-startup.json");
         string sceneCatalogPath = Path.Combine(RootPath, "runtime-scene-catalog.json");
 
-        Assert.True(File.Exists(startupPath));
+        Assert.False(File.Exists(startupPath));
         Assert.True(File.Exists(sceneCatalogPath));
 
-        string startupJson = File.ReadAllText(startupPath);
         string sceneCatalogJson = File.ReadAllText(sceneCatalogPath);
 
-        Assert.Contains("\"StartupSceneId\": \"Scenes/Bootstrap.helen\"", startupJson);
-        Assert.Contains("\"Value\": \"windows-loose-files\"", startupJson);
         Assert.Contains("\"SceneId\": \"Scenes/TestPlayableScene.helen\"", sceneCatalogJson);
         Assert.Contains("\"CookedRelativePath\": \"cooked/scenes/TestPlayableScene.hasset\"", sceneCatalogJson);
     }

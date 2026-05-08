@@ -69,15 +69,13 @@ namespace helengine {
                 CreateNegativeZAxisOrientation(),
                 float3.Zero);
 
-            ModelAsset modelAsset = new ModelAsset {
+            return new ModelAsset {
                 Id = "editor:spot-light-visual",
                 Positions = positions.ToArray(),
                 Normals = normals.ToArray(),
                 TexCoords = texCoords.ToArray(),
                 Indices16 = indices.ToArray()
             };
-            ModelAssetBounds.Apply(modelAsset);
-            return modelAsset;
         }
 
         /// <summary>

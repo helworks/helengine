@@ -62,6 +62,42 @@ public sealed class RuntimeSceneCatalogTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures the catalog resolver can discover a PS2-safe renamed scene catalog file.
+    /// </summary>
+    [Fact]
+    public void FindCatalogPath_whenCatalogIsPs2Renamed_discoversReadableJsoFile() {
+        string startupManifestPath = Path.Combine(TempRootPath, "runtime-startup.jso");
+        string catalogManifestPath = Path.Combine(TempRootPath, "catalog.jso");
+
+        File.WriteAllText(
+            startupManifestPath,
+            """
+            {
+              "StartupSceneId": "Scenes/MainMenu.helen",
+              "StorageProfileId": {
+                "Value": "disc-layout"
+              }
+            }
+            """);
+        File.WriteAllText(
+            catalogManifestPath,
+            """
+            {
+              "Entries": [
+                {
+                  "SceneId": "Scenes/MainMenu.helen",
+                  "CookedRelativePath": "cooked/scenes/MainMenu.hasset"
+                }
+              ]
+            }
+            """);
+
+        string resolvedPath = RuntimeSceneCatalog.FindCatalogPath(TempRootPath);
+
+        Assert.Equal(catalogManifestPath, resolvedPath);
+    }
+
+    /// <summary>
     /// Ensures duplicate scene ids are rejected during catalog construction.
     /// </summary>
     [Fact]

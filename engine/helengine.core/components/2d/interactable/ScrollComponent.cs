@@ -128,7 +128,9 @@ namespace helengine {
 
         /// <summary>
         /// Gets or sets the content root that should move in response to the current scroll offset.
+        /// This binding is runtime-only and is excluded from reflected scene persistence.
         /// </summary>
+        [ScenePersistenceIgnore]
         public Entity ContentRoot {
             get { return ContentRootValue; }
             set {

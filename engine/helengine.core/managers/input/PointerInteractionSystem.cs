@@ -47,6 +47,25 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Clears cached hover or capture state when one interactable is removed or disabled.
+        /// </summary>
+        /// <param name="interactable">Interactable that is leaving the active hit-test set.</param>
+        public void ClearInteractionFor(IInteractable2D interactable) {
+            if (interactable == null) {
+                throw new ArgumentNullException(nameof(interactable));
+            }
+
+            if (ReferenceEquals(Hovering, interactable)) {
+                Hovering = null;
+            }
+
+            if (ReferenceEquals(Highlighted, interactable)) {
+                Highlighted = null;
+                capturedCamera = null;
+            }
+        }
+
+        /// <summary>
         /// Updates hover and capture routing for the current pointer frame.
         /// </summary>
         public void Update() {

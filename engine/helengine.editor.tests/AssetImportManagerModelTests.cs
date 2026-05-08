@@ -103,21 +103,6 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures imported model assets cache bounds derived from their finalized vertex positions.
-        /// </summary>
-        [Fact]
-        public void ImportModel_WithRegisteredImporter_CachesBounds() {
-            string sourcePath = WriteSourceModel("bounds.obj");
-            TestModelImporter modelImporter = new TestModelImporter();
-            AssetImportManager manager = CreateManager(modelImporter);
-
-            ModelAsset importedAsset = manager.ImportModel(sourcePath);
-
-            Assert.Equal(new float3(0f, 0f, 0f), importedAsset.BoundsMin);
-            Assert.Equal(new float3(1f, 1f, 0f), importedAsset.BoundsMax);
-        }
-
-        /// <summary>
         /// Ensures importer-generated material assets are written next to the source model using their deterministic relative paths.
         /// </summary>
         [Fact]

@@ -159,7 +159,7 @@ namespace helengine.editor {
             WriteRuntimeGraphicsRendererManifestSource(workspace.GeneratedCoreRootPath, selectionModel);
             FinalizeGeneratedCoreSources(workspace.GeneratedCoreRootPath);
             RunWriteContainers(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
-            WriteManagedRuntimeManifestFiles(cookedManifest, workspace.PackageRootPath, selectedStorageProfileId);
+            WriteManagedRuntimeManifestFiles(cookedManifest, workspace.PackageRootPath);
 
             return RunPackagePlatform(
                 builder,
@@ -306,13 +306,11 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="cookedManifest">Cooked manifest that already contains the final runtime scene layout.</param>
         /// <param name="packageRootPath">Packaged runtime root that receives managed manifest files.</param>
-        /// <param name="selectedStorageProfileId">Stable runtime storage profile id.</param>
         void WriteManagedRuntimeManifestFiles(
             PlatformBuildManifest cookedManifest,
-            string packageRootPath,
-            string selectedStorageProfileId) {
+            string packageRootPath) {
             EditorRuntimeManagedManifestWriter writer = new();
-            writer.Write(packageRootPath, cookedManifest, selectedStorageProfileId);
+            writer.Write(packageRootPath, cookedManifest);
         }
 
         /// <summary>

@@ -41,6 +41,42 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures removing a live interactable from the scene also removes it from pointer hit testing.
+        /// </summary>
+        [Fact]
+        public void Update_WhenInteractableEntityIsDisposed_RemovesItFromHitTesting() {
+            TestInputBackend input = InitializeCore();
+            CreateUiCamera(320, 240);
+
+            EditorEntity entity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.EditorUi,
+                Position = new float3(24f, 24f, 0f)
+            };
+
+            SpriteComponent sprite = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Size = new int2(80, 40),
+                RenderOrder2D = 220
+            };
+            entity.AddComponent(sprite);
+
+            InteractableComponent interactable = new InteractableComponent {
+                Size = new int2(80, 40)
+            };
+            entity.AddComponent(interactable);
+
+            entity.Dispose();
+
+            input.SetMouseState(new MouseState(40, 40, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            input.EarlyUpdate();
+            input.Update();
+
+            Assert.DoesNotContain(interactable, Core.Instance.ObjectManager.Interactables);
+            Assert.Null(Core.Instance.PointerInteractionSystem.Hovering);
+        }
+
+        /// <summary>
         /// Ensures a newly visible interactable under a stationary pointer still receives one hover event.
         /// This matches modal workflows where the mouse does not move after new UI appears.
         /// </summary>

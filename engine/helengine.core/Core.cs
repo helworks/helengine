@@ -388,17 +388,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Absolute scene-catalog path when one exists; otherwise an empty string.</returns>
         string ResolveRuntimeSceneCatalogPath() {
-            string rootCatalogPath = Path.Combine(InitializationOptions.ContentRootPath, "runtime-scene-catalog.json");
-            if (File.Exists(rootCatalogPath)) {
-                return rootCatalogPath;
-            }
-
-            string cookedCatalogPath = Path.Combine(InitializationOptions.ContentRootPath, "cooked", "runtime-scene-catalog.json");
-            if (File.Exists(cookedCatalogPath)) {
-                return cookedCatalogPath;
-            }
-
-            return string.Empty;
+            return RuntimeSceneCatalog.FindCatalogPath(InitializationOptions.ContentRootPath);
         }
 
         /// <summary>

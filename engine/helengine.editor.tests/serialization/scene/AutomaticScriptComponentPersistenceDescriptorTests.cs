@@ -37,6 +37,36 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures runtime-only scroll bindings are ignored while the remaining reflected members still round-trip.
+        /// </summary>
+        [Fact]
+        public void SerializeAndDeserialize_WhenScrollComponentHasIgnoredEntityMember_SkipsRuntimeOnlyReference() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            ScrollComponent component = new ScrollComponent {
+                Size = new int2(320, 180),
+                ItemCount = 12,
+                ItemExtent = 24,
+                VisibleItemCount = 4,
+                ScrollStepCount = 2,
+                WheelNotchSize = 120,
+                RequiresPointerInside = false
+            };
+            component.ContentRoot = new EditorEntity();
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(component, 0, new EntityComponentSaveState());
+            ScrollComponent deserialized = Assert.IsType<ScrollComponent>(descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Equal(new int2(320, 180), deserialized.Size);
+            Assert.Equal(12, deserialized.ItemCount);
+            Assert.Equal(24, deserialized.ItemExtent);
+            Assert.Equal(4, deserialized.VisibleItemCount);
+            Assert.Equal(2, deserialized.ScrollStepCount);
+            Assert.Equal(120, deserialized.WheelNotchSize);
+            Assert.False(deserialized.RequiresPointerInside);
+            Assert.Null(deserialized.ContentRoot);
+        }
+
+        /// <summary>
         /// Ensures unsupported reflected member types fail clearly instead of being silently skipped.
         /// </summary>
         [Fact]

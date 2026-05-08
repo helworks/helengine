@@ -1481,17 +1481,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Ensures the packaged generated standard material and its shader asset exist under the build root.
+        /// Ensures the packaged generated standard material exists under the build root.
         /// </summary>
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
         void EnsureGeneratedStandardMaterialAssets(string buildRootPath) {
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
-            WriteAsset(Path.Combine(buildRootPath, StandardGeneratedShaderRelativePath), shaderAsset);
+            string shaderAssetId = StandardShaderAssetId;
+            if (ShouldWriteGeneratedStandardShaderAsset()) {
+                ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
+                shaderAssetId = shaderAsset.Id;
+                WriteAsset(Path.Combine(buildRootPath, StandardGeneratedShaderRelativePath), shaderAsset);
+            } else if (MaterialBuilder == null) {
+                throw new InvalidOperationException("PS2 generated standard materials require a material builder.");
+            }
 
             if (MaterialBuilder == null) {
                 MaterialAsset materialAsset = new MaterialAsset {
                     Id = "Engine.Materials.Standard.material",
-                    ShaderAssetId = shaderAsset.Id,
+                    ShaderAssetId = shaderAssetId,
                     VertexProgram = StandardVertexProgramName,
                     PixelProgram = StandardPixelProgramName,
                     Variant = StandardShaderVariantName
@@ -1518,6 +1524,14 @@ namespace helengine.editor {
                 standardMaterialFieldValues));
             RememberReferencedShaderAssetIds(cookResult.ReferencedShaderAssetIds);
             WriteBytes(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), cookResult.CookedMaterialBytes);
+        }
+
+        /// <summary>
+        /// Returns whether the generated standard shader asset should be written for the current target platform.
+        /// </summary>
+        /// <returns>True when the shared shader-backed standard material should be staged; otherwise false.</returns>
+        bool ShouldWriteGeneratedStandardShaderAsset() {
+            return !string.Equals(TargetPlatformId, "ps2", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

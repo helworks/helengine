@@ -81,15 +81,13 @@ namespace helengine {
                 float4.Identity,
                 new float3(0f, -(SphereRadius + StemLength), 0f));
 
-            ModelAsset modelAsset = new ModelAsset {
+            return new ModelAsset {
                 Id = "editor:point-light-visual",
                 Positions = positions.ToArray(),
                 Normals = normals.ToArray(),
                 TexCoords = texCoords.ToArray(),
                 Indices16 = indices.ToArray()
             };
-            ModelAssetBounds.Apply(modelAsset);
-            return modelAsset;
         }
 
         /// <summary>

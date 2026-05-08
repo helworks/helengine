@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Provides a hit-testable region that raises pointer events.
     /// </summary>
-public class InteractableComponent : Component, IInteractable2D {
+    public class InteractableComponent : Component, IInteractable2D {
         /// <summary>
         /// Gets or sets the cursor the host should display while this interactable is hovered.
         /// </summary>
@@ -41,6 +41,21 @@ public class InteractableComponent : Component, IInteractable2D {
                 Core.Instance.ObjectManager.RegisterInteractable(this);
             } else {
                 Core.Instance.ObjectManager.RemoveInteractable(this);
+                if (Core.Instance != null && Core.Instance.PointerInteractionSystem != null) {
+                    Core.Instance.PointerInteractionSystem.ClearInteractionFor(this);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Removes the interactable from the global hit-test list when the owning entity detaches it.
+        /// </summary>
+        /// <param name="entity">Owning entity.</param>
+        public override void ComponentRemoved(Entity entity) {
+            base.ComponentRemoved(entity);
+            Core.Instance.ObjectManager.RemoveInteractable(this);
+            if (Core.Instance != null && Core.Instance.PointerInteractionSystem != null) {
+                Core.Instance.PointerInteractionSystem.ClearInteractionFor(this);
             }
         }
 

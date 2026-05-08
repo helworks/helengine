@@ -80,7 +80,6 @@ namespace helengine {
             modelData.TexCoords = texCoords;
             modelData.Normals = normals;
             modelData.Indices16 = indices;
-            ModelAssetBounds.Apply(modelData);
 
             return modelData;
         }
@@ -146,7 +145,6 @@ namespace helengine {
             modelData.TexCoords = texCoords;
             modelData.Normals = normals;
             modelData.Indices16 = indices;
-            ModelAssetBounds.Apply(modelData);
 
             return modelData;
         }
@@ -187,7 +185,6 @@ namespace helengine {
             modelData.TexCoords = texCoords;
             modelData.Normals = normals;
             modelData.Indices16 = indices;
-            ModelAssetBounds.Apply(modelData);
 
             return modelData;
         }

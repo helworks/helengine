@@ -115,11 +115,6 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     RoundedRectComponent OverlayBackground;
 
     /// <summary>
-    /// Transparent interactable surface that absorbs pointer input inside the overlay bounds.
-    /// </summary>
-    InteractableComponent OverlayBackgroundInteractable;
-
-    /// <summary>
     /// Root entity for the red channel label.
     /// </summary>
     EditorEntity RedLabelHost;
@@ -456,11 +451,6 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
         };
         OverlayRoot.AddComponent(OverlayBackground);
 
-        OverlayBackgroundInteractable = new InteractableComponent {
-            Size = new int2(PanelWidth, PanelHeight)
-        };
-        OverlayBackgroundInteractable.CursorEvent += HandleOverlayBackgroundCursor;
-        OverlayRoot.AddComponent(OverlayBackgroundInteractable);
     }
 
     /// <summary>
@@ -639,18 +629,6 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
         SynchronizeFromColor();
         if (ColorChanged != null) {
             ColorChanged(CurrentColor);
-        }
-    }
-
-    /// <summary>
-    /// Keeps the close button visually aligned when it is interacted with.
-    /// </summary>
-    /// <param name="position">Relative pointer position.</param>
-    /// <param name="delta">Pointer delta.</param>
-    /// <param name="interaction">Pointer interaction state.</param>
-    void HandleOverlayBackgroundCursor(int2 position, int2 delta, PointerInteraction interaction) {
-        if (interaction == PointerInteraction.None) {
-            return;
         }
     }
 

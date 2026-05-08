@@ -3,49 +3,24 @@ using helengine.baseplatform.Manifest;
 
 namespace helengine.editor {
     /// <summary>
-    /// Writes managed runtime manifest files into the packaged build output root.
+    /// Writes the managed runtime scene catalog into the packaged build output root.
     /// </summary>
     public sealed class EditorRuntimeManagedManifestWriter {
         /// <summary>
-        /// Writes managed runtime startup and scene catalog metadata.
+        /// Writes the managed runtime scene catalog metadata.
         /// </summary>
         /// <param name="runtimeRootPath">Packaged runtime root that receives the JSON files.</param>
         /// <param name="cookedManifest">Cooked build manifest that owns the final scene layout.</param>
-        /// <param name="selectedStorageProfileId">Stable runtime storage profile id.</param>
-        public void Write(string runtimeRootPath, PlatformBuildManifest cookedManifest, string selectedStorageProfileId) {
+        public void Write(string runtimeRootPath, PlatformBuildManifest cookedManifest) {
             if (string.IsNullOrWhiteSpace(runtimeRootPath)) {
                 throw new ArgumentException("Runtime root path must be provided.", nameof(runtimeRootPath));
             }
             if (cookedManifest == null) {
                 throw new ArgumentNullException(nameof(cookedManifest));
             }
-            if (string.IsNullOrWhiteSpace(selectedStorageProfileId)) {
-                throw new ArgumentException("Selected storage profile id must be provided.", nameof(selectedStorageProfileId));
-            }
 
             Directory.CreateDirectory(runtimeRootPath);
-            File.WriteAllText(Path.Combine(runtimeRootPath, "runtime-startup.json"), BuildStartupManifestJson(cookedManifest, selectedStorageProfileId));
             File.WriteAllText(Path.Combine(runtimeRootPath, "runtime-scene-catalog.json"), BuildSceneCatalogJson(cookedManifest));
-        }
-
-        /// <summary>
-        /// Builds the managed runtime startup manifest JSON.
-        /// </summary>
-        /// <param name="cookedManifest">Cooked manifest that contains the startup scene id.</param>
-        /// <param name="selectedStorageProfileId">Stable runtime storage profile id.</param>
-        /// <returns>Managed runtime startup manifest JSON.</returns>
-        static string BuildStartupManifestJson(PlatformBuildManifest cookedManifest, string selectedStorageProfileId) {
-            if (string.IsNullOrWhiteSpace(cookedManifest.StartupSceneId)) {
-                throw new InvalidOperationException("Cooked manifest did not define a startup scene.");
-            }
-
-            return
-                "{\n"
-                + "  \"StartupSceneId\": \"" + EscapeJson(cookedManifest.StartupSceneId) + "\",\n"
-                + "  \"StorageProfileId\": {\n"
-                + "    \"Value\": \"" + EscapeJson(selectedStorageProfileId) + "\"\n"
-                + "  }\n"
-                + "}\n";
         }
 
         /// <summary>

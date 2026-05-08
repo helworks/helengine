@@ -86,15 +86,13 @@ namespace helengine {
                 forwardOrientation,
                 new float3(0f, 0f, -ShaftLength));
 
-            ModelAsset modelAsset = new ModelAsset {
+            return new ModelAsset {
                 Id = "editor:directional-light-visual",
                 Positions = positions.ToArray(),
                 Normals = normals.ToArray(),
                 TexCoords = texCoords.ToArray(),
                 Indices16 = indices.ToArray()
             };
-            ModelAssetBounds.Apply(modelAsset);
-            return modelAsset;
         }
 
         /// <summary>

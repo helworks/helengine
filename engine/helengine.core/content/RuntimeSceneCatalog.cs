@@ -63,6 +63,58 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Resolves the first readable runtime scene catalog beneath one content root, including PS2-safe renamed manifests.
+        /// </summary>
+        /// <param name="contentRootPath">Absolute content root to inspect for a runtime scene catalog.</param>
+        /// <returns>Absolute runtime scene catalog path when one can be read; otherwise an empty string.</returns>
+        public static string FindCatalogPath(string contentRootPath) {
+            if (string.IsNullOrWhiteSpace(contentRootPath)) {
+                throw new ArgumentException("Runtime scene catalog root path is required.", nameof(contentRootPath));
+            }
+
+            string normalizedContentRootPath = Path.GetFullPath(contentRootPath);
+            string rootCatalogPath = Path.Combine(normalizedContentRootPath, "runtime-scene-catalog.json");
+            if (File.Exists(rootCatalogPath)) {
+                return rootCatalogPath;
+            }
+
+            string cookedCatalogPath = Path.Combine(normalizedContentRootPath, "cooked", "runtime-scene-catalog.json");
+            if (File.Exists(cookedCatalogPath)) {
+                return cookedCatalogPath;
+            }
+
+            string[] searchRoots = [
+                normalizedContentRootPath,
+                Path.Combine(normalizedContentRootPath, "cooked")
+            ];
+
+            for (int rootIndex = 0; rootIndex < searchRoots.Length; rootIndex++) {
+                string searchRootPath = searchRoots[rootIndex];
+                if (!Directory.Exists(searchRootPath)) {
+                    continue;
+                }
+
+                string[] filePaths = Directory.GetFiles(searchRootPath, "*", SearchOption.AllDirectories);
+                for (int fileIndex = 0; fileIndex < filePaths.Length; fileIndex++) {
+                    string candidatePath = filePaths[fileIndex];
+                    string extension = Path.GetExtension(candidatePath);
+                    if (!string.Equals(extension, ".json", StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(extension, ".jso", StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+
+                    try {
+                        ReadFromFile(candidatePath);
+                        return candidatePath;
+                    } catch (InvalidOperationException) {
+                    }
+                }
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
         /// Attempts to resolve one runtime scene entry by scene id.
         /// </summary>
         /// <param name="sceneId">Stable scene id to locate.</param>

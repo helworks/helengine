@@ -4,16 +4,6 @@ namespace helengine {
     /// </summary>
     public class ModelAsset : Asset {
         /// <summary>
-        /// Minimum corner of the model's axis-aligned bounds.
-        /// </summary>
-        public float3 BoundsMin;
-
-        /// <summary>
-        /// Maximum corner of the model's axis-aligned bounds.
-        /// </summary>
-        public float3 BoundsMax;
-
-        /// <summary>
         /// Vertex positions.
         /// </summary>
         public float3[] Positions;
@@ -27,6 +17,16 @@ namespace helengine {
         /// Texture coordinates.
         /// </summary>
         public float2[] TexCoords;
+
+        /// <summary>
+        /// Minimum authored vertex position used by preview and framing code when the import pipeline preserves bounds.
+        /// </summary>
+        public float3 BoundsMin;
+
+        /// <summary>
+        /// Maximum authored vertex position used by preview and framing code when the import pipeline preserves bounds.
+        /// </summary>
+        public float3 BoundsMax;
 
         /// <summary>
         /// Index buffer using 16-bit indices.
