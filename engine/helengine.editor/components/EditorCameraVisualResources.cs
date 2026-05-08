@@ -113,13 +113,15 @@ namespace helengine {
                 CreateLensOrientation(),
                 new float3(0f, 0f, -(BodyWidth * 0.5f) - (FrontConeLength * 0.85f)));
 
-            return new ModelAsset {
+            ModelAsset modelAsset = new ModelAsset {
                 Id = "editor:camera-visual",
                 Positions = positions.ToArray(),
                 Normals = normals.ToArray(),
                 TexCoords = texCoords.ToArray(),
                 Indices16 = indices.ToArray()
             };
+            ModelAssetBounds.Apply(modelAsset);
+            return modelAsset;
         }
 
         /// <summary>

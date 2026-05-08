@@ -62,6 +62,20 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a selected model replaces the preview with a model preview source.
+        /// </summary>
+        [Fact]
+        public void HandleAssetSelected_WhenModelIsSelected_ReplacesTexturePreview() {
+            EditorSession session = CreateSession();
+            AssetBrowserEntry modelEntry = CreateModelEntry();
+
+            InvokePrivate(session, "HandleAssetSelected", modelEntry);
+
+            PreviewPanel previewPanel = GetPrivateField<PreviewPanel>(session, "previewPanel");
+            Assert.IsType<ModelPreviewSource>(previewPanel.ActivePreviewSource);
+        }
+
+        /// <summary>
         /// Ensures clearing the asset selection clears the preview when nothing else is previewable.
         /// </summary>
         [Fact]
@@ -88,6 +102,7 @@ namespace helengine.editor.tests {
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
+            assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
             assetImportManager.CurrentPlatformId = "windows";
 
             PropertiesPanel propertiesPanel = new PropertiesPanel(CreateFont(), contentManager);
@@ -119,6 +134,20 @@ namespace helengine.editor.tests {
                 sourcePath,
                 ".png",
                 AssetEntryKind.Image);
+        }
+
+        /// <summary>
+        /// Creates one model asset entry that can be resolved by the preview pipeline.
+        /// </summary>
+        /// <returns>Model asset browser entry.</returns>
+        AssetBrowserEntry CreateModelEntry() {
+            string sourcePath = WriteSourceModel("Preview.obj");
+            return AssetBrowserEntry.CreateFileSystemFile(
+                "Preview.obj",
+                "Models/Preview.obj",
+                sourcePath,
+                ".obj",
+                AssetEntryKind.Model);
         }
 
         /// <summary>
@@ -182,6 +211,21 @@ namespace helengine.editor.tests {
         /// <param name="fileName">Source file name to create.</param>
         /// <returns>Absolute path to the created source file.</returns>
         string WriteSourceTexture(string fileName) {
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new ArgumentException("File name must be provided.", nameof(fileName));
+            }
+
+            string sourcePath = Path.Combine(AssetsRootPath, fileName);
+            File.WriteAllBytes(sourcePath, new byte[] { 1, 2, 3, 4 });
+            return sourcePath;
+        }
+
+        /// <summary>
+        /// Writes one minimal model source file inside the temporary assets root.
+        /// </summary>
+        /// <param name="fileName">Source file name to create.</param>
+        /// <returns>Absolute path to the created model source file.</returns>
+        string WriteSourceModel(string fileName) {
             if (string.IsNullOrWhiteSpace(fileName)) {
                 throw new ArgumentException("File name must be provided.", nameof(fileName));
             }

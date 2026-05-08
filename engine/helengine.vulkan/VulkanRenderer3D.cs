@@ -230,6 +230,7 @@ namespace helengine.vulkan {
                 Uses32BitIndices = uses32BitIndices
             };
             model.SetSubmeshes(ModelSubmeshResolver.BuildRuntimeSubmeshes(data));
+            model.SetBounds(data.BoundsMin, data.BoundsMax);
 
             return model;
         }

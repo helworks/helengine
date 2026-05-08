@@ -18,7 +18,7 @@ namespace helengine.files {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 8;
+        public const byte CurrentVersion = 9;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -235,6 +235,8 @@ namespace helengine.files {
             writer.WriteArray(asset.TexCoords, WriteFloat2);
             writer.WriteArray(asset.Indices16, WriteUInt16Value);
             writer.WriteArray(asset.Indices32, WriteUInt32Value);
+            writer.WriteFloat3(asset.BoundsMin);
+            writer.WriteFloat3(asset.BoundsMax);
             writer.WriteArray(asset.Submeshes, WriteModelSubmeshAsset);
         }
 
@@ -248,15 +250,27 @@ namespace helengine.files {
                 throw new ArgumentNullException(nameof(reader));
             }
 
-            return new ModelAsset {
+            ModelAsset modelAsset = new ModelAsset {
                 Id = reader.ReadString(),
                 Positions = reader.ReadArray(ReadFloat3),
                 Normals = reader.ReadArray(ReadFloat3),
                 TexCoords = reader.ReadArray(ReadFloat2),
                 Indices16 = reader.ReadArray(ReadUInt16Value),
                 Indices32 = reader.ReadArray(ReadUInt32Value),
+                BoundsMin = version >= 9
+                    ? reader.ReadFloat3()
+                    : default,
+                BoundsMax = version >= 9
+                    ? reader.ReadFloat3()
+                    : default,
                 Submeshes = version >= 8 ? reader.ReadArray(ReadModelSubmeshAsset) : null
             };
+
+            if (version < 9) {
+                ModelAssetBounds.Apply(modelAsset);
+            }
+
+            return modelAsset;
         }
 
         /// <summary>

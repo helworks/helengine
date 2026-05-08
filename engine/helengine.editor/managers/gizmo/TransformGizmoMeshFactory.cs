@@ -716,6 +716,7 @@ namespace helengine.editor {
             modelAsset.Normals = normals.ToArray();
             modelAsset.TexCoords = texCoords.ToArray();
             modelAsset.Indices16 = ConvertIndices(indices);
+            ModelAssetBounds.Apply(modelAsset);
             return modelAsset;
         }
 

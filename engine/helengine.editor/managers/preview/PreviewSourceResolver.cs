@@ -12,7 +12,7 @@ namespace helengine.editor {
         /// </summary>
         readonly RenderManager2D renderManager2D;
         /// <summary>
-        /// 3D renderer reserved for camera preview sources in the next implementation slice.
+        /// 3D renderer used for camera and model preview sources.
         /// </summary>
         readonly RenderManager3D renderManager3D;
         /// <summary>
@@ -25,7 +25,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="assetImportManager">Asset import manager used for texture preview loading.</param>
         /// <param name="renderManager2D">2D renderer used for texture preview creation.</param>
-        /// <param name="renderManager3D">3D renderer reserved for camera preview creation.</param>
+        /// <param name="renderManager3D">3D renderer used for camera and model preview creation.</param>
         /// <param name="sceneCanvasProfileState">Scene-owned canvas profile used to size camera previews.</param>
         public PreviewSourceResolver(AssetImportManager assetImportManager, RenderManager2D renderManager2D, RenderManager3D renderManager3D, EditorSceneCanvasProfileState sceneCanvasProfileState) {
             if (assetImportManager == null) {
@@ -49,7 +49,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="assetImportManager">Asset import manager used for texture preview loading.</param>
         /// <param name="renderManager2D">2D renderer used for texture preview creation.</param>
-        /// <param name="renderManager3D">3D renderer reserved for camera preview creation.</param>
+        /// <param name="renderManager3D">3D renderer used for camera and model preview creation.</param>
         public PreviewSourceResolver(AssetImportManager assetImportManager, RenderManager2D renderManager2D, RenderManager3D renderManager3D) {
             this.assetImportManager = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
             this.renderManager2D = renderManager2D ?? throw new ArgumentNullException(nameof(renderManager2D));
@@ -74,6 +74,18 @@ namespace helengine.editor {
                     } catch (Exception ex) {
                         Logger.WriteError($"Camera preview failed for '{GetSelectionLabel(selectedEntity)}': {ex.Message}");
                     }
+                }
+            }
+
+            if (assetEntry != null && !assetEntry.IsDirectory && assetEntry.EntryKind == AssetEntryKind.Model) {
+                try {
+                    ModelPreviewSource modelSource;
+                    if (ModelPreviewSource.TryCreate(assetEntry, assetImportManager, renderManager3D, out modelSource)) {
+                        source = modelSource;
+                        return true;
+                    }
+                } catch (Exception ex) {
+                    Logger.WriteError($"Model preview failed for '{assetEntry.RelativePath}': {ex.Message}");
                 }
             }
 

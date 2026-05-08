@@ -717,6 +717,7 @@ namespace helengine.editor {
             ModelAsset asset = importedModel.ModelAsset;
             ModelAssetProcessorSettings processorSettings = GetCurrentPlatformModelProcessorSettings(settings);
             ModelAssetProcessor.Apply(asset, processorSettings);
+            ModelAssetBounds.Apply(asset);
             asset.Id = settings.Importer.AssetId;
             WriteGeneratedModelMaterials(sourcePath, importedModel.GeneratedMaterials);
 

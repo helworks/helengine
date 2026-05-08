@@ -299,6 +299,22 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures model asset bounds round-trip through the HELE asset serializer.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_ModelAsset_WithBounds_RoundTrips() {
+            ModelAsset asset = CreateModelAsset();
+            asset.BoundsMin = new float3(-2f, -3f, -4f);
+            asset.BoundsMax = new float3(5f, 6f, 7f);
+
+            byte[] data = AssetSerializer.SerializeToBytes(asset);
+            ModelAsset deserialized = (ModelAsset)AssetSerializer.DeserializeFromBytes(data);
+
+            Assert.Equal(asset.BoundsMin, deserialized.BoundsMin);
+            Assert.Equal(asset.BoundsMax, deserialized.BoundsMax);
+        }
+
+        /// <summary>
         /// Ensures 32-bit indexed model assets round-trip through the HELE asset serializer.
         /// </summary>
         [Fact]
