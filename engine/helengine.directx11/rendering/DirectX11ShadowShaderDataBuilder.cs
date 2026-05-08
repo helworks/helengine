@@ -17,6 +17,14 @@ namespace helengine.directx11 {
         /// Fraction of the authored shadow distance used to focus directional shadow coverage ahead of the camera.
         /// </summary>
         const float DirectionalShadowFocusDistanceFactor = 0.5f;
+        /// <summary>
+        /// Minimum extra depth added to spotlight shadow projections so receivers at the end of the lit cone do not land exactly on the shadow far plane.
+        /// </summary>
+        const float SpotShadowRangePaddingMinimum = 2f;
+        /// <summary>
+        /// Fractional extra depth added to spotlight shadow projections to stabilize coverage for taller light placements.
+        /// </summary>
+        const float SpotShadowRangePaddingFactor = 0.15f;
 
         /// <summary>
         /// Builds atlas-shadow shader data for the selected forward-light set and planned shadow resources of the current camera frame.
@@ -216,8 +224,17 @@ namespace helengine.directx11 {
                 float3 target = lightPosition + lightDirection;
                 float3 up = Math.Abs(float3.Dot(lightDirection, DefaultUp)) > 0.99f ? new float3(0f, 0f, 1f) : DefaultUp;
                 float4x4.CreateLookAt(ref lightPosition, ref target, ref up, out view);
-                float fieldOfViewRadians = (float)(spotLight.OuterConeAngleDegrees * (Math.PI / 180.0));
-                float4x4.CreatePerspectiveFieldOfView(fieldOfViewRadians, 1f, 0.1f, spotLight.Range, out projection);
+                double authoredHalfAngleRadians = spotLight.OuterConeAngleDegrees * (Math.PI / 180.0);
+                double fullFieldOfViewRadians = authoredHalfAngleRadians * 2.0;
+                if (fullFieldOfViewRadians >= Math.PI) {
+                    fullFieldOfViewRadians = Math.PI - 0.0001;
+                }
+
+                float fieldOfViewRadians = (float)fullFieldOfViewRadians;
+                float spotlightRange = (float)Math.Max(0.1, spotLight.Range);
+                float spotlightRangePadding = (float)Math.Max(SpotShadowRangePaddingMinimum, spotlightRange * SpotShadowRangePaddingFactor);
+                float spotlightShadowFarPlane = spotlightRange + spotlightRangePadding;
+                float4x4.CreatePerspectiveFieldOfView(fieldOfViewRadians, 1f, 0.1f, spotlightShadowFarPlane, out projection);
             } else {
                 return new float4x4();
             }

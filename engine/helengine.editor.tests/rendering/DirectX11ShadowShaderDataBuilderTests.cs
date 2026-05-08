@@ -332,6 +332,69 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures spot-light shadow projection treats the authored outer cone angle as a half-angle, matching the forward-light shading path.
+        /// </summary>
+        [Fact]
+        public void BuildShadowViewProjectionMatrix_WhenSpotLightUsesOuterConeHalfAngle_CoversPointsInsideTheAuthoredCone() {
+            InitializeCore();
+            CameraComponent camera = CreateCamera();
+
+            Entity spotEntity = CreateEntity(float3.Zero);
+            SpotLightComponent spotLight = new SpotLightComponent {
+                Range = 20f,
+                OuterConeAngleDegrees = 35f
+            };
+            spotEntity.AddComponent(spotLight);
+
+            RenderFrameLightSubmission spotSubmission = new RenderFrameLightSubmission(spotLight, 10);
+            DirectX11ShadowAtlasAllocation allocation = new DirectX11ShadowAtlasAllocation(spotSubmission, 0, 0, 1024, 1024);
+            DirectX11ShadowShaderDataBuilder builder = new DirectX11ShadowShaderDataBuilder();
+
+            float4x4 lightViewProjection = builder.BuildShadowViewProjectionMatrix(camera, allocation);
+            double outerConeRadians = spotLight.OuterConeAngleDegrees * (Math.PI / 180.0);
+            float3 coneEdgePoint = new float3((float)(Math.Tan(outerConeRadians) * 10.0), 0f, -10f);
+            float3 clipPoint = TransformPointToNormalizedDeviceCoordinates(coneEdgePoint, lightViewProjection);
+
+            Assert.InRange(clipPoint.X, 0.95f, 1.05f);
+            Assert.InRange(clipPoint.Y, -0.05f, 0.05f);
+            Assert.InRange(clipPoint.Z, 0f, 1f);
+        }
+
+        /// <summary>
+        /// Ensures spotlight shadow projection adds enough depth margin that receivers at the end of the authored range stay inside the shadow frustum instead of landing exactly on the far clip plane.
+        /// </summary>
+        [Fact]
+        public void BuildShadowViewProjectionMatrix_WhenSpotLightReceiverSitsAtAuthoredRange_KeepsReceiverInsideShadowFrustum() {
+            InitializeCore();
+            CameraComponent camera = CreateCamera();
+
+            Entity spotEntity = CreateEntity(new float3(0f, 16f, 0f));
+            float3 rotationAxis = new float3(1f, 0f, 0f);
+            float4 spotOrientation;
+            float4.CreateFromAxisAngle(ref rotationAxis, (float)(-Math.PI * 0.5), out spotOrientation);
+            spotEntity.LocalOrientation = spotOrientation;
+
+            SpotLightComponent spotLight = new SpotLightComponent {
+                Range = 16f,
+                OuterConeAngleDegrees = 45f
+            };
+            spotEntity.AddComponent(spotLight);
+
+            float3 lightDirection = LightDirectionUtility.GetEntityForwardDirection(spotEntity);
+            float3 receiverPoint = spotEntity.Position + (lightDirection * spotLight.Range);
+
+            RenderFrameLightSubmission spotSubmission = new RenderFrameLightSubmission(spotLight, 10);
+            DirectX11ShadowAtlasAllocation allocation = new DirectX11ShadowAtlasAllocation(spotSubmission, 0, 0, 1024, 1024);
+            DirectX11ShadowShaderDataBuilder builder = new DirectX11ShadowShaderDataBuilder();
+
+            float4x4 lightViewProjection = builder.BuildShadowViewProjectionMatrix(camera, allocation);
+            float3 clipPoint = TransformPointToNormalizedDeviceCoordinates(receiverPoint, lightViewProjection);
+
+            Assert.InRange(receiverPoint.Y, -0.01f, 0.01f);
+            Assert.True(clipPoint.Z < 1f, "Spotlight receivers at the authored range should remain inside the shadow frustum.");
+        }
+
+        /// <summary>
         /// Initializes a core instance so cameras and entities can allocate engine-owned state safely.
         /// </summary>
         void InitializeCore() {
