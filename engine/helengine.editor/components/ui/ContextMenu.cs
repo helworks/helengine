@@ -83,6 +83,10 @@ namespace helengine.editor {
         /// </summary>
         readonly List<ContextMenuItem> ActiveItems;
         /// <summary>
+        /// Scroll controller used when the menu contains more items than the host can display at once.
+        /// </summary>
+        readonly ScrollComponent ScrollComponent;
+        /// <summary>
         /// Cached menu size.
         /// </summary>
         int2 MenuSize;
@@ -98,6 +102,10 @@ namespace helengine.editor {
         /// Tracks whether the menu has finished initialization.
         /// </summary>
         bool IsInitialized;
+        /// <summary>
+        /// Index of the first active item currently rendered by the visible row pool.
+        /// </summary>
+        int FirstVisibleItemIndex;
         /// <summary>
         /// Tracks whether the menu is already forcing a disable operation.
         /// </summary>
@@ -119,6 +127,7 @@ namespace helengine.editor {
             TextOrder = textOrder;
             Rows = new List<ContextMenuRow>(8);
             ActiveItems = new List<ContextMenuItem>(8);
+            ScrollComponent = new ScrollComponent();
             MenuSize = new int2(0, 0);
             MenuPosition = new int2(0, 0);
             HostSize = new int2(1, 1);
@@ -159,6 +168,11 @@ namespace helengine.editor {
                 Size = new int2(0, 0)
             };
             BackgroundBlockerEntity.AddComponent(BackgroundBlockerInteractable);
+
+            ScrollComponent.Size = new int2(0, 0);
+            ScrollComponent.VisibleItemCount = 1;
+            ScrollComponent.ScrollOffsetChanged += HandleScrollOffsetChanged;
+            Root.AddComponent(ScrollComponent);
 
             Root.AddComponent(new ContextMenuUpdater(this));
             IsInitialized = true;
@@ -231,8 +245,8 @@ namespace helengine.editor {
 
             HostSize = hostSize;
             MenuPosition = position;
-            EnsureRowCount(ActiveItems.Count);
-            ApplyItems();
+            ScrollComponent.ResetScrollOffset();
+            FirstVisibleItemIndex = 0;
             UpdateLayoutInternal();
             Root.Enabled = true;
             UpdateInputBlocker();
@@ -380,13 +394,14 @@ namespace helengine.editor {
         void ApplyItems() {
             for (int i = 0; i < Rows.Count; i++) {
                 ContextMenuRow row = Rows[i];
-                if (i >= ActiveItems.Count) {
+                int itemIndex = FirstVisibleItemIndex + i;
+                if (itemIndex >= ActiveItems.Count) {
                     row.Entity.Enabled = false;
                     row.Item = null;
                     continue;
                 }
 
-                ContextMenuItem item = ActiveItems[i];
+                ContextMenuItem item = ActiveItems[itemIndex];
                 row.Entity.Enabled = true;
                 row.Item = item;
                 row.Label.Text = item.Label;
@@ -400,13 +415,22 @@ namespace helengine.editor {
         /// Updates size, position, and row layout for the menu.
         /// </summary>
         void UpdateLayoutInternal() {
-            MenuSize = ComputeMenuSize();
+            int width = ComputeMenuWidth();
+            int visibleRowCount = ResolveVisibleRowCount();
+            EnsureRowCount(visibleRowCount);
+            ScrollComponent.Size = new int2(width, ComputeMenuHeight(visibleRowCount));
+            ScrollComponent.ItemCount = ActiveItems.Count;
+            ScrollComponent.VisibleItemCount = visibleRowCount;
+            ScrollComponent.ClampScrollOffset();
+            FirstVisibleItemIndex = ScrollComponent.ScrollOffset;
+            MenuSize = new int2(width, ComputeMenuHeight(visibleRowCount));
             MenuPosition = ClampPosition(MenuPosition, MenuSize, HostSize);
             Root.Position = new float3(MenuPosition.X, MenuPosition.Y, 0.2f);
 
             Background.Size = MenuSize;
             BackgroundBlockerSurface.Size = MenuSize;
             BackgroundBlockerInteractable.Size = MenuSize;
+            ApplyItems();
             LayoutRows();
         }
 
@@ -451,7 +475,7 @@ namespace helengine.editor {
         /// Computes the menu size based on the current items.
         /// </summary>
         /// <returns>Calculated menu size.</returns>
-        int2 ComputeMenuSize() {
+        int ComputeMenuWidth() {
             int width = MinWidth;
             for (int i = 0; i < ActiveItems.Count; i++) {
                 string label = ActiveItems[i].Label ?? string.Empty;
@@ -471,17 +495,47 @@ namespace helengine.editor {
                 width = MaxWidth;
             }
 
-            int rowCount = ActiveItems.Count;
+            return width;
+        }
+
+        /// <summary>
+        /// Computes the height required for the supplied number of visible rows.
+        /// </summary>
+        /// <param name="visibleRowCount">Number of visible rows to include in the menu body.</param>
+        /// <returns>Calculated menu height.</returns>
+        int ComputeMenuHeight(int visibleRowCount) {
             int height = PaddingY * 2;
-            if (rowCount > 0) {
-                height += (RowHeight * rowCount) + (RowSpacing * (rowCount - 1));
+            if (visibleRowCount > 0) {
+                height += (RowHeight * visibleRowCount) + (RowSpacing * (visibleRowCount - 1));
             }
 
             if (height < RowHeight + (PaddingY * 2)) {
                 height = RowHeight + (PaddingY * 2);
             }
 
-            return new int2(width, height);
+            return height;
+        }
+
+        /// <summary>
+        /// Resolves the number of visible rows that fit inside the current host height.
+        /// </summary>
+        /// <returns>Visible row count for the current menu host.</returns>
+        int ResolveVisibleRowCount() {
+            if (ActiveItems.Count <= 0) {
+                return 0;
+            }
+
+            int availableHeight = Math.Max(0, HostSize.Y - (PaddingY * 2));
+            int rowStride = RowHeight + RowSpacing;
+            int visibleRowCount = rowStride <= 0 ? ActiveItems.Count : availableHeight / rowStride;
+            if (visibleRowCount < 1) {
+                visibleRowCount = 1;
+            }
+            if (visibleRowCount > ActiveItems.Count) {
+                visibleRowCount = ActiveItems.Count;
+            }
+
+            return visibleRowCount;
         }
 
         /// <summary>
@@ -558,6 +612,17 @@ namespace helengine.editor {
             if (item.HoverAction != null) {
                 item.HoverAction();
             }
+        }
+
+        /// <summary>
+        /// Rebinds the visible row window when the menu scroll offset changes.
+        /// </summary>
+        /// <param name="scrollComponent">Scroll controller that raised the event.</param>
+        /// <param name="scrollOffset">Current item-window offset.</param>
+        void HandleScrollOffsetChanged(ScrollComponent scrollComponent, int scrollOffset) {
+            FirstVisibleItemIndex = scrollOffset;
+            ApplyItems();
+            LayoutRows();
         }
 
         /// <summary>

@@ -235,6 +235,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures asset-import managers register the shared material processor needed by the material settings view.
+        /// </summary>
+        [Fact]
+        public void AssetImportManager_WhenLoadingSerializedMaterial_RegistersEditorMaterialProcessor() {
+            string materialPath = Path.Combine(AssetsRootPath, "demo.material");
+            MaterialAsset materialAsset = new MaterialAsset {
+                Id = "Materials/Demo.material",
+                ShaderAssetId = "Shaders/Standard.shader"
+            };
+            using (FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, materialAsset);
+            }
+
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+
+            MaterialAsset loadedMaterialAsset = contentManager.Load<MaterialAsset>(materialPath, EditorContentProcessorIds.MaterialAsset);
+
+            Assert.Equal(materialAsset.Id, loadedMaterialAsset.Id);
+            Assert.Equal(materialAsset.ShaderAssetId, loadedMaterialAsset.ShaderAssetId);
+        }
+
+        /// <summary>
         /// Creates an import manager configured with the deterministic test texture importer.
         /// </summary>
         /// <returns>Configured asset import manager.</returns>

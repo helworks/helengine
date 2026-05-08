@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Reflection;
 using helengine.editor.tests.testing;
 using Xunit;
@@ -167,6 +168,33 @@ namespace helengine.editor.tests {
 
             Assert.Equal("Light", rows[0].Label.Text);
             Assert.Equal(">>", rows[0].Indicator.Text);
+        }
+
+        /// <summary>
+        /// Ensures tall context menus clamp to the host viewport and expose their overflow through wheel scrolling.
+        /// </summary>
+        [Fact]
+        public void Show_WhenMenuExceedsHostHeight_ClampsHeightAndScrollsVisibleRows() {
+            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenuItem[] items = Enumerable.Range(0, 6)
+                .Select(index => new ContextMenuItem("Open", HandleMenuItemActivated))
+                .ToArray();
+            int2 hostSize = new int2(320, (ContextMenu.PaddingY * 2) + (ContextMenu.RowHeight * 3));
+            menu.Show(items, new int2(0, 0), hostSize);
+
+            List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(menu, "Rows");
+
+            Assert.Equal(hostSize.Y, menu.Size.Y);
+            Assert.Equal(3, rows.Count(row => row.Entity.Enabled));
+
+            int2 rowPointer = new int2(
+                menu.Position.X + 16,
+                menu.Position.Y + ContextMenu.PaddingY + (ContextMenu.RowHeight / 2));
+
+            AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, -120, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.Equal(1, GetPrivateField<ScrollComponent>(menu, "ScrollComponent").ScrollOffset);
         }
 
         /// <summary>
