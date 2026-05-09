@@ -383,7 +383,9 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void PropertiesPanel_WhenProvidedSharedModalHost_AttachesComponentDialogsToThatHost() {
-            EditorEntity modalHost = new EditorEntity();
+            EditorEntity modalHost = new EditorEntity {
+                LayerMask = EditorLayerMasks.EditorModalUi
+            };
             PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath), null, modalHost);
 
             ComponentAddDialog addDialog = GetPrivateField<ComponentAddDialog>(panel, "AddComponentDialog");
@@ -624,6 +626,29 @@ namespace helengine.editor.tests {
 
             Assert.Equal(96f, light.ShadowDistance);
             Assert.Equal("96", shadowDistanceRow.ScalarField.Text);
+        }
+
+        /// <summary>
+        /// Ensures scalar property rows use a 40/60 label and value split when the inspector is laid out.
+        /// </summary>
+        [Fact]
+        public void ShowComponents_WhenScalarPropertyRowsAreVisible_UsesFortySixtyLabelSplit() {
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Light"
+            };
+            entity.AddComponent(new DirectionalLightComponent {
+                ShadowDistance = 64f
+            });
+
+            view.ShowComponents(entity);
+            view.UpdateLayout(0, 0, 420);
+
+            ComponentPropertyRow shadowDistanceRow = FindScalarRow(view, nameof(DirectionalLightComponent.ShadowDistance));
+
+            Assert.Equal(162, shadowDistanceRow.Label.Size.X);
+            Assert.Equal(176f, shadowDistanceRow.ScalarField.Parent.Position.X);
+            Assert.Equal(236, shadowDistanceRow.ScalarField.Size.X);
         }
 
         /// <summary>

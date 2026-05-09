@@ -43,9 +43,9 @@ namespace helengine.editor {
         /// </summary>
         const int RowSpacing = 6;
         /// <summary>
-        /// Width reserved for property labels.
+        /// Fraction of each row reserved for the label column.
         /// </summary>
-        const int LabelWidth = 140;
+        const double LabelWidthRatio = 0.4;
         /// <summary>
         /// Height of text fields.
         /// </summary>
@@ -1874,7 +1874,10 @@ namespace helengine.editor {
             int indentOffset = row.IndentLevel * (SectionBodyPadding * 2);
             bodyWidth = Math.Max(0, bodyWidth - indentOffset);
             row.Entity.Position = new float3(SectionBodyPadding + indentOffset, top, 0.2f);
-            int labelWidth = Math.Min(LabelWidth, bodyWidth);
+            int labelWidth = (int)Math.Round(bodyWidth * LabelWidthRatio, MidpointRounding.AwayFromZero);
+            if (labelWidth > bodyWidth) {
+                labelWidth = bodyWidth;
+            }
 
             var labelMetrics = Font.MeasureTight(row.Label.Text ?? string.Empty);
             float labelY = GetTextTopOffset(height, labelMetrics);
