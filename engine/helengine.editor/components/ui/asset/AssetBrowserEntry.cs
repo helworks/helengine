@@ -173,5 +173,22 @@ namespace helengine.editor {
         /// Gets a value indicating whether this entry is supplied by a generated asset provider.
         /// </summary>
         public bool IsGenerated => SourceKind == AssetBrowserEntrySourceKind.Generated;
+
+        /// <summary>
+        /// Gets a value indicating whether this generated directory should be treated as read-only in the browser.
+        /// </summary>
+        public bool IsReadOnlyDirectory => IsGenerated && IsDirectory;
+
+        /// <summary>
+        /// Gets a value indicating whether this entry is the generated engine root folder shown at the top of Assets.
+        /// </summary>
+        public bool IsEngineGeneratedRootDirectory {
+            get {
+                return IsGenerated &&
+                       IsDirectory &&
+                       string.Equals(RelativePath, EngineGeneratedAssetProvider.EngineRootPath, StringComparison.Ordinal) &&
+                       string.Equals(ProviderId, EngineGeneratedAssetProvider.ProviderIdValue, StringComparison.Ordinal);
+            }
+        }
     }
 }

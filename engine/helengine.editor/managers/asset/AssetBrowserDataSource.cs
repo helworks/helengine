@@ -194,6 +194,12 @@ namespace helengine.editor {
                 return left.IsDirectory ? -1 : 1;
             }
 
+            bool leftIsEngineRoot = left.IsEngineGeneratedRootDirectory;
+            bool rightIsEngineRoot = right.IsEngineGeneratedRootDirectory;
+            if (leftIsEngineRoot != rightIsEngineRoot) {
+                return leftIsEngineRoot ? -1 : 1;
+            }
+
             return string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
         }
     }

@@ -625,7 +625,10 @@ namespace helengine.editor {
                 row.Entity.Enabled = true;
 
                 bool alternate = i % 2 == 1;
-                byte4 baseColor = alternate ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
+                bool isReadOnlyDirectory = entry.IsReadOnlyDirectory;
+                byte4 baseColor = isReadOnlyDirectory
+                    ? ThemeManager.Colors.StateWarning
+                    : alternate ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
                 row.BaseColor = baseColor;
                 row.IsSelected = string.Equals(entry.RelativePath, SelectedRelativePath, StringComparison.OrdinalIgnoreCase);
                 UpdateRowBackground(row, baseColor);
@@ -654,6 +657,9 @@ namespace helengine.editor {
 
                 float labelX = iconPadding + iconSize + labelPadding;
                 string labelText = entry.IsDirectory ? $"{entry.Name}/" : entry.Name;
+                if (isReadOnlyDirectory) {
+                    labelText += " [read-only]";
+                }
                 var labelMetrics = Font.MeasureTight(labelText);
                 float labelY = GetTextTopOffset(rowHeight, labelMetrics);
                 if (row.Label.Parent != null) {

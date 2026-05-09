@@ -57,6 +57,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the generated engine root row stays visible at the top of the root list and is labeled as read-only.
+        /// </summary>
+        [Fact]
+        public void RefreshEntries_WhenEngineRootIsPresent_PinsItFirstAndMarksItReadOnly() {
+            Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Aardvark"));
+            GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
+            AssetBrowserView browserView = new AssetBrowserView(CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4);
+
+            browserView.UpdateLayout(320, 240);
+
+            List<AssetBrowserEntry> entries = GetPrivateField<List<AssetBrowserEntry>>(browserView, "Entries");
+            List<AssetBrowserRow> rows = GetPrivateField<List<AssetBrowserRow>>(browserView, "Rows");
+
+            Assert.Equal("Engine", entries[0].Name);
+            Assert.True(entries[0].IsEngineGeneratedRootDirectory);
+            Assert.Equal("Engine/ [read-only]", rows[0].Label.Text);
+            Assert.Equal(ThemeManager.Colors.StateWarning, rows[0].Background.Color);
+        }
+
+        /// <summary>
         /// Ensures multi-extension picker filters match any of the authored extensions in the list.
         /// </summary>
         [Fact]
@@ -118,6 +138,13 @@ namespace helengine.editor.tests {
                 ['i'] = new FontChar(new float4(0f, 0f, 3f, 12f), 0f, 3f, 0f, 0f),
                 ['M'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f),
                 ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                [' '] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
+                ['-'] = new FontChar(new float4(0f, 0f, 5f, 12f), 0f, 5f, 0f, 0f),
+                ['['] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
+                [']'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
+                ['o'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+                ['w'] = new FontChar(new float4(0f, 0f, 10f, 12f), 0f, 10f, 0f, 0f),
+                ['y'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['t'] = new FontChar(new float4(0f, 0f, 5f, 12f), 0f, 5f, 0f, 0f),
                 ['e'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
                 ['r'] = new FontChar(new float4(0f, 0f, 6f, 12f), 0f, 6f, 0f, 0f),

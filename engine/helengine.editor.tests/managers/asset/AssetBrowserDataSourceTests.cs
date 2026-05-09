@@ -52,6 +52,30 @@ namespace helengine.editor.tests.managers.asset {
         }
 
         /// <summary>
+        /// Ensures the generated engine root folder stays pinned ahead of other directory entries at the asset root.
+        /// </summary>
+        [Fact]
+        public void LoadEntries_WhenAtRoot_PinsGeneratedEngineFolderBeforeOtherDirectories() {
+            Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Aardvark"));
+            GeneratedAssetProviderRegistry.Register(new TestGeneratedAssetProvider(
+                "engine",
+                new[] {
+                    AssetBrowserEntry.CreateGeneratedDirectory("Engine", "Engine", "engine")
+                },
+                new TestRuntimeModel()));
+
+            AssetBrowserDataSource dataSource = new AssetBrowserDataSource(ProjectRootPath);
+            List<AssetBrowserEntry> entries = new List<AssetBrowserEntry>();
+
+            dataSource.LoadEntries(entries);
+
+            Assert.Equal("Engine", entries[0].Name);
+            Assert.True(entries[0].IsEngineGeneratedRootDirectory);
+            Assert.Equal("Aardvark", entries[1].Name);
+            Assert.Equal("Scenes", entries[2].Name);
+        }
+
+        /// <summary>
         /// Ensures generated navigation switches the browser into read-only mode.
         /// </summary>
         [Fact]
