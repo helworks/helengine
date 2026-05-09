@@ -20,9 +20,7 @@ namespace helengine.editor {
         /// <summary>
         /// Extensions treated as 3D model assets.
         /// </summary>
-        readonly HashSet<string> modelExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-            ".obj", ".fbx", ".dae", ".3ds", ".blend", ".gltf", ".glb"
-        };
+        readonly HashSet<string> modelExtensions = new HashSet<string>(AssimpModelFormatCatalog.AllModelExtensions, StringComparer.OrdinalIgnoreCase);
         /// <summary>
         /// Extensions treated as material assets.
         /// </summary>

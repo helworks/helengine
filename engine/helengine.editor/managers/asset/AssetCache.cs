@@ -30,7 +30,7 @@ namespace helengine.ui.managers {
         /// </summary>
         public AssetCache() {
             AddSupportedExtensions(TextureImportFormatCatalog.AllTextureExtensions);
-            AddSupportedExtensions(new[] { ".obj", ".fbx", ".dae", ".3ds", ".blend", ".gltf", ".glb" });
+            AddSupportedExtensions(AssimpModelFormatCatalog.AllModelExtensions);
             AddSupportedExtensions(new[] { ".wav", ".mp3", ".ogg", ".flac", ".aac" });
             AddSupportedExtensions(new[] { ".mat", ".shader", ".cg", ".hlsl", ".glsl" });
             AddSupportedExtensions(new[] { ".json", ".xml", ".yaml", ".yml" });
