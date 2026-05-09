@@ -140,6 +140,11 @@ namespace helengine.editor {
         public string ImportRootPath => importRootPath;
 
         /// <summary>
+        /// Gets the project content manager used to load source assets and importer outputs.
+        /// </summary>
+        public ContentManager ContentManager => AssetContentManager;
+
+        /// <summary>
         /// Gets or sets the active project platform whose processor settings should drive model cache generation.
         /// </summary>
         public string CurrentPlatformId { get; set; }

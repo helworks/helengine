@@ -16,6 +16,10 @@ namespace helengine.editor {
         /// </summary>
         const double ZoomStepFactor = 1.1d;
         /// <summary>
+        /// Screen-space pan multiplier applied once per pixel of middle-button drag.
+        /// </summary>
+        const double PanSensitivity = 0.004d;
+        /// <summary>
         /// Orbit sensitivity applied to mouse drag deltas.
         /// </summary>
         const double OrbitSensitivity = 0.01d;
@@ -101,6 +105,10 @@ namespace helengine.editor {
         /// </summary>
         double zoomScale;
         /// <summary>
+        /// Screen-space pan offset accumulated from middle-button drag input.
+        /// </summary>
+        float2 panOffset;
+        /// <summary>
         /// Tracks whether the source has been disposed.
         /// </summary>
         bool isDisposed;
@@ -110,9 +118,22 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="runtimeModel">Runtime model to preview.</param>
         /// <param name="renderManager3D">Renderer used to allocate the offscreen render target.</param>
-        public ModelPreviewSource(RuntimeModel runtimeModel, RenderManager3D renderManager3D) {
+        public ModelPreviewSource(RuntimeModel runtimeModel, RenderManager3D renderManager3D)
+            : this(runtimeModel, Array.Empty<RuntimeMaterial>(), renderManager3D) {
+        }
+
+        /// <summary>
+        /// Initializes a new model preview source for one runtime model and one ordered material array.
+        /// </summary>
+        /// <param name="runtimeModel">Runtime model to preview.</param>
+        /// <param name="previewMaterials">Runtime materials ordered by submesh slot.</param>
+        /// <param name="renderManager3D">Renderer used to allocate the offscreen render target.</param>
+        public ModelPreviewSource(RuntimeModel runtimeModel, RuntimeMaterial[] previewMaterials, RenderManager3D renderManager3D) {
             if (runtimeModel == null) {
                 throw new ArgumentNullException(nameof(runtimeModel));
+            }
+            if (previewMaterials == null) {
+                throw new ArgumentNullException(nameof(previewMaterials));
             }
             if (renderManager3D == null) {
                 throw new ArgumentNullException(nameof(renderManager3D));
@@ -129,9 +150,13 @@ namespace helengine.editor {
             lightEntity = CreateHiddenEntity("Model Preview Light");
 
             previewMeshComponent = new MeshComponent {
-                Model = runtimeModel,
-                Material = EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial()
+                Model = runtimeModel
             };
+            if (previewMaterials.Length == 0) {
+                previewMeshComponent.Material = EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial();
+            } else {
+                previewMeshComponent.SetMaterials(previewMaterials);
+            }
             modelEntity.AddComponent(previewMeshComponent);
 
             previewCameraComponent = new CameraComponent {
@@ -206,12 +231,24 @@ namespace helengine.editor {
             if (entry.IsGenerated) {
                 runtimeModel = GeneratedAssetProviderRegistry.ResolveRuntimeModel(entry);
             } else {
-                ModelAsset modelAsset;
-                if (!assetImportManager.TryLoadModelAsset(entry.FullPath, out modelAsset) || modelAsset == null) {
+                AssetImportSettings importSettings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
+                if (importSettings == null || importSettings.Importer == null || string.IsNullOrWhiteSpace(importSettings.Importer.ImporterId)) {
                     return false;
                 }
 
-                runtimeModel = renderManager3D.BuildModelFromRaw(modelAsset);
+                ImportedModelAssetSet importedModel = assetImportManager.ContentManager.Load<ImportedModelAssetSet>(entry.FullPath, importSettings.Importer.ImporterId);
+                if (importedModel == null || importedModel.ModelAsset == null) {
+                    return false;
+                }
+
+                runtimeModel = renderManager3D.BuildModelFromRaw(importedModel.ModelAsset);
+                RuntimeMaterial[] previewMaterials = BuildPreviewMaterials(
+                    runtimeModel.Submeshes,
+                    importedModel.GeneratedMaterials,
+                    assetImportManager,
+                    renderManager3D);
+                source = new ModelPreviewSource(runtimeModel, previewMaterials, renderManager3D);
+                return true;
             }
 
             source = new ModelPreviewSource(runtimeModel, renderManager3D);
@@ -285,6 +322,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Handles one middle-button drag delta by panning the preview camera across the model plane.
+        /// </summary>
+        /// <param name="delta">Mouse delta accumulated since the previous frame.</param>
+        public void HandleMouseMiddleDrag(int2 delta) {
+            if (isDisposed || (delta.X == 0 && delta.Y == 0)) {
+                return;
+            }
+
+            panOffset = new float2(
+                panOffset.X - (float)(delta.X * PanSensitivity),
+                panOffset.Y + (float)(delta.Y * PanSensitivity));
+            UpdateCameraTransform();
+        }
+
+        /// <summary>
         /// Releases the preview root and its render target.
         /// </summary>
         public void Dispose() {
@@ -312,8 +364,13 @@ namespace helengine.editor {
             cameraOrientation.Normalize();
 
             float3 forward = float4.RotateVector(new float3(0f, 0f, -1f), cameraOrientation);
+            float3 right = float4.RotateVector(new float3(1f, 0f, 0f), cameraOrientation);
+            float3 up = float4.RotateVector(new float3(0f, 1f, 0f), cameraOrientation);
             cameraEntity.LocalOrientation = cameraOrientation;
-            cameraEntity.LocalPosition = forward * (float)-cameraDistance;
+            cameraEntity.LocalPosition =
+                forward * (float)-cameraDistance +
+                right * (float)(panOffset.X * fitDistance) +
+                up * (float)(panOffset.Y * fitDistance);
             modelEntity.LocalPosition = new float3(-boundsCenter.X, -boundsCenter.Y, -boundsCenter.Z);
         }
 
@@ -367,6 +424,191 @@ namespace helengine.editor {
 
             previewCameraComponent.RenderTarget = null;
             renderTarget = null;
+        }
+
+        /// <summary>
+        /// Builds the runtime material array used by imported model previews.
+        /// </summary>
+        /// <param name="submeshes">Runtime submeshes exposed by the imported model.</param>
+        /// <param name="generatedMaterials">Generated material descriptions returned by the importer.</param>
+        /// <param name="assetImportManager">Asset import manager used to resolve imported texture cache files.</param>
+        /// <param name="renderManager3D">Renderer used to materialize runtime textures.</param>
+        /// <returns>Runtime materials ordered by submesh slot.</returns>
+        static RuntimeMaterial[] BuildPreviewMaterials(
+            RuntimeSubmesh[] submeshes,
+            ImportedModelMaterialAsset[] generatedMaterials,
+            AssetImportManager assetImportManager,
+            RenderManager3D renderManager3D) {
+            if (submeshes == null) {
+                throw new ArgumentNullException(nameof(submeshes));
+            }
+            if (generatedMaterials == null) {
+                throw new ArgumentNullException(nameof(generatedMaterials));
+            }
+            if (assetImportManager == null) {
+                throw new ArgumentNullException(nameof(assetImportManager));
+            }
+            if (renderManager3D == null) {
+                throw new ArgumentNullException(nameof(renderManager3D));
+            }
+
+            if (submeshes.Length == 0) {
+                return Array.Empty<RuntimeMaterial>();
+            }
+
+            RuntimeMaterial fallbackMaterial = EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial();
+            RuntimeMaterial[] previewMaterials = new RuntimeMaterial[submeshes.Length];
+            for (int submeshIndex = 0; submeshIndex < submeshes.Length; submeshIndex++) {
+                previewMaterials[submeshIndex] = ResolvePreviewMaterial(
+                    submeshes[submeshIndex],
+                    generatedMaterials,
+                    assetImportManager,
+                    renderManager3D,
+                    fallbackMaterial);
+            }
+
+            return previewMaterials;
+        }
+
+        /// <summary>
+        /// Resolves one preview material for one runtime submesh.
+        /// </summary>
+        /// <param name="submesh">Runtime submesh whose material slot should be resolved.</param>
+        /// <param name="generatedMaterials">Generated material descriptions returned by the importer.</param>
+        /// <param name="assetImportManager">Asset import manager used to resolve imported texture cache files.</param>
+        /// <param name="renderManager3D">Renderer used to materialize runtime textures.</param>
+        /// <param name="fallbackMaterial">Neutral fallback material used when the importer did not generate a matching slot.</param>
+        /// <returns>Runtime material assigned to the submesh slot.</returns>
+        static RuntimeMaterial ResolvePreviewMaterial(
+            RuntimeSubmesh submesh,
+            ImportedModelMaterialAsset[] generatedMaterials,
+            AssetImportManager assetImportManager,
+            RenderManager3D renderManager3D,
+            RuntimeMaterial fallbackMaterial) {
+            if (submesh == null) {
+                throw new ArgumentNullException(nameof(submesh));
+            }
+            if (generatedMaterials == null) {
+                throw new ArgumentNullException(nameof(generatedMaterials));
+            }
+            if (assetImportManager == null) {
+                throw new ArgumentNullException(nameof(assetImportManager));
+            }
+            if (renderManager3D == null) {
+                throw new ArgumentNullException(nameof(renderManager3D));
+            }
+            if (fallbackMaterial == null) {
+                throw new ArgumentNullException(nameof(fallbackMaterial));
+            }
+
+            if (!string.IsNullOrWhiteSpace(submesh.MaterialSlotName)) {
+                for (int materialIndex = 0; materialIndex < generatedMaterials.Length; materialIndex++) {
+                    ImportedModelMaterialAsset generatedMaterial = generatedMaterials[materialIndex];
+                    if (generatedMaterial == null) {
+                        throw new InvalidOperationException("Imported model material collections cannot contain null entries.");
+                    }
+
+                    if (!string.Equals(generatedMaterial.MaterialName, submesh.MaterialSlotName, StringComparison.Ordinal)) {
+                        continue;
+                    }
+
+                    return CreateImportedPreviewMaterial(generatedMaterial, assetImportManager, renderManager3D);
+                }
+            }
+
+            return fallbackMaterial;
+        }
+
+        /// <summary>
+        /// Creates one runtime material for one generated imported material description.
+        /// </summary>
+        /// <param name="generatedMaterial">Generated material description supplied by the importer.</param>
+        /// <param name="assetImportManager">Asset import manager used to resolve imported texture cache files.</param>
+        /// <param name="renderManager3D">Renderer used to materialize runtime textures.</param>
+        /// <returns>Runtime material configured with the imported diffuse texture when one was authored.</returns>
+        static RuntimeMaterial CreateImportedPreviewMaterial(
+            ImportedModelMaterialAsset generatedMaterial,
+            AssetImportManager assetImportManager,
+            RenderManager3D renderManager3D) {
+            if (generatedMaterial == null) {
+                throw new ArgumentNullException(nameof(generatedMaterial));
+            }
+            if (assetImportManager == null) {
+                throw new ArgumentNullException(nameof(assetImportManager));
+            }
+            if (renderManager3D == null) {
+                throw new ArgumentNullException(nameof(renderManager3D));
+            }
+
+            RuntimeMaterial previewMaterial = EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial();
+            MaterialAsset materialAsset = generatedMaterial.MaterialAsset;
+            if (materialAsset == null) {
+                throw new InvalidOperationException("Imported model material entries must include a material asset.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
+                TextureAsset textureAsset = LoadImportedTextureAsset(assetImportManager, materialAsset.DiffuseTextureAssetId);
+                RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+                previewMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
+            }
+
+            StandardMaterialTextureBindingDefaults.Apply(previewMaterial);
+            return previewMaterial;
+        }
+
+        /// <summary>
+        /// Loads one imported texture asset from the cache folder used by the editor importer pipeline.
+        /// </summary>
+        /// <param name="assetImportManager">Asset import manager used to resolve the import cache root.</param>
+        /// <param name="assetId">Imported texture asset identifier.</param>
+        /// <returns>Serialized texture asset loaded from the import cache.</returns>
+        static TextureAsset LoadImportedTextureAsset(AssetImportManager assetImportManager, string assetId) {
+            if (assetImportManager == null) {
+                throw new ArgumentNullException(nameof(assetImportManager));
+            }
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            string assetsRootPath = assetImportManager.AssetsRootPath;
+            if (string.IsNullOrWhiteSpace(assetsRootPath)) {
+                throw new InvalidOperationException("Asset source root path has not been initialized.");
+            }
+
+            string sourceTexturePath = Path.GetFullPath(Path.Combine(assetsRootPath, assetId));
+            string normalizedAssetsRootPath = EnsureTrailingDirectorySeparator(Path.GetFullPath(assetsRootPath));
+            if (sourceTexturePath.StartsWith(normalizedAssetsRootPath, StringComparison.OrdinalIgnoreCase) && File.Exists(sourceTexturePath)) {
+                TextureAsset textureAsset;
+                if (assetImportManager.TryLoadTextureAsset(sourceTexturePath, out textureAsset)) {
+                    return textureAsset;
+                }
+            }
+
+            string importRootPath = assetImportManager.ImportRootPath;
+            if (string.IsNullOrWhiteSpace(importRootPath)) {
+                throw new InvalidOperationException("Asset import root path has not been initialized.");
+            }
+
+            string texturePath = Path.GetFullPath(Path.Combine(importRootPath, assetId));
+            string normalizedImportRootPath = EnsureTrailingDirectorySeparator(Path.GetFullPath(importRootPath));
+            if (!texturePath.StartsWith(normalizedImportRootPath, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException("Imported texture asset references must stay inside the project cache folder.");
+            }
+
+            return assetImportManager.ContentManager.Load<TextureAsset>(texturePath, EditorContentProcessorIds.TextureAsset);
+        }
+
+        /// <summary>
+        /// Ensures one directory path ends with a trailing separator before prefix comparisons occur.
+        /// </summary>
+        /// <param name="path">Directory path to normalize.</param>
+        /// <returns>Directory path with a trailing separator.</returns>
+        static string EnsureTrailingDirectorySeparator(string path) {
+            if (path.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal) || path.EndsWith(Path.AltDirectorySeparatorChar.ToString(), StringComparison.Ordinal)) {
+                return path;
+            }
+
+            return string.Concat(path, Path.DirectorySeparatorChar);
         }
 
         /// <summary>
