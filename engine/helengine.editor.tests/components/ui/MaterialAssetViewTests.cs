@@ -157,6 +157,10 @@ public sealed class MaterialAssetViewTests : IDisposable {
         Assert.Equal(RenderOrder2D.ModalOverlayBackground, overlayBackground.RenderOrder2D);
         Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(closeButton, "BackgroundRenderOrder"));
         Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(closeButton, "TextRenderOrder"));
+        Assert.NotNull(overlay.HueWheelControl);
+        Assert.NotNull(overlay.SaturationValueTriangleControl);
+        Assert.NotNull(overlay.AlphaSliderControl);
+        Assert.NotNull(overlay.HexTextBoxControl);
     }
 
     /// <summary>

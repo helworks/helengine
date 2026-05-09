@@ -101,7 +101,7 @@ public sealed class EditorColorFieldControl : EditorEntity {
     public TextBoxComponent HexTextBoxControl { get; }
 
     /// <summary>
-    /// Gets the swatch button used to open the RGB picker.
+    /// Gets the swatch button used to open the shared color picker.
     /// </summary>
     public ButtonComponent SwatchButtonControl { get; }
 
@@ -111,7 +111,7 @@ public sealed class EditorColorFieldControl : EditorEntity {
     public byte4 Value { get; private set; }
 
     /// <summary>
-    /// Raised when the user clicks the swatch and requests the shared RGB picker.
+    /// Raised when the user clicks the swatch and requests the shared color picker.
     /// </summary>
     public event Action PickerRequested;
 

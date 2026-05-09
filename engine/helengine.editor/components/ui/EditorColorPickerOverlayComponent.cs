@@ -1,73 +1,73 @@
 namespace helengine.editor;
 
 /// <summary>
-/// Non-modal overlay that lets editor users adjust a color with live RGB sliders and preview feedback.
+/// Shared modal-style color picker overlay that combines a hue wheel, a saturation-value triangle, a hex textbox, and a separate alpha slider.
 /// </summary>
 public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// <summary>
     /// Fixed overlay width in pixels.
     /// </summary>
-    const int PanelWidth = 304;
+    const int PanelWidth = 480;
 
     /// <summary>
     /// Fixed overlay height in pixels.
     /// </summary>
-    const int PanelHeight = 184;
+    const int PanelHeight = 336;
 
     /// <summary>
-    /// Horizontal panel padding in pixels.
+    /// Horizontal padding inside the overlay panel.
     /// </summary>
-    const int PanelPadding = 12;
+    const int PanelPadding = 16;
 
     /// <summary>
-    /// Vertical spacing between channel rows.
+    /// Vertical spacing between stacked controls in the right panel.
     /// </summary>
-    const int RowSpacing = 6;
+    const int SectionSpacing = 12;
 
     /// <summary>
-    /// Vertical spacing between the row section and the preview area.
-    /// </summary>
-    const int SectionSpacing = 10;
-
-    /// <summary>
-    /// Height of each color channel row.
-    /// </summary>
-    const int RowHeight = 24;
-
-    /// <summary>
-    /// Margin used when clamping the popup inside the active window bounds.
+    /// Margin used when clamping the overlay inside the active window bounds.
     /// </summary>
     const int OverlayMargin = 4;
 
     /// <summary>
-    /// Height of each slider control.
+    /// Width of the hue wheel control in pixels.
     /// </summary>
-    const int SliderHeight = 16;
+    const int WheelSize = 224;
 
     /// <summary>
-    /// Width of each slider control.
+    /// Width of the triangle control in pixels.
     /// </summary>
-    const int SliderWidth = 156;
+    const int TriangleSize = 160;
 
     /// <summary>
-    /// Width reserved for the numeric value text next to each slider.
+    /// Width of the color preview square.
     /// </summary>
-    const int ValueWidth = 44;
+    const int PreviewSize = 72;
 
     /// <summary>
-    /// Width reserved for each channel label.
+    /// Width of the hex textbox.
     /// </summary>
-    const int LabelWidth = 18;
+    const int HexTextboxWidth = 184;
 
     /// <summary>
-    /// Size of the live preview square.
+    /// Width of the alpha slider track.
     /// </summary>
-    const int PreviewSize = 56;
+    const int AlphaSliderWidth = 132;
 
     /// <summary>
-    /// Height of the swatch button used to anchor the overlay.
+    /// Width reserved for the alpha slider value readout.
     /// </summary>
-    int AnchorHeight;
+    const int AlphaValueWidth = 36;
+
+    /// <summary>
+    /// Width reserved for the alpha slider label.
+    /// </summary>
+    const int AlphaLabelWidth = 18;
+
+    /// <summary>
+    /// Height of each alpha row.
+    /// </summary>
+    const int AlphaRowHeight = 24;
 
     /// <summary>
     /// Width of the close button.
@@ -80,9 +80,49 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     const int CloseButtonHeight = 24;
 
     /// <summary>
-    /// Keyboard step used by the RGB sliders.
+    /// Height of the hex textbox.
     /// </summary>
-    const double ChannelKeyboardStep = 1.0;
+    const int HexTextboxHeight = 24;
+
+    /// <summary>
+    /// Height of the overlay preview label rows.
+    /// </summary>
+    const int TextRowHeight = 18;
+
+    /// <summary>
+    /// Local X offset used to center the triangle inside the wheel.
+    /// </summary>
+    const int TriangleInset = (WheelSize - TriangleSize) / 2;
+
+    /// <summary>
+    /// The wheel control should align its top-left corner to this local offset.
+    /// </summary>
+    const int WheelLeft = PanelPadding;
+
+    /// <summary>
+    /// The wheel control should align its top-left corner to this local offset.
+    /// </summary>
+    const int WheelTop = PanelPadding;
+
+    /// <summary>
+    /// The triangle control should align its top-left corner to this local offset.
+    /// </summary>
+    const int TriangleLeft = PanelPadding + TriangleInset;
+
+    /// <summary>
+    /// The triangle control should align its top-left corner to this local offset.
+    /// </summary>
+    const int TriangleTop = PanelPadding + TriangleInset;
+
+    /// <summary>
+    /// The right-side content starts at this local X coordinate.
+    /// </summary>
+    const int SidePanelLeft = PanelPadding + WheelSize + PanelPadding;
+
+    /// <summary>
+    /// Height of the wheel and triangle area.
+    /// </summary>
+    const int PickerAreaHeight = WheelSize;
 
     /// <summary>
     /// Font used for the overlay text.
@@ -115,97 +155,42 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     RoundedRectComponent OverlayBackground;
 
     /// <summary>
-    /// Root entity for the red channel label.
-    /// </summary>
-    EditorEntity RedLabelHost;
-
-    /// <summary>
-    /// Text component for the red channel label.
-    /// </summary>
-    TextComponent RedLabelText;
-
-    /// <summary>
-    /// Root entity for the green channel label.
-    /// </summary>
-    EditorEntity GreenLabelHost;
-
-    /// <summary>
-    /// Text component for the green channel label.
-    /// </summary>
-    TextComponent GreenLabelText;
-
-    /// <summary>
-    /// Root entity for the blue channel label.
-    /// </summary>
-    EditorEntity BlueLabelHost;
-
-    /// <summary>
-    /// Text component for the blue channel label.
-    /// </summary>
-    TextComponent BlueLabelText;
-
-    /// <summary>
-    /// Root entity for the red channel value readout.
-    /// </summary>
-    EditorEntity RedValueHost;
-
-    /// <summary>
-    /// Value text shown for the red channel slider.
-    /// </summary>
-    TextComponent RedValueText;
-
-    /// <summary>
-    /// Root entity for the green channel value readout.
-    /// </summary>
-    EditorEntity GreenValueHost;
-
-    /// <summary>
-    /// Value text shown for the green channel slider.
-    /// </summary>
-    TextComponent GreenValueText;
-
-    /// <summary>
-    /// Root entity for the blue channel value readout.
-    /// </summary>
-    EditorEntity BlueValueHost;
-
-    /// <summary>
-    /// Value text shown for the blue channel slider.
-    /// </summary>
-    TextComponent BlueValueText;
-
-    /// <summary>
-    /// Slider used to edit the red channel.
-    /// </summary>
-    EditorSlider RedSliderInternal;
-
-    /// <summary>
-    /// Slider used to edit the green channel.
-    /// </summary>
-    EditorSlider GreenSliderInternal;
-
-    /// <summary>
-    /// Slider used to edit the blue channel.
-    /// </summary>
-    EditorSlider BlueSliderInternal;
-
-    /// <summary>
-    /// Root entity that renders the color preview swatch.
+    /// Host entity for the preview square.
     /// </summary>
     EditorEntity PreviewHost;
 
     /// <summary>
-    /// Visible preview square that mirrors the current color.
+    /// Host entity for the hex textbox.
     /// </summary>
-    RoundedRectComponent PreviewBackground;
+    EditorEntity HexTextboxHost;
 
     /// <summary>
-    /// Root entity for the close button.
+    /// Host entity for the alpha slider label.
     /// </summary>
-    EditorEntity CloseButtonRoot;
+    EditorEntity AlphaLabelHost;
 
     /// <summary>
-    /// Close button used to dismiss the overlay.
+    /// Text component that renders the alpha slider label.
+    /// </summary>
+    TextComponent AlphaLabelText;
+
+    /// <summary>
+    /// Host entity for the alpha slider value text.
+    /// </summary>
+    EditorEntity AlphaValueHost;
+
+    /// <summary>
+    /// Text component that renders the alpha slider value.
+    /// </summary>
+    TextComponent AlphaValueText;
+
+    /// <summary>
+    /// Host entity for the close button.
+    /// </summary>
+    EditorEntity CloseButtonHost;
+
+    /// <summary>
+    /// Button used to dismiss the overlay.
     /// </summary>
     ButtonComponent CloseButton;
 
@@ -225,7 +210,7 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     bool IsOpenValue;
 
     /// <summary>
-    /// Prevents slider synchronization from recursively re-entering the color change handler.
+    /// Prevents control synchronization from recursively re-entering color change handlers.
     /// </summary>
     bool IsSynchronizingState;
 
@@ -240,6 +225,11 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     float AnchorY;
 
     /// <summary>
+    /// Height of the swatch button used to anchor the overlay.
+    /// </summary>
+    int AnchorHeight;
+
+    /// <summary>
     /// Initializes a new color picker overlay.
     /// </summary>
     /// <param name="font">Font used for overlay labels and button text.</param>
@@ -252,7 +242,7 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     }
 
     /// <summary>
-    /// Raised whenever the overlay publishes a new RGB color.
+    /// Raised whenever the overlay publishes a new RGBA color.
     /// </summary>
     public event Action<byte4> ColorChanged;
 
@@ -267,24 +257,42 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     public bool IsOpen => IsOpenValue;
 
     /// <summary>
-    /// Gets the red channel slider.
+    /// Gets the hue wheel control.
     /// </summary>
-    public EditorSlider RedSlider => RedSliderInternal;
+    public EditorColorWheelControl HueWheelControl { get; private set; }
 
     /// <summary>
-    /// Gets the green channel slider.
+    /// Gets the saturation-value triangle control.
     /// </summary>
-    public EditorSlider GreenSlider => GreenSliderInternal;
+    public EditorColorTriangleControl SaturationValueTriangleControl { get; private set; }
 
     /// <summary>
-    /// Gets the blue channel slider.
+    /// Gets the alpha slider control.
     /// </summary>
-    public EditorSlider BlueSlider => BlueSliderInternal;
+    public EditorSlider AlphaSliderControl { get; private set; }
+
+    /// <summary>
+    /// Gets the hex color textbox.
+    /// </summary>
+    public TextBoxComponent HexTextBoxControl { get; private set; }
+
+    /// <summary>
+    /// Gets the preview swatch.
+    /// </summary>
+    public RoundedRectComponent PreviewBackground { get; private set; }
 
     /// <summary>
     /// Gets the overlay root entity.
     /// </summary>
     public EditorEntity OverlayRootEntity => OverlayRoot;
+
+    /// <summary>
+    /// Gets or sets the color currently displayed by the overlay.
+    /// </summary>
+    byte4 CurrentDisplayedColor {
+        get { return CurrentColor; }
+        set { CurrentColor = value; }
+    }
 
     /// <summary>
     /// Creates the overlay hierarchy when attached to a host entity.
@@ -303,8 +311,8 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
         }
 
         CreateOverlayRoot();
-        CreateChannelRows();
-        CreatePreviewArea();
+        CreateColorControls();
+        CreateRightPanelControls();
         CreateCloseButton();
         LayoutOverlay();
         OverlayRoot.Enabled = false;
@@ -376,7 +384,7 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// <param name="color">Color that should be shown when the picker opens.</param>
     public void Open(byte4 color) {
         EnsureInitialized();
-        SetColor(color);
+        SynchronizeFromColor(color);
         IsOpenValue = true;
         OverlayRoot.Enabled = true;
         LayoutOverlay();
@@ -405,8 +413,7 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// </summary>
     /// <param name="color">Color to display.</param>
     public void SetColor(byte4 color) {
-        CurrentColor = color;
-        SynchronizeFromColor();
+        SynchronizeFromColor(color);
     }
 
     /// <summary>
@@ -431,6 +438,157 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     }
 
     /// <summary>
+    /// Handles hue changes from the wheel control.
+    /// </summary>
+    /// <param name="hue">Hue angle in degrees.</param>
+    void HandleHueChanged(double hue) {
+        if (IsSynchronizingState) {
+            return;
+        }
+
+        SaturationValueTriangleControl.SetHue(hue);
+        PublishColor(EditorColorUtils.HsvToRgb(
+            HueWheelControl.Hue,
+            SaturationValueTriangleControl.Saturation,
+            SaturationValueTriangleControl.Value,
+            (byte)Math.Clamp((int)Math.Round(AlphaSliderControl.Value, MidpointRounding.AwayFromZero), 0, 255)));
+    }
+
+    /// <summary>
+    /// Handles saturation and value changes from the triangle control.
+    /// </summary>
+    /// <param name="saturation">Saturation from 0 to 1.</param>
+    /// <param name="value">Value from 0 to 1.</param>
+    void HandleTriangleSelectionChanged(double saturation, double value) {
+        if (IsSynchronizingState) {
+            return;
+        }
+
+        PublishColor(EditorColorUtils.HsvToRgb(
+            HueWheelControl.Hue,
+            SaturationValueTriangleControl.Saturation,
+            SaturationValueTriangleControl.Value,
+            (byte)Math.Clamp((int)Math.Round(AlphaSliderControl.Value, MidpointRounding.AwayFromZero), 0, 255)));
+    }
+
+    /// <summary>
+    /// Handles alpha slider changes from the separate opacity control.
+    /// </summary>
+    /// <param name="value">Slider value from 0 to 255.</param>
+    void HandleAlphaSliderChanged(double value) {
+        if (IsSynchronizingState) {
+            return;
+        }
+
+        PublishColor(EditorColorUtils.HsvToRgb(
+            HueWheelControl.Hue,
+            SaturationValueTriangleControl.Saturation,
+            SaturationValueTriangleControl.Value,
+            (byte)Math.Clamp((int)Math.Round(value, MidpointRounding.AwayFromZero), 0, 255)));
+    }
+
+    /// <summary>
+    /// Handles live text edits from the hex textbox.
+    /// </summary>
+    /// <param name="textBox">Textbox whose contents changed.</param>
+    void HandleHexTextChanged(TextBoxComponent textBox) {
+        if (IsSynchronizingState) {
+            return;
+        }
+
+        if (EditorColorUtils.TryParseHtmlColor(textBox.Text, out byte4 color)) {
+            SynchronizeFromColor(color);
+            if (ColorChanged != null) {
+                ColorChanged(CurrentColor);
+            }
+        } else {
+            textBox.SetInvalidState(true);
+        }
+    }
+
+    /// <summary>
+    /// Commits the textbox color when the user submits the field.
+    /// </summary>
+    /// <param name="textBox">Textbox whose value was submitted.</param>
+    void HandleHexTextSubmitted(TextBoxComponent textBox) {
+        if (IsSynchronizingState) {
+            return;
+        }
+
+        if (!EditorColorUtils.TryParseHtmlColor(textBox.Text, out byte4 color)) {
+            SynchronizeFromColor(CurrentColor);
+            return;
+        }
+
+        SynchronizeFromColor(color);
+        if (ColorChanged != null) {
+            ColorChanged(CurrentColor);
+        }
+    }
+
+    /// <summary>
+    /// Publishes one new color and updates the visible hex textbox and preview swatch.
+    /// </summary>
+    /// <param name="color">Color to display and publish.</param>
+    void PublishColor(byte4 color) {
+        CurrentDisplayedColor = color;
+        UpdateHexTextboxAndPreview(color);
+        if (ColorChanged != null) {
+            ColorChanged(CurrentColor);
+        }
+    }
+
+    /// <summary>
+    /// Synchronizes every control from one authored color value.
+    /// </summary>
+    /// <param name="color">Color that should be displayed.</param>
+    void SynchronizeFromColor(byte4 color) {
+        CurrentDisplayedColor = color;
+        IsSynchronizingState = true;
+        try {
+            if (HueWheelControl != null) {
+                HueWheelControl.SetColor(color);
+            }
+
+            if (SaturationValueTriangleControl != null) {
+                SaturationValueTriangleControl.SetColor(color);
+            }
+
+            if (AlphaSliderControl != null) {
+                AlphaSliderControl.SetValue(color.W);
+            }
+
+            if (HexTextBoxControl != null) {
+                HexTextBoxControl.SetInvalidState(false);
+            }
+
+            UpdateHexTextboxAndPreview(color);
+        } finally {
+            IsSynchronizingState = false;
+        }
+    }
+
+    /// <summary>
+    /// Updates the hex textbox and preview swatch from the current color.
+    /// </summary>
+    /// <param name="color">Color to display.</param>
+    void UpdateHexTextboxAndPreview(byte4 color) {
+        if (HexTextBoxControl != null) {
+            HexTextBoxControl.SetInvalidState(false);
+            HexTextBoxControl.Text = EditorColorUtils.FormatHtmlColor(color);
+        }
+
+        if (PreviewBackground != null) {
+            PreviewBackground.FillColor = color;
+            PreviewBackground.BorderColor = EditorColorUtils.Mix(color, new byte4(0, 0, 0, color.W), 0.4);
+        }
+
+        if (AlphaValueText != null) {
+            AlphaValueText.Text = color.W.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+    }
+
+    /// <summary>
     /// Creates the overlay root and its shared background surface.
     /// </summary>
     void CreateOverlayRoot() {
@@ -450,16 +608,30 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
             RenderOrder2D = RenderOrder2D.ModalOverlayBackground
         };
         OverlayRoot.AddComponent(OverlayBackground);
-
     }
 
     /// <summary>
-    /// Creates one RGB slider row for each editable color channel.
+    /// Creates the wheel and triangle controls inside the picker area.
     /// </summary>
-    void CreateChannelRows() {
-        CreateChannelRow(0, "R", out RedLabelHost, out RedLabelText, out RedSliderInternal, out RedValueHost, out RedValueText);
-        CreateChannelRow(1, "G", out GreenLabelHost, out GreenLabelText, out GreenSliderInternal, out GreenValueHost, out GreenValueText);
-        CreateChannelRow(2, "B", out BlueLabelHost, out BlueLabelText, out BlueSliderInternal, out BlueValueHost, out BlueValueText);
+    void CreateColorControls() {
+        HueWheelControl = new EditorColorWheelControl(OverlayLayerMask);
+        HueWheelControl.HueChanged += HandleHueChanged;
+        HueWheelControl.Position = new float3(WheelLeft, WheelTop, 0.2f);
+        OverlayRoot.AddChild(HueWheelControl);
+
+        SaturationValueTriangleControl = new EditorColorTriangleControl(OverlayLayerMask);
+        SaturationValueTriangleControl.SelectionChanged += HandleTriangleSelectionChanged;
+        SaturationValueTriangleControl.Position = new float3(TriangleLeft, TriangleTop, 0.25f);
+        OverlayRoot.AddChild(SaturationValueTriangleControl);
+    }
+
+    /// <summary>
+    /// Creates the preview, textbox, and alpha slider controls in the right panel.
+    /// </summary>
+    void CreateRightPanelControls() {
+        CreatePreviewArea();
+        CreateHexTextbox();
+        CreateAlphaSliderRow();
     }
 
     /// <summary>
@@ -469,7 +641,7 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
         PreviewHost = new EditorEntity {
             LayerMask = OverlayLayerMask,
             InternalEntity = true,
-            Position = float3.Zero
+            Position = new float3(SidePanelLeft, PanelPadding, 0.2f)
         };
         OverlayRoot.AddChild(PreviewHost);
 
@@ -485,15 +657,78 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     }
 
     /// <summary>
+    /// Creates the HTML hex textbox used for direct color entry.
+    /// </summary>
+    void CreateHexTextbox() {
+        HexTextboxHost = new EditorEntity {
+            LayerMask = OverlayLayerMask,
+            InternalEntity = true,
+            Position = new float3(SidePanelLeft, PanelPadding + PreviewSize + SectionSpacing, 0.2f)
+        };
+        OverlayRoot.AddChild(HexTextboxHost);
+
+        HexTextBoxControl = new TextBoxComponent(new int2(HexTextboxWidth, HexTextboxHeight), Font);
+        HexTextBoxControl.TextChanged += HandleHexTextChanged;
+        HexTextBoxControl.Submitted += HandleHexTextSubmitted;
+        HexTextBoxControl.SetRenderOrders(RenderOrder2D.ModalOverlayBackground, RenderOrder2D.ModalOverlayForeground);
+        HexTextboxHost.AddComponent(HexTextBoxControl);
+    }
+
+    /// <summary>
+    /// Creates the separate alpha slider row.
+    /// </summary>
+    void CreateAlphaSliderRow() {
+        int rowTop = PanelPadding + PreviewSize + SectionSpacing + HexTextboxHeight + SectionSpacing;
+
+        AlphaLabelHost = new EditorEntity {
+            LayerMask = OverlayLayerMask,
+            InternalEntity = true,
+            Position = new float3(SidePanelLeft, rowTop, 0.2f)
+        };
+        OverlayRoot.AddChild(AlphaLabelHost);
+
+        AlphaLabelText = new TextComponent {
+            Font = Font,
+            Text = "A",
+            Color = ThemeManager.Colors.InputForegroundPrimary,
+            RenderOrder2D = RenderOrder2D.ModalOverlayForeground
+        };
+        AlphaLabelHost.AddComponent(AlphaLabelText);
+
+        AlphaSliderControl = new EditorSlider(0.0, 255.0, 255.0, EditorSliderScaleMode.Linear, AlphaSliderWidth, 16);
+        AlphaSliderControl.ApplyLayerMask(OverlayLayerMask);
+        AlphaSliderControl.SetRenderOrders(RenderOrder2D.ModalOverlayBackground, RenderOrder2D.ModalOverlayForeground);
+        AlphaSliderControl.KeyboardStep = 1.0;
+        AlphaSliderControl.ValueChanged += HandleAlphaSliderChanged;
+        AlphaSliderControl.Position = new float3(SidePanelLeft + AlphaLabelWidth + 8, rowTop + 4, 0.2f);
+        OverlayRoot.AddChild(AlphaSliderControl);
+
+        AlphaValueHost = new EditorEntity {
+            LayerMask = OverlayLayerMask,
+            InternalEntity = true,
+            Position = new float3(SidePanelLeft + AlphaLabelWidth + 8 + AlphaSliderWidth + 8, rowTop, 0.2f)
+        };
+        OverlayRoot.AddChild(AlphaValueHost);
+
+        AlphaValueText = new TextComponent {
+            Font = Font,
+            Text = "255",
+            Color = ThemeManager.Colors.InputForegroundSecondary,
+            RenderOrder2D = RenderOrder2D.ModalOverlayForeground
+        };
+        AlphaValueHost.AddComponent(AlphaValueText);
+    }
+
+    /// <summary>
     /// Creates the close button that dismisses the overlay.
     /// </summary>
     void CreateCloseButton() {
-        CloseButtonRoot = new EditorEntity {
+        CloseButtonHost = new EditorEntity {
             LayerMask = OverlayLayerMask,
             InternalEntity = true,
             Position = float3.Zero
         };
-        OverlayRoot.AddChild(CloseButtonRoot);
+        OverlayRoot.AddChild(CloseButtonHost);
 
         CloseButton = new ButtonComponent("Close", new int2(CloseButtonWidth, CloseButtonHeight), Font, Close);
         CloseButton.UseSquareCorners();
@@ -507,133 +742,11 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
             ThemeManager.Colors.AccentTertiary,
             ThemeManager.Colors.AccentPrimary);
         CloseButton.SetRenderOrders(RenderOrder2D.ModalOverlayBackground, RenderOrder2D.ModalOverlayForeground);
-        CloseButtonRoot.AddComponent(CloseButton);
+        CloseButtonHost.AddComponent(CloseButton);
     }
 
     /// <summary>
-    /// Creates one channel row and wires its change handlers.
-    /// </summary>
-    /// <param name="channelIndex">Zero-based channel index.</param>
-    /// <param name="channelLabel">Displayed channel label.</param>
-    /// <param name="labelHost">Created label host entity.</param>
-    /// <param name="labelText">Created label text component.</param>
-    /// <param name="slider">Created slider component.</param>
-    /// <param name="valueHost">Created value text host entity.</param>
-    /// <param name="valueText">Created value text component.</param>
-    void CreateChannelRow(
-        int channelIndex,
-        string channelLabel,
-        out EditorEntity labelHost,
-        out TextComponent labelText,
-        out EditorSlider slider,
-        out EditorEntity valueHost,
-        out TextComponent valueText) {
-        labelHost = new EditorEntity {
-            LayerMask = OverlayLayerMask,
-            InternalEntity = true,
-            Position = float3.Zero
-        };
-        OverlayRoot.AddChild(labelHost);
-
-        labelText = new TextComponent {
-            Font = Font,
-            Text = channelLabel,
-            Color = ThemeManager.Colors.InputForegroundPrimary,
-            RenderOrder2D = RenderOrder2D.ModalOverlayForeground
-        };
-        labelHost.AddComponent(labelText);
-
-        slider = new EditorSlider(0.0, 255.0, 0.0, EditorSliderScaleMode.Linear, SliderWidth, SliderHeight);
-        slider.ApplyLayerMask(OverlayLayerMask);
-        slider.SetRenderOrders(RenderOrder2D.ModalOverlayBackground, RenderOrder2D.ModalOverlayForeground);
-        slider.KeyboardStep = ChannelKeyboardStep;
-        slider.ValueChanged += value => HandleChannelSliderChanged(channelIndex, value);
-        OverlayRoot.AddChild(slider);
-
-        valueHost = new EditorEntity {
-            LayerMask = OverlayLayerMask,
-            InternalEntity = true,
-            Position = float3.Zero
-        };
-        OverlayRoot.AddChild(valueHost);
-
-        valueText = new TextComponent {
-            Font = Font,
-            Text = "0",
-            Color = ThemeManager.Colors.InputForegroundSecondary,
-            RenderOrder2D = RenderOrder2D.ModalOverlayForeground
-        };
-        valueHost.AddComponent(valueText);
-    }
-
-    /// <summary>
-    /// Synchronizes all visible UI from the current color value.
-    /// </summary>
-    void SynchronizeFromColor() {
-        if (!IsInitialized) {
-            return;
-        }
-
-        IsSynchronizingState = true;
-        try {
-            if (RedSliderInternal != null) {
-                RedSliderInternal.SetValue(CurrentColor.X);
-            }
-            if (GreenSliderInternal != null) {
-                GreenSliderInternal.SetValue(CurrentColor.Y);
-            }
-            if (BlueSliderInternal != null) {
-                BlueSliderInternal.SetValue(CurrentColor.Z);
-            }
-
-            if (RedValueText != null) {
-                RedValueText.Text = CurrentColor.X.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            }
-            if (GreenValueText != null) {
-                GreenValueText.Text = CurrentColor.Y.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            }
-            if (BlueValueText != null) {
-                BlueValueText.Text = CurrentColor.Z.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            }
-
-            if (PreviewBackground != null) {
-                PreviewBackground.FillColor = CurrentColor;
-                PreviewBackground.BorderColor = EditorColorUtils.Mix(CurrentColor, new byte4(0, 0, 0, CurrentColor.W), 0.4);
-            }
-        } finally {
-            IsSynchronizingState = false;
-        }
-    }
-
-    /// <summary>
-    /// Updates the current color from one slider change and publishes the result.
-    /// </summary>
-    /// <param name="channelIndex">Zero-based RGB channel index.</param>
-    /// <param name="value">Slider value that was changed.</param>
-    void HandleChannelSliderChanged(int channelIndex, double value) {
-        if (IsSynchronizingState) {
-            return;
-        }
-
-        byte channelValue = (byte)Math.Clamp((int)Math.Round(value, MidpointRounding.AwayFromZero), 0, 255);
-        if (channelIndex == 0) {
-            CurrentColor = new byte4(channelValue, CurrentColor.Y, CurrentColor.Z, CurrentColor.W);
-        } else if (channelIndex == 1) {
-            CurrentColor = new byte4(CurrentColor.X, channelValue, CurrentColor.Z, CurrentColor.W);
-        } else if (channelIndex == 2) {
-            CurrentColor = new byte4(CurrentColor.X, CurrentColor.Y, channelValue, CurrentColor.W);
-        } else {
-            throw new InvalidOperationException("Color channel index is not supported.");
-        }
-
-        SynchronizeFromColor();
-        if (ColorChanged != null) {
-            ColorChanged(CurrentColor);
-        }
-    }
-
-    /// <summary>
-    /// Places the overlay panel, preview square, and control rows.
+    /// Positions the overlay panel and its child controls inside the active viewport.
     /// </summary>
     void LayoutOverlay() {
         if (OverlayRoot == null) {
@@ -665,47 +778,38 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
 
         OverlayRoot.Position = new float3(panelLeft, panelTop, 0.1f);
 
-        LayoutChannelRow(RedLabelHost, RedLabelText, RedSliderInternal, RedValueHost, RedValueText, 0);
-        LayoutChannelRow(GreenLabelHost, GreenLabelText, GreenSliderInternal, GreenValueHost, GreenValueText, RowHeight + RowSpacing);
-        LayoutChannelRow(BlueLabelHost, BlueLabelText, BlueSliderInternal, BlueValueHost, BlueValueText, (RowHeight + RowSpacing) * 2);
+        if (HueWheelControl != null) {
+            HueWheelControl.Position = new float3(WheelLeft, WheelTop, 0.2f);
+        }
+
+        if (SaturationValueTriangleControl != null) {
+            SaturationValueTriangleControl.Position = new float3(TriangleLeft, TriangleTop, 0.25f);
+        }
 
         if (PreviewHost != null) {
-            PreviewHost.Position = new float3(PanelWidth - PanelPadding - PreviewSize, PanelHeight - PanelPadding - PreviewSize, 0.2f);
+            PreviewHost.Position = new float3(SidePanelLeft, PanelPadding, 0.2f);
         }
 
-        if (CloseButtonRoot != null) {
-            CloseButtonRoot.Position = new float3(PanelWidth - PanelPadding - CloseButtonWidth, 92f, 0.2f);
-        }
-    }
-
-    /// <summary>
-    /// Positions one channel row within the overlay panel.
-    /// </summary>
-    /// <param name="labelHost">Label host entity.</param>
-    /// <param name="labelText">Label text component.</param>
-    /// <param name="slider">Slider component.</param>
-    /// <param name="valueHost">Value host entity.</param>
-    /// <param name="valueText">Value text component.</param>
-    /// <param name="top">Top offset in pixels relative to the overlay panel.</param>
-    void LayoutChannelRow(
-        EditorEntity labelHost,
-        TextComponent labelText,
-        EditorSlider slider,
-        EditorEntity valueHost,
-        TextComponent valueText,
-        int top) {
-        if (labelHost == null || labelText == null || slider == null || valueHost == null || valueText == null) {
-            return;
+        if (HexTextboxHost != null) {
+            HexTextboxHost.Position = new float3(SidePanelLeft, PanelPadding + PreviewSize + SectionSpacing, 0.2f);
         }
 
-        int valueLeft = PanelPadding + LabelWidth + 8 + SliderWidth + 8;
-        labelHost.Position = new float3(PanelPadding, top, 0.2f);
-        labelText.Size = new int2(LabelWidth, RowHeight);
+        int alphaRowTop = PanelPadding + PreviewSize + SectionSpacing + HexTextboxHeight + SectionSpacing;
+        if (AlphaLabelHost != null) {
+            AlphaLabelHost.Position = new float3(SidePanelLeft, alphaRowTop, 0.2f);
+        }
 
-        slider.Position = new float3(PanelPadding + LabelWidth + 8, top + 4, 0.2f);
+        if (AlphaSliderControl != null) {
+            AlphaSliderControl.Position = new float3(SidePanelLeft + AlphaLabelWidth + 8, alphaRowTop + 4, 0.2f);
+        }
 
-        valueHost.Position = new float3(valueLeft, top, 0.2f);
-        valueText.Size = new int2(ValueWidth, RowHeight);
+        if (AlphaValueHost != null) {
+            AlphaValueHost.Position = new float3(SidePanelLeft + AlphaLabelWidth + 8 + AlphaSliderWidth + 8, alphaRowTop, 0.2f);
+        }
+
+        if (CloseButtonHost != null) {
+            CloseButtonHost.Position = new float3(PanelWidth - PanelPadding - CloseButtonWidth, PanelHeight - PanelPadding - CloseButtonHeight, 0.2f);
+        }
     }
 
     /// <summary>

@@ -92,6 +92,22 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures the shared color picker accepts pointer input on the hue wheel ring.
+    /// </summary>
+    [Fact]
+    public void Show_when_color_picker_is_opened_allows_pointer_input_on_the_hue_wheel() {
+        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1);
+        EditorColorPickerOverlayComponent overlay = GetPrivateField<EditorColorPickerOverlayComponent>(view, "ColorPickerOverlay");
+        overlay.SetAnchorPosition(80f, 80f, 24);
+        overlay.Open(new byte4(0, 0, 255, 255));
+
+        overlay.HueWheelControl.Interactable.OnCursor(new int2(216, 112), new int2(0, 0), PointerInteraction.Press);
+        overlay.HueWheelControl.Interactable.OnCursor(new int2(216, 112), new int2(0, 0), PointerInteraction.Release);
+
+        Assert.Equal("#ff0100", overlay.HexTextBoxControl.Text);
+    }
+
+    /// <summary>
     /// Creates one UI camera used to route pointer input in the test.
     /// </summary>
     /// <param name="width">Viewport width in pixels.</param>
@@ -116,10 +132,23 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
     /// <returns>Font asset with basic glyph coverage.</returns>
     static FontAsset CreateFont() {
         Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
-            ['#'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['0'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['1'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
+            ['2'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
             ['3'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['4'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['5'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
             ['6'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-            ['9'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)
+            ['7'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['8'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['9'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['#'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['b'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['c'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['d'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['e'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['f'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)
         };
 
         return new FontAsset(

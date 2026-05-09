@@ -26,7 +26,7 @@ namespace helengine.editor.tests.components.ui {
         }
 
         /// <summary>
-        /// Ensures clicking the swatch opens the RGB picker beneath the field.
+        /// Ensures clicking the swatch opens the shared color picker beneath the field.
         /// </summary>
         [Fact]
         public void EditorColorFieldControl_WhenSwatchToggles_OpensTheOverlayBelowTheField() {
@@ -63,8 +63,8 @@ namespace helengine.editor.tests.components.ui {
             EditorEntity overlayRoot = overlay.OverlayRootEntity;
 
             Assert.True(overlay.IsOpen);
-            Assert.InRange(overlayRoot.Position.X, 4f, 92f);
-            Assert.InRange(overlayRoot.Position.Y, 4f, 112f);
+            Assert.Equal(4f, overlayRoot.Position.X);
+            Assert.Equal(4f, overlayRoot.Position.Y);
         }
 
         /// <summary>
@@ -80,12 +80,25 @@ namespace helengine.editor.tests.components.ui {
         /// </summary>
         /// <returns>Font asset with basic glyph coverage.</returns>
         FontAsset CreateFont() {
-            Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
-                ['#'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['3'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['6'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
-                ['9'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)
-            };
+        Dictionary<char, FontChar> characters = new Dictionary<char, FontChar> {
+            ['0'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['1'] = new FontChar(new float4(0f, 0f, 4f, 12f), 0f, 4f, 0f, 0f),
+            ['2'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['#'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['3'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['4'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['5'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['6'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['7'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['8'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['9'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['a'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['b'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['c'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['d'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['e'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f),
+            ['f'] = new FontChar(new float4(0f, 0f, 8f, 12f), 0f, 8f, 0f, 0f)
+        };
 
             return new FontAsset(
                 new FontInfo("Test", 16, 4f),
