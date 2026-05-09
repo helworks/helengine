@@ -135,7 +135,7 @@ namespace helengine.editor {
             modelEntity.AddComponent(previewMeshComponent);
 
             previewCameraComponent = new CameraComponent {
-                LayerMask = EditorLayerMasks.SceneObjects,
+                LayerMask = EditorLayerMasks.SceneModelPreview,
                 CameraDrawOrder = 0,
                 ClearSettings = new CameraClearSettings(true, new float4(0.12f, 0.13f, 0.15f, 1f), true, 1f, false, 0)
             };
@@ -379,7 +379,7 @@ namespace helengine.editor {
                 Name = name,
                 Hidden = true,
                 InternalEntity = true,
-                LayerMask = EditorLayerMasks.SceneObjects
+                LayerMask = EditorLayerMasks.SceneModelPreview
             };
             return entity;
         }

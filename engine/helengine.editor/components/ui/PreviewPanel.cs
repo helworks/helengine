@@ -452,19 +452,21 @@ namespace helengine.editor {
                 interactionSource.HandleMouseWheel(wheelDelta);
             }
 
-            if (input.WasMouseLeftButtonPressed()) {
+            if (input.WasMouseLeftButtonPressed() || input.WasMouseMiddleButtonPressed()) {
                 IsLeftMouseDragging = true;
             }
 
             if (!IsLeftMouseDragging) {
-                if (input.GetMouseLeftButtonState() == ButtonState.Released) {
+                if (input.GetMouseLeftButtonState() == ButtonState.Released &&
+                    input.GetMouseMiddleButtonState() == ButtonState.Released) {
                     IsLeftMouseDragging = false;
                 }
 
                 return;
             }
 
-            if (input.GetMouseLeftButtonState() == ButtonState.Released) {
+            if (input.GetMouseLeftButtonState() == ButtonState.Released &&
+                input.GetMouseMiddleButtonState() == ButtonState.Released) {
                 IsLeftMouseDragging = false;
                 return;
             }

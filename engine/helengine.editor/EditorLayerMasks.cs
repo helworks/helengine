@@ -52,5 +52,10 @@ namespace helengine.editor {
         /// Layer mask used by the world-space 2D canvas preview plane.
         /// </summary>
         public const ushort SceneCanvasPlane = 0b0000001000000000;
+
+        /// <summary>
+        /// Layer mask used by offscreen model preview scenes so preview meshes stay out of the main viewport.
+        /// </summary>
+        public const ushort SceneModelPreview = 0b0000000000100000;
     }
 }

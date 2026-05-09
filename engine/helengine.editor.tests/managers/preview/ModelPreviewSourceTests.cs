@@ -90,6 +90,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the preview model is isolated from the main viewport camera by using a dedicated preview layer.
+        /// </summary>
+        [Fact]
+        public void Constructor_WhenPreviewSourceIsCreated_KeepsTheModelOutOfTheMainViewportQueue() {
+            EditorEntity mainCameraEntity = new EditorEntity();
+            CameraComponent mainCamera = new CameraComponent {
+                LayerMask = EditorLayerMasks.SceneObjects,
+                CameraDrawOrder = 0,
+                Viewport = new float4(0f, 0f, 640f, 360f)
+            };
+            mainCameraEntity.AddComponent(mainCamera);
+
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D);
+            MeshComponent previewMesh = GetPrivateField<MeshComponent>(source, "previewMeshComponent");
+
+            Assert.False(QueueContainsDrawable(mainCamera.RenderQueue3D, previewMesh));
+            Assert.True(QueueContainsDrawable(source.PreviewCamera.RenderQueue3D, previewMesh));
+
+            source.Dispose();
+            mainCameraEntity.Dispose();
+        }
+
+        /// <summary>
         /// Builds one simple runtime model with known cached bounds for preview framing tests.
         /// </summary>
         /// <returns>Runtime model with deterministic bounds.</returns>
@@ -139,6 +162,70 @@ namespace helengine.editor.tests {
             double dy = position.Y - target.Y;
             double dz = position.Z - target.Z;
             return Math.Sqrt(dx * dx + dy * dy + dz * dz);
+        }
+
+        /// <summary>
+        /// Determines whether one render queue contains the requested drawable.
+        /// </summary>
+        /// <param name="renderQueue">Render queue to inspect.</param>
+        /// <param name="drawable">Drawable expected to be present.</param>
+        /// <returns>True when the drawable was visited by the render queue.</returns>
+        bool QueueContainsDrawable(IRenderQueue3D renderQueue, IDrawable3D drawable) {
+            if (renderQueue == null) {
+                throw new ArgumentNullException(nameof(renderQueue));
+            }
+            if (drawable == null) {
+                throw new ArgumentNullException(nameof(drawable));
+            }
+
+            RenderQueueContainsVisitor visitor = new RenderQueueContainsVisitor(drawable);
+            renderQueue.VisitOrdered(visitor);
+            return visitor.Found;
+        }
+
+        /// <summary>
+        /// Reads one non-public instance field and casts it to the requested type.
+        /// </summary>
+        /// <typeparam name="T">Expected field type.</typeparam>
+        /// <param name="target">Object that owns the field.</param>
+        /// <param name="fieldName">Name of the field to read.</param>
+        /// <returns>Field value cast to the requested type.</returns>
+        T GetPrivateField<T>(object target, string fieldName) {
+            System.Reflection.FieldInfo field = target.GetType().GetField(fieldName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            return Assert.IsType<T>(field.GetValue(target));
+        }
+
+        /// <summary>
+        /// Visitor that detects whether a specific drawable is present in one render queue.
+        /// </summary>
+        sealed class RenderQueueContainsVisitor : IRenderVisitor3D {
+            /// <summary>
+            /// Drawable that the visitor searches for.
+            /// </summary>
+            readonly IDrawable3D targetDrawable;
+
+            /// <summary>
+            /// Initializes a new render-queue presence visitor.
+            /// </summary>
+            /// <param name="targetDrawable">Drawable expected to appear in the queue.</param>
+            public RenderQueueContainsVisitor(IDrawable3D targetDrawable) {
+                this.targetDrawable = targetDrawable;
+            }
+
+            /// <summary>
+            /// Gets a value indicating whether the target drawable was encountered.
+            /// </summary>
+            public bool Found { get; private set; }
+
+            /// <summary>
+            /// Visits one drawable and records whether it matches the target.
+            /// </summary>
+            /// <param name="drawable">Drawable encountered during queue traversal.</param>
+            public void Visit(IDrawable3D drawable) {
+                if (ReferenceEquals(drawable, targetDrawable)) {
+                    Found = true;
+                }
+            }
         }
     }
 }
