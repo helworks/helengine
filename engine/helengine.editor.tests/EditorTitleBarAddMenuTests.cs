@@ -221,6 +221,41 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures title-bar File menu rows still hover and activate through the live pointer system when a dockable panel sits beneath the menu.
+        /// </summary>
+        [Fact]
+        public void FileMenu_WhenClickedThroughPointerSystemAboveDockable_RaisesOpenMapRequested() {
+            TestInputBackend input = new TestInputBackend();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = TempRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input);
+            CreateUiCamera(1280, 720, EditorLayerMasks.EditorUi);
+
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            DockableEntity dockable = new DockableEntity(CreateFont());
+            dockable.Position = new float3(0f, titleBar.Height, 0f);
+            dockable.Size = new int2(640, 360);
+
+            bool raised = false;
+            titleBar.OpenMapRequested += () => raised = true;
+
+            InvokePrivate(titleBar, "ToggleFileMenu");
+
+            ContextMenu fileMenu = GetPrivateField<ContextMenu>(titleBar, "FileMenu");
+            int2 itemPointer = new int2(
+                fileMenu.Position.X + 16,
+                fileMenu.Position.Y + ContextMenu.PaddingY + ContextMenu.RowHeight + (ContextMenu.RowHeight / 2));
+
+            AdvanceCoreInput(input, new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(input, new MouseState(itemPointer.X, itemPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(input, new MouseState(itemPointer.X, itemPointer.Y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(input, new MouseState(itemPointer.X, itemPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.True(raised);
+        }
+
+        /// <summary>
         /// Finds the first component of the requested type in an entity hierarchy.
         /// </summary>
         /// <typeparam name="T">Component type to locate.</typeparam>
@@ -275,6 +310,36 @@ namespace helengine.editor.tests {
         void InvokePrivate(object target, string methodName) {
             MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
             method.Invoke(target, Array.Empty<object>());
+        }
+
+        /// <summary>
+        /// Advances one full core frame using the supplied mouse state.
+        /// </summary>
+        /// <param name="input">Input backend that should expose the next frame state.</param>
+        /// <param name="mouseState">Mouse state to process for the frame.</param>
+        void AdvanceCoreInput(TestInputBackend input, MouseState mouseState) {
+            input.SetMouseState(mouseState);
+            Core.Instance.Update();
+        }
+
+        /// <summary>
+        /// Creates the UI camera used to route title-bar pointer hit testing.
+        /// </summary>
+        /// <param name="width">Viewport width.</param>
+        /// <param name="height">Viewport height.</param>
+        /// <param name="layerMask">Layer mask rendered by the camera.</param>
+        void CreateUiCamera(int width, int height, ushort layerMask) {
+            EditorEntity cameraEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = layerMask
+            };
+
+            CameraComponent camera = new CameraComponent {
+                LayerMask = layerMask,
+                CameraDrawOrder = EditorUiCameraDrawOrders.SharedUi,
+                Viewport = new float4(0f, 0f, width, height)
+            };
+            cameraEntity.AddComponent(camera);
         }
 
         /// <summary>

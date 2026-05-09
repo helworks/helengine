@@ -198,6 +198,88 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the invisible blocker stays behind the visible row layer so the rows remain clickable.
+        /// </summary>
+        [Fact]
+        public void Show_WhenMenuRowsAreVisible_PlacesTheBlockerBehindTheRows() {
+            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            menu.Show(
+                new[] {
+                    new ContextMenuItem("Open", HandleMenuItemActivated)
+                },
+                new int2(40, 24),
+                new int2(320, 240));
+
+            List<ContextMenuRow> rows = GetPrivateField<List<ContextMenuRow>>(menu, "Rows");
+            SpriteComponent blockerSurface = GetPrivateField<SpriteComponent>(menu, "BackgroundBlockerSurface");
+
+            Assert.Single(rows, row => row.Entity.Enabled);
+            Assert.True(blockerSurface.RenderOrder2D < rows[0].Background.RenderOrder2D);
+        }
+
+        /// <summary>
+        /// Ensures one visible menu does not dismiss another visible menu that is receiving the click.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPointerClicksInsideAnotherVisibleMenu_KeepsTheParentMenuOpenAndAllowsActivation() {
+            ContextMenu parentMenu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenu childMenu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+
+            parentMenu.Show(
+                new[] {
+                    new ContextMenuItem("Open", HandleMenuItemActivated)
+                },
+                new int2(40, 24),
+                new int2(320, 240));
+
+            childMenu.Show(
+                new[] {
+                    new ContextMenuItem("Child", HandleMenuItemActivated)
+                },
+                new int2(220, 24),
+                new int2(320, 240));
+
+            int2 childPointer = new int2(
+                childMenu.Position.X + 16,
+                childMenu.Position.Y + ContextMenu.PaddingY + (ContextMenu.RowHeight / 2));
+
+            AdvanceCoreInput(new MouseState(childPointer.X, childPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(new MouseState(childPointer.X, childPointer.Y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(new MouseState(childPointer.X, childPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.True(parentMenu.IsVisible);
+            Assert.False(childMenu.IsVisible);
+            Assert.Equal(1, ActivationCount);
+        }
+
+        /// <summary>
+        /// Ensures relayout does not clear row interaction state while a visible menu is being hovered and clicked across consecutive frames.
+        /// </summary>
+        [Fact]
+        public void UpdateLayout_WhenMenuRelayoutsBetweenHoverPressAndRelease_PreservesRowActivation() {
+            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            int2 hostSize = new int2(320, 240);
+            menu.Show(
+                new[] {
+                    new ContextMenuItem("Open", HandleMenuItemActivated)
+                },
+                new int2(40, 24),
+                hostSize);
+
+            int2 rowPointer = new int2(
+                menu.Position.X + 16,
+                menu.Position.Y + ContextMenu.PaddingY + (ContextMenu.RowHeight / 2));
+
+            AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            menu.UpdateLayout(hostSize);
+            AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            menu.UpdateLayout(hostSize);
+            AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.Equal(1, ActivationCount);
+        }
+
+        /// <summary>
         /// Advances the input system by one frame using the supplied mouse state.
         /// </summary>
         /// <param name="mouseState">Mouse state to expose for the next frame.</param>

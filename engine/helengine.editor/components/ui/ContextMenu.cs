@@ -4,6 +4,11 @@ namespace helengine.editor {
     /// </summary>
     public class ContextMenu {
         /// <summary>
+        /// Tracks visible context menus so one open submenu does not dismiss another active menu.
+        /// </summary>
+        static readonly List<ContextMenu> VisibleMenus = new List<ContextMenu>();
+
+        /// <summary>
         /// Backing value for the shared submenu indicator appended to rows that open another menu.
         /// </summary>
         static string SubmenuIndicatorValue = "v";
@@ -149,6 +154,7 @@ namespace helengine.editor {
             };
             Root.AddComponent(Background);
 
+            byte blockerOrder = backgroundOrder > 0 ? (byte)(backgroundOrder - 1) : backgroundOrder;
             BackgroundBlockerEntity = new EditorEntity {
                 InternalEntity = true,
                 LayerMask = layerMask,
@@ -160,7 +166,7 @@ namespace helengine.editor {
                 Texture = TextureUtils.PixelTexture,
                 Color = new byte4(255, 255, 255, 0),
                 Size = new int2(0, 0),
-                RenderOrder2D = backgroundOrder
+                RenderOrder2D = blockerOrder
             };
             BackgroundBlockerEntity.AddComponent(BackgroundBlockerSurface);
 
@@ -249,6 +255,7 @@ namespace helengine.editor {
             FirstVisibleItemIndex = 0;
             UpdateLayoutInternal();
             Root.Enabled = true;
+            RegisterVisibleMenu();
             UpdateInputBlocker();
         }
 
@@ -257,6 +264,7 @@ namespace helengine.editor {
         /// </summary>
         public void Hide() {
             Root.Enabled = false;
+            UnregisterVisibleMenu();
             EditorInputCaptureService.ClearBlocker(this);
         }
 
@@ -296,7 +304,7 @@ namespace helengine.editor {
             }
 
             int2 pointer = input.GetMousePosition();
-            if (!IsPointerInside(pointer)) {
+            if (!IsPointerInside(pointer) && !IsPointerInsideAnyVisibleMenu(pointer)) {
                 Hide();
             }
         }
@@ -316,6 +324,7 @@ namespace helengine.editor {
                 IsForcingDisabled = false;
             }
 
+            UnregisterVisibleMenu();
             EditorInputCaptureService.ClearBlocker(this);
         }
 
@@ -402,12 +411,17 @@ namespace helengine.editor {
                 }
 
                 ContextMenuItem item = ActiveItems[itemIndex];
+                bool itemChanged = !ReferenceEquals(row.Item, item);
                 row.Entity.Enabled = true;
                 row.Item = item;
                 row.Label.Text = item.Label;
                 row.Indicator.Text = GetIndicatorLabel(item);
                 row.IndicatorHost.Enabled = !string.IsNullOrEmpty(row.Indicator.Text);
-                row.ResetState();
+                if (itemChanged) {
+                    row.ResetState();
+                } else {
+                    row.UpdateBackground();
+                }
             }
         }
 
@@ -664,6 +678,44 @@ namespace helengine.editor {
                    pointer.X < right &&
                    pointer.Y >= top &&
                    pointer.Y < bottom;
+        }
+
+        /// <summary>
+        /// Determines whether the pointer is inside any other visible context menu.
+        /// </summary>
+        /// <param name="pointer">Pointer position in window coordinates.</param>
+        /// <returns>True when another visible menu already owns the click point.</returns>
+        bool IsPointerInsideAnyVisibleMenu(int2 pointer) {
+            for (int i = 0; i < VisibleMenus.Count; i++) {
+                ContextMenu menu = VisibleMenus[i];
+                if (menu == null || ReferenceEquals(menu, this) || !menu.IsVisible) {
+                    continue;
+                }
+
+                if (menu.IsPointerInside(pointer)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Adds this menu to the shared visible-menu set when it opens.
+        /// </summary>
+        void RegisterVisibleMenu() {
+            if (VisibleMenus.Contains(this)) {
+                return;
+            }
+
+            VisibleMenus.Add(this);
+        }
+
+        /// <summary>
+        /// Removes this menu from the shared visible-menu set when it closes.
+        /// </summary>
+        void UnregisterVisibleMenu() {
+            VisibleMenus.Remove(this);
         }
 
         /// <summary>
