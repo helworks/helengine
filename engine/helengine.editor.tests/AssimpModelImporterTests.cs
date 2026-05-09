@@ -71,6 +71,31 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures hierarchy-based X scenes duplicate instanced meshes with their node transforms applied.
+        /// </summary>
+        [Fact]
+        public void Convert_WhenSceneContainsInstancedNodeMeshes_ReturnsDuplicatedMeshInstances() {
+            Scene scene = CreateInstancedRacerScene();
+            AssimpSceneModelAssetConverter converter = new AssimpSceneModelAssetConverter();
+
+            ModelAsset asset = converter.Convert(scene);
+
+            Assert.Equal(15, asset.Positions.Length);
+            Assert.Equal(15, asset.Indices16.Length);
+            Assert.Equal(5, asset.Submeshes.Length);
+            Assert.Equal("Material0", asset.Submeshes[0].MaterialSlotName);
+            Assert.Equal("Material1", asset.Submeshes[1].MaterialSlotName);
+            Assert.Equal("Material1", asset.Submeshes[2].MaterialSlotName);
+            Assert.Equal("Material1", asset.Submeshes[3].MaterialSlotName);
+            Assert.Equal("Material1", asset.Submeshes[4].MaterialSlotName);
+            Assert.Contains(new float3(0f, 0f, 0f), asset.Positions);
+            Assert.Contains(new float3(2f, 0f, 1f), asset.Positions);
+            Assert.Contains(new float3(-2f, 0f, 1f), asset.Positions);
+            Assert.Contains(new float3(2f, 0f, -1f), asset.Positions);
+            Assert.Contains(new float3(-2f, 0f, -1f), asset.Positions);
+        }
+
+        /// <summary>
         /// Ensures anonymous materials still produce submesh slot names that line up with generated material names.
         /// </summary>
         [Fact]
@@ -396,6 +421,59 @@ namespace helengine.editor.tests {
             mesh.Normals.Add(new System.Numerics.Vector3(0f, 0f, 1f));
             mesh.Faces.Add(new Face(new[] { 0, 1, 2 }));
             return mesh;
+        }
+
+        /// <summary>
+        /// Creates a scene that mirrors the instanced mesh hierarchy used by the racer.x importer regression.
+        /// </summary>
+        /// <returns>Managed Assimp scene with one body mesh and four wheel mesh instances.</returns>
+        Scene CreateInstancedRacerScene() {
+            Scene scene = new Scene();
+            scene.Materials.Add(new Material());
+            scene.Materials.Add(new Material());
+
+            Mesh bodyMesh = CreateTriangleMesh("body-mesh", 0);
+            Mesh wheelMesh = CreateTriangleMesh("wheel-mesh", 1);
+            scene.Meshes.Add(bodyMesh);
+            scene.Meshes.Add(wheelMesh);
+
+            Node rootNode = new Node("Root");
+            Node bodyNode = new Node("Body");
+            bodyNode.MeshIndices.Add(0);
+            bodyNode.Transform = System.Numerics.Matrix4x4.Identity;
+
+            Node frontLeftWheelNode = CreateWheelNode("WheelFrontLeft", 1, new System.Numerics.Vector3(2f, 0f, 1f));
+            Node frontRightWheelNode = CreateWheelNode("WheelFrontRight", 1, new System.Numerics.Vector3(-2f, 0f, 1f));
+            Node rearLeftWheelNode = CreateWheelNode("WheelRearLeft", 1, new System.Numerics.Vector3(2f, 0f, -1f));
+            Node rearRightWheelNode = CreateWheelNode("WheelRearRight", 1, new System.Numerics.Vector3(-2f, 0f, -1f));
+
+            rootNode.Children.Add(bodyNode);
+            rootNode.Children.Add(frontLeftWheelNode);
+            rootNode.Children.Add(frontRightWheelNode);
+            rootNode.Children.Add(rearLeftWheelNode);
+            rootNode.Children.Add(rearRightWheelNode);
+            scene.RootNode = rootNode;
+            return scene;
+        }
+
+        /// <summary>
+        /// Creates one translated wheel node that references the shared wheel mesh.
+        /// </summary>
+        /// <param name="nodeName">Node name assigned to the wheel instance.</param>
+        /// <param name="meshIndex">Shared wheel mesh index.</param>
+        /// <param name="translation">Node translation relative to its parent.</param>
+        /// <returns>Wheel node instance.</returns>
+        Node CreateWheelNode(string nodeName, int meshIndex, System.Numerics.Vector3 translation) {
+            if (string.IsNullOrWhiteSpace(nodeName)) {
+                throw new ArgumentException("Node name must be provided.", nameof(nodeName));
+            } else if (meshIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(meshIndex), "Mesh index must be non-negative.");
+            }
+
+            Node node = new Node(nodeName);
+            node.MeshIndices.Add(meshIndex);
+            node.Transform = System.Numerics.Matrix4x4.CreateTranslation(translation);
+            return node;
         }
     }
 }
