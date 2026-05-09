@@ -185,7 +185,7 @@ namespace helengine.editor.assimp {
                 throw new ArgumentNullException(nameof(submeshes));
             }
 
-            System.Numerics.Matrix4x4 nodeTransform = CombineTransforms(node.Transform, parentTransform);
+            System.Numerics.Matrix4x4 nodeTransform = CombineTransforms(NormalizeNodeTransform(node.Transform), parentTransform);
             for (int meshReferenceIndex = 0; meshReferenceIndex < node.MeshCount; meshReferenceIndex++) {
                 int meshIndex = node.MeshIndices[meshReferenceIndex];
                 if (meshIndex < 0 || meshIndex >= scene.MeshCount) {
@@ -493,6 +493,7 @@ namespace helengine.editor.assimp {
 
             System.Numerics.Matrix4x4 normalTransform = ResolveNormalTransform(transform);
             bool hasTexCoords = mesh.HasTextureCoords(0);
+            bool normalizeNegativeTextureV = hasTexCoords && ShouldNormalizeNegativeTextureV(mesh);
             for (int vertexIndex = 0; vertexIndex < mesh.VertexCount; vertexIndex++) {
                 System.Numerics.Vector3 position = System.Numerics.Vector3.Transform(mesh.Vertices[vertexIndex], transform);
                 System.Numerics.Vector3 normal = System.Numerics.Vector3.TransformNormal(mesh.Normals[vertexIndex], normalTransform);
@@ -506,11 +507,53 @@ namespace helengine.editor.assimp {
 
                 if (hasTexCoords) {
                     System.Numerics.Vector3 texCoord = mesh.TextureCoordinateChannels[0][vertexIndex];
-                    texCoords[vertexOffset + vertexIndex] = new float2(texCoord.X, texCoord.Y);
+                    texCoords[vertexOffset + vertexIndex] = new float2(texCoord.X, ResolveTextureCoordinateV(texCoord.Y, normalizeNegativeTextureV));
                 } else {
                     texCoords[vertexOffset + vertexIndex] = new float2(0f, 0f);
                 }
             }
+        }
+
+        /// <summary>
+        /// Returns whether one imported mesh uses the `.x`-style V convention where all authored texture V coordinates occupy negative space.
+        /// </summary>
+        /// <param name="mesh">Imported mesh whose texture coordinates should be inspected.</param>
+        /// <returns>True when the mesh V coordinates should be negated during copy.</returns>
+        bool ShouldNormalizeNegativeTextureV(Mesh mesh) {
+            if (mesh == null) {
+                throw new ArgumentNullException(nameof(mesh));
+            }
+            if (!mesh.HasTextureCoords(0)) {
+                return false;
+            }
+
+            double minimumTextureV = double.MaxValue;
+            double maximumTextureV = double.MinValue;
+            for (int vertexIndex = 0; vertexIndex < mesh.VertexCount; vertexIndex++) {
+                double textureV = mesh.TextureCoordinateChannels[0][vertexIndex].Y;
+                if (textureV < minimumTextureV) {
+                    minimumTextureV = textureV;
+                }
+                if (textureV > maximumTextureV) {
+                    maximumTextureV = textureV;
+                }
+            }
+
+            return maximumTextureV <= 0d && minimumTextureV < 0d;
+        }
+
+        /// <summary>
+        /// Resolves one copied texture V coordinate, selectively negating meshes that Assimp imported into negative V space.
+        /// </summary>
+        /// <param name="textureV">Imported texture V coordinate.</param>
+        /// <param name="normalizeNegativeTextureV">Whether the owning mesh should be normalized out of negative V space.</param>
+        /// <returns>Texture V coordinate stored on the engine model asset.</returns>
+        float ResolveTextureCoordinateV(float textureV, bool normalizeNegativeTextureV) {
+            if (!normalizeNegativeTextureV) {
+                return textureV;
+            }
+
+            return -textureV;
         }
 
         /// <summary>
@@ -521,6 +564,46 @@ namespace helengine.editor.assimp {
         /// <returns>Combined world transform for the current node.</returns>
         System.Numerics.Matrix4x4 CombineTransforms(System.Numerics.Matrix4x4 localTransform, System.Numerics.Matrix4x4 parentTransform) {
             return System.Numerics.Matrix4x4.Multiply(localTransform, parentTransform);
+        }
+
+        /// <summary>
+        /// Normalizes one AssimpNetter node transform into the System.Numerics layout expected by the engine math helpers.
+        /// </summary>
+        /// <param name="transform">Node transform supplied by AssimpNetter.</param>
+        /// <returns>Transform whose translation terms are aligned with System.Numerics row-vector multiplication.</returns>
+        System.Numerics.Matrix4x4 NormalizeNodeTransform(System.Numerics.Matrix4x4 transform) {
+            if (HasColumnTranslation(transform) && !HasRowTranslation(transform)) {
+                return System.Numerics.Matrix4x4.Transpose(transform);
+            }
+
+            return transform;
+        }
+
+        /// <summary>
+        /// Returns whether one transform stores translation in the System.Numerics final row.
+        /// </summary>
+        /// <param name="transform">Transform to inspect.</param>
+        /// <returns>True when the final row carries a non-zero translation.</returns>
+        bool HasRowTranslation(System.Numerics.Matrix4x4 transform) {
+            return !IsNearlyZero(transform.M41) || !IsNearlyZero(transform.M42) || !IsNearlyZero(transform.M43);
+        }
+
+        /// <summary>
+        /// Returns whether one transform stores translation in the imported final column instead of the System.Numerics final row.
+        /// </summary>
+        /// <param name="transform">Transform to inspect.</param>
+        /// <returns>True when the final column carries a non-zero translation.</returns>
+        bool HasColumnTranslation(System.Numerics.Matrix4x4 transform) {
+            return !IsNearlyZero(transform.M14) || !IsNearlyZero(transform.M24) || !IsNearlyZero(transform.M34);
+        }
+
+        /// <summary>
+        /// Returns whether one floating-point value is close enough to zero to treat as empty translation data.
+        /// </summary>
+        /// <param name="value">Value to inspect.</param>
+        /// <returns>True when the magnitude is negligible.</returns>
+        bool IsNearlyZero(float value) {
+            return Math.Abs(value) <= 0.000001f;
         }
 
         /// <summary>

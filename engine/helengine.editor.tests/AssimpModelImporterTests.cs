@@ -96,6 +96,40 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Assimp matrices that carry translation in the last column still offset node mesh instances correctly.
+        /// </summary>
+        [Fact]
+        public void Convert_WhenSceneContainsAssimpColumnTranslation_OffsetsInstancedNodeMeshes() {
+            Scene scene = CreateInstancedRacerSceneUsingAssimpColumnTranslation();
+            AssimpSceneModelAssetConverter converter = new AssimpSceneModelAssetConverter();
+
+            ModelAsset asset = converter.Convert(scene);
+
+            Assert.Contains(new float3(2f, 0f, 1f), asset.Positions);
+            Assert.Contains(new float3(-2f, 0f, 1f), asset.Positions);
+            Assert.Contains(new float3(2f, 0f, -1f), asset.Positions);
+            Assert.Contains(new float3(-2f, 0f, -1f), asset.Positions);
+        }
+
+        /// <summary>
+        /// Ensures meshes whose imported V coordinates live entirely in negative space are normalized without disturbing meshes that already use positive V coordinates.
+        /// </summary>
+        [Fact]
+        public void Convert_WhenSceneMixesNegativeAndPositiveTextureVCoordinates_NormalizesOnlyTheNegativeMesh() {
+            Scene scene = CreateMixedTextureVCoordinateScene();
+            AssimpSceneModelAssetConverter converter = new AssimpSceneModelAssetConverter();
+
+            ModelAsset asset = converter.Convert(scene);
+
+            Assert.Equal(new float2(0f, 1f), asset.TexCoords[0]);
+            Assert.Equal(new float2(1f, 0.5f), asset.TexCoords[1]);
+            Assert.Equal(new float2(0f, 0f), asset.TexCoords[2]);
+            Assert.Equal(new float2(0f, 0.25f), asset.TexCoords[3]);
+            Assert.Equal(new float2(1f, 0.75f), asset.TexCoords[4]);
+            Assert.Equal(new float2(0f, 1f), asset.TexCoords[5]);
+        }
+
+        /// <summary>
         /// Ensures anonymous materials still produce submesh slot names that line up with generated material names.
         /// </summary>
         [Fact]
@@ -424,6 +458,53 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates a scene containing one mesh with negative-space V coordinates and one mesh with standard positive-space V coordinates.
+        /// </summary>
+        /// <returns>Managed Assimp scene used to verify selective V normalization.</returns>
+        Scene CreateMixedTextureVCoordinateScene() {
+            Scene scene = new Scene();
+            scene.Materials.Add(new Material());
+            scene.Materials.Add(new Material());
+            scene.Meshes.Add(CreateTriangleMeshWithTexCoords("negative-v", 0, new float2(0f, -1f), new float2(1f, -0.5f), new float2(0f, 0f)));
+            scene.Meshes.Add(CreateTriangleMeshWithTexCoords("positive-v", 1, new float2(0f, 0.25f), new float2(1f, 0.75f), new float2(0f, 1f)));
+            return scene;
+        }
+
+        /// <summary>
+        /// Creates one triangle mesh with deterministic positions, normals, and authored texture coordinates.
+        /// </summary>
+        /// <param name="meshName">Mesh name used by the managed Assimp scene.</param>
+        /// <param name="materialIndex">Material index assigned to the mesh.</param>
+        /// <param name="texCoord0">Texture coordinate assigned to vertex zero.</param>
+        /// <param name="texCoord1">Texture coordinate assigned to vertex one.</param>
+        /// <param name="texCoord2">Texture coordinate assigned to vertex two.</param>
+        /// <returns>Triangle mesh with one face and authored UV data.</returns>
+        Mesh CreateTriangleMeshWithTexCoords(string meshName, int materialIndex, float2 texCoord0, float2 texCoord1, float2 texCoord2) {
+            if (string.IsNullOrWhiteSpace(meshName)) {
+                throw new ArgumentException("Mesh name must be provided.", nameof(meshName));
+            } else if (materialIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(materialIndex), "Material index must be non-negative.");
+            }
+
+            Mesh mesh = new Mesh(meshName, PrimitiveType.Triangle);
+            mesh.MaterialIndex = materialIndex;
+            mesh.Vertices.Add(new System.Numerics.Vector3(0f, 0f, 0f));
+            mesh.Vertices.Add(new System.Numerics.Vector3(1f, 0f, 0f));
+            mesh.Vertices.Add(new System.Numerics.Vector3(0f, 1f, 0f));
+            mesh.Normals.Add(new System.Numerics.Vector3(0f, 0f, 1f));
+            mesh.Normals.Add(new System.Numerics.Vector3(0f, 0f, 1f));
+            mesh.Normals.Add(new System.Numerics.Vector3(0f, 0f, 1f));
+            mesh.TextureCoordinateChannels[0] = new List<System.Numerics.Vector3> {
+                new System.Numerics.Vector3(texCoord0.X, texCoord0.Y, 0f),
+                new System.Numerics.Vector3(texCoord1.X, texCoord1.Y, 0f),
+                new System.Numerics.Vector3(texCoord2.X, texCoord2.Y, 0f)
+            };
+            mesh.UVComponentCount[0] = 2;
+            mesh.Faces.Add(new Face(new[] { 0, 1, 2 }));
+            return mesh;
+        }
+
+        /// <summary>
         /// Creates a scene that mirrors the instanced mesh hierarchy used by the racer.x importer regression.
         /// </summary>
         /// <returns>Managed Assimp scene with one body mesh and four wheel mesh instances.</returns>
@@ -457,6 +538,39 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Creates a scene that mirrors the column-major translation layout exposed by Assimp for real X file node transforms.
+        /// </summary>
+        /// <returns>Managed Assimp scene with one body mesh and four translated wheel mesh instances.</returns>
+        Scene CreateInstancedRacerSceneUsingAssimpColumnTranslation() {
+            Scene scene = new Scene();
+            scene.Materials.Add(new Material());
+            scene.Materials.Add(new Material());
+
+            Mesh bodyMesh = CreateTriangleMesh("body-mesh", 0);
+            Mesh wheelMesh = CreateTriangleMesh("wheel-mesh", 1);
+            scene.Meshes.Add(bodyMesh);
+            scene.Meshes.Add(wheelMesh);
+
+            Node rootNode = new Node("Root");
+            Node bodyNode = new Node("Body");
+            bodyNode.MeshIndices.Add(0);
+            bodyNode.Transform = CreateAssimpColumnTranslationMatrix(0f, 0f, 0f);
+
+            Node frontLeftWheelNode = CreateWheelNodeUsingAssimpColumnTranslation("WheelFrontLeft", 1, 2f, 0f, 1f);
+            Node frontRightWheelNode = CreateWheelNodeUsingAssimpColumnTranslation("WheelFrontRight", 1, -2f, 0f, 1f);
+            Node rearLeftWheelNode = CreateWheelNodeUsingAssimpColumnTranslation("WheelRearLeft", 1, 2f, 0f, -1f);
+            Node rearRightWheelNode = CreateWheelNodeUsingAssimpColumnTranslation("WheelRearRight", 1, -2f, 0f, -1f);
+
+            rootNode.Children.Add(bodyNode);
+            rootNode.Children.Add(frontLeftWheelNode);
+            rootNode.Children.Add(frontRightWheelNode);
+            rootNode.Children.Add(rearLeftWheelNode);
+            rootNode.Children.Add(rearRightWheelNode);
+            scene.RootNode = rootNode;
+            return scene;
+        }
+
+        /// <summary>
         /// Creates one translated wheel node that references the shared wheel mesh.
         /// </summary>
         /// <param name="nodeName">Node name assigned to the wheel instance.</param>
@@ -474,6 +588,43 @@ namespace helengine.editor.tests {
             node.MeshIndices.Add(meshIndex);
             node.Transform = System.Numerics.Matrix4x4.CreateTranslation(translation);
             return node;
+        }
+
+        /// <summary>
+        /// Creates one translated wheel node whose transform uses the same last-column translation layout returned by Assimp for X files.
+        /// </summary>
+        /// <param name="nodeName">Node name assigned to the wheel instance.</param>
+        /// <param name="meshIndex">Shared wheel mesh index.</param>
+        /// <param name="translationX">Node translation along the X axis.</param>
+        /// <param name="translationY">Node translation along the Y axis.</param>
+        /// <param name="translationZ">Node translation along the Z axis.</param>
+        /// <returns>Wheel node instance.</returns>
+        Node CreateWheelNodeUsingAssimpColumnTranslation(string nodeName, int meshIndex, float translationX, float translationY, float translationZ) {
+            if (string.IsNullOrWhiteSpace(nodeName)) {
+                throw new ArgumentException("Node name must be provided.", nameof(nodeName));
+            } else if (meshIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(meshIndex), "Mesh index must be non-negative.");
+            }
+
+            Node node = new Node(nodeName);
+            node.MeshIndices.Add(meshIndex);
+            node.Transform = CreateAssimpColumnTranslationMatrix(translationX, translationY, translationZ);
+            return node;
+        }
+
+        /// <summary>
+        /// Creates one Assimp matrix whose translation lives in the last column, matching the layout returned for real X file frame transforms.
+        /// </summary>
+        /// <param name="translationX">Translation along the X axis.</param>
+        /// <param name="translationY">Translation along the Y axis.</param>
+        /// <param name="translationZ">Translation along the Z axis.</param>
+        /// <returns>Assimp matrix carrying the requested translation.</returns>
+        System.Numerics.Matrix4x4 CreateAssimpColumnTranslationMatrix(float translationX, float translationY, float translationZ) {
+            return new System.Numerics.Matrix4x4(
+                1f, 0f, 0f, translationX,
+                0f, 1f, 0f, translationY,
+                0f, 0f, 1f, translationZ,
+                0f, 0f, 0f, 1f);
         }
     }
 }
