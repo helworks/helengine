@@ -25,6 +25,7 @@ namespace helengine.editor.assimp {
                 throw new InvalidOperationException("Imported model does not contain any vertices.");
             }
 
+            string[] materialNames = AssimpMaterialNameCatalog.ResolveMaterialNames(scene);
             float3[] positions = new float3[totalVertices];
             float3[] normals = new float3[totalVertices];
             float2[] texCoords = new float2[totalVertices];
@@ -51,7 +52,7 @@ namespace helengine.editor.assimp {
                 }
 
                 submeshes.Add(new ModelSubmeshAsset {
-                    MaterialSlotName = ResolveMaterialSlotName(scene, mesh, meshIndex),
+                    MaterialSlotName = ResolveMaterialSlotName(scene, mesh, meshIndex, materialNames),
                     IndexStart = submeshIndexStart,
                     IndexCount = indexOffset - submeshIndexStart
                 });
@@ -75,21 +76,21 @@ namespace helengine.editor.assimp {
         /// <param name="scene">Imported scene that owns the mesh.</param>
         /// <param name="mesh">Mesh whose material slot should be resolved.</param>
         /// <param name="meshIndex">Zero-based mesh index used for fallback naming.</param>
+        /// <param name="materialNames">Resolved unique material names keyed by material index.</param>
         /// <returns>Stable material slot name for the mesh.</returns>
-        string ResolveMaterialSlotName(Scene scene, Mesh mesh, int meshIndex) {
+        string ResolveMaterialSlotName(Scene scene, Mesh mesh, int meshIndex, string[] materialNames) {
             if (scene == null) {
                 throw new ArgumentNullException(nameof(scene));
             } else if (mesh == null) {
                 throw new ArgumentNullException(nameof(mesh));
             } else if (meshIndex < 0) {
                 throw new ArgumentOutOfRangeException(nameof(meshIndex), "Mesh index must be non-negative.");
+            } else if (materialNames == null) {
+                throw new ArgumentNullException(nameof(materialNames));
             }
 
             if (mesh.MaterialIndex >= 0 && mesh.MaterialIndex < scene.MaterialCount) {
-                Material material = scene.Materials[mesh.MaterialIndex];
-                if (material != null && !string.IsNullOrWhiteSpace(material.Name)) {
-                    return material.Name;
-                }
+                return materialNames[mesh.MaterialIndex];
             }
 
             if (!string.IsNullOrWhiteSpace(mesh.Name)) {

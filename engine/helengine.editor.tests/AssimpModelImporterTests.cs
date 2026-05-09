@@ -71,6 +71,21 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures anonymous materials still produce submesh slot names that line up with generated material names.
+        /// </summary>
+        [Fact]
+        public void Convert_WhenMaterialIndicesDifferFromMeshIndices_UsesMaterialIndicesForFallbackNames() {
+            Scene scene = CreateAnonymousMaterialIndexScene();
+            AssimpSceneModelAssetConverter converter = new AssimpSceneModelAssetConverter();
+
+            ModelAsset asset = converter.Convert(scene);
+
+            Assert.Equal(2, asset.Submeshes.Length);
+            Assert.Equal("Material3", asset.Submeshes[0].MaterialSlotName);
+            Assert.Equal("Material5", asset.Submeshes[1].MaterialSlotName);
+        }
+
+        /// <summary>
         /// Ensures OBJ sources that switch materials produce one submesh and one generated material asset per material.
         /// </summary>
         [Fact]
@@ -85,6 +100,42 @@ namespace helengine.editor.tests {
             Assert.Equal("Fabric", importedModel.ModelAsset.Submeshes[0].MaterialSlotName);
             Assert.Equal("Wood", importedModel.ModelAsset.Submeshes[1].MaterialSlotName);
             Assert.Equal(2, importedModel.GeneratedMaterials.Length);
+        }
+
+        /// <summary>
+        /// Ensures legacy X sources that switch materials produce one submesh and one generated material asset per material.
+        /// </summary>
+        [Fact]
+        public void ImportModel_WhenXUsesTwoMaterials_ReturnsTwoSubmeshesAndTwoGeneratedMaterials() {
+            string sourcePath = WriteXFixtureWithMtl("racer.x");
+            HelengineAssimpImporter importer = new HelengineAssimpImporter();
+
+            using FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            ImportedModelAssetSet importedModel = importer.ImportModel(stream);
+
+            Assert.Equal(2, importedModel.ModelAsset.Submeshes.Length);
+            Assert.Equal("Body", importedModel.ModelAsset.Submeshes[0].MaterialSlotName);
+            Assert.Equal("Trim", importedModel.ModelAsset.Submeshes[1].MaterialSlotName);
+            Assert.Equal(2, importedModel.GeneratedMaterials.Length);
+        }
+
+        /// <summary>
+        /// Ensures duplicate X material names are normalized into unique preview slots instead of overwriting each other.
+        /// </summary>
+        [Fact]
+        public void ImportModel_WhenXUsesDuplicateMaterialNames_ReturnsUniqueSubmeshAndMaterialNames() {
+            string sourcePath = WriteXFixtureWithDuplicateMaterialNames("racer-duplicate.x");
+            HelengineAssimpImporter importer = new HelengineAssimpImporter();
+
+            using FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            ImportedModelAssetSet importedModel = importer.ImportModel(stream);
+
+            Assert.Equal(2, importedModel.ModelAsset.Submeshes.Length);
+            Assert.Equal("Body", importedModel.ModelAsset.Submeshes[0].MaterialSlotName);
+            Assert.Equal("Body_1", importedModel.ModelAsset.Submeshes[1].MaterialSlotName);
+            Assert.Equal(2, importedModel.GeneratedMaterials.Length);
+            Assert.Equal("Body", importedModel.GeneratedMaterials[0].MaterialName);
+            Assert.Equal("Body_1", importedModel.GeneratedMaterials[1].MaterialName);
         }
 
         /// <summary>
@@ -179,6 +230,104 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Writes a minimal text-based X fixture with two materials assigned to two faces.
+        /// </summary>
+        /// <param name="fileName">Fixture file name.</param>
+        /// <returns>Absolute path to the X fixture.</returns>
+        string WriteXFixtureWithMtl(string fileName) {
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new ArgumentException("File name must be provided.", nameof(fileName));
+            }
+
+            string sourcePath = Path.Combine(FixtureRootPath, fileName);
+            File.WriteAllText(
+                sourcePath,
+                string.Join(
+                    Environment.NewLine,
+                    "xof 0303txt 0032",
+                    "Mesh RacerMesh {",
+                    "  6;",
+                    "  0.0; 0.0; 0.0;,",
+                    "  1.0; 0.0; 0.0;,",
+                    "  0.0; 1.0; 0.0;,",
+                    "  1.0; 1.0; 0.0;,",
+                    "  0.0; 2.0; 0.0;,",
+                    "  1.0; 2.0; 0.0;;",
+                    "  2;",
+                    "  3; 0, 1, 2;,",
+                    "  3; 3, 4, 5;;",
+                    "  MeshMaterialList {",
+                    "    2;",
+                    "    2;",
+                    "    0,",
+                    "    1;;",
+                    "    Material Body {",
+                    "      1.0; 1.0; 1.0; 1.0;;",
+                    "      0.0;",
+                    "      0.0; 0.0; 0.0;;",
+                    "      0.0; 0.0; 0.0;;",
+                    "    }",
+                    "    Material Trim {",
+                    "      1.0; 1.0; 1.0; 1.0;;",
+                    "      0.0;",
+                    "      0.0; 0.0; 0.0;;",
+                    "      0.0; 0.0; 0.0;;",
+                    "    }",
+                    "  }",
+                    "}"));
+            return sourcePath;
+        }
+
+        /// <summary>
+        /// Writes a minimal X fixture whose materials intentionally share the same display name.
+        /// </summary>
+        /// <param name="fileName">Fixture file name.</param>
+        /// <returns>Absolute path to the X fixture.</returns>
+        string WriteXFixtureWithDuplicateMaterialNames(string fileName) {
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new ArgumentException("File name must be provided.", nameof(fileName));
+            }
+
+            string sourcePath = Path.Combine(FixtureRootPath, fileName);
+            File.WriteAllText(
+                sourcePath,
+                string.Join(
+                    Environment.NewLine,
+                    "xof 0303txt 0032",
+                    "Mesh RacerMesh {",
+                    "  6;",
+                    "  0.0; 0.0; 0.0;,",
+                    "  1.0; 0.0; 0.0;,",
+                    "  0.0; 1.0; 0.0;,",
+                    "  1.0; 1.0; 0.0;,",
+                    "  0.0; 2.0; 0.0;,",
+                    "  1.0; 2.0; 0.0;;",
+                    "  2;",
+                    "  3; 0, 1, 2;,",
+                    "  3; 3, 4, 5;;",
+                    "  MeshMaterialList {",
+                    "    2;",
+                    "    2;",
+                    "    0,",
+                    "    1;;",
+                    "    Material Body {",
+                    "      1.0; 1.0; 1.0; 1.0;;",
+                    "      0.0;",
+                    "      0.0; 0.0; 0.0;;",
+                    "      0.0; 0.0; 0.0;;",
+                    "    }",
+                    "    Material Body {",
+                    "      1.0; 1.0; 1.0; 1.0;;",
+                    "      0.0;",
+                    "      0.0; 0.0; 0.0;;",
+                    "      0.0; 0.0; 0.0;;",
+                    "    }",
+                    "  }",
+                    "}"));
+            return sourcePath;
+        }
+
+        /// <summary>
         /// Creates a large managed Assimp scene whose flattened vertex count exceeds the 16-bit index range.
         /// </summary>
         /// <param name="vertexCount">Vertex count to emit.</param>
@@ -207,6 +356,46 @@ namespace helengine.editor.tests {
             Scene scene = new Scene();
             scene.Meshes.Add(mesh);
             return scene;
+        }
+
+        /// <summary>
+        /// Creates a scene whose meshes reference anonymous materials with material indices that do not match mesh order.
+        /// </summary>
+        /// <returns>Managed Assimp scene used to verify fallback material slot naming.</returns>
+        Scene CreateAnonymousMaterialIndexScene() {
+            Scene scene = new Scene();
+            for (int materialIndex = 0; materialIndex < 6; materialIndex++) {
+                scene.Materials.Add(new Material());
+            }
+
+            scene.Meshes.Add(CreateTriangleMesh("mesh-a", 3));
+            scene.Meshes.Add(CreateTriangleMesh("mesh-b", 5));
+            return scene;
+        }
+
+        /// <summary>
+        /// Creates one triangle mesh with deterministic vertex data and the requested material index.
+        /// </summary>
+        /// <param name="meshName">Mesh name used when the material does not provide one.</param>
+        /// <param name="materialIndex">Material index to assign to the mesh.</param>
+        /// <returns>Triangle mesh with one face and three vertices.</returns>
+        Mesh CreateTriangleMesh(string meshName, int materialIndex) {
+            if (string.IsNullOrWhiteSpace(meshName)) {
+                throw new ArgumentException("Mesh name must be provided.", nameof(meshName));
+            } else if (materialIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(materialIndex), "Material index must be non-negative.");
+            }
+
+            Mesh mesh = new Mesh(meshName, PrimitiveType.Triangle);
+            mesh.MaterialIndex = materialIndex;
+            mesh.Vertices.Add(new System.Numerics.Vector3(0f, 0f, 0f));
+            mesh.Vertices.Add(new System.Numerics.Vector3(1f, 0f, 0f));
+            mesh.Vertices.Add(new System.Numerics.Vector3(0f, 1f, 0f));
+            mesh.Normals.Add(new System.Numerics.Vector3(0f, 0f, 1f));
+            mesh.Normals.Add(new System.Numerics.Vector3(0f, 0f, 1f));
+            mesh.Normals.Add(new System.Numerics.Vector3(0f, 0f, 1f));
+            mesh.Faces.Add(new Face(new[] { 0, 1, 2 }));
+            return mesh;
         }
     }
 }

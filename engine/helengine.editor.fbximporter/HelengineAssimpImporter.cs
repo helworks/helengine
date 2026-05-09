@@ -106,10 +106,11 @@ namespace helengine.editor.assimp {
 
             string generatedMaterialDirectoryName = ResolveGeneratedMaterialDirectoryName(stream);
             HashSet<int> referencedMaterialIndices = CollectReferencedMaterialIndices(scene);
+            string[] materialNames = AssimpMaterialNameCatalog.ResolveMaterialNames(scene);
             List<ImportedModelMaterialAsset> generatedMaterials = new List<ImportedModelMaterialAsset>(referencedMaterialIndices.Count);
             foreach (int materialIndex in referencedMaterialIndices.OrderBy(value => value)) {
                 Material material = scene.Materials[materialIndex];
-                string materialName = ResolveMaterialName(material, materialIndex);
+                string materialName = materialNames[materialIndex];
                 string relativeMaterialPath = BuildRelativeMaterialPath(generatedMaterialDirectoryName, materialName);
                 MaterialAsset materialAsset = BuildMaterialAsset(relativeMaterialPath, material);
                 generatedMaterials.Add(new ImportedModelMaterialAsset(materialName, relativeMaterialPath, materialAsset));
@@ -165,26 +166,6 @@ namespace helengine.editor.assimp {
                 Variant = DefaultVariantName,
                 DiffuseTextureAssetId = ResolveDiffuseTextureAssetId(material)
             };
-        }
-
-        /// <summary>
-        /// Resolves the stable material name that should be used for one imported Assimp material.
-        /// </summary>
-        /// <param name="material">Imported material definition.</param>
-        /// <param name="materialIndex">Zero-based material index used for fallback naming.</param>
-        /// <returns>Stable material name for generated asset output.</returns>
-        string ResolveMaterialName(Material material, int materialIndex) {
-            if (material == null) {
-                throw new ArgumentNullException(nameof(material));
-            } else if (materialIndex < 0) {
-                throw new ArgumentOutOfRangeException(nameof(materialIndex), "Material index must be non-negative.");
-            }
-
-            if (!string.IsNullOrWhiteSpace(material.Name)) {
-                return material.Name;
-            }
-
-            return string.Concat("Material", materialIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
 
         /// <summary>
