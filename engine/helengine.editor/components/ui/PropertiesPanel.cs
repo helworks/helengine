@@ -56,10 +56,6 @@ namespace helengine.editor {
         /// </summary>
         const int ComponentPlatformArrowButtonWidth = 22;
         /// <summary>
-        /// Default component platform ids shown by the inspector when no explicit project selection is supplied.
-        /// </summary>
-        static readonly string[] DefaultComponentPlatformIds = new[] { "common", "windows", "ps2", "gamecube", "wii" };
-        /// <summary>
         /// Height of the add-component button.
         /// </summary>
         const int AddComponentButtonHeight = 24;
@@ -71,6 +67,18 @@ namespace helengine.editor {
         /// Horizontal padding added to the computed add-component button width.
         /// </summary>
         const int AddComponentButtonPadding = 16;
+        /// <summary>
+        /// Width reserved for one transform-row revert button.
+        /// </summary>
+        const int TransformRevertButtonWidth = 60;
+        /// <summary>
+        /// Height of one transform-row revert button.
+        /// </summary>
+        const int TransformRevertButtonHeight = 22;
+        /// <summary>
+        /// Border thickness used to mark overridden transform rows.
+        /// </summary>
+        const float TransformOverrideOutlineThickness = 1f;
 
         /// <summary>
         /// Font used for property text.
@@ -92,6 +100,10 @@ namespace helengine.editor {
         /// Camera that renders the scrollable properties body inside the panel viewport only.
         /// </summary>
         readonly CameraComponent ContentCameraComponent;
+        /// <summary>
+        /// Rebuilds the content camera queue from this panel's own scroll-content subtree to keep multiple properties panels isolated.
+        /// </summary>
+        readonly EditorSubtreeRenderQueue2DSynchronizer ContentRenderQueueSynchronizer;
         /// <summary>
         /// Root entity hosting all scrollable property content.
         /// </summary>
@@ -153,6 +165,14 @@ namespace helengine.editor {
         /// </summary>
         readonly ComponentPropertiesView ComponentView;
         /// <summary>
+        /// Projects sparse per-platform entity transform overrides into the live selected entity while the inspector tab changes.
+        /// </summary>
+        readonly EntityPlatformTransformEditingService TransformPlatformEditingService;
+        /// <summary>
+        /// Builds and persists component overrides, removed common components, and platform-only components for the active platform tab.
+        /// </summary>
+        readonly ComponentPlatformEditingService ComponentPlatformEditingService;
+        /// <summary>
         /// Root entity hosting the add-component button.
         /// </summary>
         readonly EditorEntity AddComponentButtonRoot;
@@ -201,13 +221,49 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity PositionRow;
         /// <summary>
+        /// Outline shown when the position row is overridden on the active platform.
+        /// </summary>
+        readonly RoundedRectComponent PositionOverrideOutline;
+        /// <summary>
+        /// Host entity for the position-row revert button.
+        /// </summary>
+        readonly EditorEntity PositionRevertButtonHost;
+        /// <summary>
+        /// Revert button for the position row.
+        /// </summary>
+        readonly ButtonComponent PositionRevertButton;
+        /// <summary>
         /// Row entity for rotation fields.
         /// </summary>
         readonly EditorEntity RotationRow;
         /// <summary>
+        /// Outline shown when the rotation row is overridden on the active platform.
+        /// </summary>
+        readonly RoundedRectComponent RotationOverrideOutline;
+        /// <summary>
+        /// Host entity for the rotation-row revert button.
+        /// </summary>
+        readonly EditorEntity RotationRevertButtonHost;
+        /// <summary>
+        /// Revert button for the rotation row.
+        /// </summary>
+        readonly ButtonComponent RotationRevertButton;
+        /// <summary>
         /// Row entity for scale fields.
         /// </summary>
         readonly EditorEntity ScaleRow;
+        /// <summary>
+        /// Outline shown when the scale row is overridden on the active platform.
+        /// </summary>
+        readonly RoundedRectComponent ScaleOverrideOutline;
+        /// <summary>
+        /// Host entity for the scale-row revert button.
+        /// </summary>
+        readonly EditorEntity ScaleRevertButtonHost;
+        /// <summary>
+        /// Revert button for the scale row.
+        /// </summary>
+        readonly ButtonComponent ScaleRevertButton;
         /// <summary>
         /// Label component for the position row.
         /// </summary>
@@ -269,9 +325,13 @@ namespace helengine.editor {
         /// </summary>
         Entity SelectedEntity;
         /// <summary>
+        /// Component platform ids currently available to the inspector, always including the shared common platform first.
+        /// </summary>
+        IReadOnlyList<string> CurrentComponentPlatformIds;
+        /// <summary>
         /// Component currently pending removal confirmation.
         /// </summary>
-        Component PendingRemovalComponent;
+        ComponentSectionView PendingRemovalSection;
         /// <summary>
         /// True when transform controls should be visible.
         /// </summary>
@@ -429,6 +489,7 @@ namespace helengine.editor {
             ScrollContentRoot.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             ScrollContentRoot.Position = float3.Zero;
             contentRoot.AddChild(ScrollContentRoot);
+            ContentRenderQueueSynchronizer = new EditorSubtreeRenderQueue2DSynchronizer(ContentCameraComponent, ScrollContentRoot);
 
             ContentScrollComponent = new ScrollComponent();
             ContentScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
@@ -462,6 +523,8 @@ namespace helengine.editor {
             } else {
                 ComponentView = new ComponentPropertiesView(font, contentManager, fileSystemModelResolver, fileSystemFontResolver, EditorLayerMasks.PropertiesPanelContent);
             }
+            TransformPlatformEditingService = new EntityPlatformTransformEditingService();
+            ComponentPlatformEditingService = new ComponentPlatformEditingService();
             ComponentView.RemoveRequested += HandleComponentRemoveRequested;
             ScrollContentRoot.AddChild(ComponentView.Root);
 
@@ -491,6 +554,9 @@ namespace helengine.editor {
             CreateTransformRow("Position", out PositionRow, out PositionLabel, out PositionFieldHosts, out PositionFields);
             CreateTransformRow("Rotation", out RotationRow, out RotationLabel, out RotationFieldHosts, out RotationFields);
             CreateTransformRow("Scale", out ScaleRow, out ScaleLabel, out ScaleFieldHosts, out ScaleFields);
+            CreateTransformRowOverrideChrome(PositionRow, out PositionOverrideOutline, out PositionRevertButtonHost, out PositionRevertButton, HandlePositionOverrideRevertClicked);
+            CreateTransformRowOverrideChrome(RotationRow, out RotationOverrideOutline, out RotationRevertButtonHost, out RotationRevertButton, HandleRotationOverrideRevertClicked);
+            CreateTransformRowOverrideChrome(ScaleRow, out ScaleOverrideOutline, out ScaleRevertButtonHost, out ScaleRevertButton, HandleScaleOverrideRevertClicked);
             ComponentPlatformTabStrip = new PlatformTabStripView(
                 font,
                 EditorLayerMasks.PropertiesPanelContent,
@@ -498,7 +564,8 @@ namespace helengine.editor {
                 ComponentPlatformTabHeight,
                 0,
                 ComponentPlatformArrowButtonWidth);
-            ScrollContentRoot.AddChild(ComponentPlatformTabStrip.Root);
+            ComponentPlatformTabStrip.SetRenderOrders(RenderOrder2D.PanelSurface, textOrder);
+            TransformRoot.AddChild(ComponentPlatformTabStrip.Root);
             ComponentPlatformTabStrip.Root.Enabled = false;
 
             PositionTextCache = new string[3];
@@ -506,6 +573,7 @@ namespace helengine.editor {
             ScaleTextCache = new string[3];
             NameTextCache = string.Empty;
             SelectedComponentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
+            CurrentComponentPlatformIds = new[] { ComponentPlatformEditingService.CommonPlatformId };
 
             HookNameEvents(NameField);
             HookTransformEvents(PositionFields);
@@ -550,6 +618,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Active platform id must be provided.", nameof(activePlatformId));
             }
 
+            DeactivateSelectedEntityTransformProjection();
             currentEntry = entry;
             HideRemoveComponentDialog();
             importSettingsView.Show(importerIds, settings, supportedPlatforms, activePlatformId, entry.EntryKind);
@@ -575,6 +644,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Message must be provided.", nameof(message));
             }
 
+            DeactivateSelectedEntityTransformProjection();
             currentEntry = null;
             HideRemoveComponentDialog();
             importSettingsView.Hide();
@@ -594,6 +664,7 @@ namespace helengine.editor {
         /// Resets the panel to its empty selection state.
         /// </summary>
         public void ShowEmpty() {
+            DeactivateSelectedEntityTransformProjection();
             currentEntry = null;
             HideRemoveComponentDialog();
             importSettingsView.Hide();
@@ -627,6 +698,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
 
+            DeactivateSelectedEntityTransformProjection();
             currentEntry = entry;
             HideRemoveComponentDialog();
             importSettingsView.Hide();
@@ -647,6 +719,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(entry));
             }
 
+            DeactivateSelectedEntityTransformProjection();
             currentEntry = null;
             importSettingsView.Hide();
             MaterialView.Hide();
@@ -673,9 +746,11 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(entry));
             }
 
+            DeactivateSelectedEntityTransformProjection();
             currentEntry = null;
             importSettingsView.Hide();
             MaterialView.Hide();
+            ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);
             ComponentView.Hide();
             ApplyLines(new[] {
@@ -694,17 +769,32 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entity">Selected entity to display.</param>
         public void ShowEntityProperties(Entity entity) {
+            ShowEntityProperties(entity, CurrentComponentPlatformIds);
+        }
+
+        /// <summary>
+        /// Shows transform and component details for a selected entity using the supplied project platform list.
+        /// </summary>
+        /// <param name="entity">Selected entity to display.</param>
+        /// <param name="supportedPlatformIds">Project-supported platform identifiers that should appear alongside the shared common tab.</param>
+        public void ShowEntityProperties(Entity entity, IReadOnlyList<string> supportedPlatformIds) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
+            if (supportedPlatformIds == null) {
+                throw new ArgumentNullException(nameof(supportedPlatformIds));
+            }
 
+            DeactivateSelectedEntityTransformProjection();
             currentEntry = null;
             HideRemoveComponentDialog();
             importSettingsView.Hide();
             MaterialView.Hide();
             SelectedEntity = entity;
+            CurrentComponentPlatformIds = ResolveComponentPlatformIds(supportedPlatformIds);
             SelectedComponentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
-            ComponentPlatformTabStrip.SetPlatforms(DefaultComponentPlatformIds, SelectedComponentPlatformId, HandleComponentPlatformTabChanged);
+            ActivateSelectedEntityTransformPlatform();
+            ComponentPlatformTabStrip.SetPlatforms(CurrentComponentPlatformIds, SelectedComponentPlatformId, HandleComponentPlatformTabChanged);
             ComponentPlatformTabStrip.Root.Enabled = true;
             ApplyLines(Array.Empty<string>());
             SyncTransformFields(entity);
@@ -729,15 +819,16 @@ namespace helengine.editor {
         /// Opens the remove-component confirmation dialog for the supplied component.
         /// </summary>
         /// <param name="component">Component pending removal.</param>
-        void HandleComponentRemoveRequested(Component component) {
-            if (component == null) {
-                throw new ArgumentNullException(nameof(component));
+        void HandleComponentRemoveRequested(ComponentSectionView section) {
+            if (section == null) {
+                throw new ArgumentNullException(nameof(section));
             }
             if (SelectedEntity == null) {
                 return;
             }
 
-            PendingRemovalComponent = component;
+            PendingRemovalSection = section;
+            Component component = section.TargetComponent;
             string entityName = SelectedEntity is EditorEntity editorEntity ? editorEntity.Name : SelectedEntity.GetType().Name;
             RemoveComponentDialog.Show(entityName, FormatComponentTitle(component.GetType().Name));
             if (ModalHostWidth > 0 && ModalHostHeight > 0) {
@@ -749,16 +840,28 @@ namespace helengine.editor {
         /// Removes the pending component from the selected entity after confirmation.
         /// </summary>
         void HandleRemoveComponentConfirmed() {
-            if (SelectedEntity == null || PendingRemovalComponent == null) {
-                HideRemoveComponentDialog();
-                return;
-            }
-            if (SelectedEntity.Components == null || !SelectedEntity.Components.Contains(PendingRemovalComponent)) {
+            if (SelectedEntity == null || PendingRemovalSection == null || PendingRemovalSection.TargetComponent == null) {
                 HideRemoveComponentDialog();
                 return;
             }
 
-            SelectedEntity.RemoveComponent(PendingRemovalComponent);
+            Component pendingComponent = PendingRemovalSection.TargetComponent;
+            if (string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                if (SelectedEntity.Components == null || !SelectedEntity.Components.Contains(pendingComponent)) {
+                    HideRemoveComponentDialog();
+                    return;
+                }
+
+                SelectedEntity.RemoveComponent(pendingComponent);
+            } else {
+                EntitySaveComponent saveComponent = FindEntitySaveComponent(SelectedEntity);
+                if (saveComponent == null) {
+                    throw new InvalidOperationException("Platform-specific component removal requires an entity save component.");
+                }
+
+                ComponentPlatformEditingService.RemoveComponent(pendingComponent, saveComponent, SelectedComponentPlatformId);
+            }
+
             EditorSceneMutationService.MarkSceneMutated();
             HideRemoveComponentDialog();
             ShowEntityProperties(SelectedEntity);
@@ -783,8 +886,11 @@ namespace helengine.editor {
                 return;
             }
 
+            PersistSelectedEntityTransformPlatform();
             SelectedComponentPlatformId = platformId;
+            ActivateSelectedEntityTransformPlatform();
             ComponentPlatformTabStrip.SetSelectedPlatform(platformId);
+            SyncTransformFields(SelectedEntity);
             ComponentView.ShowComponents(SelectedEntity, platformId);
             LayoutLines();
         }
@@ -856,6 +962,13 @@ namespace helengine.editor {
         /// <param name="scrollOffset">Current vertical scroll offset in pixels.</param>
         void HandleContentScrollOffsetChanged(ScrollComponent scrollComponent, int scrollOffset) {
             UpdateScrollContentPosition();
+        }
+
+        /// <summary>
+        /// Rebuilds the content camera queue so this panel renders only its own scrollable subtree.
+        /// </summary>
+        internal void SynchronizeContentRenderQueue() {
+            ContentRenderQueueSynchronizer.Synchronize();
         }
 
         /// <summary>
@@ -1012,6 +1125,52 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates the row-level override outline and revert button for one transform row.
+        /// </summary>
+        /// <param name="row">Transform row that should receive the override chrome.</param>
+        /// <param name="outline">Created override outline.</param>
+        /// <param name="revertButtonHost">Created revert-button host.</param>
+        /// <param name="revertButton">Created revert button.</param>
+        /// <param name="onClick">Action invoked when the revert button is pressed.</param>
+        void CreateTransformRowOverrideChrome(
+            EditorEntity row,
+            out RoundedRectComponent outline,
+            out EditorEntity revertButtonHost,
+            out ButtonComponent revertButton,
+            Action onClick) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (onClick == null) {
+                throw new ArgumentNullException(nameof(onClick));
+            }
+
+            outline = new RoundedRectComponent {
+                Radius = 0f,
+                Corners = RoundedRectCorners.None,
+                FillColor = new byte4(255, 255, 255, 0),
+                BorderThickness = 0f,
+                BorderColor = ResolveOverrideOutlineColor(),
+                RenderOrder2D = RenderOrder2D.PanelSurface,
+                Size = new int2(1, TransformRowHeight)
+            };
+            row.AddComponent(outline);
+
+            revertButtonHost = new EditorEntity();
+            revertButtonHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
+            revertButtonHost.Position = float3.Zero;
+            revertButtonHost.Enabled = false;
+            row.AddChild(revertButtonHost);
+
+            revertButton = new ButtonComponent("Revert", new int2(TransformRevertButtonWidth, TransformRevertButtonHeight), font, onClick, 1f);
+            revertButton.SetRenderOrders(RenderOrder2D.PanelSurface, textOrder);
+            revertButton.UseHoverOnlyBackground();
+            revertButton.UseSquareCorners();
+            revertButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
+            revertButtonHost.AddComponent(revertButton);
+        }
+
+        /// <summary>
         /// Creates a single-line name row with a label and text input.
         /// </summary>
         /// <param name="row">Created row entity.</param>
@@ -1057,10 +1216,14 @@ namespace helengine.editor {
         void SetTransformVisible(bool visible) {
             ShowTransformControls = visible;
             if (!visible) {
+                DeactivateSelectedEntityTransformProjection();
                 SelectedEntity = null;
                 ApplyTransformRequested = false;
                 AddComponentButtonRoot.Enabled = false;
+                ComponentPlatformTabStrip.Root.Enabled = false;
             }
+
+            RefreshTransformOverrideChrome();
         }
 
         /// <summary>
@@ -1071,23 +1234,27 @@ namespace helengine.editor {
         void UpdateTransformLayout(int top, int maxWidth) {
             TransformRoot.Enabled = true;
             TransformRoot.Position = new float3(0, top, 0.2f);
+            RefreshTransformOverrideChrome();
 
             int labelWidth = Math.Min(TransformLabelWidth, maxWidth);
             int nameFieldWidth = Math.Max(48, maxWidth - labelWidth - TransformFieldSpacing);
-            int availableFieldWidth = Math.Max(0, maxWidth - labelWidth - (TransformFieldSpacing * 2));
-            int fieldWidth = Math.Max(48, availableFieldWidth / 3);
             int rowSpacing = LineSpacing + 2;
 
             int rowTop = 0;
             LayoutNameRow(labelWidth, nameFieldWidth, rowTop);
-            rowTop += TransformRowHeight + ComponentPlatformTabTopSpacing;
-            LayoutComponentPlatformTabs(rowTop, maxWidth);
-            rowTop += ComponentPlatformTabHeight + ComponentPlatformTabBottomSpacing;
-            LayoutTransformRow(PositionRow, PositionLabel, PositionFieldHosts, PositionFields, labelWidth, fieldWidth, rowTop);
+            rowTop += TransformRowHeight;
+            if (ShouldShowComponentPlatformTabs()) {
+                rowTop += ComponentPlatformTabTopSpacing;
+                LayoutComponentPlatformTabs(rowTop, maxWidth);
+                rowTop += ComponentPlatformTabHeight + ComponentPlatformTabBottomSpacing;
+            } else {
+                ComponentPlatformTabStrip.Root.Enabled = false;
+            }
+            LayoutTransformRow(PositionRow, PositionLabel, PositionFieldHosts, PositionFields, PositionOverrideOutline, PositionRevertButtonHost, PositionRevertButtonHost.Enabled, labelWidth, rowTop);
             rowTop += TransformRowHeight + rowSpacing;
-            LayoutTransformRow(RotationRow, RotationLabel, RotationFieldHosts, RotationFields, labelWidth, fieldWidth, rowTop);
+            LayoutTransformRow(RotationRow, RotationLabel, RotationFieldHosts, RotationFields, RotationOverrideOutline, RotationRevertButtonHost, RotationRevertButtonHost.Enabled, labelWidth, rowTop);
             rowTop += TransformRowHeight + rowSpacing;
-            LayoutTransformRow(ScaleRow, ScaleLabel, ScaleFieldHosts, ScaleFields, labelWidth, fieldWidth, rowTop);
+            LayoutTransformRow(ScaleRow, ScaleLabel, ScaleFieldHosts, ScaleFields, ScaleOverrideOutline, ScaleRevertButtonHost, ScaleRevertButtonHost.Enabled, labelWidth, rowTop);
         }
 
         /// <summary>
@@ -1105,8 +1272,10 @@ namespace helengine.editor {
             TextComponent label,
             EditorEntity[] fieldHosts,
             TextBoxComponent[] fields,
+            RoundedRectComponent overrideOutline,
+            EditorEntity revertButtonHost,
+            bool showRevertButton,
             int labelWidth,
-            int fieldWidth,
             int top) {
             if (row == null) {
                 throw new ArgumentNullException(nameof(row));
@@ -1122,6 +1291,16 @@ namespace helengine.editor {
             }
 
             row.Position = new float3(ContentPadding, top, 0.2f);
+            int rowContentWidth = Math.Max(0, GetContentViewportWidthPixels() - ContentPadding * 2);
+            int revertButtonWidth = showRevertButton ? TransformRevertButtonWidth : 0;
+            int fieldAreaWidth = rowContentWidth - labelWidth - TransformFieldSpacing - (TransformFieldSpacing * 2);
+            if (revertButtonWidth > 0) {
+                fieldAreaWidth -= revertButtonWidth + TransformFieldSpacing;
+            }
+            int fieldWidth = Math.Max(48, Math.Max(0, fieldAreaWidth) / 3);
+            if (overrideOutline != null) {
+                overrideOutline.Size = new int2(Math.Max(1, rowContentWidth), TransformRowHeight);
+            }
             label.Size = new int2(labelWidth, TransformFieldHeight);
 
             int labelYOffset = Math.Max(0, (TransformRowHeight - TransformFieldHeight) / 2);
@@ -1137,6 +1316,11 @@ namespace helengine.editor {
                     fields[i].Size = new int2(fieldWidth, TransformFieldHeight);
                 }
                 fieldX += fieldWidth + TransformFieldSpacing;
+            }
+
+            if (revertButtonHost != null) {
+                float buttonY = (float)Math.Round((TransformRowHeight - TransformRevertButtonHeight) * 0.5);
+                revertButtonHost.Position = new float3(rowContentWidth - revertButtonWidth, buttonY, 0.2f);
             }
         }
 
@@ -1184,6 +1368,45 @@ namespace helengine.editor {
             } finally {
                 IsSynchronizingInputs = false;
             }
+
+            RefreshTransformOverrideChrome();
+        }
+
+        /// <summary>
+        /// Refreshes the per-row transform override chrome for the active inspector platform.
+        /// </summary>
+        void RefreshTransformOverrideChrome() {
+            bool canShowOverrides = ShowTransformControls
+                && SelectedEntity != null
+                && !string.IsNullOrWhiteSpace(SelectedComponentPlatformId)
+                && !string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase);
+
+            EntitySaveComponent saveComponent = canShowOverrides ? FindEntitySaveComponent(SelectedEntity) : null;
+            bool positionOverrideActive = saveComponent != null && TransformPlatformEditingService.IsPositionOverrideActive(saveComponent, SelectedComponentPlatformId);
+            bool rotationOverrideActive = saveComponent != null && TransformPlatformEditingService.IsRotationOverrideActive(saveComponent, SelectedComponentPlatformId);
+            bool scaleOverrideActive = saveComponent != null && TransformPlatformEditingService.IsScaleOverrideActive(saveComponent, SelectedComponentPlatformId);
+
+            UpdateTransformRowOverrideChrome(PositionOverrideOutline, PositionRevertButtonHost, positionOverrideActive);
+            UpdateTransformRowOverrideChrome(RotationOverrideOutline, RotationRevertButtonHost, rotationOverrideActive);
+            UpdateTransformRowOverrideChrome(ScaleOverrideOutline, ScaleRevertButtonHost, scaleOverrideActive);
+        }
+
+        /// <summary>
+        /// Updates the outline and revert-button visibility for one transform row.
+        /// </summary>
+        /// <param name="outline">Outline component used by the row.</param>
+        /// <param name="revertButtonHost">Revert-button host used by the row.</param>
+        /// <param name="isOverrideActive">True when the row is overridden on the active platform.</param>
+        void UpdateTransformRowOverrideChrome(RoundedRectComponent outline, EditorEntity revertButtonHost, bool isOverrideActive) {
+            if (outline == null) {
+                throw new ArgumentNullException(nameof(outline));
+            }
+            if (revertButtonHost == null) {
+                throw new ArgumentNullException(nameof(revertButtonHost));
+            }
+
+            outline.BorderThickness = isOverrideActive ? TransformOverrideOutlineThickness : 0f;
+            revertButtonHost.Enabled = isOverrideActive;
         }
 
         /// <summary>
@@ -1329,8 +1552,132 @@ namespace helengine.editor {
             }
 
             if (sceneMutated) {
+                PersistSelectedEntityTransformPlatform();
+                RefreshTransformOverrideChrome();
+            }
+
+            if (sceneMutated) {
                 EditorSceneMutationService.MarkSceneMutated();
             }
+        }
+
+        /// <summary>
+        /// Activates the currently selected platform tab as the live transform projection for the selected entity.
+        /// </summary>
+        void ActivateSelectedEntityTransformPlatform() {
+            if (SelectedEntity == null) {
+                return;
+            }
+
+            EntitySaveComponent saveComponent = FindEntitySaveComponent(SelectedEntity);
+            if (saveComponent == null) {
+                return;
+            }
+
+            TransformPlatformEditingService.ActivatePlatform(SelectedEntity, saveComponent, SelectedComponentPlatformId);
+        }
+
+        /// <summary>
+        /// Persists the currently projected transform override for the selected entity when one non-common platform is active.
+        /// </summary>
+        void PersistSelectedEntityTransformPlatform() {
+            if (SelectedEntity == null) {
+                return;
+            }
+
+            EntitySaveComponent saveComponent = FindEntitySaveComponent(SelectedEntity);
+            if (saveComponent == null) {
+                return;
+            }
+
+            TransformPlatformEditingService.PersistActivePlatform(SelectedEntity, saveComponent);
+        }
+
+        /// <summary>
+        /// Persists and restores the selected entity back to its common transform before the inspector stops editing that entity.
+        /// </summary>
+        void DeactivateSelectedEntityTransformProjection() {
+            if (SelectedEntity == null) {
+                return;
+            }
+
+            EntitySaveComponent saveComponent = FindEntitySaveComponent(SelectedEntity);
+            if (saveComponent == null) {
+                return;
+            }
+
+            TransformPlatformEditingService.RestoreCommon(SelectedEntity, saveComponent);
+        }
+
+        /// <summary>
+        /// Reverts the active platform's position override back to common behavior.
+        /// </summary>
+        void HandlePositionOverrideRevertClicked() {
+            ClearSelectedEntityTransformOverride(TransformOverrideFieldKind.Position);
+        }
+
+        /// <summary>
+        /// Reverts the active platform's rotation override back to common behavior.
+        /// </summary>
+        void HandleRotationOverrideRevertClicked() {
+            ClearSelectedEntityTransformOverride(TransformOverrideFieldKind.Rotation);
+        }
+
+        /// <summary>
+        /// Reverts the active platform's scale override back to common behavior.
+        /// </summary>
+        void HandleScaleOverrideRevertClicked() {
+            ClearSelectedEntityTransformOverride(TransformOverrideFieldKind.Scale);
+        }
+
+        /// <summary>
+        /// Clears one transform override row from the active platform and refreshes the inspector fields.
+        /// </summary>
+        /// <param name="fieldKind">Transform field that should return to common behavior.</param>
+        void ClearSelectedEntityTransformOverride(TransformOverrideFieldKind fieldKind) {
+            if (SelectedEntity == null) {
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(SelectedComponentPlatformId)
+                || string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return;
+            }
+
+            EntitySaveComponent saveComponent = FindEntitySaveComponent(SelectedEntity);
+            if (saveComponent == null) {
+                return;
+            }
+
+            if (fieldKind == TransformOverrideFieldKind.Position) {
+                TransformPlatformEditingService.ClearPositionOverride(SelectedEntity, saveComponent, SelectedComponentPlatformId);
+            } else if (fieldKind == TransformOverrideFieldKind.Rotation) {
+                TransformPlatformEditingService.ClearRotationOverride(SelectedEntity, saveComponent, SelectedComponentPlatformId);
+            } else if (fieldKind == TransformOverrideFieldKind.Scale) {
+                TransformPlatformEditingService.ClearScaleOverride(SelectedEntity, saveComponent, SelectedComponentPlatformId);
+            }
+
+            SyncTransformFields(SelectedEntity);
+            LayoutLines();
+            EditorSceneMutationService.MarkSceneMutated();
+        }
+
+        /// <summary>
+        /// Resolves the hidden entity save component attached to one entity.
+        /// </summary>
+        /// <param name="entity">Entity whose hidden save component should be returned.</param>
+        /// <returns>Attached hidden save component when one exists; otherwise null.</returns>
+        EntitySaveComponent FindEntitySaveComponent(Entity entity) {
+            if (entity == null || entity.Components == null) {
+                return null;
+            }
+
+            for (int i = 0; i < entity.Components.Count; i++) {
+                if (entity.Components[i] is EntitySaveComponent saveComponent) {
+                    return saveComponent;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -1523,6 +1870,15 @@ namespace helengine.editor {
             return value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
         }
 
+        /// <summary>
+        /// Builds the subtle border color used to mark overridden transform rows.
+        /// </summary>
+        /// <returns>Border color used by transform override chrome.</returns>
+        byte4 ResolveOverrideOutlineColor() {
+            byte4 accentColor = ThemeManager.Colors.AccentPrimary;
+            return new byte4(accentColor.X, accentColor.Y, accentColor.Z, 160);
+        }
+
 
         /// <summary>
         /// Updates line positions and sizes based on the current text content.
@@ -1576,6 +1932,7 @@ namespace helengine.editor {
 
             int contentHeight = (int)Math.Ceiling(offsetY) + ContentPadding;
             UpdateContentScrollMetrics(contentHeight);
+            SynchronizeContentRenderQueue();
         }
 
         /// <summary>
@@ -1584,7 +1941,12 @@ namespace helengine.editor {
         /// <returns>Height in pixels.</returns>
         int GetTransformSectionHeight() {
             int rowSpacing = LineSpacing + 2;
-            return (TransformRowHeight * 4) + (rowSpacing * 2) + ComponentPlatformTabTopSpacing + ComponentPlatformTabHeight + ComponentPlatformTabBottomSpacing;
+            int tabStripHeight = 0;
+            if (ShouldShowComponentPlatformTabs()) {
+                tabStripHeight = ComponentPlatformTabTopSpacing + ComponentPlatformTabHeight + ComponentPlatformTabBottomSpacing;
+            }
+
+            return (TransformRowHeight * 4) + (rowSpacing * 2) + tabStripHeight;
         }
 
         /// <summary>
@@ -1593,20 +1955,29 @@ namespace helengine.editor {
         /// <param name="top">Top offset within the transform root.</param>
         /// <param name="maxWidth">Maximum width available to the strip.</param>
         void LayoutComponentPlatformTabs(int top, int maxWidth) {
-            ComponentPlatformTabStrip.Root.Enabled = ShowTransformControls && SelectedEntity != null;
+            ComponentPlatformTabStrip.Root.Enabled = ShouldShowComponentPlatformTabs();
             if (!ComponentPlatformTabStrip.Root.Enabled) {
                 return;
             }
 
-            int absoluteTop = (int)Math.Round(TransformRoot.Position.Y + top);
-            ComponentPlatformTabStrip.UpdateLayout(ContentPadding, absoluteTop, Math.Max(1, maxWidth));
+            ComponentPlatformTabStrip.UpdateLayout(ContentPadding, top, Math.Max(1, maxWidth));
+        }
+
+        /// <summary>
+        /// Returns whether the shared component platform tab strip should be visible for the current inspector state.
+        /// </summary>
+        /// <returns>True when entity transform editing is active and the strip has at least one generated tab.</returns>
+        bool ShouldShowComponentPlatformTabs() {
+            return ShowTransformControls
+                && SelectedEntity != null
+                && ComponentPlatformTabStrip.TabCount > 0;
         }
 
         /// <summary>
         /// Hides the remove-component confirmation dialog and clears the pending component.
         /// </summary>
         void HideRemoveComponentDialog() {
-            PendingRemovalComponent = null;
+            PendingRemovalSection = null;
             RemoveComponentDialog.Hide();
         }
 
@@ -1641,7 +2012,17 @@ namespace helengine.editor {
                 return;
             }
 
-            descriptor.AddAction(SelectedEntity);
+            if (string.Equals(SelectedComponentPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                descriptor.AddAction(SelectedEntity);
+            } else {
+                EntitySaveComponent saveComponent = FindEntitySaveComponent(SelectedEntity);
+                if (saveComponent == null) {
+                    throw new InvalidOperationException("Platform-specific component addition requires an entity save component.");
+                }
+
+                ComponentPlatformEditingService.AddPlatformOnlyComponent(descriptor, saveComponent, SelectedComponentPlatformId);
+            }
+
             EditorSceneMutationService.MarkSceneMutated();
             ShowEntityProperties(SelectedEntity);
         }
@@ -1659,6 +2040,38 @@ namespace helengine.editor {
             AddComponentButtonRoot.Enabled = true;
             AddComponentButtonRoot.Position = new float3(ContentPadding, top, 0.2f);
             AddComponentButton.SetSize(new int2(Math.Max(0, width), AddComponentButtonHeight));
+        }
+
+        /// <summary>
+        /// Formats one component type name into a readable title.
+        /// </summary>
+        /// <param name="componentTypeName">Raw component type name.</param>
+        /// <returns>Readable component title.</returns>
+        IReadOnlyList<string> ResolveComponentPlatformIds(IReadOnlyList<string> supportedPlatformIds) {
+            if (supportedPlatformIds == null) {
+                throw new ArgumentNullException(nameof(supportedPlatformIds));
+            }
+
+            List<string> platformIds = new List<string>(supportedPlatformIds.Count + 1) {
+                ComponentPlatformEditingService.CommonPlatformId
+            };
+
+            for (int index = 0; index < supportedPlatformIds.Count; index++) {
+                string platformId = supportedPlatformIds[index];
+                if (string.IsNullOrWhiteSpace(platformId)) {
+                    continue;
+                }
+                if (string.Equals(platformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (platformIds.Any(existingPlatformId => string.Equals(existingPlatformId, platformId, StringComparison.OrdinalIgnoreCase))) {
+                    continue;
+                }
+
+                platformIds.Add(platformId);
+            }
+
+            return platformIds;
         }
 
         /// <summary>
@@ -1716,6 +2129,24 @@ namespace helengine.editor {
             }
 
             return entry.Name;
+        }
+
+        /// <summary>
+        /// Identifies one transform row that can be reverted to common behavior.
+        /// </summary>
+        enum TransformOverrideFieldKind {
+            /// <summary>
+            /// Reverts the position row.
+            /// </summary>
+            Position,
+            /// <summary>
+            /// Reverts the rotation row.
+            /// </summary>
+            Rotation,
+            /// <summary>
+            /// Reverts the scale row.
+            /// </summary>
+            Scale
         }
     }
 }

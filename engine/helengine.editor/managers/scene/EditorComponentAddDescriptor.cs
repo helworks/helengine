@@ -46,5 +46,18 @@ namespace helengine.editor {
         /// Gets the callback that attaches the component to an entity.
         /// </summary>
         public Action<Entity> AddAction { get; }
+
+        /// <summary>
+        /// Creates a detached component instance that matches this add descriptor.
+        /// </summary>
+        /// <returns>Detached component instance created from the descriptor component type.</returns>
+        public Component CreateComponentInstance() {
+            object instance = Activator.CreateInstance(ComponentType);
+            if (instance is Component component) {
+                return component;
+            }
+
+            throw new InvalidOperationException($"Component descriptor '{DisplayName}' could not create an instance of '{ComponentType.FullName}'.");
+        }
     }
 }

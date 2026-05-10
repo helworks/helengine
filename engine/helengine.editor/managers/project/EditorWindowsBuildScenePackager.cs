@@ -579,6 +579,8 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(entityAsset));
             }
 
+            ApplyTargetPlatformTransformOverride(entityAsset);
+            ApplyTargetPlatformComponentOverrides(entityAsset);
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int index = 0; index < componentRecords.Length; index++) {
                 componentRecords[index] = RewriteComponentRecord(componentRecords[index], buildRootPath);
@@ -588,6 +590,140 @@ namespace helengine.editor {
             for (int index = 0; index < childEntityAssets.Length; index++) {
                 RewriteEntityAsset(childEntityAssets[index], buildRootPath);
             }
+        }
+
+        /// <summary>
+        /// Applies the selected target platform transform override to one serialized scene entity before the runtime scene is written.
+        /// </summary>
+        /// <param name="entityAsset">Scene entity payload being packaged.</param>
+        void ApplyTargetPlatformTransformOverride(SceneEntityAsset entityAsset) {
+            if (entityAsset == null) {
+                throw new ArgumentNullException(nameof(entityAsset));
+            }
+
+            SceneEntityPlatformTransformOverrideAsset transformOverride = FindTargetPlatformTransformOverride(entityAsset);
+            if (transformOverride != null) {
+                if (transformOverride.HasLocalPositionOverride) {
+                    entityAsset.LocalPosition = transformOverride.LocalPosition;
+                }
+                if (transformOverride.HasLocalScaleOverride) {
+                    entityAsset.LocalScale = transformOverride.LocalScale;
+                }
+                if (transformOverride.HasLocalOrientationOverride) {
+                    entityAsset.LocalOrientation = transformOverride.LocalOrientation;
+                }
+            }
+
+            entityAsset.PlatformTransformOverrides = Array.Empty<SceneEntityPlatformTransformOverrideAsset>();
+        }
+
+        /// <summary>
+        /// Applies the selected target platform component existence override to one serialized scene entity before the runtime scene is written.
+        /// </summary>
+        /// <param name="entityAsset">Scene entity payload being packaged.</param>
+        void ApplyTargetPlatformComponentOverrides(SceneEntityAsset entityAsset) {
+            if (entityAsset == null) {
+                throw new ArgumentNullException(nameof(entityAsset));
+            }
+
+            SceneEntityPlatformComponentOverrideAsset componentOverride = FindTargetPlatformComponentOverride(entityAsset);
+            if (componentOverride == null) {
+                entityAsset.PlatformComponentOverrides = Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
+                return;
+            }
+
+            HashSet<string> removedComponentKeys = new HashSet<string>(
+                (componentOverride.RemovedComponentKeys ?? Array.Empty<string>())
+                    .Where(value => !string.IsNullOrWhiteSpace(value)),
+                StringComparer.Ordinal);
+
+            List<SceneComponentAssetRecord> effectiveComponents = new List<SceneComponentAssetRecord>();
+            SceneComponentAssetRecord[] authoredComponents = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
+            for (int index = 0; index < authoredComponents.Length; index++) {
+                SceneComponentAssetRecord componentRecord = authoredComponents[index];
+                if (componentRecord == null) {
+                    continue;
+                }
+                if (!string.IsNullOrWhiteSpace(componentRecord.ComponentKey) && removedComponentKeys.Contains(componentRecord.ComponentKey)) {
+                    continue;
+                }
+
+                effectiveComponents.Add(componentRecord);
+            }
+
+            SceneEntityPlatformAddedComponentAsset[] addedComponents = componentOverride.AddedComponents ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>();
+            for (int index = 0; index < addedComponents.Length; index++) {
+                if (addedComponents[index]?.Component != null) {
+                    effectiveComponents.Add(addedComponents[index].Component);
+                }
+            }
+
+            for (int index = 0; index < effectiveComponents.Count; index++) {
+                effectiveComponents[index].ComponentIndex = index;
+            }
+
+            entityAsset.Components = effectiveComponents.ToArray();
+            entityAsset.PlatformComponentOverrides = Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
+        }
+
+        /// <summary>
+        /// Resolves the transform override that matches the current packaging target platform.
+        /// </summary>
+        /// <param name="entityAsset">Scene entity payload whose transform override should be resolved.</param>
+        /// <returns>Matching target-platform transform override when one exists; otherwise null.</returns>
+        SceneEntityPlatformTransformOverrideAsset FindTargetPlatformTransformOverride(SceneEntityAsset entityAsset) {
+            if (entityAsset == null) {
+                throw new ArgumentNullException(nameof(entityAsset));
+            }
+
+            if (string.IsNullOrWhiteSpace(TargetPlatformId) ||
+                string.Equals(TargetPlatformId, EntityPlatformTransformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return null;
+            }
+
+            SceneEntityPlatformTransformOverrideAsset[] transformOverrides = entityAsset.PlatformTransformOverrides ?? Array.Empty<SceneEntityPlatformTransformOverrideAsset>();
+            for (int index = 0; index < transformOverrides.Length; index++) {
+                SceneEntityPlatformTransformOverrideAsset transformOverride = transformOverrides[index];
+                if (transformOverride == null || string.IsNullOrWhiteSpace(transformOverride.PlatformId)) {
+                    continue;
+                }
+
+                if (string.Equals(transformOverride.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    return transformOverride;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Resolves the component existence override that matches the current packaging target platform.
+        /// </summary>
+        /// <param name="entityAsset">Scene entity payload whose component existence override should be resolved.</param>
+        /// <returns>Matching target-platform component existence override when one exists; otherwise null.</returns>
+        SceneEntityPlatformComponentOverrideAsset FindTargetPlatformComponentOverride(SceneEntityAsset entityAsset) {
+            if (entityAsset == null) {
+                throw new ArgumentNullException(nameof(entityAsset));
+            }
+
+            if (string.IsNullOrWhiteSpace(TargetPlatformId) ||
+                string.Equals(TargetPlatformId, EntityPlatformTransformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return null;
+            }
+
+            SceneEntityPlatformComponentOverrideAsset[] componentOverrides = entityAsset.PlatformComponentOverrides ?? Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
+            for (int index = 0; index < componentOverrides.Length; index++) {
+                SceneEntityPlatformComponentOverrideAsset componentOverride = componentOverrides[index];
+                if (componentOverride == null || string.IsNullOrWhiteSpace(componentOverride.PlatformId)) {
+                    continue;
+                }
+
+                if (string.Equals(componentOverride.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    return componentOverride;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>

@@ -966,6 +966,99 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures packaging for one target platform applies the authored entity transform override and strips the editor-only override metadata from the packaged runtime scene.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneEntityDefinesWindowsTransformOverride_AppliesOverrideToPackagedSceneEntity() {
+            string sceneId = "Scenes/PlatformTransform.helen";
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "root-entity",
+                        Name = "Root",
+                        LocalPosition = new float3(1f, 2f, 3f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        PlatformTransformOverrides = new[] {
+                            new SceneEntityPlatformTransformOverrideAsset {
+                                PlatformId = "windows",
+                                HasLocalPositionOverride = true,
+                                LocalPosition = new float3(10f, 20f, 30f)
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            });
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "windows");
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
+
+            Assert.Equal(new float3(10f, 20f, 30f), packagedRoot.LocalPosition);
+            Assert.Empty(packagedRoot.PlatformTransformOverrides);
+        }
+
+        /// <summary>
+        /// Ensures packaging for one target platform materializes platform-only components into the packaged runtime scene and strips the editor-only existence override metadata.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneEntityDefinesWindowsPlatformOnlyCamera_AppendsTheAddedComponentToThePackagedScene() {
+            string sceneId = "Scenes/PlatformAddedCamera.helen";
+            SceneComponentAssetRecord cameraRecord = CreateTaggedCameraComponentRecord();
+            cameraRecord.ComponentKey = "windows-camera";
+
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "root-entity",
+                        Name = "Root",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        PlatformComponentOverrides = new[] {
+                            new SceneEntityPlatformComponentOverrideAsset {
+                                PlatformId = "windows",
+                                AddedComponents = new[] {
+                                    new SceneEntityPlatformAddedComponentAsset {
+                                        Component = cameraRecord
+                                    }
+                                }
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            });
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "windows");
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
+            SceneComponentAssetRecord packagedCameraRecord = Assert.Single(
+                packagedRoot.Components,
+                component => string.Equals(component.ComponentTypeId, "helengine.CameraComponent", StringComparison.Ordinal));
+
+            Assert.NotNull(packagedCameraRecord);
+            Assert.Empty(packagedRoot.PlatformComponentOverrides);
+        }
+
+        /// <summary>
         /// Ensures the committed point-shadow smoke scene packages without failing the component rewrite pipeline.
         /// </summary>
         [Fact]
@@ -1905,6 +1998,33 @@ namespace helengine.editor.tests {
             writer.WriteSingle(128f);
             writer.WriteByte((byte)PostProcessTier.High);
             return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Creates one tagged camera component record that matches the modern editor scene payload shape.
+        /// </summary>
+        /// <returns>Serialized tagged camera component record.</returns>
+        SceneComponentAssetRecord CreateTaggedCameraComponentRecord() {
+            CameraRenderSettings renderSettings = new CameraRenderSettings {
+                DepthPrepassMode = DepthPrepassMode.Always,
+                ShadowDistance = 128f,
+                PostProcessTier = PostProcessTier.High
+            };
+            CameraClearSettings clearSettings = new CameraClearSettings(true, new float4(0.25f, 0.5f, 0.75f, 1f), true, 1f, true, 9);
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField("CameraDrawOrder", fieldWriter => fieldWriter.WriteByte(17));
+            writer.WriteField("LayerMask", fieldWriter => fieldWriter.WriteUInt16(EditorLayerMasks.SceneObjects));
+            writer.WriteField("Viewport", fieldWriter => fieldWriter.WriteFloat4(new float4(12f, 24f, 640f, 360f)));
+            writer.WriteField("NearPlaneDistance", fieldWriter => fieldWriter.WriteSingle(0.42f));
+            writer.WriteField("FarPlaneDistance", fieldWriter => fieldWriter.WriteSingle(128f));
+            writer.WriteField("ClearSettings", fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraClearSettings(fieldWriter, clearSettings));
+            writer.WriteField("RenderSettings", fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraRenderSettings(fieldWriter, renderSettings));
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.CameraComponent",
+                ComponentIndex = 0,
+                Payload = writer.BuildPayload()
+            };
         }
 
         /// <summary>

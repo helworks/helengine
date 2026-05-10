@@ -67,9 +67,54 @@ namespace helengine.editor {
         public ButtonComponent RemoveButton { get; }
 
         /// <summary>
+        /// Gets or sets the outline shown when the whole section exists only as a platform-specific existence override.
+        /// </summary>
+        public RoundedRectComponent HeaderOverrideOutline { get; set; }
+
+        /// <summary>
+        /// Gets or sets the host entity for the section-level revert button.
+        /// </summary>
+        public EditorEntity RevertButtonHost { get; set; }
+
+        /// <summary>
+        /// Gets or sets the section-level revert button component.
+        /// </summary>
+        public ButtonComponent RevertButton { get; set; }
+
+        /// <summary>
         /// Gets the component represented by this section.
         /// </summary>
         public Component TargetComponent { get; set; }
+
+        /// <summary>
+        /// Gets or sets the common live component represented by this section when one exists.
+        /// </summary>
+        public Component CommonComponent { get; set; }
+
+        /// <summary>
+        /// Gets or sets the hidden save component attached to the owning entity.
+        /// </summary>
+        public EntitySaveComponent SaveComponent { get; set; }
+
+        /// <summary>
+        /// Gets or sets the platform id currently being edited by the section.
+        /// </summary>
+        public string EditingPlatformId { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the section represents a platform-only detached component.
+        /// </summary>
+        public bool IsPlatformOnlyComponent { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the section represents a common component removed on the active platform.
+        /// </summary>
+        public bool IsRemovedOnPlatform { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the section header is currently showing existence-override chrome.
+        /// </summary>
+        public bool IsExistenceOverrideActive { get; set; }
 
         /// <summary>
         /// Gets the rows currently owned by this section.

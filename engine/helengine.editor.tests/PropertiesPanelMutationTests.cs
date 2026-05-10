@@ -199,7 +199,7 @@ namespace helengine.editor.tests {
             };
             entity.AddComponent(camera);
 
-            panel.ShowEntityProperties(entity);
+            panel.ShowEntityProperties(entity, new[] { "windows" });
             SelectInspectorPlatform(panel, "windows");
 
             ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
@@ -214,6 +214,180 @@ namespace helengine.editor.tests {
             EntitySaveComponent saveComponent = GetSaveComponent(entity);
             EntityComponentSaveState saveState = saveComponent.GetOrCreateComponentState(camera);
             Assert.True(HasPlatformOverride(saveState, "windows"));
+        }
+
+        /// <summary>
+        /// Ensures platform transform edits swap between common and override values when the active inspector tab changes.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenPs2TransformOverrideIsEdited_SwitchingTabsSwapsBetweenCommonAndOverrideValues() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "PlatformEntity",
+                Position = new float3(1f, 2f, 3f),
+                Scale = new float3(4f, 5f, 6f),
+                Orientation = float4.Identity
+            };
+
+            panel.ShowEntityProperties(entity, new[] { "ps2" });
+            SelectInspectorPlatform(panel, "ps2");
+
+            TextBoxComponent[] positionFields = GetPrivateField<TextBoxComponent[]>(panel, "PositionFields");
+            positionFields[0].Text = "10";
+            positionFields[1].Text = "20";
+            positionFields[2].Text = "30";
+            SetPrivateField(panel, "ApplyTransformRequested", true);
+            InvokePrivate(panel, "UpdateTransformEdits");
+
+            Assert.Equal(new float3(10f, 20f, 30f), entity.Position);
+
+            SelectInspectorPlatform(panel, "common");
+            Assert.Equal(new float3(1f, 2f, 3f), entity.Position);
+
+            SelectInspectorPlatform(panel, "ps2");
+            Assert.Equal(new float3(10f, 20f, 30f), entity.Position);
+        }
+
+        /// <summary>
+        /// Ensures reverting one platform transform row clears the override and lets later common edits flow back into the active platform view.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenPs2PositionOverrideIsReverted_LaterCommonChangesFlowBackIntoThePlatformView() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "PlatformEntity",
+                Position = new float3(1f, 2f, 3f),
+                Scale = float3.One,
+                Orientation = float4.Identity
+            };
+
+            panel.ShowEntityProperties(entity, new[] { "ps2" });
+            SelectInspectorPlatform(panel, "ps2");
+
+            TextBoxComponent[] positionFields = GetPrivateField<TextBoxComponent[]>(panel, "PositionFields");
+            positionFields[0].Text = "10";
+            positionFields[1].Text = "20";
+            positionFields[2].Text = "30";
+            SetPrivateField(panel, "ApplyTransformRequested", true);
+            InvokePrivate(panel, "UpdateTransformEdits");
+
+            EditorEntity positionRevertButtonHost = GetPrivateField<EditorEntity>(panel, "PositionRevertButtonHost");
+            RoundedRectComponent positionOverrideOutline = GetPrivateField<RoundedRectComponent>(panel, "PositionOverrideOutline");
+            Assert.True(positionRevertButtonHost.Enabled);
+            Assert.True(positionOverrideOutline.BorderThickness > 0f);
+
+            SelectInspectorPlatform(panel, "common");
+            entity.Position = new float3(7f, 8f, 9f);
+            SelectInspectorPlatform(panel, "ps2");
+
+            InvokePrivate(panel, "HandlePositionOverrideRevertClicked");
+
+            Assert.Equal(new float3(7f, 8f, 9f), entity.Position);
+            Assert.False(positionRevertButtonHost.Enabled);
+            Assert.Equal(0f, positionOverrideOutline.BorderThickness);
+
+            SelectInspectorPlatform(panel, "common");
+            entity.Position = new float3(2f, 3f, 4f);
+            SelectInspectorPlatform(panel, "ps2");
+
+            Assert.Equal(new float3(2f, 3f, 4f), entity.Position);
+        }
+
+        /// <summary>
+        /// Ensures reverting one platform component property clears only that row override so later common edits flow back into the platform-specific inspector.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenWindowsComponentRowIsReverted_LaterCommonChangesFlowBackIntoThePlatformView() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Camera"
+            };
+            CameraComponent camera = new CameraComponent {
+                FarPlaneDistance = 100f
+            };
+            entity.AddComponent(camera);
+
+            panel.ShowEntityProperties(entity, new[] { "windows" });
+            SelectInspectorPlatform(panel, "windows");
+
+            ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            ComponentPropertyRow farPlaneRow = GetSingleRow(view, "Far Plane Distance");
+            Assert.False(farPlaneRow.RevertButtonHost.Enabled);
+            Assert.Equal(0f, farPlaneRow.OverrideOutline.BorderThickness);
+
+            farPlaneRow.ScalarField.Text = "200";
+            MethodInfo submitMethod = typeof(ComponentPropertiesView).GetMethod("HandleScalarSubmitted", BindingFlags.Instance | BindingFlags.NonPublic);
+            submitMethod.Invoke(view, new object[] { farPlaneRow.ScalarField });
+
+            Assert.Equal(100f, camera.FarPlaneDistance);
+            Assert.True(farPlaneRow.RevertButtonHost.Enabled);
+            Assert.True(farPlaneRow.OverrideOutline.BorderThickness > 0f);
+
+            SelectInspectorPlatform(panel, "common");
+            camera.FarPlaneDistance = 150f;
+            SelectInspectorPlatform(panel, "windows");
+            view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            farPlaneRow = GetSingleRow(view, "Far Plane Distance");
+
+            InvokePrivate(view, "HandleRowRevertClicked", farPlaneRow);
+
+            view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            farPlaneRow = GetSingleRow(view, "Far Plane Distance");
+            Assert.False(farPlaneRow.RevertButtonHost.Enabled);
+            Assert.Equal(0f, farPlaneRow.OverrideOutline.BorderThickness);
+            Assert.Equal("150", farPlaneRow.ScalarField.Text);
+
+            SelectInspectorPlatform(panel, "common");
+            camera.FarPlaneDistance = 175f;
+            SelectInspectorPlatform(panel, "windows");
+
+            view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            farPlaneRow = GetSingleRow(view, "Far Plane Distance");
+            Assert.Equal("175", farPlaneRow.ScalarField.Text);
+            Assert.False(farPlaneRow.RevertButtonHost.Enabled);
+        }
+
+        /// <summary>
+        /// Ensures scalar edits on a platform-only added component persist across inspector tab rebuilds without materializing the component into common state.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenWindowsPlatformOnlyCameraScalarIsEdited_PersistsAcrossTabRebuilds() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Platform Camera"
+            };
+            EditorComponentAddDescriptor descriptor = new EditorComponentAddDescriptor(
+                "Camera",
+                typeof(CameraComponent),
+                true,
+                target => target.AddComponent(new CameraComponent()));
+
+            panel.ShowEntityProperties(entity, new[] { "windows" });
+            SelectInspectorPlatform(panel, "windows");
+            InvokePrivate(panel, "HandleAddComponentSelected", descriptor);
+            SelectInspectorPlatform(panel, "windows");
+
+            ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            ComponentPropertyRow farPlaneRow = GetSingleRow(view, "Far Plane Distance");
+
+            farPlaneRow.ScalarField.Text = "275";
+            MethodInfo submitMethod = typeof(ComponentPropertiesView).GetMethod("HandleScalarSubmitted", BindingFlags.Instance | BindingFlags.NonPublic);
+            submitMethod.Invoke(view, new object[] { farPlaneRow.ScalarField });
+
+            Assert.DoesNotContain(entity.Components, value => value is CameraComponent);
+
+            SelectInspectorPlatform(panel, "common");
+            SelectInspectorPlatform(panel, "windows");
+
+            view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            farPlaneRow = GetSingleRow(view, "Far Plane Distance");
+            Assert.Equal("275", farPlaneRow.ScalarField.Text);
+
+            EntitySaveComponent saveComponent = GetSaveComponent(entity);
+            ComponentPlatformEditingService platformEditingService = new ComponentPlatformEditingService();
+            IReadOnlyList<EntityPlatformAddedComponentState> addedComponents = platformEditingService.GetAddedComponents(saveComponent, "windows");
+            CameraComponent addedCamera = Assert.IsType<CameraComponent>(Assert.Single(addedComponents).Component);
+            Assert.Equal(275f, addedCamera.FarPlaneDistance);
         }
 
         /// <summary>
@@ -244,9 +418,9 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="target">Target object that owns the method.</param>
         /// <param name="methodName">Name of the method to invoke.</param>
-        void InvokePrivate(object target, string methodName) {
+        void InvokePrivate(object target, string methodName, params object[] arguments) {
             MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
-            method.Invoke(target, Array.Empty<object>());
+            method.Invoke(target, arguments ?? Array.Empty<object>());
         }
 
         /// <summary>

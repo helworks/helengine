@@ -4,6 +4,11 @@ namespace helengine {
     /// </summary>
     public class EntityComponentSaveState {
         /// <summary>
+        /// Gets or sets the stable editor component key assigned to the owning component.
+        /// </summary>
+        public string ComponentKey { get; set; }
+
+        /// <summary>
         /// Stable asset references keyed by component-specific reference name.
         /// </summary>
         readonly Dictionary<string, SceneAssetReference> AssetReferencesByName;
@@ -128,6 +133,18 @@ namespace helengine {
             }
 
             return PlatformOverridesById.ContainsKey(platformId);
+        }
+
+        /// <summary>
+        /// Removes one platform override payload from this component state.
+        /// </summary>
+        /// <param name="platformId">Platform identifier whose override payload should be removed.</param>
+        public void RemovePlatformOverride(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            PlatformOverridesById.Remove(platformId);
         }
 
         /// <summary>

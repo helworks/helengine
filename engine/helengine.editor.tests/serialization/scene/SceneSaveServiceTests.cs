@@ -244,6 +244,145 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures scene save persists common entity transforms separately from projected platform overrides and load restores those overrides for later editing.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenEntityHasProjectedPs2TransformOverride_PersistsCommonTransformAndPlatformOverride() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "PlatformTransformOverride.helen");
+            EditorEntity entity = CreateUserEntity("PlatformEntity", new float3(1f, 2f, 3f), new float3(4f, 5f, 6f), float4.Identity);
+            EntitySaveComponent saveComponent = GetSaveComponent(entity);
+            EntityPlatformTransformEditingService transformEditingService = new EntityPlatformTransformEditingService();
+
+            transformEditingService.ActivatePlatform(entity, saveComponent, "ps2");
+            entity.LocalPosition = new float3(10f, 20f, 30f);
+            transformEditingService.PersistActivePlatform(entity, saveComponent);
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset rootEntity = Assert.Single(asset.RootEntities);
+            SceneEntityPlatformTransformOverrideAsset ps2Override = Assert.Single(rootEntity.PlatformTransformOverrides);
+            Assert.Equal(new float3(1f, 2f, 3f), rootEntity.LocalPosition);
+            Assert.Equal("ps2", ps2Override.PlatformId);
+            Assert.True(ps2Override.HasLocalPositionOverride);
+            Assert.Equal(new float3(10f, 20f, 30f), ps2Override.LocalPosition);
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
+            EditorEntity loadedEntity = Assert.Single(loadedRoots);
+            EntitySaveComponent loadedSaveComponent = GetSaveComponent(loadedEntity);
+
+            Assert.Equal(new float3(1f, 2f, 3f), loadedEntity.LocalPosition);
+            Assert.True(loadedSaveComponent.TryGetTransformPlatformOverride("ps2", out SceneEntityPlatformTransformOverrideAsset loadedOverride));
+            Assert.True(loadedOverride.HasLocalPositionOverride);
+            Assert.Equal(new float3(10f, 20f, 30f), loadedOverride.LocalPosition);
+
+            transformEditingService.ActivatePlatform(loadedEntity, loadedSaveComponent, "ps2");
+            Assert.Equal(new float3(10f, 20f, 30f), loadedEntity.LocalPosition);
+        }
+
+        /// <summary>
+        /// Ensures sparse component platform overrides persist their explicit property paths and rebuild platform edits from the current common component after reload.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenCameraFarPlaneUsesSparseWindowsOverride_RoundTripsTheOverridePathAndRebuildsFromCommon() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            registry.Register(new CameraComponentPersistenceDescriptor());
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "SparseComponentOverride.helen");
+            EditorEntity entity = CreateUserEntity("PlatformCamera", float3.Zero, float3.One, float4.Identity);
+            CameraComponent camera = new CameraComponent {
+                FarPlaneDistance = 100f
+            };
+            entity.AddComponent(camera);
+
+            EntitySaveComponent saveComponent = GetSaveComponent(entity);
+            ComponentPlatformEditingService platformEditingService = new ComponentPlatformEditingService();
+            CameraComponent editableWindowsCamera = Assert.IsType<CameraComponent>(platformEditingService.EnsurePlatformOverrideComponent(camera, saveComponent, "windows"));
+            editableWindowsCamera.FarPlaneDistance = 200f;
+            platformEditingService.MarkPropertyOverride(camera, saveComponent, "windows", nameof(CameraComponent.FarPlaneDistance));
+            platformEditingService.PersistPlatformOverride(camera, editableWindowsCamera, saveComponent, "windows");
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
+            CameraComponent loadedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedEntity.Components, component => component is CameraComponent));
+            EntitySaveComponent loadedSaveComponent = GetSaveComponent(loadedEntity);
+
+            Assert.True(loadedSaveComponent.TryGetComponentState(loadedCamera, out EntityComponentSaveState loadedComponentSaveState));
+            Assert.True(loadedComponentSaveState.TryGetPlatformOverride("windows", out EntityComponentPlatformOverrideState loadedOverrideState));
+            Assert.True(loadedOverrideState.HasPropertyOverride(nameof(CameraComponent.FarPlaneDistance)));
+
+            platformEditingService = new ComponentPlatformEditingService();
+            CameraComponent loadedEditableWindowsCamera = Assert.IsType<CameraComponent>(platformEditingService.ResolveEditableComponent(loadedCamera, loadedSaveComponent, "windows"));
+            Assert.Equal(200f, loadedEditableWindowsCamera.FarPlaneDistance);
+
+            loadedCamera.FarPlaneDistance = 150f;
+            platformEditingService.ClearPropertyOverride(loadedCamera, loadedSaveComponent, "windows", nameof(CameraComponent.FarPlaneDistance));
+            loadedEditableWindowsCamera = Assert.IsType<CameraComponent>(platformEditingService.ResolveEditableComponent(loadedCamera, loadedSaveComponent, "windows"));
+            Assert.Equal(150f, loadedEditableWindowsCamera.FarPlaneDistance);
+        }
+
+        /// <summary>
+        /// Ensures platform-only components round-trip through scene save and load as editor metadata without being materialized into the live common entity.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenWindowsAddsPlatformOnlyCamera_RoundTripsTheAddedComponentWithoutAddingItToCommon() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            registry.Register(new CameraComponentPersistenceDescriptor());
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "PlatformAddedCamera.helen");
+            EditorEntity entity = CreateUserEntity("PlatformEntity", float3.Zero, float3.One, float4.Identity);
+            EntitySaveComponent saveComponent = GetSaveComponent(entity);
+            ComponentPlatformEditingService platformEditingService = new ComponentPlatformEditingService();
+            EditorComponentAddDescriptor descriptor = new EditorComponentAddDescriptor(
+                "Camera",
+                typeof(CameraComponent),
+                true,
+                target => target.AddComponent(new CameraComponent()));
+
+            EntityPlatformAddedComponentState addedComponentState = platformEditingService.AddPlatformOnlyComponent(descriptor, saveComponent, "windows");
+            CameraComponent addedCamera = Assert.IsType<CameraComponent>(addedComponentState.Component);
+            addedCamera.FarPlaneDistance = 250f;
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset rootEntity = Assert.Single(asset.RootEntities);
+            SceneEntityPlatformComponentOverrideAsset windowsOverride = Assert.Single(rootEntity.PlatformComponentOverrides);
+            SceneEntityPlatformAddedComponentAsset addedCameraAsset = Assert.Single(windowsOverride.AddedComponents);
+            Assert.Equal("windows", windowsOverride.PlatformId);
+            Assert.NotNull(addedCameraAsset.Component);
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
+            EntitySaveComponent loadedSaveComponent = GetSaveComponent(loadedEntity);
+
+            Assert.DoesNotContain(loadedEntity.Components, component => component is CameraComponent);
+
+            IReadOnlyList<EntityPlatformAddedComponentState> loadedAddedComponents = platformEditingService.GetAddedComponents(loadedSaveComponent, "windows");
+            EntityPlatformAddedComponentState loadedAddedComponentState = Assert.Single(loadedAddedComponents);
+            CameraComponent loadedAddedCamera = Assert.IsType<CameraComponent>(loadedAddedComponentState.Component);
+            Assert.Equal(250f, loadedAddedCamera.FarPlaneDistance);
+        }
+
+        /// <summary>
         /// Ensures save fails clearly when one user component falls into automatic persistence but exposes an unsupported reflected member type.
         /// </summary>
         [Fact]

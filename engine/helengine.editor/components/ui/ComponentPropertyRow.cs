@@ -172,5 +172,25 @@ namespace helengine.editor {
         /// Gets or sets the interactable surface used by one custom section row.
         /// </summary>
         public InteractableComponent HeaderInteractable { get; set; }
+
+        /// <summary>
+        /// Gets or sets the outline shown when the row is explicitly overridden on the active platform.
+        /// </summary>
+        public RoundedRectComponent OverrideOutline { get; set; }
+
+        /// <summary>
+        /// Gets or sets the host entity for the row-level revert button.
+        /// </summary>
+        public EditorEntity RevertButtonHost { get; set; }
+
+        /// <summary>
+        /// Gets or sets the row-level revert button component.
+        /// </summary>
+        public ButtonComponent RevertButton { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the row is currently overridden on the active platform.
+        /// </summary>
+        public bool IsOverrideActive { get; set; }
     }
 }

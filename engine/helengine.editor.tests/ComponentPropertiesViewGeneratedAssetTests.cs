@@ -148,6 +148,49 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures generated material picks on platform-only added components store the generated reference in the detached component save-state.
+        /// </summary>
+        [Fact]
+        public void HandleMaterialPicked_WhenPlatformOnlyMeshEntryIsGenerated_StoresTheReferenceInTheAddedComponentSaveState() {
+            TestRuntimeMaterial runtimeMaterial = new TestRuntimeMaterial();
+            GeneratedAssetProviderRegistry.Register(new TestGeneratedAssetProvider(
+                "engine",
+                new[] {
+                    AssetBrowserEntry.CreateGeneratedAsset("Standard", "Engine/Materials/Standard", AssetEntryKind.Material, "engine", EngineGeneratedMaterialCache.StandardAssetId)
+                },
+                new TestRuntimeModel(),
+                runtimeMaterial));
+
+            EditorEntity entity = new EditorEntity();
+            EntitySaveComponent saveComponent = GetSaveComponent(entity);
+            ComponentPlatformEditingService platformEditingService = new ComponentPlatformEditingService();
+            EditorComponentAddDescriptor descriptor = new EditorComponentAddDescriptor(
+                "Mesh",
+                typeof(MeshComponent),
+                true,
+                target => target.AddComponent(new MeshComponent()));
+            EntityPlatformAddedComponentState addedComponentState = platformEditingService.AddPlatformOnlyComponent(descriptor, saveComponent, "windows");
+
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
+            view.ShowComponents(entity, "windows");
+
+            ComponentPropertyRow materialRow = FindMaterialRow(view);
+            MethodInfo handleMaterialPicked = typeof(ComponentPropertiesView).GetMethod("HandleMaterialPicked", BindingFlags.Instance | BindingFlags.NonPublic);
+            handleMaterialPicked.Invoke(view, new object[] {
+                materialRow,
+                AssetBrowserEntry.CreateGeneratedAsset("Standard", "Engine/Materials/Standard", AssetEntryKind.Material, "engine", EngineGeneratedMaterialCache.StandardAssetId)
+            });
+
+            MeshComponent addedMesh = Assert.IsType<MeshComponent>(addedComponentState.Component);
+            Assert.Same(runtimeMaterial, addedMesh.Material);
+            Assert.Equal("Standard", materialRow.ValueText.Text);
+            Assert.True(addedComponentState.SaveState.TryGetAssetReference("Material", out SceneAssetReference reference));
+            Assert.Equal(SceneAssetReferenceSourceKind.Generated, reference.SourceKind);
+            Assert.Equal("engine", reference.ProviderId);
+            Assert.Equal(EngineGeneratedMaterialCache.StandardAssetId, reference.AssetId);
+        }
+
+        /// <summary>
         /// Creates one entity and attaches the supplied component so the properties view can inspect it.
         /// </summary>
         /// <param name="component">Component to add to the entity.</param>

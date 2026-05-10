@@ -95,7 +95,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(0f, firstSection.Root.Position.X);
             Assert.Equal(8f, firstSection.TitleHost.Position.X);
-            Assert.Equal(420 - removeButtonWidth - 16, firstSection.TitleText.Size.X);
+            Assert.Equal(420 - removeButtonWidth - 16 - 6, firstSection.TitleText.Size.X);
             Assert.Equal(420, firstSection.Background.Size.X);
             Assert.Equal(ThemeManager.Colors.AccentSecondary, firstSection.Background.Color);
             Assert.Equal(ThemeManager.Colors.InputForegroundPrimary, firstSection.TitleText.Color);
@@ -379,6 +379,199 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the shared platform tab strip is parented into the transform section and uses local transform-section coordinates.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenEntityIsSelected_ParentsPlatformTabsIntoTransformSection() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            panel.Position = new float3(160f, 120f, 0f);
+            panel.Size = new int2(320, 420);
+
+            EditorEntity entity = new EditorEntity {
+                Name = "Cube"
+            };
+            entity.AddComponent(new CameraComponent());
+
+            panel.ShowEntityProperties(entity);
+
+            PlatformTabStripView tabStrip = GetPrivateField<PlatformTabStripView>(panel, "ComponentPlatformTabStrip");
+            EditorEntity transformRoot = GetPrivateField<EditorEntity>(panel, "TransformRoot");
+
+            Assert.Same(transformRoot, tabStrip.Root.Parent);
+            Assert.True(tabStrip.Root.LocalPosition.Y >= 0f);
+            Assert.True(tabStrip.Root.LocalPosition.Y < panel.Size.Y);
+        }
+
+        /// <summary>
+        /// Ensures the entity platform tab strip creates visible tab hosts with a non-zero clipped viewport after one full entity layout pass.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenEntityIsSelected_CreatesVisiblePlatformTabHosts() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            panel.Size = new int2(320, 420);
+
+            EditorEntity entity = new EditorEntity {
+                Name = "Cube"
+            };
+            entity.AddComponent(new CameraComponent());
+
+            panel.ShowEntityProperties(entity);
+
+            PlatformTabStripView tabStrip = GetPrivateField<PlatformTabStripView>(panel, "ComponentPlatformTabStrip");
+            List<EditorEntity> tabHosts = GetPrivateField<List<EditorEntity>>(tabStrip, "TabHosts");
+            ClipRectComponent viewportClipRect = GetPrivateField<ClipRectComponent>(tabStrip, "ViewportClipRect");
+
+            Assert.NotEmpty(tabHosts);
+            Assert.All(tabHosts, host => Assert.True(host.Enabled));
+            Assert.True(viewportClipRect.Size.X > 0);
+            Assert.True(viewportClipRect.Size.Y > 0);
+        }
+
+        /// <summary>
+        /// Ensures the laid-out properties panel emits visible rounded-rectangle and glyph commands for the shared platform tabs.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenEntityIsSelected_EmitsVisiblePlatformTabRenderCommands() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            panel.Position = new float3(160f, 120f, 0f);
+            panel.Size = new int2(320, 420);
+
+            EditorEntity entity = new EditorEntity {
+                Name = "Cube"
+            };
+            entity.AddComponent(new CameraComponent());
+
+            panel.ShowEntityProperties(entity);
+
+            CameraComponent contentCamera = GetPrivateField<CameraComponent>(panel, "ContentCameraComponent");
+            PlatformTabStripView tabStrip = GetPrivateField<PlatformTabStripView>(panel, "ComponentPlatformTabStrip");
+            List<EditorEntity> tabHosts = GetPrivateField<List<EditorEntity>>(tabStrip, "TabHosts");
+            EditorEntity firstTabHost = Assert.IsType<EditorEntity>(tabHosts[0]);
+            RenderCommandList2D commands = new RenderCommandListBuilder2D().Build(contentCamera.RenderQueue2D);
+            float expectedLeft = firstTabHost.Position.X;
+            float expectedTop = firstTabHost.Position.Y;
+            bool foundRoundedRect = false;
+            bool foundGlyph = false;
+            bool foundPositiveClipForTab = false;
+            Stack<float4> activeClipStack = new Stack<float4>();
+
+            for (int commandIndex = 0; commandIndex < commands.Count; commandIndex++) {
+                if (commands.GetCommandType(commandIndex) == RenderCommand2DType.ClipPush) {
+                    int payloadIndex = commands.GetClipPushPayloadIndex(commandIndex);
+                    activeClipStack.Push(commands.GetClipPushRect(payloadIndex));
+                } else if (commands.GetCommandType(commandIndex) == RenderCommand2DType.ClipPop) {
+                    activeClipStack.Pop();
+                } else if (commands.GetCommandType(commandIndex) == RenderCommand2DType.RoundedRect) {
+                    int payloadIndex = commands.GetRoundedRectPayloadIndex(commandIndex);
+                    float4 bounds = commands.GetRoundedRectBounds(payloadIndex);
+                    if (Math.Abs(bounds.X - expectedLeft) < 0.5f
+                        && Math.Abs(bounds.Y - expectedTop) < 0.5f
+                        && Math.Abs(bounds.Z - 96f) < 0.5f
+                        && Math.Abs(bounds.W - 24f) < 0.5f) {
+                        foundRoundedRect = true;
+                        if (activeClipStack.Count > 0) {
+                            float4 clipRect = activeClipStack.Peek();
+                            float clippedRight = Math.Min(bounds.X + bounds.Z, clipRect.X + clipRect.Z);
+                            float clippedBottom = Math.Min(bounds.Y + bounds.W, clipRect.Y + clipRect.W);
+                            float clippedLeft = Math.Max(bounds.X, clipRect.X);
+                            float clippedTop = Math.Max(bounds.Y, clipRect.Y);
+                            foundPositiveClipForTab = clippedRight > clippedLeft && clippedBottom > clippedTop;
+                        }
+                    }
+                } else if (commands.GetCommandType(commandIndex) == RenderCommand2DType.GlyphQuad) {
+                    int payloadIndex = commands.GetGlyphQuadPayloadIndex(commandIndex);
+                    float4 bounds = commands.GetGlyphQuadBounds(payloadIndex);
+                    if (bounds.X >= expectedLeft
+                        && bounds.X < expectedLeft + 96f
+                        && bounds.Y >= expectedTop
+                        && bounds.Y < expectedTop + 24f) {
+                        foundGlyph = true;
+                    }
+                }
+            }
+
+            Assert.True(foundRoundedRect);
+            Assert.True(foundGlyph);
+            Assert.True(foundPositiveClipForTab);
+        }
+
+        /// <summary>
+        /// Ensures switching from entity inspection to a scene-asset summary hides the shared component platform strip instead of leaving stale tab-strip state behind.
+        /// </summary>
+        [Fact]
+        public void ShowSceneAssetSummary_AfterEntityProperties_HidesComponentPlatformTabStrip() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Cube"
+            };
+            entity.AddComponent(new CameraComponent());
+            AssetBrowserEntry sceneEntry = AssetBrowserEntry.CreateFileSystemFile(
+                "test.scene",
+                "scenes/test.scene",
+                Path.Combine(TempRootPath, "scenes", "test.scene"),
+                ".scene",
+                AssetEntryKind.Scene);
+
+            panel.ShowEntityProperties(entity);
+            panel.ShowSceneAssetSummary(sceneEntry);
+
+            PlatformTabStripView tabStrip = GetPrivateField<PlatformTabStripView>(panel, "ComponentPlatformTabStrip");
+
+            Assert.False(tabStrip.Root.Enabled);
+        }
+
+        /// <summary>
+        /// Ensures one properties panel content camera does not render the shared platform tabs that belong to a different properties panel instance.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenTwoPropertiesPanelsExist_DoesNotRenderSiblingPanelPlatformTabs() {
+            PropertiesPanel firstPanel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            PropertiesPanel secondPanel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            firstPanel.Position = new float3(40f, 60f, 0f);
+            firstPanel.Size = new int2(320, 420);
+            secondPanel.Position = new float3(420f, 60f, 0f);
+            secondPanel.Size = new int2(320, 420);
+
+            EditorEntity firstEntity = new EditorEntity {
+                Name = "First"
+            };
+            firstEntity.AddComponent(new CameraComponent());
+            EditorEntity secondEntity = new EditorEntity {
+                Name = "Second"
+            };
+            secondEntity.AddComponent(new CameraComponent());
+
+            firstPanel.ShowEntityProperties(firstEntity);
+            secondPanel.ShowEntityProperties(secondEntity);
+            Core.Instance.ObjectManager.Update();
+
+            PlatformTabStripView secondTabStrip = GetPrivateField<PlatformTabStripView>(secondPanel, "ComponentPlatformTabStrip");
+            List<EditorEntity> secondTabHosts = GetPrivateField<List<EditorEntity>>(secondTabStrip, "TabHosts");
+            EditorEntity secondFirstTabHost = Assert.IsType<EditorEntity>(secondTabHosts[0]);
+            CameraComponent firstContentCamera = GetPrivateField<CameraComponent>(firstPanel, "ContentCameraComponent");
+            RenderCommandList2D commands = new RenderCommandListBuilder2D().Build(firstContentCamera.RenderQueue2D);
+            bool foundSiblingTabRoundedRect = false;
+
+            for (int commandIndex = 0; commandIndex < commands.Count; commandIndex++) {
+                if (commands.GetCommandType(commandIndex) != RenderCommand2DType.RoundedRect) {
+                    continue;
+                }
+
+                int payloadIndex = commands.GetRoundedRectPayloadIndex(commandIndex);
+                float4 bounds = commands.GetRoundedRectBounds(payloadIndex);
+                if (Math.Abs(bounds.X - secondFirstTabHost.Position.X) < 0.5f
+                    && Math.Abs(bounds.Y - secondFirstTabHost.Position.Y) < 0.5f
+                    && Math.Abs(bounds.Z - 96f) < 0.5f
+                    && Math.Abs(bounds.W - 24f) < 0.5f) {
+                    foundSiblingTabRoundedRect = true;
+                    break;
+                }
+            }
+
+            Assert.False(foundSiblingTabRoundedRect);
+        }
+
+        /// <summary>
         /// Ensures the component modals can be attached to a shared top-level host instead of the docked panel.
         /// </summary>
         [Fact]
@@ -561,8 +754,8 @@ namespace helengine.editor.tests {
         public void HandleSectionRemoveClicked_RaisesRemoveRequestedForTheSectionComponent() {
             ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(TempRootPath));
             EditorEntity entity = CreateEntityWithVisibleComponents();
-            Component removedComponent = null;
-            view.RemoveRequested += value => removedComponent = value;
+            ComponentSectionView removedSection = null;
+            view.RemoveRequested += value => removedSection = value;
 
             view.ShowComponents(entity);
 
@@ -570,7 +763,7 @@ namespace helengine.editor.tests {
 
             InvokePrivate(view, "HandleSectionRemoveClicked", sections[0]);
 
-            Assert.Same(sections[0].TargetComponent, removedComponent);
+            Assert.Same(sections[0], removedSection);
         }
 
         /// <summary>
@@ -746,6 +939,150 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures adding a component from a non-common platform tab creates a platform-only section instead of mutating the live common entity component list.
+        /// </summary>
+        [Fact]
+        public void HandleAddComponentSelected_WhenWindowsTabAddsMesh_KeepsTheLiveEntityCommonAndShowsTheComponentOnlyOnWindows() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Cube"
+            };
+            EditorComponentAddDescriptor descriptor = new EditorComponentAddDescriptor(
+                "Mesh",
+                typeof(MeshComponent),
+                true,
+                target => target.AddComponent(new MeshComponent()));
+
+            panel.ShowEntityProperties(entity, new[] { "windows" });
+            SelectInspectorPlatform(panel, "windows");
+
+            InvokePrivate(panel, "HandleAddComponentSelected", descriptor);
+
+            Assert.DoesNotContain(entity.Components, value => value is MeshComponent);
+
+            SelectInspectorPlatform(panel, "common");
+            ComponentPropertiesView commonView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            List<ComponentSectionView> commonSections = GetPrivateField<List<ComponentSectionView>>(commonView, "ActiveSections");
+            Assert.DoesNotContain(commonSections, value => value.TargetComponent is MeshComponent);
+
+            SelectInspectorPlatform(panel, "windows");
+            ComponentPropertiesView windowsView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            List<ComponentSectionView> windowsSections = GetPrivateField<List<ComponentSectionView>>(windowsView, "ActiveSections");
+            Assert.Contains(windowsSections, value => value.TargetComponent is MeshComponent);
+        }
+
+        /// <summary>
+        /// Ensures platform-only component sections show header-level revert chrome and can be reverted back to common behavior.
+        /// </summary>
+        [Fact]
+        public void HandleAddComponentSelected_WhenWindowsTabAddsMesh_ShowsHeaderRevertChromeAndCanRevertThePlatformOnlySection() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = new EditorEntity {
+                Name = "Cube"
+            };
+            EditorComponentAddDescriptor descriptor = new EditorComponentAddDescriptor(
+                "Mesh",
+                typeof(MeshComponent),
+                true,
+                target => target.AddComponent(new MeshComponent()));
+
+            panel.ShowEntityProperties(entity, new[] { "windows" });
+            SelectInspectorPlatform(panel, "windows");
+            InvokePrivate(panel, "HandleAddComponentSelected", descriptor);
+            SelectInspectorPlatform(panel, "windows");
+
+            ComponentPropertiesView windowsView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            List<ComponentSectionView> windowsSections = GetPrivateField<List<ComponentSectionView>>(windowsView, "ActiveSections");
+            ComponentSectionView meshSection = Assert.Single(windowsSections, value => value.TargetComponent is MeshComponent);
+
+            Assert.True(meshSection.IsPlatformOnlyComponent);
+            Assert.False(meshSection.IsRemovedOnPlatform);
+            Assert.NotNull(meshSection.RevertButtonHost);
+            Assert.NotNull(meshSection.HeaderOverrideOutline);
+            Assert.True(meshSection.RevertButtonHost.Enabled);
+            Assert.False(meshSection.RemoveButtonHost.Enabled);
+            Assert.True(meshSection.HeaderOverrideOutline.BorderThickness > 0f);
+
+            InvokePrivate(windowsView, "HandleSectionRevertClicked", meshSection);
+
+            windowsSections = GetPrivateField<List<ComponentSectionView>>(windowsView, "ActiveSections");
+            Assert.DoesNotContain(windowsSections, value => value.TargetComponent is MeshComponent);
+        }
+
+        /// <summary>
+        /// Ensures removing a common component from a non-common platform tab creates a platform removal override instead of deleting the live common component.
+        /// </summary>
+        [Fact]
+        public void HandleRemoveComponentConfirmed_WhenWindowsTabRemovesMesh_KeepsTheLiveMeshAndHidesItOnlyOnWindows() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = CreateEntityWithVisibleComponents();
+
+            panel.ShowEntityProperties(entity, new[] { "windows" });
+            SelectInspectorPlatform(panel, "windows");
+
+            ComponentPropertiesView windowsView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            List<ComponentSectionView> windowsSections = GetPrivateField<List<ComponentSectionView>>(windowsView, "ActiveSections");
+            ComponentSectionView meshSection = Assert.Single(windowsSections, value => value.TargetComponent is MeshComponent);
+
+            InvokePrivate(windowsView, "HandleSectionRemoveClicked", meshSection);
+            InvokePrivate(panel, "HandleRemoveComponentConfirmed");
+
+            Assert.Contains(entity.Components, value => value is MeshComponent);
+
+            SelectInspectorPlatform(panel, "common");
+            ComponentPropertiesView commonView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            List<ComponentSectionView> commonSections = GetPrivateField<List<ComponentSectionView>>(commonView, "ActiveSections");
+            Assert.Contains(commonSections, value => value.TargetComponent is MeshComponent);
+
+            SelectInspectorPlatform(panel, "windows");
+            windowsView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            windowsSections = GetPrivateField<List<ComponentSectionView>>(windowsView, "ActiveSections");
+            Assert.DoesNotContain(windowsSections, value => value.TargetComponent is MeshComponent && value.Rows.Count > 0);
+        }
+
+        /// <summary>
+        /// Ensures platform removal placeholders show header-level revert chrome and restore the common component when reverted.
+        /// </summary>
+        [Fact]
+        public void HandleRemoveComponentConfirmed_WhenWindowsTabRemovesMesh_ShowsHeaderRevertChromeAndRestoresTheSectionWhenReverted() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(TempRootPath));
+            EditorEntity entity = CreateEntityWithVisibleComponents();
+
+            panel.ShowEntityProperties(entity, new[] { "windows" });
+            SelectInspectorPlatform(panel, "windows");
+
+            ComponentPropertiesView windowsView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            List<ComponentSectionView> windowsSections = GetPrivateField<List<ComponentSectionView>>(windowsView, "ActiveSections");
+            ComponentSectionView meshSection = Assert.Single(windowsSections, value => value.TargetComponent is MeshComponent);
+
+            InvokePrivate(windowsView, "HandleSectionRemoveClicked", meshSection);
+            InvokePrivate(panel, "HandleRemoveComponentConfirmed");
+            SelectInspectorPlatform(panel, "windows");
+
+            windowsSections = GetPrivateField<List<ComponentSectionView>>(windowsView, "ActiveSections");
+            ComponentSectionView removedMeshSection = Assert.Single(windowsSections, value => value.TargetComponent is MeshComponent);
+
+            Assert.False(removedMeshSection.IsPlatformOnlyComponent);
+            Assert.True(removedMeshSection.IsRemovedOnPlatform);
+            Assert.Empty(removedMeshSection.Rows);
+            Assert.NotNull(removedMeshSection.RevertButtonHost);
+            Assert.NotNull(removedMeshSection.HeaderOverrideOutline);
+            Assert.True(removedMeshSection.RevertButtonHost.Enabled);
+            Assert.False(removedMeshSection.RemoveButtonHost.Enabled);
+            Assert.True(removedMeshSection.HeaderOverrideOutline.BorderThickness > 0f);
+
+            InvokePrivate(windowsView, "HandleSectionRevertClicked", removedMeshSection);
+
+            windowsSections = GetPrivateField<List<ComponentSectionView>>(windowsView, "ActiveSections");
+            ComponentSectionView restoredMeshSection = Assert.Single(windowsSections, value => value.TargetComponent is MeshComponent);
+            Assert.False(restoredMeshSection.IsRemovedOnPlatform);
+            Assert.NotEmpty(restoredMeshSection.Rows);
+            Assert.False(restoredMeshSection.RevertButtonHost.Enabled);
+            Assert.True(restoredMeshSection.RemoveButtonHost.Enabled);
+            Assert.Equal(0f, restoredMeshSection.HeaderOverrideOutline.BorderThickness);
+        }
+
+        /// <summary>
         /// Creates one editor entity with two visible scene components.
         /// </summary>
         /// <returns>Entity used by the component-shell tests.</returns>
@@ -801,6 +1138,16 @@ namespace helengine.editor.tests {
             }
 
             throw new InvalidOperationException($"Component '{typeof(T).FullName}' was not found on entity '{entity.GetType().FullName}'.");
+        }
+
+        /// <summary>
+        /// Switches the component inspector into one platform context.
+        /// </summary>
+        /// <param name="panel">Panel whose platform context should change.</param>
+        /// <param name="platformId">Platform identifier to activate.</param>
+        void SelectInspectorPlatform(PropertiesPanel panel, string platformId) {
+            MethodInfo method = FindPrivateMethod(panel.GetType(), "HandleComponentPlatformTabChanged");
+            method.Invoke(panel, new object[] { platformId });
         }
 
         /// <summary>

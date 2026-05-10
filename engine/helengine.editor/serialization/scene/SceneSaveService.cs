@@ -27,6 +27,14 @@ namespace helengine.editor {
         /// Service that wraps component payloads with editor-only platform override metadata.
         /// </summary>
         readonly ComponentPlatformOverridePayloadService OverridePayloadService;
+        /// <summary>
+        /// Service that resolves common entity transforms separately from projected platform overrides during serialization.
+        /// </summary>
+        readonly EntityPlatformTransformEditingService TransformEditingService;
+        /// <summary>
+        /// Service that owns stable component keys and entity-level platform component existence overrides.
+        /// </summary>
+        readonly ComponentPlatformEditingService ComponentEditingService;
 
         /// <summary>
         /// Initializes a new scene save service for one project root.
@@ -46,6 +54,8 @@ namespace helengine.editor {
             PersistenceRegistry = persistenceRegistry;
             EntityReferenceTable = new SceneEntityReferenceTable();
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
+            TransformEditingService = new EntityPlatformTransformEditingService();
+            ComponentEditingService = new ComponentPlatformEditingService();
         }
 
         /// <summary>
@@ -141,6 +151,10 @@ namespace helengine.editor {
 
             List<SceneComponentAssetRecord> componentRecords = new List<SceneComponentAssetRecord>();
             EntitySaveComponent saveComponent = FindEntitySaveComponent(entity);
+            if (saveComponent != null) {
+                TransformEditingService.PersistActivePlatform(entity, saveComponent);
+            }
+
             string entityId = EntityReferenceTable.GetOrCreateEntityId(entity);
             int persistedComponentIndex = 0;
             if (entity.Components != null) {
@@ -152,16 +166,22 @@ namespace helengine.editor {
 
                     EntityComponentSaveState saveState = null;
                     if (saveComponent != null) {
-                        saveComponent.TryGetComponentState(component, out saveState);
+                        saveState = saveComponent.GetOrCreateComponentState(component);
+                        saveState.ComponentKey = ComponentEditingService.EnsureComponentKey(component, saveComponent);
                     }
 
                     IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(component);
                     SceneComponentAssetRecord baseRecord = descriptor.SerializeComponent(component, persistedComponentIndex, saveState);
+                    if (saveState != null) {
+                        baseRecord.ComponentKey = saveState.ComponentKey;
+                    }
                     componentRecords.Add(OverridePayloadService.Wrap(baseRecord, saveState));
                     AppendAssetReferences(saveState, assetReferences, assetReferenceKeys);
                     persistedComponentIndex++;
                 }
             }
+
+            AppendPlatformComponentOverrideAssetReferences(saveComponent, assetReferences, assetReferenceKeys);
 
             List<SceneEntityAsset> childEntities = new List<SceneEntityAsset>();
             if (entity.Children != null) {
@@ -183,11 +203,156 @@ namespace helengine.editor {
             return new SceneEntityAsset {
                 Id = entityId,
                 Name = entity.Name,
-                LocalPosition = entity.LocalPosition,
-                LocalScale = entity.LocalScale,
-                LocalOrientation = entity.LocalOrientation,
+                LocalPosition = ResolveSerializedLocalPosition(entity, saveComponent),
+                LocalScale = ResolveSerializedLocalScale(entity, saveComponent),
+                LocalOrientation = ResolveSerializedLocalOrientation(entity, saveComponent),
                 Components = componentRecords.ToArray(),
+                PlatformTransformOverrides = ClonePlatformTransformOverrides(saveComponent),
+                PlatformComponentOverrides = ClonePlatformComponentOverrides(saveComponent),
                 Children = childEntities.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Resolves the common local position that should be serialized for one entity.
+        /// </summary>
+        /// <param name="entity">Entity whose local position should be serialized.</param>
+        /// <param name="saveComponent">Hidden save component that may hold a projected common transform snapshot.</param>
+        /// <returns>Common local position to serialize.</returns>
+        float3 ResolveSerializedLocalPosition(EditorEntity entity, EntitySaveComponent saveComponent) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            if (saveComponent == null) {
+                return entity.LocalPosition;
+            }
+
+            return TransformEditingService.ResolveSerializedLocalPosition(entity, saveComponent);
+        }
+
+        /// <summary>
+        /// Resolves the common local scale that should be serialized for one entity.
+        /// </summary>
+        /// <param name="entity">Entity whose local scale should be serialized.</param>
+        /// <param name="saveComponent">Hidden save component that may hold a projected common transform snapshot.</param>
+        /// <returns>Common local scale to serialize.</returns>
+        float3 ResolveSerializedLocalScale(EditorEntity entity, EntitySaveComponent saveComponent) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            if (saveComponent == null) {
+                return entity.LocalScale;
+            }
+
+            return TransformEditingService.ResolveSerializedLocalScale(entity, saveComponent);
+        }
+
+        /// <summary>
+        /// Resolves the common local orientation that should be serialized for one entity.
+        /// </summary>
+        /// <param name="entity">Entity whose local orientation should be serialized.</param>
+        /// <param name="saveComponent">Hidden save component that may hold a projected common transform snapshot.</param>
+        /// <returns>Common local orientation to serialize.</returns>
+        float4 ResolveSerializedLocalOrientation(EditorEntity entity, EntitySaveComponent saveComponent) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            if (saveComponent == null) {
+                return entity.LocalOrientation;
+            }
+
+            return TransformEditingService.ResolveSerializedLocalOrientation(entity, saveComponent);
+        }
+
+        /// <summary>
+        /// Clones the entity transform overrides stored on one hidden save component into serializable scene asset payloads.
+        /// </summary>
+        /// <param name="saveComponent">Hidden save component that owns the transform override metadata.</param>
+        /// <returns>Cloned scene-asset transform override payloads.</returns>
+        SceneEntityPlatformTransformOverrideAsset[] ClonePlatformTransformOverrides(EntitySaveComponent saveComponent) {
+            if (saveComponent == null) {
+                return Array.Empty<SceneEntityPlatformTransformOverrideAsset>();
+            }
+
+            List<SceneEntityPlatformTransformOverrideAsset> overrideAssets = new List<SceneEntityPlatformTransformOverrideAsset>();
+            foreach (SceneEntityPlatformTransformOverrideAsset overrideState in saveComponent.EnumerateTransformPlatformOverrides()) {
+                if (overrideState == null) {
+                    continue;
+                }
+
+                overrideAssets.Add(new SceneEntityPlatformTransformOverrideAsset {
+                    PlatformId = overrideState.PlatformId,
+                    HasLocalPositionOverride = overrideState.HasLocalPositionOverride,
+                    LocalPosition = overrideState.LocalPosition,
+                    HasLocalScaleOverride = overrideState.HasLocalScaleOverride,
+                    LocalScale = overrideState.LocalScale,
+                    HasLocalOrientationOverride = overrideState.HasLocalOrientationOverride,
+                    LocalOrientation = overrideState.LocalOrientation
+                });
+            }
+
+            return overrideAssets.ToArray();
+        }
+
+        /// <summary>
+        /// Clones the entity component existence overrides stored on one hidden save component into serializable scene asset payloads.
+        /// </summary>
+        /// <param name="saveComponent">Hidden save component that owns the component existence override metadata.</param>
+        /// <returns>Cloned scene-asset component existence override payloads.</returns>
+        SceneEntityPlatformComponentOverrideAsset[] ClonePlatformComponentOverrides(EntitySaveComponent saveComponent) {
+            if (saveComponent == null) {
+                return Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
+            }
+
+            List<SceneEntityPlatformComponentOverrideAsset> overrideAssets = new List<SceneEntityPlatformComponentOverrideAsset>();
+            foreach (EntityPlatformComponentOverrideState overrideState in saveComponent.EnumerateComponentPlatformOverrides()) {
+                if (overrideState == null || !overrideState.HasAnyOverrides) {
+                    continue;
+                }
+
+                List<string> removedComponentKeys = new List<string>();
+                foreach (string componentKey in overrideState.EnumerateRemovedComponentKeys()) {
+                    if (!string.IsNullOrWhiteSpace(componentKey)) {
+                        removedComponentKeys.Add(componentKey);
+                    }
+                }
+
+                List<SceneEntityPlatformAddedComponentAsset> addedComponents = new List<SceneEntityPlatformAddedComponentAsset>();
+                foreach (EntityPlatformAddedComponentState addedComponentState in overrideState.EnumerateAddedComponents()) {
+                    SceneEntityPlatformAddedComponentAsset addedComponentAsset = SerializeAddedComponent(addedComponentState);
+                    if (addedComponentAsset != null) {
+                        addedComponents.Add(addedComponentAsset);
+                    }
+                }
+
+                overrideAssets.Add(new SceneEntityPlatformComponentOverrideAsset {
+                    PlatformId = overrideState.PlatformId,
+                    RemovedComponentKeys = removedComponentKeys.ToArray(),
+                    AddedComponents = addedComponents.ToArray()
+                });
+            }
+
+            return overrideAssets.ToArray();
+        }
+
+        /// <summary>
+        /// Serializes one detached platform-only component state into the scene payload used by entity-level component existence overrides.
+        /// </summary>
+        /// <param name="addedComponentState">Detached platform-only component state to serialize.</param>
+        /// <returns>Serialized platform-only component payload, or null when the detached state is incomplete.</returns>
+        SceneEntityPlatformAddedComponentAsset SerializeAddedComponent(EntityPlatformAddedComponentState addedComponentState) {
+            if (addedComponentState == null || addedComponentState.Component == null || addedComponentState.SaveState == null) {
+                return null;
+            }
+
+            IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(addedComponentState.Component);
+            SceneComponentAssetRecord componentRecord = descriptor.SerializeComponent(addedComponentState.Component, 0, addedComponentState.SaveState);
+            componentRecord.ComponentKey = addedComponentState.ComponentKey;
+            return new SceneEntityPlatformAddedComponentAsset {
+                Component = componentRecord
             };
         }
 
@@ -218,6 +383,30 @@ namespace helengine.editor {
 
             foreach (EntityComponentPlatformOverrideState overrideState in saveState.EnumeratePlatformOverrides()) {
                 AppendPlatformOverrideAssetReferences(overrideState, assetReferences, assetReferenceKeys);
+            }
+
+        }
+
+        /// <summary>
+        /// Appends asset references used by detached platform-only components into the scene dependency list.
+        /// </summary>
+        /// <param name="saveComponent">Hidden entity save component that owns the platform-only component metadata.</param>
+        /// <param name="assetReferences">Scene-level dependency list being populated.</param>
+        /// <param name="assetReferenceKeys">Deduplication keys for already-queued references.</param>
+        void AppendPlatformComponentOverrideAssetReferences(
+            EntitySaveComponent saveComponent,
+            List<SceneAssetReference> assetReferences,
+            HashSet<string> assetReferenceKeys) {
+            if (saveComponent == null) {
+                return;
+            }
+
+            foreach (EntityPlatformComponentOverrideState componentOverrideState in saveComponent.EnumerateComponentPlatformOverrides()) {
+                foreach (EntityPlatformAddedComponentState addedComponentState in componentOverrideState.EnumerateAddedComponents()) {
+                    if (addedComponentState?.SaveState != null) {
+                        AppendAssetReferences(addedComponentState.SaveState, assetReferences, assetReferenceKeys);
+                    }
+                }
             }
         }
 

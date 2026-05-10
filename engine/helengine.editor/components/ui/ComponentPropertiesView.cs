@@ -35,6 +35,18 @@ namespace helengine.editor {
         /// </summary>
         const int SectionRemoveButtonWidth = 32;
         /// <summary>
+        /// Width reserved for the section-level revert button.
+        /// </summary>
+        const int SectionRevertButtonWidth = 60;
+        /// <summary>
+        /// Height reserved for the section-level revert button.
+        /// </summary>
+        const int SectionRevertButtonHeight = 22;
+        /// <summary>
+        /// Horizontal spacing preserved between the title and the active header action.
+        /// </summary>
+        const int SectionHeaderButtonSpacing = 6;
+        /// <summary>
         /// Height of property rows in pixels.
         /// </summary>
         const int RowHeight = 24;
@@ -59,9 +71,21 @@ namespace helengine.editor {
         /// </summary>
         const int PickButtonWidth = 80;
         /// <summary>
+        /// Width reserved for the row-level revert button.
+        /// </summary>
+        const int RevertButtonWidth = 60;
+        /// <summary>
         /// Height of the material pick button.
         /// </summary>
         const int PickButtonHeight = 22;
+        /// <summary>
+        /// Height of the row-level revert button.
+        /// </summary>
+        const int RevertButtonHeight = 22;
+        /// <summary>
+        /// Border thickness used for row-level override markers.
+        /// </summary>
+        const float OverrideOutlineThickness = 1f;
         /// <summary>
         /// Placeholder text for empty asset values.
         /// </summary>
@@ -199,7 +223,7 @@ namespace helengine.editor {
         /// <summary>
         /// Raised when the user requests to remove one component section.
         /// </summary>
-        public event Action<Component> RemoveRequested;
+        public event Action<ComponentSectionView> RemoveRequested;
 
         /// <summary>
         /// Initializes a new component properties view.
@@ -321,29 +345,53 @@ namespace helengine.editor {
             CurrentPlatformId = platformId;
             ClearActiveRows();
             ClearActiveSections();
-            if (entity.Components == null || entity.Components.Count == 0) {
+            EntitySaveComponent saveComponent = ResolveEntitySaveComponent(entity);
+            bool hasCommonComponents = entity.Components != null && entity.Components.Count > 0;
+            IReadOnlyList<EntityPlatformAddedComponentState> addedComponents = saveComponent != null
+                ? PlatformEditingService.GetAddedComponents(saveComponent, platformId)
+                : Array.Empty<EntityPlatformAddedComponentState>();
+            if (!hasCommonComponents && addedComponents.Count < 1) {
                 RootEntity.Enabled = false;
                 LayoutHeightValue = 0;
                 return;
             }
 
-            EntitySaveComponent saveComponent = ResolveEntitySaveComponent(entity);
-
             RootEntity.Enabled = true;
 
-            for (int i = 0; i < entity.Components.Count; i++) {
-                Component commonComponent = entity.Components[i];
-                if (commonComponent == null) {
-                    continue;
-                }
-                if (commonComponent is IEditorHiddenComponent) {
-                    continue;
-                }
+            if (hasCommonComponents) {
+                for (int i = 0; i < entity.Components.Count; i++) {
+                    Component commonComponent = entity.Components[i];
+                    if (commonComponent == null) {
+                        continue;
+                    }
+                    if (commonComponent is IEditorHiddenComponent) {
+                        continue;
+                    }
 
-                Component editableComponent = ResolveEditableComponent(commonComponent, saveComponent, platformId);
-                ComponentSectionView section = AcquireSection(commonComponent);
-                AddPropertyRows(section, commonComponent, editableComponent, saveComponent, platformId);
-                ActiveSections.Add(section);
+                    if (PlatformEditingService.IsComponentRemoved(commonComponent, saveComponent, platformId)) {
+                        ComponentSectionView removedSection = AcquireSection(commonComponent, commonComponent, saveComponent, platformId, false, true);
+                        ActiveSections.Add(removedSection);
+                        continue;
+                    }
+
+                    Component editableComponent = ResolveEditableComponent(commonComponent, saveComponent, platformId);
+                    ComponentSectionView section = AcquireSection(commonComponent, commonComponent, saveComponent, platformId, false, false);
+                    AddPropertyRows(section, commonComponent, editableComponent, saveComponent, platformId);
+                    ActiveSections.Add(section);
+                }
+            }
+
+            for (int index = 0; index < addedComponents.Count; index++) {
+                EntityPlatformAddedComponentState addedComponentState = addedComponents[index];
+                ComponentSectionView addedSection = AcquireSection(
+                    addedComponentState.Component,
+                    null,
+                    saveComponent,
+                    platformId,
+                    true,
+                    false);
+                AddPropertyRows(addedSection, null, addedComponentState.Component, saveComponent, platformId);
+                ActiveSections.Add(addedSection);
             }
 
             if (ActiveSections.Count == 0) {
@@ -446,6 +494,10 @@ namespace helengine.editor {
                 row.NestedMemberName = null;
                 row.IndentLevel = 0;
                 row.IsExpanded = false;
+                row.IsOverrideActive = false;
+                if (row.RevertButtonHost != null) {
+                    row.RevertButtonHost.Enabled = false;
+                }
                 RowPool.Add(row);
             }
 
@@ -460,6 +512,19 @@ namespace helengine.editor {
                 ComponentSectionView section = ActiveSections[i];
                 section.Root.Enabled = false;
                 section.TargetComponent = null;
+                section.CommonComponent = null;
+                section.SaveComponent = null;
+                section.EditingPlatformId = null;
+                section.IsPlatformOnlyComponent = false;
+                section.IsRemovedOnPlatform = false;
+                section.IsExistenceOverrideActive = false;
+                if (section.HeaderOverrideOutline != null) {
+                    section.HeaderOverrideOutline.BorderThickness = 0f;
+                }
+                if (section.RevertButtonHost != null) {
+                    section.RevertButtonHost.Enabled = false;
+                }
+                section.RemoveButtonHost.Enabled = true;
                 section.Rows.Clear();
                 section.IsCollapsed = false;
                 SectionPool.Add(section);
@@ -515,9 +580,6 @@ namespace helengine.editor {
             ReflectedComponentPropertyDescriptor descriptor) {
             if (section == null) {
                 throw new ArgumentNullException(nameof(section));
-            }
-            if (commonComponent == null) {
-                throw new ArgumentNullException(nameof(commonComponent));
             }
             if (editableComponent == null) {
                 throw new ArgumentNullException(nameof(editableComponent));
@@ -593,9 +655,6 @@ namespace helengine.editor {
             ReflectedComponentPropertyDescriptor descriptor) {
             if (row == null) {
                 throw new ArgumentNullException(nameof(row));
-            }
-            if (commonComponent == null) {
-                throw new ArgumentNullException(nameof(commonComponent));
             }
             if (editableComponent == null) {
                 throw new ArgumentNullException(nameof(editableComponent));
@@ -730,9 +789,6 @@ namespace helengine.editor {
             if (row == null) {
                 throw new ArgumentNullException(nameof(row));
             }
-            if (commonComponent == null) {
-                throw new ArgumentNullException(nameof(commonComponent));
-            }
             if (editableComponent == null) {
                 throw new ArgumentNullException(nameof(editableComponent));
             }
@@ -809,6 +865,131 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.ReadOnly:
                     UpdateReadOnlyRow(row);
                     break;
+            }
+
+            RefreshRowOverrideChrome(row);
+        }
+
+        /// <summary>
+        /// Refreshes the row-level override marker and revert button for the supplied row.
+        /// </summary>
+        /// <param name="row">Row whose override chrome should be updated.</param>
+        void RefreshRowOverrideChrome(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            bool isOverrideActive = false;
+            if (CanRowShowOverrideChrome(row)) {
+                string propertyPath = BuildRowPropertyPath(row);
+                if (!string.IsNullOrWhiteSpace(propertyPath)) {
+                    isOverrideActive = PlatformEditingService.IsPropertyOverrideActive(
+                        row.CommonComponent,
+                        row.TargetComponent,
+                        row.SaveComponent,
+                        row.EditingPlatformId,
+                        propertyPath);
+                }
+            }
+
+            row.IsOverrideActive = isOverrideActive;
+            if (row.RevertButtonHost != null) {
+                row.RevertButtonHost.Enabled = isOverrideActive;
+            }
+            if (row.OverrideOutline != null) {
+                row.OverrideOutline.BorderThickness = isOverrideActive ? OverrideOutlineThickness : 0f;
+            }
+        }
+
+        /// <summary>
+        /// Returns the width reserved for a row-level revert button when the row is currently overridden.
+        /// </summary>
+        /// <param name="row">Row whose revert button width should be resolved.</param>
+        /// <returns>Reserved width in pixels, or zero when the button should remain hidden.</returns>
+        int GetVisibleRevertButtonWidth(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            return row.IsOverrideActive ? RevertButtonWidth : 0;
+        }
+
+        /// <summary>
+        /// Returns whether the supplied row can show row-level override chrome.
+        /// </summary>
+        /// <param name="row">Row to classify.</param>
+        /// <returns>True when the row represents an editable property on a non-common platform tab.</returns>
+        bool CanRowShowOverrideChrome(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            if (row.CommonComponent == null || row.TargetComponent == null || row.SaveComponent == null) {
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(row.EditingPlatformId)
+                || string.Equals(row.EditingPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+            if (row.Kind == ComponentPropertyRowKind.CustomSection || row.Kind == ComponentPropertyRowKind.Header || row.Kind == ComponentPropertyRowKind.ReadOnly) {
+                return false;
+            }
+
+            return row.Property != null;
+        }
+
+        /// <summary>
+        /// Builds the stable property path represented by one visible row.
+        /// </summary>
+        /// <param name="row">Row whose stable property path should be returned.</param>
+        /// <returns>Stable property path for the row, or null when the row does not represent a revertible property.</returns>
+        string BuildRowPropertyPath(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (row.Property == null) {
+                return null;
+            }
+            if (string.IsNullOrWhiteSpace(row.NestedMemberName)) {
+                return row.Property.Name;
+            }
+
+            return string.Concat(row.Property.Name, ".", row.NestedMemberName);
+        }
+
+        /// <summary>
+        /// Handles one row-level revert request by clearing the explicit platform override marker and rebuilding the visible platform view.
+        /// </summary>
+        /// <param name="row">Row whose value should return to common behavior.</param>
+        void HandleRowRevertClicked(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (!CanRowShowOverrideChrome(row)) {
+                return;
+            }
+
+            string propertyPath = BuildRowPropertyPath(row);
+            if (string.IsNullOrWhiteSpace(propertyPath)) {
+                return;
+            }
+
+            PlatformEditingService.ClearPropertyOverride(row.CommonComponent, row.SaveComponent, row.EditingPlatformId, propertyPath);
+            RebuildCurrentComponentView();
+            EditorSceneMutationService.MarkSceneMutated();
+        }
+
+        /// <summary>
+        /// Rebuilds the current component inspector view while preserving the last known layout bounds.
+        /// </summary>
+        void RebuildCurrentComponentView() {
+            if (CurrentEntity == null) {
+                return;
+            }
+
+            ShowComponents(CurrentEntity, CurrentPlatformId);
+            if (HasLayoutState) {
+                UpdateLayout(LastLayoutLeft, LastLayoutTop, LastLayoutWidth);
             }
         }
 
@@ -1558,7 +1739,12 @@ namespace helengine.editor {
                 return;
             }
 
+            string propertyPath = BuildRowPropertyPath(row);
+            if (!string.IsNullOrWhiteSpace(propertyPath)) {
+                PlatformEditingService.MarkPropertyOverride(row.CommonComponent, row.SaveComponent, row.EditingPlatformId, propertyPath);
+            }
             PlatformEditingService.PersistPlatformOverride(row.CommonComponent, row.TargetComponent, row.SaveComponent, row.EditingPlatformId);
+            RefreshRowOverrideChrome(row);
         }
 
         /// <summary>
@@ -1874,9 +2060,26 @@ namespace helengine.editor {
             int indentOffset = row.IndentLevel * (SectionBodyPadding * 2);
             bodyWidth = Math.Max(0, bodyWidth - indentOffset);
             row.Entity.Position = new float3(SectionBodyPadding + indentOffset, top, 0.2f);
-            int labelWidth = (int)Math.Round(bodyWidth * LabelWidthRatio, MidpointRounding.AwayFromZero);
-            if (labelWidth > bodyWidth) {
-                labelWidth = bodyWidth;
+            if (row.OverrideOutline != null) {
+                row.OverrideOutline.Size = new int2(Math.Max(1, bodyWidth), height);
+            }
+
+            int revertButtonWidth = GetVisibleRevertButtonWidth(row);
+            int contentWidth = bodyWidth;
+            if (revertButtonWidth > 0) {
+                contentWidth = Math.Max(0, bodyWidth - revertButtonWidth - FieldSpacing);
+                if (row.RevertButtonHost != null) {
+                    float buttonY = (float)Math.Round((height - RevertButtonHeight) * 0.5);
+                    row.RevertButtonHost.Position = new float3(contentWidth + FieldSpacing, buttonY, 0.2f);
+                }
+                if (row.RevertButton != null) {
+                    row.RevertButton.SetSize(new int2(revertButtonWidth, RevertButtonHeight));
+                }
+            }
+
+            int labelWidth = (int)Math.Round(contentWidth * LabelWidthRatio, MidpointRounding.AwayFromZero);
+            if (labelWidth > contentWidth) {
+                labelWidth = contentWidth;
             }
 
             var labelMetrics = Font.MeasureTight(row.Label.Text ?? string.Empty);
@@ -1886,34 +2089,34 @@ namespace helengine.editor {
 
             switch (row.Kind) {
                 case ComponentPropertyRowKind.Header:
-                    LayoutHeaderRow(row, bodyWidth, height);
+                    LayoutHeaderRow(row, contentWidth, height);
                     break;
                 case ComponentPropertyRowKind.Vector3:
-                    LayoutVectorRow(row, bodyWidth, height, labelWidth);
+                    LayoutVectorRow(row, contentWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Vector4:
-                    LayoutVector4Row(row, bodyWidth, height, labelWidth);
+                    LayoutVector4Row(row, contentWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.CustomSection:
-                    LayoutCustomSectionRow(row, bodyWidth, height);
+                    LayoutCustomSectionRow(row, contentWidth, height);
                     break;
                 case ComponentPropertyRowKind.Material:
-                    LayoutMaterialRow(row, bodyWidth, height, labelWidth);
+                    LayoutMaterialRow(row, contentWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Font:
-                    LayoutMaterialRow(row, bodyWidth, height, labelWidth);
+                    LayoutMaterialRow(row, contentWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Model:
-                    LayoutMaterialRow(row, bodyWidth, height, labelWidth);
+                    LayoutMaterialRow(row, contentWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Boolean:
-                    LayoutBooleanRow(row, bodyWidth, height, labelWidth);
+                    LayoutBooleanRow(row, contentWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Scalar:
-                    LayoutScalarRow(row, bodyWidth, height, labelWidth);
+                    LayoutScalarRow(row, contentWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.ReadOnly:
-                    LayoutReadOnlyRow(row, bodyWidth, height, labelWidth);
+                    LayoutReadOnlyRow(row, contentWidth, height, labelWidth);
                     break;
                 default:
                     break;
@@ -1959,17 +2162,33 @@ namespace helengine.editor {
             section.Root.Enabled = true;
             section.Root.Position = new float3(0f, top, 0.2f);
             section.Background.Size = new int2(safeWidth, SectionHeaderHeight);
+            if (section.HeaderOverrideOutline != null) {
+                section.HeaderOverrideOutline.Size = new int2(safeWidth, SectionHeaderHeight);
+            }
             section.HeaderInteractable.Size = new int2(safeWidth, SectionHeaderHeight);
 
             FontTightMetrics titleMetrics = Font.MeasureTight(section.TitleText.Text ?? string.Empty);
             float titleY = GetTextTopOffset(SectionHeaderHeight, titleMetrics);
             section.TitleHost.Position = new float3(SectionHeaderPadding, titleY, 0.2f);
 
-            int titleWidth = Math.Max(1, safeWidth - SectionHeaderPadding - SectionRemoveButtonWidth - SectionHeaderPadding);
+            int visibleActionWidth = 0;
+            if (section.RemoveButtonHost != null && section.RemoveButtonHost.Enabled) {
+                visibleActionWidth = SectionRemoveButtonWidth + SectionHeaderButtonSpacing;
+            } else if (section.RevertButtonHost != null && section.RevertButtonHost.Enabled) {
+                visibleActionWidth = SectionRevertButtonWidth + SectionHeaderButtonSpacing;
+            }
+            int titleWidth = Math.Max(1, safeWidth - SectionHeaderPadding - visibleActionWidth - SectionHeaderPadding);
             section.TitleText.Size = new int2(titleWidth, Math.Max(1, (int)Math.Ceiling(Math.Max(titleMetrics.Height, Font.LineHeight))));
 
-            int removeButtonX = Math.Max(0, safeWidth - SectionRemoveButtonWidth);
-            section.RemoveButtonHost.Position = new float3(removeButtonX, 0f, 0.2f);
+            if (section.RemoveButtonHost != null && section.RemoveButtonHost.Enabled) {
+                int removeButtonX = Math.Max(0, safeWidth - SectionRemoveButtonWidth);
+                section.RemoveButtonHost.Position = new float3(removeButtonX, 0f, 0.2f);
+            }
+            if (section.RevertButtonHost != null && section.RevertButtonHost.Enabled) {
+                float revertButtonY = (float)Math.Round((SectionHeaderHeight - SectionRevertButtonHeight) * 0.5);
+                int revertButtonX = Math.Max(0, safeWidth - SectionRevertButtonWidth);
+                section.RevertButtonHost.Position = new float3(revertButtonX, revertButtonY, 0.2f);
+            }
         }
 
         /// <summary>
@@ -2114,9 +2333,17 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="component">Component that will own the section.</param>
         /// <returns>Prepared component section.</returns>
-        ComponentSectionView AcquireSection(Component component) {
+        ComponentSectionView AcquireSection(
+            Component component,
+            Component commonComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            bool isPlatformOnlyComponent,
+            bool isRemovedOnPlatform) {
             if (component == null) {
                 throw new ArgumentNullException(nameof(component));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
             ComponentSectionView section;
@@ -2129,10 +2356,18 @@ namespace helengine.editor {
             }
 
             section.TargetComponent = component;
+            section.CommonComponent = commonComponent;
+            section.SaveComponent = saveComponent;
+            section.EditingPlatformId = platformId;
+            section.IsPlatformOnlyComponent = isPlatformOnlyComponent;
+            section.IsRemovedOnPlatform = isRemovedOnPlatform;
             section.TitleText.Text = FormatComponentTitle(component.GetType().Name);
-            section.IsCollapsed = CollapsedStates.TryGetValue(component, out bool isCollapsed) && isCollapsed;
+            section.IsCollapsed = !isRemovedOnPlatform
+                && CollapsedStates.TryGetValue(component, out bool isCollapsed)
+                && isCollapsed;
             section.Root.Enabled = true;
             section.Rows.Clear();
+            RefreshSectionOverrideChrome(section);
             return section;
         }
 
@@ -2154,6 +2389,17 @@ namespace helengine.editor {
                 Size = new int2(1, SectionHeaderHeight)
             };
             root.AddComponent(background);
+
+            RoundedRectComponent headerOverrideOutline = new RoundedRectComponent {
+                Radius = 0f,
+                Corners = RoundedRectCorners.None,
+                FillColor = new byte4(255, 255, 255, 0),
+                BorderThickness = 0f,
+                BorderColor = ResolveOverrideOutlineColor(),
+                RenderOrder2D = RenderOrder2D.PanelForeground,
+                Size = new int2(1, SectionHeaderHeight)
+            };
+            root.AddComponent(headerOverrideOutline);
 
             InteractableComponent interactable = new InteractableComponent {
                 Size = new int2(1, SectionHeaderHeight),
@@ -2184,6 +2430,14 @@ namespace helengine.editor {
             };
             root.AddChild(removeButtonHost);
 
+            EditorEntity revertButtonHost = new EditorEntity {
+                LayerMask = RootEntity.LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true,
+                Enabled = false
+            };
+            root.AddChild(revertButtonHost);
+
             ComponentSectionView section = null;
             section = new ComponentSectionView(
                 root,
@@ -2199,6 +2453,15 @@ namespace helengine.editor {
             section.RemoveButton.UseHoverOnlyBackground();
             section.RemoveButton.UseSquareCorners();
             section.RemoveButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
+            ButtonComponent revertButton = new ButtonComponent("Revert", new int2(SectionRevertButtonWidth, SectionRevertButtonHeight), Font, () => HandleSectionRevertClicked(section), 1f);
+            revertButton.SetRenderOrders(RenderOrder2D.PanelSurface, TextOrder);
+            revertButton.UseHoverOnlyBackground();
+            revertButton.UseSquareCorners();
+            revertButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
+            revertButtonHost.AddComponent(revertButton);
+            section.HeaderOverrideOutline = headerOverrideOutline;
+            section.RevertButtonHost = revertButtonHost;
+            section.RevertButton = revertButton;
             UpdateSectionHeaderVisual(section);
             interactable.CursorEvent += (pos, delta, state) => HandleSectionHeaderCursor(section, pos, state);
 
@@ -2317,7 +2580,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (IsPointerOverSectionRemoveButton(pos, section.Background.Size.X)) {
+            if (IsPointerOverSectionActionButton(section, pos, section.Background.Size.X)) {
                 return;
             }
 
@@ -2338,22 +2601,60 @@ namespace helengine.editor {
             }
 
             if (RemoveRequested != null) {
-                RemoveRequested(section.TargetComponent);
+                RemoveRequested(section);
             }
         }
 
         /// <summary>
-        /// Determines whether a pointer position overlaps the fixed remove button area.
+        /// Reverts one section-level existence override back to common behavior and rebuilds the current view.
         /// </summary>
+        /// <param name="section">Section whose existence override should be cleared.</param>
+        void HandleSectionRevertClicked(ComponentSectionView section) {
+            if (section == null) {
+                throw new ArgumentNullException(nameof(section));
+            }
+            if (!CanSectionShowExistenceOverrideChrome(section)) {
+                return;
+            }
+
+            PlatformEditingService.RevertComponentExistenceOverride(section.TargetComponent, section.SaveComponent, section.EditingPlatformId);
+            RebuildCurrentComponentView();
+            EditorSceneMutationService.MarkSceneMutated();
+        }
+
+        /// <summary>
+        /// Determines whether a pointer position overlaps one visible section action button.
+        /// </summary>
+        /// <param name="section">Section whose button bounds should be queried.</param>
         /// <param name="pos">Pointer position relative to the header.</param>
         /// <param name="headerWidth">Current width of the header.</param>
-        /// <returns>True when the pointer overlaps the remove button area.</returns>
-        bool IsPointerOverSectionRemoveButton(int2 pos, int headerWidth) {
-            int removeButtonX = Math.Max(0, headerWidth - SectionRemoveButtonWidth);
-            return pos.X >= removeButtonX &&
-                   pos.X <= headerWidth &&
-                   pos.Y >= 0 &&
-                   pos.Y <= SectionHeaderHeight;
+        /// <returns>True when the pointer overlaps one visible header action button.</returns>
+        bool IsPointerOverSectionActionButton(ComponentSectionView section, int2 pos, int headerWidth) {
+            if (section == null) {
+                throw new ArgumentNullException(nameof(section));
+            }
+
+            if (section.RemoveButtonHost != null && section.RemoveButtonHost.Enabled) {
+                int removeButtonX = Math.Max(0, headerWidth - SectionRemoveButtonWidth);
+                if (pos.X >= removeButtonX &&
+                    pos.X <= headerWidth &&
+                    pos.Y >= 0 &&
+                    pos.Y <= SectionHeaderHeight) {
+                    return true;
+                }
+            }
+
+            if (section.RevertButtonHost != null && section.RevertButtonHost.Enabled) {
+                int revertButtonX = Math.Max(0, headerWidth - SectionRevertButtonWidth);
+                if (pos.X >= revertButtonX &&
+                    pos.X <= headerWidth &&
+                    pos.Y >= 0 &&
+                    pos.Y <= SectionHeaderHeight) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -2371,6 +2672,48 @@ namespace helengine.editor {
             section.TitleText.Color = section.IsHeaderHovered
                 ? ThemeManager.Colors.TextOnAccent
                 : ThemeManager.Colors.InputForegroundPrimary;
+        }
+
+        /// <summary>
+        /// Refreshes the section-level override chrome and action visibility for one component section.
+        /// </summary>
+        /// <param name="section">Section whose override chrome should be refreshed.</param>
+        void RefreshSectionOverrideChrome(ComponentSectionView section) {
+            if (section == null) {
+                throw new ArgumentNullException(nameof(section));
+            }
+
+            bool isExistenceOverrideActive = CanSectionShowExistenceOverrideChrome(section);
+            section.IsExistenceOverrideActive = isExistenceOverrideActive;
+            if (section.HeaderOverrideOutline != null) {
+                section.HeaderOverrideOutline.BorderThickness = isExistenceOverrideActive ? OverrideOutlineThickness : 0f;
+            }
+            if (section.RevertButtonHost != null) {
+                section.RevertButtonHost.Enabled = isExistenceOverrideActive;
+            }
+            if (section.RemoveButtonHost != null) {
+                section.RemoveButtonHost.Enabled = !isExistenceOverrideActive && section.TargetComponent != null;
+            }
+        }
+
+        /// <summary>
+        /// Returns whether the supplied section should show existence-override chrome on its header.
+        /// </summary>
+        /// <param name="section">Section to classify.</param>
+        /// <returns>True when the section represents a non-common platform-specific existence override.</returns>
+        bool CanSectionShowExistenceOverrideChrome(ComponentSectionView section) {
+            if (section == null) {
+                throw new ArgumentNullException(nameof(section));
+            }
+            if (section.TargetComponent == null || section.SaveComponent == null) {
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(section.EditingPlatformId)
+                || string.Equals(section.EditingPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+
+            return section.IsPlatformOnlyComponent || section.IsRemovedOnPlatform;
         }
 
         /// <summary>
@@ -2393,6 +2736,15 @@ namespace helengine.editor {
             }
 
             return builder.ToString();
+        }
+
+        /// <summary>
+        /// Builds the subtle border color used to mark overridden rows in the inspector.
+        /// </summary>
+        /// <returns>Border color used by row-level override chrome.</returns>
+        byte4 ResolveOverrideOutlineColor() {
+            byte4 accentColor = ThemeManager.Colors.AccentPrimary;
+            return new byte4(accentColor.X, accentColor.Y, accentColor.Z, 160);
         }
 
         /// <summary>
@@ -2423,6 +2775,17 @@ namespace helengine.editor {
             rowEntity.Position = float3.Zero;
             RootEntity.AddChild(rowEntity);
 
+            RoundedRectComponent overrideOutline = new RoundedRectComponent {
+                Radius = 0f,
+                Corners = RoundedRectCorners.None,
+                FillColor = new byte4(255, 255, 255, 0),
+                BorderThickness = OverrideOutlineThickness,
+                BorderColor = ResolveOverrideOutlineColor(),
+                RenderOrder2D = RenderOrder2D.PanelSurface,
+                Size = new int2(1, RowHeight)
+            };
+            rowEntity.AddComponent(overrideOutline);
+
             var labelHost = new EditorEntity();
             labelHost.LayerMask = RootEntity.LayerMask;
             labelHost.Position = float3.Zero;
@@ -2437,6 +2800,22 @@ namespace helengine.editor {
             labelHost.AddComponent(label);
 
             var row = new ComponentPropertyRow(kind, rowEntity, labelHost, label);
+            row.OverrideOutline = overrideOutline;
+
+            var revertButtonHost = new EditorEntity();
+            revertButtonHost.LayerMask = RootEntity.LayerMask;
+            revertButtonHost.Position = float3.Zero;
+            revertButtonHost.Enabled = false;
+            rowEntity.AddChild(revertButtonHost);
+
+            ButtonComponent revertButton = new ButtonComponent("Revert", new int2(RevertButtonWidth, RevertButtonHeight), Font, () => HandleRowRevertClicked(row), 1f);
+            revertButton.SetRenderOrders(RenderOrder2D.PanelSurface, TextOrder);
+            revertButton.UseHoverOnlyBackground();
+            revertButton.UseSquareCorners();
+            revertButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
+            revertButtonHost.AddComponent(revertButton);
+            row.RevertButtonHost = revertButtonHost;
+            row.RevertButton = revertButton;
 
             switch (kind) {
                 case ComponentPropertyRowKind.Vector3:
@@ -2697,7 +3076,7 @@ namespace helengine.editor {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
             }
-            if (row.TargetComponent == null || row.Property == null || row.CommonComponent == null) {
+            if (row.TargetComponent == null || row.Property == null) {
                 return;
             }
             if (row.SaveComponent == null) {
@@ -2705,6 +3084,16 @@ namespace helengine.editor {
             }
 
             SceneAssetReference assetReference = AssetReferenceFactory.CreateFromEntry(entry);
+            if (row.CommonComponent == null) {
+                PlatformEditingService.StoreAddedComponentAssetReference(
+                    row.TargetComponent,
+                    row.SaveComponent,
+                    row.EditingPlatformId ?? ComponentPlatformEditingService.CommonPlatformId,
+                    row.Property.Name,
+                    assetReference);
+                return;
+            }
+
             PlatformEditingService.StoreAssetReference(
                 row.CommonComponent,
                 row.TargetComponent,

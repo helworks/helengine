@@ -4,6 +4,11 @@ namespace helengine {
     /// </summary>
     public class SceneComponentAssetRecord {
         /// <summary>
+        /// Gets or sets the stable editor component key used to match authored components across platform overrides.
+        /// </summary>
+        public string ComponentKey { get; set; }
+
+        /// <summary>
         /// Gets or sets the stable serialized type identifier for the component.
         /// </summary>
         public string ComponentTypeId { get; set; }
