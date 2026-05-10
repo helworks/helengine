@@ -116,7 +116,7 @@ namespace helengine.editor {
                     cancellationToken);
                 MergeGeneratedSourceTree(portableInputOutputRoot, generatedCoreOutputRoot);
                 MergeBundledRuntimeSupportTree(bundledRuntimeSupportRootPath, generatedCoreOutputRoot);
-                NormalizeGeneratedNativeSources(generatedCoreOutputRoot);
+                NormalizeGeneratedNativeSources(generatedCoreOutputRoot, platformDefinition.PlatformId);
                 RewriteAmalgamatedTranslationUnit(generatedCoreOutputRoot);
             } finally {
                 Directory.CreateDirectory(Path.GetDirectoryName(logPath) ?? tempRoot);
@@ -290,6 +290,14 @@ namespace helengine.editor {
                 ];
             }
 
+            if (string.Equals(platformDefinition.PlatformId, "psp", StringComparison.OrdinalIgnoreCase)) {
+                return [
+                    "PSP_PLATFORM",
+                    "HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION",
+                    "HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION"
+                ];
+            }
+
             return [
                 "HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION",
                 "HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION"
@@ -447,6 +455,15 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
         internal static void NormalizeGeneratedNativeSources(string generatedCoreRootPath) {
+            NormalizeGeneratedNativeSources(generatedCoreRootPath, string.Empty);
+        }
+
+        /// <summary>
+        /// Normalizes generated source files that still need post-processing for the native Windows build.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute path to the generated core output root.</param>
+        /// <param name="platformId">Target platform identifier that controls platform-specific normalization passes.</param>
+        internal static void NormalizeGeneratedNativeSources(string generatedCoreRootPath, string platformId) {
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             }
@@ -455,6 +472,7 @@ namespace helengine.editor {
                 return;
             }
 
+            bool isPs2Build = string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase);
             RemoveEditorOnlyGeneratedSourceFiles(generatedCoreRootPath);
             EmitGeneratedAutomaticRuntimeComponentDeserializers(generatedCoreRootPath);
             IReadOnlyList<string> featureManifestEntries = LoadGeneratedFeatureManifestEntries(generatedCoreRootPath);
@@ -471,7 +489,7 @@ namespace helengine.editor {
 
                 string fileName = Path.GetFileName(sourceFilePath);
                 string contents = File.ReadAllText(sourceFilePath);
-                string updatedContents = NormalizeGeneratedNativeSource(fileName, contents, featureManifestEntries);
+                string updatedContents = NormalizeGeneratedNativeSource(fileName, contents, featureManifestEntries, isPs2Build);
                 if (!string.Equals(contents, updatedContents, StringComparison.Ordinal)) {
                     File.WriteAllText(sourceFilePath, updatedContents);
                 }
@@ -672,7 +690,8 @@ namespace helengine.editor {
             string[] editorOnlyTypeNames = [
                 "EditorPropertyDisplayNameAttribute",
                 "EditorPropertyHiddenAttribute",
-                "EditorPropertyOrderAttribute"
+                "EditorPropertyOrderAttribute",
+                "ScenePersistenceIgnoreAttribute"
             ];
             string[] generatedExtensions = [
                 ".hpp",
@@ -700,7 +719,7 @@ namespace helengine.editor {
         /// <param name="contents">Current file contents.</param>
         /// <param name="featureManifestEntries">Feature-manifest entries derived from the generated conversion report.</param>
         /// <returns>Updated file contents.</returns>
-        static string NormalizeGeneratedNativeSource(string fileName, string contents, IReadOnlyList<string> featureManifestEntries) {
+        static string NormalizeGeneratedNativeSource(string fileName, string contents, IReadOnlyList<string> featureManifestEntries, bool isPs2Build) {
             if (string.IsNullOrWhiteSpace(fileName) || string.IsNullOrEmpty(contents)) {
                 return contents;
             }
@@ -881,22 +900,31 @@ namespace helengine.editor {
 
             if (string.Equals(fileName, "path.cpp", StringComparison.OrdinalIgnoreCase)
                 && !contents.Contains("Path::ChangeExtension", StringComparison.Ordinal)) {
-                return InsertPs2PathSupport(InsertPathChangeExtensionImplementation(contents));
+                string updatedContents = InsertPathChangeExtensionImplementation(contents);
+                if (isPs2Build) {
+                    return InsertPs2PathSupport(updatedContents);
+                }
+
+                return updatedContents;
             }
 
-            if (string.Equals(fileName, "path.cpp", StringComparison.OrdinalIgnoreCase)) {
+            if (isPs2Build
+                && string.Equals(fileName, "path.cpp", StringComparison.OrdinalIgnoreCase)) {
                 return InsertPs2PathSupport(contents);
             }
 
-            if (string.Equals(fileName, "file.cpp", StringComparison.OrdinalIgnoreCase)) {
+            if (isPs2Build
+                && string.Equals(fileName, "file.cpp", StringComparison.OrdinalIgnoreCase)) {
                 return InsertPs2FileSupport(contents);
             }
 
-            if (string.Equals(fileName, "file-stream.hpp", StringComparison.OrdinalIgnoreCase)) {
+            if (isPs2Build
+                && string.Equals(fileName, "file-stream.hpp", StringComparison.OrdinalIgnoreCase)) {
                 return InsertPs2FileStreamHeaderSupport(contents);
             }
 
-            if (string.Equals(fileName, "file-stream.cpp", StringComparison.OrdinalIgnoreCase)) {
+            if (isPs2Build
+                && string.Equals(fileName, "file-stream.cpp", StringComparison.OrdinalIgnoreCase)) {
                 return InsertPs2FileStreamSupport(contents);
             }
 
@@ -2185,7 +2213,6 @@ namespace helengine.editor {
             }
 
             string amalgamatedSourcePath = Path.Combine(generatedCoreRootPath, "helengine_core_amalgamated.cpp");
-            string legacyUnitySourcePath = Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp");
             string[] excludedAmalgamatedSourceRelativePaths = new[] {
                 "runtime/runtime_startup_manifest.cpp",
                 "runtime/runtime_scene_catalog_manifest.cpp",
@@ -2229,9 +2256,6 @@ namespace helengine.editor {
 
             string amalgamatedSourceContents = amalgamatedBuilder.ToString();
             File.WriteAllText(amalgamatedSourcePath, amalgamatedSourceContents);
-            if (File.Exists(legacyUnitySourcePath)) {
-                File.Delete(legacyUnitySourcePath);
-            }
         }
 
         /// <summary>

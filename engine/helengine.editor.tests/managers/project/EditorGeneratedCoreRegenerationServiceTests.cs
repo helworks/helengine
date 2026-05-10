@@ -131,6 +131,32 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies PSP builds exclude desktop-only input symbols and include the PSP runtime symbol.
+    /// </summary>
+    [Fact]
+    public void Resolve_portable_input_preprocessor_symbols_returns_psp_runtime_symbol_without_desktop_input_symbols() {
+        PlatformDefinition definition = new(
+            "psp",
+            "PSP",
+            Array.Empty<PlatformBuildProfileDefinition>(),
+            Array.Empty<PlatformGraphicsProfileDefinition>(),
+            Array.Empty<PlatformAssetRequirementDefinition>(),
+            Array.Empty<PlatformMaterialSchemaDefinition>(),
+            Array.Empty<PlatformComponentCompatibilityDefinition>(),
+            Array.Empty<PlatformCodegenProfileDefinition>(),
+            Array.Empty<PlatformStorageProfileDefinition>(),
+            Array.Empty<PlatformMediaProfileDefinition>());
+
+        IReadOnlyList<string> symbols = EditorGeneratedCoreRegenerationService.ResolvePortableInputPreprocessorSymbols(definition);
+
+        Assert.Collection(
+            symbols,
+            symbol => Assert.Equal("PSP_PLATFORM", symbol),
+            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION", symbol),
+            symbol => Assert.Equal("HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", symbol));
+    }
+
+    /// <summary>
     /// Verifies the generated-core regeneration service forwards a selected codegen preset through the dedicated preset argument.
     /// </summary>
     [Fact]
@@ -307,7 +333,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             "#include \"CoreInitializationOptions.hpp\"" + Environment.NewLine
             + "CoreInitializationOptions::CoreInitializationOptions() : ContentRootPath(AppContext::BaseDirectory) {}" + Environment.NewLine);
 
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
 
         string normalized = File.ReadAllText(sourcePath);
         Assert.Contains("#include \"system/app_context.hpp\"", normalized);
@@ -329,7 +355,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             lightBasePath,
             "void LightComponent::Reset() { this->set_ShadowMapMode(this->ShadowMapMode::Auto); }" + Environment.NewLine);
 
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
 
         Assert.Contains("LightType::Directional", File.ReadAllText(directionalPath));
         Assert.Contains("::ShadowMapMode::Auto", File.ReadAllText(lightBasePath));
@@ -350,7 +376,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             + "    this->set_PostProcessTier(this->PostProcessTier::High);" + Environment.NewLine
             + "}" + Environment.NewLine);
 
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
 
         string normalizedSource = File.ReadAllText(sourcePath);
         Assert.Contains("this->set_DepthPrepassMode(::DepthPrepassMode::Auto);", normalizedSource);
@@ -380,7 +406,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             + "    }\n"
             + "};\n");
 
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
 
         string normalized = File.ReadAllText(dictionaryPath);
         Assert.Contains("void Clear()", normalized);
@@ -410,7 +436,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             + "    }\n"
             + "};\n");
 
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
         EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
 
         string normalized = File.ReadAllText(arrayPath);
@@ -452,6 +478,46 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             + "}\n");
 
         EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedHeader = File.ReadAllText(headerPath);
+        string normalizedSource = File.ReadAllText(sourcePath);
+        Assert.Contains("static std::string ChangeExtension(const std::string& path, const std::string& extension);", normalizedHeader);
+        Assert.Contains("std::string Path::ChangeExtension(const std::string& path, const std::string& extension)", normalizedSource);
+        Assert.Contains("replace_extension", normalizedSource);
+    }
+
+    /// <summary>
+    /// Verifies the Windows native normalization path keeps ChangeExtension available for generated menu and packaging code.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_adds_change_extension_to_path_support_for_windows() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-path-change-extension-windows");
+        Directory.CreateDirectory(Path.Combine(generatedCoreRootPath, "system", "io"));
+        string headerPath = Path.Combine(generatedCoreRootPath, "system", "io", "path.hpp");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "system", "io", "path.cpp");
+        File.WriteAllText(
+            headerPath,
+            "#ifndef PATH_HPP\n"
+            + "#define PATH_HPP\n"
+            + "#include <string>\n"
+            + "class Path {\n"
+            + "public:\n"
+            + "    static std::string Combine(const std::string& left, const std::string& right);\n"
+            + "    static std::string GetFileName(const std::string& path);\n"
+            + "};\n"
+            + "#endif // PATH_HPP\n");
+        File.WriteAllText(
+            sourcePath,
+            "#include \"path.hpp\"\n"
+            + "#include <filesystem>\n"
+            + "std::string Path::Combine(const std::string& left, const std::string& right) {\n"
+            + "    return (std::filesystem::path(left) / right).string();\n"
+            + "}\n"
+            + "std::string Path::GetFileName(const std::string& path) {\n"
+            + "    return std::filesystem::path(path).filename().string();\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "windows");
 
         string normalizedHeader = File.ReadAllText(headerPath);
         string normalizedSource = File.ReadAllText(sourcePath);
@@ -633,7 +699,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             + "    return position;\n"
             + "}\n");
 
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
 
         string normalizedFile = File.ReadAllText(filePath);
         string normalizedFileStreamHeader = File.ReadAllText(fileStreamHeaderPath);
@@ -1157,14 +1223,13 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         EditorGeneratedCoreRegenerationService.RewriteAmalgamatedTranslationUnit(generatedCoreRootPath);
 
         string amalgamatedSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_amalgamated.cpp"));
-        string legacyUnitySource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp"));
         Assert.Contains("#include \"Foo.cpp\"", amalgamatedSource);
         Assert.Contains("#include \"RendererBackendCapabilityProfile.cpp\"", amalgamatedSource);
         Assert.Contains("#include \"Ps2MaterialAsset.cpp\"", amalgamatedSource);
         Assert.DoesNotContain("runtime/runtime_startup_manifest.cpp", amalgamatedSource);
         Assert.DoesNotContain("runtime/runtime_scene_catalog_manifest.cpp", amalgamatedSource);
         Assert.DoesNotContain("runtime/runtime_code_module_manifest.cpp", amalgamatedSource);
-        Assert.Equal(amalgamatedSource, legacyUnitySource);
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp")));
     }
 
     /// <summary>
@@ -1178,6 +1243,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "EditorPropertyDisplayNameAttribute.cpp"), "#include \"EditorPropertyDisplayNameAttribute.hpp\"\n");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "EditorPropertyHiddenAttribute.hpp"), "#include \"Attribute.hpp\"\n");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "EditorPropertyOrderAttribute.hpp"), "#include \"Attribute.hpp\"\n");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "ScenePersistenceIgnoreAttribute.hpp"), "#include \"Attribute.hpp\"\n");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "ScenePersistenceIgnoreAttribute.cpp"), "#include \"ScenePersistenceIgnoreAttribute.hpp\"\n");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// kept\n");
 
         EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
@@ -1186,6 +1253,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "EditorPropertyDisplayNameAttribute.cpp")));
         Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "EditorPropertyHiddenAttribute.hpp")));
         Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "EditorPropertyOrderAttribute.hpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "ScenePersistenceIgnoreAttribute.hpp")));
+        Assert.False(File.Exists(Path.Combine(generatedCoreRootPath, "ScenePersistenceIgnoreAttribute.cpp")));
         Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "Foo.cpp")));
     }
 
