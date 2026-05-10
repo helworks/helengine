@@ -84,7 +84,7 @@ namespace helengine.editor.tests {
             Assert.Equal(30f, contentRoot.Position.Y);
             Assert.Equal(0f, textureHost.Position.X);
             Assert.Equal(30f, textureHost.Position.Y);
-            Assert.Equal(new int2(300, 210), textureSprite.Size);
+            Assert.Equal(new int2(300, 240), textureSprite.Size);
         }
 
         /// <summary>

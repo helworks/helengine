@@ -570,7 +570,7 @@ namespace helengine.editor {
         int2 GetContentSize() {
             return new int2(
                 Math.Max(1, Size.X - GetContentPaddingPixels() * 2),
-                Math.Max(1, Size.Y - TitleBarHeightPixels - GetContentPaddingPixels() * 2));
+                Math.Max(1, Size.Y - GetContentPaddingPixels() * 2));
         }
 
         /// <summary>
