@@ -298,11 +298,8 @@ namespace helengine.editor {
             resolutionLabelText.Size = new int2(1, 1);
 
             int2 contentSize = GetContentSize();
-            int2 targetSize = GetTextureDisplaySize(texture, contentSize, 1d);
-            float2 centeredPosition = GetCenteredTexturePosition(contentSize, targetSize);
-
-            textureHost.Position = new float3(centeredPosition.X, centeredPosition.Y, 0.2f);
-            textureSprite.Size = targetSize;
+            textureHost.Position = new float3(GetContentPaddingPixels(), GetContentPaddingPixels(), 0.2f);
+            textureSprite.Size = contentSize;
         }
 
         /// <summary>

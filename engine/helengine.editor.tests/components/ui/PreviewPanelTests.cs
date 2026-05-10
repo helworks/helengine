@@ -62,10 +62,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures scaled dock metrics move the preview content below the scaled title bar while letting the preview use the full panel body width.
+        /// Ensures scaled dock metrics move the preview content below the scaled title bar while letting generic previews fill the panel body.
         /// </summary>
         [Fact]
-        public void SetPreviewSource_WithScaledMetrics_UsesScaledTitleBarOffsetAndFullBodyWidth() {
+        public void SetPreviewSource_WithScaledMetrics_UsesScaledTitleBarOffsetAndFullBodySize() {
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
             PreviewPanel panel = new PreviewPanel(CreateFont(), metrics) {
                 Size = new int2(300, 240)
@@ -83,8 +83,8 @@ namespace helengine.editor.tests {
 
             Assert.Equal(30f, contentRoot.Position.Y);
             Assert.Equal(0f, textureHost.Position.X);
-            Assert.Equal(60f, textureHost.Position.Y);
-            Assert.Equal(new int2(300, 150), textureSprite.Size);
+            Assert.Equal(30f, textureHost.Position.Y);
+            Assert.Equal(new int2(300, 210), textureSprite.Size);
         }
 
         /// <summary>
