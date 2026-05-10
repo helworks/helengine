@@ -30,7 +30,11 @@ namespace helengine {
             RegisterProcessorIfMissing(
                 contentManager,
                 RuntimeContentProcessorIds.MaterialAsset,
+#if PS2_PLATFORM
+                new AssetContentProcessor<Ps2MaterialAsset>(),
+#else
                 new AssetContentProcessor<MaterialAsset>(),
+#endif
                 new[] { MaterialAssetExtension });
             RegisterProcessorIfMissing(
                 contentManager,

@@ -3,7 +3,7 @@ using helengine.baseplatform.Manifest;
 
 namespace helengine.editor {
     /// <summary>
-    /// Writes generated C++ source fragments that embed the runtime startup scene and code-module residency data.
+    /// Writes generated C++ source fragments that embed runtime scene, startup, code-module, and physics feature data.
     /// </summary>
     public sealed class EditorRuntimeNativeManifestWriter {
         /// <summary>
@@ -23,6 +23,7 @@ namespace helengine.editor {
             Directory.CreateDirectory(runtimeRootPath);
 
             WriteStartupManifestSource(runtimeRootPath, cookedManifest);
+            WriteSceneCatalogManifestSource(runtimeRootPath, cookedManifest);
             WriteCodeModuleManifestSource(runtimeRootPath, cookedManifest);
             WritePhysics3DSceneFeatureManifestSource(runtimeRootPath, cookedManifest);
         }
@@ -39,6 +40,19 @@ namespace helengine.editor {
 
             File.WriteAllText(headerPath, BuildStartupManifestHeaderContents());
             File.WriteAllText(sourcePath, BuildStartupManifestSourceContents(startupSceneRelativePath));
+        }
+
+        /// <summary>
+        /// Writes the generated runtime scene-catalog manifest header and implementation.
+        /// </summary>
+        /// <param name="runtimeRootPath">Runtime source folder inside the generated core tree.</param>
+        /// <param name="cookedManifest">Final cooked manifest whose built scene layout should be embedded.</param>
+        void WriteSceneCatalogManifestSource(string runtimeRootPath, PlatformBuildManifest cookedManifest) {
+            string headerPath = Path.Combine(runtimeRootPath, "runtime_scene_catalog_manifest.hpp");
+            string sourcePath = Path.Combine(runtimeRootPath, "runtime_scene_catalog_manifest.cpp");
+
+            File.WriteAllText(headerPath, BuildSceneCatalogManifestHeaderContents());
+            File.WriteAllText(sourcePath, BuildSceneCatalogManifestSourceContents(cookedManifest));
         }
 
         /// <summary>
@@ -80,6 +94,26 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds the generated runtime scene-catalog manifest header.
+        /// </summary>
+        /// <returns>Generated C++ header text.</returns>
+        static string BuildSceneCatalogManifestHeaderContents() {
+            StringBuilder builder = new();
+            builder.AppendLine("#pragma once");
+            builder.AppendLine();
+            builder.AppendLine("#include <cstddef>");
+            builder.AppendLine();
+            builder.AppendLine("struct HERuntimeSceneCatalogEntry {");
+            builder.AppendLine("    const char* SceneId;");
+            builder.AppendLine("    const char* CookedRelativePath;");
+            builder.AppendLine("};");
+            builder.AppendLine();
+            builder.AppendLine("const HERuntimeSceneCatalogEntry* he_runtime_scene_catalog_entries(std::size_t* count);");
+            builder.AppendLine("const char* he_runtime_scene_cooked_relative_path(const char* sceneId);");
+            return builder.ToString();
+        }
+
+        /// <summary>
         /// Builds the generated runtime startup manifest implementation.
         /// </summary>
         /// <param name="startupSceneRelativePath">Cooked runtime scene path embedded into the native player.</param>
@@ -92,6 +126,64 @@ namespace helengine.editor {
             builder.AppendLine();
             builder.AppendLine("const char* he_get_runtime_startup_scene_relative_path() {");
             builder.AppendLine("    return kRuntimeStartupSceneRelativePath;");
+            builder.AppendLine("}");
+            return builder.ToString();
+        }
+
+        /// <summary>
+        /// Builds the generated runtime scene-catalog manifest implementation.
+        /// </summary>
+        /// <param name="cookedManifest">Cooked manifest whose scene layout should be embedded into native source.</param>
+        /// <returns>Generated C++ implementation text.</returns>
+        static string BuildSceneCatalogManifestSourceContents(PlatformBuildManifest cookedManifest) {
+            if (cookedManifest == null) {
+                throw new ArgumentNullException(nameof(cookedManifest));
+            }
+            if (cookedManifest.Scenes == null || cookedManifest.Scenes.Length == 0) {
+                throw new InvalidOperationException("Cooked manifest did not define any built scenes.");
+            }
+
+            StringBuilder builder = new();
+            builder.AppendLine("#include \"runtime/runtime_scene_catalog_manifest.hpp\"");
+            builder.AppendLine();
+            builder.AppendLine("#include <cstring>");
+            builder.AppendLine("#include <stdexcept>");
+            builder.AppendLine();
+            builder.AppendLine("static const HERuntimeSceneCatalogEntry kRuntimeSceneCatalogEntries[] = {");
+            for (int index = 0; index < cookedManifest.Scenes.Length; index++) {
+                PlatformBuildScene scene = cookedManifest.Scenes[index];
+                string cookedRelativePath = ResolveCookedRelativePath(scene);
+                builder.Append("    { \"");
+                builder.Append(EscapeCppStringLiteral(scene.SceneId));
+                builder.Append("\", \"");
+                builder.Append(EscapeCppStringLiteral(cookedRelativePath));
+                builder.AppendLine("\" },");
+            }
+
+            builder.AppendLine("};");
+            builder.AppendLine("static const std::size_t kRuntimeSceneCatalogEntryCount = sizeof(kRuntimeSceneCatalogEntries) / sizeof(kRuntimeSceneCatalogEntries[0]);");
+            builder.AppendLine();
+            builder.AppendLine("const HERuntimeSceneCatalogEntry* he_runtime_scene_catalog_entries(std::size_t* count) {");
+            builder.AppendLine("    if (count != nullptr) {");
+            builder.AppendLine("        *count = kRuntimeSceneCatalogEntryCount;");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    return kRuntimeSceneCatalogEntries;");
+            builder.AppendLine("}");
+            builder.AppendLine();
+            builder.AppendLine("const char* he_runtime_scene_cooked_relative_path(const char* sceneId) {");
+            builder.AppendLine("    if (sceneId == nullptr || sceneId[0] == '\\0') {");
+            builder.AppendLine("        throw std::invalid_argument(\"Runtime scene id is required.\");");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    for (std::size_t index = 0; index < kRuntimeSceneCatalogEntryCount; index++) {");
+            builder.AppendLine("        const HERuntimeSceneCatalogEntry& entry = kRuntimeSceneCatalogEntries[index];");
+            builder.AppendLine("        if (std::strcmp(entry.SceneId, sceneId) == 0) {");
+            builder.AppendLine("            return entry.CookedRelativePath;");
+            builder.AppendLine("        }");
+            builder.AppendLine("    }");
+            builder.AppendLine();
+            builder.AppendLine("    throw std::runtime_error(\"Runtime scene id was not found in the scene catalog manifest.\");");
             builder.AppendLine("}");
             return builder.ToString();
         }
@@ -339,6 +431,30 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Startup scene '{cookedManifest.StartupSceneId}' was not found in the cooked manifest.");
+        }
+
+        /// <summary>
+        /// Resolves the cooked runtime path for one built scene entry.
+        /// </summary>
+        /// <param name="scene">Built scene entry to inspect.</param>
+        /// <returns>Cooked runtime-relative scene payload path.</returns>
+        static string ResolveCookedRelativePath(PlatformBuildScene scene) {
+            if (scene == null) {
+                throw new ArgumentNullException(nameof(scene));
+            }
+            if (scene.ResolvedMetadata == null) {
+                throw new InvalidOperationException($"Built scene '{scene.SceneId}' did not define any resolved metadata.");
+            }
+
+            for (int index = 0; index < scene.ResolvedMetadata.Length; index++) {
+                KeyValuePair<string, string> metadata = scene.ResolvedMetadata[index];
+                if (string.Equals(metadata.Key, PlatformBuildSceneMetadataKeys.CookedRelativePath, StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(metadata.Value)) {
+                    return metadata.Value.Replace('\\', '/');
+                }
+            }
+
+            throw new InvalidOperationException($"Built scene '{scene.SceneId}' did not define a cooked relative path.");
         }
 
         /// <summary>

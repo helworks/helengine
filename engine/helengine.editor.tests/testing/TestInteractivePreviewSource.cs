@@ -43,6 +43,11 @@ namespace helengine.editor.tests.testing {
         public int DragCount { get; private set; }
 
         /// <summary>
+        /// Gets how many middle-drag events were forwarded to the source.
+        /// </summary>
+        public int MiddleDragCount { get; private set; }
+
+        /// <summary>
         /// Records a resize request from the preview panel.
         /// </summary>
         /// <param name="contentSize">Usable panel content size.</param>
@@ -71,6 +76,14 @@ namespace helengine.editor.tests.testing {
         /// <param name="delta">Mouse delta accumulated since the previous frame.</param>
         public void HandleMouseDrag(int2 delta) {
             DragCount++;
+        }
+
+        /// <summary>
+        /// Records a middle-drag interaction forwarded from the preview panel.
+        /// </summary>
+        /// <param name="delta">Mouse delta accumulated since the previous frame.</param>
+        public void HandleMouseMiddleDrag(int2 delta) {
+            MiddleDragCount++;
         }
 
         /// <summary>

@@ -305,12 +305,12 @@ namespace helengine.editor.tests {
         void CreateModalCamera(int width, int height) {
             EditorEntity cameraEntity = new EditorEntity {
                 InternalEntity = true,
-                LayerMask = 0b1000000000000000
+                LayerMask = EditorLayerMasks.EditorModalUi
             };
 
             CameraComponent camera = new CameraComponent {
-                LayerMask = 0b1000000000000000,
-                CameraDrawOrder = 255,
+                LayerMask = EditorLayerMasks.EditorModalUi,
+                CameraDrawOrder = EditorUiCameraDrawOrders.ModalUi,
                 Viewport = new float4(0f, 0f, width, height)
             };
             cameraEntity.AddComponent(camera);
@@ -345,8 +345,23 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to read.</param>
         /// <returns>Field value cast to the requested type.</returns>
         T GetPrivateField<T>(object target, string fieldName) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            return Assert.IsType<T>(field.GetValue(target));
+            if (target == null) {
+                throw new ArgumentNullException(nameof(target));
+            } else if (string.IsNullOrWhiteSpace(fieldName)) {
+                throw new ArgumentException("Field name must be provided.", nameof(fieldName));
+            }
+
+            Type currentType = target.GetType();
+            while (currentType != null) {
+                FieldInfo field = currentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+                if (field != null) {
+                    return Assert.IsType<T>(field.GetValue(target));
+                }
+
+                currentType = currentType.BaseType;
+            }
+
+            throw new InvalidOperationException($"Field '{fieldName}' was not found on '{target.GetType().FullName}' or its base types.");
         }
 
         /// <summary>

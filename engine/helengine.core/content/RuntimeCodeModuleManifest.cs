@@ -21,27 +21,6 @@ namespace helengine {
         public RuntimeCodeModuleManifestEntry[] Entries { get; }
 
         /// <summary>
-        /// Reads one runtime code-module manifest from a JSON file written by the editor build graph.
-        /// </summary>
-        /// <param name="manifestPath">Path to the runtime-code-modules.json file.</param>
-        /// <returns>The loaded runtime code-module manifest.</returns>
-        public static RuntimeCodeModuleManifest ReadFromFile(string manifestPath) {
-            if (string.IsNullOrWhiteSpace(manifestPath)) {
-                throw new ArgumentException("Runtime code-module manifest path is required.", nameof(manifestPath));
-            }
-            if (!File.Exists(manifestPath)) {
-                throw new FileNotFoundException($"Runtime code-module manifest '{manifestPath}' was not found.", manifestPath);
-            }
-
-            FileStream fileStream = File.OpenRead(manifestPath);
-            StreamReader reader = new StreamReader(fileStream, System.Text.Encoding.UTF8, false, 1024, true);
-            string json = reader.ReadToEnd();
-            reader.Dispose();
-            fileStream.Dispose();
-            return RuntimeManifestJsonReader.ReadRuntimeCodeModuleManifest(json);
-        }
-
-        /// <summary>
         /// Gets the module identifiers that must remain loaded for the full runtime session.
         /// </summary>
         /// <returns>Resident-at-startup module identifiers.</returns>

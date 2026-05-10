@@ -44,6 +44,11 @@ namespace helengine {
         public double PhysicsFixedStepSeconds { get; set; } = 1.0d / 60.0d;
 
         /// <summary>
+        /// Gets or sets the runtime scene catalog that packaged hosts can inject before core initialization.
+        /// </summary>
+        public RuntimeSceneCatalog SceneCatalog { get; set; }
+
+        /// <summary>
         /// Validates option values for initialization.
         /// </summary>
         public void Normalize() {

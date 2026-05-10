@@ -118,7 +118,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies that the shared color picker is hosted outside the scrollable material editor tree.
+    /// Verifies that the shared color picker is hosted outside the scrollable material editor tree and rendered on the shared overlay layer.
     /// </summary>
     [Fact]
     public void Show_when_color_picker_is_requested_hosts_the_overlay_under_the_modal_root() {
@@ -147,16 +147,12 @@ public sealed class MaterialAssetViewTests : IDisposable {
         interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Press);
         interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Release);
 
-        EditorColorPickerOverlayComponent overlay = Assert.Single(modalHost.Components.OfType<EditorColorPickerOverlayComponent>());
-        EditorEntity overlayRoot = GetPrivateField<EditorEntity>(overlay, "OverlayRoot");
-        RoundedRectComponent overlayBackground = GetPrivateField<RoundedRectComponent>(overlay, "OverlayBackground");
-        ButtonComponent closeButton = GetPrivateField<ButtonComponent>(overlay, "CloseButton");
+        EditorColorPickerOverlayComponent overlay = Assert.Single(modalHost.Children.OfType<EditorColorPickerOverlayComponent>());
 
         Assert.True(overlay.IsOpen);
-        Assert.Same(modalHost, overlayRoot.Parent);
-        Assert.Equal(RenderOrder2D.ModalOverlayBackground, overlayBackground.RenderOrder2D);
-        Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(closeButton, "BackgroundRenderOrder"));
-        Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(closeButton, "TextRenderOrder"));
+        Assert.Same(modalHost, overlay.Parent);
+        Assert.IsAssignableFrom<EditorDialogBase>(overlay);
+        Assert.Equal(EditorLayerMasks.EditorModalUi, overlay.LayerMask);
         Assert.NotNull(overlay.HueWheelControl);
         Assert.NotNull(overlay.SaturationValueTriangleControl);
         Assert.NotNull(overlay.AlphaSliderControl);

@@ -55,16 +55,15 @@ namespace helengine.editor.tests.components.ui {
 
             EditorEntity host = new EditorEntity();
             EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1);
-            host.AddComponent(overlay);
+            host.AddChild(overlay);
 
             overlay.SetAnchorPosition(380f, 260f, 24);
             overlay.Open(new byte4(32, 64, 96, 255));
-
-            EditorEntity overlayRoot = overlay.OverlayRootEntity;
+            overlay.UpdateLayout();
 
             Assert.True(overlay.IsOpen);
-            Assert.Equal(4f, overlayRoot.Position.X);
-            Assert.Equal(4f, overlayRoot.Position.Y);
+            Assert.Equal(4, overlay.OverlayPosition.X);
+            Assert.Equal(4, overlay.OverlayPosition.Y);
         }
 
         /// <summary>

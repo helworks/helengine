@@ -229,13 +229,74 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
         Assert.Single(toolRunner.Invocations);
     }
 
+    [Fact]
+    public void Compile_code_modules_normalizes_generated_float4_orientation_temporaries() {
+        RecordingCodegenToolRunner toolRunner = new() {
+            GeneratedRelativePath = Path.Combine("DirectionalShadowSunSweepComponent.cpp"),
+            GeneratedContents =
+                "#include \"DirectionalShadowSunSweepComponent.hpp\"\n"
+                + "void DirectionalShadowSunSweepComponent::Update()\n"
+                + "{\n"
+                + "    float4 *orientation;\n"
+                + "    float4->CreateFromYawPitchRoll(static_cast<float>(yawRadians), this->PitchRadians, 0.0f, orientation);\n"
+                + "    orientation->Normalize();\n"
+                + "    Parent->LocalOrientation = orientation;\n"
+                + "}\n"
+        };
+        EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("gameplay", "assets/Scripts", [], ["always-loaded"])
+        ]);
+
+        service.CompileModules(
+            manifestDocument,
+            "ps2",
+            "ps2-disc",
+            "/tmp/fake-codegen.exe",
+            new PlatformCodegenProfileDefinition(
+                "ps2-cpp",
+                "PS2 C++",
+                "Default PS2 C++ codegen profile.",
+                PlatformCodegenLanguage.Cpp,
+                PlatformSerializationEndianness.LittleEndian,
+                []),
+            [],
+            new Dictionary<string, string>(),
+            OutputRootPath);
+
+        string generatedSourcePath = Path.Combine(OutputRootPath, "gameplay", "DirectionalShadowSunSweepComponent.cpp");
+        string generatedSource = File.ReadAllText(generatedSourcePath);
+        Assert.Contains("    float4 orientation;", generatedSource);
+        Assert.Contains("    float4::CreateFromYawPitchRoll(static_cast<float>(yawRadians), this->PitchRadians, 0.0f, orientation);", generatedSource);
+        Assert.Contains("    orientation.Normalize();", generatedSource);
+        Assert.Contains("    Parent->LocalOrientation = orientation;", generatedSource);
+        Assert.DoesNotContain("float4 *orientation;", generatedSource);
+        Assert.DoesNotContain("float4->CreateFromYawPitchRoll", generatedSource);
+        Assert.DoesNotContain("orientation->Normalize()", generatedSource);
+    }
+
     sealed class RecordingCodegenToolRunner : IEditorCodegenToolRunner {
         public List<(string ToolPath, IReadOnlyList<string> Arguments, string WorkingDirectory)> Invocations { get; } = [];
 
+        public string GeneratedRelativePath { get; set; } = "module.generated.cpp";
+
+        public string GeneratedContents { get; set; } = "// generated";
+
         public void Run(string toolPath, IReadOnlyList<string> arguments, string workingDirectory) {
             Invocations.Add((toolPath, [.. arguments], workingDirectory));
-            Directory.CreateDirectory(workingDirectory);
-            File.WriteAllText(Path.Combine(workingDirectory, "module.generated.cpp"), "// generated");
+            string outputPath = ResolveOutputPath(arguments);
+            Directory.CreateDirectory(outputPath);
+            File.WriteAllText(Path.Combine(outputPath, GeneratedRelativePath), GeneratedContents);
+        }
+
+        static string ResolveOutputPath(IReadOnlyList<string> arguments) {
+            for (int index = 0; index < arguments.Count - 1; index++) {
+                if (string.Equals(arguments[index], "--output", StringComparison.OrdinalIgnoreCase)) {
+                    return arguments[index + 1];
+                }
+            }
+
+            throw new InvalidOperationException("Expected generated module codegen invocation to supply `--output`.");
         }
     }
 }

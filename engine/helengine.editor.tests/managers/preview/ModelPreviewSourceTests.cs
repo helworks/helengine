@@ -54,6 +54,24 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the preview camera clear color follows the active theme background color.
+        /// </summary>
+        [Fact]
+        public void Constructor_WhenThemeChanges_UsesThemeBackgroundPrimaryForPreviewClearColor() {
+            ThemeManager.ThemePalette originalTheme = ThemeManager.Current;
+            try {
+                ThemeManager.SetTheme(ThemeManager.CreateDarkTheme());
+                ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D);
+
+                Assert.Equal(ConvertThemeColor(ThemeManager.Colors.BackgroundPrimary), source.PreviewCamera.ClearSettings.ClearColor);
+
+                source.Dispose();
+            } finally {
+                ThemeManager.SetTheme(originalTheme);
+            }
+        }
+
+        /// <summary>
         /// Ensures wheel input moves the camera closer to the model bounds center.
         /// </summary>
         [Fact]
@@ -116,6 +134,22 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures tall preview models keep the near plane at the camera minimum while expanding the far plane enough to include the fitted camera distance plus the model radius.
+        /// </summary>
+        [Fact]
+        public void Resize_WhenPreviewModelIsTallerThanDefaultFarPlane_KeepsNearPlaneAtMinimumAndExtendsTheFarPlane() {
+            RuntimeModel tallModel = CreateTallRuntimeModel();
+            ModelPreviewSource source = new ModelPreviewSource(tallModel, Core.Instance.RenderManager3D);
+            source.Resize(new int2(640, 360));
+            double radius = Math.Sqrt((11.949154d * 11.949154d) + (113.883775d * 113.883775d) + (12.0684385d * 12.0684385d));
+            double cameraDistance = GetDistance(source.PreviewCamera.Parent.Position, float3.Zero);
+
+            Assert.Equal(CameraProjectionUtils.MinimumNearPlaneDistance, source.PreviewCamera.NearPlaneDistance);
+            Assert.True(source.PreviewCamera.FarPlaneDistance > cameraDistance + radius);
+            source.Dispose();
+        }
+
+        /// <summary>
         /// Ensures imported model previews bind the generated diffuse texture instead of the neutral fallback texture.
         /// </summary>
         [Fact]
@@ -141,6 +175,106 @@ namespace helengine.editor.tests {
             Assert.False(entry.IsDirectory);
             Assert.False(entry.IsGenerated);
             Assert.Equal(AssetEntryKind.Model, entry.EntryKind);
+
+            bool created = ModelPreviewSource.TryCreate(entry, assetImportManager, Core.Instance.RenderManager3D, out ModelPreviewSource source);
+
+            Assert.True(created);
+            MeshComponent previewMesh = GetPrivateField<MeshComponent>(source, "previewMeshComponent");
+            RuntimeMaterial previewMaterial = Assert.Single(previewMesh.Materials);
+            int diffuseBindingIndex = previewMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
+            Assert.True(diffuseBindingIndex >= 0);
+            RuntimeTexture diffuseTexture = previewMaterial.Properties.GetTexture(diffuseBindingIndex);
+            Assert.NotNull(diffuseTexture);
+            Assert.NotSame(TextureUtils.PixelTexture, diffuseTexture);
+
+            source.Dispose();
+        }
+
+        /// <summary>
+        /// Ensures imported model previews resolve authored texture paths relative to the model source directory.
+        /// </summary>
+        [Fact]
+        public void TryCreate_WhenImportedTextureLivesBesideTheModel_ResolvesItFromTheModelDirectory() {
+            TestModelImporter modelImporter = new TestModelImporter {
+                GeneratedMaterials = new[] {
+                    CreateGeneratedMaterial("Default", "Materials/Default.helmat", "Textures/Fabric.png")
+                }
+            };
+            AssetImportManager assetImportManager = CreateAssetImportManager(modelImporter);
+            string textureSourcePath = WriteSourceFile("Models/Sponza/Textures/Fabric.png", "texture source");
+            assetImportManager.ImportTexture(textureSourcePath);
+            string modelSourcePath = WriteSourceFile("Models/Sponza/Sponza.mock", "model source");
+            AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile("Sponza", "Models/Sponza/Sponza.mock", modelSourcePath, ".mock", AssetEntryKind.Model);
+
+            bool created = ModelPreviewSource.TryCreate(entry, assetImportManager, Core.Instance.RenderManager3D, out ModelPreviewSource source);
+
+            Assert.True(created);
+            MeshComponent previewMesh = GetPrivateField<MeshComponent>(source, "previewMeshComponent");
+            RuntimeMaterial previewMaterial = Assert.Single(previewMesh.Materials);
+            int diffuseBindingIndex = previewMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
+            Assert.True(diffuseBindingIndex >= 0);
+            RuntimeTexture diffuseTexture = previewMaterial.Properties.GetTexture(diffuseBindingIndex);
+            Assert.NotNull(diffuseTexture);
+            Assert.NotSame(TextureUtils.PixelTexture, diffuseTexture);
+
+            source.Dispose();
+        }
+
+        /// <summary>
+        /// Ensures imported model previews decode source textures directly instead of reusing stale cached texture assets.
+        /// </summary>
+        [Fact]
+        public void TryCreate_WhenTextureCacheIsStale_UsesTheSourceTextureInsteadOfTheCachedAsset() {
+            TestModelImporter modelImporter = new TestModelImporter {
+                GeneratedMaterials = new[] {
+                    CreateGeneratedMaterial("Default", "Materials/Default.helmat", "Textures/Fabric.png")
+                }
+            };
+            AssetImportManager assetImportManager = CreateAssetImportManager(modelImporter);
+            string textureSourcePath = WriteSourceFile("Textures/Fabric.png", "texture source");
+            assetImportManager.ImportTexture(textureSourcePath);
+            AssetImportSettings textureSettings = assetImportManager.LoadOrCreateImportSettings(textureSourcePath);
+            string cachedTexturePath = Path.Combine(assetImportManager.ImportRootPath, textureSettings.Importer.AssetId);
+            using (FileStream stream = new FileStream(cachedTexturePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, new TextureAsset {
+                    Id = textureSettings.Importer.AssetId,
+                    Width = 7,
+                    Height = 7,
+                    Colors = new byte[7 * 7 * 4]
+                });
+            }
+
+            string modelSourcePath = WriteSourceFile("Models/Preview.mock", "model source");
+            AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile("Preview", "Models/Preview.mock", modelSourcePath, ".mock", AssetEntryKind.Model);
+
+            bool created = ModelPreviewSource.TryCreate(entry, assetImportManager, Core.Instance.RenderManager3D, out ModelPreviewSource source);
+
+            Assert.True(created);
+            MeshComponent previewMesh = GetPrivateField<MeshComponent>(source, "previewMeshComponent");
+            RuntimeMaterial previewMaterial = Assert.Single(previewMesh.Materials);
+            int diffuseBindingIndex = previewMaterial.Layout.FindTextureBindingIndex(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
+            Assert.True(diffuseBindingIndex >= 0);
+            RuntimeTexture diffuseTexture = previewMaterial.Properties.GetTexture(diffuseBindingIndex);
+            Assert.NotNull(diffuseTexture);
+            Assert.Equal(1, diffuseTexture.Width);
+            Assert.Equal(1, diffuseTexture.Height);
+
+            source.Dispose();
+        }
+
+        /// <summary>
+        /// Ensures imported materials without authored diffuse textures still bind a dedicated neutral preview texture instead of the default white pixel.
+        /// </summary>
+        [Fact]
+        public void TryCreate_WhenImportedMaterialHasNoDiffuseTexture_BindsNeutralPreviewTexture() {
+            TestModelImporter modelImporter = new TestModelImporter {
+                GeneratedMaterials = new[] {
+                    CreateGeneratedMaterial("Default", "Materials/Default.helmat", string.Empty)
+                }
+            };
+            AssetImportManager assetImportManager = CreateAssetImportManager(modelImporter);
+            string modelSourcePath = WriteSourceFile("Models/Lamppost.mock", "model source");
+            AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile("Lamppost", "Models/Lamppost.mock", modelSourcePath, ".mock", AssetEntryKind.Model);
 
             bool created = ModelPreviewSource.TryCreate(entry, assetImportManager, Core.Instance.RenderManager3D, out ModelPreviewSource source);
 
@@ -219,6 +353,45 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Builds one tall runtime model whose fitted preview distance exceeds the default camera far plane.
+        /// </summary>
+        /// <returns>Runtime model with lamppost-like bounds.</returns>
+        RuntimeModel CreateTallRuntimeModel() {
+            ModelAsset modelAsset = new ModelAsset {
+                Positions = new[] {
+                    new float3(-33.212997f, 0.015032411f, -11.019729f),
+                    new float3(-9.314689f, 0.015032411f, -11.019729f),
+                    new float3(-9.314689f, 227.78258f, 13.117148f),
+                    new float3(-33.212997f, 227.78258f, 13.117148f)
+                },
+                Normals = new[] {
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f),
+                    new float3(0f, 0f, 1f)
+                },
+                TexCoords = new[] {
+                    new float2(0f, 0f),
+                    new float2(1f, 0f),
+                    new float2(1f, 1f),
+                    new float2(0f, 1f)
+                },
+                Submeshes = new[] {
+                    new ModelSubmeshAsset {
+                        IndexStart = 0,
+                        IndexCount = 6,
+                        MaterialSlotName = "Default"
+                    }
+                },
+                Indices16 = new ushort[] { 0, 1, 2, 0, 2, 3 },
+                BoundsMin = new float3(-33.212997f, 0.015032411f, -11.019729f),
+                BoundsMax = new float3(-9.314689f, 227.78258f, 13.117148f)
+            };
+
+            return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+        }
+
+        /// <summary>
         /// Creates one configured asset import manager for preview source tests.
         /// </summary>
         /// <param name="modelImporter">Model importer used by the preview test.</param>
@@ -286,6 +459,19 @@ namespace helengine.editor.tests {
                     DiffuseTextureAssetId = diffuseTextureAssetId,
                     RenderState = new MaterialRenderState()
                 });
+        }
+
+        /// <summary>
+        /// Converts one byte-based theme color into the normalized float representation used by camera clear settings.
+        /// </summary>
+        /// <param name="color">Theme color to convert.</param>
+        /// <returns>Normalized RGBA color.</returns>
+        float4 ConvertThemeColor(byte4 color) {
+            return new float4(
+                color.X / 255f,
+                color.Y / 255f,
+                color.Z / 255f,
+                color.W / 255f);
         }
 
         /// <summary>

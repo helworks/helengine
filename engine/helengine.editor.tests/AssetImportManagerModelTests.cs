@@ -52,6 +52,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(new[] { "test-model" }, importerIds);
             Assert.True(manager.IsModelExtension(".obj"));
+            Assert.True(manager.IsModelExtension(".x"));
         }
 
         /// <summary>
@@ -355,7 +356,7 @@ namespace helengine.editor.tests {
 
             ContentManager contentManager = new ContentManager(AssetsRootPath);
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
-            manager.RegisterModelImporter(new ModelImporterRegistration("test-model", modelImporter, new[] { ".obj" }));
+            manager.RegisterModelImporter(new ModelImporterRegistration("test-model", modelImporter, new[] { ".obj", ".x" }));
             return manager;
         }
 
@@ -371,7 +372,7 @@ namespace helengine.editor.tests {
 
             ContentManager contentManager = new ContentManager(AssetsRootPath);
             AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
-            manager.RegisterModelImporter(new ModelImporterRegistration("test-model", modelImporter, new[] { ".obj" }));
+            manager.RegisterModelImporter(new ModelImporterRegistration("test-model", modelImporter, new[] { ".obj", ".x" }));
             return manager;
         }
 

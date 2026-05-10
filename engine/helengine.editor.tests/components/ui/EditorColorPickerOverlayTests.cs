@@ -17,7 +17,7 @@ public sealed class EditorColorPickerOverlayTests {
 
         EditorEntity host = new EditorEntity();
         EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1);
-        host.AddComponent(overlay);
+        host.AddChild(overlay);
 
         overlay.Open(new byte4(32, 64, 96, 255));
 
@@ -39,7 +39,7 @@ public sealed class EditorColorPickerOverlayTests {
 
         EditorEntity host = new EditorEntity();
         EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1);
-        host.AddComponent(overlay);
+        host.AddChild(overlay);
         overlay.Open(new byte4(255, 0, 0, 255));
 
         overlay.HueWheelControl.SetHue(120.0);
@@ -56,7 +56,7 @@ public sealed class EditorColorPickerOverlayTests {
 
         EditorEntity host = new EditorEntity();
         EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1);
-        host.AddComponent(overlay);
+        host.AddChild(overlay);
         overlay.Open(new byte4(255, 255, 255, 255));
 
         overlay.SaturationValueTriangleControl.SetSelection(1.0, 0.5);
@@ -74,12 +74,49 @@ public sealed class EditorColorPickerOverlayTests {
 
         EditorEntity host = new EditorEntity();
         EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1);
-        host.AddComponent(overlay);
+        host.AddChild(overlay);
         overlay.Open(new byte4(32, 64, 96, 255));
 
         overlay.AlphaSliderControl.SetValue(128.0);
 
         Assert.Equal("#20406080", overlay.HexTextBoxControl.Text);
+    }
+
+    /// <summary>
+    /// Ensures the saturation/value triangle fits fully inside the hue wheel center instead of overlapping the outer ring.
+    /// </summary>
+    [Fact]
+    public void Open_WhenPickerIsCreated_KeepsTheTriangleInsideTheWheelInnerRadius() {
+        InitializeCore();
+
+        EditorEntity host = new EditorEntity();
+        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1);
+        host.AddChild(overlay);
+        overlay.Open(new byte4(255, 255, 255, 255));
+
+        double wheelRadius = (overlay.HueWheelControl.Size.X - 1) / 2.0;
+        double wheelInnerRadius = wheelRadius * 0.62;
+        double wheelCenterX = overlay.HueWheelControl.Position.X + wheelRadius;
+        double wheelCenterY = overlay.HueWheelControl.Position.Y + wheelRadius;
+
+        double triangleLeft = overlay.SaturationValueTriangleControl.Position.X;
+        double triangleTop = overlay.SaturationValueTriangleControl.Position.Y;
+        double triangleSize = overlay.SaturationValueTriangleControl.Size.X;
+
+        double[,] vertices = new double[,] {
+            { triangleLeft + (triangleSize * 0.5), triangleTop + (triangleSize * 0.10) },
+            { triangleLeft + (triangleSize * 0.12), triangleTop + (triangleSize * 0.88) },
+            { triangleLeft + (triangleSize * 0.88), triangleTop + (triangleSize * 0.88) }
+        };
+
+        for (int index = 0; index < vertices.GetLength(0); index++) {
+            double dx = vertices[index, 0] - wheelCenterX;
+            double dy = vertices[index, 1] - wheelCenterY;
+            double distance = Math.Sqrt((dx * dx) + (dy * dy));
+            Assert.True(
+                distance <= wheelInnerRadius,
+                $"Triangle vertex {index} should fit inside inner radius {wheelInnerRadius:F2}, but was {distance:F2}.");
+        }
     }
 
     /// <summary>

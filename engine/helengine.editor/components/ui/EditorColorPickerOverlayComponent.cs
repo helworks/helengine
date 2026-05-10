@@ -3,16 +3,21 @@ namespace helengine.editor;
 /// <summary>
 /// Shared modal-style color picker overlay that combines a hue wheel, a saturation-value triangle, a hex textbox, and a separate alpha slider.
 /// </summary>
-public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
+public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
     /// <summary>
     /// Fixed overlay width in pixels.
     /// </summary>
     const int PanelWidth = 480;
 
     /// <summary>
-    /// Fixed overlay height in pixels.
+    /// Fixed content height in pixels beneath the dialog title bar.
     /// </summary>
     const int PanelHeight = 336;
+
+    /// <summary>
+    /// Fixed title-bar height used by the shared modal shell.
+    /// </summary>
+    const int DialogHeaderHeight = 32;
 
     /// <summary>
     /// Horizontal padding inside the overlay panel.
@@ -37,7 +42,7 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// <summary>
     /// Width of the triangle control in pixels.
     /// </summary>
-    const int TriangleSize = 160;
+    static readonly int TriangleSize = EditorColorUtils.GetRecommendedTriangleSizeForHueWheel(WheelSize, 2);
 
     /// <summary>
     /// Width of the color preview square.
@@ -72,7 +77,7 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// <summary>
     /// Width of the close button.
     /// </summary>
-    const int CloseButtonWidth = 88;
+    new const int CloseButtonWidth = 88;
 
     /// <summary>
     /// Height of the close button.
@@ -92,7 +97,7 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// <summary>
     /// Local X offset used to center the triangle inside the wheel.
     /// </summary>
-    const int TriangleInset = (WheelSize - TriangleSize) / 2;
+    static readonly int TriangleInset = (WheelSize - TriangleSize) / 2;
 
     /// <summary>
     /// The wheel control should align its top-left corner to this local offset.
@@ -107,12 +112,12 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// <summary>
     /// The triangle control should align its top-left corner to this local offset.
     /// </summary>
-    const int TriangleLeft = PanelPadding + TriangleInset;
+    static readonly int TriangleLeft = PanelPadding + TriangleInset;
 
     /// <summary>
     /// The triangle control should align its top-left corner to this local offset.
     /// </summary>
-    const int TriangleTop = PanelPadding + TriangleInset;
+    static readonly int TriangleTop = PanelPadding + TriangleInset;
 
     /// <summary>
     /// The right-side content starts at this local X coordinate.
@@ -128,31 +133,6 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// Font used for the overlay text.
     /// </summary>
     readonly FontAsset Font;
-
-    /// <summary>
-    /// Layer mask applied to the overlay hierarchy.
-    /// </summary>
-    readonly ushort OverlayLayerMask;
-
-    /// <summary>
-    /// Owner key used when blocking input outside the picker.
-    /// </summary>
-    readonly object InputBlockerOwner;
-
-    /// <summary>
-    /// Host entity that owns the overlay component.
-    /// </summary>
-    EditorEntity OwnerEntity;
-
-    /// <summary>
-    /// Root entity for the overlay panel.
-    /// </summary>
-    EditorEntity OverlayRoot;
-
-    /// <summary>
-    /// Background panel used to keep the picker readable over editor content.
-    /// </summary>
-    RoundedRectComponent OverlayBackground;
 
     /// <summary>
     /// Host entity for the preview square.
@@ -185,16 +165,6 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     TextComponent AlphaValueText;
 
     /// <summary>
-    /// Host entity for the close button.
-    /// </summary>
-    EditorEntity CloseButtonHost;
-
-    /// <summary>
-    /// Button used to dismiss the overlay.
-    /// </summary>
-    ButtonComponent CloseButton;
-
-    /// <summary>
     /// Current color edited by the overlay.
     /// </summary>
     byte4 CurrentColor;
@@ -203,11 +173,6 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// Tracks whether the overlay hierarchy has been created.
     /// </summary>
     bool IsInitialized;
-
-    /// <summary>
-    /// Tracks whether the overlay is currently open.
-    /// </summary>
-    bool IsOpenValue;
 
     /// <summary>
     /// Prevents control synchronization from recursively re-entering color change handlers.
@@ -234,11 +199,26 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// </summary>
     /// <param name="font">Font used for overlay labels and button text.</param>
     /// <param name="overlayLayerMask">Layer mask applied to overlay visuals.</param>
-    public EditorColorPickerOverlayComponent(FontAsset font, ushort overlayLayerMask) {
-        Font = font ?? throw new ArgumentNullException(nameof(font));
-        OverlayLayerMask = overlayLayerMask;
-        InputBlockerOwner = new object();
+    public EditorColorPickerOverlayComponent(FontAsset font, ushort overlayLayerMask)
+        : base("EditorColorPickerOverlay", "Color Picker", font, EditorUiMetrics.Default, PanelWidth, PanelHeight + DialogHeaderHeight, DialogHeaderHeight) {
+        if (font == null) {
+            throw new ArgumentNullException(nameof(font));
+        }
+
+        Font = font;
         CurrentColor = new byte4(255, 255, 255, 255);
+        DialogIsResizable = false;
+        SetDialogMinimumSize(PanelWidth, PanelHeight + DialogHeaderHeight);
+        SetDialogBackdropColor(new byte4(0, 0, 0, 0));
+        DialogPanelBackground.FillColor = ThemeManager.Colors.SurfacePrimary;
+        DialogPanelBackground.BorderColor = ThemeManager.Colors.SurfaceInput;
+        DialogContentRoot.Position = new float3(0f, DialogHeaderHeight, 0.2f);
+
+        CreateColorControls();
+        CreateRightPanelControls();
+        LayoutOverlay();
+        Enabled = false;
+        IsInitialized = true;
     }
 
     /// <summary>
@@ -254,7 +234,7 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// <summary>
     /// Gets whether the overlay is currently visible.
     /// </summary>
-    public bool IsOpen => IsOpenValue;
+    public bool IsOpen => Enabled;
 
     /// <summary>
     /// Gets the hue wheel control.
@@ -284,7 +264,12 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// <summary>
     /// Gets the overlay root entity.
     /// </summary>
-    public EditorEntity OverlayRootEntity => OverlayRoot;
+    public EditorEntity OverlayRootEntity => DialogPanelRoot;
+
+    /// <summary>
+    /// Gets the anchored panel position used by the dialog shell.
+    /// </summary>
+    public int2 OverlayPosition => DialogPanelPosition;
 
     /// <summary>
     /// Gets or sets the color currently displayed by the overlay.
@@ -292,76 +277,6 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     byte4 CurrentDisplayedColor {
         get { return CurrentColor; }
         set { CurrentColor = value; }
-    }
-
-    /// <summary>
-    /// Creates the overlay hierarchy when attached to a host entity.
-    /// </summary>
-    /// <param name="entity">Owning entity.</param>
-    public override void ComponentAdded(Entity entity) {
-        base.ComponentAdded(entity);
-
-        if (IsInitialized) {
-            return;
-        }
-
-        OwnerEntity = entity as EditorEntity;
-        if (OwnerEntity == null) {
-            throw new InvalidOperationException("Color picker overlay must be attached to an EditorEntity.");
-        }
-
-        CreateOverlayRoot();
-        CreateColorControls();
-        CreateRightPanelControls();
-        CreateCloseButton();
-        LayoutOverlay();
-        OverlayRoot.Enabled = false;
-        IsInitialized = true;
-    }
-
-    /// <summary>
-    /// Clears input capture when the overlay component is removed.
-    /// </summary>
-    /// <param name="entity">Owning entity.</param>
-    public override void ComponentRemoved(Entity entity) {
-        base.ComponentRemoved(entity);
-        ClearInputBlocker();
-        IsOpenValue = false;
-    }
-
-    /// <summary>
-    /// Polls dismissal input while the picker is visible.
-    /// </summary>
-    public override void Update() {
-        if (!IsInitialized) {
-            return;
-        }
-
-        if (!IsOpenValue) {
-            ClearInputBlocker();
-            return;
-        }
-
-        if (OwnerEntity == null || !OwnerEntity.Enabled) {
-            Close();
-            return;
-        }
-
-        UpdateInputBlocker();
-
-        InputSystem input = Core.Instance.Input;
-        if (input == null) {
-            return;
-        }
-
-        if (input.WasKeyPressed(Keys.Escape)) {
-            Close();
-            return;
-        }
-
-        if (input.WasMouseLeftButtonPressed() || input.WasMouseRightButtonPressed()) {
-            HandleOutsidePointerPressed(input.GetMousePosition());
-        }
     }
 
     /// <summary>
@@ -375,7 +290,6 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
         AnchorY = anchorY;
         AnchorHeight = anchorHeight;
         LayoutOverlay();
-        UpdateInputBlocker();
     }
 
     /// <summary>
@@ -385,10 +299,9 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     public void Open(byte4 color) {
         EnsureInitialized();
         SynchronizeFromColor(color);
-        IsOpenValue = true;
-        OverlayRoot.Enabled = true;
+        Enabled = true;
         LayoutOverlay();
-        UpdateInputBlocker();
+        ShowDialogImmediately();
     }
 
     /// <summary>
@@ -396,13 +309,13 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// </summary>
     public void Close() {
         EnsureInitialized();
-        if (!IsOpenValue) {
+        if (!Enabled) {
             return;
         }
 
-        IsOpenValue = false;
-        OverlayRoot.Enabled = false;
-        ClearInputBlocker();
+        Enabled = false;
+        ClearDialogBackdrop();
+        ResetDialogPositioning();
         if (Closed != null) {
             Closed();
         }
@@ -422,11 +335,7 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// <param name="screenPoint">Pointer position in window coordinates.</param>
     public void HandleOutsidePointerPressed(int2 screenPoint) {
         EnsureInitialized();
-        if (!IsOpenValue) {
-            return;
-        }
-
-        if (EditorInputCaptureService.IsPointerBlocked(screenPoint, owner => ReferenceEquals(owner, InputBlockerOwner))) {
+        if (!Enabled) {
             return;
         }
 
@@ -434,6 +343,47 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
             return;
         }
 
+        Close();
+    }
+
+    /// <summary>
+    /// Updates the picker shell while it is visible and closes it when the user dismisses it.
+    /// </summary>
+    public void UpdateLayout() {
+        if (!IsInitialized) {
+            return;
+        }
+
+        if (!Enabled) {
+            ClearDialogBackdrop();
+            return;
+        }
+
+        int2 windowSize = Core.Instance != null && Core.Instance.RenderManager3D != null
+            ? Core.Instance.RenderManager3D.MainWindowSize
+            : int2.Zero;
+
+        UpdateDialogFrame(windowSize.X, windowSize.Y);
+
+        InputSystem input = Core.Instance != null ? Core.Instance.Input : null;
+        if (input == null) {
+            return;
+        }
+
+        if (input.WasKeyPressed(Keys.Escape)) {
+            Close();
+            return;
+        }
+
+        if (input.WasMouseLeftButtonPressed() || input.WasMouseRightButtonPressed()) {
+            HandleOutsidePointerPressed(input.GetMousePosition());
+        }
+    }
+
+    /// <summary>
+    /// Closes the picker when the shared dialog chrome requests dismissal.
+    /// </summary>
+    protected override void OnCloseRequested() {
         Close();
     }
 
@@ -589,40 +539,18 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     }
 
     /// <summary>
-    /// Creates the overlay root and its shared background surface.
-    /// </summary>
-    void CreateOverlayRoot() {
-        OverlayRoot = new EditorEntity {
-            LayerMask = OverlayLayerMask,
-            InternalEntity = true,
-            Position = float3.Zero
-        };
-        OwnerEntity.AddChild(OverlayRoot);
-
-        OverlayBackground = new RoundedRectComponent {
-            Size = new int2(PanelWidth, PanelHeight),
-            Radius = 8f,
-            BorderThickness = 1f,
-            FillColor = ThemeManager.Colors.SurfacePrimary,
-            BorderColor = ThemeManager.Colors.SurfaceInput,
-            RenderOrder2D = RenderOrder2D.ModalOverlayBackground
-        };
-        OverlayRoot.AddComponent(OverlayBackground);
-    }
-
-    /// <summary>
     /// Creates the wheel and triangle controls inside the picker area.
     /// </summary>
     void CreateColorControls() {
-        HueWheelControl = new EditorColorWheelControl(OverlayLayerMask);
+        HueWheelControl = new EditorColorWheelControl(LayerMask);
         HueWheelControl.HueChanged += HandleHueChanged;
         HueWheelControl.Position = new float3(WheelLeft, WheelTop, 0.2f);
-        OverlayRoot.AddChild(HueWheelControl);
+        DialogContentRoot.AddChild(HueWheelControl);
 
-        SaturationValueTriangleControl = new EditorColorTriangleControl(OverlayLayerMask);
+        SaturationValueTriangleControl = new EditorColorTriangleControl(LayerMask, TriangleSize);
         SaturationValueTriangleControl.SelectionChanged += HandleTriangleSelectionChanged;
         SaturationValueTriangleControl.Position = new float3(TriangleLeft, TriangleTop, 0.25f);
-        OverlayRoot.AddChild(SaturationValueTriangleControl);
+        DialogContentRoot.AddChild(SaturationValueTriangleControl);
     }
 
     /// <summary>
@@ -639,11 +567,11 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// </summary>
     void CreatePreviewArea() {
         PreviewHost = new EditorEntity {
-            LayerMask = OverlayLayerMask,
+            LayerMask = LayerMask,
             InternalEntity = true,
             Position = new float3(SidePanelLeft, PanelPadding, 0.2f)
         };
-        OverlayRoot.AddChild(PreviewHost);
+        DialogContentRoot.AddChild(PreviewHost);
 
         PreviewBackground = new RoundedRectComponent {
             Size = new int2(PreviewSize, PreviewSize),
@@ -661,11 +589,11 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// </summary>
     void CreateHexTextbox() {
         HexTextboxHost = new EditorEntity {
-            LayerMask = OverlayLayerMask,
+            LayerMask = LayerMask,
             InternalEntity = true,
             Position = new float3(SidePanelLeft, PanelPadding + PreviewSize + SectionSpacing, 0.2f)
         };
-        OverlayRoot.AddChild(HexTextboxHost);
+        DialogContentRoot.AddChild(HexTextboxHost);
 
         HexTextBoxControl = new TextBoxComponent(new int2(HexTextboxWidth, HexTextboxHeight), Font);
         HexTextBoxControl.TextChanged += HandleHexTextChanged;
@@ -681,11 +609,11 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
         int rowTop = PanelPadding + PreviewSize + SectionSpacing + HexTextboxHeight + SectionSpacing;
 
         AlphaLabelHost = new EditorEntity {
-            LayerMask = OverlayLayerMask,
+            LayerMask = LayerMask,
             InternalEntity = true,
             Position = new float3(SidePanelLeft, rowTop, 0.2f)
         };
-        OverlayRoot.AddChild(AlphaLabelHost);
+        DialogContentRoot.AddChild(AlphaLabelHost);
 
         AlphaLabelText = new TextComponent {
             Font = Font,
@@ -696,19 +624,19 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
         AlphaLabelHost.AddComponent(AlphaLabelText);
 
         AlphaSliderControl = new EditorSlider(0.0, 255.0, 255.0, EditorSliderScaleMode.Linear, AlphaSliderWidth, 16);
-        AlphaSliderControl.ApplyLayerMask(OverlayLayerMask);
+        AlphaSliderControl.ApplyLayerMask(LayerMask);
         AlphaSliderControl.SetRenderOrders(RenderOrder2D.ModalOverlayBackground, RenderOrder2D.ModalOverlayForeground);
         AlphaSliderControl.KeyboardStep = 1.0;
         AlphaSliderControl.ValueChanged += HandleAlphaSliderChanged;
         AlphaSliderControl.Position = new float3(SidePanelLeft + AlphaLabelWidth + 8, rowTop + 4, 0.2f);
-        OverlayRoot.AddChild(AlphaSliderControl);
+        DialogContentRoot.AddChild(AlphaSliderControl);
 
         AlphaValueHost = new EditorEntity {
-            LayerMask = OverlayLayerMask,
+            LayerMask = LayerMask,
             InternalEntity = true,
             Position = new float3(SidePanelLeft + AlphaLabelWidth + 8 + AlphaSliderWidth + 8, rowTop, 0.2f)
         };
-        OverlayRoot.AddChild(AlphaValueHost);
+        DialogContentRoot.AddChild(AlphaValueHost);
 
         AlphaValueText = new TextComponent {
             Font = Font,
@@ -720,39 +648,9 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     }
 
     /// <summary>
-    /// Creates the close button that dismisses the overlay.
-    /// </summary>
-    void CreateCloseButton() {
-        CloseButtonHost = new EditorEntity {
-            LayerMask = OverlayLayerMask,
-            InternalEntity = true,
-            Position = float3.Zero
-        };
-        OverlayRoot.AddChild(CloseButtonHost);
-
-        CloseButton = new ButtonComponent("Close", new int2(CloseButtonWidth, CloseButtonHeight), Font, Close);
-        CloseButton.UseSquareCorners();
-        CloseButton.SetHoverCursor(PointerCursorKind.Hand);
-        CloseButton.SetTextColor(ThemeManager.Colors.TextOnAccent);
-        CloseButton.SetVisualPalette(
-            ThemeManager.Colors.AccentSecondary,
-            ThemeManager.Colors.AccentPrimary,
-            ThemeManager.Colors.AccentTertiary,
-            ThemeManager.Colors.AccentSecondary,
-            ThemeManager.Colors.AccentTertiary,
-            ThemeManager.Colors.AccentPrimary);
-        CloseButton.SetRenderOrders(RenderOrder2D.ModalOverlayBackground, RenderOrder2D.ModalOverlayForeground);
-        CloseButtonHost.AddComponent(CloseButton);
-    }
-
-    /// <summary>
     /// Positions the overlay panel and its child controls inside the active viewport.
     /// </summary>
     void LayoutOverlay() {
-        if (OverlayRoot == null) {
-            return;
-        }
-
         int2 windowSize = Core.Instance != null && Core.Instance.RenderManager3D != null
             ? Core.Instance.RenderManager3D.MainWindowSize
             : int2.Zero;
@@ -768,15 +666,17 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
 
         if (windowSize.Y > 0) {
             float minimumTop = OverlayMargin;
-            float maximumTop = Math.Max(minimumTop, windowSize.Y - PanelHeight - OverlayMargin);
+            float maximumTop = Math.Max(minimumTop, windowSize.Y - (PanelHeight + DialogHeaderHeight) - OverlayMargin);
             if (panelTop > maximumTop) {
-                panelTop = AnchorY - PanelHeight - OverlayMargin;
+                panelTop = AnchorY - (PanelHeight + DialogHeaderHeight) - OverlayMargin;
             }
 
             panelTop = Math.Clamp(panelTop, minimumTop, maximumTop);
         }
 
-        OverlayRoot.Position = new float3(panelLeft, panelTop, 0.1f);
+        DialogIsUserPositioned = true;
+        DialogPanelPosition = new int2((int)Math.Round(panelLeft), (int)Math.Round(panelTop));
+        ApplyDialogPosition();
 
         if (HueWheelControl != null) {
             HueWheelControl.Position = new float3(WheelLeft, WheelTop, 0.2f);
@@ -806,37 +706,6 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
         if (AlphaValueHost != null) {
             AlphaValueHost.Position = new float3(SidePanelLeft + AlphaLabelWidth + 8 + AlphaSliderWidth + 8, alphaRowTop, 0.2f);
         }
-
-        if (CloseButtonHost != null) {
-            CloseButtonHost.Position = new float3(PanelWidth - PanelPadding - CloseButtonWidth, PanelHeight - PanelPadding - CloseButtonHeight, 0.2f);
-        }
-    }
-
-    /// <summary>
-    /// Updates the input blocker to match the overlay panel.
-    /// </summary>
-    void UpdateInputBlocker() {
-        if (!IsOpenValue) {
-            EditorInputCaptureService.ClearBlocker(InputBlockerOwner);
-            return;
-        }
-
-        if (OverlayRoot == null) {
-            EditorInputCaptureService.ClearBlocker(InputBlockerOwner);
-            return;
-        }
-
-        int2 overlayPosition = new int2(
-            (int)Math.Round(OverlayRoot.Position.X),
-            (int)Math.Round(OverlayRoot.Position.Y));
-        EditorInputCaptureService.SetBlocker(InputBlockerOwner, overlayPosition, new int2(PanelWidth, PanelHeight));
-    }
-
-    /// <summary>
-    /// Removes the active input blocker.
-    /// </summary>
-    void ClearInputBlocker() {
-        EditorInputCaptureService.ClearBlocker(InputBlockerOwner);
     }
 
     /// <summary>
@@ -845,24 +714,20 @@ public sealed class EditorColorPickerOverlayComponent : UpdateComponent {
     /// <param name="point">Screen-space point to evaluate.</param>
     /// <returns>True when the point lies inside the overlay bounds.</returns>
     bool ContainsOverlayPoint(int2 point) {
-        if (OverlayRoot == null) {
-            return false;
-        }
-
-        int left = (int)Math.Round(OverlayRoot.Position.X);
-        int top = (int)Math.Round(OverlayRoot.Position.Y);
+        int left = DialogPanelPosition.X;
+        int top = DialogPanelPosition.Y;
         return point.X >= left &&
-               point.X < left + PanelWidth &&
+               point.X < left + DialogWidth &&
                point.Y >= top &&
-               point.Y < top + PanelHeight;
+               point.Y < top + DialogHeight;
     }
 
     /// <summary>
-    /// Ensures the overlay has been attached to one editor entity before it is used.
+    /// Ensures the picker initialized its dialog shell before it is used.
     /// </summary>
     void EnsureInitialized() {
-        if (!IsInitialized || OwnerEntity == null || OverlayRoot == null) {
-            throw new InvalidOperationException("Color picker overlay must be attached to an editor entity before use.");
+        if (!IsInitialized) {
+            throw new InvalidOperationException("Color picker overlay must be initialized before use.");
         }
     }
 }

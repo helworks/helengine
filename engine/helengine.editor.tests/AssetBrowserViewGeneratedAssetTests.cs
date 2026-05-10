@@ -73,7 +73,13 @@ namespace helengine.editor.tests {
             Assert.Equal("Engine", entries[0].Name);
             Assert.True(entries[0].IsEngineGeneratedRootDirectory);
             Assert.Equal("Engine/ [read-only]", rows[0].Label.Text);
-            Assert.Equal(ThemeManager.Colors.StateWarning, rows[0].Background.Color);
+
+            byte4 expectedBackground = new byte4(
+                (byte)Math.Round(ThemeManager.Colors.SurfacePrimary.X + ((ThemeManager.Colors.AccentSecondary.X - ThemeManager.Colors.SurfacePrimary.X) * 0.2)),
+                (byte)Math.Round(ThemeManager.Colors.SurfacePrimary.Y + ((ThemeManager.Colors.AccentSecondary.Y - ThemeManager.Colors.SurfacePrimary.Y) * 0.2)),
+                (byte)Math.Round(ThemeManager.Colors.SurfacePrimary.Z + ((ThemeManager.Colors.AccentSecondary.Z - ThemeManager.Colors.SurfacePrimary.Z) * 0.2)),
+                (byte)Math.Round(ThemeManager.Colors.SurfacePrimary.W + ((ThemeManager.Colors.AccentSecondary.W - ThemeManager.Colors.SurfacePrimary.W) * 0.2)));
+            Assert.Equal(expectedBackground, rows[0].Background.Color);
         }
 
         /// <summary>

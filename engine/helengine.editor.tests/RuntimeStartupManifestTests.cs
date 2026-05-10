@@ -4,37 +4,17 @@ using Xunit;
 namespace helengine.editor.tests;
 
 /// <summary>
-/// Verifies the runtime startup manifest reader matches the editor-written JSON shape.
+/// Verifies the runtime startup manifest preserves injected startup metadata without relying on file parsing.
 /// </summary>
-public sealed class RuntimeStartupManifestTests : IDisposable {
-    readonly string TempRootPath;
-
-    public RuntimeStartupManifestTests() {
-        TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-runtime-startup-manifest-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(TempRootPath);
-    }
-
-    public void Dispose() {
-        if (Directory.Exists(TempRootPath)) {
-            Directory.Delete(TempRootPath, true);
-        }
-    }
-
+public sealed class RuntimeStartupManifestTests {
+    /// <summary>
+    /// Ensures the constructor preserves the selected startup scene and storage profile.
+    /// </summary>
     [Fact]
-    public void ReadFromFile_parses_editor_startup_manifest_shape() {
-        string manifestPath = Path.Combine(TempRootPath, "runtime-startup.json");
-        File.WriteAllText(
-            manifestPath,
-            """
-            {
-              "StartupSceneId": "Scenes/MainMenu.helen",
-              "StorageProfileId": {
-                "Value": "windows-loose-files"
-              }
-            }
-            """);
-
-        RuntimeStartupManifest manifest = RuntimeStartupManifest.ReadFromFile(manifestPath);
+    public void Constructor_preserves_startup_metadata() {
+        RuntimeStartupManifest manifest = new RuntimeStartupManifest(
+            "Scenes/MainMenu.helen",
+            new RuntimeStorageProfileId("windows-loose-files"));
 
         Assert.Equal("Scenes/MainMenu.helen", manifest.StartupSceneId);
         Assert.Equal("windows-loose-files", manifest.StorageProfileId.Value);

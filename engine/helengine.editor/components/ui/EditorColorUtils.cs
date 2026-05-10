@@ -12,6 +12,26 @@ public static class EditorColorUtils {
     const double DefaultHueWheelInnerRadiusRatio = 0.62;
 
     /// <summary>
+    /// Normalized top vertex Y coordinate used by the saturation/value triangle geometry.
+    /// </summary>
+    const double TriangleTopVertexYRatio = 0.10;
+
+    /// <summary>
+    /// Normalized left vertex X coordinate used by the saturation/value triangle geometry.
+    /// </summary>
+    const double TriangleLeftVertexXRatio = 0.12;
+
+    /// <summary>
+    /// Normalized right vertex X coordinate used by the saturation/value triangle geometry.
+    /// </summary>
+    const double TriangleRightVertexXRatio = 0.88;
+
+    /// <summary>
+    /// Normalized bottom vertex Y coordinate used by the saturation/value triangle geometry.
+    /// </summary>
+    const double TriangleBottomVertexYRatio = 0.88;
+
+    /// <summary>
     /// Converts one byte-backed RGB color into HSV components.
     /// </summary>
     /// <param name="color">Source RGB color.</param>
@@ -122,7 +142,7 @@ public static class EditorColorUtils {
 
         byte[] colors = new byte[size * size * 4];
         double radius = (size - 1) / 2.0;
-        double innerRadius = radius * DefaultHueWheelInnerRadiusRatio;
+        double innerRadius = GetHueWheelInnerRadius(size);
 
         for (int y = 0; y < size; y++) {
             double dy = y - radius;
@@ -160,9 +180,9 @@ public static class EditorColorUtils {
         }
 
         byte[] colors = new byte[size * size * 4];
-        float2 topVertex = new float2(size * 0.5f, size * 0.10f);
-        float2 leftVertex = new float2(size * 0.12f, size * 0.88f);
-        float2 rightVertex = new float2(size * 0.88f, size * 0.88f);
+        float2 topVertex = CreateTriangleTopVertex(size);
+        float2 leftVertex = CreateTriangleLeftVertex(size);
+        float2 rightVertex = CreateTriangleRightVertex(size);
         byte4 hueColor = HsvToRgb(hue, 1.0, 1.0, 255);
 
         for (int y = 0; y < size; y++) {
@@ -212,12 +232,46 @@ public static class EditorColorUtils {
         }
 
         double radius = (size - 1) / 2.0;
-        double innerRadius = radius * DefaultHueWheelInnerRadiusRatio;
+        double innerRadius = GetHueWheelInnerRadius(size);
         double center = radius;
         double dx = point.X - center;
         double dy = point.Y - center;
         double distance = Math.Sqrt((dx * dx) + (dy * dy));
         return distance >= innerRadius && distance <= radius;
+    }
+
+    /// <summary>
+    /// Resolves the transparent-center radius used by the hue wheel texture and hit tests.
+    /// </summary>
+    /// <param name="size">Square wheel size in pixels.</param>
+    /// <returns>Inner radius in pixels.</returns>
+    public static double GetHueWheelInnerRadius(int size) {
+        if (size <= 0) {
+            throw new ArgumentOutOfRangeException(nameof(size), "Wheel size must be greater than zero.");
+        }
+
+        double radius = (size - 1) / 2.0;
+        return radius * DefaultHueWheelInnerRadiusRatio;
+    }
+
+    /// <summary>
+    /// Resolves the largest triangle size that fits inside the hue wheel center with the supplied padding.
+    /// </summary>
+    /// <param name="wheelSize">Square wheel size in pixels.</param>
+    /// <param name="padding">Extra padding to keep between the triangle vertices and the wheel ring.</param>
+    /// <returns>Recommended square triangle size in pixels.</returns>
+    public static int GetRecommendedTriangleSizeForHueWheel(int wheelSize, int padding) {
+        if (wheelSize <= 0) {
+            throw new ArgumentOutOfRangeException(nameof(wheelSize), "Wheel size must be greater than zero.");
+        }
+
+        double innerRadius = GetHueWheelInnerRadius(wheelSize);
+        double availableRadius = Math.Max(1.0, innerRadius - Math.Max(0, padding));
+        double furthestTriangleVertexRadiusRatio = Math.Sqrt(
+            Math.Pow(0.5 - TriangleLeftVertexXRatio, 2.0) +
+            Math.Pow(0.5 - TriangleBottomVertexYRatio, 2.0));
+
+        return Math.Max(1, (int)Math.Floor(availableRadius / furthestTriangleVertexRadiusRatio));
     }
 
     /// <summary>
@@ -235,9 +289,9 @@ public static class EditorColorUtils {
             return false;
         }
 
-        float2 topVertex = new float2(size * 0.5f, size * 0.10f);
-        float2 leftVertex = new float2(size * 0.12f, size * 0.88f);
-        float2 rightVertex = new float2(size * 0.88f, size * 0.88f);
+        float2 topVertex = CreateTriangleTopVertex(size);
+        float2 leftVertex = CreateTriangleLeftVertex(size);
+        float2 rightVertex = CreateTriangleRightVertex(size);
         if (!TryResolveTriangleWeights(new float2(point.X + 0.5f, point.Y + 0.5f), topVertex, leftVertex, rightVertex, out double hueWeight, out double whiteWeight, out double blackWeight)) {
             return false;
         }
@@ -265,9 +319,9 @@ public static class EditorColorUtils {
         double whiteWeight = clampedValue * (1.0 - clampedSaturation);
         double blackWeight = 1.0 - clampedValue;
 
-        float2 topVertex = new float2(size * 0.5f, size * 0.10f);
-        float2 leftVertex = new float2(size * 0.12f, size * 0.88f);
-        float2 rightVertex = new float2(size * 0.88f, size * 0.88f);
+        float2 topVertex = CreateTriangleTopVertex(size);
+        float2 leftVertex = CreateTriangleLeftVertex(size);
+        float2 rightVertex = CreateTriangleRightVertex(size);
 
         double x = (hueWeight * topVertex.X) + (whiteWeight * leftVertex.X) + (blackWeight * rightVertex.X);
         double y = (hueWeight * topVertex.Y) + (whiteWeight * leftVertex.Y) + (blackWeight * rightVertex.Y);
@@ -373,6 +427,33 @@ public static class EditorColorUtils {
     static byte MixChannel(byte fromValue, byte toValue, double amount) {
         double blended = (fromValue * (1.0 - amount)) + (toValue * amount);
         return (byte)Math.Clamp((int)Math.Round(blended, MidpointRounding.AwayFromZero), 0, 255);
+    }
+
+    /// <summary>
+    /// Resolves the top triangle vertex for one square size.
+    /// </summary>
+    /// <param name="size">Square triangle size in pixels.</param>
+    /// <returns>Top vertex position.</returns>
+    static float2 CreateTriangleTopVertex(int size) {
+        return new float2((float)(size * 0.5), (float)(size * TriangleTopVertexYRatio));
+    }
+
+    /// <summary>
+    /// Resolves the left triangle vertex for one square size.
+    /// </summary>
+    /// <param name="size">Square triangle size in pixels.</param>
+    /// <returns>Left vertex position.</returns>
+    static float2 CreateTriangleLeftVertex(int size) {
+        return new float2((float)(size * TriangleLeftVertexXRatio), (float)(size * TriangleBottomVertexYRatio));
+    }
+
+    /// <summary>
+    /// Resolves the right triangle vertex for one square size.
+    /// </summary>
+    /// <param name="size">Square triangle size in pixels.</param>
+    /// <returns>Right vertex position.</returns>
+    static float2 CreateTriangleRightVertex(int size) {
+        return new float2((float)(size * TriangleRightVertexXRatio), (float)(size * TriangleBottomVertexYRatio));
     }
 
     /// <summary>

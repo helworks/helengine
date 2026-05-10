@@ -754,6 +754,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Updates the tint used by the shared modal backdrop while preserving the blocker geometry.
+        /// </summary>
+        /// <param name="backdropColor">Backdrop tint to apply to both fullscreen backdrop surfaces.</param>
+        protected void SetDialogBackdropColor(byte4 backdropColor) {
+            BackdropTopSurface.Color = backdropColor;
+            BackdropBodySurface.Color = backdropColor;
+        }
+
+        /// <summary>
         /// Updates the shared dialog shell layout and fullscreen modal backdrop.
         /// </summary>
         /// <param name="windowWidth">Current host window width.</param>

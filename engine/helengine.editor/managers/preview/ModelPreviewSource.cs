@@ -39,11 +39,19 @@ namespace helengine.editor {
         /// Padding multiplier applied to the fitted camera distance so the model is not framed too tightly.
         /// </summary>
         const double FramingPadding = 1.2d;
+        /// <summary>
+        /// Extra multiplier applied to the preview clip planes so fitted models are not clipped by near or far plane rounding.
+        /// </summary>
+        const double ClipPlanePadding = 1.25d;
 
         /// <summary>
         /// Owning renderer used to allocate the preview render target.
         /// </summary>
         readonly RenderManager3D renderManager3D;
+        /// <summary>
+        /// Shared neutral diffuse texture used by preview materials that do not have an authored diffuse map.
+        /// </summary>
+        static RuntimeTexture neutralPreviewTexture;
         /// <summary>
         /// Root entity that owns the preview model, light, and camera hierarchy.
         /// </summary>
@@ -153,7 +161,7 @@ namespace helengine.editor {
                 Model = runtimeModel
             };
             if (previewMaterials.Length == 0) {
-                previewMeshComponent.Material = EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial();
+                previewMeshComponent.Material = CreateNeutralPreviewMaterial();
             } else {
                 previewMeshComponent.SetMaterials(previewMaterials);
             }
@@ -162,7 +170,7 @@ namespace helengine.editor {
             previewCameraComponent = new CameraComponent {
                 LayerMask = EditorLayerMasks.SceneModelPreview,
                 CameraDrawOrder = 0,
-                ClearSettings = new CameraClearSettings(true, new float4(0.12f, 0.13f, 0.15f, 1f), true, 1f, false, 0)
+                ClearSettings = new CameraClearSettings(true, ResolvePreviewBackgroundColor(), true, 1f, false, 0)
             };
             cameraEntity.AddComponent(previewCameraComponent);
 
@@ -246,7 +254,8 @@ namespace helengine.editor {
                     runtimeModel.Submeshes,
                     importedModel.GeneratedMaterials,
                     assetImportManager,
-                    renderManager3D);
+                    renderManager3D,
+                    entry.FullPath);
                 source = new ModelPreviewSource(runtimeModel, previewMaterials, renderManager3D);
                 return true;
             }
@@ -356,6 +365,7 @@ namespace helengine.editor {
         /// </summary>
         void UpdateCameraTransform() {
             float3 boundsCenter = GetBoundsCenter();
+            double boundsRadius = ResolveBoundsRadius();
             double fitDistance = ResolveFitDistance();
             double cameraDistance = fitDistance / zoomScale;
 
@@ -366,11 +376,13 @@ namespace helengine.editor {
             float3 forward = float4.RotateVector(new float3(0f, 0f, -1f), cameraOrientation);
             float3 right = float4.RotateVector(new float3(1f, 0f, 0f), cameraOrientation);
             float3 up = float4.RotateVector(new float3(0f, 1f, 0f), cameraOrientation);
-            cameraEntity.LocalOrientation = cameraOrientation;
-            cameraEntity.LocalPosition =
+            float3 cameraPosition =
                 forward * (float)-cameraDistance +
                 right * (float)(panOffset.X * fitDistance) +
                 up * (float)(panOffset.Y * fitDistance);
+            cameraEntity.LocalOrientation = cameraOrientation;
+            cameraEntity.LocalPosition = cameraPosition;
+            UpdateCameraClipPlanes(cameraPosition, boundsRadius);
             modelEntity.LocalPosition = new float3(-boundsCenter.X, -boundsCenter.Y, -boundsCenter.Z);
         }
 
@@ -390,20 +402,47 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Camera distance that fits the full bounding sphere inside the viewport.</returns>
         double ResolveFitDistance() {
-            float3 halfExtents = new float3(
-                Math.Abs(boundsMax.X - boundsMin.X) * 0.5f,
-                Math.Abs(boundsMax.Y - boundsMin.Y) * 0.5f,
-                Math.Abs(boundsMax.Z - boundsMin.Z) * 0.5f);
-            double radius = Math.Max(0.5d, Math.Sqrt(
-                (double)halfExtents.X * halfExtents.X +
-                (double)halfExtents.Y * halfExtents.Y +
-                (double)halfExtents.Z * halfExtents.Z));
+            double radius = ResolveBoundsRadius();
             double aspectRatio = contentSize.X / (double)contentSize.Y;
             double halfVerticalFov = Math.PI / 8.0d;
             double halfHorizontalFov = Math.Atan(Math.Tan(halfVerticalFov) * aspectRatio);
             double effectiveHalfFov = Math.Min(halfVerticalFov, halfHorizontalFov);
             double fitDistance = radius / Math.Sin(effectiveHalfFov);
             return Math.Max(0.1d, fitDistance * FramingPadding);
+        }
+
+        /// <summary>
+        /// Resolves the bounding-sphere radius used for preview framing and clip-plane expansion.
+        /// </summary>
+        /// <returns>Radius derived from the cached model bounds.</returns>
+        double ResolveBoundsRadius() {
+            float3 halfExtents = new float3(
+                Math.Abs(boundsMax.X - boundsMin.X) * 0.5f,
+                Math.Abs(boundsMax.Y - boundsMin.Y) * 0.5f,
+                Math.Abs(boundsMax.Z - boundsMin.Z) * 0.5f);
+            return Math.Max(0.5d, Math.Sqrt(
+                (double)halfExtents.X * halfExtents.X +
+                (double)halfExtents.Y * halfExtents.Y +
+                (double)halfExtents.Z * halfExtents.Z));
+        }
+
+        /// <summary>
+        /// Expands the preview camera near and far clip planes around the current orbit target so tall or wide models remain visible.
+        /// </summary>
+        /// <param name="cameraPosition">Current camera position relative to the centered model.</param>
+        /// <param name="boundsRadius">Bounding-sphere radius of the previewed model.</param>
+        void UpdateCameraClipPlanes(float3 cameraPosition, double boundsRadius) {
+            double distanceToCenter = Math.Sqrt(
+                (double)cameraPosition.X * cameraPosition.X +
+                (double)cameraPosition.Y * cameraPosition.Y +
+                (double)cameraPosition.Z * cameraPosition.Z);
+            double paddedRadius = boundsRadius * ClipPlanePadding;
+            double nearPlaneDistance = CameraProjectionUtils.MinimumNearPlaneDistance;
+            double farPlaneDistance = Math.Max(
+                nearPlaneDistance + CameraProjectionUtils.MinimumPlaneSeparation,
+                distanceToCenter + paddedRadius);
+            previewCameraComponent.NearPlaneDistance = (float)nearPlaneDistance;
+            previewCameraComponent.FarPlaneDistance = (float)farPlaneDistance;
         }
 
         /// <summary>
@@ -438,7 +477,8 @@ namespace helengine.editor {
             RuntimeSubmesh[] submeshes,
             ImportedModelMaterialAsset[] generatedMaterials,
             AssetImportManager assetImportManager,
-            RenderManager3D renderManager3D) {
+            RenderManager3D renderManager3D,
+            string modelSourcePath) {
             if (submeshes == null) {
                 throw new ArgumentNullException(nameof(submeshes));
             }
@@ -451,12 +491,15 @@ namespace helengine.editor {
             if (renderManager3D == null) {
                 throw new ArgumentNullException(nameof(renderManager3D));
             }
+            if (string.IsNullOrWhiteSpace(modelSourcePath)) {
+                throw new ArgumentException("Model source path must be provided.", nameof(modelSourcePath));
+            }
 
             if (submeshes.Length == 0) {
                 return Array.Empty<RuntimeMaterial>();
             }
 
-            RuntimeMaterial fallbackMaterial = EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial();
+            RuntimeMaterial fallbackMaterial = CreateNeutralPreviewMaterial();
             RuntimeMaterial[] previewMaterials = new RuntimeMaterial[submeshes.Length];
             for (int submeshIndex = 0; submeshIndex < submeshes.Length; submeshIndex++) {
                 previewMaterials[submeshIndex] = ResolvePreviewMaterial(
@@ -464,7 +507,8 @@ namespace helengine.editor {
                     generatedMaterials,
                     assetImportManager,
                     renderManager3D,
-                    fallbackMaterial);
+                    fallbackMaterial,
+                    modelSourcePath);
             }
 
             return previewMaterials;
@@ -484,7 +528,8 @@ namespace helengine.editor {
             ImportedModelMaterialAsset[] generatedMaterials,
             AssetImportManager assetImportManager,
             RenderManager3D renderManager3D,
-            RuntimeMaterial fallbackMaterial) {
+            RuntimeMaterial fallbackMaterial,
+            string modelSourcePath) {
             if (submesh == null) {
                 throw new ArgumentNullException(nameof(submesh));
             }
@@ -500,6 +545,9 @@ namespace helengine.editor {
             if (fallbackMaterial == null) {
                 throw new ArgumentNullException(nameof(fallbackMaterial));
             }
+            if (string.IsNullOrWhiteSpace(modelSourcePath)) {
+                throw new ArgumentException("Model source path must be provided.", nameof(modelSourcePath));
+            }
 
             if (!string.IsNullOrWhiteSpace(submesh.MaterialSlotName)) {
                 for (int materialIndex = 0; materialIndex < generatedMaterials.Length; materialIndex++) {
@@ -512,7 +560,7 @@ namespace helengine.editor {
                         continue;
                     }
 
-                    return CreateImportedPreviewMaterial(generatedMaterial, assetImportManager, renderManager3D);
+                    return CreateImportedPreviewMaterial(generatedMaterial, assetImportManager, renderManager3D, modelSourcePath);
                 }
             }
 
@@ -529,7 +577,8 @@ namespace helengine.editor {
         static RuntimeMaterial CreateImportedPreviewMaterial(
             ImportedModelMaterialAsset generatedMaterial,
             AssetImportManager assetImportManager,
-            RenderManager3D renderManager3D) {
+            RenderManager3D renderManager3D,
+            string modelSourcePath) {
             if (generatedMaterial == null) {
                 throw new ArgumentNullException(nameof(generatedMaterial));
             }
@@ -539,15 +588,18 @@ namespace helengine.editor {
             if (renderManager3D == null) {
                 throw new ArgumentNullException(nameof(renderManager3D));
             }
+            if (string.IsNullOrWhiteSpace(modelSourcePath)) {
+                throw new ArgumentException("Model source path must be provided.", nameof(modelSourcePath));
+            }
 
-            RuntimeMaterial previewMaterial = EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial();
+            RuntimeMaterial previewMaterial = CreateNeutralPreviewMaterial();
             MaterialAsset materialAsset = generatedMaterial.MaterialAsset;
             if (materialAsset == null) {
                 throw new InvalidOperationException("Imported model material entries must include a material asset.");
             }
 
             if (!string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
-                TextureAsset textureAsset = LoadImportedTextureAsset(assetImportManager, materialAsset.DiffuseTextureAssetId);
+                TextureAsset textureAsset = LoadImportedTextureAsset(assetImportManager, modelSourcePath, materialAsset.DiffuseTextureAssetId);
                 RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
                 previewMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
             }
@@ -557,17 +609,74 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Loads one imported texture asset from the cache folder used by the editor importer pipeline.
+        /// Creates one neutral preview material that stays readable even when the imported source has no diffuse texture.
         /// </summary>
-        /// <param name="assetImportManager">Asset import manager used to resolve the import cache root.</param>
+        /// <returns>Runtime material configured with the shared neutral preview swatch.</returns>
+        static RuntimeMaterial CreateNeutralPreviewMaterial() {
+            RuntimeMaterial previewMaterial = EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial();
+            previewMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, ResolveNeutralPreviewTexture());
+            StandardMaterialTextureBindingDefaults.Apply(previewMaterial);
+            return previewMaterial;
+        }
+
+        /// <summary>
+        /// Resolves the shared neutral preview swatch used for untextured imported model previews.
+        /// </summary>
+        /// <returns>Shared runtime texture used as the untextured preview diffuse map.</returns>
+        static RuntimeTexture ResolveNeutralPreviewTexture() {
+            if (neutralPreviewTexture != null) {
+                return neutralPreviewTexture;
+            }
+
+            if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
+                throw new InvalidOperationException("A render manager must be initialized before preview materials can create neutral diffuse textures.");
+            }
+
+            neutralPreviewTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(new TextureAsset {
+                Width = 1,
+                Height = 1,
+                Colors = new byte[] { 192, 198, 208, 255 }
+            });
+            return neutralPreviewTexture;
+        }
+
+        /// <summary>
+        /// Resolves the preview background clear color from the active editor theme.
+        /// </summary>
+        /// <returns>Normalized RGBA clear color based on the current theme background.</returns>
+        static float4 ResolvePreviewBackgroundColor() {
+            byte4 color = ThemeManager.Colors.BackgroundPrimary;
+            return new float4(
+                color.X / 255f,
+                color.Y / 255f,
+                color.Z / 255f,
+                color.W / 255f);
+        }
+
+        /// <summary>
+        /// Loads one imported texture asset from the model source tree, the project assets tree, or the import cache.
+        /// </summary>
+        /// <param name="assetImportManager">Asset import manager used to resolve source and cache roots.</param>
+        /// <param name="modelSourcePath">Absolute path to the imported model source file.</param>
         /// <param name="assetId">Imported texture asset identifier.</param>
-        /// <returns>Serialized texture asset loaded from the import cache.</returns>
-        static TextureAsset LoadImportedTextureAsset(AssetImportManager assetImportManager, string assetId) {
+        /// <returns>Serialized texture asset loaded from the importer inputs or cache.</returns>
+        static TextureAsset LoadImportedTextureAsset(AssetImportManager assetImportManager, string modelSourcePath, string assetId) {
             if (assetImportManager == null) {
                 throw new ArgumentNullException(nameof(assetImportManager));
             }
+            if (string.IsNullOrWhiteSpace(modelSourcePath)) {
+                throw new ArgumentException("Model source path must be provided.", nameof(modelSourcePath));
+            }
             if (string.IsNullOrWhiteSpace(assetId)) {
                 throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
+            }
+
+            string modelSourceDirectoryPath = Path.GetDirectoryName(Path.GetFullPath(modelSourcePath));
+            if (!string.IsNullOrWhiteSpace(modelSourceDirectoryPath)) {
+                string sourceTexturePath = Path.IsPathRooted(assetId) ? Path.GetFullPath(assetId) : Path.GetFullPath(Path.Combine(modelSourceDirectoryPath, assetId));
+                if (File.Exists(sourceTexturePath)) {
+                    return LoadTextureAssetFromSource(assetImportManager, sourceTexturePath);
+                }
             }
 
             string assetsRootPath = assetImportManager.AssetsRootPath;
@@ -575,13 +684,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Asset source root path has not been initialized.");
             }
 
-            string sourceTexturePath = Path.GetFullPath(Path.Combine(assetsRootPath, assetId));
-            string normalizedAssetsRootPath = EnsureTrailingDirectorySeparator(Path.GetFullPath(assetsRootPath));
-            if (sourceTexturePath.StartsWith(normalizedAssetsRootPath, StringComparison.OrdinalIgnoreCase) && File.Exists(sourceTexturePath)) {
-                TextureAsset textureAsset;
-                if (assetImportManager.TryLoadTextureAsset(sourceTexturePath, out textureAsset)) {
-                    return textureAsset;
-                }
+            string projectTexturePath = Path.IsPathRooted(assetId) ? Path.GetFullPath(assetId) : Path.GetFullPath(Path.Combine(assetsRootPath, assetId));
+            if (File.Exists(projectTexturePath)) {
+                return LoadTextureAssetFromSource(assetImportManager, projectTexturePath);
             }
 
             string importRootPath = assetImportManager.ImportRootPath;
@@ -596,6 +701,34 @@ namespace helengine.editor {
             }
 
             return assetImportManager.ContentManager.Load<TextureAsset>(texturePath, EditorContentProcessorIds.TextureAsset);
+        }
+
+        /// <summary>
+        /// Loads one texture asset directly from its source file so preview materials reflect the current importer output instead of stale cached texture artifacts.
+        /// </summary>
+        /// <param name="assetImportManager">Asset import manager that owns the texture importer registrations.</param>
+        /// <param name="sourceTexturePath">Absolute path to the texture source file.</param>
+        /// <returns>Texture asset freshly imported from the source file.</returns>
+        static TextureAsset LoadTextureAssetFromSource(AssetImportManager assetImportManager, string sourceTexturePath) {
+            if (assetImportManager == null) {
+                throw new ArgumentNullException(nameof(assetImportManager));
+            }
+            if (string.IsNullOrWhiteSpace(sourceTexturePath)) {
+                throw new ArgumentException("Texture source path must be provided.", nameof(sourceTexturePath));
+            }
+
+            AssetImportSettings settings = assetImportManager.LoadOrCreateImportSettings(sourceTexturePath);
+            if (settings == null || settings.Importer == null || string.IsNullOrWhiteSpace(settings.Importer.ImporterId)) {
+                throw new InvalidOperationException("Texture import settings must resolve a valid importer id.");
+            }
+
+            TextureAsset textureAsset = assetImportManager.ContentManager.Load<TextureAsset>(sourceTexturePath, settings.Importer.ImporterId);
+            if (textureAsset == null) {
+                throw new InvalidOperationException($"Texture importer '{settings.Importer.ImporterId}' did not return an asset for '{sourceTexturePath}'.");
+            }
+
+            textureAsset.Id = settings.Importer.AssetId;
+            return textureAsset;
         }
 
         /// <summary>

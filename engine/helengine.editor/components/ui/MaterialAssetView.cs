@@ -86,16 +86,6 @@ namespace helengine.editor {
         readonly PlatformTabStripView PlatformTabStrip;
 
         /// <summary>
-        /// Host entity for the status text.
-        /// </summary>
-        readonly EditorEntity StatusHost;
-
-        /// <summary>
-        /// Text component used to render material authoring status messages.
-        /// </summary>
-        readonly TextComponent StatusText;
-
-        /// <summary>
         /// Supported platform identifiers shown in the platform picker.
         /// </summary>
         readonly List<string> SupportedPlatformIds;
@@ -109,6 +99,11 @@ namespace helengine.editor {
         /// Shared host entity used to keep the color picker outside the scrollable inspector content.
         /// </summary>
         readonly EditorEntity ColorPickerHost;
+
+        /// <summary>
+        /// Layer mask used by the shared color picker overlay when it renders outside the clipped inspector content.
+        /// </summary>
+        readonly ushort ColorPickerOverlayLayerMask;
 
         /// <summary>
         /// Shared color picker overlay reused by all material color fields.
@@ -213,18 +208,16 @@ namespace helengine.editor {
 
             if (overlayHost != null) {
                 ColorPickerHost = overlayHost;
+                ColorPickerOverlayLayerMask = EditorLayerMasks.EditorModalUi;
             } else {
                 ColorPickerHost = RootEntity;
+                ColorPickerOverlayLayerMask = layerMask;
             }
 
-            ColorPickerOverlay = new EditorColorPickerOverlayComponent(font, layerMask);
+            ColorPickerOverlay = new EditorColorPickerOverlayComponent(font, ColorPickerOverlayLayerMask);
             ColorPickerOverlay.ColorChanged += HandleSharedColorPickerChanged;
             ColorPickerOverlay.Closed += HandleSharedColorPickerClosed;
-            ColorPickerHost.AddComponent(ColorPickerOverlay);
-
-            StatusHost = CreateTextHost(layerMask, out StatusText, string.Empty);
-            RootEntity.AddChild(StatusHost);
-            StatusText.Color = ThemeManager.Colors.InputForegroundSecondary;
+            ColorPickerHost.AddChild(ColorPickerOverlay);
 
             Hide();
         }
@@ -287,7 +280,6 @@ namespace helengine.editor {
             PlatformTabStrip.SetPlatforms(SupportedPlatformIds, CurrentPlatformId, HandlePlatformSelectionChanged);
             PlatformTabStrip.SetSelectedPlatform(CurrentPlatformId);
             UpdatePlatformVisibility();
-            UpdateDisplayedValues(CurrentPlatformId);
             IsViewVisible = true;
             RootEntity.Enabled = true;
         }
@@ -314,7 +306,6 @@ namespace helengine.editor {
             SelectionModelResolver = null;
             CurrentPlatformId = string.Empty;
             SupportedPlatformIds.Clear();
-            StatusText.Text = string.Empty;
         }
 
         /// <summary>
@@ -342,6 +333,10 @@ namespace helengine.editor {
                 currentTop += activePanel.Height + RowSpacing;
             }
 
+            if (ColorPickerOverlay != null && ColorPickerOverlay.IsOpen) {
+                ColorPickerOverlay.UpdateLayout();
+            }
+
             for (int index = 0; index < SupportedPlatformIds.Count; index++) {
                 string platformId = SupportedPlatformIds[index];
                 MaterialAssetPlatformPanel panel = GetPlatformPanel(platformId);
@@ -352,10 +347,7 @@ namespace helengine.editor {
                 panel.SetVisible(false);
             }
 
-            StatusHost.Position = new float3(left, currentTop, 0.2f);
-            StatusText.Size = new int2(safeWidth, RowHeight);
-
-            LayoutHeight = (currentTop - top) + RowHeight;
+            LayoutHeight = currentTop - top;
         }
 
         /// <summary>
@@ -370,7 +362,6 @@ namespace helengine.editor {
             SyncCurrentFieldValues(CurrentPlatformId, saveToDisk: true);
             CurrentPlatformId = value;
             UpdatePlatformVisibility();
-            UpdateDisplayedValues(CurrentPlatformId);
         }
 
         /// <summary>
@@ -404,7 +395,6 @@ namespace helengine.editor {
             SchemaSettingsService.SelectSchema(materialSettings, availableSchemas, schemaId);
             RebuildPlatformPanel(platformId);
             SaveCurrentMaterialState(platformId);
-            UpdateDisplayedValues(platformId);
         }
 
         /// <summary>
@@ -437,7 +427,6 @@ namespace helengine.editor {
         void HandleTextFieldSubmitted(string platformId, string fieldId, TextBoxComponent textBox) {
             HandleTextFieldChanged(platformId, fieldId, textBox);
             SaveCurrentMaterialState(platformId);
-            UpdateDisplayedValues(platformId);
         }
 
         /// <summary>
@@ -461,7 +450,6 @@ namespace helengine.editor {
 
             materialSettings.FieldValues[fieldId] = value;
             SaveCurrentMaterialState(platformId);
-            UpdateDisplayedValues(platformId);
         }
 
         /// <summary>
@@ -486,7 +474,6 @@ namespace helengine.editor {
             if (string.Equals(fieldId, UseCustomShaderFieldId, StringComparison.OrdinalIgnoreCase)) {
                 RebuildPlatformPanel(platformId);
             }
-            UpdateDisplayedValues(platformId);
         }
 
         /// <summary>
@@ -519,7 +506,6 @@ namespace helengine.editor {
         void HandleColorFieldSubmitted(string platformId, string fieldId, byte4 color) {
             HandleColorFieldChanged(platformId, fieldId, color);
             SaveCurrentMaterialState(platformId);
-            UpdateDisplayedValues(platformId);
         }
 
         /// <summary>
@@ -577,7 +563,6 @@ namespace helengine.editor {
             }
 
             SaveCurrentMaterialState(ActiveColorFieldPlatformId);
-            UpdateDisplayedValues(ActiveColorFieldPlatformId);
             ActiveColorFieldControl = null;
             ActiveColorFieldPlatformId = null;
             ActiveColorFieldId = null;
@@ -625,7 +610,6 @@ namespace helengine.editor {
                 ApplyShaderIdToActivePlatform(platformId, fieldId, shaderId);
                 UpdateFieldControlsFromSettings(platformId);
                 SaveCurrentMaterialState(platformId);
-                UpdateDisplayedValues(platformId);
             } catch (Exception ex) {
                 Logger.WriteError($"Failed to assign platform shader: {ex.Message}");
             }
@@ -655,7 +639,6 @@ namespace helengine.editor {
                 ApplyTextureIdToActivePlatform(platformId, fieldId, textureId);
                 UpdateFieldControlsFromSettings(platformId);
                 SaveCurrentMaterialState(platformId);
-                UpdateDisplayedValues(platformId);
             } catch (Exception ex) {
                 Logger.WriteError($"Failed to assign platform texture: {ex.Message}");
             }
@@ -883,17 +866,6 @@ namespace helengine.editor {
 
             if (saveToDisk) {
                 SaveCurrentMaterialState(platformId);
-            }
-        }
-
-        /// <summary>
-        /// Updates the status text for the currently active platform.
-        /// </summary>
-        void UpdateDisplayedValues(string platformId) {
-            PlatformMaterialSchemaDefinition materialSchema = FindActiveSchema(platformId);
-            StatusText.Text = string.Concat("Status: Editing ", platformId);
-            if (materialSchema == null) {
-                StatusText.Text = "Status: Active platform has no material schema.";
             }
         }
 

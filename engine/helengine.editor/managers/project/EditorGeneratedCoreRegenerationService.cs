@@ -856,6 +856,13 @@ namespace helengine.editor {
                 return updatedContents;
             }
 
+            if (string.Equals(fileName, "DirectionalShadowTowerSpinComponent.cpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "DirectionalShadowSunSweepComponent.cpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "DirectionalShadowOrbitComponent.cpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "DirectionalShadowCameraOrbitComponent.cpp", StringComparison.OrdinalIgnoreCase)) {
+                return RewriteGeneratedFloat4OutValueTemporary(contents);
+            }
+
             if (string.Equals(fileName, "CoreInitializationOptions.cpp", StringComparison.OrdinalIgnoreCase)
                 && contents.Contains("AppContext::BaseDirectory", StringComparison.Ordinal)
                 && !contents.Contains("#include \"system/app_context.hpp\"", StringComparison.Ordinal)) {
@@ -960,6 +967,22 @@ namespace helengine.editor {
                 "new T[values.size()] : nullptr",
                 "new T[values.size()]() : nullptr",
                 StringComparison.Ordinal);
+            return updatedContents;
+        }
+
+        /// <summary>
+        /// Rewrites generated `float4` out-value temporaries from invalid pointer form into stack value semantics.
+        /// </summary>
+        /// <param name="contents">Current generated source contents.</param>
+        /// <returns>Updated source contents with valid `float4` temporary construction.</returns>
+        static string RewriteGeneratedFloat4OutValueTemporary(string contents) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            string updatedContents = contents.Replace("float4 *orientation;", "float4 orientation;", StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace("float4->CreateFromYawPitchRoll(", "float4::CreateFromYawPitchRoll(", StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace("orientation->Normalize();", "orientation.Normalize();", StringComparison.Ordinal);
             return updatedContents;
         }
 
@@ -1604,6 +1627,8 @@ namespace helengine.editor {
                 + "        for (std::size_t index = 0; index < physicalPath.size(); index++) {" + newline
                 + "            if (physicalPath[index] == '/') {" + newline
                 + "                physicalPath[index] = '\\\\';" + newline
+                + "            } else {" + newline
+                + "                physicalPath[index] = static_cast<char>(std::toupper(static_cast<unsigned char>(physicalPath[index])));" + newline
                 + "            }" + newline
                 + "        }" + newline
                 + "        if (physicalPath.empty()) {" + newline
@@ -2163,6 +2188,7 @@ namespace helengine.editor {
             string legacyUnitySourcePath = Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp");
             string[] excludedAmalgamatedSourceRelativePaths = new[] {
                 "runtime/runtime_startup_manifest.cpp",
+                "runtime/runtime_scene_catalog_manifest.cpp",
                 "runtime/runtime_code_module_manifest.cpp"
             };
             List<string> sourceFiles = new();

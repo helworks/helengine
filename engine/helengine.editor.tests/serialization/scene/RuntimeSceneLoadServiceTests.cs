@@ -746,13 +746,14 @@ namespace helengine.editor.tests.serialization.scene {
                 },
                 CreateFont());
             packager.Package(new[] { "Scenes/TestMenu.helen", "Scenes/TestPlayableScene.helen" }, buildRootPath);
-            WriteRuntimeSceneCatalog(
-                buildRootPath,
+            RuntimeSceneCatalog sceneCatalog = new RuntimeSceneCatalog(new[] {
                 new RuntimeSceneCatalogEntry("Scenes/TestMenu.helen", GetPackagedSceneRelativePath("Scenes/TestMenu.helen")),
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset"));
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")
+            });
 
             Core core = new Core(new CoreInitializationOptions {
-                ContentRootPath = buildRootPath
+                ContentRootPath = buildRootPath,
+                SceneCatalog = sceneCatalog
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
             Core.Instance.DefaultFontAsset = CreateFont();
@@ -1261,40 +1262,6 @@ namespace helengine.editor.tests.serialization.scene {
                 CreateFont());
             packager.Package(new[] { "Scenes/TestMenu.helen" }, buildRootPath);
             return buildRootPath;
-        }
-
-        /// <summary>
-        /// Writes one runtime scene catalog file into the supplied packaged build output root.
-        /// </summary>
-        /// <param name="buildRootPath">Packaged build output root that should receive the runtime catalog.</param>
-        /// <param name="entries">Runtime scene catalog entries to persist.</param>
-        void WriteRuntimeSceneCatalog(string buildRootPath, params RuntimeSceneCatalogEntry[] entries) {
-            if (string.IsNullOrWhiteSpace(buildRootPath)) {
-                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
-            }
-            if (entries == null) {
-                throw new ArgumentNullException(nameof(entries));
-            }
-
-            string catalogPath = Path.Combine(buildRootPath, "runtime-scene-catalog.json");
-            using StreamWriter writer = new StreamWriter(catalogPath, false, System.Text.Encoding.UTF8);
-            writer.WriteLine("{");
-            writer.WriteLine("  \"Entries\": [");
-            for (int index = 0; index < entries.Length; index++) {
-                RuntimeSceneCatalogEntry entry = entries[index];
-                writer.WriteLine("    {");
-                writer.WriteLine("      \"SceneId\": \"" + entry.SceneId + "\",");
-                writer.WriteLine("      \"CookedRelativePath\": \"" + entry.CookedRelativePath + "\"");
-                writer.Write("    }");
-                if (index < entries.Length - 1) {
-                    writer.Write(",");
-                }
-
-                writer.WriteLine();
-            }
-
-            writer.WriteLine("  ]");
-            writer.WriteLine("}");
         }
 
         /// <summary>

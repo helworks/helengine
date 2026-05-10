@@ -626,9 +626,14 @@ namespace helengine.editor {
 
                 bool alternate = i % 2 == 1;
                 bool isReadOnlyDirectory = entry.IsReadOnlyDirectory;
-                byte4 baseColor = isReadOnlyDirectory
-                    ? ThemeManager.Colors.StateWarning
-                    : alternate ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
+                byte4 baseColor = alternate ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
+                if (isReadOnlyDirectory) {
+                    baseColor = new byte4(
+                        BlendChannel(ThemeManager.Colors.SurfacePrimary.X, ThemeManager.Colors.AccentSecondary.X, 0.2f),
+                        BlendChannel(ThemeManager.Colors.SurfacePrimary.Y, ThemeManager.Colors.AccentSecondary.Y, 0.2f),
+                        BlendChannel(ThemeManager.Colors.SurfacePrimary.Z, ThemeManager.Colors.AccentSecondary.Z, 0.2f),
+                        BlendChannel(ThemeManager.Colors.SurfacePrimary.W, ThemeManager.Colors.AccentSecondary.W, 0.2f));
+                }
                 row.BaseColor = baseColor;
                 row.IsSelected = string.Equals(entry.RelativePath, SelectedRelativePath, StringComparison.OrdinalIgnoreCase);
                 UpdateRowBackground(row, baseColor);
@@ -870,6 +875,18 @@ namespace helengine.editor {
         /// <returns>Scaled toolbar padding in pixels.</returns>
         int GetToolbarPaddingPixels() {
             return Metrics.ScalePixels(ToolbarPadding);
+        }
+
+        /// <summary>
+        /// Blends one color channel toward the accent color by the provided amount.
+        /// </summary>
+        /// <param name="start">Starting channel value.</param>
+        /// <param name="end">Target channel value.</param>
+        /// <param name="amount">Blend factor between 0 and 1.</param>
+        /// <returns>Rounded blended channel value.</returns>
+        static byte BlendChannel(byte start, byte end, float amount) {
+            double blended = start + ((end - start) * amount);
+            return (byte)Math.Round(blended);
         }
 
         /// <summary>

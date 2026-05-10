@@ -214,7 +214,7 @@ namespace helengine {
                 ShaderCompileTarget.DirectX11);
             SceneRuntimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
             SceneLoadService = new RuntimeSceneLoadService(SceneAssetReferenceResolver, SceneRuntimeComponentRegistry);
-            SceneManager = CreateSceneManager(contentManager);
+            SceneManager = CreateSceneManager(contentManager, InitializationOptions.SceneCatalog);
         }
 
         /// <summary>
@@ -365,30 +365,20 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Creates one runtime scene manager when packaged scene metadata exists beneath the current content root.
+        /// Creates one runtime scene manager when packaged scene metadata has been injected into the core initialization options.
         /// </summary>
         /// <param name="contentManager">Runtime content manager rooted at the active content path.</param>
-        /// <returns>Configured runtime scene manager, or null when no packaged scene catalog exists.</returns>
-        SceneManager CreateSceneManager(ContentManager contentManager) {
+        /// <param name="sceneCatalog">Injected runtime scene catalog used to resolve built scenes by stable identifier.</param>
+        /// <returns>Configured runtime scene manager, or null when no runtime scene catalog has been supplied.</returns>
+        SceneManager CreateSceneManager(ContentManager contentManager, RuntimeSceneCatalog sceneCatalog) {
             if (contentManager == null) {
                 throw new ArgumentNullException(nameof(contentManager));
             }
-
-            string runtimeSceneCatalogPath = ResolveRuntimeSceneCatalogPath();
-            if (string.IsNullOrWhiteSpace(runtimeSceneCatalogPath)) {
+            if (sceneCatalog == null) {
                 return null;
             }
 
-            RuntimeSceneCatalog runtimeSceneCatalog = RuntimeSceneCatalog.ReadFromFile(runtimeSceneCatalogPath);
-            return new SceneManager(runtimeSceneCatalog, contentManager, SceneLoadService, ObjectManager);
-        }
-
-        /// <summary>
-        /// Resolves the runtime scene-catalog path from the active content root using the supported packaged output layouts.
-        /// </summary>
-        /// <returns>Absolute scene-catalog path when one exists; otherwise an empty string.</returns>
-        string ResolveRuntimeSceneCatalogPath() {
-            return RuntimeSceneCatalog.FindCatalogPath(InitializationOptions.ContentRootPath);
+            return new SceneManager(sceneCatalog, contentManager, SceneLoadService, ObjectManager);
         }
 
         /// <summary>

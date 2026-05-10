@@ -5,11 +5,6 @@ namespace helengine.editor;
 /// </summary>
 public sealed class EditorColorTriangleControl : EditorEntity {
     /// <summary>
-    /// Square control size used by the triangle texture and hit area.
-    /// </summary>
-    const int TriangleSize = 160;
-
-    /// <summary>
     /// Square marker size used to show the selected point inside the triangle.
     /// </summary>
     const int MarkerSize = 12;
@@ -60,26 +55,44 @@ public sealed class EditorColorTriangleControl : EditorEntity {
     double ValueValue;
 
     /// <summary>
+    /// Square control size used by the triangle texture and hit area.
+    /// </summary>
+    readonly int TriangleSizeValue;
+
+    /// <summary>
     /// Initializes a new saturation/value triangle control.
     /// </summary>
     /// <param name="layerMask">Layer mask applied to the control hierarchy.</param>
-    public EditorColorTriangleControl(ushort layerMask) {
+    public EditorColorTriangleControl(ushort layerMask) : this(layerMask, 124) {
+    }
+
+    /// <summary>
+    /// Initializes a new saturation/value triangle control with an explicit square size.
+    /// </summary>
+    /// <param name="layerMask">Layer mask applied to the control hierarchy.</param>
+    /// <param name="triangleSize">Square control size used by the triangle texture and hit area.</param>
+    public EditorColorTriangleControl(ushort layerMask, int triangleSize) {
+        if (triangleSize <= 0) {
+            throw new ArgumentOutOfRangeException(nameof(triangleSize), "Triangle size must be greater than zero.");
+        }
+
         LayerMask = layerMask;
         InternalEntity = true;
         Name = "Color Triangle";
+        TriangleSizeValue = triangleSize;
 
         TriangleHost = CreateChildHost(layerMask);
         AddChild(TriangleHost);
 
         TriangleSprite = new SpriteComponent {
-            Size = new int2(TriangleSize, TriangleSize),
-            Texture = EditorColorUtils.BuildTriangleTexture(TriangleSize, HueValue),
+            Size = new int2(TriangleSizeValue, TriangleSizeValue),
+            Texture = EditorColorUtils.BuildTriangleTexture(TriangleSizeValue, HueValue),
             RenderOrder2D = RenderOrder2D.ModalOverlayForeground
         };
         TriangleHost.AddComponent(TriangleSprite);
 
         TriangleInteractable = new InteractableComponent {
-            Size = new int2(TriangleSize, TriangleSize),
+            Size = new int2(TriangleSizeValue, TriangleSizeValue),
             HoverCursor = PointerCursorKind.Hand
         };
         TriangleInteractable.CursorEvent += HandleTriangleCursor;
@@ -129,7 +142,7 @@ public sealed class EditorColorTriangleControl : EditorEntity {
     /// <summary>
     /// Gets the triangle size in pixels.
     /// </summary>
-    public int2 Size => new int2(TriangleSize, TriangleSize);
+    public int2 Size => new int2(TriangleSizeValue, TriangleSizeValue);
 
     /// <summary>
     /// Updates the triangle hue and redraws the procedural texture.
@@ -182,7 +195,7 @@ public sealed class EditorColorTriangleControl : EditorEntity {
         }
 
         HueValue = normalizedHue;
-        TriangleSprite.Texture = EditorColorUtils.BuildTriangleTexture(TriangleSize, HueValue);
+        TriangleSprite.Texture = EditorColorUtils.BuildTriangleTexture(TriangleSizeValue, HueValue);
         UpdateMarker();
     }
 
@@ -213,7 +226,7 @@ public sealed class EditorColorTriangleControl : EditorEntity {
     /// Updates the marker position so the selection remains visible inside the triangle.
     /// </summary>
     void UpdateMarker() {
-        int2 selectionPoint = EditorColorUtils.ResolveTrianglePoint(SaturationValue, ValueValue, TriangleSize);
+        int2 selectionPoint = EditorColorUtils.ResolveTrianglePoint(SaturationValue, ValueValue, TriangleSizeValue);
         MarkerHost.Position = new float3(
             selectionPoint.X - (MarkerSize * 0.5f),
             selectionPoint.Y - (MarkerSize * 0.5f),
@@ -233,7 +246,7 @@ public sealed class EditorColorTriangleControl : EditorEntity {
         }
 
         if (state == PointerInteraction.Press) {
-            if (!EditorColorUtils.TryResolveTriangleSelection(relPos, TriangleSize, out double saturation, out double value)) {
+            if (!EditorColorUtils.TryResolveTriangleSelection(relPos, TriangleSizeValue, out double saturation, out double value)) {
                 return;
             }
 
@@ -243,7 +256,7 @@ public sealed class EditorColorTriangleControl : EditorEntity {
         }
 
         if (state == PointerInteraction.Hover && IsDragging) {
-            if (!EditorColorUtils.TryResolveTriangleSelection(relPos, TriangleSize, out double saturation, out double value)) {
+            if (!EditorColorUtils.TryResolveTriangleSelection(relPos, TriangleSizeValue, out double saturation, out double value)) {
                 return;
             }
 
@@ -252,7 +265,7 @@ public sealed class EditorColorTriangleControl : EditorEntity {
         }
 
         if (state == PointerInteraction.Release) {
-            if (IsDragging && EditorColorUtils.TryResolveTriangleSelection(relPos, TriangleSize, out double saturation, out double value)) {
+            if (IsDragging && EditorColorUtils.TryResolveTriangleSelection(relPos, TriangleSizeValue, out double saturation, out double value)) {
                 ApplySelection(saturation, value, true);
             }
 

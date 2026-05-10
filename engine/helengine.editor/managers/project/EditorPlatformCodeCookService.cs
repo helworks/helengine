@@ -89,6 +89,7 @@ namespace helengine.editor {
                 }
 
                 CodegenToolRunner.Run(codegenToolPath, arguments, ProjectRootPath);
+                NormalizeGeneratedNativeModuleSources(moduleRootPath);
                 compiledModules.Add(new PlatformBuildCodeModule(
                     moduleEntry.ModuleId,
                     NormalizeRelativePath(Path.Combine("code", moduleEntry.ModuleId)),
@@ -281,6 +282,46 @@ namespace helengine.editor {
 
         static string EscapeXml(string value) {
             return System.Security.SecurityElement.Escape(value) ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Applies required post-generation native rewrites to one authored gameplay code module output tree.
+        /// </summary>
+        /// <param name="moduleRootPath">Absolute generated module output root.</param>
+        static void NormalizeGeneratedNativeModuleSources(string moduleRootPath) {
+            if (string.IsNullOrWhiteSpace(moduleRootPath)) {
+                throw new ArgumentException("Module root path must be provided.", nameof(moduleRootPath));
+            }
+
+            if (!Directory.Exists(moduleRootPath)) {
+                return;
+            }
+
+            string[] sourceFiles = Directory.GetFiles(moduleRootPath, "*.cpp", SearchOption.AllDirectories);
+            for (int index = 0; index < sourceFiles.Length; index++) {
+                string sourceFilePath = sourceFiles[index];
+                string contents = File.ReadAllText(sourceFilePath);
+                string updatedContents = RewriteGeneratedFloat4OrientationTemporary(contents);
+                if (!string.Equals(contents, updatedContents, StringComparison.Ordinal)) {
+                    File.WriteAllText(sourceFilePath, updatedContents);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Rewrites invalid generated `float4` orientation temporaries into stack-value semantics for native gameplay code.
+        /// </summary>
+        /// <param name="contents">Current generated native source contents.</param>
+        /// <returns>Updated source contents with valid `float4` orientation temporaries.</returns>
+        static string RewriteGeneratedFloat4OrientationTemporary(string contents) {
+            if (string.IsNullOrEmpty(contents)) {
+                return contents;
+            }
+
+            string updatedContents = contents.Replace("float4 *orientation;", "float4 orientation;", StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace("float4->CreateFromYawPitchRoll(", "float4::CreateFromYawPitchRoll(", StringComparison.Ordinal);
+            updatedContents = updatedContents.Replace("orientation->Normalize();", "orientation.Normalize();", StringComparison.Ordinal);
+            return updatedContents;
         }
     }
 

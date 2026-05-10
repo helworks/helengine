@@ -449,22 +449,37 @@ namespace helengine.editor {
                 interactionSource.HandleMouseWheel(wheelDelta);
             }
 
-            if (input.WasMouseLeftButtonPressed() || input.WasMouseMiddleButtonPressed()) {
+            if (input.WasMouseLeftButtonPressed()) {
                 IsLeftMouseDragging = true;
             }
 
+            if (input.WasMouseMiddleButtonPressed()) {
+                IsMiddleMouseDragging = true;
+            }
+
             if (!IsLeftMouseDragging) {
-                if (input.GetMouseLeftButtonState() == ButtonState.Released &&
-                    input.GetMouseMiddleButtonState() == ButtonState.Released) {
+                if (input.GetMouseLeftButtonState() == ButtonState.Released) {
                     IsLeftMouseDragging = false;
                 }
+            }
 
+            if (input.GetMouseMiddleButtonState() == ButtonState.Released) {
+                IsMiddleMouseDragging = false;
+            }
+
+            if (!IsLeftMouseDragging && !IsMiddleMouseDragging) {
                 return;
             }
 
-            if (input.GetMouseLeftButtonState() == ButtonState.Released &&
-                input.GetMouseMiddleButtonState() == ButtonState.Released) {
+            if (IsLeftMouseDragging && input.GetMouseLeftButtonState() == ButtonState.Released) {
                 IsLeftMouseDragging = false;
+            }
+
+            if (IsMiddleMouseDragging && input.GetMouseMiddleButtonState() == ButtonState.Released) {
+                IsMiddleMouseDragging = false;
+            }
+
+            if (!IsLeftMouseDragging && !IsMiddleMouseDragging) {
                 return;
             }
 
@@ -473,7 +488,17 @@ namespace helengine.editor {
                 return;
             }
 
-            interactionSource.HandleMouseDrag(delta);
+            if (IsLeftMouseDragging) {
+            if (input.GetMouseMiddleButtonState() == ButtonState.Pressed && input.GetMouseLeftButtonState() != ButtonState.Pressed) {
+                interactionSource.HandleMouseMiddleDrag(delta);
+            } else {
+                interactionSource.HandleMouseDrag(delta);
+            }
+        }
+
+            if (IsMiddleMouseDragging) {
+                interactionSource.HandleMouseMiddleDrag(delta);
+            }
         }
 
         /// <summary>
@@ -567,11 +592,11 @@ namespace helengine.editor {
         /// Gets the usable content size for the current panel dimensions.
         /// </summary>
         /// <returns>Usable preview content size in pixels.</returns>
-        int2 GetContentSize() {
-            return new int2(
-                Math.Max(1, Size.X - GetContentPaddingPixels() * 2),
-                Math.Max(1, Size.Y - GetContentPaddingPixels() * 2));
-        }
+    int2 GetContentSize() {
+        return new int2(
+            Math.Max(1, Size.X - GetContentPaddingPixels() * 2),
+            Math.Max(1, Size.Y - GetContentPaddingPixels() * 2));
+    }
 
         /// <summary>
         /// Gets the scaled content padding used around the preview texture.
@@ -603,4 +628,3 @@ namespace helengine.editor {
         }
     }
 }
-

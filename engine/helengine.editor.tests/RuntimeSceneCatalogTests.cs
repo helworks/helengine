@@ -4,97 +4,25 @@ using Xunit;
 namespace helengine.editor.tests;
 
 /// <summary>
-/// Verifies the runtime scene catalog reader matches the editor-written JSON shape.
+/// Verifies the runtime scene catalog preserves lookup behavior without relying on file parsing.
 /// </summary>
-public sealed class RuntimeSceneCatalogTests : IDisposable {
-    /// <summary>
-    /// Temporary root used by the catalog tests.
-    /// </summary>
-    readonly string TempRootPath;
-
-    /// <summary>
-    /// Initializes the temporary test root.
-    /// </summary>
-    public RuntimeSceneCatalogTests() {
-        TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-runtime-scene-catalog-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(TempRootPath);
-    }
-
-    /// <summary>
-    /// Deletes the temporary test root.
-    /// </summary>
-    public void Dispose() {
-        if (Directory.Exists(TempRootPath)) {
-            Directory.Delete(TempRootPath, true);
-        }
-    }
-
+public sealed class RuntimeSceneCatalogTests {
     /// <summary>
     /// Ensures the runtime scene catalog preserves scene ids and cooked relative paths.
     /// </summary>
     [Fact]
-    public void ReadFromFile_parses_runtime_scene_catalog_shape() {
-        string manifestPath = Path.Combine(TempRootPath, "runtime-scene-catalog.json");
-        File.WriteAllText(
-            manifestPath,
-            """
-            {
-              "Entries": [
-                {
-                  "SceneId": "Scenes/Bootstrap.helen",
-                  "CookedRelativePath": "cooked/scenes/Bootstrap.hasset"
-                },
-                {
-                  "SceneId": "Scenes/TestPlayableScene.helen",
-                  "CookedRelativePath": "cooked/scenes/TestPlayableScene.hasset"
-                }
-              ]
-            }
-            """);
-
-        RuntimeSceneCatalog catalog = RuntimeSceneCatalog.ReadFromFile(manifestPath);
+    public void Constructor_preserves_runtime_scene_catalog_shape() {
+        RuntimeSceneCatalog catalog = new RuntimeSceneCatalog(
+            [
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")
+            ]);
 
         Assert.Equal(2, catalog.Entries.Length);
         Assert.Equal("Scenes/Bootstrap.helen", catalog.Entries[0].SceneId);
         Assert.Equal("cooked/scenes/Bootstrap.hasset", catalog.Entries[0].CookedRelativePath);
         Assert.True(catalog.TryGetEntry("Scenes/TestPlayableScene.helen", out RuntimeSceneCatalogEntry entry));
         Assert.Equal("cooked/scenes/TestPlayableScene.hasset", entry.CookedRelativePath);
-    }
-
-    /// <summary>
-    /// Ensures the catalog resolver can discover a PS2-safe renamed scene catalog file.
-    /// </summary>
-    [Fact]
-    public void FindCatalogPath_whenCatalogIsPs2Renamed_discoversReadableJsoFile() {
-        string startupManifestPath = Path.Combine(TempRootPath, "runtime-startup.jso");
-        string catalogManifestPath = Path.Combine(TempRootPath, "catalog.jso");
-
-        File.WriteAllText(
-            startupManifestPath,
-            """
-            {
-              "StartupSceneId": "Scenes/MainMenu.helen",
-              "StorageProfileId": {
-                "Value": "disc-layout"
-              }
-            }
-            """);
-        File.WriteAllText(
-            catalogManifestPath,
-            """
-            {
-              "Entries": [
-                {
-                  "SceneId": "Scenes/MainMenu.helen",
-                  "CookedRelativePath": "cooked/scenes/MainMenu.hasset"
-                }
-              ]
-            }
-            """);
-
-        string resolvedPath = RuntimeSceneCatalog.FindCatalogPath(TempRootPath);
-
-        Assert.Equal(catalogManifestPath, resolvedPath);
     }
 
     /// <summary>

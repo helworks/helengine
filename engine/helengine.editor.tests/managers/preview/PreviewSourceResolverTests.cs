@@ -39,7 +39,7 @@ namespace helengine.editor.tests {
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             AssetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             AssetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
-            AssetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
+            AssetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj", ".x" }));
         }
 
         /// <summary>
@@ -83,6 +83,26 @@ namespace helengine.editor.tests {
                 "Models/Preview.obj",
                 sourcePath,
                 ".obj",
+                AssetEntryKind.Model);
+
+            bool resolved = resolver.TryResolve(entry, null, out IPreviewSource source);
+
+            Assert.True(resolved);
+            Assert.IsType<ModelPreviewSource>(source);
+        }
+
+        /// <summary>
+        /// Ensures a selected `.x` model asset resolves to the model preview source.
+        /// </summary>
+        [Fact]
+        public void TryResolve_WhenXModelAssetIsSelected_ReturnsModelPreviewSource() {
+            PreviewSourceResolver resolver = CreateResolver();
+            string sourcePath = WriteSourceModel("Preview.x");
+            AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile(
+                "Preview.x",
+                "Models/Preview.x",
+                sourcePath,
+                ".x",
                 AssetEntryKind.Model);
 
             bool resolved = resolver.TryResolve(entry, null, out IPreviewSource source);

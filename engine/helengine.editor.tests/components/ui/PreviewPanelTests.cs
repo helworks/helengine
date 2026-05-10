@@ -84,7 +84,7 @@ namespace helengine.editor.tests {
             Assert.Equal(30f, contentRoot.Position.Y);
             Assert.Equal(0f, textureHost.Position.X);
             Assert.Equal(30f, textureHost.Position.Y);
-            Assert.Equal(new int2(300, 240), textureSprite.Size);
+        Assert.Equal(new int2(300, 240), textureSprite.Size);
         }
 
         /// <summary>
@@ -268,6 +268,7 @@ namespace helengine.editor.tests {
             Assert.Equal(1, source.UpdateCount);
             Assert.Equal(1, source.WheelCount);
             Assert.Equal(1, source.DragCount);
+            Assert.Equal(0, source.MiddleDragCount);
         }
 
         /// <summary>
@@ -311,7 +312,8 @@ namespace helengine.editor.tests {
             Input.Update();
 
             Assert.Equal(1, source.UpdateCount);
-            Assert.Equal(1, source.DragCount);
+            Assert.Equal(0, source.DragCount);
+            Assert.Equal(1, source.MiddleDragCount);
         }
 
         /// <summary>

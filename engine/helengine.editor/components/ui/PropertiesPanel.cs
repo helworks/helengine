@@ -368,7 +368,7 @@ namespace helengine.editor {
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
         /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
-        /// <param name="modalHost">Shared root entity used to host screen-wide dialogs.</param>
+        /// <param name="modalHost">Preferred shared root entity for screen-wide dialogs when it already uses the modal layer.</param>
         /// <param name="scriptComponentCatalogProvider">Provider used to discover components from the current game script assembly.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar.</param>
         public PropertiesPanel(
@@ -390,7 +390,15 @@ namespace helengine.editor {
             }
 
             this.font = font;
-            ModalHost = modalHost;
+            if (modalHost.LayerMask == EditorLayerMasks.EditorModalUi) {
+                ModalHost = modalHost;
+            } else {
+                ModalHost = new EditorEntity {
+                    InternalEntity = true,
+                    LayerMask = EditorLayerMasks.EditorModalUi,
+                    Position = float3.Zero
+                };
+            }
             ScriptComponentCatalogProvider = scriptComponentCatalogProvider;
             AddComponentButtonWidth = Math.Max(128, (int)Math.Ceiling(font.MeasureTight("Add Component").Width) + AddComponentButtonPadding);
             Title = "Properties";
@@ -471,9 +479,6 @@ namespace helengine.editor {
 
             AddComponentDialog = new ComponentAddDialog(font);
             AddComponentDialog.ComponentSelected += HandleAddComponentSelected;
-            ModalHost.LayerMask = LayerMask;
-            ModalHost.Position = float3.Zero;
-            ModalHost.InternalEntity = true;
             ModalHost.Enabled = true;
             ModalHost.AddChild(AddComponentDialog);
 

@@ -648,6 +648,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("FileSupportResolvePs2DiscSearchPath", normalizedFile);
         Assert.Contains("std::string physicalPs2Path = FileSupportResolvePs2DiscSearchPath(fileName);", normalizedFile);
         Assert.Contains("return sceCdSearchFile(&fileInfo, physicalPs2Path.c_str()) != 0;", normalizedFile);
+        Assert.Contains("physicalPath[index] = static_cast<char>(std::toupper(static_cast<unsigned char>(physicalPath[index])));", normalizedFile);
         Assert.Contains("std::FILE* file = std::fopen(FileSupportResolvePs2DiscReadPath(fileName).c_str(), \"rb\");", normalizedFile);
         Assert.Contains("return new FileStream(FileSupportResolvePs2DiscReadPath(filePath), FileMode::Open, FileAccess::Read, FileShare::Read);", normalizedFile);
         Assert.DoesNotContain("runtime_ps2_asset_path_manifest", normalizedFile);
@@ -668,6 +669,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("std::vector<uint8_t> ReadPs2DiscFile(const std::string& path)", normalizedFileStream);
         Assert.Contains("std::string searchPath = FileStreamSupportResolvePs2DiscSearchPath(path);", normalizedFileStream);
         Assert.Contains("sceCdSearchFile(&fileInfo, searchPath.c_str()) == 0", normalizedFileStream);
+        Assert.Contains("physicalPath[index] = static_cast<char>(std::toupper(static_cast<unsigned char>(physicalPath[index])));", normalizedFileStream);
         Assert.Contains("std::string resolvedPs2ReadPath = FileStreamSupportResolvePs2DiscReadPath(path);", normalizedFileStream);
         Assert.Contains("bool usesPs2DirectRead = FileStreamSupportStartsWithPs2CdromPrefix(resolvedPs2ReadPath) || resolvedPs2ReadPath.find(';') != std::string::npos;", normalizedFileStream);
         Assert.Contains("if (usesPs2DirectRead) {", normalizedFileStream);
@@ -851,6 +853,37 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("return std::atan2(static_cast<double>(y), static_cast<double>(x));", normalizedHeader);
         Assert.Contains("static float Atan2(TY y, TX x)", normalizedHeader);
         Assert.Contains("return static_cast<float>(Math::Atan2(y, x));", normalizedHeader);
+    }
+
+    /// <summary>
+    /// Verifies generated directional-shadow runtime components rewrite `float4` out temporaries into stack value semantics.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_directional_shadow_float4_out_temporaries() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-directional-shadow-float4-out-temporaries");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string sourcePath = Path.Combine(generatedCoreRootPath, "DirectionalShadowSunSweepComponent.cpp");
+        File.WriteAllText(
+            sourcePath,
+            "#include \"DirectionalShadowSunSweepComponent.hpp\"\n"
+            + "void DirectionalShadowSunSweepComponent::Update()\n"
+            + "{\n"
+            + "    float4 *orientation;\n"
+            + "    float4->CreateFromYawPitchRoll(static_cast<float>(yawRadians), this->PitchRadians, 0.0f, orientation);\n"
+            + "    orientation->Normalize();\n"
+            + "    Parent->LocalOrientation = orientation;\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedSource = File.ReadAllText(sourcePath);
+        Assert.Contains("    float4 orientation;", normalizedSource);
+        Assert.Contains("    float4::CreateFromYawPitchRoll(static_cast<float>(yawRadians), this->PitchRadians, 0.0f, orientation);", normalizedSource);
+        Assert.Contains("    orientation.Normalize();", normalizedSource);
+        Assert.Contains("    Parent->LocalOrientation = orientation;", normalizedSource);
+        Assert.DoesNotContain("float4 *orientation;", normalizedSource);
+        Assert.DoesNotContain("float4->CreateFromYawPitchRoll", normalizedSource);
+        Assert.DoesNotContain("orientation->Normalize()", normalizedSource);
     }
 
     /// <summary>
@@ -1117,6 +1150,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "RendererBackendCapabilityProfile.cpp"), "// profile\n");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "Ps2MaterialAsset.cpp"), "// material\n");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_startup_manifest.cpp"), "// startup\n");
+        File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_scene_catalog_manifest.cpp"), "// scene catalog\n");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "runtime", "runtime_code_module_manifest.cpp"), "// code module\n");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "helengine_core_amalgamated.cpp"), "// old amalgamated\n");
 
@@ -1128,6 +1162,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("#include \"RendererBackendCapabilityProfile.cpp\"", amalgamatedSource);
         Assert.Contains("#include \"Ps2MaterialAsset.cpp\"", amalgamatedSource);
         Assert.DoesNotContain("runtime/runtime_startup_manifest.cpp", amalgamatedSource);
+        Assert.DoesNotContain("runtime/runtime_scene_catalog_manifest.cpp", amalgamatedSource);
         Assert.DoesNotContain("runtime/runtime_code_module_manifest.cpp", amalgamatedSource);
         Assert.Equal(amalgamatedSource, legacyUnitySource);
     }

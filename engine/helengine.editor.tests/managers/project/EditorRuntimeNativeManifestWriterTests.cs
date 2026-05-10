@@ -4,7 +4,7 @@ using helengine.baseplatform.Manifest;
 namespace helengine.editor.tests.managers.project;
 
 /// <summary>
-/// Verifies the generated runtime native manifest writer emits C++ source for startup scenes, scene physics, and code modules.
+/// Verifies the generated runtime native manifest writer emits C++ source for startup scenes, runtime scene catalogs, scene physics, and code modules.
 /// </summary>
 public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
     /// <summary>
@@ -30,10 +30,10 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures the writer emits native startup, scene-physics, and code-module source files with the resolved cooked scene path.
-    /// </summary>
-    [Fact]
-    public void Write_emits_startup_scene_scene_physics_and_code_module_cpp_sources() {
+        /// Ensures the writer emits native startup, scene-catalog, scene-physics, and code-module source files with the resolved cooked scene path.
+        /// </summary>
+        [Fact]
+        public void Write_emits_startup_scene_scene_catalog_scene_physics_and_code_module_cpp_sources() {
         string generatedCoreRootPath = Path.Combine(RootPath, "generated-core");
         Directory.CreateDirectory(generatedCoreRootPath);
 
@@ -71,6 +71,8 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
         string runtimeRootPath = Path.Combine(generatedCoreRootPath, "runtime");
         string startupHeaderPath = Path.Combine(runtimeRootPath, "runtime_startup_manifest.hpp");
         string startupSourcePath = Path.Combine(runtimeRootPath, "runtime_startup_manifest.cpp");
+        string sceneCatalogHeaderPath = Path.Combine(runtimeRootPath, "runtime_scene_catalog_manifest.hpp");
+        string sceneCatalogSourcePath = Path.Combine(runtimeRootPath, "runtime_scene_catalog_manifest.cpp");
         string codeModuleHeaderPath = Path.Combine(runtimeRootPath, "runtime_code_module_manifest.hpp");
         string codeModuleSourcePath = Path.Combine(runtimeRootPath, "runtime_code_module_manifest.cpp");
         string physicsHeaderPath = Path.Combine(runtimeRootPath, "runtime_physics3d_scene_feature_manifest.hpp");
@@ -78,19 +80,26 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
 
         Assert.True(File.Exists(startupHeaderPath));
         Assert.True(File.Exists(startupSourcePath));
+        Assert.True(File.Exists(sceneCatalogHeaderPath));
+        Assert.True(File.Exists(sceneCatalogSourcePath));
         Assert.True(File.Exists(codeModuleHeaderPath));
         Assert.True(File.Exists(codeModuleSourcePath));
         Assert.True(File.Exists(physicsHeaderPath));
         Assert.True(File.Exists(physicsSourcePath));
         Assert.False(File.Exists(Path.Combine(runtimeRootPath, "runtime-startup.json")));
-        Assert.False(File.Exists(Path.Combine(runtimeRootPath, "runtime-code-modules.json")));
+        Assert.False(File.Exists(Path.Combine(runtimeRootPath, "runtime-scene-catalog.json")));
 
         string startupSource = File.ReadAllText(startupSourcePath);
+        string sceneCatalogSource = File.ReadAllText(sceneCatalogSourcePath);
         string codeModuleSource = File.ReadAllText(codeModuleSourcePath);
         string physicsSource = File.ReadAllText(physicsSourcePath);
 
         Assert.Contains("he_get_runtime_startup_scene_relative_path", startupSource);
         Assert.Contains("cooked/scenes/NewScene.hasset", startupSource);
+        Assert.Contains("he_runtime_scene_catalog_entries", sceneCatalogSource);
+        Assert.Contains("he_runtime_scene_cooked_relative_path", sceneCatalogSource);
+        Assert.Contains("\"Scenes/NewScene.helen\"", sceneCatalogSource);
+        Assert.Contains("\"cooked/scenes/NewScene.hasset\"", sceneCatalogSource);
         Assert.Contains("he_runtime_physics3d_scene_feature_flags", physicsSource);
         Assert.Contains("\"Scenes/NewScene.helen\"", physicsSource);
         Assert.Contains("33u", physicsSource);
