@@ -102,6 +102,26 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves one preview source for the provided asset selection.
+        /// </summary>
+        /// <param name="assetEntry">Currently selected asset browser entry.</param>
+        /// <param name="source">Resolved preview source when one is available.</param>
+        /// <returns>True when a preview source was resolved; otherwise false.</returns>
+        public bool TryResolveAssetPreview(AssetBrowserEntry assetEntry, out IPreviewSource source) {
+            return TryResolve(assetEntry, null, out source);
+        }
+
+        /// <summary>
+        /// Resolves one preview source for the provided camera selection.
+        /// </summary>
+        /// <param name="selectedEntity">Currently selected scene entity.</param>
+        /// <param name="source">Resolved preview source when one is available.</param>
+        /// <returns>True when a preview source was resolved; otherwise false.</returns>
+        public bool TryResolveCameraPreview(Entity selectedEntity, out IPreviewSource source) {
+            return TryResolve(null, selectedEntity, out source);
+        }
+
+        /// <summary>
         /// Finds the first component of the requested type on one entity.
         /// </summary>
         /// <typeparam name="T">Component type to locate.</typeparam>

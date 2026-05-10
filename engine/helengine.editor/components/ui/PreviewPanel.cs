@@ -1,8 +1,16 @@
+using System.Text.Json;
+
 namespace helengine.editor {
     /// <summary>
     /// Dockable panel that hosts the active preview source and renders it inside the preview area.
     /// </summary>
     public class PreviewPanel : DockableEntity {
+        /// <summary>
+        /// Shared JSON options used to deserialize persisted preview-panel state payloads written with camelCase names.
+        /// </summary>
+        static JsonSerializerOptions PreviewStateJsonSerializerOptions { get; } = new JsonSerializerOptions {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
         /// <summary>
         /// Padding applied around the preview image.
         /// </summary>
@@ -52,6 +60,22 @@ namespace helengine.editor {
         /// Currently active preview source.
         /// </summary>
         IPreviewSource ActivePreviewSourceValue;
+        /// <summary>
+        /// Current binding kind owned by the preview panel.
+        /// </summary>
+        PreviewPanelBindingKind BindingKindValue;
+        /// <summary>
+        /// Relative asset path used when the preview panel is bound to one asset.
+        /// </summary>
+        string BoundAssetRelativePath = string.Empty;
+        /// <summary>
+        /// Stable scene entity id used when the preview panel is bound to one camera.
+        /// </summary>
+        string BoundSceneEntityId = string.Empty;
+        /// <summary>
+        /// True when the preview panel should ignore later latest-click updates.
+        /// </summary>
+        bool IsLockedValue;
         /// <summary>
         /// Tracks whether the panel finished initialization.
         /// </summary>
@@ -132,6 +156,10 @@ namespace helengine.editor {
         /// Gets the current preview source, when one is bound.
         /// </summary>
         public IPreviewSource ActivePreviewSource => ActivePreviewSourceValue;
+        /// <summary>
+        /// Gets whether the preview panel is currently locked to its bound target.
+        /// </summary>
+        public bool IsLocked => IsLockedValue;
 
         /// <summary>
         /// Reapplies scaled dock metrics after one live UI scale change.
@@ -178,6 +206,215 @@ namespace helengine.editor {
             ActivePreviewSourceValue.Resize(GetContentSize());
             textureSprite.Texture = ActivePreviewSourceValue.Texture;
             LayoutPreview();
+        }
+
+        /// <summary>
+        /// Captures one serializable preview-panel state payload.
+        /// </summary>
+        /// <returns>Serializable preview-panel state payload.</returns>
+        public PreviewPanelStateDocument CaptureState() {
+            return new PreviewPanelStateDocument {
+                IsLocked = IsLockedValue,
+                BindingKind = BindingKindValue,
+                AssetRelativePath = BoundAssetRelativePath,
+                SceneEntityId = BoundSceneEntityId
+            };
+        }
+
+        /// <summary>
+        /// Restores one previously captured preview-panel state payload.
+        /// </summary>
+        /// <param name="state">Preview-panel state payload to restore.</param>
+        public void RestoreState(PreviewPanelStateDocument state) {
+            if (state == null) {
+                throw new ArgumentNullException(nameof(state));
+            }
+
+            IsLockedValue = state.IsLocked;
+            BindingKindValue = state.BindingKind;
+            BoundAssetRelativePath = state.AssetRelativePath ?? string.Empty;
+            BoundSceneEntityId = state.SceneEntityId ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Restores one previously captured preview-panel state payload from the workspace persistence pipeline.
+        /// </summary>
+        /// <param name="state">Serialized state payload to reapply.</param>
+        public void RestoreState(object state) {
+            if (state == null) {
+                RestoreState(new PreviewPanelStateDocument());
+                return;
+            }
+            if (state is PreviewPanelStateDocument document) {
+                RestoreState(document);
+                return;
+            }
+            if (state is JsonElement jsonElement) {
+                PreviewPanelStateDocument deserialized = jsonElement.Deserialize<PreviewPanelStateDocument>(PreviewStateJsonSerializerOptions);
+                if (deserialized == null) {
+                    throw new InvalidOperationException("Preview panel state could not be deserialized.");
+                }
+
+                RestoreState(deserialized);
+                return;
+            }
+
+            throw new InvalidOperationException("Preview panel state payload has an unsupported type.");
+        }
+
+        /// <summary>
+        /// Toggles whether the preview panel should ignore later latest-click updates.
+        /// </summary>
+        public void ToggleLock() {
+            IsLockedValue = !IsLockedValue;
+        }
+
+        /// <summary>
+        /// Applies the latest asset selection when the preview panel is unlocked.
+        /// </summary>
+        /// <param name="assetEntry">Latest asset selection.</param>
+        /// <param name="previewSourceResolver">Resolver used to build the next preview source.</param>
+        /// <returns>True when the latest asset selection was adopted; otherwise false.</returns>
+        public bool ApplyLatestAssetSelection(AssetBrowserEntry assetEntry, PreviewSourceResolver previewSourceResolver) {
+            if (IsLockedValue) {
+                return false;
+            }
+            if (assetEntry == null) {
+                ApplyLatestSelectionCleared();
+                return false;
+            }
+            if (previewSourceResolver == null) {
+                throw new ArgumentNullException(nameof(previewSourceResolver));
+            }
+
+            if (!previewSourceResolver.TryResolveAssetPreview(assetEntry, out IPreviewSource previewSource)) {
+                ApplyLatestSelectionCleared();
+                return false;
+            }
+
+            SetPreviewSource(previewSource);
+            BindingKindValue = PreviewPanelBindingKind.Asset;
+            BoundAssetRelativePath = assetEntry.RelativePath ?? string.Empty;
+            BoundSceneEntityId = string.Empty;
+            return true;
+        }
+
+        /// <summary>
+        /// Applies the latest camera selection when the preview panel is unlocked.
+        /// </summary>
+        /// <param name="selectedEntity">Latest scene selection.</param>
+        /// <param name="previewSourceResolver">Resolver used to build the next preview source.</param>
+        /// <returns>True when the latest camera selection was adopted; otherwise false.</returns>
+        public bool ApplyLatestCameraSelection(Entity selectedEntity, PreviewSourceResolver previewSourceResolver) {
+            if (IsLockedValue) {
+                return false;
+            }
+            if (selectedEntity == null) {
+                ApplyLatestSelectionCleared();
+                return false;
+            }
+            if (previewSourceResolver == null) {
+                throw new ArgumentNullException(nameof(previewSourceResolver));
+            }
+
+            if (!previewSourceResolver.TryResolveCameraPreview(selectedEntity, out IPreviewSource previewSource)) {
+                ApplyLatestSelectionCleared();
+                return false;
+            }
+
+            SetPreviewSource(previewSource);
+            BindingKindValue = PreviewPanelBindingKind.Camera;
+            BoundAssetRelativePath = string.Empty;
+            BoundSceneEntityId = ResolveSceneEntityId(selectedEntity);
+            return true;
+        }
+
+        /// <summary>
+        /// Rebuilds the locked asset preview source from persisted state when the asset still resolves.
+        /// </summary>
+        /// <param name="assetEntry">Resolved asset entry that matches the stored relative path.</param>
+        /// <param name="previewSourceResolver">Resolver used to rebuild the preview source.</param>
+        /// <returns>True when the locked asset preview was restored; otherwise false.</returns>
+        public bool RestoreLockedAssetSelection(AssetBrowserEntry assetEntry, PreviewSourceResolver previewSourceResolver) {
+            if (!IsLockedValue) {
+                return false;
+            }
+            if (BindingKindValue != PreviewPanelBindingKind.Asset) {
+                return false;
+            }
+            if (assetEntry == null) {
+                return false;
+            }
+            if (previewSourceResolver == null) {
+                throw new ArgumentNullException(nameof(previewSourceResolver));
+            }
+
+            if (!previewSourceResolver.TryResolveAssetPreview(assetEntry, out IPreviewSource previewSource)) {
+                return false;
+            }
+
+            SetPreviewSource(previewSource);
+            BoundAssetRelativePath = assetEntry.RelativePath ?? string.Empty;
+            BoundSceneEntityId = string.Empty;
+            return true;
+        }
+
+        /// <summary>
+        /// Rebuilds the locked camera preview source from persisted state when the camera entity still resolves.
+        /// </summary>
+        /// <param name="selectedEntity">Resolved scene entity that still owns a previewable camera.</param>
+        /// <param name="previewSourceResolver">Resolver used to rebuild the preview source.</param>
+        /// <returns>True when the locked camera preview was restored; otherwise false.</returns>
+        public bool RestoreLockedCameraSelection(Entity selectedEntity, PreviewSourceResolver previewSourceResolver) {
+            if (!IsLockedValue) {
+                return false;
+            }
+            if (BindingKindValue != PreviewPanelBindingKind.Camera) {
+                return false;
+            }
+            if (selectedEntity == null) {
+                return false;
+            }
+            if (previewSourceResolver == null) {
+                throw new ArgumentNullException(nameof(previewSourceResolver));
+            }
+
+            if (!previewSourceResolver.TryResolveCameraPreview(selectedEntity, out IPreviewSource previewSource)) {
+                return false;
+            }
+
+            SetPreviewSource(previewSource);
+            BoundAssetRelativePath = string.Empty;
+            BoundSceneEntityId = ResolveSceneEntityId(selectedEntity);
+            return true;
+        }
+
+        /// <summary>
+        /// Clears the current locked target when the persisted asset or camera can no longer be resolved.
+        /// </summary>
+        public void ClearLockedTarget() {
+            if (!IsLockedValue) {
+                return;
+            }
+
+            ClearPreview();
+            BindingKindValue = PreviewPanelBindingKind.None;
+            BoundAssetRelativePath = string.Empty;
+            BoundSceneEntityId = string.Empty;
+        }
+
+        /// <summary>
+        /// Clears the unlocked preview panel when no latest previewable target remains.
+        /// </summary>
+        public void ApplyLatestSelectionCleared() {
+            if (IsLockedValue) {
+                return;
+            }
+
+            ClearPreview();
+            BindingKindValue = PreviewPanelBindingKind.None;
+            BoundAssetRelativePath = string.Empty;
+            BoundSceneEntityId = string.Empty;
         }
 
         /// <summary>
@@ -625,6 +862,39 @@ namespace helengine.editor {
                    pointer.X < panelLeft + panelWidth &&
                    pointer.Y >= panelTop &&
                    pointer.Y < panelTop + panelHeight;
+        }
+
+        /// <summary>
+        /// Resolves one stable scene entity id for the provided scene selection.
+        /// </summary>
+        /// <param name="selectedEntity">Scene selection whose id should be captured.</param>
+        /// <returns>Stable scene entity id when one is available; otherwise an empty string.</returns>
+        string ResolveSceneEntityId(Entity selectedEntity) {
+            EntitySaveComponent saveComponent = FindSaveComponent(selectedEntity);
+            if (saveComponent != null && !string.IsNullOrWhiteSpace(saveComponent.EntityId)) {
+                return saveComponent.EntityId;
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Returns the hidden persistence component attached to the supplied entity when one exists.
+        /// </summary>
+        /// <param name="selectedEntity">Entity whose persistence metadata should be inspected.</param>
+        /// <returns>Attached save component when present; otherwise null.</returns>
+        static EntitySaveComponent FindSaveComponent(Entity selectedEntity) {
+            if (selectedEntity == null || selectedEntity.Components == null) {
+                return null;
+            }
+
+            for (int index = 0; index < selectedEntity.Components.Count; index++) {
+                if (selectedEntity.Components[index] is EntitySaveComponent saveComponent) {
+                    return saveComponent;
+                }
+            }
+
+            return null;
         }
     }
 }

@@ -419,6 +419,10 @@ namespace helengine.editor {
             get => EditorViewportToolService.GetToolMode(Camera);
             set => SetToolMode(value);
         }
+        /// <summary>
+        /// Gets whether the viewport settings overlay is currently open.
+        /// </summary>
+        public bool IsSettingsOverlayVisible => IsSettingsOverlayOpen();
 
         /// <summary>
         /// Gets or sets the viewport position, updating the underlying camera viewport rectangle.
@@ -1730,6 +1734,28 @@ namespace helengine.editor {
         /// <returns>True when the overlay is open.</returns>
         bool IsSettingsOverlayOpen() {
             return SettingsOverlayComponent != null && SettingsOverlayComponent.IsOpen;
+        }
+
+        /// <summary>
+        /// Opens or closes the viewport settings overlay to match the requested state.
+        /// </summary>
+        /// <param name="isOpen">True to open the overlay; false to close it.</param>
+        public void SetSettingsOverlayOpen(bool isOpen) {
+            if (SettingsOverlayComponent == null) {
+                return;
+            }
+
+            if (isOpen) {
+                if (!SettingsOverlayComponent.IsOpen) {
+                    SettingsOverlayComponent.Open();
+                }
+
+                return;
+            }
+
+            if (SettingsOverlayComponent.IsOpen) {
+                SettingsOverlayComponent.Close(SettingsButtonFocusTarget);
+            }
         }
 
         /// <summary>

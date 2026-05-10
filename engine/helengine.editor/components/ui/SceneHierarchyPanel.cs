@@ -127,7 +127,7 @@ namespace helengine.editor {
                 new ContextMenuItem("Reparent", HandleReparentRequested)
             };
 
-            EditorSelectionService.SelectionChanged += args => RefreshHierarchy();
+            EditorSelectionService.SelectionChanged += HandleEditorSelectionChanged;
             AddComponent(new SceneHierarchyPanelUpdater(this));
             isInitialized = true;
             RefreshHierarchy();
@@ -189,6 +189,16 @@ namespace helengine.editor {
             }
 
             RefreshHierarchy();
+        }
+
+        /// <summary>
+        /// Detaches editor-global event and focus registrations owned by the panel.
+        /// </summary>
+        public void Detach() {
+            EditorSelectionService.SelectionChanged -= HandleEditorSelectionChanged;
+            for (int i = 0; i < rows.Count; i++) {
+                EditorKeyboardFocusService.UnregisterTarget(rows[i].FocusTarget);
+            }
         }
 
         /// <summary>
@@ -276,6 +286,14 @@ namespace helengine.editor {
             for (int staleIndex = 0; staleIndex < staleEntities.Count; staleIndex++) {
                 expandedEntities.Remove(staleEntities[staleIndex]);
             }
+        }
+
+        /// <summary>
+        /// Refreshes the hierarchy when editor-global entity selection changes.
+        /// </summary>
+        /// <param name="args">Selection-change payload.</param>
+        void HandleEditorSelectionChanged(EditorSelectionChangedEventArgs args) {
+            RefreshHierarchy();
         }
 
         /// <summary>
