@@ -1,6 +1,7 @@
 using System.Reflection;
 using helengine;
 using helengine.editor;
+using helengine.editor.tests.testing;
 using Xunit;
 
 namespace helengine.editor.tests.managers.gizmo {
@@ -30,6 +31,21 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.Equal("EditorTransformGizmoGridPreview", shaderAsset.Id);
             Assert.Equal(ShaderTargetNames.GetTargetName(ShaderCompileTarget.Vulkan), shaderAsset.TargetName);
             Assert.Equal(2, shaderAsset.Binaries.Length);
+        }
+
+        /// <summary>
+        /// Ensures the runtime preview material starts with one explicit full-grid parameter payload.
+        /// </summary>
+        [Fact]
+        public void Create_InitializesFullGridPreviewParameters() {
+            TestDirectX11RenderManager3D render3D = TestDirectX11RenderManager3D.Create();
+
+            RuntimeMaterial material = TransformGizmoGridPreviewMaterialFactory.Create(render3D);
+
+            byte[] previewParameters = material.Properties.GetConstantBufferData(0);
+            Assert.NotNull(previewParameters);
+            Assert.Equal(TransformGizmoGridPreviewParameters.ConstantBufferSizeInBytes, previewParameters.Length);
+            Assert.Equal(TransformGizmoGridPreviewParameters.FullGridMode, BitConverter.ToSingle(previewParameters, 0));
         }
 
         /// <summary>

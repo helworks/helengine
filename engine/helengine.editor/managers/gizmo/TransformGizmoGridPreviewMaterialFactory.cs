@@ -54,7 +54,9 @@ namespace helengine.editor {
                 }
             };
 
-            return render3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            RuntimeMaterial runtimeMaterial = render3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            TransformGizmoGridPreviewParameters.ApplyFullGrid(runtimeMaterial);
+            return runtimeMaterial;
         }
 
         /// <summary>

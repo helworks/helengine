@@ -41,7 +41,7 @@ namespace helengine.editor.tests.managers.gizmo {
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
-            EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
+            EditorEntity previewEntity = CreatePreviewEntity(CreateGridPreviewTestMaterial());
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
@@ -168,6 +168,77 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures single-axis snap previews enable focused fading while plane-handle previews keep the full grid visible.
+        /// </summary>
+        [Fact]
+        public void Update_WhenSingleAxisSnapPreviewIsShown_ConfiguresFocusedFadeAndPlanePreviewClearsIt() {
+            TestInputBackend input = InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+
+            RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
+            RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
+            RuntimeMaterial previewMaterial = CreateGridPreviewTestMaterial();
+            EditorEntity previewEntity = CreatePreviewEntity(previewMaterial);
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
+            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
+
+            EditorEntity selectedEntity = new EditorEntity();
+            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            input.SetKeyboardState(new KeyboardState(Keys.LeftControl));
+            input.EarlyUpdate();
+
+            EditorGizmoHoverService.SetHoveredHandle(gizmoRoot.Children[0]);
+            UpdateFollowComponent(gizmoRoot);
+
+            byte[] axisPreviewParameters = previewMaterial.Properties.GetConstantBufferData(0);
+            Assert.NotNull(axisPreviewParameters);
+            Assert.Equal(1f, ReadSingle(axisPreviewParameters, 0));
+            Assert.True(ReadSingle(axisPreviewParameters, 4) > 0f);
+
+            EditorGizmoHoverService.SetHoveredHandle(gizmoRoot.Children[1]);
+            UpdateFollowComponent(gizmoRoot);
+
+            byte[] planePreviewParameters = previewMaterial.Properties.GetConstantBufferData(0);
+            Assert.NotNull(planePreviewParameters);
+            Assert.Equal(0f, ReadSingle(planePreviewParameters, 0));
+        }
+
+        /// <summary>
+        /// Ensures plane handles keep their authored placement ratio within the gizmo when camera-distance scaling changes.
+        /// </summary>
+        [Fact]
+        public void Update_WhenCameraDistanceChanges_RepositionsPlaneHandleWithTheScaledGizmo() {
+            InitializeCore();
+            CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
+            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+
+            RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
+            RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
+            EditorEntity previewEntity = CreatePreviewEntity(new TestRuntimeMaterial());
+            EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
+            gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
+
+            EditorEntity selectedEntity = new EditorEntity();
+            EditorSelectionService.SetSelectedEntity(selectedEntity);
+
+            UpdateFollowComponent(gizmoRoot);
+
+            EditorEntity planeHandle = (EditorEntity)gizmoRoot.Children[1];
+            float initialRootScale = gizmoRoot.Scale.X;
+            float3 initialPlaneLocalPosition = planeHandle.LocalPosition;
+
+            sceneCamera.Parent.Position = new float3(0f, 2f, -20f);
+            UpdateFollowComponent(gizmoRoot);
+
+            float scaleRatio = gizmoRoot.Scale.X / initialRootScale;
+            float3 expectedPlaneLocalPosition = initialPlaneLocalPosition * scaleRatio;
+
+            Assert.True(gizmoRoot.Scale.X > initialRootScale);
+            AssertVectorEquals(expectedPlaneLocalPosition, planeHandle.LocalPosition);
+        }
+
+        /// <summary>
         /// Initializes a fresh core with a configurable input system for entity-based tests.
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
@@ -279,6 +350,7 @@ namespace helengine.editor.tests.managers.gizmo {
                 LayerMask = EditorLayerMasks.SceneGizmo,
                 Enabled = false,
                 Scale = float3.Zero,
+                Position = new float3(TransformTranslationGizmoFactory.PlaneInset, 0f, TransformTranslationGizmoFactory.PlaneInset),
                 Orientation = CreateXzPlaneOrientation()
             };
             planeEntity.AddComponent(new TransformGizmoHandleComponent(new float3(1f, 0f, 0f), new float3(0f, 1f, 0f)));
@@ -307,6 +379,26 @@ namespace helengine.editor.tests.managers.gizmo {
             previewMesh.Material = material;
             previewEntity.AddComponent(previewMesh);
             return previewEntity;
+        }
+
+        /// <summary>
+        /// Creates a preview material with one constant-buffer binding so tests can inspect snap-preview shader parameters.
+        /// </summary>
+        /// <returns>Runtime material exposing a <c>PreviewParams</c> constant buffer.</returns>
+        RuntimeMaterial CreateGridPreviewTestMaterial() {
+            var material = new TestRuntimeMaterial();
+            material.SetLayout(new MaterialLayout(
+                "EditorTransformGizmoGridPreview",
+                "EditorTransformGizmoGridPreview.vs",
+                "EditorTransformGizmoGridPreview.ps",
+                "default",
+                new MaterialRenderState(),
+                Array.Empty<MaterialLayoutBinding>(),
+                new[] {
+                    new MaterialLayoutBinding("PreviewParams", ShaderResourceType.ConstantBuffer, 0, 1, 16)
+                },
+                Array.Empty<MaterialLayoutBinding>()));
+            return material;
         }
 
         /// <summary>
@@ -381,6 +473,20 @@ namespace helengine.editor.tests.managers.gizmo {
                    Math.Abs(left.Y - right.Y) <= FloatTolerance &&
                    Math.Abs(left.Z - right.Z) <= FloatTolerance &&
                    Math.Abs(left.W - right.W) <= FloatTolerance;
+        }
+
+        /// <summary>
+        /// Reads one single-precision value from packed constant-buffer bytes.
+        /// </summary>
+        /// <param name="data">Packed constant-buffer payload.</param>
+        /// <param name="offset">Byte offset of the value to read.</param>
+        /// <returns>Decoded single-precision value.</returns>
+        float ReadSingle(byte[] data, int offset) {
+            if (data == null) {
+                throw new ArgumentNullException(nameof(data));
+            }
+
+            return BitConverter.ToSingle(data, offset);
         }
 
         /// <summary>

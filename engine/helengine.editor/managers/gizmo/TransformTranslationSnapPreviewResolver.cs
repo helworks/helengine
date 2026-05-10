@@ -23,6 +23,10 @@ namespace helengine.editor {
         /// World-right fallback used when both world-up and world-forward are near the active axis.
         /// </summary>
         static readonly float3 WorldRight = new float3(1f, 0f, 0f);
+        /// <summary>
+        /// World-backward basis direction used when resolving dominant signed world axes.
+        /// </summary>
+        static readonly float3 WorldBackward = new float3(0f, 0f, 1f);
 
         /// <summary>
         /// Resolves the preview-plane orientation for the supplied translation handle.
@@ -110,43 +114,128 @@ namespace helengine.editor {
             float3 cameraPosition,
             out float4 previewOrientation) {
             float3 cameraDirection = NormalizeDirection(cameraPosition - gizmoOrigin);
-            float3 planeNormal = NormalizeDirection(float3.Cross(primaryDirection, cameraDirection));
-            if (planeNormal == float3.Zero) {
-                float3 referenceDirection = ResolveAxisPreviewReferenceDirection(primaryDirection);
-                planeNormal = NormalizeDirection(float3.Cross(primaryDirection, referenceDirection));
-            }
-
-            if (planeNormal == float3.Zero) {
+            float3 snappedPrimaryDirection = ResolveDominantWorldAxis(primaryDirection);
+            if (snappedPrimaryDirection == float3.Zero) {
                 previewOrientation = float4.Identity;
                 return false;
             }
 
-            float3 secondaryDirection = NormalizeDirection(float3.Cross(planeNormal, primaryDirection));
-            if (secondaryDirection == float3.Zero) {
+            float3 firstCompanionDirection = ResolveFirstAxisPreviewCompanionDirection(snappedPrimaryDirection);
+            float3 secondCompanionDirection = ResolveSecondAxisPreviewCompanionDirection(snappedPrimaryDirection);
+            if (firstCompanionDirection == float3.Zero || secondCompanionDirection == float3.Zero) {
                 previewOrientation = float4.Identity;
                 return false;
             }
 
-            return TryCreateOrientation(primaryDirection, secondaryDirection, planeNormal, out previewOrientation);
+            if (!TryResolveAxisPreviewCandidate(snappedPrimaryDirection, firstCompanionDirection, cameraDirection, out float3 firstSecondaryDirection, out float3 firstPlaneNormal, out double firstScore)) {
+                previewOrientation = float4.Identity;
+                return false;
+            }
+
+            if (!TryResolveAxisPreviewCandidate(snappedPrimaryDirection, secondCompanionDirection, cameraDirection, out float3 secondSecondaryDirection, out float3 secondPlaneNormal, out double secondScore)) {
+                previewOrientation = float4.Identity;
+                return false;
+            }
+
+            if (firstScore >= secondScore) {
+                return TryCreateOrientation(snappedPrimaryDirection, firstSecondaryDirection, firstPlaneNormal, out previewOrientation);
+            }
+
+            return TryCreateOrientation(snappedPrimaryDirection, secondSecondaryDirection, secondPlaneNormal, out previewOrientation);
         }
 
         /// <summary>
-        /// Chooses a stable fallback direction that is not parallel to the active translation axis.
+        /// Resolves the signed world axis that best matches the supplied primary direction.
         /// </summary>
         /// <param name="primaryDirection">Active world-space translation axis direction.</param>
-        /// <returns>Reference direction suitable for building an axis preview plane.</returns>
-        static float3 ResolveAxisPreviewReferenceDirection(float3 primaryDirection) {
-            double upDot = Math.Abs(float3.Dot(primaryDirection, WorldUp));
-            if (upDot < ParallelDotThreshold) {
+        /// <returns>Dominant signed world axis, or zero when the direction is invalid.</returns>
+        static float3 ResolveDominantWorldAxis(float3 primaryDirection) {
+            double absX = Math.Abs(primaryDirection.X);
+            double absY = Math.Abs(primaryDirection.Y);
+            double absZ = Math.Abs(primaryDirection.Z);
+            if (absX >= absY && absX >= absZ) {
+                return primaryDirection.X >= 0f ? WorldRight : (WorldRight * -1f);
+            }
+
+            if (absY >= absX && absY >= absZ) {
+                return primaryDirection.Y >= 0f ? WorldUp : (WorldUp * -1f);
+            }
+
+            return primaryDirection.Z >= 0f ? WorldBackward : WorldForward;
+        }
+
+        /// <summary>
+        /// Resolves the first valid companion axis for an axis-constrained preview plane.
+        /// </summary>
+        /// <param name="primaryDirection">Dominant signed world axis currently being dragged.</param>
+        /// <returns>First candidate companion direction.</returns>
+        static float3 ResolveFirstAxisPreviewCompanionDirection(float3 primaryDirection) {
+            if (Math.Abs(primaryDirection.X) >= ParallelDotThreshold) {
                 return WorldUp;
             }
 
-            double forwardDot = Math.Abs(float3.Dot(primaryDirection, WorldForward));
-            if (forwardDot < ParallelDotThreshold) {
-                return WorldForward;
+            if (Math.Abs(primaryDirection.Y) >= ParallelDotThreshold) {
+                return WorldRight;
             }
 
             return WorldRight;
+        }
+
+        /// <summary>
+        /// Resolves the second valid companion axis for an axis-constrained preview plane.
+        /// </summary>
+        /// <param name="primaryDirection">Dominant signed world axis currently being dragged.</param>
+        /// <returns>Second candidate companion direction.</returns>
+        static float3 ResolveSecondAxisPreviewCompanionDirection(float3 primaryDirection) {
+            if (Math.Abs(primaryDirection.X) >= ParallelDotThreshold) {
+                return WorldForward;
+            }
+
+            if (Math.Abs(primaryDirection.Y) >= ParallelDotThreshold) {
+                return WorldForward;
+            }
+
+            return WorldUp;
+        }
+
+        /// <summary>
+        /// Resolves one candidate axis-preview plane and orients its normal toward the camera.
+        /// </summary>
+        /// <param name="primaryDirection">Dominant signed world axis currently being dragged.</param>
+        /// <param name="companionDirection">Candidate companion axis that forms one valid plane with the primary axis.</param>
+        /// <param name="cameraDirection">Normalized gizmo-to-camera direction.</param>
+        /// <param name="secondaryDirection">Resolved in-plane secondary direction when successful.</param>
+        /// <param name="planeNormal">Resolved plane normal for the selected preview plane.</param>
+        /// <param name="score">Facing score used to compare candidate preview planes.</param>
+        /// <returns>True when a valid candidate plane was resolved; otherwise false.</returns>
+        static bool TryResolveAxisPreviewCandidate(
+            float3 primaryDirection,
+            float3 companionDirection,
+            float3 cameraDirection,
+            out float3 secondaryDirection,
+            out float3 planeNormal,
+            out double score) {
+            secondaryDirection = NormalizeDirection(companionDirection);
+            if (secondaryDirection == float3.Zero) {
+                planeNormal = float3.Zero;
+                score = 0.0;
+                return false;
+            }
+
+            planeNormal = NormalizeDirection(float3.Cross(primaryDirection, secondaryDirection));
+            if (planeNormal == float3.Zero) {
+                score = 0.0;
+                return false;
+            }
+
+            score = float3.Dot(planeNormal, cameraDirection);
+            if (score < 0.0) {
+                secondaryDirection *= -1f;
+                planeNormal *= -1f;
+                score = -score;
+            }
+
+            return true;
         }
 
         /// <summary>

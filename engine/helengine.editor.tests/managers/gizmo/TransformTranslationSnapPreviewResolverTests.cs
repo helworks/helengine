@@ -35,13 +35,13 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
-        /// Ensures axis-handle previews align their local X axis to the drag axis and keep the preview plane readable from the camera.
+        /// Ensures Y-axis previews choose the YZ companion plane when that plane faces the camera more directly.
         /// </summary>
         [Fact]
-        public void TryResolvePreviewOrientation_WhenAxisHandleIsHovered_AlignsPreviewToAxisAndCamera() {
+        public void TryResolvePreviewOrientation_WhenYAxisPreviewFacesCameraMoreThroughX_UsesYzPlane() {
             InitializeCore();
-            Entity axisHandle = CreateAxisHandle(CreateXAxisOrientation());
-            float3 cameraPosition = new float3(0f, 4f, -8f);
+            Entity axisHandle = CreateAxisHandle(float4.Identity);
+            float3 cameraPosition = new float3(8f, 4f, -1f);
 
             bool resolved = TransformTranslationSnapPreviewResolver.TryResolvePreviewOrientation(
                 axisHandle,
@@ -53,12 +53,31 @@ namespace helengine.editor.tests.managers.gizmo {
 
             float3 resolvedPrimary = Normalize(float4.RotateVector(new float3(1f, 0f, 0f), previewOrientation));
             float3 resolvedSecondary = Normalize(float4.RotateVector(new float3(0f, 1f, 0f), previewOrientation));
-            float3 resolvedNormal = Normalize(float4.RotateVector(new float3(0f, 0f, 1f), previewOrientation));
-            float3 toCamera = Normalize(cameraPosition);
+            AssertVectorClose(new float3(0f, 1f, 0f), resolvedPrimary);
+            AssertVectorClose(new float3(0f, 0f, 1f), resolvedSecondary);
+        }
 
-            AssertVectorClose(new float3(1f, 0f, 0f), resolvedPrimary);
-            Assert.InRange(Math.Abs(float3.Dot(resolvedPrimary, resolvedSecondary)), 0f, FloatTolerance);
-            Assert.InRange(Math.Abs(float3.Dot(resolvedNormal, toCamera)), 0f, FloatTolerance);
+        /// <summary>
+        /// Ensures Y-axis previews choose the XY companion plane when that plane faces the camera more directly.
+        /// </summary>
+        [Fact]
+        public void TryResolvePreviewOrientation_WhenYAxisPreviewFacesCameraMoreThroughZ_UsesXyPlane() {
+            InitializeCore();
+            Entity axisHandle = CreateAxisHandle(float4.Identity);
+            float3 cameraPosition = new float3(1f, 4f, -8f);
+
+            bool resolved = TransformTranslationSnapPreviewResolver.TryResolvePreviewOrientation(
+                axisHandle,
+                float3.Zero,
+                cameraPosition,
+                out float4 previewOrientation);
+
+            Assert.True(resolved);
+
+            float3 resolvedPrimary = Normalize(float4.RotateVector(new float3(1f, 0f, 0f), previewOrientation));
+            float3 resolvedSecondary = Normalize(float4.RotateVector(new float3(0f, 1f, 0f), previewOrientation));
+            AssertVectorClose(new float3(0f, 1f, 0f), resolvedPrimary);
+            AssertVectorClose(new float3(1f, 0f, 0f), resolvedSecondary);
         }
 
         /// <summary>

@@ -61,6 +61,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorEntity SnapPreviewEntity;
         /// <summary>
+        /// Mesh component used by the reusable translation snap-preview entity.
+        /// </summary>
+        readonly MeshComponent SnapPreviewMesh;
+        /// <summary>
         /// Cached base local positions for direct gizmo-handle children.
         /// </summary>
         readonly Dictionary<Entity, float3> BaseHandlePositions;
@@ -114,6 +118,7 @@ namespace helengine.editor {
             NormalPlaneMaterial = normalAxisMaterial;
             HighlightPlaneMaterial = highlightAxisMaterial;
             SnapPreviewEntity = snapPreviewEntity;
+            SnapPreviewMesh = FindMeshComponent(snapPreviewEntity) ?? throw new InvalidOperationException("Translation snap-preview entity must include a mesh component.");
             BaseHandlePositions = new Dictionary<Entity, float3>();
             BaseHandleOrientations = new Dictionary<Entity, float4>();
             HandleBaseTransformsCached = false;
@@ -144,6 +149,7 @@ namespace helengine.editor {
             NormalPlaneMaterial = normalPlaneMaterial ?? throw new ArgumentNullException(nameof(normalPlaneMaterial));
             HighlightPlaneMaterial = highlightPlaneMaterial ?? throw new ArgumentNullException(nameof(highlightPlaneMaterial));
             SnapPreviewEntity = snapPreviewEntity ?? throw new ArgumentNullException(nameof(snapPreviewEntity));
+            SnapPreviewMesh = FindMeshComponent(snapPreviewEntity) ?? throw new InvalidOperationException("Translation snap-preview entity must include a mesh component.");
             BaseHandlePositions = new Dictionary<Entity, float3>();
             BaseHandleOrientations = new Dictionary<Entity, float4>();
             HandleBaseTransformsCached = false;
@@ -221,11 +227,8 @@ namespace helengine.editor {
             }
 
             bool isDragging = EditorGizmoDragService.IsDragging(SceneCamera);
+            EnsureHandleBaseTransformsCached();
             if (!isDragging) {
-                EnsureHandleBaseTransformsCached();
-                float4 yawFacingOrientation = TransformGizmoYawSnapper.ComputeSnappedYawFacingOrientation(selectedPosition, cameraEntity.Position);
-                ApplyFacingToHandles(yawFacingOrientation);
-
                 float4 viewport = SceneCamera.Viewport;
                 double viewportHeight = viewport.W;
                 if (viewportHeight <= 0.0) {
@@ -243,6 +246,8 @@ namespace helengine.editor {
 
                 float scale = (float)scaleValue;
                 GizmoRoot.Scale = new float3(scale, scale, scale);
+                float4 yawFacingOrientation = TransformGizmoYawSnapper.ComputeSnappedYawFacingOrientation(selectedPosition, cameraEntity.Position);
+                ApplyFacingToHandles(yawFacingOrientation, scale);
                 UpdateAxisTipOffsets(scale);
             }
 
@@ -515,9 +520,9 @@ namespace helengine.editor {
                     continue;
                 }
 
-                float3 baseLocalPosition = handle.Position - GizmoRoot.Position;
+                float3 baseLocalPosition = handle.LocalPosition;
                 BaseHandlePositions[handle] = baseLocalPosition;
-                BaseHandleOrientations[handle] = handle.Orientation;
+                BaseHandleOrientations[handle] = handle.LocalOrientation;
             }
 
             HandleBaseTransformsCached = true;
@@ -527,7 +532,8 @@ namespace helengine.editor {
         /// Applies snapped yaw facing transforms to direct gizmo-handle children.
         /// </summary>
         /// <param name="yawFacingOrientation">Quaternion representing the snapped world-space Y-axis yaw orientation.</param>
-        void ApplyFacingToHandles(float4 yawFacingOrientation) {
+        /// <param name="scale">Current gizmo world scale used to keep plane-handle offsets aligned with the scaled gizmo.</param>
+        void ApplyFacingToHandles(float4 yawFacingOrientation, float scale) {
             if (GizmoRoot.Children == null) {
                 throw new InvalidOperationException("Gizmo root children must be initialized.");
             }
@@ -545,8 +551,14 @@ namespace helengine.editor {
                     continue;
                 }
 
-                handle.Position = float4.RotateVector(basePosition, yawFacingOrientation);
-                handle.Orientation = yawFacingOrientation * baseOrientation;
+                float3 resolvedBasePosition = basePosition;
+                if (TryFindTransformHandleComponent(handle, out TransformGizmoHandleComponent handleComponent) &&
+                    handleComponent.ConstraintType == TransformGizmoHandleConstraintType.Plane) {
+                    resolvedBasePosition *= scale;
+                }
+
+                handle.LocalPosition = float4.RotateVector(resolvedBasePosition, yawFacingOrientation);
+                handle.LocalOrientation = yawFacingOrientation * baseOrientation;
             }
         }
 
@@ -613,10 +625,41 @@ namespace helengine.editor {
             }
 
             float localGridScale = desiredWorldGridScale - currentScale;
+            ConfigureSnapPreviewMaterial(hoveredHandle);
             SnapPreviewEntity.Position = float3.Zero;
             SnapPreviewEntity.Orientation = previewOrientation;
             SnapPreviewEntity.Scale = new float3(localGridScale, localGridScale, localGridScale);
             SetSnapPreviewVisible(true);
+        }
+
+        /// <summary>
+        /// Updates the snap-preview material parameters so single-axis previews emphasize the dragged axis and plane previews keep the full grid.
+        /// </summary>
+        /// <param name="hoveredHandle">Hovered translation handle that determines the preview mode.</param>
+        void ConfigureSnapPreviewMaterial(Entity hoveredHandle) {
+            if (hoveredHandle == null) {
+                throw new ArgumentNullException(nameof(hoveredHandle));
+            }
+
+            if (SnapPreviewMesh.Material == null) {
+                throw new InvalidOperationException("Translation snap-preview mesh must include a material.");
+            }
+
+            if (!TryFindTransformHandleComponent(hoveredHandle, out TransformGizmoHandleComponent handleComponent)) {
+                throw new InvalidOperationException("Translation snap-preview requires a hovered gizmo handle.");
+            }
+
+            if (handleComponent.ConstraintType == TransformGizmoHandleConstraintType.Axis) {
+                TransformGizmoGridPreviewParameters.ApplySingleAxisFocus(SnapPreviewMesh.Material);
+                return;
+            }
+
+            if (handleComponent.ConstraintType == TransformGizmoHandleConstraintType.Plane) {
+                TransformGizmoGridPreviewParameters.ApplyFullGrid(SnapPreviewMesh.Material);
+                return;
+            }
+
+            throw new InvalidOperationException("Transform gizmo handle constraint type is not supported.");
         }
 
         /// <summary>

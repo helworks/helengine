@@ -26,7 +26,7 @@ namespace helengine.editor {
         /// <summary>
         /// Side length of planar translation handles.
         /// </summary>
-        public const float PlaneSize = 0.25f;
+        public const float PlaneSize = 0.325f;
         /// <summary>
         /// Offset from the origin where planar translation handles begin.
         /// </summary>

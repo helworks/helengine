@@ -7,12 +7,27 @@ namespace helengine.editor.tests.testing {
     /// </summary>
     internal class TestDirectX11RenderManager3D : DirectX11Renderer3D {
         /// <summary>
+        /// Captured raw model assets passed through the build API.
+        /// </summary>
+        readonly List<ModelAsset> BuiltModelAssetsValue;
+
+        /// <summary>
         /// Creates one uninitialized DirectX11-shaped renderer for tests that only need backend type identity.
         /// </summary>
         /// <returns>Renderer instance whose overridden build methods return test resources.</returns>
         public static TestDirectX11RenderManager3D Create() {
-            return (TestDirectX11RenderManager3D)RuntimeHelpers.GetUninitializedObject(typeof(TestDirectX11RenderManager3D));
+            TestDirectX11RenderManager3D renderer =
+                (TestDirectX11RenderManager3D)RuntimeHelpers.GetUninitializedObject(typeof(TestDirectX11RenderManager3D));
+            typeof(TestDirectX11RenderManager3D)
+                .GetField(nameof(BuiltModelAssetsValue), System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                .SetValue(renderer, new List<ModelAsset>());
+            return renderer;
         }
+
+        /// <summary>
+        /// Gets the raw model assets that were passed to the renderer.
+        /// </summary>
+        public IReadOnlyList<ModelAsset> BuiltModelAssets => BuiltModelAssetsValue;
 
         /// <summary>
         /// Returns a placeholder runtime model for tests that build overlay billboard geometry.
@@ -24,6 +39,7 @@ namespace helengine.editor.tests.testing {
                 throw new ArgumentNullException(nameof(data));
             }
 
+            BuiltModelAssetsValue.Add(data);
             return new TestRuntimeModel();
         }
 
