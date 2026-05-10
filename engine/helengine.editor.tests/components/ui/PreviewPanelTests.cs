@@ -62,10 +62,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures scaled dock metrics move the preview content below the scaled title bar and increase content padding.
+        /// Ensures scaled dock metrics move the preview content below the scaled title bar while letting the preview use the full panel body width.
         /// </summary>
         [Fact]
-        public void SetPreviewSource_WithScaledMetrics_UsesScaledTitleBarOffsetAndPadding() {
+        public void SetPreviewSource_WithScaledMetrics_UsesScaledTitleBarOffsetAndFullBodyWidth() {
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
             PreviewPanel panel = new PreviewPanel(CreateFont(), metrics) {
                 Size = new int2(300, 240)
@@ -82,9 +82,9 @@ namespace helengine.editor.tests {
             SpriteComponent textureSprite = GetPrivateField<SpriteComponent>(panel, "textureSprite");
 
             Assert.Equal(30f, contentRoot.Position.Y);
-            Assert.Equal(12f, textureHost.Position.X);
-            Assert.Equal(66f, textureHost.Position.Y);
-            Assert.Equal(new int2(276, 138), textureSprite.Size);
+            Assert.Equal(0f, textureHost.Position.X);
+            Assert.Equal(60f, textureHost.Position.Y);
+            Assert.Equal(new int2(300, 150), textureSprite.Size);
         }
 
         /// <summary>
@@ -146,6 +146,7 @@ namespace helengine.editor.tests {
             EditorEntity textureHost = GetPrivateField<EditorEntity>(panel, "textureHost");
             SpriteComponent textureSprite = GetPrivateField<SpriteComponent>(panel, "textureSprite");
             float3 initialPosition = textureHost.Position;
+            int2 initialSize = textureSprite.Size;
 
             int pointerX = (int)Math.Round(initialPosition.X) + 100;
             int pointerY = (int)Math.Round(initialPosition.Y) + 50;
@@ -172,9 +173,14 @@ namespace helengine.editor.tests {
             panel.UpdatePreviewSource();
             Input.Update();
 
-            Assert.Equal(new int2(440, 220), textureSprite.Size);
-            Assert.Equal(initialPosition.X - 10f, textureHost.Position.X);
-            Assert.Equal(initialPosition.Y - 5f, textureHost.Position.Y);
+            Assert.Equal(new int2(458, 229), textureSprite.Size);
+            double widthScale = textureSprite.Size.X / (double)initialSize.X;
+            double heightScale = textureSprite.Size.Y / (double)initialSize.Y;
+            double expectedOffsetX = (pointerX - initialPosition.X) * (widthScale - 1d);
+            double expectedOffsetY = (pointerY - initialPosition.Y) * (heightScale - 1d);
+
+            Assert.Equal(initialPosition.X - expectedOffsetX, textureHost.Position.X, 3);
+            Assert.Equal(initialPosition.Y - expectedOffsetY, textureHost.Position.Y, 3);
         }
 
         /// <summary>

@@ -6,7 +6,7 @@ namespace helengine.editor {
         /// <summary>
         /// Padding applied around the preview image.
         /// </summary>
-        const int ContentPadding = 8;
+        const int ContentPadding = 0;
         /// <summary>
         /// Vertical spacing reserved between the preview image and the resolution caption.
         /// </summary>
@@ -602,3 +602,7 @@ namespace helengine.editor {
         }
     }
 }
+            if (ContentPadding <= 0) {
+                return 0;
+            }
+
