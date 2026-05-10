@@ -203,29 +203,12 @@ namespace helengine.editor {
             if (!AssetContextMenu.IsVisible && FileTemplateMenu.IsVisible) {
                 FileTemplateMenu.Hide();
             }
-            if (!BrowserView.CanCreateFileSystemEntries) {
-                AssetContextMenu.Hide();
-                FileTemplateMenu.Hide();
-                return;
-            }
             if (!input.WasMouseRightButtonPressed()) {
                 return;
             }
 
             int2 pointer = input.GetMousePosition();
-            if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
-                return;
-            }
-
-            if (!IsPointerInsideContent(pointer)) {
-                return;
-            }
-
-            int2 local = new int2(
-                pointer.X - (int)Math.Round(Position.X),
-                pointer.Y - (int)Math.Round(Position.Y));
-            AssetContextMenu.Show(CreateAssetItems, local, GetContextMenuHostSize());
-            FileTemplateMenu.Hide();
+            HandleContextMenuRightClick(pointer);
         }
 
         /// <summary>
@@ -260,6 +243,41 @@ namespace helengine.editor {
             if (SelectionCleared != null) {
                 SelectionCleared();
             }
+        }
+
+        /// <summary>
+        /// Applies right-click selection and context-menu opening for one pointer position.
+        /// </summary>
+        /// <param name="pointer">Pointer position in window coordinates.</param>
+        internal void HandleContextMenuRightClick(int2 pointer) {
+            if (!IsPointerInsideContent(pointer)) {
+                return;
+            }
+
+            int2 local = new int2(
+                pointer.X - (int)Math.Round(Position.X),
+                pointer.Y - (int)Math.Round(Position.Y));
+
+            int2 browserLocal = new int2(local.X, local.Y - TitleBarHeightPixels);
+            AssetBrowserEntry hoveredEntry;
+            if (BrowserView.TryGetEntryAtPoint(browserLocal, out hoveredEntry)) {
+                if (BrowserView.SelectEntry(hoveredEntry) && !hoveredEntry.IsDirectory) {
+                    HandleAssetActivated(hoveredEntry);
+                }
+            }
+
+            if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
+                return;
+            }
+
+            if (!BrowserView.CanCreateFileSystemEntries) {
+                AssetContextMenu.Hide();
+                FileTemplateMenu.Hide();
+                return;
+            }
+
+            AssetContextMenu.Show(CreateAssetItems, local, GetContextMenuHostSize());
+            FileTemplateMenu.Hide();
         }
 
         /// <summary>

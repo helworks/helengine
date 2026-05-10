@@ -97,6 +97,55 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a right-click on a different asset row selects that row before opening the context menu.
+        /// </summary>
+        [Fact]
+        public void UpdateContextMenuInput_WhenRightClickHitsDifferentRow_SelectsItBeforeShowingTheMenu() {
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Alpha.txt"), "alpha");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Beta.txt"), "beta");
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath);
+            DockLayoutEngine layout = new DockLayoutEngine();
+            layout.DockAsRoot(assetBrowserPanel);
+            layout.Layout(new int2(320, 240));
+
+            AssetBrowserView browserView = GetPrivateField<AssetBrowserView>(assetBrowserPanel, "BrowserView");
+            List<AssetBrowserRow> rows = GetPrivateField<List<AssetBrowserRow>>(browserView, "Rows");
+
+            int selectionCount = 0;
+            assetBrowserPanel.AssetSelected += _ => selectionCount++;
+
+            RightClickRow(assetBrowserPanel, browserView, rows[1]);
+
+            Assert.Equal("Beta.txt", GetPrivateField<string>(browserView, "SelectedRelativePath"));
+            Assert.True(GetPrivateField<ContextMenu>(assetBrowserPanel, "AssetContextMenu").IsVisible);
+            Assert.Equal(1, selectionCount);
+        }
+
+        /// <summary>
+        /// Ensures right-clicking the already selected row does not re-emit the selection event.
+        /// </summary>
+        [Fact]
+        public void UpdateContextMenuInput_WhenRightClickHitsTheSelectedRow_DoesNotDuplicateSelectionEvents() {
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Alpha.txt"), "alpha");
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath);
+            DockLayoutEngine layout = new DockLayoutEngine();
+            layout.DockAsRoot(assetBrowserPanel);
+            layout.Layout(new int2(320, 240));
+
+            AssetBrowserView browserView = GetPrivateField<AssetBrowserView>(assetBrowserPanel, "BrowserView");
+            List<AssetBrowserRow> rows = GetPrivateField<List<AssetBrowserRow>>(browserView, "Rows");
+
+            int selectionCount = 0;
+            assetBrowserPanel.AssetSelected += _ => selectionCount++;
+
+            RightClickRow(assetBrowserPanel, browserView, rows[0]);
+            RightClickRow(assetBrowserPanel, browserView, rows[0]);
+
+            Assert.Equal("Alpha.txt", GetPrivateField<string>(browserView, "SelectedRelativePath"));
+            Assert.Equal(1, selectionCount);
+        }
+
+        /// <summary>
         /// Counts registered 2D drawables that belong to the provided dockable hierarchy.
         /// </summary>
         /// <param name="owner">Dockable entity whose descendants should be counted.</param>
@@ -160,6 +209,56 @@ namespace helengine.editor.tests {
             object browserView = GetPrivateField<object>(assetBrowserPanel, "BrowserView");
             IList rows = GetPrivateField<IList>(browserView, "Rows");
             return rows.Count;
+        }
+
+        /// <summary>
+        /// Sends one right-click input frame targeted at a specific asset-browser row.
+        /// </summary>
+        /// <param name="panel">Panel containing the asset browser.</param>
+        /// <param name="browserView">Browser view used to determine the row height.</param>
+        /// <param name="row">Row to right-click.</param>
+        void RightClickRow(AssetBrowserPanel panel, AssetBrowserView browserView, AssetBrowserRow row) {
+            if (panel == null) {
+                throw new ArgumentNullException(nameof(panel));
+            }
+            if (browserView == null) {
+                throw new ArgumentNullException(nameof(browserView));
+            }
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            int2 pointer = new int2(
+                (int)Math.Round(panel.Position.X) + 24,
+                (int)Math.Round(panel.Position.Y) + panel.TitleBarHeightPixels + AssetBrowserView.ToolbarHeight + (int)Math.Round(row.Entity.Position.Y) + (row.Interactable.Size.Y / 2));
+            int2 browserPoint = new int2(pointer.X - (int)Math.Round(panel.Position.X), pointer.Y - (int)Math.Round(panel.Position.Y) - panel.TitleBarHeightPixels);
+            AssetBrowserEntry hoveredEntry;
+            Assert.True(browserView.TryGetEntryAtPoint(browserPoint, out hoveredEntry));
+            Assert.Same(row.Entry, hoveredEntry);
+
+            InvokePrivate(panel, "HandleContextMenuRightClick", pointer);
+        }
+
+        /// <summary>
+        /// Invokes one non-public instance method with arguments.
+        /// </summary>
+        /// <param name="instance">Object that owns the method.</param>
+        /// <param name="methodName">Name of the method to invoke.</param>
+        /// <param name="arguments">Method arguments.</param>
+        void InvokePrivate(object instance, string methodName, params object[] arguments) {
+            if (instance == null) {
+                throw new ArgumentNullException(nameof(instance));
+            }
+            if (string.IsNullOrWhiteSpace(methodName)) {
+                throw new ArgumentException("Method name must be provided.", nameof(methodName));
+            }
+
+            MethodInfo method = instance.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (method == null) {
+                throw new InvalidOperationException("Expected private method was not found.");
+            }
+
+            method.Invoke(instance, arguments);
         }
 
         /// <summary>

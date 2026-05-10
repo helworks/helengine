@@ -356,6 +356,55 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Selects one entry without navigating or activating it.
+        /// </summary>
+        /// <param name="entry">Entry to select.</param>
+        /// <returns>True when the persistent selection changed.</returns>
+        public bool SelectEntry(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            return SelectRelativePath(entry.RelativePath);
+        }
+
+        /// <summary>
+        /// Attempts to find the entry under one browser-local pointer position.
+        /// </summary>
+        /// <param name="point">Pointer position relative to the browser root.</param>
+        /// <param name="entry">Entry under the pointer when one is found.</param>
+        /// <returns>True when the pointer hits one visible entry row.</returns>
+        public bool TryGetEntryAtPoint(int2 point, out AssetBrowserEntry entry) {
+            entry = null;
+
+            int toolbarHeight = GetToolbarHeightPixels();
+            if (point.Y < toolbarHeight) {
+                return false;
+            }
+
+            int rowHeight = GetRowHeightPixels();
+            int scrollOffset = ListScrollComponent.ScrollOffset;
+            int listY = point.Y - toolbarHeight + (scrollOffset * rowHeight);
+            int2 listPoint = new int2(point.X, listY);
+
+            for (int i = 0; i < Rows.Count; i++) {
+                AssetBrowserRow row = Rows[i];
+                if (!row.Entity.Enabled || row.Entry == null) {
+                    continue;
+                }
+
+                if (!ContainsRowPoint(row, listPoint)) {
+                    continue;
+                }
+
+                entry = row.Entry;
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Updates layout to fit the provided size.
         /// </summary>
         /// <param name="width">View width in pixels.</param>
@@ -792,10 +841,24 @@ namespace helengine.editor {
             if (row.Entry.IsDirectory) {
                 NavigateTo(row.Entry.RelativePath);
             } else {
-                SelectedRelativePath = row.Entry.RelativePath;
-                RefreshRowSelectionVisuals();
+                SelectEntry(row.Entry);
                 NotifyAssetActivated(row.Entry);
             }
+        }
+
+        /// <summary>
+        /// Updates the persistent selection to the provided relative path.
+        /// </summary>
+        /// <param name="relativePath">Relative path to select.</param>
+        /// <returns>True when the selection changed.</returns>
+        bool SelectRelativePath(string relativePath) {
+            if (string.Equals(SelectedRelativePath, relativePath, StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+
+            SelectedRelativePath = relativePath;
+            RefreshRowSelectionVisuals();
+            return true;
         }
 
         /// <summary>
