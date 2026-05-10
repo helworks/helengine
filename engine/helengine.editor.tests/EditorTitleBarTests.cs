@@ -147,6 +147,51 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the title bar creates one dedicated UI menu button beside the built-in menus.
+        /// </summary>
+        [Fact]
+        public void Constructor_BuildsUiMenuButtonBesideBuildButton() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+
+            EditorEntity uiButtonEntity = GetPrivateField<EditorEntity>(titleBar, "UiMenuButtonEntity");
+
+            Assert.NotNull(uiButtonEntity);
+        }
+
+        /// <summary>
+        /// Ensures test activation of a built-in UI menu action raises the matching routed action value.
+        /// </summary>
+        [Fact]
+        public void ActivateUiMenuItemForTest_WhenSaveSlotThreeIsRequested_RaisesUiMenuAction() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBarUiMenuAction? action = null;
+            titleBar.UiMenuActionRequested += value => action = value;
+
+            titleBar.ActivateUiMenuItemForTest("save-slot-3");
+
+            Assert.Equal(EditorTitleBarUiMenuAction.SaveSlot3, Assert.IsType<EditorTitleBarUiMenuAction>(action));
+        }
+
+        /// <summary>
+        /// Ensures the UI Show submenu reflects the current registered panel labels.
+        /// </summary>
+        [Fact]
+        public void ApplyUiShowMenuItems_WhenPanelTypesChange_RebuildsShowSubmenuItems() {
+            InitializeCore();
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+
+            titleBar.ApplyUiShowMenuItems(["Viewport", "Preview", "Logger"]);
+            titleBar.ShowUiShowMenuForTest();
+
+            ContextMenu uiShowMenu = GetPrivateField<ContextMenu>(titleBar, "UiShowMenu");
+            TextComponent loggerText = FindTextComponent(uiShowMenu.Entity, "Logger");
+
+            Assert.NotNull(loggerText);
+        }
+
+        /// <summary>
         /// Ensures the left-side title-bar buttons start at the top edge and span the full title-bar height.
         /// </summary>
         [Fact]

@@ -191,6 +191,39 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Captures the current dock tree into one serializable snapshot.
+        /// </summary>
+        /// <param name="instanceIdResolver">Maps dockable instances to stable panel instance identifiers.</param>
+        /// <returns>Captured dock snapshot for the current layout tree.</returns>
+        public EditorWorkspaceDockSnapshot CaptureSnapshot(Func<DockableEntity, string> instanceIdResolver) {
+            if (instanceIdResolver == null) {
+                throw new ArgumentNullException(nameof(instanceIdResolver));
+            }
+
+            return new EditorWorkspaceDockSnapshot {
+                Root = root == null ? null : CaptureNode(root, instanceIdResolver)
+            };
+        }
+
+        /// <summary>
+        /// Restores the dock tree from one previously captured snapshot.
+        /// </summary>
+        /// <param name="snapshot">Snapshot to restore.</param>
+        /// <param name="dockResolver">Resolves stable panel instance identifiers back to dockable instances.</param>
+        public void RestoreSnapshot(EditorWorkspaceDockSnapshot snapshot, Func<string, DockableEntity> dockResolver) {
+            if (snapshot == null) {
+                throw new ArgumentNullException(nameof(snapshot));
+            }
+            if (dockResolver == null) {
+                throw new ArgumentNullException(nameof(dockResolver));
+            }
+
+            ClearLayoutTree();
+            root = snapshot.Root == null ? null : RestoreNode(snapshot.Root, dockResolver);
+            EndResize();
+        }
+
+        /// <summary>
         /// Attempts to find a resize handle under the pointer and returns its axis.
         /// </summary>
         /// <param name="pointer">Pointer position in screen or host coordinates.</param>
@@ -422,6 +455,155 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Captures one layout node into its snapshot representation.
+        /// </summary>
+        /// <param name="node">Live layout node to capture.</param>
+        /// <param name="instanceIdResolver">Maps dockable instances to stable panel instance identifiers.</param>
+        /// <returns>Snapshot node representing the supplied live node.</returns>
+        EditorWorkspaceDockNodeSnapshot CaptureNode(LayoutNode node, Func<DockableEntity, string> instanceIdResolver) {
+            if (node is PanelNode panel) {
+                EditorWorkspaceDockLeafSnapshot snapshot = new EditorWorkspaceDockLeafSnapshot();
+                for (int index = 0; index < panel.Tabs.Count; index++) {
+                    snapshot.InstanceIds.Add(instanceIdResolver(panel.Tabs[index]));
+                }
+
+                snapshot.ActiveInstanceId = instanceIdResolver(panel.Tabs[panel.ActiveTabIndex]);
+                return snapshot;
+            }
+
+            if (node is SplitNode split) {
+                return new EditorWorkspaceDockSplitSnapshot {
+                    IsVertical = split.IsVertical,
+                    SplitFraction = split.SplitFraction,
+                    First = CaptureNode(split.First, instanceIdResolver),
+                    Second = CaptureNode(split.Second, instanceIdResolver)
+                };
+            }
+
+            throw new InvalidOperationException("Unknown dock layout node type.");
+        }
+
+        /// <summary>
+        /// Restores one live layout node from its snapshot representation.
+        /// </summary>
+        /// <param name="node">Snapshot node to restore.</param>
+        /// <param name="dockResolver">Resolves stable panel instance identifiers back to dockable instances.</param>
+        /// <returns>Restored live layout node.</returns>
+        LayoutNode RestoreNode(EditorWorkspaceDockNodeSnapshot node, Func<string, DockableEntity> dockResolver) {
+            if (node == null) {
+                throw new ArgumentNullException(nameof(node));
+            }
+
+            if (node is EditorWorkspaceDockLeafSnapshot leaf) {
+                if (leaf.InstanceIds.Count < 1) {
+                    throw new InvalidOperationException("Dock leaf snapshots must contain at least one instance id.");
+                }
+
+                DockableEntity firstDock = ResolveDock(leaf.InstanceIds[0], dockResolver);
+                PanelNode panel = new PanelNode(firstDock);
+                for (int index = 1; index < leaf.InstanceIds.Count; index++) {
+                    panel.AddTab(ResolveDock(leaf.InstanceIds[index], dockResolver));
+                }
+
+                int activeIndex = ResolveActiveTabIndex(leaf);
+                panel.SetActiveTab(activeIndex);
+                return panel;
+            }
+
+            if (node is EditorWorkspaceDockSplitSnapshot split) {
+                if (split.First == null || split.Second == null) {
+                    throw new InvalidOperationException("Dock split snapshots must contain both child nodes.");
+                }
+
+                return new SplitNode(
+                    split.IsVertical,
+                    split.SplitFraction,
+                    RestoreNode(split.First, dockResolver),
+                    RestoreNode(split.Second, dockResolver));
+            }
+
+            throw new InvalidOperationException("Unknown dock snapshot node type.");
+        }
+
+        /// <summary>
+        /// Clears the current live dock tree while disposing split separators and tab strips.
+        /// </summary>
+        void ClearLayoutTree() {
+            if (root == null) {
+                return;
+            }
+
+            List<DockableEntity> dockedDockables = new List<DockableEntity>();
+            CollectAllDockedDockables(root, dockedDockables);
+            for (int index = 0; index < dockedDockables.Count; index++) {
+                DockableEntity dock = dockedDockables[index];
+                if (root == null) {
+                    break;
+                }
+
+                root = root.Remove(dock);
+                dock.IsDocked = false;
+            }
+
+            root = null;
+        }
+
+        /// <summary>
+        /// Collects every dockable currently referenced by the live dock tree, including hidden sibling tabs.
+        /// </summary>
+        /// <param name="node">Layout node to inspect.</param>
+        /// <param name="dockablesToClear">Destination list for dockables currently owned by the tree.</param>
+        void CollectAllDockedDockables(LayoutNode node, List<DockableEntity> dockablesToClear) {
+            if (node == null) {
+                return;
+            }
+
+            if (node is PanelNode panel) {
+                for (int index = 0; index < panel.Tabs.Count; index++) {
+                    dockablesToClear.Add(panel.Tabs[index]);
+                }
+                return;
+            }
+
+            if (node is SplitNode split) {
+                CollectAllDockedDockables(split.First, dockablesToClear);
+                CollectAllDockedDockables(split.Second, dockablesToClear);
+            }
+        }
+
+        /// <summary>
+        /// Resolves one dockable instance from the provided stable instance identifier and ensures the layout tracks it.
+        /// </summary>
+        /// <param name="instanceId">Stable panel instance identifier to resolve.</param>
+        /// <param name="dockResolver">Resolver used to recover the dockable instance.</param>
+        /// <returns>Resolved dockable instance tracked by this layout engine.</returns>
+        DockableEntity ResolveDock(string instanceId, Func<string, DockableEntity> dockResolver) {
+            DockableEntity dock = dockResolver(instanceId);
+            if (dock == null) {
+                throw new InvalidOperationException($"Dock resolver returned null for instance '{instanceId}'.");
+            }
+
+            Add(dock);
+            dock.IsDocked = true;
+            return dock;
+        }
+
+        /// <summary>
+        /// Resolves the active tab index for one captured leaf snapshot.
+        /// </summary>
+        /// <param name="leaf">Leaf snapshot whose active tab should be restored.</param>
+        /// <returns>Active tab index within the leaf tab group.</returns>
+        int ResolveActiveTabIndex(EditorWorkspaceDockLeafSnapshot leaf) {
+            for (int index = 0; index < leaf.InstanceIds.Count; index++) {
+                if (string.Equals(leaf.InstanceIds[index], leaf.ActiveInstanceId, StringComparison.Ordinal)) {
+                    return index;
+                }
+            }
+
+            return 0;
+        }
+
+        /// <summary>
         /// Calculates a dock hint based on a pointer position within the host area.
         /// </summary>
         /// <param name="pointer">Pointer position in screen or host coordinates.</param>
@@ -613,6 +795,14 @@ namespace helengine.editor {
             /// Gets the active dockable entity for this panel.
             /// </summary>
             public DockableEntity Entity => tabs[activeTabIndex];
+            /// <summary>
+            /// Gets the dockable tabs currently hosted by this panel.
+            /// </summary>
+            public IReadOnlyList<DockableEntity> Tabs => tabs;
+            /// <summary>
+            /// Gets the active tab index within the group.
+            /// </summary>
+            public int ActiveTabIndex => activeTabIndex;
 
             /// <summary>
             /// Gets the cached bounds for this panel.

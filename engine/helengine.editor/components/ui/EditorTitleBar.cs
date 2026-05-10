@@ -50,6 +50,18 @@ namespace helengine.editor {
         /// </summary>
         const int AddMenuLightItemIndex = 4;
         /// <summary>
+        /// Index of the Show entry inside the UI menu.
+        /// </summary>
+        const int UiMenuShowItemIndex = 0;
+        /// <summary>
+        /// Index of the Save entry inside the UI menu.
+        /// </summary>
+        const int UiMenuSaveItemIndex = 1;
+        /// <summary>
+        /// Index of the Load entry inside the UI menu.
+        /// </summary>
+        const int UiMenuLoadItemIndex = 2;
+        /// <summary>
         /// Minimum width reserved for the title label.
         /// </summary>
         const int MinimumTitleWidth = 40;
@@ -147,6 +159,14 @@ namespace helengine.editor {
         /// </summary>
         int BuildMenuButtonWidth;
         /// <summary>
+        /// Entity that hosts the UI menu trigger button.
+        /// </summary>
+        readonly EditorEntity UiMenuButtonEntity;
+        /// <summary>
+        /// Width reserved for the UI menu trigger button.
+        /// </summary>
+        int UiMenuButtonWidth;
+        /// <summary>
         /// Context menu shown when the File button is activated.
         /// </summary>
         readonly ContextMenu FileMenu;
@@ -178,6 +198,42 @@ namespace helengine.editor {
         /// Items displayed by the Build context menu.
         /// </summary>
         readonly IReadOnlyList<ContextMenuItem> BuildMenuItems;
+        /// <summary>
+        /// Context menu shown when the UI button is activated.
+        /// </summary>
+        readonly ContextMenu UiMenu;
+        /// <summary>
+        /// Items displayed by the UI context menu.
+        /// </summary>
+        readonly IReadOnlyList<ContextMenuItem> UiMenuItems;
+        /// <summary>
+        /// Context menu shown when the UI Show submenu is opened.
+        /// </summary>
+        readonly ContextMenu UiShowMenu;
+        /// <summary>
+        /// Items displayed by the UI Show submenu.
+        /// </summary>
+        IReadOnlyList<ContextMenuItem> UiShowMenuItems;
+        /// <summary>
+        /// Context menu shown when the UI Save submenu is opened.
+        /// </summary>
+        readonly ContextMenu UiSaveMenu;
+        /// <summary>
+        /// Items displayed by the UI Save submenu.
+        /// </summary>
+        readonly IReadOnlyList<ContextMenuItem> UiSaveMenuItems;
+        /// <summary>
+        /// Context menu shown when the UI Load submenu is opened.
+        /// </summary>
+        readonly ContextMenu UiLoadMenu;
+        /// <summary>
+        /// Items displayed by the UI Load submenu.
+        /// </summary>
+        readonly IReadOnlyList<ContextMenuItem> UiLoadMenuItems;
+        /// <summary>
+        /// Maps UI Show submenu labels to built-in menu actions.
+        /// </summary>
+        readonly Dictionary<string, EditorTitleBarUiMenuAction> UiShowMenuActionsByLabel;
         /// <summary>
         /// Contributed top-level project menus currently rendered in the title bar.
         /// </summary>
@@ -331,6 +387,8 @@ namespace helengine.editor {
             AddMenuButtonWidth = addMenuButtonWidth;
             BuildMenuButtonEntity = CreateTitleBarButton("Build", ToggleBuildMenu, HandleBuildMenuButtonHovered, false, true, out int buildMenuButtonWidth);
             BuildMenuButtonWidth = buildMenuButtonWidth;
+            UiMenuButtonEntity = CreateTitleBarButton("UI", ToggleUiMenu, HandleUiMenuButtonHovered, false, true, out int uiMenuButtonWidth);
+            UiMenuButtonWidth = uiMenuButtonWidth;
 
             TitleEntity = new EditorEntity {
                 LayerMask = TitleBarLayerMask,
@@ -377,6 +435,20 @@ namespace helengine.editor {
             BuildMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
             RootEntity.AddChild(BuildMenu.Entity);
             BuildMenuItems = BuildBuildMenuItems();
+            UiMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            RootEntity.AddChild(UiMenu.Entity);
+            UiMenuItems = BuildUiMenuItems();
+            UiShowMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            RootEntity.AddChild(UiShowMenu.Entity);
+            UiShowMenuActionsByLabel = BuildUiShowMenuActionsByLabel();
+            UiShowMenuItems = Array.Empty<ContextMenuItem>();
+            ApplyUiShowMenuItems(new List<string>(UiShowMenuActionsByLabel.Keys));
+            UiSaveMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            RootEntity.AddChild(UiSaveMenu.Entity);
+            UiSaveMenuItems = BuildUiSaveMenuItems();
+            UiLoadMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            RootEntity.AddChild(UiLoadMenu.Entity);
+            UiLoadMenuItems = BuildUiLoadMenuItems();
             ProjectMenuStates = [];
             ProjectMenuItemsById = new Dictionary<string, EditorMenuItemDescriptor>(StringComparer.OrdinalIgnoreCase);
             ProjectMenuItems = Array.Empty<EditorMenuItemDescriptor>();
@@ -432,6 +504,7 @@ namespace helengine.editor {
             FileMenuButtonWidth = ComputeButtonWidth("File");
             AddMenuButtonWidth = ComputeButtonWidth("Add");
             BuildMenuButtonWidth = ComputeButtonWidth("Build");
+            UiMenuButtonWidth = ComputeButtonWidth("UI");
             MinimizeButtonWidth = ComputeButtonWidth("-");
             MaximizeButtonWidth = ComputeButtonWidth("Max");
             CloseButtonWidth = ComputeButtonWidth("X");
@@ -439,6 +512,7 @@ namespace helengine.editor {
             UpdateTitleBarButtonChrome(FileMenuButtonEntity, FileMenuButtonWidth, true, false, font);
             UpdateTitleBarButtonChrome(AddMenuButtonEntity, AddMenuButtonWidth, true, true, font);
             UpdateTitleBarButtonChrome(BuildMenuButtonEntity, BuildMenuButtonWidth, false, true, font);
+            UpdateTitleBarButtonChrome(UiMenuButtonEntity, UiMenuButtonWidth, false, true, font);
             for (int index = 0; index < ProjectMenuStates.Count; index++) {
                 EditorTitleBarProjectMenuState projectMenuState = ProjectMenuStates[index];
                 projectMenuState.ButtonWidth = ComputeButtonWidth(projectMenuState.TopLevelMenuLabel);
@@ -561,6 +635,10 @@ namespace helengine.editor {
         /// Raised when one contributed project-authored menu item is activated.
         /// </summary>
         public event Action<string> ProjectMenuItemRequested;
+        /// <summary>
+        /// Raised when one built-in UI menu action is activated.
+        /// </summary>
+        public event Action<EditorTitleBarUiMenuAction> UiMenuActionRequested;
 
         /// <summary>
         /// Updates button placement, menu clamping, and title sizing to fit the provided host size.
@@ -582,7 +660,9 @@ namespace helengine.editor {
             AddMenuButtonEntity.Position = new float3(addButtonX, ButtonTop, 0f);
             float buildButtonX = addButtonX + AddMenuButtonWidth + ButtonSpacing;
             BuildMenuButtonEntity.Position = new float3(buildButtonX, ButtonTop, 0f);
-            float lastMenuButtonRightEdge = buildButtonX + BuildMenuButtonWidth;
+            float uiButtonX = buildButtonX + BuildMenuButtonWidth + ButtonSpacing;
+            UiMenuButtonEntity.Position = new float3(uiButtonX, ButtonTop, 0f);
+            float lastMenuButtonRightEdge = uiButtonX + UiMenuButtonWidth;
             for (int index = 0; index < ProjectMenuStates.Count; index++) {
                 EditorTitleBarProjectMenuState projectMenuState = ProjectMenuStates[index];
                 float projectButtonX = lastMenuButtonRightEdge + ButtonSpacing;
@@ -604,6 +684,10 @@ namespace helengine.editor {
             AddMenu.UpdateLayout(HostSize);
             LightMenu.UpdateLayout(HostSize);
             BuildMenu.UpdateLayout(HostSize);
+            UiMenu.UpdateLayout(HostSize);
+            UiShowMenu.UpdateLayout(HostSize);
+            UiSaveMenu.UpdateLayout(HostSize);
+            UiLoadMenu.UpdateLayout(HostSize);
             for (int index = 0; index < ProjectMenuStates.Count; index++) {
                 ProjectMenuStates[index].Menu.UpdateLayout(HostSize);
             }
@@ -626,6 +710,46 @@ namespace helengine.editor {
         /// <param name="menuItemId">Stable contributed menu item identifier to activate.</param>
         internal void ActivateProjectMenuItemForTest(string menuItemId) {
             RaiseProjectMenuItemRequested(menuItemId);
+        }
+
+        /// <summary>
+        /// Activates one built-in UI menu item for test coverage without simulating pointer input.
+        /// </summary>
+        /// <param name="menuItemId">Stable built-in UI menu item identifier to activate.</param>
+        internal void ActivateUiMenuItemForTest(string menuItemId) {
+            RaiseUiMenuActionRequested(ResolveUiMenuAction(menuItemId));
+        }
+
+        /// <summary>
+        /// Applies the set of panel labels that should appear under the UI Show submenu.
+        /// </summary>
+        /// <param name="panelLabels">Panel labels that should be offered for opening.</param>
+        public void ApplyUiShowMenuItems(IReadOnlyList<string> panelLabels) {
+            if (panelLabels == null) {
+                throw new ArgumentNullException(nameof(panelLabels));
+            }
+
+            List<ContextMenuItem> menuItems = new List<ContextMenuItem>(panelLabels.Count);
+            for (int index = 0; index < panelLabels.Count; index++) {
+                string panelLabel = panelLabels[index];
+                if (string.IsNullOrWhiteSpace(panelLabel)) {
+                    throw new InvalidOperationException("UI Show panel labels must not be blank.");
+                }
+                if (!UiShowMenuActionsByLabel.TryGetValue(panelLabel, out EditorTitleBarUiMenuAction action)) {
+                    throw new InvalidOperationException($"UI Show panel '{panelLabel}' is not registered.");
+                }
+
+                menuItems.Add(new ContextMenuItem(panelLabel, CreateUiMenuActionHandler(action)));
+            }
+
+            UiShowMenuItems = menuItems;
+        }
+
+        /// <summary>
+        /// Shows the UI Show submenu for test coverage without simulating pointer input.
+        /// </summary>
+        internal void ShowUiShowMenuForTest() {
+            UiShowMenu.Show(UiShowMenuItems, GetUiShowMenuPosition(), HostSize);
         }
 
         /// <summary>
@@ -680,6 +804,61 @@ namespace helengine.editor {
                 new ContextMenuItem("Build...", RaiseBuildRequested),
                 new ContextMenuItem("Build Scripts...", RaiseBuildScriptsRequested),
                 new ContextMenuItem("Open in IDE...", RaiseOpenInIDERequested)
+            };
+        }
+
+        /// <summary>
+        /// Creates the UI menu items shown beside the Build button.
+        /// </summary>
+        /// <returns>Immutable collection of UI menu items.</returns>
+        IReadOnlyList<ContextMenuItem> BuildUiMenuItems() {
+            return new ContextMenuItem[] {
+                new ContextMenuItem("Show", ShowUiShowMenu, ShowUiShowMenu, false),
+                new ContextMenuItem("Save", ShowUiSaveMenu, ShowUiSaveMenu, false),
+                new ContextMenuItem("Load", ShowUiLoadMenu, ShowUiLoadMenu, false)
+            };
+        }
+
+        /// <summary>
+        /// Creates the built-in UI Show action map keyed by panel label.
+        /// </summary>
+        /// <returns>Lookup of panel labels to UI menu actions.</returns>
+        Dictionary<string, EditorTitleBarUiMenuAction> BuildUiShowMenuActionsByLabel() {
+            return new Dictionary<string, EditorTitleBarUiMenuAction>(StringComparer.OrdinalIgnoreCase) {
+                ["Viewport"] = EditorTitleBarUiMenuAction.ShowViewport,
+                ["Scene Hierarchy"] = EditorTitleBarUiMenuAction.ShowSceneHierarchy,
+                ["Asset Browser"] = EditorTitleBarUiMenuAction.ShowAssetBrowser,
+                ["Properties"] = EditorTitleBarUiMenuAction.ShowProperties,
+                ["Logger"] = EditorTitleBarUiMenuAction.ShowLogger,
+                ["Preview"] = EditorTitleBarUiMenuAction.ShowPreview
+            };
+        }
+
+        /// <summary>
+        /// Creates the UI Save submenu items.
+        /// </summary>
+        /// <returns>Immutable collection of save-slot menu items.</returns>
+        IReadOnlyList<ContextMenuItem> BuildUiSaveMenuItems() {
+            return new ContextMenuItem[] {
+                new ContextMenuItem("Slot 1", CreateUiMenuActionHandler(EditorTitleBarUiMenuAction.SaveSlot1)),
+                new ContextMenuItem("Slot 2", CreateUiMenuActionHandler(EditorTitleBarUiMenuAction.SaveSlot2)),
+                new ContextMenuItem("Slot 3", CreateUiMenuActionHandler(EditorTitleBarUiMenuAction.SaveSlot3)),
+                new ContextMenuItem("Slot 4", CreateUiMenuActionHandler(EditorTitleBarUiMenuAction.SaveSlot4)),
+                new ContextMenuItem("Slot 5", CreateUiMenuActionHandler(EditorTitleBarUiMenuAction.SaveSlot5))
+            };
+        }
+
+        /// <summary>
+        /// Creates the UI Load submenu items.
+        /// </summary>
+        /// <returns>Immutable collection of load-slot menu items.</returns>
+        IReadOnlyList<ContextMenuItem> BuildUiLoadMenuItems() {
+            return new ContextMenuItem[] {
+                new ContextMenuItem("Slot 1", CreateUiMenuActionHandler(EditorTitleBarUiMenuAction.LoadSlot1)),
+                new ContextMenuItem("Slot 2", CreateUiMenuActionHandler(EditorTitleBarUiMenuAction.LoadSlot2)),
+                new ContextMenuItem("Slot 3", CreateUiMenuActionHandler(EditorTitleBarUiMenuAction.LoadSlot3)),
+                new ContextMenuItem("Slot 4", CreateUiMenuActionHandler(EditorTitleBarUiMenuAction.LoadSlot4)),
+                new ContextMenuItem("Slot 5", CreateUiMenuActionHandler(EditorTitleBarUiMenuAction.LoadSlot5))
             };
         }
 
@@ -1095,6 +1274,10 @@ namespace helengine.editor {
             AddMenu.Hide();
             LightMenu.Hide();
             BuildMenu.Hide();
+            UiMenu.Hide();
+            UiShowMenu.Hide();
+            UiSaveMenu.Hide();
+            UiLoadMenu.Hide();
             HideProjectMenus();
         }
 
@@ -1135,6 +1318,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Shows or hides the UI menu anchored beneath the UI button.
+        /// </summary>
+        void ToggleUiMenu() {
+            if (UiMenu.IsVisible) {
+                UiMenu.Hide();
+                UiShowMenu.Hide();
+                UiSaveMenu.Hide();
+                UiLoadMenu.Hide();
+                return;
+            }
+
+            ShowUiMenu();
+        }
+
+        /// <summary>
         /// Switches to the File menu when hovering across an already active menu strip.
         /// </summary>
         void HandleFileMenuButtonHovered() {
@@ -1165,6 +1363,17 @@ namespace helengine.editor {
             }
 
             ShowBuildMenu();
+        }
+
+        /// <summary>
+        /// Switches to the UI menu when hovering across an already active menu strip.
+        /// </summary>
+        void HandleUiMenuButtonHovered() {
+            if (!IsAnyOtherTopLevelMenuVisible("ui")) {
+                return;
+            }
+
+            ShowUiMenu();
         }
 
         /// <summary>
@@ -1204,6 +1413,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Shows the UI menu and closes any other title-bar menu.
+        /// </summary>
+        void ShowUiMenu() {
+            HideMenus();
+            UiMenu.Show(UiMenuItems, GetUiMenuPosition(), HostSize);
+        }
+
+        /// <summary>
         /// Shows or hides one contributed menu anchored beneath its top-level button.
         /// </summary>
         /// <param name="topLevelMenuId">Stable contributed top-level menu identifier.</param>
@@ -1237,7 +1454,62 @@ namespace helengine.editor {
 
             FileMenu.Hide();
             BuildMenu.Hide();
+            UiMenu.Hide();
+            UiShowMenu.Hide();
+            UiSaveMenu.Hide();
+            UiLoadMenu.Hide();
             LightMenu.Show(LightMenuItems, GetLightMenuPosition(), HostSize);
+        }
+
+        /// <summary>
+        /// Shows the UI Show submenu anchored beside the Show entry inside the UI menu.
+        /// </summary>
+        void ShowUiShowMenu() {
+            if (!UiMenu.IsVisible) {
+                return;
+            }
+
+            FileMenu.Hide();
+            AddMenu.Hide();
+            LightMenu.Hide();
+            BuildMenu.Hide();
+            UiSaveMenu.Hide();
+            UiLoadMenu.Hide();
+            UiShowMenu.Show(UiShowMenuItems, GetUiShowMenuPosition(), HostSize);
+        }
+
+        /// <summary>
+        /// Shows the UI Save submenu anchored beside the Save entry inside the UI menu.
+        /// </summary>
+        void ShowUiSaveMenu() {
+            if (!UiMenu.IsVisible) {
+                return;
+            }
+
+            FileMenu.Hide();
+            AddMenu.Hide();
+            LightMenu.Hide();
+            BuildMenu.Hide();
+            UiShowMenu.Hide();
+            UiLoadMenu.Hide();
+            UiSaveMenu.Show(UiSaveMenuItems, GetUiSaveMenuPosition(), HostSize);
+        }
+
+        /// <summary>
+        /// Shows the UI Load submenu anchored beside the Load entry inside the UI menu.
+        /// </summary>
+        void ShowUiLoadMenu() {
+            if (!UiMenu.IsVisible) {
+                return;
+            }
+
+            FileMenu.Hide();
+            AddMenu.Hide();
+            LightMenu.Hide();
+            BuildMenu.Hide();
+            UiShowMenu.Hide();
+            UiSaveMenu.Hide();
+            UiLoadMenu.Show(UiLoadMenuItems, GetUiLoadMenuPosition(), HostSize);
         }
 
         /// <summary>
@@ -1285,6 +1557,45 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Computes the top-left position used to open the UI menu.
+        /// </summary>
+        /// <returns>Menu position relative to the title bar root.</returns>
+        int2 GetUiMenuPosition() {
+            int x = (int)Math.Round(UiMenuButtonEntity.Position.X);
+            return new int2(x, Height);
+        }
+
+        /// <summary>
+        /// Computes the top-left position used to open the UI Show submenu.
+        /// </summary>
+        /// <returns>Menu position relative to the title bar root.</returns>
+        int2 GetUiShowMenuPosition() {
+            int x = UiMenu.Position.X + UiMenu.Size.X;
+            int y = UiMenu.Position.Y + ContextMenu.PaddingY + (UiMenuShowItemIndex * (ContextMenu.RowHeight + ContextMenu.RowSpacing));
+            return new int2(x, y);
+        }
+
+        /// <summary>
+        /// Computes the top-left position used to open the UI Save submenu.
+        /// </summary>
+        /// <returns>Menu position relative to the title bar root.</returns>
+        int2 GetUiSaveMenuPosition() {
+            int x = UiMenu.Position.X + UiMenu.Size.X;
+            int y = UiMenu.Position.Y + ContextMenu.PaddingY + (UiMenuSaveItemIndex * (ContextMenu.RowHeight + ContextMenu.RowSpacing));
+            return new int2(x, y);
+        }
+
+        /// <summary>
+        /// Computes the top-left position used to open the UI Load submenu.
+        /// </summary>
+        /// <returns>Menu position relative to the title bar root.</returns>
+        int2 GetUiLoadMenuPosition() {
+            int x = UiMenu.Position.X + UiMenu.Size.X;
+            int y = UiMenu.Position.Y + ContextMenu.PaddingY + (UiMenuLoadItemIndex * (ContextMenu.RowHeight + ContextMenu.RowSpacing));
+            return new int2(x, y);
+        }
+
+        /// <summary>
         /// Computes the top-left position used to open one contributed top-level menu.
         /// </summary>
         /// <param name="projectMenuState">Contributed menu whose context menu should be positioned.</param>
@@ -1309,7 +1620,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (FileMenu.IsVisible || AddMenu.IsVisible || BuildMenu.IsVisible) {
+            if (AreAnyMenusVisible()) {
                 HideMenus();
                 return;
             }
@@ -1585,6 +1896,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Raises one built-in UI menu action after closing open menus.
+        /// </summary>
+        /// <param name="action">UI menu action requested by the user.</param>
+        void RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction action) {
+            HideMenus();
+            if (UiMenuActionRequested != null) {
+                UiMenuActionRequested(action);
+            }
+        }
+
+        /// <summary>
         /// Hides every contributed top-level project menu currently rendered by the title bar.
         /// </summary>
         void HideProjectMenus() {
@@ -1606,6 +1928,9 @@ namespace helengine.editor {
                 return true;
             }
             if (!string.Equals(excludedTopLevelMenuId, "build", StringComparison.OrdinalIgnoreCase) && BuildMenu.IsVisible) {
+                return true;
+            }
+            if (!string.Equals(excludedTopLevelMenuId, "ui", StringComparison.OrdinalIgnoreCase) && UiMenu.IsVisible) {
                 return true;
             }
 
@@ -1650,7 +1975,254 @@ namespace helengine.editor {
                 return lastProjectMenuState.ButtonEntity.Position.X + lastProjectMenuState.ButtonWidth;
             }
 
-            return AddMenuButtonEntity.Position.X + AddMenuButtonWidth + ButtonSpacing + BuildMenuButtonWidth;
+            return UiMenuButtonEntity.Position.X + UiMenuButtonWidth;
+        }
+
+        /// <summary>
+        /// Returns true when any title-bar menu or submenu is currently visible.
+        /// </summary>
+        /// <returns>True when at least one title-bar menu is visible.</returns>
+        bool AreAnyMenusVisible() {
+            if (FileMenu.IsVisible || AddMenu.IsVisible || LightMenu.IsVisible || BuildMenu.IsVisible || UiMenu.IsVisible || UiShowMenu.IsVisible || UiSaveMenu.IsVisible || UiLoadMenu.IsVisible) {
+                return true;
+            }
+
+            for (int index = 0; index < ProjectMenuStates.Count; index++) {
+                if (ProjectMenuStates[index].Menu.IsVisible) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Creates one no-argument action that raises the supplied UI menu action.
+        /// </summary>
+        /// <param name="action">Built-in UI menu action to raise.</param>
+        /// <returns>Action delegate that raises the supplied UI menu action.</returns>
+        Action CreateUiMenuActionHandler(EditorTitleBarUiMenuAction action) {
+            if (action == EditorTitleBarUiMenuAction.ShowViewport) {
+                return RaiseShowViewportRequested;
+            }
+            if (action == EditorTitleBarUiMenuAction.ShowSceneHierarchy) {
+                return RaiseShowSceneHierarchyRequested;
+            }
+            if (action == EditorTitleBarUiMenuAction.ShowAssetBrowser) {
+                return RaiseShowAssetBrowserRequested;
+            }
+            if (action == EditorTitleBarUiMenuAction.ShowProperties) {
+                return RaiseShowPropertiesRequested;
+            }
+            if (action == EditorTitleBarUiMenuAction.ShowLogger) {
+                return RaiseShowLoggerRequested;
+            }
+            if (action == EditorTitleBarUiMenuAction.ShowPreview) {
+                return RaiseShowPreviewRequested;
+            }
+            if (action == EditorTitleBarUiMenuAction.SaveSlot1) {
+                return RaiseSaveSlot1Requested;
+            }
+            if (action == EditorTitleBarUiMenuAction.SaveSlot2) {
+                return RaiseSaveSlot2Requested;
+            }
+            if (action == EditorTitleBarUiMenuAction.SaveSlot3) {
+                return RaiseSaveSlot3Requested;
+            }
+            if (action == EditorTitleBarUiMenuAction.SaveSlot4) {
+                return RaiseSaveSlot4Requested;
+            }
+            if (action == EditorTitleBarUiMenuAction.SaveSlot5) {
+                return RaiseSaveSlot5Requested;
+            }
+            if (action == EditorTitleBarUiMenuAction.LoadSlot1) {
+                return RaiseLoadSlot1Requested;
+            }
+            if (action == EditorTitleBarUiMenuAction.LoadSlot2) {
+                return RaiseLoadSlot2Requested;
+            }
+            if (action == EditorTitleBarUiMenuAction.LoadSlot3) {
+                return RaiseLoadSlot3Requested;
+            }
+            if (action == EditorTitleBarUiMenuAction.LoadSlot4) {
+                return RaiseLoadSlot4Requested;
+            }
+
+            return RaiseLoadSlot5Requested;
+        }
+
+        /// <summary>
+        /// Resolves one built-in UI menu action from its stable identifier.
+        /// </summary>
+        /// <param name="menuItemId">Stable UI menu item identifier.</param>
+        /// <returns>Resolved built-in UI menu action.</returns>
+        EditorTitleBarUiMenuAction ResolveUiMenuAction(string menuItemId) {
+            if (string.IsNullOrWhiteSpace(menuItemId)) {
+                throw new ArgumentException("UI menu item id must be provided.", nameof(menuItemId));
+            }
+
+            if (string.Equals(menuItemId, "show-viewport", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.ShowViewport;
+            }
+            if (string.Equals(menuItemId, "show-scene-hierarchy", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.ShowSceneHierarchy;
+            }
+            if (string.Equals(menuItemId, "show-asset-browser", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.ShowAssetBrowser;
+            }
+            if (string.Equals(menuItemId, "show-properties", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.ShowProperties;
+            }
+            if (string.Equals(menuItemId, "show-logger", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.ShowLogger;
+            }
+            if (string.Equals(menuItemId, "show-preview", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.ShowPreview;
+            }
+            if (string.Equals(menuItemId, "save-slot-1", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.SaveSlot1;
+            }
+            if (string.Equals(menuItemId, "save-slot-2", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.SaveSlot2;
+            }
+            if (string.Equals(menuItemId, "save-slot-3", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.SaveSlot3;
+            }
+            if (string.Equals(menuItemId, "save-slot-4", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.SaveSlot4;
+            }
+            if (string.Equals(menuItemId, "save-slot-5", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.SaveSlot5;
+            }
+            if (string.Equals(menuItemId, "load-slot-1", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.LoadSlot1;
+            }
+            if (string.Equals(menuItemId, "load-slot-2", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.LoadSlot2;
+            }
+            if (string.Equals(menuItemId, "load-slot-3", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.LoadSlot3;
+            }
+            if (string.Equals(menuItemId, "load-slot-4", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.LoadSlot4;
+            }
+            if (string.Equals(menuItemId, "load-slot-5", StringComparison.OrdinalIgnoreCase)) {
+                return EditorTitleBarUiMenuAction.LoadSlot5;
+            }
+
+            throw new InvalidOperationException($"UI menu item '{menuItemId}' is not available.");
+        }
+
+        /// <summary>
+        /// Raises the UI action used to open one new viewport panel instance.
+        /// </summary>
+        void RaiseShowViewportRequested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.ShowViewport);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to open one new scene hierarchy panel instance.
+        /// </summary>
+        void RaiseShowSceneHierarchyRequested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.ShowSceneHierarchy);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to open one new asset browser panel instance.
+        /// </summary>
+        void RaiseShowAssetBrowserRequested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.ShowAssetBrowser);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to open one new properties panel instance.
+        /// </summary>
+        void RaiseShowPropertiesRequested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.ShowProperties);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to open one new logger panel instance.
+        /// </summary>
+        void RaiseShowLoggerRequested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.ShowLogger);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to open one new preview panel instance.
+        /// </summary>
+        void RaiseShowPreviewRequested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.ShowPreview);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to save the current workspace to slot 1.
+        /// </summary>
+        void RaiseSaveSlot1Requested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.SaveSlot1);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to save the current workspace to slot 2.
+        /// </summary>
+        void RaiseSaveSlot2Requested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.SaveSlot2);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to save the current workspace to slot 3.
+        /// </summary>
+        void RaiseSaveSlot3Requested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.SaveSlot3);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to save the current workspace to slot 4.
+        /// </summary>
+        void RaiseSaveSlot4Requested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.SaveSlot4);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to save the current workspace to slot 5.
+        /// </summary>
+        void RaiseSaveSlot5Requested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.SaveSlot5);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to load the workspace from slot 1.
+        /// </summary>
+        void RaiseLoadSlot1Requested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.LoadSlot1);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to load the workspace from slot 2.
+        /// </summary>
+        void RaiseLoadSlot2Requested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.LoadSlot2);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to load the workspace from slot 3.
+        /// </summary>
+        void RaiseLoadSlot3Requested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.LoadSlot3);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to load the workspace from slot 4.
+        /// </summary>
+        void RaiseLoadSlot4Requested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.LoadSlot4);
+        }
+
+        /// <summary>
+        /// Raises the UI action used to load the workspace from slot 5.
+        /// </summary>
+        void RaiseLoadSlot5Requested() {
+            RaiseUiMenuActionRequested(EditorTitleBarUiMenuAction.LoadSlot5);
         }
 
         /// <summary>

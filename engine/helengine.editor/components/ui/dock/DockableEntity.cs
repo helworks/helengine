@@ -17,6 +17,10 @@ namespace helengine.editor {
         /// </summary>
         const float PanelOutlineThickness = 1f;
         /// <summary>
+        /// Label shown on the panel title-bar menu button.
+        /// </summary>
+        const string PanelMenuButtonLabel = "...";
+        /// <summary>
         /// Semi-transparent near-white color used for dockable panel outlines.
         /// </summary>
         static readonly byte4 PanelOutlineColor = new byte4(255, 255, 255, 72);
@@ -44,6 +48,38 @@ namespace helengine.editor {
         /// Outline rendered around the full dockable panel area.
         /// </summary>
         readonly RoundedRectComponent panelOutline;
+        /// <summary>
+        /// Entity that hosts the dockable title-bar panel menu button.
+        /// </summary>
+        readonly EditorEntity PanelMenuButtonEntity;
+        /// <summary>
+        /// Surface rendered behind the panel menu button.
+        /// </summary>
+        readonly RoundedRectComponent PanelMenuButtonBackground;
+        /// <summary>
+        /// Entity that hosts the panel menu button label.
+        /// </summary>
+        readonly EditorEntity PanelMenuButtonTextEntity;
+        /// <summary>
+        /// Text rendered inside the panel menu button.
+        /// </summary>
+        readonly TextComponent PanelMenuButtonTextComponent;
+        /// <summary>
+        /// Interactable used to toggle the panel menu.
+        /// </summary>
+        readonly InteractableComponent PanelMenuButtonInteractivity;
+        /// <summary>
+        /// Context menu shown when the panel menu button is activated.
+        /// </summary>
+        readonly ContextMenu PanelMenu;
+        /// <summary>
+        /// Items displayed by the panel menu.
+        /// </summary>
+        readonly IReadOnlyList<ContextMenuItem> PanelMenuItems;
+        /// <summary>
+        /// Width reserved for the panel menu button.
+        /// </summary>
+        int PanelMenuButtonWidth;
         /// <summary>
         /// Tracks whether keyboard focus currently marks this dock as the active root group.
         /// </summary>
@@ -141,6 +177,39 @@ namespace helengine.editor {
             panelOutline.RenderOrder2D = textOrder;
             AddComponent(panelOutline);
 
+            PanelMenuButtonWidth = Math.Max(TitleBarHeightPixels, Metrics.ScalePixels(24));
+            PanelMenuButtonEntity = new EditorEntity();
+            PanelMenuButtonEntity.LayerMask = LayerMask;
+            AddChild(PanelMenuButtonEntity);
+
+            PanelMenuButtonBackground = new RoundedRectComponent();
+            PanelMenuButtonBackground.FillColor = new byte4(255, 255, 255, 0);
+            PanelMenuButtonBackground.BorderThickness = 0f;
+            PanelMenuButtonBackground.BorderColor = new byte4(255, 255, 255, 0);
+            PanelMenuButtonBackground.Radius = 0f;
+            PanelMenuButtonBackground.RenderOrder2D = surfaceOrder;
+            PanelMenuButtonEntity.AddComponent(PanelMenuButtonBackground);
+
+            PanelMenuButtonTextEntity = new EditorEntity();
+            PanelMenuButtonTextEntity.LayerMask = LayerMask;
+            PanelMenuButtonTextEntity.Position = new float3(Metrics.ScalePixels(5), GetTitleTextTopOffset(), 0f);
+            PanelMenuButtonEntity.AddChild(PanelMenuButtonTextEntity);
+
+            PanelMenuButtonTextComponent = new TextComponent();
+            PanelMenuButtonTextComponent.Font = font;
+            PanelMenuButtonTextComponent.Text = PanelMenuButtonLabel;
+            PanelMenuButtonTextComponent.Color = new byte4(255, 255, 255, 255);
+            PanelMenuButtonTextComponent.RenderOrder2D = textOrder;
+            PanelMenuButtonTextEntity.AddComponent(PanelMenuButtonTextComponent);
+
+            PanelMenuButtonInteractivity = new InteractableComponent();
+            PanelMenuButtonInteractivity.CursorEvent += PanelMenuButtonInteractivity_CursorEvent;
+            PanelMenuButtonEntity.AddComponent(PanelMenuButtonInteractivity);
+
+            PanelMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            AddChild(PanelMenu.Entity);
+            PanelMenuItems = BuildPanelMenuItems();
+
             titleBarInteractivity = new InteractableComponent();
             titleBarInteractivity.Size = new int2(300, TitleBarHeightPixels);
             titleBarInteractivity.CursorEvent += TitleBarInteractivity_CursorEvent;
@@ -160,11 +229,15 @@ namespace helengine.editor {
                 titleBar.Size = new int2(value.X, TitleBarHeightPixels);
                 areaSprite.Size = new int2(value.X, value.Y);
                 panelOutline.Size = new int2(value.X, value.Y + TitleBarHeightPixels);
+                PanelMenuButtonEntity.Position = new float3(value.X - PanelMenuButtonWidth, 0f, 0f);
+                PanelMenuButtonBackground.Size = new int2(PanelMenuButtonWidth, TitleBarHeightPixels);
+                PanelMenuButtonInteractivity.Size = new int2(PanelMenuButtonWidth, TitleBarHeightPixels);
                 if (titleBarInteractivity != null) {
                     titleBarInteractivity.Size = titleBarInteractableEnabled
-                        ? new int2(value.X, TitleBarHeightPixels)
+                        ? new int2(GetTitleBarInteractableWidth(), TitleBarHeightPixels)
                         : new int2(0, 0);
                 }
+                PanelMenu.UpdateLayout(new int2(Math.Max(1, value.X), Math.Max(1, value.Y + TitleBarHeightPixels)));
                 OnSizeChanged();
             }
         }
@@ -223,6 +296,11 @@ namespace helengine.editor {
         public int TitleBarHeightPixels => Metrics.DockTitleBarHeight;
 
         /// <summary>
+        /// Raised when the user requests to close the current dockable panel.
+        /// </summary>
+        public event Action CloseRequested;
+
+        /// <summary>
         /// Reapplies the shared dock font and metrics after one live UI scale change.
         /// </summary>
         /// <param name="font">Updated title font used by the dock chrome.</param>
@@ -244,6 +322,9 @@ namespace helengine.editor {
             if (titleBarText != null) {
                 titleBarText.Position = new float3(Metrics.ScalePixels(8), GetTitleTextTopOffset(), 0f);
             }
+            PanelMenuButtonWidth = Math.Max(TitleBarHeightPixels, Metrics.ScalePixels(24));
+            PanelMenuButtonTextEntity.Position = new float3(Metrics.ScalePixels(5), GetTitleTextTopOffset(), 0f);
+            PanelMenuButtonTextComponent.Font = font;
 
             HandleUiMetricsApplied();
             Size = size;
@@ -351,9 +432,22 @@ namespace helengine.editor {
             titleBarInteractableEnabled = enabled;
             if (titleBarInteractivity != null) {
                 titleBarInteractivity.Size = enabled
-                    ? new int2(size.X, TitleBarHeightPixels)
+                    ? new int2(GetTitleBarInteractableWidth(), TitleBarHeightPixels)
                     : new int2(0, 0);
             }
+        }
+
+        /// <summary>
+        /// Activates one panel menu action for test coverage without simulating pointer input.
+        /// </summary>
+        /// <param name="action">Panel menu action to activate.</param>
+        internal void ActivatePanelMenuActionForTest(DockableEntityPanelMenuAction action) {
+            if (action == DockableEntityPanelMenuAction.Close) {
+                RaiseCloseRequested();
+                return;
+            }
+
+            throw new InvalidOperationException("The requested panel menu action is not supported.");
         }
 
         /// <summary>
@@ -411,6 +505,69 @@ namespace helengine.editor {
         float GetTitleTextTopOffset() {
             float lineHeight = Math.Max(font.LineHeight, 1f);
             return (TitleBarHeightPixels - lineHeight) * 0.5f;
+        }
+
+        /// <summary>
+        /// Gets the width the title-bar drag area may occupy once the panel menu button is reserved.
+        /// </summary>
+        /// <returns>Title-bar drag width that leaves room for the panel menu button.</returns>
+        int GetTitleBarInteractableWidth() {
+            return Math.Max(0, size.X - PanelMenuButtonWidth);
+        }
+
+        /// <summary>
+        /// Creates the items displayed by the dockable panel menu.
+        /// </summary>
+        /// <returns>Immutable collection of panel menu items.</returns>
+        IReadOnlyList<ContextMenuItem> BuildPanelMenuItems() {
+            return new ContextMenuItem[] {
+                new ContextMenuItem("Close", RaiseCloseRequested)
+            };
+        }
+
+        /// <summary>
+        /// Handles pointer interaction on the panel menu button.
+        /// </summary>
+        /// <param name="pos">Pointer position relative to the button.</param>
+        /// <param name="delta">Pointer movement delta.</param>
+        /// <param name="state">Pointer interaction state.</param>
+        void PanelMenuButtonInteractivity_CursorEvent(int2 pos, int2 delta, PointerInteraction state) {
+            if (state != PointerInteraction.Press) {
+                return;
+            }
+
+            TogglePanelMenu();
+        }
+
+        /// <summary>
+        /// Shows or hides the panel menu anchored beneath the panel menu button.
+        /// </summary>
+        void TogglePanelMenu() {
+            if (PanelMenu.IsVisible) {
+                PanelMenu.Hide();
+                return;
+            }
+
+            PanelMenu.Show(PanelMenuItems, GetPanelMenuPosition(), new int2(Math.Max(1, size.X), Math.Max(1, size.Y + TitleBarHeightPixels)));
+        }
+
+        /// <summary>
+        /// Computes the top-left position used to open the panel menu.
+        /// </summary>
+        /// <returns>Panel menu position relative to the dock root.</returns>
+        int2 GetPanelMenuPosition() {
+            int x = Math.Max(0, size.X - PanelMenuButtonWidth);
+            return new int2(x, TitleBarHeightPixels);
+        }
+
+        /// <summary>
+        /// Raises the close request event after hiding the panel menu.
+        /// </summary>
+        void RaiseCloseRequested() {
+            PanelMenu.Hide();
+            if (CloseRequested != null) {
+                CloseRequested();
+            }
         }
 
         /// <summary>

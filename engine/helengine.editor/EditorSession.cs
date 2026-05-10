@@ -19,6 +19,30 @@ namespace helengine.editor {
         /// </summary>
         const string TransformGizmoHighlightShaderFileName = "EditorTransformGizmoHighlight.hlsl";
         /// <summary>
+        /// Stable workspace panel type identifier for viewport panels.
+        /// </summary>
+        const string ViewportPanelTypeId = "viewport";
+        /// <summary>
+        /// Stable workspace panel type identifier for scene hierarchy panels.
+        /// </summary>
+        const string SceneHierarchyPanelTypeId = "scene-hierarchy";
+        /// <summary>
+        /// Stable workspace panel type identifier for asset browser panels.
+        /// </summary>
+        const string AssetBrowserPanelTypeId = "asset-browser";
+        /// <summary>
+        /// Stable workspace panel type identifier for properties panels.
+        /// </summary>
+        const string PropertiesPanelTypeId = "properties";
+        /// <summary>
+        /// Stable workspace panel type identifier for logger panels.
+        /// </summary>
+        const string LoggerPanelTypeId = "logger";
+        /// <summary>
+        /// Stable workspace panel type identifier for preview panels.
+        /// </summary>
+        const string PreviewPanelTypeId = "preview";
+        /// <summary>
         /// Built-in runtime shader variant.
         /// </summary>
         const string DefaultRuntimeShaderVariant = "default";
@@ -103,6 +127,14 @@ namespace helengine.editor {
         /// </summary>
         FontAsset uiFont;
         /// <summary>
+        /// Font used by viewport snap modifier labels.
+        /// </summary>
+        readonly FontAsset SnapModifierFont;
+        /// <summary>
+        /// Runtime textures used by viewport toolbar controls.
+        /// </summary>
+        readonly EditorViewportToolbarIconSet ViewportToolbarIcons;
+        /// <summary>
         /// Content manager used to load editor and project asset files.
         /// </summary>
         readonly ContentManager EditorContentManager;
@@ -110,6 +142,18 @@ namespace helengine.editor {
         /// Title bar UI for the editor.
         /// </summary>
         readonly EditorTitleBar titleBar;
+        /// <summary>
+        /// Panel type registry used by workspace panel creation commands.
+        /// </summary>
+        EditorWorkspacePanelRegistry PanelRegistry;
+        /// <summary>
+        /// Live panel instances tracked by the workspace system.
+        /// </summary>
+        List<EditorWorkspacePanelInstance> PanelInstances;
+        /// <summary>
+        /// Persists workspace layout slots for the current project.
+        /// </summary>
+        EditorWorkspaceLayoutService WorkspaceLayoutService;
         /// <summary>
         /// Docking manager coordinating dock layout and interaction.
         /// </summary>
@@ -343,6 +387,10 @@ namespace helengine.editor {
         /// </summary>
         AssetBrowserEntry SelectedAssetEntry;
         /// <summary>
+        /// Tracks which previewable selection type was clicked most recently.
+        /// </summary>
+        PreviewPanelBindingKind LatestPreviewSelectionKind;
+        /// <summary>
         /// Currently selected scene entity used for preview resolution.
         /// </summary>
         Entity SelectedSceneEntity;
@@ -435,8 +483,8 @@ namespace helengine.editor {
             EditorContentManager = new ContentManager(ResolveAssetsRootPath(this.projectPath));
             EditorContentManagerConfiguration.ConfigureEditorContentManager(EditorContentManager);
             this.uiFont = uiFont ?? throw new ArgumentNullException(nameof(uiFont));
-            snapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
-            toolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
+            SnapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
+            ViewportToolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
             Importers = importers ?? throw new ArgumentNullException(nameof(importers));
             this.core.DefaultFontAsset = this.uiFont;
 
@@ -471,24 +519,16 @@ namespace helengine.editor {
             modalUiCameraComponent.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), false, 1.0f, false, 0);
             modalUiCameraEntity.AddComponent(modalUiCameraComponent);
 
-            sceneCameraEntity = new EditorEntity();
-            sceneCameraEntity.InternalEntity = true;
-            sceneCameraEntity.Position = new float3(0, 3, -8);
-            sceneCameraComponent = new CameraComponent();
-            sceneCameraComponent.LayerMask = EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneGrid | EditorLayerMasks.SceneCameraVisuals | EditorLayerMasks.SceneCanvasPlane;
-            sceneCameraComponent.CameraDrawOrder = SceneCameraDrawOrder;
-            sceneCameraComponent.ClearSettings = new CameraClearSettings(true, new float4(0.39215687f, 0.58431375f, 0.92941177f, 1f), true, 1.0f, false, 0);
-            sceneCameraEntity.AddComponent(sceneCameraComponent);
-            gizmoCameraComponent = new CameraComponent();
-            gizmoCameraComponent.LayerMask = EditorLayerMasks.SceneGizmo;
-            gizmoCameraComponent.CameraDrawOrder = GizmoCameraDrawOrder;
-            gizmoCameraComponent.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
-            gizmoCameraComponent.Viewport = sceneCameraComponent.Viewport;
-            sceneCameraEntity.AddComponent(gizmoCameraComponent);
-            sceneCameraEntity.AddComponent(new EditorViewportCameraController(sceneCameraComponent));
-            sceneCameraEntity.AddComponent(new TransformTranslationGizmoDragComponent(sceneCameraComponent));
-            sceneCameraEntity.AddComponent(new TransformRotationGizmoDragComponent(sceneCameraComponent));
-            sceneCameraEntity.AddComponent(new TransformScaleGizmoDragComponent(sceneCameraComponent));
+            ViewportWorkspacePanelController primaryViewportController = CreatePrimaryViewportController();
+            EditorViewportWorkspaceState primaryViewportState = primaryViewportController.ViewportState;
+            mainViewport = primaryViewportState.Viewport;
+            sceneCameraEntity = primaryViewportState.SceneCameraEntity;
+            sceneCameraComponent = primaryViewportState.SceneCamera;
+            gizmoCameraComponent = primaryViewportState.GizmoCamera;
+            hiddenCameraEntity = primaryViewportState.PickerCameraEntity;
+            hiddenCameraComponent = primaryViewportState.PickerCamera;
+            hiddenCameraTarget = primaryViewportState.PickerRenderTarget;
+            canvasPlanePreviewComponent = primaryViewportState.CanvasPlanePreviewComponent;
             ApplyEditorTheme(CurrentThemeId);
             keyboardFocusEntity = new EditorEntity {
                 InternalEntity = true,
@@ -501,53 +541,20 @@ namespace helengine.editor {
             };
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
 
-            float3 toOrigin = float3.Normalize(new float3(-sceneCameraEntity.Position.X, -sceneCameraEntity.Position.Y, -sceneCameraEntity.Position.Z));
-            double yaw = Math.Atan2(toOrigin.X, -toOrigin.Z);
-            double pitch = Math.Asin(toOrigin.Y);
-            float4 orientation;
-            float4.CreateFromYawPitchRoll((float)yaw, (float)pitch, 0f, out orientation);
-            sceneCameraEntity.Orientation = orientation;
-
-            hiddenCameraEntity = new EditorEntity();
-            hiddenCameraEntity.InternalEntity = true;
-            hiddenCameraEntity.Enabled = false;
-            hiddenCameraEntity.Position = sceneCameraEntity.Position;
-            hiddenCameraEntity.Orientation = sceneCameraEntity.Orientation;
-            hiddenCameraEntity.LayerMask = EditorLayerMasks.SceneObjects;
-            hiddenCameraComponent = new CameraComponent();
-            hiddenCameraComponent.LayerMask = EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneCameraVisuals;
-            hiddenCameraComponent.Viewport = new float4(0, 0, 640, 360);
-            hiddenCameraComponent.ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
-            if (render3D is helengine.directx11.DirectX11Renderer3D pickerRenderer) {
-                hiddenCameraTarget = render3D.CreateRenderTarget(640, 360);
-                hiddenCameraComponent.RenderTarget = hiddenCameraTarget;
-                hiddenCameraEntity.AddComponent(hiddenCameraComponent);
-                sceneCameraEntity.AddComponent(new EditorViewportPicker(sceneCameraComponent, gizmoCameraComponent, hiddenCameraEntity, hiddenCameraComponent, pickerRenderer));
-            } else {
-                hiddenCameraTarget = null;
-                hiddenCameraComponent.RenderTarget = null;
-                Logger.WriteWarning("Scene picking is currently available only on the DirectX11 renderer.");
-            }
-
             titleBar = new EditorTitleBar(uiFont, CurrentUiMetrics, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle(), titleBarIcon);
+            PanelRegistry = new EditorWorkspacePanelRegistry();
+            PanelInstances = new List<EditorWorkspacePanelInstance>();
+            WorkspaceLayoutService = new EditorWorkspaceLayoutService(ResolveProjectRootPath(this.projectPath));
+            InitializePanelRegistry();
 
             dockingManager = new DockingManager();
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics);
-            mainViewport = new EditorViewport(sceneCameraComponent, uiFont, snapModifierFont, toolbarIcons, sceneCanvasProfileState, CurrentUiMetrics);
-            canvasPlanePreviewComponent = new EditorViewportCanvasPlanePreviewComponent(sceneCameraComponent, sceneCanvasProfileState, mainViewport.CanvasPreviewSettings, render3D);
-            sceneCameraEntity.AddComponent(canvasPlanePreviewComponent);
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
             previewPanel = new PreviewPanel(uiFont, CurrentUiMetrics);
-            EditorKeyboardFocusService.RegisterGroup(sceneHierarchyPanel);
-            EditorKeyboardFocusService.RegisterGroup(assetBrowserPanel);
-            EditorKeyboardFocusService.RegisterGroup(mainViewport);
-            EditorKeyboardFocusService.RegisterGroup(propertiesPanel);
-            EditorKeyboardFocusService.RegisterGroup(loggerPanel);
-            EditorKeyboardFocusService.RegisterGroup(previewPanel);
             assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath);
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
             EditorGameScriptAssemblyHost scriptAssemblyHost = new EditorGameScriptAssemblyHost(this.projectPath);
@@ -588,13 +595,9 @@ namespace helengine.editor {
             PendingSceneTransition = SceneTransitionKind.None;
             IsSceneDirty = false;
             RefreshWindowTitle();
-            assetBrowserPanel.AssetSelected += HandleAssetSelected;
-            assetBrowserPanel.SelectionCleared += HandleAssetSelectionCleared;
-            propertiesPanel.ImportSettingsApplyRequested += HandleImportSettingsApplyRequested;
             EditorSelectionService.SelectionChanged += HandleSelectionChanged;
             EditorAssetPickerService.PickRequested += HandleAssetPickRequested;
             EditorSceneMutationService.SceneMutated += HandleSceneMutated;
-            sceneHierarchyPanel.ReparentRequested += HandleSceneHierarchyReparentRequested;
             titleBar.NewMapRequested += HandleNewMapRequested;
             titleBar.OpenMapRequested += HandleOpenMapRequested;
             titleBar.SaveMapRequested += HandleSaveMapRequested;
@@ -607,6 +610,7 @@ namespace helengine.editor {
             titleBar.BuildScriptsRequested += HandleBuildScriptsRequested;
             titleBar.OpenInIDERequested += HandleOpenInIDERequested;
             titleBar.ProjectMenuItemRequested += HandleProjectMenuItemRequested;
+            titleBar.UiMenuActionRequested += HandleUiMenuActionRequested;
             titleBar.AddEmptyRequested += HandleAddEmptyRequested;
             titleBar.AddCubeRequested += HandleAddCubeRequested;
             titleBar.AddPlaneRequested += HandleAddPlaneRequested;
@@ -626,6 +630,15 @@ namespace helengine.editor {
             assetBrowserPanel.Size = new int2(500, 240);
             propertiesPanel.Size = new int2(280, 600);
             previewPanel.Size = new int2(propertiesPanel.Size.X, 240);
+            RegisterExistingWorkspacePanelInstance(
+                ViewportPanelTypeId,
+                "viewport-primary",
+                primaryViewportController);
+            RegisterExistingWorkspacePanelInstance(SceneHierarchyPanelTypeId, "scene-hierarchy-primary", new SessionWorkspacePanelController(sceneHierarchyPanel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, sceneHierarchyPanel.Detach));
+            RegisterExistingWorkspacePanelInstance(AssetBrowserPanelTypeId, "asset-browser-primary", new SessionWorkspacePanelController(assetBrowserPanel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, SessionWorkspacePanelController.NoDispose));
+            RegisterExistingWorkspacePanelInstance(PropertiesPanelTypeId, "properties-primary", new SessionWorkspacePanelController(propertiesPanel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, SessionWorkspacePanelController.NoDispose));
+            RegisterExistingWorkspacePanelInstance(LoggerPanelTypeId, "logger-primary", new SessionWorkspacePanelController(loggerPanel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, loggerPanel.Detach));
+            RegisterExistingWorkspacePanelInstance(PreviewPanelTypeId, "preview-primary", CreatePreviewPanelSessionController(previewPanel));
 
             dockingManager.Layout.Add(sceneHierarchyPanel);
             dockingManager.Layout.Add(assetBrowserPanel);
@@ -646,22 +659,8 @@ namespace helengine.editor {
             EditorShaderPackageService.Initialize(shaderModuleManager, runtimeTarget, EditorContentManager);
             shaderModuleManager.ShaderBuilt += HandleShaderBuilt;
             shaderModuleManager.Start();
-
-            RuntimeMaterial transformGizmoMaterial = BuildTransformGizmoNormalMaterial();
-            RuntimeMaterial transformGizmoHighlightMaterial = BuildTransformGizmoHighlightMaterial();
-            RuntimeMaterial transformGizmoPlaneMaterial = TransformGizmoPlaneMaterialFactory.CreateNormal(render3D);
-            RuntimeMaterial transformGizmoPlaneHighlightMaterial = TransformGizmoPlaneMaterialFactory.CreateHighlight(render3D);
-            TransformTranslationGizmoFactory.Create(
-                render3D,
-                sceneCameraComponent,
-                transformGizmoMaterial,
-                transformGizmoHighlightMaterial,
-                transformGizmoPlaneMaterial,
-                transformGizmoPlaneHighlightMaterial);
-            TransformRotationGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial, transformGizmoHighlightMaterial);
-            TransformScaleGizmoFactory.Create(render3D, sceneCameraComponent, transformGizmoMaterial, transformGizmoHighlightMaterial);
             BuildStartScene();
-            sceneHierarchyPanel.RefreshHierarchy();
+            RefreshHierarchy();
 
             UpdateLayout(renderWidth, renderHeight);
             PromptForPlatformSelectionIfRequired();
@@ -698,6 +697,164 @@ namespace helengine.editor {
         public int2 MinimumHostSize => dockingManager.MinimumHostSize;
 
         /// <summary>
+        /// Returns tracked live panel instances for one panel type during tests.
+        /// </summary>
+        /// <param name="panelTypeId">Stable panel type identifier.</param>
+        /// <returns>Tracked live panel instances for the requested type.</returns>
+        internal IReadOnlyList<EditorWorkspacePanelInstance> GetPanelInstancesForTest(string panelTypeId) {
+            if (string.IsNullOrWhiteSpace(panelTypeId)) {
+                throw new ArgumentException("Panel type identifier must be provided.", nameof(panelTypeId));
+            }
+
+            return PanelInstances
+                .Where(instance => string.Equals(instance.PanelTypeId, panelTypeId, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Routes one UI menu action through the workspace panel command handler during tests.
+        /// </summary>
+        /// <param name="action">UI menu action to process.</param>
+        internal void HandleUiMenuActionForTest(EditorTitleBarUiMenuAction action) {
+            HandleUiMenuActionRequested(action);
+        }
+
+        /// <summary>
+        /// Returns all tracked scene hierarchy panels currently managed by the workspace system.
+        /// </summary>
+        /// <returns>Tracked scene hierarchy panels.</returns>
+        IReadOnlyList<SceneHierarchyPanel> GetSceneHierarchyPanels() {
+            if (PanelInstances == null) {
+                return sceneHierarchyPanel == null ? Array.Empty<SceneHierarchyPanel>() : new[] { sceneHierarchyPanel };
+            }
+
+            return PanelInstances
+                .Where(instance => string.Equals(instance.PanelTypeId, SceneHierarchyPanelTypeId, StringComparison.OrdinalIgnoreCase))
+                .Select(instance => (SceneHierarchyPanel)instance.Dockable)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Returns all tracked asset browser panels currently managed by the workspace system.
+        /// </summary>
+        /// <returns>Tracked asset browser panels.</returns>
+        IReadOnlyList<AssetBrowserPanel> GetAssetBrowserPanels() {
+            if (PanelInstances == null) {
+                return assetBrowserPanel == null ? Array.Empty<AssetBrowserPanel>() : new[] { assetBrowserPanel };
+            }
+
+            return PanelInstances
+                .Where(instance => string.Equals(instance.PanelTypeId, AssetBrowserPanelTypeId, StringComparison.OrdinalIgnoreCase))
+                .Select(instance => (AssetBrowserPanel)instance.Dockable)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Returns all tracked properties panels currently managed by the workspace system.
+        /// </summary>
+        /// <returns>Tracked properties panels.</returns>
+        IReadOnlyList<PropertiesPanel> GetPropertiesPanels() {
+            if (PanelInstances == null) {
+                return propertiesPanel == null ? Array.Empty<PropertiesPanel>() : new[] { propertiesPanel };
+            }
+
+            return PanelInstances
+                .Where(instance => string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase))
+                .Select(instance => (PropertiesPanel)instance.Dockable)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Returns all tracked preview panels currently managed by the workspace system.
+        /// </summary>
+        /// <returns>Tracked preview panels.</returns>
+        IReadOnlyList<PreviewPanel> GetPreviewPanels() {
+            if (PanelInstances == null) {
+                return previewPanel == null ? Array.Empty<PreviewPanel>() : new[] { previewPanel };
+            }
+
+            return PanelInstances
+                .Where(instance => string.Equals(instance.PanelTypeId, PreviewPanelTypeId, StringComparison.OrdinalIgnoreCase))
+                .Select(instance => (PreviewPanel)instance.Dockable)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Returns all tracked logger panels currently managed by the workspace system.
+        /// </summary>
+        /// <returns>Tracked logger panels.</returns>
+        IReadOnlyList<LoggerPanel> GetLoggerPanels() {
+            if (PanelInstances == null) {
+                return loggerPanel == null ? Array.Empty<LoggerPanel>() : new[] { loggerPanel };
+            }
+
+            return PanelInstances
+                .Where(instance => string.Equals(instance.PanelTypeId, LoggerPanelTypeId, StringComparison.OrdinalIgnoreCase))
+                .Select(instance => (LoggerPanel)instance.Dockable)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Returns all viewport panels currently managed by the session.
+        /// </summary>
+        /// <returns>Viewport panels managed by the session.</returns>
+        IReadOnlyList<EditorViewport> GetViewportPanels() {
+            if (PanelInstances == null) {
+                return mainViewport == null ? Array.Empty<EditorViewport>() : new[] { mainViewport };
+            }
+
+            return GetViewportPanelInstances()
+                .Select(instance => (EditorViewport)instance.Dockable)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Synchronizes gizmo overlay camera viewports for every workspace-managed viewport stack.
+        /// </summary>
+        void SynchronizeViewportOverlayCameras() {
+            if (PanelInstances == null) {
+                gizmoCameraComponent.Viewport = sceneCameraComponent.Viewport;
+                return;
+            }
+
+            IReadOnlyList<EditorWorkspacePanelInstance> viewportInstances = GetViewportPanelInstances();
+            for (int index = 0; index < viewportInstances.Count; index++) {
+                if (viewportInstances[index].Controller is ViewportWorkspacePanelController viewportController) {
+                    viewportController.ViewportState.GizmoCamera.Viewport = viewportController.ViewportState.SceneCamera.Viewport;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns the currently tracked viewport workspace panel instances.
+        /// </summary>
+        /// <returns>Tracked viewport workspace panel instances.</returns>
+        IReadOnlyList<EditorWorkspacePanelInstance> GetViewportPanelInstances() {
+            if (PanelInstances == null) {
+                return Array.Empty<EditorWorkspacePanelInstance>();
+            }
+
+            return PanelInstances
+                .Where(instance => string.Equals(instance.PanelTypeId, ViewportPanelTypeId, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Returns the first tracked viewport workspace controller when one exists.
+        /// </summary>
+        /// <returns>Tracked viewport workspace controller, or null when no viewport instance is tracked.</returns>
+        ViewportWorkspacePanelController GetPrimaryViewportController() {
+            IReadOnlyList<EditorWorkspacePanelInstance> viewportInstances = GetViewportPanelInstances();
+            for (int index = 0; index < viewportInstances.Count; index++) {
+                if (viewportInstances[index].Controller is ViewportWorkspacePanelController viewportController) {
+                    return viewportController;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Gets the minimum window size required to fit the dock layout and title bar.
         /// </summary>
         public int2 MinimumWindowSize {
@@ -717,12 +874,38 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the scene camera component.
         /// </summary>
-        public CameraComponent SceneCamera => sceneCameraComponent;
+        public CameraComponent SceneCamera {
+            get {
+                if (PanelInstances == null) {
+                    return sceneCameraComponent;
+                }
+
+                ViewportWorkspacePanelController viewportController = GetPrimaryViewportController();
+                if (viewportController != null) {
+                    return viewportController.ViewportState.SceneCamera;
+                }
+
+                return null;
+            }
+        }
 
         /// <summary>
         /// Gets the primary dockable viewport panel.
         /// </summary>
-        public EditorViewport MainViewport => mainViewport;
+        public EditorViewport MainViewport {
+            get {
+                if (PanelInstances == null) {
+                    return mainViewport;
+                }
+
+                ViewportWorkspacePanelController viewportController = GetPrimaryViewportController();
+                if (viewportController != null) {
+                    return viewportController.ViewportState.Viewport;
+                }
+
+                return null;
+            }
+        }
 
         /// <summary>
         /// Gets the scene hierarchy panel.
@@ -793,7 +976,10 @@ namespace helengine.editor {
         /// Refreshes the scene hierarchy listing from the object manager.
         /// </summary>
         public void RefreshHierarchy() {
-            sceneHierarchyPanel.RefreshHierarchy();
+            IReadOnlyList<SceneHierarchyPanel> panels = GetSceneHierarchyPanels();
+            for (int index = 0; index < panels.Count; index++) {
+                panels[index].RefreshHierarchy();
+            }
         }
 
         /// <summary>
@@ -829,7 +1015,7 @@ namespace helengine.editor {
             int availableHeight = Math.Max(0, height - titleBar.Height);
             dockingManager.Layout.Layout(new int2(width, availableHeight), new float3(0, titleBar.Height, 0));
             EditorKeyboardFocusService.SetDockOrder(dockingManager.Layout.GetVisibleDockablesInTraversalOrder());
-            gizmoCameraComponent.Viewport = sceneCameraComponent.Viewport;
+            SynchronizeViewportOverlayCameras();
             assetPickerModal.UpdateLayout(width, height);
             saveFileDialog.UpdateLayout(width, height);
             openFileDialog.UpdateLayout(width, height);
@@ -841,8 +1027,14 @@ namespace helengine.editor {
             unsavedChangesDialog.UpdateLayout(width, height);
             sceneSettingsDialog.UpdateLayout(width, height);
             preferencesDialog.UpdateLayout(width, height);
-            propertiesPanel.UpdateModalLayout(width, height);
-            mainViewport.RefreshInputBlockers();
+            IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+            for (int index = 0; index < propertiesPanels.Count; index++) {
+                propertiesPanels[index].UpdateModalLayout(width, height);
+            }
+            IReadOnlyList<EditorViewport> viewports = GetViewportPanels();
+            for (int index = 0; index < viewports.Count; index++) {
+                viewports[index].RefreshInputBlockers();
+            }
             UpdateDockInputBlockers();
         }
 
@@ -880,23 +1072,29 @@ namespace helengine.editor {
             if (titleBar != null) {
                 titleBar.ApplyUiMetrics(uiFont, metrics);
             }
-            if (sceneHierarchyPanel != null) {
-                sceneHierarchyPanel.ApplyUiMetrics(uiFont, metrics);
+            IReadOnlyList<SceneHierarchyPanel> sceneHierarchyPanels = GetSceneHierarchyPanels();
+            for (int index = 0; index < sceneHierarchyPanels.Count; index++) {
+                sceneHierarchyPanels[index].ApplyUiMetrics(uiFont, metrics);
             }
-            if (assetBrowserPanel != null) {
-                assetBrowserPanel.ApplyUiMetrics(uiFont, metrics);
+            IReadOnlyList<AssetBrowserPanel> assetBrowserPanels = GetAssetBrowserPanels();
+            for (int index = 0; index < assetBrowserPanels.Count; index++) {
+                assetBrowserPanels[index].ApplyUiMetrics(uiFont, metrics);
             }
-            if (mainViewport != null) {
-                mainViewport.ApplyUiMetrics(uiFont, snapModifierFont, metrics);
+            IReadOnlyList<EditorViewport> viewports = GetViewportPanels();
+            for (int index = 0; index < viewports.Count; index++) {
+                viewports[index].ApplyUiMetrics(uiFont, snapModifierFont, metrics);
             }
-            if (propertiesPanel != null) {
-                propertiesPanel.ApplyUiMetrics(uiFont, metrics);
+            IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+            for (int index = 0; index < propertiesPanels.Count; index++) {
+                propertiesPanels[index].ApplyUiMetrics(uiFont, metrics);
             }
-            if (loggerPanel != null) {
-                loggerPanel.ApplyUiMetrics(uiFont, metrics);
+            IReadOnlyList<LoggerPanel> loggerPanels = GetLoggerPanels();
+            for (int index = 0; index < loggerPanels.Count; index++) {
+                loggerPanels[index].ApplyUiMetrics(uiFont, metrics);
             }
-            if (previewPanel != null) {
-                previewPanel.ApplyUiMetrics(uiFont, metrics);
+            IReadOnlyList<PreviewPanel> previewPanels = GetPreviewPanels();
+            for (int index = 0; index < previewPanels.Count; index++) {
+                previewPanels[index].ApplyUiMetrics(uiFont, metrics);
             }
 
             RecreateScaleSensitiveDialogs();
@@ -1153,7 +1351,7 @@ namespace helengine.editor {
             IReadOnlyList<DockableEntity> dockables = dockingManager.Layout.Dockables;
             for (int i = 0; i < dockables.Count; i++) {
                 DockableEntity dockable = dockables[i];
-                if (!dockable.Enabled || ReferenceEquals(dockable, mainViewport)) {
+                if (!dockable.Enabled || dockable is EditorViewport) {
                     EditorInputCaptureService.ClearBlocker(dockable);
                     continue;
                 }
@@ -1201,6 +1399,7 @@ namespace helengine.editor {
             titleBar.BuildScriptsRequested -= HandleBuildScriptsRequested;
             titleBar.OpenInIDERequested -= HandleOpenInIDERequested;
             titleBar.ProjectMenuItemRequested -= HandleProjectMenuItemRequested;
+            titleBar.UiMenuActionRequested -= HandleUiMenuActionRequested;
             titleBar.AddEmptyRequested -= HandleAddEmptyRequested;
             titleBar.AddCubeRequested -= HandleAddCubeRequested;
             titleBar.AddPlaneRequested -= HandleAddPlaneRequested;
@@ -1210,12 +1409,14 @@ namespace helengine.editor {
             titleBar.AddDirectionalLightRequested -= HandleAddDirectionalLightRequested;
             DetachScaleSensitiveDialogHandlers();
             scriptHotReloadService.Dispose();
-            mainViewport.ClearInputBlockers();
-            EditorViewportToolService.ClearToolMode(sceneCameraComponent);
+            IReadOnlyList<EditorViewport> viewports = GetViewportPanels();
+            for (int index = 0; index < viewports.Count; index++) {
+                viewports[index].ClearInputBlockers();
+            }
             HideScaleSensitiveDialogs();
             shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
             shaderModuleManager.Dispose();
-            loggerPanel.Detach();
+            DetachTrackedWorkspacePanelsForDispose();
             EditorKeyboardFocusService.Reset();
             core.Dispose();
         }
@@ -1235,6 +1436,689 @@ namespace helengine.editor {
             }
 
             assetPickerModal.Show(request.OnPicked, request.ExtensionFilter);
+        }
+
+        /// <summary>
+        /// Handles the main `New Map` command from the editor title bar.
+        /// </summary>
+        void InitializePanelRegistry() {
+            PanelRegistry.Register(new EditorWorkspacePanelTypeDescriptor(
+                ViewportPanelTypeId,
+                "Viewport",
+                new int2(CurrentUiMetrics.ScalePixels(640), CurrentUiMetrics.ScalePixels(360)),
+                CreateViewportPanelController));
+            PanelRegistry.Register(new EditorWorkspacePanelTypeDescriptor(
+                SceneHierarchyPanelTypeId,
+                "Scene",
+                new int2(CurrentUiMetrics.ScalePixels(280), CurrentUiMetrics.ScalePixels(600)),
+                CreateSceneHierarchyPanelController));
+            PanelRegistry.Register(new EditorWorkspacePanelTypeDescriptor(
+                AssetBrowserPanelTypeId,
+                "Assets",
+                new int2(CurrentUiMetrics.ScalePixels(500), CurrentUiMetrics.ScalePixels(240)),
+                CreateAssetBrowserPanelController));
+            PanelRegistry.Register(new EditorWorkspacePanelTypeDescriptor(
+                PropertiesPanelTypeId,
+                "Properties",
+                new int2(CurrentUiMetrics.ScalePixels(280), CurrentUiMetrics.ScalePixels(600)),
+                CreatePropertiesPanelController));
+            PanelRegistry.Register(new EditorWorkspacePanelTypeDescriptor(
+                LoggerPanelTypeId,
+                "Logger",
+                new int2(CurrentUiMetrics.ScalePixels(320), CurrentUiMetrics.ScalePixels(220)),
+                CreateLoggerPanelController));
+            PanelRegistry.Register(new EditorWorkspacePanelTypeDescriptor(
+                PreviewPanelTypeId,
+                "Preview",
+                new int2(CurrentUiMetrics.ScalePixels(320), CurrentUiMetrics.ScalePixels(240)),
+                CreatePreviewPanelController));
+        }
+
+        /// <summary>
+        /// Handles UI workspace menu actions raised by the editor title bar.
+        /// </summary>
+        /// <param name="action">Action raised by the title bar UI menu.</param>
+        void HandleUiMenuActionRequested(EditorTitleBarUiMenuAction action) {
+            if (action == EditorTitleBarUiMenuAction.ShowViewport) {
+                CreateWorkspacePanelInstance(ViewportPanelTypeId);
+                return;
+            }
+            if (action == EditorTitleBarUiMenuAction.ShowSceneHierarchy) {
+                CreateWorkspacePanelInstance(SceneHierarchyPanelTypeId);
+                return;
+            }
+            if (action == EditorTitleBarUiMenuAction.ShowAssetBrowser) {
+                CreateWorkspacePanelInstance(AssetBrowserPanelTypeId);
+                return;
+            }
+            if (action == EditorTitleBarUiMenuAction.ShowProperties) {
+                CreateWorkspacePanelInstance(PropertiesPanelTypeId);
+                return;
+            }
+            if (action == EditorTitleBarUiMenuAction.ShowLogger) {
+                CreateWorkspacePanelInstance(LoggerPanelTypeId);
+                return;
+            }
+            if (action == EditorTitleBarUiMenuAction.ShowPreview) {
+                CreateWorkspacePanelInstance(PreviewPanelTypeId);
+                return;
+            }
+            if (TryResolveWorkspaceSlotNumber(action, out int slotNumber)) {
+                if (IsWorkspaceSaveAction(action)) {
+                    SaveWorkspaceSlot(slotNumber);
+                    return;
+                }
+
+                LoadWorkspaceSlot(slotNumber);
+            }
+        }
+
+        /// <summary>
+        /// Creates one tracked workspace panel instance for the requested type.
+        /// </summary>
+        /// <param name="panelTypeId">Stable panel type identifier.</param>
+        /// <returns>Created live panel instance.</returns>
+        EditorWorkspacePanelInstance CreateWorkspacePanelInstance(string panelTypeId) {
+            return CreateWorkspacePanelInstance(panelTypeId, Guid.NewGuid().ToString("N"));
+        }
+
+        /// <summary>
+        /// Creates one tracked workspace panel instance for the requested type and stable instance identifier.
+        /// </summary>
+        /// <param name="panelTypeId">Stable panel type identifier.</param>
+        /// <param name="instanceId">Stable instance identifier used by workspace persistence.</param>
+        /// <returns>Created live panel instance.</returns>
+        EditorWorkspacePanelInstance CreateWorkspacePanelInstance(string panelTypeId, string instanceId) {
+            EditorWorkspacePanelTypeDescriptor descriptor = PanelRegistry.GetDescriptor(panelTypeId);
+            IEditorWorkspacePanelController controller = descriptor.CreateController(this);
+            Action closeRequestedHandler = () => HandleWorkspacePanelCloseRequested(controller.Dockable);
+            EditorWorkspacePanelInstance instance = new EditorWorkspacePanelInstance(
+                instanceId,
+                descriptor.PanelTypeId,
+                descriptor.DisplayTitle,
+                controller,
+                closeRequestedHandler);
+
+            AttachWorkspacePanelInstance(instance, descriptor.DefaultSize, true);
+            controller.Dockable.Position = ResolveCenteredFloatingPanelPosition(descriptor.DefaultSize);
+            InitializeWorkspacePanelInstance(instance);
+            return instance;
+        }
+
+        /// <summary>
+        /// Registers one existing panel instance created during session startup with the workspace tracking system.
+        /// </summary>
+        /// <param name="panelTypeId">Stable panel type identifier.</param>
+        /// <param name="instanceId">Stable instance identifier used by workspace persistence.</param>
+        /// <param name="controller">Controller that owns the existing dockable panel instance.</param>
+        void RegisterExistingWorkspacePanelInstance(string panelTypeId, string instanceId, IEditorWorkspacePanelController controller) {
+            if (controller == null) {
+                throw new ArgumentNullException(nameof(controller));
+            }
+
+            EditorWorkspacePanelTypeDescriptor descriptor = PanelRegistry.GetDescriptor(panelTypeId);
+            Action closeRequestedHandler = () => HandleWorkspacePanelCloseRequested(controller.Dockable);
+            EditorWorkspacePanelInstance instance = new EditorWorkspacePanelInstance(
+                instanceId,
+                panelTypeId,
+                descriptor.DisplayTitle,
+                controller,
+                closeRequestedHandler);
+
+            AttachWorkspacePanelInstance(instance, controller.Dockable.Size, false);
+            InitializeWorkspacePanelInstance(instance);
+        }
+
+        /// <summary>
+        /// Attaches one workspace panel instance to tracking, focus, and close handling.
+        /// </summary>
+        /// <param name="instance">Workspace panel instance to attach.</param>
+        /// <param name="size">Initial size assigned to the dockable panel.</param>
+        /// <param name="addToLayout">True when the panel should be added to the dock layout tracking list.</param>
+        void AttachWorkspacePanelInstance(EditorWorkspacePanelInstance instance, int2 size, bool addToLayout) {
+            if (instance == null) {
+                throw new ArgumentNullException(nameof(instance));
+            }
+
+            instance.Dockable.Title = instance.DisplayTitle;
+            instance.Dockable.Size = size;
+            instance.Dockable.Enabled = true;
+            instance.Dockable.CloseRequested += instance.CloseRequestedHandler;
+            WireWorkspacePanelEvents(instance);
+            if (addToLayout) {
+                dockingManager.Layout.Add(instance.Dockable);
+            }
+
+            EditorKeyboardFocusService.RegisterGroup(instance.Dockable);
+            PanelInstances.Add(instance);
+            RefreshWorkspaceDockOrder();
+        }
+
+        /// <summary>
+        /// Applies initial session state to one newly attached workspace panel instance.
+        /// </summary>
+        /// <param name="instance">Workspace panel instance to initialize.</param>
+        void InitializeWorkspacePanelInstance(EditorWorkspacePanelInstance instance) {
+            if (instance == null) {
+                throw new ArgumentNullException(nameof(instance));
+            }
+
+            if (string.Equals(instance.PanelTypeId, SceneHierarchyPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                ((SceneHierarchyPanel)instance.Dockable).RefreshHierarchy();
+                return;
+            }
+            if (string.Equals(instance.PanelTypeId, AssetBrowserPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                ((AssetBrowserPanel)instance.Dockable).RefreshEntries();
+                return;
+            }
+            if (string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                UpdatePropertiesPanelState((PropertiesPanel)instance.Dockable);
+                return;
+            }
+            if (string.Equals(instance.PanelTypeId, PreviewPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                UpdatePreviewPanelState((PreviewPanel)instance.Dockable);
+            }
+        }
+
+        /// <summary>
+        /// Wires session-level event handlers for one tracked workspace panel instance.
+        /// </summary>
+        /// <param name="instance">Workspace panel instance to wire.</param>
+        void WireWorkspacePanelEvents(EditorWorkspacePanelInstance instance) {
+            if (instance == null) {
+                throw new ArgumentNullException(nameof(instance));
+            }
+
+            if (string.Equals(instance.PanelTypeId, SceneHierarchyPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                ((SceneHierarchyPanel)instance.Dockable).ReparentRequested += HandleSceneHierarchyReparentRequested;
+                return;
+            }
+            if (string.Equals(instance.PanelTypeId, AssetBrowserPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                AssetBrowserPanel panel = (AssetBrowserPanel)instance.Dockable;
+                panel.AssetSelected += HandleAssetSelected;
+                panel.SelectionCleared += HandleAssetSelectionCleared;
+                return;
+            }
+            if (string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                ((PropertiesPanel)instance.Dockable).ImportSettingsApplyRequested += HandleImportSettingsApplyRequested;
+            }
+        }
+
+        /// <summary>
+        /// Unwires session-level event handlers for one tracked workspace panel instance.
+        /// </summary>
+        /// <param name="instance">Workspace panel instance to unwire.</param>
+        void UnwireWorkspacePanelEvents(EditorWorkspacePanelInstance instance) {
+            if (instance == null) {
+                throw new ArgumentNullException(nameof(instance));
+            }
+
+            if (string.Equals(instance.PanelTypeId, SceneHierarchyPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                ((SceneHierarchyPanel)instance.Dockable).ReparentRequested -= HandleSceneHierarchyReparentRequested;
+                return;
+            }
+            if (string.Equals(instance.PanelTypeId, AssetBrowserPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                AssetBrowserPanel panel = (AssetBrowserPanel)instance.Dockable;
+                panel.AssetSelected -= HandleAssetSelected;
+                panel.SelectionCleared -= HandleAssetSelectionCleared;
+                return;
+            }
+            if (string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                ((PropertiesPanel)instance.Dockable).ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested;
+            }
+        }
+
+        /// <summary>
+        /// Creates the primary viewport through the same workspace-controller path used by duplicate viewport panels.
+        /// </summary>
+        /// <returns>Viewport workspace controller that owns the primary viewport runtime stack.</returns>
+        ViewportWorkspacePanelController CreatePrimaryViewportController() {
+            return (ViewportWorkspacePanelController)CreateViewportPanelController(this);
+        }
+
+        /// <summary>
+        /// Creates one viewport panel controller for the workspace system.
+        /// </summary>
+        /// <param name="session">Owning editor session.</param>
+        /// <returns>Created viewport panel controller.</returns>
+        IEditorWorkspacePanelController CreateViewportPanelController(EditorSession session) {
+            return new ViewportWorkspacePanelController(
+                session.uiFont,
+                session.SnapModifierFont,
+                session.ViewportToolbarIcons,
+                session.sceneCanvasProfileState,
+                session.CurrentUiMetrics);
+        }
+
+        /// <summary>
+        /// Creates one scene hierarchy panel controller for the workspace system.
+        /// </summary>
+        /// <param name="session">Owning editor session.</param>
+        /// <returns>Created scene hierarchy panel controller.</returns>
+        IEditorWorkspacePanelController CreateSceneHierarchyPanelController(EditorSession session) {
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(session.uiFont, session.CurrentUiMetrics);
+            return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, panel.Detach);
+        }
+
+        /// <summary>
+        /// Creates one asset browser panel controller for the workspace system.
+        /// </summary>
+        /// <param name="session">Owning editor session.</param>
+        /// <returns>Created asset browser panel controller.</returns>
+        IEditorWorkspacePanelController CreateAssetBrowserPanelController(EditorSession session) {
+            AssetBrowserPanel panel = new AssetBrowserPanel(session.uiFont, session.projectPath, session.CurrentUiMetrics);
+            return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, SessionWorkspacePanelController.NoDispose);
+        }
+
+        /// <summary>
+        /// Creates one properties panel controller for the workspace system.
+        /// </summary>
+        /// <param name="session">Owning editor session.</param>
+        /// <returns>Created properties panel controller.</returns>
+        IEditorWorkspacePanelController CreatePropertiesPanelController(EditorSession session) {
+            EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(session.assetImportManager);
+            EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(session.assetImportManager);
+            PropertiesPanel panel = new PropertiesPanel(
+                session.uiFont,
+                session.EditorContentManager,
+                fileSystemModelResolver,
+                session.titleBar.Entity,
+                session.scriptHotReloadService,
+                session.CurrentUiMetrics,
+                fileSystemFontResolver);
+            return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, SessionWorkspacePanelController.NoDispose);
+        }
+
+        /// <summary>
+        /// Creates one logger panel controller for the workspace system.
+        /// </summary>
+        /// <param name="session">Owning editor session.</param>
+        /// <returns>Created logger panel controller.</returns>
+        IEditorWorkspacePanelController CreateLoggerPanelController(EditorSession session) {
+            LoggerPanel panel = new LoggerPanel(session.uiFont, session.CurrentUiMetrics);
+            return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, panel.Detach);
+        }
+
+        /// <summary>
+        /// Creates one preview panel controller for the workspace system.
+        /// </summary>
+        /// <param name="session">Owning editor session.</param>
+        /// <returns>Created preview panel controller.</returns>
+        IEditorWorkspacePanelController CreatePreviewPanelController(EditorSession session) {
+            PreviewPanel panel = new PreviewPanel(session.uiFont, session.CurrentUiMetrics);
+            return CreatePreviewPanelSessionController(panel);
+        }
+
+        /// <summary>
+        /// Creates one workspace controller that persists preview-panel lock state for the supplied panel instance.
+        /// </summary>
+        /// <param name="panel">Preview panel whose workspace state should be managed.</param>
+        /// <returns>Workspace controller that round-trips preview-panel state.</returns>
+        IEditorWorkspacePanelController CreatePreviewPanelSessionController(PreviewPanel panel) {
+            if (panel == null) {
+                throw new ArgumentNullException(nameof(panel));
+            }
+
+            return new SessionWorkspacePanelController(
+                panel,
+                panel.CaptureState,
+                panel.RestoreState,
+                SessionWorkspacePanelController.NoDispose);
+        }
+
+        /// <summary>
+        /// Handles close requests raised by tracked workspace panel instances.
+        /// </summary>
+        /// <param name="dockable">Dockable entity requesting closure.</param>
+        void HandleWorkspacePanelCloseRequested(DockableEntity dockable) {
+            CloseWorkspacePanel(dockable);
+        }
+
+        /// <summary>
+        /// Closes one tracked workspace panel and releases its resources.
+        /// </summary>
+        /// <param name="dockable">Dockable entity to close.</param>
+        void CloseWorkspacePanel(DockableEntity dockable) {
+            if (dockable == null) {
+                throw new ArgumentNullException(nameof(dockable));
+            }
+
+            EditorWorkspacePanelInstance instance = PanelInstances.FirstOrDefault(candidate => ReferenceEquals(candidate.Dockable, dockable));
+            if (instance == null) {
+                return;
+            }
+
+            dockable.CloseRequested -= instance.CloseRequestedHandler;
+            UnwireWorkspacePanelEvents(instance);
+            dockingManager.Layout.Remove(dockable);
+            dockable.Enabled = false;
+            EditorKeyboardFocusService.UnregisterGroup(dockable);
+            PanelInstances.Remove(instance);
+            instance.Controller.Dispose();
+            RefreshWorkspaceDockOrder();
+        }
+
+        /// <summary>
+        /// Saves the current tracked workspace state into one slot.
+        /// </summary>
+        /// <param name="slotNumber">One-based workspace slot number.</param>
+        void SaveWorkspaceSlot(int slotNumber) {
+            WorkspaceLayoutService.SaveSlot(slotNumber, CaptureWorkspaceSlotDocument());
+        }
+
+        /// <summary>
+        /// Loads one previously saved workspace slot into the current session.
+        /// </summary>
+        /// <param name="slotNumber">One-based workspace slot number.</param>
+        void LoadWorkspaceSlot(int slotNumber) {
+            EditorWorkspaceSlotDocument slot = WorkspaceLayoutService.LoadSlot(slotNumber);
+            if (slot == null) {
+                return;
+            }
+
+            RestoreWorkspaceSlot(slot);
+        }
+
+        /// <summary>
+        /// Captures the current tracked workspace state into one serializable slot document.
+        /// </summary>
+        /// <returns>Serializable slot document for the current workspace state.</returns>
+        EditorWorkspaceSlotDocument CaptureWorkspaceSlotDocument() {
+            EditorWorkspaceSlotDocument slot = new EditorWorkspaceSlotDocument();
+            slot.SchemaVersion = 1;
+
+            for (int index = 0; index < PanelInstances.Count; index++) {
+                EditorWorkspacePanelInstance instance = PanelInstances[index];
+                slot.Panels.Add(new EditorWorkspacePanelDocument {
+                    InstanceId = instance.InstanceId,
+                    PanelTypeId = instance.PanelTypeId,
+                    IsDocked = instance.Dockable.IsDocked,
+                    Title = instance.Dockable.Title,
+                    State = instance.Controller.CaptureState()
+                });
+                if (!instance.Dockable.IsDocked) {
+                    slot.FloatingPanels.Add(new EditorWorkspaceFloatingPanelDocument {
+                        InstanceId = instance.InstanceId,
+                        X = (int)Math.Round(instance.Dockable.Position.X),
+                        Y = (int)Math.Round(instance.Dockable.Position.Y),
+                        Width = instance.Dockable.Size.X,
+                        Height = instance.Dockable.Size.Y
+                    });
+                }
+            }
+
+            slot.DockRoot = ConvertDockSnapshotNodeToDocument(dockingManager.Layout.CaptureSnapshot(ResolveWorkspaceInstanceId).Root);
+            return slot;
+        }
+
+        /// <summary>
+        /// Restores the session workspace from one previously captured slot document.
+        /// </summary>
+        /// <param name="slot">Serializable slot document to restore.</param>
+        void RestoreWorkspaceSlot(EditorWorkspaceSlotDocument slot) {
+            if (slot == null) {
+                throw new ArgumentNullException(nameof(slot));
+            }
+
+            Dictionary<string, EditorWorkspaceFloatingPanelDocument> floatingPanelsByInstanceId = slot.FloatingPanels.ToDictionary(panel => panel.InstanceId, StringComparer.OrdinalIgnoreCase);
+            HashSet<string> restoredInstanceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            CloseAllWorkspacePanels();
+
+            for (int index = 0; index < slot.Panels.Count; index++) {
+                EditorWorkspacePanelDocument panel = slot.Panels[index];
+                if (!PanelRegistry.TryGetDescriptor(panel.PanelTypeId, out _)) {
+                    continue;
+                }
+
+                EditorWorkspacePanelInstance instance = CreateWorkspacePanelInstance(panel.PanelTypeId, panel.InstanceId);
+                restoredInstanceIds.Add(panel.InstanceId);
+                instance.Controller.RestoreState(panel.State);
+                instance.Dockable.Title = string.IsNullOrWhiteSpace(panel.Title) ? instance.DisplayTitle : panel.Title;
+
+                if (floatingPanelsByInstanceId.TryGetValue(panel.InstanceId, out EditorWorkspaceFloatingPanelDocument floatingPanel)) {
+                    instance.Dockable.Position = new float3(floatingPanel.X, floatingPanel.Y, 0f);
+                    instance.Dockable.Size = new int2(floatingPanel.Width, floatingPanel.Height);
+                }
+            }
+
+            dockingManager.Layout.RestoreSnapshot(
+                new EditorWorkspaceDockSnapshot {
+                    Root = ConvertDockDocumentNodeToSnapshot(FilterDockDocumentNode(slot.DockRoot, restoredInstanceIds))
+                },
+                ResolveWorkspaceDockable);
+            RefreshWorkspaceDockOrder();
+            RefreshPreviewSource();
+        }
+
+        /// <summary>
+        /// Closes all currently tracked workspace panel instances.
+        /// </summary>
+        void CloseAllWorkspacePanels() {
+            EditorWorkspacePanelInstance[] instances = PanelInstances.ToArray();
+            for (int index = 0; index < instances.Length; index++) {
+                CloseWorkspacePanel(instances[index].Dockable);
+            }
+        }
+
+        /// <summary>
+        /// Detaches every still-tracked workspace panel instance during session disposal.
+        /// </summary>
+        void DetachTrackedWorkspacePanelsForDispose() {
+            EditorWorkspacePanelInstance[] instances = PanelInstances.ToArray();
+            for (int index = 0; index < instances.Length; index++) {
+                UnwireWorkspacePanelEvents(instances[index]);
+                EditorKeyboardFocusService.UnregisterGroup(instances[index].Dockable);
+                instances[index].Controller.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Resolves one tracked dockable back to its stable workspace instance identifier.
+        /// </summary>
+        /// <param name="dockable">Tracked dockable entity.</param>
+        /// <returns>Stable workspace instance identifier.</returns>
+        string ResolveWorkspaceInstanceId(DockableEntity dockable) {
+            EditorWorkspacePanelInstance instance = PanelInstances.FirstOrDefault(candidate => ReferenceEquals(candidate.Dockable, dockable));
+            if (instance == null) {
+                throw new InvalidOperationException("Dockable is not tracked by the workspace panel system.");
+            }
+
+            return instance.InstanceId;
+        }
+
+        /// <summary>
+        /// Resolves one tracked workspace instance identifier back to its dockable entity.
+        /// </summary>
+        /// <param name="instanceId">Stable workspace instance identifier.</param>
+        /// <returns>Tracked dockable entity.</returns>
+        DockableEntity ResolveWorkspaceDockable(string instanceId) {
+            EditorWorkspacePanelInstance instance = PanelInstances.FirstOrDefault(candidate => string.Equals(candidate.InstanceId, instanceId, StringComparison.OrdinalIgnoreCase));
+            if (instance == null) {
+                throw new InvalidOperationException($"Workspace instance '{instanceId}' is not tracked by the current session.");
+            }
+
+            return instance.Dockable;
+        }
+
+        /// <summary>
+        /// Filters one persisted dock tree so it contains only workspace panel instances restored in the current session.
+        /// </summary>
+        /// <param name="node">Persisted dock node to filter.</param>
+        /// <param name="restoredInstanceIds">Stable panel instance identifiers restored in the current session.</param>
+        /// <returns>Filtered dock node, or null when the node no longer contains any restored panel instances.</returns>
+        EditorWorkspaceDockNodeDocument FilterDockDocumentNode(EditorWorkspaceDockNodeDocument node, HashSet<string> restoredInstanceIds) {
+            if (node == null) {
+                return null;
+            }
+
+            if (restoredInstanceIds == null) {
+                throw new ArgumentNullException(nameof(restoredInstanceIds));
+            }
+
+            if (node is EditorWorkspaceDockLeafNodeDocument leaf) {
+                List<string> filteredInstanceIds = leaf.InstanceIds
+                    .Where(instanceId => restoredInstanceIds.Contains(instanceId))
+                    .ToList();
+                if (filteredInstanceIds.Count == 0) {
+                    return null;
+                }
+
+                string activeInstanceId = filteredInstanceIds.Contains(leaf.ActiveInstanceId) ? leaf.ActiveInstanceId : filteredInstanceIds[0];
+                return new EditorWorkspaceDockLeafNodeDocument {
+                    InstanceIds = filteredInstanceIds,
+                    ActiveInstanceId = activeInstanceId
+                };
+            }
+
+            if (node is EditorWorkspaceDockSplitNodeDocument split) {
+                EditorWorkspaceDockNodeDocument first = FilterDockDocumentNode(split.First, restoredInstanceIds);
+                EditorWorkspaceDockNodeDocument second = FilterDockDocumentNode(split.Second, restoredInstanceIds);
+                if (first == null && second == null) {
+                    return null;
+                }
+                if (first == null) {
+                    return second;
+                }
+                if (second == null) {
+                    return first;
+                }
+
+                return new EditorWorkspaceDockSplitNodeDocument {
+                    IsVertical = split.IsVertical,
+                    SplitFraction = split.SplitFraction,
+                    First = first,
+                    Second = second
+                };
+            }
+
+            throw new InvalidOperationException("Unsupported workspace dock document node type.");
+        }
+
+        /// <summary>
+        /// Converts one captured dock snapshot node into its persisted document counterpart.
+        /// </summary>
+        /// <param name="node">Captured dock snapshot node.</param>
+        /// <returns>Persisted dock node document.</returns>
+        EditorWorkspaceDockNodeDocument ConvertDockSnapshotNodeToDocument(EditorWorkspaceDockNodeSnapshot node) {
+            if (node == null) {
+                return null;
+            }
+            if (node is EditorWorkspaceDockLeafSnapshot leafSnapshot) {
+                return new EditorWorkspaceDockLeafNodeDocument {
+                    ActiveInstanceId = leafSnapshot.ActiveInstanceId,
+                    InstanceIds = new List<string>(leafSnapshot.InstanceIds)
+                };
+            }
+
+            EditorWorkspaceDockSplitSnapshot splitSnapshot = node as EditorWorkspaceDockSplitSnapshot;
+            if (splitSnapshot == null) {
+                throw new InvalidOperationException("Unsupported dock snapshot node type.");
+            }
+
+            return new EditorWorkspaceDockSplitNodeDocument {
+                IsVertical = splitSnapshot.IsVertical,
+                SplitFraction = splitSnapshot.SplitFraction,
+                First = ConvertDockSnapshotNodeToDocument(splitSnapshot.First),
+                Second = ConvertDockSnapshotNodeToDocument(splitSnapshot.Second)
+            };
+        }
+
+        /// <summary>
+        /// Converts one persisted dock node document back into its runtime snapshot counterpart.
+        /// </summary>
+        /// <param name="node">Persisted dock node document.</param>
+        /// <returns>Runtime dock snapshot node.</returns>
+        EditorWorkspaceDockNodeSnapshot ConvertDockDocumentNodeToSnapshot(EditorWorkspaceDockNodeDocument node) {
+            if (node == null) {
+                return null;
+            }
+            if (node is EditorWorkspaceDockLeafNodeDocument leafDocument) {
+                return new EditorWorkspaceDockLeafSnapshot {
+                    ActiveInstanceId = leafDocument.ActiveInstanceId,
+                    InstanceIds = new List<string>(leafDocument.InstanceIds)
+                };
+            }
+
+            EditorWorkspaceDockSplitNodeDocument splitDocument = node as EditorWorkspaceDockSplitNodeDocument;
+            if (splitDocument == null) {
+                throw new InvalidOperationException("Unsupported dock document node type.");
+            }
+
+            return new EditorWorkspaceDockSplitSnapshot {
+                IsVertical = splitDocument.IsVertical,
+                SplitFraction = splitDocument.SplitFraction,
+                First = ConvertDockDocumentNodeToSnapshot(splitDocument.First),
+                Second = ConvertDockDocumentNodeToSnapshot(splitDocument.Second)
+            };
+        }
+
+        /// <summary>
+        /// Resolves the slot number associated with one UI menu action.
+        /// </summary>
+        /// <param name="action">Workspace UI menu action.</param>
+        /// <param name="slotNumber">Resolved one-based slot number when successful.</param>
+        /// <returns>True when the action maps to a slot; otherwise false.</returns>
+        bool TryResolveWorkspaceSlotNumber(EditorTitleBarUiMenuAction action, out int slotNumber) {
+            slotNumber = 0;
+            if (action == EditorTitleBarUiMenuAction.SaveSlot1 || action == EditorTitleBarUiMenuAction.LoadSlot1) {
+                slotNumber = 1;
+                return true;
+            }
+            if (action == EditorTitleBarUiMenuAction.SaveSlot2 || action == EditorTitleBarUiMenuAction.LoadSlot2) {
+                slotNumber = 2;
+                return true;
+            }
+            if (action == EditorTitleBarUiMenuAction.SaveSlot3 || action == EditorTitleBarUiMenuAction.LoadSlot3) {
+                slotNumber = 3;
+                return true;
+            }
+            if (action == EditorTitleBarUiMenuAction.SaveSlot4 || action == EditorTitleBarUiMenuAction.LoadSlot4) {
+                slotNumber = 4;
+                return true;
+            }
+            if (action == EditorTitleBarUiMenuAction.SaveSlot5 || action == EditorTitleBarUiMenuAction.LoadSlot5) {
+                slotNumber = 5;
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Determines whether one workspace UI menu action saves a slot instead of loading it.
+        /// </summary>
+        /// <param name="action">Workspace UI menu action.</param>
+        /// <returns>True when the action saves a slot; otherwise false.</returns>
+        bool IsWorkspaceSaveAction(EditorTitleBarUiMenuAction action) {
+            return action == EditorTitleBarUiMenuAction.SaveSlot1 ||
+                   action == EditorTitleBarUiMenuAction.SaveSlot2 ||
+                   action == EditorTitleBarUiMenuAction.SaveSlot3 ||
+                   action == EditorTitleBarUiMenuAction.SaveSlot4 ||
+                   action == EditorTitleBarUiMenuAction.SaveSlot5;
+        }
+
+        /// <summary>
+        /// Resolves the default centered floating position for one newly created panel instance.
+        /// </summary>
+        /// <param name="panelSize">Requested panel size.</param>
+        /// <returns>Centered floating origin inside the available workspace area.</returns>
+        float3 ResolveCenteredFloatingPanelPosition(int2 panelSize) {
+            if (LastLayoutWidth <= 0 || LastLayoutHeight <= 0) {
+                return float3.Zero;
+            }
+
+            int titleBarHeight = titleBar == null ? 0 : titleBar.Height;
+            int availableHeight = Math.Max(0, LastLayoutHeight - titleBarHeight);
+            int x = Math.Max(0, (LastLayoutWidth - panelSize.X) / 2);
+            int y = titleBarHeight + Math.Max(0, (availableHeight - panelSize.Y) / 2);
+            return new float3(x, y, 0f);
+        }
+
+        /// <summary>
+        /// Refreshes keyboard traversal order from the current dock layout.
+        /// </summary>
+        void RefreshWorkspaceDockOrder() {
+            EditorKeyboardFocusService.SetDockOrder(dockingManager.Layout.GetVisibleDockablesInTraversalOrder());
         }
 
         /// <summary>
@@ -1393,7 +2277,7 @@ namespace helengine.editor {
 
             try {
                 EditorEntity entity = createEntity();
-                sceneHierarchyPanel.RefreshHierarchy();
+                RefreshHierarchy();
                 EditorSelectionService.SetSelectedEntity(entity);
                 EditorSceneMutationService.MarkSceneMutated();
             } catch (Exception ex) {
@@ -1950,7 +2834,10 @@ namespace helengine.editor {
                 SceneSaveService.Save(fullPath, CurrentSceneSettings);
                 CurrentScenePath = Path.GetFullPath(fullPath);
                 MarkSceneClean();
-                assetBrowserPanel.RefreshEntries();
+                IReadOnlyList<AssetBrowserPanel> assetBrowserPanels = GetAssetBrowserPanels();
+                for (int index = 0; index < assetBrowserPanels.Count; index++) {
+                    assetBrowserPanels[index].RefreshEntries();
+                }
                 saveFileDialog.Hide();
                 if (PendingSceneTransition != SceneTransitionKind.None) {
                     ContinuePendingSceneTransition();
@@ -1994,8 +2881,11 @@ namespace helengine.editor {
                 sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
                 MarkSceneClean();
                 EditorSelectionService.ClearSelection();
-                sceneHierarchyPanel.RefreshHierarchy();
-                assetBrowserPanel.RefreshEntries();
+                RefreshHierarchy();
+                IReadOnlyList<AssetBrowserPanel> assetBrowserPanels = GetAssetBrowserPanels();
+                for (int index = 0; index < assetBrowserPanels.Count; index++) {
+                    assetBrowserPanels[index].RefreshEntries();
+                }
                 openFileDialog.Hide();
                 if (reparentEntityDialog != null) {
                     reparentEntityDialog.Hide();
@@ -2016,9 +2906,7 @@ namespace helengine.editor {
             sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
             MarkSceneClean();
             EditorSelectionService.ClearSelection();
-            if (sceneHierarchyPanel != null) {
-                sceneHierarchyPanel.RefreshHierarchy();
-            }
+            RefreshHierarchy();
             if (openFileDialog != null) {
                 openFileDialog.Hide();
             }
@@ -2051,7 +2939,7 @@ namespace helengine.editor {
 
             try {
                 bool changed = ReparentService.Reparent(selection.TargetEntity, selection.ParentEntity);
-                sceneHierarchyPanel.RefreshHierarchy();
+                RefreshHierarchy();
                 EditorSelectionService.SetSelectedEntity(selection.TargetEntity);
                 if (changed) {
                     EditorSceneMutationService.MarkSceneMutated();
@@ -2325,14 +3213,21 @@ namespace helengine.editor {
             }
 
             SelectedAssetEntry = entry;
+            LatestPreviewSelectionKind = PreviewPanelBindingKind.Asset;
             if (entry.IsGenerated) {
-                propertiesPanel.ShowGeneratedAssetSummary(entry);
+                IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+                for (int index = 0; index < propertiesPanels.Count; index++) {
+                    propertiesPanels[index].ShowGeneratedAssetSummary(entry);
+                }
                 RefreshPreviewSource();
                 return;
             }
 
             if (entry.EntryKind == AssetEntryKind.Scene) {
-                propertiesPanel.ShowSceneAssetSummary(entry);
+                IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+                for (int index = 0; index < propertiesPanels.Count; index++) {
+                    propertiesPanels[index].ShowSceneAssetSummary(entry);
+                }
                 RefreshPreviewSource();
                 return;
             }
@@ -2349,15 +3244,21 @@ namespace helengine.editor {
                         SaveMaterialAsset(entry.FullPath, materialAsset);
                     }
 
-                    propertiesPanel.ShowMaterialSettings(
-                        entry,
-                        materialAsset,
-                        settings,
-                        SupportedPlatforms,
-                        CurrentProjectPlatform,
-                        ResolvePlatformSelectionModel);
+                    IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+                    for (int index = 0; index < propertiesPanels.Count; index++) {
+                        propertiesPanels[index].ShowMaterialSettings(
+                            entry,
+                            materialAsset,
+                            settings,
+                            SupportedPlatforms,
+                            CurrentProjectPlatform,
+                            ResolvePlatformSelectionModel);
+                    }
                 } catch (Exception ex) {
-                    propertiesPanel.ShowImportError(entry, ex.Message);
+                    IReadOnlyList<PropertiesPanel> errorPanels = GetPropertiesPanels();
+                    for (int index = 0; index < errorPanels.Count; index++) {
+                        errorPanels[index].ShowImportError(entry, ex.Message);
+                    }
                 }
                 RefreshPreviewSource();
                 return;
@@ -2366,7 +3267,10 @@ namespace helengine.editor {
             try {
                 AssetImportSettings settings;
                 if (!assetImportManager.TryLoadOrCreateImportSettings(entry.FullPath, out settings)) {
-                    propertiesPanel.ShowEmpty();
+                    IReadOnlyList<PropertiesPanel> emptyPanels = GetPropertiesPanels();
+                    for (int index = 0; index < emptyPanels.Count; index++) {
+                        emptyPanels[index].ShowEmpty();
+                    }
                     RefreshPreviewSource();
                     return;
                 }
@@ -2374,15 +3278,24 @@ namespace helengine.editor {
                 assetImportManager.SaveImportSettings(entry.FullPath, settings);
                 IReadOnlyList<string> importerIds = assetImportManager.GetImporterIdsForExtension(entry.Extension);
                 if (importerIds.Count == 0) {
-                    propertiesPanel.ShowImportError(entry, "No importers are registered for this asset type.");
+                    IReadOnlyList<PropertiesPanel> errorPanels = GetPropertiesPanels();
+                    for (int index = 0; index < errorPanels.Count; index++) {
+                        errorPanels[index].ShowImportError(entry, "No importers are registered for this asset type.");
+                    }
                     RefreshPreviewSource();
                     return;
                 }
 
-                propertiesPanel.ShowImportSettings(entry, settings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+                for (int index = 0; index < propertiesPanels.Count; index++) {
+                    propertiesPanels[index].ShowImportSettings(entry, settings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                }
                 RefreshPreviewSource();
             } catch (Exception ex) {
-                propertiesPanel.ShowImportError(entry, ex.Message);
+                IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+                for (int index = 0; index < propertiesPanels.Count; index++) {
+                    propertiesPanels[index].ShowImportError(entry, ex.Message);
+                }
                 RefreshPreviewSource();
             }
         }
@@ -2432,9 +3345,15 @@ namespace helengine.editor {
                 SceneModelRefreshService.RefreshFileSystemModel(entry.FullPath, entry.RelativePath);
 
                 IReadOnlyList<string> importerIds = assetImportManager.GetImporterIdsForExtension(entry.Extension);
-                propertiesPanel.ShowImportSettings(entry, settings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+                for (int index = 0; index < propertiesPanels.Count; index++) {
+                    propertiesPanels[index].ShowImportSettings(entry, settings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                }
             } catch (Exception ex) {
-                propertiesPanel.ShowImportError(entry, ex.Message);
+                IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+                for (int index = 0; index < propertiesPanels.Count; index++) {
+                    propertiesPanels[index].ShowImportError(entry, ex.Message);
+                }
             }
         }
 
@@ -2486,7 +3405,15 @@ namespace helengine.editor {
         /// </summary>
         void HandleAssetSelectionCleared() {
             SelectedAssetEntry = null;
-            propertiesPanel.ShowEmpty();
+            if (LatestPreviewSelectionKind == PreviewPanelBindingKind.Asset) {
+                LatestPreviewSelectionKind = HasPreviewableCamera(SelectedSceneEntity)
+                    ? PreviewPanelBindingKind.Camera
+                    : PreviewPanelBindingKind.None;
+            }
+            IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+            for (int index = 0; index < propertiesPanels.Count; index++) {
+                propertiesPanels[index].ShowEmpty();
+            }
             RefreshPreviewSource();
         }
 
@@ -2500,10 +3427,24 @@ namespace helengine.editor {
             }
 
             SelectedSceneEntity = args.HasSelection ? args.SelectedEntity : null;
+            if (args.HasSelection && HasPreviewableCamera(args.SelectedEntity)) {
+                LatestPreviewSelectionKind = PreviewPanelBindingKind.Camera;
+            } else if (!args.HasSelection && LatestPreviewSelectionKind == PreviewPanelBindingKind.Camera) {
+                LatestPreviewSelectionKind = SelectedAssetEntry != null
+                    ? PreviewPanelBindingKind.Asset
+                    : PreviewPanelBindingKind.None;
+            }
+
             if (args.HasSelection) {
-                propertiesPanel.ShowEntityProperties(args.SelectedEntity);
+                IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+                for (int index = 0; index < propertiesPanels.Count; index++) {
+                    propertiesPanels[index].ShowEntityProperties(args.SelectedEntity);
+                }
             } else {
-                propertiesPanel.ShowEmpty();
+                IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+                for (int index = 0; index < propertiesPanels.Count; index++) {
+                    propertiesPanels[index].ShowEmpty();
+                }
             }
 
             RefreshPreviewSource();
@@ -2513,20 +3454,307 @@ namespace helengine.editor {
         /// Recomputes the active preview source from the current selection snapshot.
         /// </summary>
         void RefreshPreviewSource() {
-            if (previewPanel == null) {
+            IReadOnlyList<PreviewPanel> previewPanels = GetPreviewPanels();
+            if (previewPanels.Count == 0) {
                 return;
+            }
+
+            for (int index = 0; index < previewPanels.Count; index++) {
+                UpdatePreviewPanelState(previewPanels[index]);
+            }
+        }
+
+        /// <summary>
+        /// Synchronizes one preview panel with the current asset and scene selection snapshot.
+        /// </summary>
+        /// <param name="panel">Preview panel that should reflect the current selection snapshot.</param>
+        void UpdatePreviewPanelState(PreviewPanel panel) {
+            if (panel == null) {
+                throw new ArgumentNullException(nameof(panel));
             }
 
             if (previewSourceResolver == null) {
-                previewPanel.ClearPreview();
+                panel.ClearPreview();
+                return;
+            }
+            if (panel.IsLocked) {
+                RefreshLockedPreviewPanelState(panel);
                 return;
             }
 
-            IPreviewSource previewSource;
-            if (previewSourceResolver.TryResolve(SelectedAssetEntry, SelectedSceneEntity, out previewSource)) {
-                previewPanel.SetPreviewSource(previewSource);
-            } else {
-                previewPanel.ClearPreview();
+            if (LatestPreviewSelectionKind == PreviewPanelBindingKind.Camera) {
+                if (panel.ApplyLatestCameraSelection(SelectedSceneEntity, previewSourceResolver)) {
+                    return;
+                }
+                if (panel.ApplyLatestAssetSelection(SelectedAssetEntry, previewSourceResolver)) {
+                    return;
+                }
+
+                panel.ApplyLatestSelectionCleared();
+                return;
+            }
+            if (LatestPreviewSelectionKind == PreviewPanelBindingKind.Asset) {
+                if (panel.ApplyLatestAssetSelection(SelectedAssetEntry, previewSourceResolver)) {
+                    return;
+                }
+                if (panel.ApplyLatestCameraSelection(SelectedSceneEntity, previewSourceResolver)) {
+                    return;
+                }
+
+                panel.ApplyLatestSelectionCleared();
+                return;
+            }
+            if (panel.ApplyLatestAssetSelection(SelectedAssetEntry, previewSourceResolver)) {
+                return;
+            }
+            if (panel.ApplyLatestCameraSelection(SelectedSceneEntity, previewSourceResolver)) {
+                return;
+            }
+
+            panel.ApplyLatestSelectionCleared();
+        }
+
+        /// <summary>
+        /// Rebuilds or clears one locked preview panel based on its persisted asset or camera target.
+        /// </summary>
+        /// <param name="panel">Locked preview panel to refresh.</param>
+        void RefreshLockedPreviewPanelState(PreviewPanel panel) {
+            if (panel == null) {
+                throw new ArgumentNullException(nameof(panel));
+            }
+
+            PreviewPanelStateDocument state = panel.CaptureState();
+            if (!state.IsLocked) {
+                return;
+            }
+
+            if (state.BindingKind == PreviewPanelBindingKind.Asset) {
+                if (TryResolvePreviewAssetEntry(state.AssetRelativePath, out AssetBrowserEntry assetEntry) && panel.RestoreLockedAssetSelection(assetEntry, previewSourceResolver)) {
+                    return;
+                }
+
+                panel.ClearLockedTarget();
+                return;
+            }
+            if (state.BindingKind == PreviewPanelBindingKind.Camera) {
+                if (TryResolvePreviewSceneEntity(state.SceneEntityId, out Entity selectedEntity) && panel.RestoreLockedCameraSelection(selectedEntity, previewSourceResolver)) {
+                    return;
+                }
+
+                panel.ClearLockedTarget();
+                return;
+            }
+            if (state.BindingKind == PreviewPanelBindingKind.None && panel.ActivePreviewSource != null) {
+                panel.ClearPreview();
+            }
+        }
+
+        /// <summary>
+        /// Tries to rebuild one previewable asset entry from its persisted relative path.
+        /// </summary>
+        /// <param name="relativePath">Project-relative asset path captured by a preview panel.</param>
+        /// <param name="assetEntry">Resolved previewable asset entry when one exists.</param>
+        /// <returns>True when the asset path exists and can be previewed; otherwise false.</returns>
+        bool TryResolvePreviewAssetEntry(string relativePath, out AssetBrowserEntry assetEntry) {
+            assetEntry = null;
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                return false;
+            }
+
+            string assetsRootPath = ResolveAssetsRootPath(projectPath);
+            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            string fullPath = Path.GetFullPath(Path.Combine(assetsRootPath, normalizedRelativePath));
+            if (!File.Exists(fullPath)) {
+                return false;
+            }
+
+            string extension = Path.GetExtension(fullPath);
+            if (string.IsNullOrWhiteSpace(extension)) {
+                return false;
+            }
+
+            AssetEntryKind entryKind = ResolvePreviewAssetEntryKind(extension);
+            if (entryKind != AssetEntryKind.Image && entryKind != AssetEntryKind.Model) {
+                return false;
+            }
+
+            assetEntry = AssetBrowserEntry.CreateFileSystemFile(
+                Path.GetFileName(fullPath),
+                relativePath.Replace('\\', '/'),
+                fullPath,
+                extension,
+                entryKind);
+            return true;
+        }
+
+        /// <summary>
+        /// Resolves one stable scene entity id back to the current live entity used by preview restoration.
+        /// </summary>
+        /// <param name="entityId">Stable scene entity id captured by a preview panel.</param>
+        /// <param name="selectedEntity">Resolved live scene entity when one exists.</param>
+        /// <returns>True when the entity id is still present in the current scene; otherwise false.</returns>
+        bool TryResolvePreviewSceneEntity(string entityId, out Entity selectedEntity) {
+            selectedEntity = null;
+            if (string.IsNullOrWhiteSpace(entityId) || helengine.Core.Instance == null || helengine.Core.Instance.ObjectManager == null) {
+                return false;
+            }
+
+            IReadOnlyList<Entity> entities = helengine.Core.Instance.ObjectManager.Entities;
+            for (int index = 0; index < entities.Count; index++) {
+                EntitySaveComponent saveComponent = FindEntitySaveComponent(entities[index]);
+                if (saveComponent == null || !string.Equals(saveComponent.EntityId, entityId, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                selectedEntity = entities[index];
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Classifies one persisted preview asset extension into the asset-browser kind required by the preview resolver.
+        /// </summary>
+        /// <param name="extension">File extension that should be classified.</param>
+        /// <returns>Preview-relevant asset entry kind for the extension.</returns>
+        AssetEntryKind ResolvePreviewAssetEntryKind(string extension) {
+            if (string.IsNullOrWhiteSpace(extension)) {
+                throw new ArgumentException("Extension must be provided.", nameof(extension));
+            }
+            if (assetImportManager != null && assetImportManager.IsTextureExtension(extension)) {
+                return AssetEntryKind.Image;
+            }
+            if (assetImportManager != null && assetImportManager.GetImporterIdsForExtension(extension).Count > 0) {
+                return AssetEntryKind.Model;
+            }
+
+            return AssetEntryKind.File;
+        }
+
+        /// <summary>
+        /// Returns the hidden persistence component attached to the supplied entity when one exists.
+        /// </summary>
+        /// <param name="entity">Entity whose persistence metadata should be inspected.</param>
+        /// <returns>Attached save component when present; otherwise null.</returns>
+        EntitySaveComponent FindEntitySaveComponent(Entity entity) {
+            if (entity == null || entity.Components == null) {
+                return null;
+            }
+
+            for (int index = 0; index < entity.Components.Count; index++) {
+                if (entity.Components[index] is EntitySaveComponent saveComponent) {
+                    return saveComponent;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Returns true when the provided entity can produce one camera preview.
+        /// </summary>
+        /// <param name="selectedEntity">Selected entity to inspect.</param>
+        /// <returns>True when the entity owns one camera component.</returns>
+        bool HasPreviewableCamera(Entity selectedEntity) {
+            if (selectedEntity == null || selectedEntity.Components == null) {
+                return false;
+            }
+
+            for (int index = 0; index < selectedEntity.Components.Count; index++) {
+                if (selectedEntity.Components[index] is CameraComponent) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Synchronizes one properties panel with the current asset or scene selection snapshot.
+        /// </summary>
+        /// <param name="panel">Properties panel that should reflect the current selection snapshot.</param>
+        void UpdatePropertiesPanelState(PropertiesPanel panel) {
+            if (panel == null) {
+                throw new ArgumentNullException(nameof(panel));
+            }
+
+            if (SelectedAssetEntry != null) {
+                HandlePropertiesPanelAssetState(panel, SelectedAssetEntry);
+                return;
+            }
+
+            if (SelectedSceneEntity != null) {
+                panel.ShowEntityProperties(SelectedSceneEntity);
+                return;
+            }
+
+            panel.ShowEmpty();
+        }
+
+        /// <summary>
+        /// Synchronizes one properties panel with the currently selected asset entry.
+        /// </summary>
+        /// <param name="panel">Properties panel that should reflect the selected asset.</param>
+        /// <param name="entry">Selected asset entry.</param>
+        void HandlePropertiesPanelAssetState(PropertiesPanel panel, AssetBrowserEntry entry) {
+            if (panel == null) {
+                throw new ArgumentNullException(nameof(panel));
+            }
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            if (entry.IsGenerated) {
+                panel.ShowGeneratedAssetSummary(entry);
+                return;
+            }
+            if (entry.EntryKind == AssetEntryKind.Scene) {
+                panel.ShowSceneAssetSummary(entry);
+                return;
+            }
+            if (IsMaterialAssetEntry(entry)) {
+                try {
+                    MaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
+                    AssetImportSettings settings = materialAssetSettingsService.LoadOrCreate(
+                        entry.FullPath,
+                        materialAsset,
+                        SupportedPlatforms,
+                        ResolvePlatformSelectionModel);
+                    if (materialAssetSettingsService.ApplyPlatformCompatibilityFields(materialAsset, settings, CurrentProjectPlatform)) {
+                        SaveMaterialAsset(entry.FullPath, materialAsset);
+                    }
+
+                    panel.ShowMaterialSettings(
+                        entry,
+                        materialAsset,
+                        settings,
+                        SupportedPlatforms,
+                        CurrentProjectPlatform,
+                        ResolvePlatformSelectionModel);
+                } catch (Exception ex) {
+                    panel.ShowImportError(entry, ex.Message);
+                }
+                return;
+            }
+
+            try {
+                AssetImportSettings settings;
+                if (!assetImportManager.TryLoadOrCreateImportSettings(entry.FullPath, out settings)) {
+                    panel.ShowEmpty();
+                    return;
+                }
+
+                assetImportManager.SaveImportSettings(entry.FullPath, settings);
+                IReadOnlyList<string> importerIds = assetImportManager.GetImporterIdsForExtension(entry.Extension);
+                if (importerIds.Count == 0) {
+                    panel.ShowImportError(entry, "No importers are registered for this asset type.");
+                    return;
+                }
+
+                panel.ShowImportSettings(entry, settings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+            } catch (Exception ex) {
+                panel.ShowImportError(entry, ex.Message);
             }
         }
 
@@ -3098,6 +4326,7 @@ namespace helengine.editor {
             manager.ImportModelsMissingCache();
             return manager;
         }
+
     }
 }
 

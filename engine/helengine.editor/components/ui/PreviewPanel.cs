@@ -578,6 +578,10 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Scaled preview content padding in pixels.</returns>
         int GetContentPaddingPixels() {
+            if (ContentPadding <= 0) {
+                return 0;
+            }
+
             return UiMetrics.ScalePixels(ContentPadding);
         }
 
@@ -599,7 +603,4 @@ namespace helengine.editor {
         }
     }
 }
-            if (ContentPadding <= 0) {
-                return 0;
-            }
 
