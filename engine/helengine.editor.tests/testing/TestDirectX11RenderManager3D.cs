@@ -69,6 +69,19 @@ namespace helengine.editor.tests.testing {
         }
 
         /// <summary>
+        /// Creates a lightweight test render target with the requested dimensions.
+        /// </summary>
+        /// <param name="width">Requested target width.</param>
+        /// <param name="height">Requested target height.</param>
+        /// <returns>Test render target with matching dimensions.</returns>
+        public override RenderTarget CreateRenderTarget(int width, int height) {
+            return new TestRenderTarget {
+                Width = width,
+                Height = height
+            };
+        }
+
+        /// <summary>
         /// Suppresses disposal because the renderer instance is intentionally uninitialized.
         /// </summary>
         public override void Dispose() {

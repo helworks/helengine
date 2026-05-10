@@ -146,6 +146,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures right-clicking a model row exposes an Add to scene action in the asset context menu.
+        /// </summary>
+        [Fact]
+        public void UpdateContextMenuInput_WhenRightClickHitsModelRow_ExposesAddToSceneAction() {
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath);
+            AssetBrowserEntry modelEntry = AssetBrowserEntry.CreateGeneratedAsset(
+                "Model",
+                "Engine/Models/Model",
+                AssetEntryKind.Model,
+                EngineGeneratedAssetProvider.ProviderIdValue,
+                EngineGeneratedModelCache.CubeAssetId);
+            MethodInfo buildContextMenuItemsMethod = typeof(AssetBrowserPanel).GetMethod("BuildContextMenuItems", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(buildContextMenuItemsMethod);
+
+            IReadOnlyList<ContextMenuItem> items = Assert.IsAssignableFrom<IReadOnlyList<ContextMenuItem>>(
+                buildContextMenuItemsMethod.Invoke(assetBrowserPanel, new object[] { modelEntry }));
+
+            Assert.Contains(items, item => string.Equals(item.Label, "Add to scene", StringComparison.Ordinal));
+        }
+
+        /// <summary>
         /// Counts registered 2D drawables that belong to the provided dockable hierarchy.
         /// </summary>
         /// <param name="owner">Dockable entity whose descendants should be counted.</param>

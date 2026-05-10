@@ -14,6 +14,7 @@ namespace helengine.editor {
         /// <param name="pickerCamera">Hidden camera used for picker rendering.</param>
         /// <param name="pickerRenderTarget">Render target used by the picker camera when supported.</param>
         /// <param name="canvasPlanePreviewComponent">Component that renders the shared scene canvas into the viewport plane.</param>
+        /// <param name="cameraController">Viewport-local camera controller that owns orbit state and input-driven navigation.</param>
         /// <param name="translationGizmoRoot">Root entity for the viewport-local translation gizmo.</param>
         /// <param name="rotationGizmoRoot">Root entity for the viewport-local rotation gizmo.</param>
         /// <param name="scaleGizmoRoot">Root entity for the viewport-local scale gizmo.</param>
@@ -26,6 +27,7 @@ namespace helengine.editor {
             CameraComponent pickerCamera,
             RenderTarget pickerRenderTarget,
             EditorViewportCanvasPlanePreviewComponent canvasPlanePreviewComponent,
+            EditorViewportCameraController cameraController,
             EditorEntity translationGizmoRoot,
             EditorEntity rotationGizmoRoot,
             EditorEntity scaleGizmoRoot) {
@@ -37,6 +39,7 @@ namespace helengine.editor {
             PickerCamera = pickerCamera ?? throw new ArgumentNullException(nameof(pickerCamera));
             PickerRenderTarget = pickerRenderTarget;
             CanvasPlanePreviewComponent = canvasPlanePreviewComponent ?? throw new ArgumentNullException(nameof(canvasPlanePreviewComponent));
+            CameraController = cameraController ?? throw new ArgumentNullException(nameof(cameraController));
             TranslationGizmoRoot = translationGizmoRoot ?? throw new ArgumentNullException(nameof(translationGizmoRoot));
             RotationGizmoRoot = rotationGizmoRoot ?? throw new ArgumentNullException(nameof(rotationGizmoRoot));
             ScaleGizmoRoot = scaleGizmoRoot ?? throw new ArgumentNullException(nameof(scaleGizmoRoot));
@@ -74,6 +77,10 @@ namespace helengine.editor {
         /// Gets the canvas-plane preview component owned by the viewport stack.
         /// </summary>
         public EditorViewportCanvasPlanePreviewComponent CanvasPlanePreviewComponent { get; }
+        /// <summary>
+        /// Gets the viewport-local camera controller that owns orbit state and camera navigation.
+        /// </summary>
+        public EditorViewportCameraController CameraController { get; }
         /// <summary>
         /// Gets the root entity for the viewport-local translation gizmo.
         /// </summary>

@@ -61,6 +61,10 @@ namespace helengine.editor {
         /// Raised when the current selection is cleared.
         /// </summary>
         public event Action SelectionCleared;
+        /// <summary>
+        /// Raised when the user requests that one model asset be added to the current scene.
+        /// </summary>
+        public event Action<AssetBrowserEntry> AddToSceneRequested;
 
         /// <summary>
         /// Initializes a new asset browser panel for the provided project path.
@@ -246,6 +250,39 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds the context menu items for one right-click target.
+        /// </summary>
+        /// <param name="hoveredEntry">Asset entry under the pointer, or null when no row was hit.</param>
+        /// <returns>Context menu items to display for the right-click target.</returns>
+        IReadOnlyList<ContextMenuItem> BuildContextMenuItems(AssetBrowserEntry hoveredEntry) {
+            List<ContextMenuItem> items = new List<ContextMenuItem>(CreateAssetItems.Count + 1);
+            for (int index = 0; index < CreateAssetItems.Count; index++) {
+                items.Add(CreateAssetItems[index]);
+            }
+
+            if (hoveredEntry != null && !hoveredEntry.IsDirectory && hoveredEntry.EntryKind == AssetEntryKind.Model) {
+                AssetBrowserEntry capturedEntry = hoveredEntry;
+                items.Add(new ContextMenuItem("Add to scene", () => HandleAddToSceneRequested(capturedEntry)));
+            }
+
+            return items;
+        }
+
+        /// <summary>
+        /// Raises the add-to-scene request for one model asset row.
+        /// </summary>
+        /// <param name="entry">Model asset entry to add.</param>
+        void HandleAddToSceneRequested(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            if (AddToSceneRequested != null) {
+                AddToSceneRequested(entry);
+            }
+        }
+
+        /// <summary>
         /// Applies right-click selection and context-menu opening for one pointer position.
         /// </summary>
         /// <param name="pointer">Pointer position in window coordinates.</param>
@@ -276,7 +313,7 @@ namespace helengine.editor {
                 return;
             }
 
-            AssetContextMenu.Show(CreateAssetItems, local, GetContextMenuHostSize());
+            AssetContextMenu.Show(BuildContextMenuItems(hoveredEntry), local, GetContextMenuHostSize());
             FileTemplateMenu.Hide();
         }
 

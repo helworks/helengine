@@ -94,6 +94,43 @@ namespace helengine.editor.tests.managers.scene {
         }
 
         /// <summary>
+        /// Ensures model creation stores the supplied model and ordered material references on the save component.
+        /// </summary>
+        [Fact]
+        public void CreateModel_StoresModelAndMaterialReferences() {
+            EditorSceneCreationService service = new EditorSceneCreationService();
+            RuntimeModel runtimeModel = EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId);
+            RuntimeMaterial runtimeMaterial = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
+            SceneAssetReference modelReference = new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = "Models/Cube.obj"
+            };
+            SceneAssetReference[] materialReferences = {
+                new SceneAssetReference {
+                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                    RelativePath = "Models/Cube.helmat"
+                }
+            };
+
+            EditorEntity entity = service.CreateModel("Cube", runtimeModel, new[] { runtimeMaterial }, modelReference, materialReferences);
+
+            MeshComponent meshComponent = Assert.IsType<MeshComponent>(Assert.Single(entity.Components, component => component is MeshComponent));
+            EntitySaveComponent saveComponent = Assert.IsType<EntitySaveComponent>(Assert.Single(entity.Components, component => component is EntitySaveComponent));
+            Assert.True(saveComponent.TryGetComponentState(meshComponent, out EntityComponentSaveState saveState));
+            Assert.True(saveState.TryGetAssetReference("Model", out SceneAssetReference savedModelReference));
+            Assert.True(saveState.TryGetAssetReference("Material", out SceneAssetReference savedMaterialReference));
+
+            Assert.Equal("Cube", entity.Name);
+            Assert.Same(runtimeModel, meshComponent.Model);
+            Assert.Single(meshComponent.Materials);
+            Assert.Same(runtimeMaterial, meshComponent.Material);
+            Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, savedModelReference.SourceKind);
+            Assert.Equal("Models/Cube.obj", savedModelReference.RelativePath);
+            Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, savedMaterialReference.SourceKind);
+            Assert.Equal("Models/Cube.helmat", savedMaterialReference.RelativePath);
+        }
+
+        /// <summary>
         /// Ensures Add > Camera creates a camera-backed scene entity with the hidden editor visual attached.
         /// </summary>
         [Fact]

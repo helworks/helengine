@@ -124,6 +124,28 @@ namespace helengine.editor {
         public CameraComponent Camera => camera;
 
         /// <summary>
+        /// Gets the current orbit pivot used by camera pan, orbit, and wheel zoom interactions.
+        /// </summary>
+        /// <returns>Current world-space orbit target.</returns>
+        public float3 GetOrbitTarget() {
+            return ResolveOrbitTarget();
+        }
+
+        /// <summary>
+        /// Replaces the current orbit pivot used by camera pan, orbit, and wheel zoom interactions.
+        /// </summary>
+        /// <param name="orbitTarget">World-space orbit target to store.</param>
+        public void SetOrbitTarget(float3 orbitTarget) {
+            virtualTarget = orbitTarget;
+            orbitDistance = GetDistance(Parent.Position, virtualTarget);
+            if (orbitDistance < MinOrbitDistance) {
+                orbitDistance = MinOrbitDistance;
+            }
+
+            hasVirtualTargetState = true;
+        }
+
+        /// <summary>
         /// Gets or sets the movement speed applied per update tick.
         /// </summary>
         public float MoveSpeed { get; set; }

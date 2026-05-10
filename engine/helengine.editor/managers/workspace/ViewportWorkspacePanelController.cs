@@ -198,17 +198,8 @@ namespace helengine.editor {
             EditorViewport viewport = new EditorViewport(sceneCamera, font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics);
             EditorViewportCanvasPlanePreviewComponent canvasPlanePreviewComponent = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, viewport.CanvasPreviewSettings, render3D);
             sceneCameraEntity.AddComponent(canvasPlanePreviewComponent);
-            EditorEntity pickerCameraEntity = CreatePickerCameraEntity(sceneCameraEntity);
-            CameraComponent pickerCamera = CreatePickerCamera();
-            pickerCameraEntity.AddComponent(pickerCamera);
-            RenderTarget pickerRenderTarget = null;
-            if (render3D is DirectX11Renderer3D pickerRenderer) {
-                pickerRenderTarget = render3D.CreateRenderTarget(DefaultPickerRenderTargetWidth, DefaultPickerRenderTargetHeight);
-                pickerCamera.RenderTarget = pickerRenderTarget;
-                sceneCameraEntity.AddComponent(new EditorViewportPicker(sceneCamera, gizmoCamera, pickerCameraEntity, pickerCamera, pickerRenderer));
-            } else {
-                pickerCamera.RenderTarget = null;
-            }
+            EditorViewportCameraController cameraController = new EditorViewportCameraController(sceneCamera);
+            sceneCameraEntity.AddComponent(cameraController);
             RuntimeMaterial transformGizmoMaterial = BuildTransformGizmoNormalMaterial(render3D);
             RuntimeMaterial transformGizmoHighlightMaterial = BuildTransformGizmoHighlightMaterial(render3D);
             RuntimeMaterial transformGizmoPlaneMaterial = TransformGizmoPlaneMaterialFactory.CreateNormal(render3D);
@@ -222,6 +213,23 @@ namespace helengine.editor {
                 transformGizmoPlaneHighlightMaterial);
             EditorEntity rotationGizmoRoot = TransformRotationGizmoFactory.Create(render3D, sceneCamera, transformGizmoMaterial, transformGizmoHighlightMaterial);
             EditorEntity scaleGizmoRoot = TransformScaleGizmoFactory.Create(render3D, sceneCamera, transformGizmoMaterial, transformGizmoHighlightMaterial);
+            EditorViewportGizmoDrawableCollector gizmoDrawableCollector = new EditorViewportGizmoDrawableCollector(
+                viewport.GetOwnedSceneGizmoEntities,
+                translationGizmoRoot,
+                rotationGizmoRoot,
+                scaleGizmoRoot);
+            sceneCameraEntity.AddComponent(new EditorViewportGizmoRenderQueueComponent(gizmoCamera, gizmoDrawableCollector));
+            EditorEntity pickerCameraEntity = CreatePickerCameraEntity(sceneCameraEntity);
+            CameraComponent pickerCamera = CreatePickerCamera();
+            pickerCameraEntity.AddComponent(pickerCamera);
+            RenderTarget pickerRenderTarget = null;
+            if (render3D is DirectX11Renderer3D pickerRenderer) {
+                pickerRenderTarget = render3D.CreateRenderTarget(DefaultPickerRenderTargetWidth, DefaultPickerRenderTargetHeight);
+                pickerCamera.RenderTarget = pickerRenderTarget;
+                sceneCameraEntity.AddComponent(new EditorViewportPicker(sceneCamera, gizmoCamera, gizmoDrawableCollector, pickerCameraEntity, pickerCamera, pickerRenderer));
+            } else {
+                pickerCamera.RenderTarget = null;
+            }
 
             return new EditorViewportWorkspaceState(
                 viewport,
@@ -232,6 +240,7 @@ namespace helengine.editor {
                 pickerCamera,
                 pickerRenderTarget,
                 canvasPlanePreviewComponent,
+                cameraController,
                 translationGizmoRoot,
                 rotationGizmoRoot,
                 scaleGizmoRoot);
@@ -260,7 +269,6 @@ namespace helengine.editor {
             sceneCamera.CameraDrawOrder = SceneCameraDrawOrder;
             sceneCamera.ClearSettings = new CameraClearSettings(true, new float4(0.39215687f, 0.58431375f, 0.92941177f, 1f), true, 1.0f, false, 0);
             sceneCameraEntity.AddComponent(sceneCamera);
-            sceneCameraEntity.AddComponent(new EditorViewportCameraController(sceneCamera));
             sceneCameraEntity.AddComponent(new TransformTranslationGizmoDragComponent(sceneCamera));
             sceneCameraEntity.AddComponent(new TransformRotationGizmoDragComponent(sceneCamera));
             sceneCameraEntity.AddComponent(new TransformScaleGizmoDragComponent(sceneCamera));

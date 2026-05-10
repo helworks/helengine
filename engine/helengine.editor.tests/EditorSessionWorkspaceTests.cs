@@ -9,6 +9,93 @@ namespace helengine.editor.tests {
     /// </summary>
     public sealed class EditorSessionWorkspaceTests {
         /// <summary>
+        /// Returns whether one ordered render queue contains the supplied drawable instance.
+        /// </summary>
+        /// <param name="renderQueue">Render queue to inspect.</param>
+        /// <param name="drawable">Drawable instance to locate.</param>
+        /// <returns>True when the queue contains the drawable.</returns>
+        static bool QueueContainsDrawable(IRenderQueue3D renderQueue, IDrawable3D drawable) {
+            if (renderQueue == null) {
+                throw new ArgumentNullException(nameof(renderQueue));
+            }
+            if (drawable == null) {
+                throw new ArgumentNullException(nameof(drawable));
+            }
+
+            RenderQueueContainsVisitor visitor = new RenderQueueContainsVisitor(drawable);
+            renderQueue.VisitOrdered(visitor);
+            return visitor.Found;
+        }
+
+        /// <summary>
+        /// Returns the first drawable found in one entity subtree.
+        /// </summary>
+        /// <param name="entity">Subtree root to inspect.</param>
+        /// <returns>First drawable found in the subtree.</returns>
+        static IDrawable3D FindFirstDrawableInSubtree(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            if (entity.Components != null) {
+                for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
+                    if (entity.Components[componentIndex] is IDrawable3D drawable) {
+                        return drawable;
+                    }
+                }
+            }
+
+            if (entity.Children != null) {
+                for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                    Entity child = entity.Children[childIndex];
+                    if (child == null) {
+                        continue;
+                    }
+
+                    IDrawable3D drawable = FindFirstDrawableInSubtree(child);
+                    if (drawable != null) {
+                        return drawable;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Visits one render queue and reports whether the target drawable was encountered.
+        /// </summary>
+        sealed class RenderQueueContainsVisitor : IRenderVisitor3D {
+            /// <summary>
+            /// Drawable instance the visitor should locate.
+            /// </summary>
+            readonly IDrawable3D TargetDrawable;
+
+            /// <summary>
+            /// Initializes one queue-contains visitor.
+            /// </summary>
+            /// <param name="targetDrawable">Drawable instance to locate.</param>
+            public RenderQueueContainsVisitor(IDrawable3D targetDrawable) {
+                TargetDrawable = targetDrawable ?? throw new ArgumentNullException(nameof(targetDrawable));
+            }
+
+            /// <summary>
+            /// Gets whether the target drawable was encountered during traversal.
+            /// </summary>
+            public bool Found { get; private set; }
+
+            /// <summary>
+            /// Processes one drawable encountered during queue traversal.
+            /// </summary>
+            /// <param name="drawable">Drawable encountered during queue traversal.</param>
+            public void Visit(IDrawable3D drawable) {
+                if (ReferenceEquals(drawable, TargetDrawable)) {
+                    Found = true;
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures workspace save and load round-trips one docked panel and one floating panel.
         /// </summary>
         [Fact]
@@ -123,6 +210,71 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures each viewport gizmo camera queue contains only the gizmo drawables owned by that viewport.
+        /// </summary>
+        [Fact]
+        public void UiShow_WhenViewportIsOpenedTwice_KeepsEachGizmoCameraQueueScopedToItsOwnViewport() {
+            using EditorSessionHarness harness = EditorSessionHarness.Create();
+
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowViewport);
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowViewport);
+            IReadOnlyList<EditorWorkspacePanelInstance> instances = harness.Session.GetPanelInstancesForTest("viewport");
+            ViewportWorkspacePanelController firstController = harness.GetViewportControllerForTest(instances[0]);
+            ViewportWorkspacePanelController secondController = harness.GetViewportControllerForTest(instances[1]);
+            EditorEntity selectedEntity = new EditorEntity();
+
+            try {
+                EditorSelectionService.SetSelectedEntity(selectedEntity);
+                Core.Instance.ObjectManager.Update();
+
+                IDrawable3D firstDrawable = FindFirstDrawableInSubtree(firstController.ViewportState.TranslationGizmoRoot);
+                IDrawable3D secondDrawable = FindFirstDrawableInSubtree(secondController.ViewportState.TranslationGizmoRoot);
+                Assert.NotNull(firstDrawable);
+                Assert.NotNull(secondDrawable);
+                Assert.True(QueueContainsDrawable(firstController.ViewportState.GizmoCamera.RenderQueue3D, firstDrawable));
+                Assert.False(QueueContainsDrawable(firstController.ViewportState.GizmoCamera.RenderQueue3D, secondDrawable));
+                Assert.True(QueueContainsDrawable(secondController.ViewportState.GizmoCamera.RenderQueue3D, secondDrawable));
+                Assert.False(QueueContainsDrawable(secondController.ViewportState.GizmoCamera.RenderQueue3D, firstDrawable));
+            } finally {
+                EditorSelectionService.ClearSelection();
+                selectedEntity.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Ensures Add to scene places a spawned model at the orbit target of the last focused viewport.
+        /// </summary>
+        [Fact]
+        public void AddToScene_WhenModelIsRequestedFromFocusedViewport_AddsEntityAtTheViewportOrbitTarget() {
+            using EditorSessionHarness harness = EditorSessionHarness.Create();
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowViewport);
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowViewport);
+            IReadOnlyList<EditorWorkspacePanelInstance> instances = harness.Session.GetPanelInstancesForTest("viewport");
+            EditorWorkspacePanelInstance focusedInstance = instances[1];
+            ViewportWorkspacePanelController focusedController = harness.GetViewportControllerForTest(focusedInstance);
+            float3 orbitTarget = new float3(12f, 34f, -56f);
+            focusedController.ViewportState.CameraController.SetOrbitTarget(orbitTarget);
+
+            InvokePrivate(focusedInstance.Dockable, "HandleViewportContentFocusedChanged", true);
+
+            AssetBrowserEntry modelEntry = AssetBrowserEntry.CreateGeneratedAsset(
+                "Cube",
+                EngineGeneratedAssetProvider.CubeRelativePath,
+                AssetEntryKind.Model,
+                EngineGeneratedAssetProvider.ProviderIdValue,
+                EngineGeneratedModelCache.CubeAssetId);
+
+            InvokePrivate(harness.Session, "HandleAddToSceneRequested", modelEntry);
+
+            EditorEntity createdEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            Assert.Equal("Cube", createdEntity.Name);
+            Assert.Equal(orbitTarget, createdEntity.Position);
+            MeshComponent meshComponent = Assert.IsType<MeshComponent>(Assert.Single(createdEntity.Components, component => component is MeshComponent));
+            Assert.NotNull(meshComponent.Model);
+            Assert.NotNull(meshComponent.Material);
+        }
+
+        /// <summary>
         /// Ensures the session primary viewport accessors resolve through tracked viewport instances instead of legacy singleton fields.
         /// </summary>
         [Fact]
@@ -214,6 +366,28 @@ namespace helengine.editor.tests {
 
             Assert.Equal(5.0, harness.GetViewportSnapValue(instances[0], EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1));
             Assert.Equal(22.5, harness.GetViewportSnapValue(instances[1], EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1));
+        }
+
+        /// <summary>
+        /// Invokes one non-public instance method on a test target.
+        /// </summary>
+        /// <param name="instance">Target object that owns the method.</param>
+        /// <param name="methodName">Name of the method to invoke.</param>
+        /// <param name="arguments">Arguments passed to the method.</param>
+        void InvokePrivate(object instance, string methodName, params object[] arguments) {
+            if (instance == null) {
+                throw new ArgumentNullException(nameof(instance));
+            }
+            if (string.IsNullOrWhiteSpace(methodName)) {
+                throw new ArgumentException("Method name must be provided.", nameof(methodName));
+            }
+
+            MethodInfo method = instance.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (method == null) {
+                throw new InvalidOperationException("Expected private method was not found.");
+            }
+
+            method.Invoke(instance, arguments);
         }
 
         /// <summary>
@@ -439,6 +613,8 @@ namespace helengine.editor.tests {
                 Core core = new Core();
                 core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null);
                 EditorKeyboardFocusService.Reset();
+                GeneratedAssetProviderRegistry.ResetForTests();
+                GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
 
                 Font = CreateFont();
                 ViewportToolbarIcons = CreateViewportToolbarIcons();
@@ -453,6 +629,8 @@ namespace helengine.editor.tests {
                 assetImportManager.CurrentPlatformId = "windows";
                 EditorProjectLocalSettingsService projectLocalSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, new[] { "windows" });
                 PreviewSourceResolver previewSourceResolver = new PreviewSourceResolver(assetImportManager, Core.Instance.RenderManager2D, Core.Instance.RenderManager3D);
+                EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
+                EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
                 Session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
 
                 SetPrivateField(Session, "dockingManager", new DockingManager());
@@ -461,12 +639,15 @@ namespace helengine.editor.tests {
                 SetPrivateField(Session, "SnapModifierFont", Font);
                 SetPrivateField(Session, "ViewportToolbarIcons", ViewportToolbarIcons);
                 SetPrivateField(Session, "CurrentUiMetrics", EditorUiMetrics.Default);
+                SetPrivateField(Session, "SceneCreationService", new EditorSceneCreationService());
                 SetPrivateField(Session, "PanelRegistry", new EditorWorkspacePanelRegistry());
                 SetPrivateField(Session, "PanelInstances", new List<EditorWorkspacePanelInstance>());
                 SetPrivateField(Session, "WorkspaceLayoutService", new EditorWorkspaceLayoutService(TempProjectRootPath));
                 SetPrivateField(Session, "sceneCanvasProfileState", new EditorSceneCanvasProfileState());
                 SetPrivateField(Session, "assetImportManager", assetImportManager);
                 SetPrivateField(Session, "previewSourceResolver", previewSourceResolver);
+                SetPrivateField(Session, "sceneAssetReferenceFactory", new SceneAssetReferenceFactory());
+                SetPrivateField(Session, "sceneAssetReferenceResolver", new EditorSceneAssetReferenceResolver(ContentManager, TempProjectRootPath, fileSystemModelResolver, fileSystemFontResolver));
                 SetPrivateField(Session, "ProjectSupportedPlatforms", new[] { "windows" });
                 SetPrivateField(Session, "ProjectLocalSettingsService", projectLocalSettingsService);
                 SetPrivateField(Session, "ActiveProjectPlatform", "windows");
@@ -496,6 +677,7 @@ namespace helengine.editor.tests {
                 if (Directory.Exists(TempProjectRootPath)) {
                     Directory.Delete(TempProjectRootPath, true);
                 }
+                GeneratedAssetProviderRegistry.ResetForTests();
             }
 
             /// <summary>

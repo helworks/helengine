@@ -47,6 +47,67 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates one root model entity for the scene and stores the supplied model and material references for persistence.
+        /// </summary>
+        /// <param name="name">Display name assigned to the entity.</param>
+        /// <param name="model">Runtime model assigned to the mesh component.</param>
+        /// <param name="materials">Runtime materials assigned to the mesh component submesh slots.</param>
+        /// <param name="modelReference">Stable scene reference for the mesh model.</param>
+        /// <param name="materialReferences">Stable scene references for each material slot.</param>
+        /// <returns>Configured model scene entity.</returns>
+        public EditorEntity CreateModel(
+            string name,
+            RuntimeModel model,
+            RuntimeMaterial[] materials,
+            SceneAssetReference modelReference,
+            SceneAssetReference[] materialReferences) {
+            if (string.IsNullOrWhiteSpace(name)) {
+                throw new ArgumentException("Model name must be provided.", nameof(name));
+            }
+            if (model == null) {
+                throw new ArgumentNullException(nameof(model));
+            }
+            if (materials == null) {
+                throw new ArgumentNullException(nameof(materials));
+            }
+            if (modelReference == null) {
+                throw new ArgumentNullException(nameof(modelReference));
+            }
+            if (materialReferences == null) {
+                throw new ArgumentNullException(nameof(materialReferences));
+            }
+            if (materialReferences.Length != materials.Length) {
+                throw new InvalidOperationException("Model material references must match the runtime material slot count.");
+            }
+
+            EditorEntity entity = CreateBaseEntity(name);
+
+            try {
+                EntitySaveComponent saveComponent = FindSaveComponent(entity);
+                MeshComponent meshComponent = new MeshComponent {
+                    Model = model
+                };
+                meshComponent.SetMaterials(materials);
+                entity.AddComponent(meshComponent);
+                saveComponent.SetAssetReference(meshComponent, MeshModelReferenceName, modelReference);
+                for (int materialIndex = 0; materialIndex < materialReferences.Length; materialIndex++) {
+                    SceneAssetReference materialReference = materialReferences[materialIndex];
+                    if (materialReference == null) {
+                        continue;
+                    }
+
+                    saveComponent.SetAssetReference(meshComponent, BuildMaterialReferenceName(materialIndex), materialReference);
+                }
+
+                return entity;
+            } catch {
+                entity.Enabled = false;
+                Core.Instance.ObjectManager.RemoveEntity(entity);
+                throw;
+            }
+        }
+
+        /// <summary>
         /// Creates a root camera entity for the scene and attaches the editor-only camera visual.
         /// </summary>
         /// <returns>Configured camera scene entity.</returns>
@@ -182,6 +243,21 @@ namespace helengine.editor {
                 ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
                 AssetId = assetId
             };
+        }
+
+        /// <summary>
+        /// Resolves one stable save-state material-reference name for the supplied slot index.
+        /// </summary>
+        /// <param name="slotIndex">Zero-based material slot index.</param>
+        /// <returns>Stable save-state reference name.</returns>
+        static string BuildMaterialReferenceName(int slotIndex) {
+            if (slotIndex < 0) {
+                throw new ArgumentOutOfRangeException(nameof(slotIndex), "Material slot index must be non-negative.");
+            }
+
+            return slotIndex == 0
+                ? MeshMaterialReferenceName
+                : string.Concat(MeshMaterialReferenceName, "[", slotIndex.ToString(), "]");
         }
 
         /// <summary>

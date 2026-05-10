@@ -183,6 +183,14 @@ namespace helengine.editor {
         /// </summary>
         readonly PreviewSourceResolver previewSourceResolver;
         /// <summary>
+        /// Resolver used to rebuild file-backed scene asset references into runtime assets.
+        /// </summary>
+        readonly EditorSceneAssetReferenceResolver sceneAssetReferenceResolver;
+        /// <summary>
+        /// Factory used to convert asset-browser entries into stable scene asset references.
+        /// </summary>
+        readonly SceneAssetReferenceFactory sceneAssetReferenceFactory;
+        /// <summary>
         /// Modal used to pick an asset for editor fields.
         /// </summary>
         AssetPickerModal assetPickerModal;
@@ -242,6 +250,10 @@ namespace helengine.editor {
         /// Render target assigned to the hidden editor camera.
         /// </summary>
         readonly RenderTarget hiddenCameraTarget;
+        /// <summary>
+        /// Tracks the most recently focused viewport instance for add-to-scene placement.
+        /// </summary>
+        EditorWorkspacePanelInstance LastFocusedViewportInstance;
         /// <summary>
         /// Shader module manager responsible for hot-reloading shader modules.
         /// </summary>
@@ -584,10 +596,12 @@ namespace helengine.editor {
             unsavedChangesDialog = new UnsavedChangesDialog(uiFont, CurrentUiMetrics);
             sceneSettingsDialog = new SceneSettingsDialog(uiFont, CurrentUiMetrics);
             preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
+            sceneAssetReferenceFactory = new SceneAssetReferenceFactory();
+            sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
                 persistenceRegistry,
-                new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver));
+                sceneAssetReferenceResolver);
             CurrentScenePath = string.Empty;
             CurrentSceneSettings = new SceneSettingsAsset();
             sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
@@ -1637,6 +1651,11 @@ namespace helengine.editor {
                 AssetBrowserPanel panel = (AssetBrowserPanel)instance.Dockable;
                 panel.AssetSelected += HandleAssetSelected;
                 panel.SelectionCleared += HandleAssetSelectionCleared;
+                panel.AddToSceneRequested += HandleAddToSceneRequested;
+                return;
+            }
+            if (string.Equals(instance.PanelTypeId, ViewportPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                ((EditorViewport)instance.Dockable).ViewportContentFocusedChanged += HandleViewportContentFocusedChanged;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
@@ -1661,6 +1680,11 @@ namespace helengine.editor {
                 AssetBrowserPanel panel = (AssetBrowserPanel)instance.Dockable;
                 panel.AssetSelected -= HandleAssetSelected;
                 panel.SelectionCleared -= HandleAssetSelectionCleared;
+                panel.AddToSceneRequested -= HandleAddToSceneRequested;
+                return;
+            }
+            if (string.Equals(instance.PanelTypeId, ViewportPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                ((EditorViewport)instance.Dockable).ViewportContentFocusedChanged -= HandleViewportContentFocusedChanged;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
@@ -1793,6 +1817,9 @@ namespace helengine.editor {
             dockingManager.Layout.Remove(dockable);
             dockable.Enabled = false;
             EditorKeyboardFocusService.UnregisterGroup(dockable);
+            if (ReferenceEquals(LastFocusedViewportInstance, instance)) {
+                LastFocusedViewportInstance = null;
+            }
             PanelInstances.Remove(instance);
             instance.Controller.Dispose();
             RefreshWorkspaceDockOrder();
@@ -2265,6 +2292,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Handles the asset-browser Add to scene request for one model entry.
+        /// </summary>
+        /// <param name="entry">Model asset entry selected in the asset browser.</param>
+        void HandleAddToSceneRequested(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+            if (entry.IsDirectory || entry.EntryKind != AssetEntryKind.Model) {
+                return;
+            }
+
+            CreateAndSelectSceneEntity(() => CreateModelSceneEntity(entry));
+        }
+
+        /// <summary>
         /// Creates one scene entity, refreshes the hierarchy, and selects the result.
         /// </summary>
         /// <param name="createEntity">Factory that builds the new scene entity.</param>
@@ -2587,6 +2629,227 @@ namespace helengine.editor {
                     throw new InvalidOperationException($"Project menu item '{menuItem.MenuItemId}' references unavailable editor command '{menuItem.CommandId}'.");
                 }
             }
+        }
+
+        /// <summary>
+        /// Handles viewport content focus changes so add-to-scene placement can follow the last clicked viewport.
+        /// </summary>
+        /// <param name="viewport">Viewport whose content focus changed.</param>
+        /// <param name="isFocused">True when the viewport content just gained focus.</param>
+        void HandleViewportContentFocusedChanged(EditorViewport viewport, bool isFocused) {
+            if (viewport == null || !isFocused) {
+                return;
+            }
+
+            EditorWorkspacePanelInstance instance = PanelInstances.FirstOrDefault(candidate => ReferenceEquals(candidate.Dockable, viewport));
+            if (instance == null) {
+                return;
+            }
+
+            LastFocusedViewportInstance = instance;
+        }
+
+        /// <summary>
+        /// Creates one scene entity for a model asset entry using the resolved runtime model and imported materials.
+        /// </summary>
+        /// <param name="entry">Model entry selected in the asset browser.</param>
+        /// <returns>Configured model scene entity.</returns>
+        EditorEntity CreateModelSceneEntity(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+            if (entry.IsDirectory || entry.EntryKind != AssetEntryKind.Model) {
+                throw new InvalidOperationException("Only model assets can be added to the scene.");
+            }
+
+            SceneAssetReference modelReference = sceneAssetReferenceFactory.CreateFromEntry(entry);
+            if (entry.IsGenerated) {
+                RuntimeModel runtimeModel = GeneratedAssetProviderRegistry.ResolveRuntimeModel(entry);
+                RuntimeMaterial standardMaterial = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
+                EditorEntity entity = SceneCreationService.CreateModel(
+                    BuildModelEntityName(entry),
+                    runtimeModel,
+                    new[] { standardMaterial },
+                    modelReference,
+                    new[] { BuildGeneratedStandardMaterialReference() });
+                entity.Position = ResolveAddToScenePlacementPosition();
+                return entity;
+            }
+
+            AssetImportSettings importSettings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
+            if (importSettings == null || importSettings.Importer == null || string.IsNullOrWhiteSpace(importSettings.Importer.ImporterId)) {
+                throw new InvalidOperationException("Model import settings could not be resolved.");
+            }
+
+            ImportedModelAssetSet importedModel = EditorContentManager.Load<ImportedModelAssetSet>(entry.FullPath, importSettings.Importer.ImporterId);
+            if (importedModel == null || importedModel.ModelAsset == null) {
+                throw new InvalidOperationException("Model import did not produce a runtime model asset.");
+            }
+
+            RuntimeModel runtimeImportedModel = core.RenderManager3D.BuildModelFromRaw(importedModel.ModelAsset);
+            RuntimeMaterial[] runtimeMaterials = ResolveImportedModelMaterials(entry, importedModel.GeneratedMaterials);
+            SceneAssetReference[] materialReferences = BuildImportedModelMaterialReferences(entry, importedModel.GeneratedMaterials);
+            if (runtimeMaterials.Length == 0) {
+                runtimeMaterials = new[] { EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId) };
+                materialReferences = new[] { BuildGeneratedStandardMaterialReference() };
+            }
+
+            EditorEntity importedEntity = SceneCreationService.CreateModel(
+                BuildModelEntityName(entry),
+                runtimeImportedModel,
+                runtimeMaterials,
+                modelReference,
+                materialReferences);
+            importedEntity.Position = ResolveAddToScenePlacementPosition();
+            return importedEntity;
+        }
+
+        /// <summary>
+        /// Resolves one model asset entry to the orbit target of the most recently focused viewport, or the primary viewport when no viewport has been focused yet.
+        /// </summary>
+        /// <returns>World-space orbit target used for model spawning.</returns>
+        float3 ResolveAddToScenePlacementPosition() {
+            ViewportWorkspacePanelController viewportController = GetFocusedViewportController();
+            if (viewportController == null || viewportController.ViewportState.CameraController == null) {
+                return float3.Zero;
+            }
+
+            return viewportController.ViewportState.CameraController.GetOrbitTarget();
+        }
+
+        /// <summary>
+        /// Resolves the viewport controller that should own the current add-to-scene placement context.
+        /// </summary>
+        /// <returns>Focused viewport controller, or the primary viewport controller when no viewport has been focused.</returns>
+        ViewportWorkspacePanelController GetFocusedViewportController() {
+            EditorWorkspacePanelInstance focusedInstance = LastFocusedViewportInstance;
+            if (focusedInstance != null && PanelInstances.Contains(focusedInstance) && string.Equals(focusedInstance.PanelTypeId, ViewportPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                return (ViewportWorkspacePanelController)focusedInstance.Controller;
+            }
+
+            if (mainViewport == null) {
+                return null;
+            }
+
+            EditorWorkspacePanelInstance primaryInstance = PanelInstances.FirstOrDefault(candidate => ReferenceEquals(candidate.Dockable, mainViewport));
+            if (primaryInstance == null) {
+                return null;
+            }
+
+            return (ViewportWorkspacePanelController)primaryInstance.Controller;
+        }
+
+        /// <summary>
+        /// Resolves imported runtime materials for one imported model entry.
+        /// </summary>
+        /// <param name="entry">Model browser entry that owns the imported materials.</param>
+        /// <param name="generatedMaterials">Generated material records returned by the importer.</param>
+        /// <returns>Runtime materials ordered by imported submesh slot.</returns>
+        RuntimeMaterial[] ResolveImportedModelMaterials(AssetBrowserEntry entry, ImportedModelMaterialAsset[] generatedMaterials) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+            if (generatedMaterials == null) {
+                throw new ArgumentNullException(nameof(generatedMaterials));
+            }
+
+            RuntimeMaterial[] runtimeMaterials = new RuntimeMaterial[generatedMaterials.Length];
+            for (int index = 0; index < generatedMaterials.Length; index++) {
+                ImportedModelMaterialAsset generatedMaterial = generatedMaterials[index];
+                if (generatedMaterial == null) {
+                    throw new InvalidOperationException("Imported model material entries cannot contain null values.");
+                }
+
+                runtimeMaterials[index] = sceneAssetReferenceResolver.ResolveMaterial(BuildImportedModelMaterialReference(entry, generatedMaterial));
+            }
+
+            return runtimeMaterials;
+        }
+
+        /// <summary>
+        /// Builds the stable scene references used by imported model material slots.
+        /// </summary>
+        /// <param name="entry">Model browser entry that owns the imported materials.</param>
+        /// <param name="generatedMaterials">Generated material records returned by the importer.</param>
+        /// <returns>Scene asset references ordered by imported submesh slot.</returns>
+        SceneAssetReference[] BuildImportedModelMaterialReferences(AssetBrowserEntry entry, ImportedModelMaterialAsset[] generatedMaterials) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+            if (generatedMaterials == null) {
+                throw new ArgumentNullException(nameof(generatedMaterials));
+            }
+
+            SceneAssetReference[] references = new SceneAssetReference[generatedMaterials.Length];
+            for (int index = 0; index < generatedMaterials.Length; index++) {
+                ImportedModelMaterialAsset generatedMaterial = generatedMaterials[index];
+                if (generatedMaterial == null) {
+                    throw new InvalidOperationException("Imported model material entries cannot contain null values.");
+                }
+
+                references[index] = BuildImportedModelMaterialReference(entry, generatedMaterial);
+            }
+
+            return references;
+        }
+
+        /// <summary>
+        /// Builds one stable scene reference for one imported model material asset.
+        /// </summary>
+        /// <param name="entry">Model browser entry that owns the imported material.</param>
+        /// <param name="generatedMaterial">Generated material entry produced by the importer.</param>
+        /// <returns>Scene asset reference for the generated material asset.</returns>
+        SceneAssetReference BuildImportedModelMaterialReference(AssetBrowserEntry entry, ImportedModelMaterialAsset generatedMaterial) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+            if (generatedMaterial == null) {
+                throw new ArgumentNullException(nameof(generatedMaterial));
+            }
+
+            string sourceDirectoryPath = Path.GetDirectoryName(entry.FullPath);
+            if (string.IsNullOrWhiteSpace(sourceDirectoryPath)) {
+                throw new InvalidOperationException("Model source directory could not be resolved.");
+            }
+
+            string materialFullPath = Path.GetFullPath(Path.Combine(sourceDirectoryPath, generatedMaterial.RelativeMaterialPath));
+            string assetsRootPath = ResolveAssetsRootPath(projectPath);
+            string relativePath = Path.GetRelativePath(assetsRootPath, materialFullPath).Replace('\\', '/');
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = relativePath
+            };
+        }
+
+        /// <summary>
+        /// Builds the default generated material reference used when an imported model does not provide any authored materials.
+        /// </summary>
+        /// <returns>Stable scene reference for the generated standard material.</returns>
+        SceneAssetReference BuildGeneratedStandardMaterialReference() {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = EngineGeneratedAssetProvider.StandardMaterialRelativePath,
+                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
+                AssetId = EngineGeneratedMaterialCache.StandardAssetId
+            };
+        }
+
+        /// <summary>
+        /// Resolves one display name for a spawned model entity.
+        /// </summary>
+        /// <param name="entry">Asset browser entry being added.</param>
+        /// <returns>Model entity name.</returns>
+        string BuildModelEntityName(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            string candidateName = Path.GetFileNameWithoutExtension(entry.Name);
+            if (string.IsNullOrWhiteSpace(candidateName)) {
+                candidateName = entry.Name;
+            }
+
+            return candidateName;
         }
 
         /// <summary>
@@ -3438,7 +3701,7 @@ namespace helengine.editor {
             if (args.HasSelection) {
                 IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
                 for (int index = 0; index < propertiesPanels.Count; index++) {
-                    propertiesPanels[index].ShowEntityProperties(args.SelectedEntity);
+                    propertiesPanels[index].ShowEntityProperties(args.SelectedEntity, ProjectSupportedPlatforms);
                 }
             } else {
                 IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
@@ -3685,7 +3948,7 @@ namespace helengine.editor {
             }
 
             if (SelectedSceneEntity != null) {
-                panel.ShowEntityProperties(SelectedSceneEntity);
+                panel.ShowEntityProperties(SelectedSceneEntity, ProjectSupportedPlatforms);
                 return;
             }
 

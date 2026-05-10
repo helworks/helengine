@@ -173,6 +173,10 @@ namespace helengine.editor {
         /// </summary>
         EditorViewportSettingsOverlayComponent SettingsOverlayComponent;
         /// <summary>
+        /// Overlay component that owns viewport-local world-space gizmo labels.
+        /// </summary>
+        EditorViewportCameraAngleOverlayComponent CameraAngleOverlayComponentValue;
+        /// <summary>
         /// Scene-owned canvas profile state used by viewport previews.
         /// </summary>
         readonly EditorSceneCanvasProfileState SceneCanvasProfileStateValue;
@@ -276,6 +280,11 @@ namespace helengine.editor {
         /// Tracks whether the viewport content target is currently keyboard-focused.
         /// </summary>
         bool IsViewportContentFocused;
+
+        /// <summary>
+        /// Raised when the viewport content focus target changes focus state.
+        /// </summary>
+        public event Action<EditorViewport, bool> ViewportContentFocusedChanged;
 
         /// <summary>
         /// Initializes a new dockable viewport and binds it to the provided camera.
@@ -394,7 +403,8 @@ namespace helengine.editor {
             InitializeSettingsButton();
             InitializeSettingsOverlay();
             InitializeSnapControls();
-            AddComponent(new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight, false));
+            CameraAngleOverlayComponentValue = new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight, false);
+            AddComponent(CameraAngleOverlayComponentValue);
             ToolMode = EditorViewportToolService.GetToolMode(Camera);
             RefreshRenderOrderBias();
             UpdateViewport();
@@ -412,6 +422,17 @@ namespace helengine.editor {
         /// Gets the viewport-local simulated canvas settings used by the world-space 2D preview plane.
         /// </summary>
         public EditorViewportCanvasPreviewSettings CanvasPreviewSettings => CanvasPreviewSettingsValue;
+        /// <summary>
+        /// Returns the world-space scene-gizmo entities owned by this viewport, such as axis-label billboards.
+        /// </summary>
+        /// <returns>Viewport-owned world-space scene-gizmo entities.</returns>
+        public IReadOnlyList<EditorEntity> GetOwnedSceneGizmoEntities() {
+            if (CameraAngleOverlayComponentValue == null) {
+                return Array.Empty<EditorEntity>();
+            }
+
+            return CameraAngleOverlayComponentValue.GetAxisLabelEntities();
+        }
         /// <summary>
         /// Gets or sets the active gizmo tool mode for this viewport.
         /// </summary>
@@ -1197,7 +1218,7 @@ namespace helengine.editor {
         void SetToolMode(EditorViewportToolMode toolMode) {
             EditorViewportToolService.SetToolMode(Camera, toolMode);
             if (toolMode != EditorViewportToolMode.Translate) {
-                EditorGizmoHoverService.ClearHoveredHandle();
+                EditorGizmoHoverService.ClearHoveredHandle(Camera);
             }
 
             UpdateToolButtonVisuals();
@@ -1220,6 +1241,7 @@ namespace helengine.editor {
         /// <param name="isFocused">True when the content target is focused.</param>
         void HandleViewportContentFocusedChanged(bool isFocused) {
             IsViewportContentFocused = isFocused;
+            ViewportContentFocusedChanged?.Invoke(this, isFocused);
         }
 
         /// <summary>
