@@ -7,6 +7,7 @@ using helengine.baseplatform.Reporting;
 using helengine.baseplatform.Results;
 using helengine.editor.tests.serialization.scene;
 using helengine.editor.tests.testing;
+using helengine.platforms;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -46,40 +47,92 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Reproduces the current city export failure by packaging the selected Windows scenes one at a time and surfacing the first scene that throws while reading engine binary data.
+        /// Ensures the real Windows builder compatibility metadata and gameplay script-type resolver can package city-style scripted scene components without relying on a private repro project tree.
         /// </summary>
         [Fact]
-        public void Package_WhenUsingCityWindowsSceneSelection_ReportsTheSceneThatFailsDuringPackaging() {
-            string cityProjectRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".tmp-city-repro"));
-            string buildRootPath = Path.Combine(Path.GetTempPath(), "helengine-city-packager-repro", Guid.NewGuid().ToString("N"));
-            string[] sceneIds = [
-                "scenes/DemoDiscMainMenu.helen",
-                "scenes/rendering/cube_test.helen",
-                "scenes/rendering/colored_cube_grid.helen",
-                "scenes/rendering/textured_cube_grid.helen"
-            ];
+        public void Package_WhenWindowsBuilderCompatibilityMetadataAndScriptResolverAreSupplied_PackagesCityStyleScriptComponents() {
+            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
+            EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(Path.Combine(sourceProjectRootPath, "project.heproj"));
+            AvailablePlatformDescriptor platformDescriptor = bootstrap.ResolvePlatformDescriptor("windows");
+            EditorPlatformAssetBuilderLoader builderLoader = new();
+            IPlatformAssetBuilder builder = builderLoader.Load(platformDescriptor.BuilderAssemblyPath);
+            AutomaticScriptComponentPersistenceDescriptor automaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            DictionaryScriptTypeResolver scriptTypeResolver = new DictionaryScriptTypeResolver();
+            scriptTypeResolver.Register("city.menu.DemoDiscReturnToMenuComponent, gameplay", typeof(TestDemoDiscReturnToMenuComponent));
+            scriptTypeResolver.Register("city.rendering.DirectionalShadowTowerSpinComponent, gameplay", typeof(TestDirectionalShadowTowerSpinComponent));
 
-            Directory.CreateDirectory(buildRootPath);
+            SceneComponentAssetRecord returnToMenuRecord = new SceneComponentAssetRecord {
+                ComponentTypeId = "city.menu.DemoDiscReturnToMenuComponent, gameplay",
+                ComponentIndex = 0,
+                Payload = Array.Empty<byte>()
+            };
+            SceneComponentAssetRecord towerSpinRecord = automaticDescriptor.SerializeComponent(
+                new TestDirectionalShadowTowerSpinComponent {
+                    BaseYawRadians = 0.75f,
+                    AngularSpeedRadians = 1.5f
+                },
+                1,
+                new EntityComponentSaveState());
+            towerSpinRecord.ComponentTypeId = "city.rendering.DirectionalShadowTowerSpinComponent, gameplay";
 
-            try {
-                IReadOnlyList<IAssetImporterRegistration> importers = LoadEditorHostImporters();
-                FontAsset defaultFontAsset = CreatePackagedFontAsset();
-                EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
-                    cityProjectRootPath,
-                    importers,
-                    defaultFontAsset);
-
-                for (int index = 0; index < sceneIds.Length; index++) {
-                    string sceneId = sceneIds[index];
-                    Exception exception = Record.Exception(() => packager.Package(new[] { sceneId }, buildRootPath));
-                    if (exception != null) {
-                        throw new InvalidOperationException($"City export failed while packaging scene '{sceneId}'.", exception);
+            string sceneId = "Scenes/CityStyleCompatibilityScene.helen";
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "city-root",
+                        Name = "CityRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            returnToMenuRecord,
+                            towerSpinRecord
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
                     }
-                }
-            } finally {
-                if (Directory.Exists(buildRootPath)) {
-                    Directory.Delete(buildRootPath, true);
-                }
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            });
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                builder.Definition,
+                null,
+                builder,
+                "debug",
+                "directx11",
+                scriptTypeResolver);
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
+            SceneComponentAssetRecord packagedReturnToMenuRecord = Assert.Single(
+                packagedRoot.Components,
+                componentRecord => string.Equals(componentRecord.ComponentTypeId, "city.menu.DemoDiscReturnToMenuComponent, gameplay", StringComparison.Ordinal));
+            SceneComponentAssetRecord packagedTowerSpinRecord = Assert.Single(
+                packagedRoot.Components,
+                componentRecord => string.Equals(componentRecord.ComponentTypeId, DirectionalShadowTowerSpinComponent.SerializedComponentTypeId, StringComparison.Ordinal));
+
+            using (MemoryStream payloadStream = new MemoryStream(packagedReturnToMenuRecord.Payload ?? Array.Empty<byte>(), false))
+            using (EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian)) {
+                Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+                Assert.Equal(1, reader.ReadInt32());
+                Assert.Equal((byte)0, reader.ReadByte());
+            }
+
+            using (MemoryStream payloadStream = new MemoryStream(packagedTowerSpinRecord.Payload ?? Array.Empty<byte>(), false))
+            using (EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian)) {
+                Assert.Equal(DirectionalShadowMotionComponentScenePayloadSerializer.CurrentVersion, reader.ReadByte());
+                Assert.Equal(0.75f, reader.ReadSingle());
+                Assert.Equal(1.5f, reader.ReadSingle());
             }
         }
 
@@ -232,8 +285,8 @@ namespace helengine.editor.tests {
 
             Assert.Null(modelReference);
             Assert.Equal(2, materialReferenceCount);
-            Assert.Equal("Materials/SponzaWalls.helmat", firstMaterialReference.RelativePath);
-            Assert.Equal("Materials/SponzaTrim.helmat", secondMaterialReference.RelativePath);
+            Assert.Equal("cooked/Materials/SponzaWalls.helmat", firstMaterialReference.RelativePath);
+            Assert.Equal("cooked/Materials/SponzaTrim.helmat", secondMaterialReference.RelativePath);
             Assert.Equal((byte)0, renderOrder3D);
         }
 
@@ -271,7 +324,7 @@ namespace helengine.editor.tests {
             Assert.Equal(shaderAssetId, materialAsset.ShaderAssetId);
             Assert.Equal(shaderAssetId + ".vs", materialAsset.VertexProgram);
             Assert.Equal(shaderAssetId + ".ps", materialAsset.PixelProgram);
-            Assert.Equal("Mesh", materialAsset.Variant);
+            Assert.Equal("default", materialAsset.Variant);
         }
 
         /// <summary>

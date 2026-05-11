@@ -138,6 +138,7 @@ namespace helengine.editor.tests {
                 item => Assert.Equal("Open Map...", item.Label),
                 item => Assert.Equal("Save Map", item.Label),
                 item => Assert.Equal("Save Map As...", item.Label),
+                item => Assert.Equal("Scene Settings...", item.Label),
                 item => Assert.Equal("Preferences...", item.Label));
         }
 
@@ -159,6 +160,7 @@ namespace helengine.editor.tests {
                 item => Assert.Equal("Open Map...", item.Label),
                 item => Assert.Equal("Save Map", item.Label),
                 item => Assert.Equal("Save Map As...", item.Label),
+                item => Assert.Equal("Scene Settings...", item.Label),
                 item => Assert.Equal("Preferences...", item.Label));
         }
 

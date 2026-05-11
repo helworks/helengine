@@ -86,9 +86,9 @@ namespace helengine.editor.tests {
             InvokePrivate(session, "HandleBuildRequested");
 
             BuildDialog dialog = GetPrivateField<BuildDialog>(session, "buildDialog");
-            List<TabComponent> platformTabs = GetPrivateField<List<TabComponent>>(dialog, "PlatformTabs");
+            PlatformTabStripView platformTabStrip = GetPrivateField<PlatformTabStripView>(dialog, "PlatformTabStrip");
             Assert.Equal("windows", GetPrivateField<string>(dialog, "ActivePlatformId"));
-            Assert.Single(platformTabs);
+            Assert.Equal(1, platformTabStrip.TabCount);
         }
 
         /// <summary>
@@ -109,8 +109,8 @@ namespace helengine.editor.tests {
             List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
             Assert.Collection(
                 mapLabelTexts,
-                label => Assert.Equal("Scenes/City.helen", label.Text),
-                label => Assert.Equal("Scenes/Menu.helen", label.Text));
+                label => Assert.Equal("City", label.Text),
+                label => Assert.Equal("Menu", label.Text));
             Assert.True(mapCheckBoxes[0].IsChecked);
             Assert.False(mapCheckBoxes[1].IsChecked);
         }

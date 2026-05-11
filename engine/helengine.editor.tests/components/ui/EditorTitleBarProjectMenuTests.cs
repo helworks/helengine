@@ -35,7 +35,7 @@ namespace helengine.editor.tests.components.ui {
         }
 
         /// <summary>
-        /// Ensures the first contributed menu button is laid out immediately to the right of Build.
+        /// Ensures the first contributed menu button is laid out immediately to the right of UI.
         /// </summary>
         [Fact]
         public void ApplyProjectMenus_WhenDemoMenuIsProvided_PlacesDemoButtonImmediatelyToTheRightOfBuild() {
@@ -43,11 +43,11 @@ namespace helengine.editor.tests.components.ui {
 
             titleBar.ApplyProjectMenus(CreateDemoMenuItems());
 
-            EditorEntity buildButtonEntity = GetPrivateField<EditorEntity>(titleBar, "BuildMenuButtonEntity");
-            int buildButtonWidth = GetPrivateField<int>(titleBar, "BuildMenuButtonWidth");
+            EditorEntity uiButtonEntity = GetPrivateField<EditorEntity>(titleBar, "UiMenuButtonEntity");
+            int uiButtonWidth = GetPrivateField<int>(titleBar, "UiMenuButtonWidth");
             EditorTitleBarProjectMenuState projectMenuState = Assert.Single(GetProjectMenuStates(titleBar));
 
-            Assert.Equal(buildButtonEntity.Position.X + buildButtonWidth, projectMenuState.ButtonEntity.Position.X);
+            Assert.Equal(uiButtonEntity.Position.X + uiButtonWidth, projectMenuState.ButtonEntity.Position.X);
         }
 
         /// <summary>

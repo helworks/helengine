@@ -29,7 +29,6 @@ namespace helengine {
             }
 
             ushort cameraLayerMask = camera.LayerMask;
-            ResolveCameraLocalPointer(camera, pointerX, pointerY, out int cameraLocalPointerX, out int cameraLocalPointerY);
             IInteractable2D hit = null;
             byte hitRenderOrder = 0;
             int hitDrawableIndex = -1;
@@ -41,13 +40,13 @@ namespace helengine {
                     continue;
                 }
 
-                if (!IsInsideActiveClipRegions(interactable, cameraLocalPointerX, cameraLocalPointerY)) {
+                if (!IsInsideActiveClipRegions(interactable, pointerX, pointerY)) {
                     continue;
                 }
 
                 float3 position = interactable.Parent.Position;
                 float4 rect = new float4(position.X, position.Y, interactable.Size.X, interactable.Size.Y);
-                if (!rect.Contains(cameraLocalPointerX, cameraLocalPointerY)) {
+                if (!rect.Contains(pointerX, pointerY)) {
                     continue;
                 }
 
@@ -115,10 +114,9 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(interactable));
             }
 
-            ResolveCameraLocalPointer(camera, pointerX, pointerY, out int cameraLocalPointerX, out int cameraLocalPointerY);
             float3 position = interactable.Parent.Position;
-            relativeX = (int)Math.Round(cameraLocalPointerX - position.X);
-            relativeY = (int)Math.Round(cameraLocalPointerY - position.Y);
+            relativeX = (int)Math.Round(pointerX - position.X);
+            relativeY = (int)Math.Round(pointerY - position.Y);
         }
 
         /// <summary>
@@ -186,43 +184,5 @@ namespace helengine {
             return candidateInteractableIndex > currentInteractableIndex;
         }
 
-        /// <summary>
-        /// Converts one window-space pointer position into the active camera-local space used by 2D entities and clip regions.
-        /// </summary>
-        /// <param name="camera">Camera whose viewport defines the local origin.</param>
-        /// <param name="pointerX">Pointer X coordinate in window space.</param>
-        /// <param name="pointerY">Pointer Y coordinate in window space.</param>
-        /// <param name="localPointerX">Receives the pointer X coordinate relative to the camera viewport origin.</param>
-        /// <param name="localPointerY">Receives the pointer Y coordinate relative to the camera viewport origin.</param>
-        static void ResolveCameraLocalPointer(ICamera camera, int pointerX, int pointerY, out int localPointerX, out int localPointerY) {
-            if (camera == null) {
-                throw new ArgumentNullException(nameof(camera));
-            }
-
-            float4 viewport = ResolveViewportInWindowSpace(camera);
-            localPointerX = (int)Math.Round(pointerX - viewport.X);
-            localPointerY = (int)Math.Round(pointerY - viewport.Y);
-        }
-
-        /// <summary>
-        /// Resolves the authored camera viewport into window-space pixels so input hit testing matches rendering.
-        /// </summary>
-        /// <param name="camera">Camera whose viewport should be resolved.</param>
-        /// <returns>Viewport rectangle in window-space pixels.</returns>
-        static float4 ResolveViewportInWindowSpace(ICamera camera) {
-            if (camera == null) {
-                throw new ArgumentNullException(nameof(camera));
-            }
-            if (Core.Instance == null || Core.Instance.RenderManager3D == null) {
-                return camera.Viewport;
-            }
-
-            int2 mainWindowSize = Core.Instance.RenderManager3D.MainWindowSize;
-            if (mainWindowSize.X <= 0 || mainWindowSize.Y <= 0) {
-                return camera.Viewport;
-            }
-
-            return CameraViewportResolver.ResolveViewport(camera.Viewport, mainWindowSize.X, mainWindowSize.Y);
-        }
     }
 }

@@ -388,6 +388,13 @@ public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
     }
 
     /// <summary>
+    /// Reapplies the anchored overlay placement after the shared dialog shell updates its host bounds.
+    /// </summary>
+    protected override void HandleDialogLayoutChanged() {
+        LayoutOverlay();
+    }
+
+    /// <summary>
     /// Handles hue changes from the wheel control.
     /// </summary>
     /// <param name="hue">Hue angle in degrees.</param>

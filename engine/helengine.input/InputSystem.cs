@@ -252,7 +252,6 @@ public sealed class InputSystem {
     /// Captures keyboard and mouse input at the start of a frame.
     /// </summary>
     public void EarlyUpdate() {
-        ApplyPointerWrapState();
         EnsureInputStateCaptured();
         ResolveBindings();
     }
@@ -633,6 +632,7 @@ public sealed class InputSystem {
             CurrentFrame = currentFrame;
         }
 
+        ApplyPointerWrapState();
         int2 pointerWrapDeltaOffset = ConsumePointerWrapDeltaOffset();
         mouseDelta = new int2(
             mouseState.X - lastMouseState.X + pointerWrapDeltaOffset.X,

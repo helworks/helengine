@@ -95,7 +95,7 @@ namespace helengine {
                 indices,
                 helengine.editor.TransformGizmoMeshFactory.CreateCylinder(TopCylinderRadius, TopCylinderLength, RoundSegments),
                 CreateTopCylinderOrientation(),
-                new float3(TopCylinderLength * 0.5f, GetBodyTopY() + TopCylinderRadius, -TopCylinderRadius));
+                new float3(TopCylinderLength * 0.5f, GetBodyTopY() + TopCylinderRadius, -GetTopCylinderSeamOffset()));
             AppendMesh(
                 positions,
                 normals,
@@ -103,7 +103,7 @@ namespace helengine {
                 indices,
                 helengine.editor.TransformGizmoMeshFactory.CreateCylinder(TopCylinderRadius, TopCylinderLength, RoundSegments),
                 CreateTopCylinderOrientation(),
-                new float3(TopCylinderLength * 0.5f, GetBodyTopY() + TopCylinderRadius, TopCylinderRadius));
+                new float3(TopCylinderLength * 0.5f, GetBodyTopY() + TopCylinderRadius, GetTopCylinderSeamOffset()));
             AppendMesh(
                 positions,
                 normals,
@@ -224,6 +224,14 @@ namespace helengine {
         /// <returns>Top-face Y coordinate for the translated camera body.</returns>
         static float GetBodyTopY() {
             return BodyHeight * 0.5f;
+        }
+
+        /// <summary>
+        /// Gets the Z offset needed for each faceted top cylinder to touch the center seam exactly at the local origin.
+        /// </summary>
+        /// <returns>Half-gap offset that aligns the discrete cylinder vertices to the camera-top seam.</returns>
+        static float GetTopCylinderSeamOffset() {
+            return (float)(TopCylinderRadius * Math.Cos(Math.PI / RoundSegments));
         }
     }
 }

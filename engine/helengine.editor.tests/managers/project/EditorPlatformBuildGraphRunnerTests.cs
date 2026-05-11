@@ -461,7 +461,7 @@ public class EditorPlatformBuildGraphRunnerTests {
                         QueueItemId = "queue-item",
                         PlatformId = "windows",
                         OutputDirectoryPath = Path.Combine(rootPath, "output"),
-                        SelectedSceneIds = ["Scenes/PhysicsScene.helen"],
+                        SelectedSceneIds = ["PhysicsScene"],
                         SelectedCodegenOptionValues = new Dictionary<string, string>()
                     },
                     new EditorPlatformBuildGraphWorkspace(Path.Combine(rootPath, "workspace"))
@@ -696,7 +696,7 @@ public class EditorPlatformBuildGraphRunnerTests {
                 continue;
             }
 
-            platform.SelectedSceneIds = ["Scenes/rendering/point-shadow.helen"];
+            platform.SelectedSceneIds = ["point-shadow"];
             platform.OutputDirectoryPath = outputRootPath.Replace('\\', '/');
         }
 

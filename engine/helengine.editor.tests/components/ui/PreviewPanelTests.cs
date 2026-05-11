@@ -22,6 +22,7 @@ namespace helengine.editor.tests {
         public PreviewPanelTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-preview-panel-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
+            EditorInputCaptureService.Reset();
             Input = new TestInputBackend();
 
             Core core = new Core(new CoreInitializationOptions {
@@ -34,6 +35,7 @@ namespace helengine.editor.tests {
         /// Deletes temporary content after each test.
         /// </summary>
         public void Dispose() {
+            EditorInputCaptureService.Reset();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }

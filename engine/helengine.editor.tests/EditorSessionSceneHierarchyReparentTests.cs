@@ -386,11 +386,11 @@ namespace helengine.editor.tests {
         void CreateUiCamera(int width, int height) {
             EditorEntity cameraEntity = new EditorEntity {
                 InternalEntity = true,
-                LayerMask = EditorLayerMasks.EditorUi
+                LayerMask = EditorLayerMasks.EditorModalUi
             };
 
             CameraComponent camera = new CameraComponent {
-                LayerMask = EditorLayerMasks.EditorUi,
+                LayerMask = EditorLayerMasks.EditorModalUi,
                 CameraDrawOrder = 255,
                 Viewport = new float4(0f, 0f, width, height)
             };

@@ -339,6 +339,11 @@ namespace helengine.editor {
             for (int i = 0; i < rows.Count; i++) {
                 SceneHierarchyRow row = rows[i];
                 row.FocusTarget.TabIndex = i;
+                if (i >= visibleRowCount) {
+                    DisableRow(row);
+                    continue;
+                }
+
                 int nodeIndex = scrollOffset + i;
                 if (nodeIndex >= nodes.Count) {
                     DisableRow(row);

@@ -202,12 +202,12 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
 
         Assert.Equal("PhysicsTrigger", manifest.StartupSceneId);
         Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "PhysicsTrigger.hasset")));
-        string cookedMaterialPath = Path.Combine(BuildRootPath, "Materials", "physics", "PhysicsDemoNeutral.helmat");
+        string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "Materials", "physics", "PhysicsDemoNeutral.helmat");
         Assert.True(File.Exists(cookedMaterialPath));
 
         using FileStream stream = new FileStream(cookedMaterialPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         MaterialAsset cookedMaterial = Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(stream));
-        Assert.Equal("PhysicsDemoShader", cookedMaterial.ShaderAssetId);
+        Assert.Equal("ForwardStandardShader", cookedMaterial.ShaderAssetId);
         Assert.Single(cookedMaterial.ConstantBuffers);
         Assert.Equal("BaseColorBuffer", cookedMaterial.ConstantBuffers[0].Name);
         Assert.Equal(16, cookedMaterial.ConstantBuffers[0].Data.Length);

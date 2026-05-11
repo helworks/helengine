@@ -1321,7 +1321,7 @@ namespace helengine.editor {
         /// </summary>
         void UpdateSceneListRowsLayout() {
             int visibleRowCount = SceneListScrollComponent.VisibleItemCount;
-            if (visibleRowCount < 1) {
+            if (SceneListScrollComponent.UsesAutomaticVisibleItemCount) {
                 visibleRowCount = GetSceneListVisibleRowCount();
             }
 

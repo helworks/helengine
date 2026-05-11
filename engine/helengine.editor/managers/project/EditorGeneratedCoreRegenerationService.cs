@@ -1101,6 +1101,11 @@ namespace helengine.editor {
                 return InsertNativeNumberFiniteHelpers(contents);
             }
 
+            if (string.Equals(fileName, "math.hpp", StringComparison.OrdinalIgnoreCase)
+                && !contents.Contains("static double Atan2(", StringComparison.Ordinal)) {
+                return InsertNativeMathAtan2Helpers(contents);
+            }
+
             if (string.Equals(fileName, "path.cpp", StringComparison.OrdinalIgnoreCase)
                 && !contents.Contains("Path::ChangeExtension", StringComparison.Ordinal)) {
                 string updatedContents = InsertPathChangeExtensionImplementation(contents);
@@ -1393,6 +1398,55 @@ namespace helengine.editor {
             }
 
             return contents + newline + helperMethods;
+        }
+
+        /// <summary>
+        /// Inserts bundled native math helpers for `Atan2` into generated runtime math support used by converted orbit and gizmo code.
+        /// </summary>
+        /// <param name="contents">Current math runtime header contents.</param>
+        /// <returns>Updated math runtime header contents.</returns>
+        static string InsertNativeMathAtan2Helpers(string contents) {
+            if (string.IsNullOrEmpty(contents) || contents.Contains("static double Atan2(", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string newline = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+            string mathHelper = "    template <typename TY, typename TX>" + newline
+                + "    static double Atan2(TY y, TX x) {" + newline
+                + "        return std::atan2(static_cast<double>(y), static_cast<double>(x));" + newline
+                + "    }" + newline + newline;
+            string mathFHelper = "    template <typename TY, typename TX>" + newline
+                + "    static float Atan2(TY y, TX x) {" + newline
+                + "        return static_cast<float>(Math::Atan2(y, x));" + newline
+                + "    }" + newline + newline;
+
+            string updatedContents = contents;
+            if (updatedContents.Contains("class MathF {", StringComparison.Ordinal)) {
+                updatedContents = updatedContents.Replace(
+                    "};" + newline + newline + "class MathF {",
+                    mathHelper + "};" + newline + newline + "class MathF {",
+                    StringComparison.Ordinal);
+            } else if (updatedContents.Contains("};", StringComparison.Ordinal)) {
+                updatedContents = updatedContents.Replace("};", mathHelper + "};", StringComparison.Ordinal);
+            } else {
+                updatedContents += newline + mathHelper;
+            }
+
+            if (updatedContents.Contains("class MathF {", StringComparison.Ordinal)) {
+                if (updatedContents.Contains("    template <typename TValue>" + newline + "    static float Sqrt(", StringComparison.Ordinal)) {
+                    updatedContents = updatedContents.Replace(
+                        "    template <typename TValue>" + newline + "    static float Sqrt(",
+                        mathFHelper + "    template <typename TValue>" + newline + "    static float Sqrt(",
+                        StringComparison.Ordinal);
+                } else if (updatedContents.Contains("class MathF {" + newline + "public:" + newline, StringComparison.Ordinal)) {
+                    updatedContents = updatedContents.Replace(
+                        "class MathF {" + newline + "public:" + newline,
+                        "class MathF {" + newline + "public:" + newline + mathFHelper,
+                        StringComparison.Ordinal);
+                }
+            }
+
+            return updatedContents;
         }
 
         /// <summary>

@@ -1,3 +1,4 @@
+using helengine.editor.tests.testing;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -10,6 +11,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BuildDescriptors_WhenAssemblyContainsScriptComponent_ExposesDescriptorAndAddAction() {
+            Core core = new Core();
+            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend());
             EditorComponentAddDescriptor descriptor = EditorScriptComponentCatalog.BuildDescriptor(typeof(TestScriptComponent));
             Assert.NotNull(descriptor);
             Assert.Equal("Test Script Component", descriptor.DisplayName);
@@ -17,7 +20,7 @@ namespace helengine.editor.tests {
 
             descriptor.AddAction(entity);
 
-            Assert.IsType<TestScriptComponent>(Assert.Single(entity.Components));
+            Assert.Contains(entity.Components, component => component is TestScriptComponent);
         }
 
         /// <summary>

@@ -49,9 +49,10 @@ namespace helengine.editor.tests.managers.asset {
             Assert.Contains(engineEntries, entry => entry.Name == "Models");
             Assert.Contains(engineEntries, entry => entry.Name == "Materials");
 
-            Assert.Equal(2, modelEntries.Count);
+            Assert.Equal(3, modelEntries.Count);
             Assert.Contains(modelEntries, entry => entry.Name == "Cube" && entry.AssetId == "engine:model:cube");
             Assert.Contains(modelEntries, entry => entry.Name == "Plane" && entry.AssetId == "engine:model:plane");
+            Assert.Contains(modelEntries, entry => entry.Name == "Sphere" && entry.AssetId == "engine:model:sphere");
         }
 
         /// <summary>

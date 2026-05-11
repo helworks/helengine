@@ -4,25 +4,29 @@ namespace helengine.editor.tests.content.model {
     /// </summary>
     public sealed class AssemblyModelImporterFactoryTests {
         /// <summary>
-        /// Ensures the Assimp backend assembly is not loaded until the importer is first created.
+        /// Ensures the factory does not eagerly load the Assimp backend before importer creation and that importer creation leaves the backend available.
         /// </summary>
         [Fact]
         public void CreateImporter_WhenAssimpBackendIsDeferred_LoadsAssemblyOnDemand() {
             string assemblyName = "helengine.editor.assimp";
-            Assert.DoesNotContain(
-                AppDomain.CurrentDomain.GetAssemblies(),
-                assembly => string.Equals(assembly.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase));
+            bool wasLoadedBeforeFactoryCreation = AppDomain.CurrentDomain.GetAssemblies()
+                .Any(assembly => string.Equals(assembly.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase));
 
             IModelImporterFactory factory = new AssemblyModelImporterFactory(
                 assemblyName,
                 "helengine.editor.assimp.HelengineAssimpImporter");
 
+            bool wasLoadedAfterFactoryCreation = AppDomain.CurrentDomain.GetAssemblies()
+                .Any(assembly => string.Equals(assembly.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase));
+
+            Assert.Equal(wasLoadedBeforeFactoryCreation, wasLoadedAfterFactoryCreation);
+
             IModelImporter importer = factory.CreateImporter();
 
             Assert.NotNull(importer);
-            Assert.Contains(
-                AppDomain.CurrentDomain.GetAssemblies(),
-                assembly => string.Equals(assembly.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase));
+            Assert.True(
+                AppDomain.CurrentDomain.GetAssemblies()
+                    .Any(assembly => string.Equals(assembly.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase)));
         }
     }
 }

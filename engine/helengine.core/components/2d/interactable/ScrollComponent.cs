@@ -99,6 +99,13 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets whether the component should derive the visible item count from the viewport size and item extent.
+        /// </summary>
+        public bool UsesAutomaticVisibleItemCount {
+            get { return VisibleItemCountValue < 1; }
+        }
+
+        /// <summary>
         /// Gets or sets the item extent used when the visible item count is derived automatically.
         /// </summary>
         public int ItemExtent {

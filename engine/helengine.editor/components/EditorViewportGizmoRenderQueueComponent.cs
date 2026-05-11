@@ -20,6 +20,7 @@ namespace helengine.editor {
         public EditorViewportGizmoRenderQueueComponent(CameraComponent gizmoCamera, EditorViewportGizmoDrawableCollector drawableCollector) {
             GizmoCamera = gizmoCamera ?? throw new ArgumentNullException(nameof(gizmoCamera));
             DrawableCollector = drawableCollector ?? throw new ArgumentNullException(nameof(drawableCollector));
+            UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(Core.Instance.ObjectManager.UpdateOrderLayers - 1);
         }
 
         /// <summary>

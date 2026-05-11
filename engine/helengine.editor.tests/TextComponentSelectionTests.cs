@@ -94,6 +94,8 @@ namespace helengine.editor.tests {
                 ButtonState.Released,
                 ButtonState.Released,
                 ButtonState.Released));
+            Core.Instance.Update();
+
             ((TestInputBackend)Core.Instance.InputSystem.Backend).SetKeyboardState(new KeyboardState(Keys.RightShift, Keys.Right));
             Core.Instance.Update();
 

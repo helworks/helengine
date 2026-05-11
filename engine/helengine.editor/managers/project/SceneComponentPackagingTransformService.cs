@@ -1018,7 +1018,7 @@ namespace helengine.editor {
             }
 
             byte[] payload = record.Payload ?? Array.Empty<byte>();
-            if (payload.Length > 0 && payload[0] == CameraComponentPayloadVersion) {
+            if (IsLegacyVersionedCameraPayload(payload)) {
                 ReadLegacyVersionedCameraComponentRecord(
                     record,
                     out cameraDrawOrder,
@@ -1040,6 +1040,37 @@ namespace helengine.editor {
                 out farPlaneDistance,
                 out clearSettings,
                 out renderSettings);
+        }
+
+        /// <summary>
+        /// Returns whether one camera payload uses the legacy versioned binary layout instead of the tagged editor field format.
+        /// </summary>
+        /// <param name="payload">Serialized camera payload bytes to inspect.</param>
+        /// <returns>True when the payload should be interpreted as the legacy camera binary format.</returns>
+        bool IsLegacyVersionedCameraPayload(byte[] payload) {
+            if (payload == null || payload.Length == 0) {
+                return false;
+            }
+
+            byte version = payload[0];
+            if (version != 1 && version != 2 && version != CameraComponentPayloadVersion) {
+                return false;
+            }
+
+            if (version != EditorTaggedSceneComponentPayloadFormat.CurrentVersion) {
+                return true;
+            }
+
+            if (payload.Length < 5) {
+                return true;
+            }
+
+            int fieldCount = BitConverter.ToInt32(payload, 1);
+            if (fieldCount < 0) {
+                return true;
+            }
+
+            return fieldCount > payload.Length;
         }
 
         /// <summary>

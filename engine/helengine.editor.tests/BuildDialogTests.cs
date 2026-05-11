@@ -2210,11 +2210,11 @@ namespace helengine.editor.tests {
         void CreateModalCamera(int width, int height) {
             EditorEntity cameraEntity = new EditorEntity {
                 InternalEntity = true,
-                LayerMask = 0b1000000000000000
+                LayerMask = EditorLayerMasks.EditorModalUi
             };
 
             CameraComponent camera = new CameraComponent {
-                LayerMask = 0b1000000000000000,
+                LayerMask = EditorLayerMasks.EditorModalUi,
                 CameraDrawOrder = 255,
                 Viewport = new float4(0f, 0f, width, height)
             };
@@ -2227,8 +2227,7 @@ namespace helengine.editor.tests {
         /// <param name="mouseState">Mouse state to expose for the next frame.</param>
         void AdvanceInput(MouseState mouseState) {
             Input.SetMouseState(mouseState);
-            Input.EarlyUpdate();
-            Input.Update();
+            Core.Instance.Update();
         }
 
         /// <summary>

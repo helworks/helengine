@@ -353,10 +353,12 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "buildDialog", new BuildDialog(font));
             SetPrivateField(session, "buildDialogCopySettingsDialog", new BuildDialogCopySettingsDialog(font));
             SetPrivateField(session, "unsavedChangesDialog", new UnsavedChangesDialog(font));
+            SetPrivateField(session, "sceneSettingsDialog", new SceneSettingsDialog(font, metrics));
             SetPrivateField(session, "preferencesDialog", new EditorPreferencesDialog(font, metrics));
             SetPrivateField(session, "gameSolutionService", gameSolutionService);
             SetPrivateField(session, "scriptHotReloadService", scriptHotReloadService);
             SetPrivateField(session, "shaderModuleManager", CreateShaderModuleManager());
+            SetPrivateField(session, "PanelInstances", new List<EditorWorkspacePanelInstance>());
 
             return session;
         }

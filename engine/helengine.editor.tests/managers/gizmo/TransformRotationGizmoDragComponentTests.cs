@@ -40,8 +40,11 @@ namespace helengine.editor.tests.managers.gizmo {
             TransformGizmoSnapSettingsService.ResetDefaults();
             TransformGizmoSnapSettingsService.DecreaseSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1);
 
-            TestInputBackend input = new TestInputBackend();
-            input.SetKeyboardState(new KeyboardState(Keys.LeftControl));
+            TestInputBackend inputBackend = new TestInputBackend();
+            inputBackend.SetKeyboardState(new KeyboardState(Keys.LeftControl));
+            Core core = new Core();
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), inputBackend);
+            core.Input.EarlyUpdate();
 
             CameraComponent sceneCamera = new CameraComponent();
             TransformRotationGizmoDragComponent component = new TransformRotationGizmoDragComponent(sceneCamera);
@@ -50,7 +53,7 @@ namespace helengine.editor.tests.managers.gizmo {
             SetPrivateField(component, "DragStartRotationAngle", startAngleRadians);
             SetPrivateField(component, "DragAccumulatedAngle", accumulatedAngleRadians);
 
-            double resolvedDeltaRadians = (double)InvokePrivate(component, "ResolveActiveRotationAngle", input);
+            double resolvedDeltaRadians = (double)InvokePrivate(component, "ResolveActiveRotationAngle", core.Input);
 
             Assert.Equal(2.25 * DegreesToRadians, resolvedDeltaRadians, AngleTolerance);
             Assert.Equal(2.5 * DegreesToRadians, resolvedDeltaRadians + startAngleRadians, AngleTolerance);

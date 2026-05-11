@@ -44,8 +44,8 @@ public sealed class EditorMenuSceneRegenerationServiceTests : IDisposable {
         SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
 
         SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
-        SceneComponentAssetRecord menuRecord = Assert.Single(menuEntity.Components);
-        Assert.Equal(MenuComponent.SerializedComponentTypeId, menuRecord.ComponentTypeId);
+        Assert.Contains(menuEntity.Components, component => component.ComponentTypeId == MenuComponent.SerializedComponentTypeId);
+        Assert.Contains(menuEntity.Components, component => component.ComponentTypeId == "helengine.ReferenceCanvasFitComponent, helengine.core");
         string serializedContents = System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(scenePath));
         Assert.DoesNotContain("helengine.DemoMenuBuildComponent", serializedContents, StringComparison.Ordinal);
     }

@@ -403,7 +403,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             [scenePath],
             null);
 
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
 
         string registrationSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp"));
         Assert.Contains("GeneratedRuntimeTestUpdateOnlyScriptComponentDeserializer", registrationSource, StringComparison.Ordinal);
@@ -594,7 +594,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             + "};\n");
 
         EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
 
         string normalized = File.ReadAllText(arrayPath);
         Assert.Contains("new T[length]()", normalized);
@@ -634,7 +634,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             + "    return std::filesystem::path(path).filename().string();\n"
             + "}\n");
 
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
 
         string normalizedHeader = File.ReadAllText(headerPath);
         string normalizedSource = File.ReadAllText(sourcePath);
@@ -785,7 +785,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             + "    return std::filesystem::path(path).is_absolute();\n"
             + "}\n");
 
-        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
 
         string normalized = File.ReadAllText(sourcePath);
         Assert.Contains("#if HE_CPP_PLATFORM_PS2", normalized);
@@ -904,7 +904,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("bool FileSupportIsPs2PhysicalDiscPath(const std::string& path)", normalizedFile);
         Assert.Contains("FileSupportResolvePs2DiscSearchPath", normalizedFile);
         Assert.Contains("std::string physicalPs2Path = FileSupportResolvePs2DiscSearchPath(fileName);", normalizedFile);
-        Assert.Contains("return sceCdSearchFile(&fileInfo, physicalPs2Path.c_str()) != 0;", normalizedFile);
+        Assert.Contains("if (sceCdSearchFile(&fileInfo, physicalPs2Path.c_str()) != 0) {", normalizedFile);
         Assert.Contains("physicalPath[index] = static_cast<char>(std::toupper(static_cast<unsigned char>(physicalPath[index])));", normalizedFile);
         Assert.Contains("std::FILE* file = std::fopen(FileSupportResolvePs2DiscReadPath(fileName).c_str(), \"rb\");", normalizedFile);
         Assert.Contains("return new FileStream(FileSupportResolvePs2DiscReadPath(filePath), FileMode::Open, FileAccess::Read, FileShare::Read);", normalizedFile);
