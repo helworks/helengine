@@ -463,7 +463,7 @@ Bias:
 Targets:
 
 - N64
-- upper-end constrained legacy targets
+- upper-end constrained older targets
 
 Bias:
 

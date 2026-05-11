@@ -103,24 +103,8 @@ namespace helengine.demo_disc_scene_writer {
         void WriteMenuFonts(string assetsRootPath) {
             string fontsRootPath = Path.Combine(assetsRootPath, "Fonts");
             Directory.CreateDirectory(fontsRootPath);
-            DeleteLegacyCookedFont(Path.Combine(fontsRootPath, "DemoDiscTitle.hefont"));
-            DeleteLegacyCookedFont(Path.Combine(fontsRootPath, "DemoDiscBody.hefont"));
             FontWriter.WriteFont(Path.Combine(fontsRootPath, "DemoDiscTitle.ttf"), "georgiab.ttf");
             FontWriter.WriteFont(Path.Combine(fontsRootPath, "DemoDiscBody.ttf"), "trebuc.ttf");
-        }
-
-        /// <summary>
-        /// Deletes one legacy demo-disc cooked-font asset so regenerated projects only author source fonts.
-        /// </summary>
-        /// <param name="legacyCookedFontPath">Legacy cooked-font path to delete when present.</param>
-        void DeleteLegacyCookedFont(string legacyCookedFontPath) {
-            if (string.IsNullOrWhiteSpace(legacyCookedFontPath)) {
-                throw new ArgumentException("Legacy cooked font path must be provided.", nameof(legacyCookedFontPath));
-            }
-
-            if (File.Exists(legacyCookedFontPath)) {
-                File.Delete(legacyCookedFontPath);
-            }
         }
 
         /// <summary>

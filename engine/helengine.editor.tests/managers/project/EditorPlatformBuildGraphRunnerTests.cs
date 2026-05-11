@@ -591,7 +591,7 @@ public class EditorPlatformBuildGraphRunnerTests {
             Array.Empty<PlatformGraphicsProfileDefinition>(),
             Array.Empty<PlatformAssetRequirementDefinition>(),
             Array.Empty<PlatformMaterialSchemaDefinition>(),
-            Array.Empty<PlatformComponentCompatibilityDefinition>(),
+            Array.Empty<PlatformComponentSupportRule>(),
             Array.Empty<PlatformCodegenProfileDefinition>(),
             Array.Empty<PlatformStorageProfileDefinition>(),
             Array.Empty<PlatformMediaProfileDefinition>());
@@ -793,7 +793,7 @@ public class EditorPlatformBuildGraphRunnerTests {
                 Array.Empty<helengine.baseplatform.Definitions.PlatformGraphicsProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformAssetRequirementDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformMaterialSchemaDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformComponentCompatibilityDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformComponentSupportRule>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformCodegenProfileDefinition>(),
                 [
                     new(
@@ -991,3 +991,4 @@ public class EditorPlatformBuildGraphRunnerTests {
         }
     }
 }
+

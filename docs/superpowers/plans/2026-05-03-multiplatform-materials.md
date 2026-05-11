@@ -424,11 +424,11 @@ git commit -m "feat: persist per-platform material settings"
 - Modify: `engine/helengine.editor.tests/AssetImportManagerTests.cs`
 - Test: `engine/helengine.editor.tests/helengine.editor.tests.csproj`
 
-- [ ] **Step 1: Add failing coverage for legacy material seeding**
+- [ ] **Step 1: Add failing coverage for old material seeding**
 
 ```csharp
 [Fact]
-public void LoadOrCreateMaterialSettings_when_legacy_shader_fields_exist_seeds_windows_schema_values() {
+public void LoadOrCreateMaterialSettings_when_top_level_shader_fields_exist_seeds_windows_schema_values() {
     string materialPath = WriteMaterialAsset(
         "Materials/TestMaterial.helmat",
         shaderAssetId: "EditorDefaultMesh",
@@ -459,7 +459,7 @@ Expected:
 - FAIL because there is no material settings service
 - FAIL because material selection does not create processor settings for `.helmat` assets
 
-- [ ] **Step 3: Implement material sidecar loading and legacy seeding**
+- [ ] **Step 3: Implement material sidecar loading and old-field seeding**
 
 ```csharp
 public sealed class MaterialAssetSettingsService {
@@ -526,7 +526,7 @@ rtk dotnet test engine/helengine.editor.tests/helengine.editor.tests.csproj --fi
 ```
 
 Expected:
-- PASS for sidecar creation and legacy shader seeding
+- PASS for sidecar creation and old shader-field seeding
 - PASS for settings-version rewrite behavior remaining intact
 
 - [ ] **Step 5: Commit the material settings access layer**

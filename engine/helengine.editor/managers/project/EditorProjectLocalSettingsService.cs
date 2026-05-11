@@ -33,15 +33,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Gets the absolute path to the legacy `settings/project.json` file.
-        /// </summary>
-        string LegacySettingsFilePath {
-            get {
-                return Path.Combine(ProjectRootPath, "settings", "project.json");
-            }
-        }
-
-        /// <summary>
         /// Initializes one local-settings service for the supplied project root and supported platforms.
         /// </summary>
         /// <param name="projectRootPath">Absolute path to the current project root directory.</param>
@@ -111,28 +102,6 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Loaded local settings document, or null when the file is missing or malformed.</returns>
         EditorProjectLocalSettingsDocument TryLoadDocument() {
-            EditorProjectLocalSettingsDocument document = TryLoadDocumentFromPath(UserSettingsFilePath);
-            if (document != null) {
-                return document;
-            }
-
-            document = TryLoadDocumentFromPath(LegacySettingsFilePath);
-            if (document == null) {
-                return null;
-            }
-
-            if (!string.IsNullOrWhiteSpace(document.ActivePlatform)) {
-                WriteDocument(new EditorProjectLocalSettingsDocument {
-                    ActivePlatform = document.ActivePlatform
-                });
-            } else {
-                SaveActivePlatform(ResolveDefaultPlatform());
-            }
-
-            if (File.Exists(LegacySettingsFilePath)) {
-                File.Delete(LegacySettingsFilePath);
-            }
-
             return TryLoadDocumentFromPath(UserSettingsFilePath);
         }
 

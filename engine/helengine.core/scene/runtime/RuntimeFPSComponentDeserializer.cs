@@ -31,11 +31,11 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != CurrentVersion && version != 1) {
+            if (version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported FPS component payload version '{version}'.");
             }
 
-            SceneAssetReference fontReference = version >= 2 ? ReadOptionalReference(reader) : null;
+            SceneAssetReference fontReference = ReadOptionalReference(reader);
 
             FPSComponent fpsComponent = new FPSComponent {
                 RefreshIntervalSeconds = BitConverter.Int64BitsToDouble(reader.ReadInt64()),
@@ -45,8 +45,6 @@ namespace helengine {
 
             if (fontReference != null) {
                 fpsComponent.Font = referenceResolver.ResolveFont(fontReference);
-            } else if (version == 1 && Core.Instance != null && Core.Instance.DefaultFontAsset != null) {
-                fpsComponent.Font = Core.Instance.DefaultFontAsset;
             } else {
                 throw new InvalidOperationException("FPSComponent requires a packaged font reference before deserialization.");
             }

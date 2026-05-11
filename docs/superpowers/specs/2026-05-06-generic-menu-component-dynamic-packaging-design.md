@@ -14,7 +14,7 @@ The new rule is:
 - When a component has no explicit compatibility entry, the packager attempts the generic reflected ordinal packaging path.
 - If a component cannot be reflected into the supported ordinal schema, the build fails with a clear unsupported-shape error.
 
-This task also renames the current menu component family from `DemoMenu*` to generic `Menu*` names and removes the old names entirely. No backward compatibility is preserved.
+This task also renames the current menu component family from `DemoMenu*` to generic `Menu*` names and removes the old names entirely. No old-name support is preserved.
 
 ## Goals
 

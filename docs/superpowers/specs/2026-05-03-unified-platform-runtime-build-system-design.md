@@ -539,7 +539,7 @@ The startup scene should resolve to the cooked runtime scene path, using the sam
 
 ### PS2 Runtime Integration Constraints
 
-The PS2 host must not continue depending on the removed legacy input stack.
+The PS2 host must not continue depending on the removed old input stack.
 
 It should move to the portable input system by feeding pad state through a PS2-specific backend bridge. This keeps PS2 aligned with the new input architecture and avoids reintroducing platform-only keyboard or mouse assumptions.
 

@@ -310,7 +310,7 @@ rtk proxy git -C C:\dev\helworks\helengine-ps2 commit -m "feat: build PS2 export
 - Modify: `C:\dev\helworks\helengine-ps2\src\main.cpp`
 - Modify: `C:\dev\helworks\helengine-ps2\Makefile`
 
-- [ ] **Step 1: Replace the legacy input classes with a PS2 `IInputBackend`**
+- [ ] **Step 1: Replace the old input classes with a PS2 `IInputBackend`**
 
 ```cpp
 #pragma once
@@ -375,7 +375,7 @@ void Ps2BootHost::LoadPackagedStartupScene() {
 }
 ```
 
-- [ ] **Step 3: Remove the legacy includes and host-side `InputManager` shim**
+- [ ] **Step 3: Remove the old includes and host-side `InputManager` shim**
 
 ```cpp
 #include "InputManager.hpp"
@@ -476,4 +476,4 @@ rtk proxy git -C C:\dev\helworks\helengine-ps2 commit -m "docs: document PS2 end
 
 - Spec coverage: this plan covers the Docker-only builder rule, generated native startup/module metadata, loose `cooked/` output, PS2 portable input migration, and the `city` end-to-end validation project.
 - Placeholder scan: no `TODO`, `TBD`, or deferred implementation markers appear inside the task steps.
-- Type consistency: the plan consistently uses `GeneratedCoreCppRootPath`, `PlatformBuildArtifact.RelativePath`, `he_get_runtime_startup_scene_relative_path()`, and a PS2 `IInputBackend` instead of the removed legacy input manager classes.
+- Type consistency: the plan consistently uses `GeneratedCoreCppRootPath`, `PlatformBuildArtifact.RelativePath`, `he_get_runtime_startup_scene_relative_path()`, and a PS2 `IInputBackend` instead of the removed old input manager classes.

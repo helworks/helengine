@@ -167,7 +167,6 @@ namespace helengine.editor {
         /// <returns>Absolute path to the generated solution file.</returns>
         public string GenerateSolutionFiles() {
             Directory.CreateDirectory(ProjectRootPath);
-            DeleteLegacyProjectFolders();
             GeneratedCodeSolutionValue = BuildGeneratedCodeSolution();
             for (int index = 0; index < GeneratedCodeSolutionValue.ModuleProjects.Count; index++) {
                 EditorGeneratedCodeModuleProject moduleProject = GeneratedCodeSolutionValue.ModuleProjects[index];
@@ -351,21 +350,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Deletes legacy output folders that may remain inside the assets project root from earlier layouts.
-        /// </summary>
-        void DeleteLegacyProjectFolders() {
-            string legacyObjPath = Path.Combine(ProjectRootPath, AssetsFolderName, LegacyIntermediateFolderName);
-            if (Directory.Exists(legacyObjPath)) {
-                Directory.Delete(legacyObjPath, true);
-            }
-
-            string legacyBinPath = Path.Combine(ProjectRootPath, AssetsFolderName, LegacyBinaryFolderName);
-            if (Directory.Exists(legacyBinPath)) {
-                Directory.Delete(legacyBinPath, true);
-            }
-        }
-
-        /// <summary>
         /// Builds the generated code solution description for the current authored module layout.
         /// </summary>
         /// <returns>Generated code solution description.</returns>
@@ -376,7 +360,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns the primary generated module project used by legacy single-module callers during migration.
+        /// Returns the primary generated module project for callers that use the first generated module entry.
         /// </summary>
         /// <returns>Primary generated module project.</returns>
         EditorGeneratedCodeModuleProject GetPrimaryModuleProject() {

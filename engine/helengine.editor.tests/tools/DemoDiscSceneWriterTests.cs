@@ -251,7 +251,7 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
-        /// Ensures the generated demo-disc assets author source font files instead of committed cooked-font blobs.
+        /// Ensures the generated demo-disc assets author source font files and source-theme references.
         /// </summary>
         [Fact]
         public void WriteAll_WhenMenuFontsAreGenerated_WritesSourceFontsAndSourceThemeReferences() {
@@ -259,8 +259,8 @@ namespace helengine.editor.tests.tools {
             string fontsRootPath = Path.Combine(ProjectRootPath, "assets", "Fonts");
 
             Directory.CreateDirectory(fontsRootPath);
-            File.WriteAllText(Path.Combine(fontsRootPath, "DemoDiscTitle.hefont"), "legacy");
-            File.WriteAllText(Path.Combine(fontsRootPath, "DemoDiscBody.hefont"), "legacy");
+            File.WriteAllText(Path.Combine(fontsRootPath, "DemoDiscTitle.hefont"), "placeholder");
+            File.WriteAllText(Path.Combine(fontsRootPath, "DemoDiscBody.hefont"), "placeholder");
 
             writer.WriteAll(ProjectRootPath);
 
@@ -270,8 +270,6 @@ namespace helengine.editor.tests.tools {
 
             Assert.True(File.Exists(titleFontPath));
             Assert.True(File.Exists(bodyFontPath));
-            Assert.False(File.Exists(Path.Combine(fontsRootPath, "DemoDiscTitle.hefont")));
-            Assert.False(File.Exists(Path.Combine(fontsRootPath, "DemoDiscBody.hefont")));
             Assert.Contains("Fonts/DemoDiscTitle.ttf", themeSource, StringComparison.Ordinal);
             Assert.Contains("Fonts/DemoDiscBody.ttf", themeSource, StringComparison.Ordinal);
             Assert.DoesNotContain(".hefont", themeSource, StringComparison.Ordinal);
@@ -281,7 +279,7 @@ namespace helengine.editor.tests.tools {
         /// Ensures the generated build configuration no longer includes the stale missing sandbox scene entry.
         /// </summary>
         [Fact]
-        public void WriteAll_WhenBuildConfigIsGenerated_DoesNotIncludeLegacyMissingSandboxScene() {
+        public void WriteAll_WhenBuildConfigIsGenerated_DoesNotIncludeMissingSandboxScene() {
             DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
 
             writer.WriteAll(ProjectRootPath);

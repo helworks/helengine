@@ -34,7 +34,7 @@ Expected: FAIL with `Unsupported mesh component payload version '2'`.
 
 Decode mesh payloads using version-aware semantics, rewrite the decoded model and material references, and re-serialize the payload using the current mesh payload format instead of preserving the old manual binary layout.
 
-- [ ] **Step 2: Keep legacy payload readability**
+- [ ] **Step 2: Keep version-1 payload readability**
 
 Preserve support for incoming version `1` payloads so older content can still build, but normalize rewritten output to version `2`.
 

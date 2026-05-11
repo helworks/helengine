@@ -59,7 +59,33 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures mesh persistence round-trips every material slot reference while preserving slot zero as the legacy primary material.
+        /// Ensures mesh payloads that omit the current material-reference array are rejected.
+        /// </summary>
+        [Fact]
+        public void DeserializeComponent_WhenPayloadOnlyHasLegacyMaterialReferenceField_ThrowsUnsupportedPayload() {
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField("MaterialReference", fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(
+                fieldWriter,
+                new SceneAssetReference {
+                    SourceKind = SceneAssetReferenceSourceKind.Generated,
+                    RelativePath = "Engine/Materials/Standard",
+                    ProviderId = "engine",
+                    AssetId = "engine:material:standard"
+                }));
+
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.MeshComponent",
+                ComponentIndex = 0,
+                Payload = writer.BuildPayload()
+            };
+
+            MeshComponentPersistenceDescriptor descriptor = new MeshComponentPersistenceDescriptor();
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => descriptor.DeserializeComponent(record, null, new AnySceneAssetReferenceResolver()));
+            Assert.Contains("MaterialReferences", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures mesh persistence round-trips every material slot reference using the current material-reference array field.
         /// </summary>
         [Fact]
         public void SerializeAndDeserialize_WhenMeshUsesMultipleMaterialSlots_RoundTripsEverySlot() {

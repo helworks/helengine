@@ -11,7 +11,7 @@ namespace helengine.baseplatform.Builders;
 /// </summary>
 public interface IPlatformAssetBuilder {
     /// <summary>
-    /// Gets the explicit builder descriptor that identifies the implementation and its compatibility.
+    /// Gets the explicit builder descriptor that identifies the implementation and its supported version ranges.
     /// </summary>
     PlatformBuilderDescriptor Descriptor { get; }
 

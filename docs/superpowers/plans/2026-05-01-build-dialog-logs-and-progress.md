@@ -4,7 +4,7 @@
 
 **Goal:** Extend the Build modal with a new bottom log section and progress bar without moving any existing controls.
 
-**Architecture:** Keep the current build-planning layout pinned to the legacy 560px content region, then add a separate bottom section inside the enlarged dialog panel. Reuse the existing build queue status data to populate a multiline log text block and compute progress, so the new section stays aligned with persisted queue state and does not require a new build pipeline.
+**Architecture:** Keep the current build-planning layout pinned to the original 560px content region, then add a separate bottom section inside the enlarged dialog panel. Reuse the existing build queue status data to populate a multiline log text block and compute progress, so the new section stays aligned with persisted queue state and does not require a new build pipeline.
 
 **Tech Stack:** C#, engine UI components (`EditorEntity`, `RoundedRectComponent`, `SpriteComponent`, `TextComponent`), xUnit.
 
@@ -26,7 +26,7 @@ Expected: the new build-log assertions fail because the log section is not yet p
 
 - [ ] **Step 3: Write minimal implementation**
 
-Add `BuildLogsRoot`, a bordered log panel background, a progress bar background/fill, and a multiline read-only log text block. Keep existing control layout calculations on the legacy 560px content height so the lower-left controls and queue button stay put.
+Add `BuildLogsRoot`, a bordered log panel background, a progress bar background/fill, and a multiline read-only log text block. Keep existing control layout calculations on the original 560px content height so the lower-left controls and queue button stay put.
 
 - [ ] **Step 4: Run test to verify it passes**
 

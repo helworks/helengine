@@ -205,10 +205,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures imported-model companion materials can package legacy source-oriented texture ids through the model source directory instead of requiring a cache entry with the same literal file name.
+        /// Ensures packaging rejects source-oriented texture ids that are not backed by imported cache assets.
         /// </summary>
         [Fact]
-        public void Package_WhenImportedModelCompanionMaterialUsesLegacySourceTextureId_ImportsTextureFromModelSourceDirectory() {
+        public void Package_WhenImportedModelCompanionMaterialUsesSourceTextureIdWithoutCachedAsset_Throws() {
             string sceneId = "Scenes/ImportedModelScene.helen";
             string materialRelativePath = "Models/Riemers/racer/x3ds_mat_ruedas.helmat";
             string sourceModelRelativePath = "Models/Riemers/racer.x";
@@ -225,16 +225,9 @@ namespace helengine.editor.tests {
                     new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".jpg" }),
                     new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".x" })
                 ]);
-            packager.Package(new[] { sceneId }, BuildRootPath);
 
-            string packagedTexturePath = Path.Combine(BuildRootPath, "cooked", "imported", "RUEDAS.JPG");
-            Assert.True(File.Exists(packagedTexturePath));
-
-            using FileStream stream = new FileStream(packagedTexturePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            TextureAsset textureAsset = Assert.IsType<TextureAsset>(AssetSerializer.Deserialize(stream));
-            Assert.Equal((ushort)1, textureAsset.Width);
-            Assert.Equal((ushort)1, textureAsset.Height);
-            Assert.Equal(new byte[] { 255, 128, 64, 255 }, textureAsset.Colors);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("Imported texture 'RUEDAS.JPG'", exception.Message);
         }
 
         /// <summary>
@@ -254,9 +247,9 @@ namespace helengine.editor.tests {
 
             PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(
                 [
-                    new PlatformComponentCompatibilityDefinition(
+                    new PlatformComponentSupportRule(
                         "helengine.MeshComponent",
-                        PlatformComponentCompatibilityKind.Transform,
+                        PlatformComponentSupportKind.Transform,
                         "Mesh components must be rewritten into packaged runtime payloads.",
                         string.Empty)
                 ]);
@@ -291,7 +284,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures compatibility packaging ignores malformed material sidecars that do not define a schema or field values.
+        /// Ensures packaging ignores malformed material sidecars that do not define a schema or field values.
         /// </summary>
         [Fact]
         public void Package_WhenMaterialSidecarHasNoSchema_PreservesTopLevelMaterialShaderFields() {
@@ -317,7 +310,7 @@ namespace helengine.editor.tests {
             bool isValid = Assert.IsType<bool>(validationMethod.Invoke(null, [settings, "windows"]));
 
             if (isValid) {
-                settingsService.ApplyPlatformCompatibilityFields(materialAsset, settings, "windows");
+                settingsService.ApplyPlatformMaterialFields(materialAsset, settings, "windows");
             }
 
             Assert.False(isValid);
@@ -494,6 +487,25 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures older FPS component payloads are rejected during Windows scene packaging.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsOlderVersionFpsOverlay_ThrowsUnsupportedPayloadVersion() {
+            string sceneId = "Scenes/OlderVersionFpsScene.helen";
+
+            WriteSceneAsset(sceneId, "Helengine.FPSComponent", WriteOlderVersionFpsComponentPayload(), Array.Empty<SceneAssetReference>());
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("Unsupported FPS component payload version", exception.Message);
+        }
+
+        /// <summary>
         /// Ensures packaged scenes rewrite text component font references into file-backed assets.
         /// </summary>
         [Fact]
@@ -592,7 +604,7 @@ namespace helengine.editor.tests {
         /// Ensures a city-style standard-shader material packages with a shader contract the player can resolve.
         /// </summary>
         [Fact]
-        public void Package_WhenStandardShaderMaterialUsesCompatibilitySidecar_WritesPlayerResolvableShaderContract() {
+        public void Package_WhenStandardShaderMaterialUsesMirroredFieldSidecar_WritesPlayerResolvableShaderContract() {
             string sceneId = "Scenes/MaterialScene.helen";
             string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.helmat";
 
@@ -724,74 +736,65 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures legacy binary camera payloads still package into runtime-loadable camera components.
+        /// Ensures older binary camera payloads are rejected during packaging.
         /// </summary>
         [Fact]
-        public void Package_WhenSceneContainsLegacyVersionedCameraPayload_PackagesAndLoadsCameraComponent() {
+        public void Package_WhenSceneContainsLegacyVersionedCameraPayload_ThrowsUnsupportedPayloadVersion() {
             string sceneId = "Scenes/CameraScene.helen";
-            WriteSceneAsset(sceneId, "helengine.CameraComponent", WriteLegacyCameraComponentPayloadVersion2());
-
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
-            packager.Package(new[] { sceneId }, BuildRootPath);
-
-            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
-            SceneAsset packagedScene;
-            using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            byte[] olderVersionPayload;
+            using (MemoryStream stream = new MemoryStream()) {
+                using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+                writer.WriteByte(2);
+                writer.WriteByte(17);
+                writer.WriteUInt16(EditorLayerMasks.SceneObjects);
+                writer.WriteSingle(12f);
+                writer.WriteSingle(24f);
+                writer.WriteSingle(640f);
+                writer.WriteSingle(360f);
+                writer.WriteByte(1);
+                writer.WriteSingle(0.25f);
+                writer.WriteSingle(0.5f);
+                writer.WriteSingle(0.75f);
+                writer.WriteSingle(1f);
+                writer.WriteByte(1);
+                writer.WriteSingle(0.42f);
+                writer.WriteByte(1);
+                writer.WriteByte(9);
+                writer.WriteByte((byte)DepthPrepassMode.Always);
+                writer.WriteSingle(128f);
+                writer.WriteByte((byte)PostProcessTier.High);
+                olderVersionPayload = stream.ToArray();
             }
 
-            InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
-            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
-            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
-            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
-            CameraComponent cameraComponent = Assert.IsType<CameraComponent>(
-                Assert.Single(loadedRoots[0].Components, component => component is CameraComponent));
+            WriteSceneAsset(sceneId, "helengine.CameraComponent", olderVersionPayload);
 
-            Assert.Equal((byte)17, cameraComponent.CameraDrawOrder);
-            Assert.Equal((ushort)1, cameraComponent.LayerMask);
-            Assert.Equal(new float4(12f, 24f, 640f, 360f), cameraComponent.Viewport);
-            Assert.Equal(DepthPrepassMode.Always, cameraComponent.RenderSettings.DepthPrepassMode);
-            Assert.Equal(128f, cameraComponent.RenderSettings.ShadowDistance);
-            Assert.Equal(PostProcessTier.High, cameraComponent.RenderSettings.PostProcessTier);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("Unsupported camera component payload version", exception.Message);
         }
 
         /// <summary>
-        /// Ensures legacy binary mesh payloads still package into runtime-loadable mesh components.
+        /// <summary>
+        /// Ensures older binary mesh payloads are rejected during packaging.
         /// </summary>
         [Fact]
-        public void Package_WhenSceneContainsLegacyVersionedMeshPayload_PackagesAndLoadsMeshComponent() {
+        public void Package_WhenSceneContainsLegacyVersionedMeshPayload_ThrowsUnsupportedPayloadVersion() {
             string sceneId = "Scenes/MeshScene.helen";
-            WriteSceneAsset(sceneId, "helengine.MeshComponent", WriteLegacyMeshComponentPayloadVersion1());
-
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
-            packager.Package(new[] { sceneId }, BuildRootPath);
-
-            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
-            SceneAsset packagedScene;
-            using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            byte[] olderVersionPayload;
+            using (MemoryStream stream = new MemoryStream()) {
+                using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+                writer.WriteByte(1);
+                writer.WriteByte(0);
+                writer.WriteByte(0);
+                writer.WriteByte(23);
+                olderVersionPayload = stream.ToArray();
             }
 
-            InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
-            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
-            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
-            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
-            MeshComponent meshComponent = Assert.IsType<MeshComponent>(
-                Assert.Single(loadedRoots[0].Components, component => component is MeshComponent));
+            WriteSceneAsset(sceneId, "helengine.MeshComponent", olderVersionPayload);
 
-            Assert.Equal((byte)23, meshComponent.RenderOrder3D);
-            Assert.Null(meshComponent.Model);
-            Assert.Null(meshComponent.Material);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("Unsupported mesh component payload version", exception.Message);
         }
 
         /// <summary>
@@ -851,10 +854,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures menu components still package successfully when the platform omits explicit compatibility metadata and the packager falls back to the automatic transform path.
+        /// Ensures menu components still package successfully when the platform omits explicit support metadata and the packager falls back to the automatic transform path.
         /// </summary>
         [Fact]
-        public void Package_WhenPlatformOmitsMenuCompatibility_StillPackagesMenuComponentThroughFallback() {
+        public void Package_WhenPlatformOmitsMenuSupportRules_StillPackagesMenuComponentThroughFallback() {
             string menuSceneId = "Scenes/MenuScene.helen";
             string playableSceneId = "Scenes/TestPlayableScene.helen";
 
@@ -864,7 +867,7 @@ namespace helengine.editor.tests {
             WriteEmptySceneAsset(playableSceneId);
 
             FontAsset defaultFont = CreatePackagedFontAsset();
-            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
@@ -894,10 +897,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures reflectable built-in engine components package and load through the automatic fallback when the platform omits explicit compatibility metadata.
+        /// Ensures reflectable built-in engine components package and load through the automatic fallback when the platform omits explicit support metadata.
         /// </summary>
         [Fact]
-        public void Package_WhenPlatformOmitsCompatibilityForReflectableEngineComponent_UsesAutomaticFallback() {
+        public void Package_WhenPlatformOmitsSupportRulesForReflectableEngineComponent_UsesAutomaticFallback() {
             string sceneId = "Scenes/LineRendererScene.helen";
             ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
             LineRendererComponent component = new LineRendererComponent();
@@ -922,7 +925,7 @@ namespace helengine.editor.tests {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             });
 
-            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
@@ -951,10 +954,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures legacy scripted scene records with empty authored payloads still package when automatic runtime persistence discovers zero persisted members.
+        /// Ensures empty automatic-script payloads with no persisted members are rejected during packaging.
         /// </summary>
         [Fact]
-        public void Package_WhenAutomaticScriptComponentHasNoPersistedMembersAndPayloadIsEmpty_WritesValidRuntimePayload() {
+        public void Package_WhenAutomaticScriptComponentHasNoPersistedMembersAndPayloadIsEmpty_ThrowsUnsupportedPayloadVersion() {
             string sceneId = "Scenes/LegacyEmptyAutomaticScriptScene.helen";
             string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestScriptComponentWithoutPersistedMembers));
 
@@ -980,7 +983,7 @@ namespace helengine.editor.tests {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             });
 
-            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
@@ -988,26 +991,15 @@ namespace helengine.editor.tests {
                 null,
                 new FakeScriptTypeResolver(typeof(TestScriptComponentWithoutPersistedMembers)));
 
-            packager.Package(new[] { sceneId }, BuildRootPath);
-
-            SceneAsset packagedScene;
-            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
-            }
-
-            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
-            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
-            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
-            Assert.Equal(0, reader.ReadInt32());
-            Assert.Equal(payloadStream.Length, payloadStream.Position);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("Unsupported editor tagged scene component payload version", exception.Message);
         }
 
         /// <summary>
-        /// Ensures legacy scripted scene records with empty authored payloads still package when automatic runtime persistence should restore default reflected member values.
+        /// Ensures empty automatic-script payloads with persisted reflected members are rejected during packaging.
         /// </summary>
         [Fact]
-        public void Package_WhenAutomaticScriptComponentUsesLegacyEmptyPayload_WritesDefaultReflectedMemberValues() {
+        public void Package_WhenAutomaticScriptComponentUsesLegacyEmptyPayload_ThrowsUnsupportedPayloadVersion() {
             string sceneId = "Scenes/LegacyEmptyUpdateScriptScene.helen";
             string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestUpdateOnlyScriptComponent));
 
@@ -1033,7 +1025,7 @@ namespace helengine.editor.tests {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             });
 
-            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
@@ -1041,20 +1033,8 @@ namespace helengine.editor.tests {
                 null,
                 new FakeScriptTypeResolver(typeof(TestUpdateOnlyScriptComponent)));
 
-            packager.Package(new[] { sceneId }, BuildRootPath);
-
-            SceneAsset packagedScene;
-            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
-            }
-
-            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
-            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
-            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
-            Assert.Equal(1, reader.ReadInt32());
-            Assert.Equal((byte)0, reader.ReadByte());
-            Assert.Equal(payloadStream.Length, payloadStream.Position);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("Unsupported editor tagged scene component payload version", exception.Message);
         }
 
         /// <summary>
@@ -1131,7 +1111,7 @@ namespace helengine.editor.tests {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             });
 
-            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
@@ -1189,10 +1169,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures builder-supplied compatibility metadata does not remove the default pass-through physics component compatibility required by packaged runtime scenes.
+        /// Ensures builder-supplied support metadata does not remove the default pass-through physics component support rules required by packaged runtime scenes.
         /// </summary>
         [Fact]
-        public void Package_WhenPlatformOmitsPassThroughPhysicsCompatibility_PreservesDefaultPhysicsCompatibility() {
+        public void Package_WhenPlatformOmitsPassThroughPhysicsSupportRules_PreservesDefaultPhysicsSupportRules() {
             string sceneId = "Scenes/PhysicsScene.helen";
             WriteSceneAsset(sceneId, new SceneAsset {
                 Id = sceneId,
@@ -1221,7 +1201,7 @@ namespace helengine.editor.tests {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             });
 
-            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
@@ -1297,25 +1277,25 @@ namespace helengine.editor.tests {
         /// Ensures builder-provided pass-through light metadata cannot weaken the built-in runtime light transform contract.
         /// </summary>
         [Fact]
-        public void Package_WhenPlatformDowngradesBuiltInLightCompatibilityToPassThrough_PreservesRuntimeLightTransforms() {
+        public void Package_WhenPlatformDowngradesBuiltInLightSupportRulesToPassThrough_PreservesRuntimeLightTransforms() {
             string sceneId = "Scenes/LightingUiScene.helen";
             WriteSceneAsset(sceneId, BuildLightingAndUiSceneAsset(sceneId));
 
             PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(
                 [
-                    new PlatformComponentCompatibilityDefinition(
+                    new PlatformComponentSupportRule(
                         "helengine.DirectionalLightComponent",
-                        PlatformComponentCompatibilityKind.PassThrough,
+                        PlatformComponentSupportKind.PassThrough,
                         "Legacy builder metadata still expects authored directional light payloads.",
                         string.Empty),
-                    new PlatformComponentCompatibilityDefinition(
+                    new PlatformComponentSupportRule(
                         "helengine.PointLightComponent",
-                        PlatformComponentCompatibilityKind.PassThrough,
+                        PlatformComponentSupportKind.PassThrough,
                         "Legacy builder metadata still expects authored point light payloads.",
                         string.Empty),
-                    new PlatformComponentCompatibilityDefinition(
+                    new PlatformComponentSupportRule(
                         "helengine.SpotLightComponent",
-                        PlatformComponentCompatibilityKind.PassThrough,
+                        PlatformComponentSupportKind.PassThrough,
                         "Legacy builder metadata still expects authored spot light payloads.",
                         string.Empty)
                 ]);
@@ -1567,7 +1547,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures platform-provided compatibility metadata can reject unsupported components with a clear reason.
+        /// Ensures platform-provided support metadata can reject unsupported components with a clear reason.
         /// </summary>
         [Fact]
         public void Package_WhenPlatformMarksComponentUnsupported_FailsWithTheBuilderReason() {
@@ -1597,9 +1577,9 @@ namespace helengine.editor.tests {
                         ["png", "tga"])
                 ],
                 [
-                    new PlatformComponentCompatibilityDefinition(
+                    new PlatformComponentSupportRule(
                         "helengine.BadComponent",
-                        PlatformComponentCompatibilityKind.Unsupported,
+                        PlatformComponentSupportKind.Unsupported,
                         "This platform does not support the component.",
                         "Remove the component before building.")
                 ]);
@@ -2223,7 +2203,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Writes one city-style standard material asset and compatibility sidecar that mirrors the colored cube-grid authored content.
+        /// Writes one city-style standard material asset and mirrored-field sidecar that mirrors the colored cube-grid authored content.
         /// </summary>
         /// <param name="materialRelativePath">Project-relative material path to write.</param>
         void WriteCityStyleStandardMaterialAsset(string materialRelativePath, string diffuseTextureAssetId = "") {
@@ -2498,31 +2478,16 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Writes one legacy binary camera component payload using the pre-tagged versioned scene format.
+        /// Writes one older FPS component payload that predates packaged font references.
         /// </summary>
-        /// <returns>Serialized legacy binary camera component payload.</returns>
-        byte[] WriteLegacyCameraComponentPayloadVersion2() {
+        /// <returns>Serialized older-version FPS component payload.</returns>
+        byte[] WriteOlderVersionFpsComponentPayload() {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
-            writer.WriteByte(17);
-            writer.WriteUInt16(EditorLayerMasks.SceneObjects);
-            writer.WriteSingle(12f);
-            writer.WriteSingle(24f);
-            writer.WriteSingle(640f);
-            writer.WriteSingle(360f);
             writer.WriteByte(1);
-            writer.WriteSingle(0.25f);
-            writer.WriteSingle(0.5f);
-            writer.WriteSingle(0.75f);
-            writer.WriteSingle(1f);
-            writer.WriteByte(1);
-            writer.WriteSingle(0.42f);
-            writer.WriteByte(1);
-            writer.WriteByte(9);
-            writer.WriteByte((byte)DepthPrepassMode.Always);
-            writer.WriteSingle(128f);
-            writer.WriteByte((byte)PostProcessTier.High);
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
+            writer.WriteInt2(new int2(8, 6));
+            writer.WriteByte(250);
             return stream.ToArray();
         }
 
@@ -2551,20 +2516,6 @@ namespace helengine.editor.tests {
                 ComponentIndex = 0,
                 Payload = writer.BuildPayload()
             };
-        }
-
-        /// <summary>
-        /// Writes one legacy binary mesh component payload using the pre-tagged versioned scene format.
-        /// </summary>
-        /// <returns>Serialized legacy binary mesh component payload.</returns>
-        byte[] WriteLegacyMeshComponentPayloadVersion1() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            writer.WriteByte(0);
-            writer.WriteByte(0);
-            writer.WriteByte(23);
-            return stream.ToArray();
         }
 
         /// <summary>
@@ -2878,13 +2829,13 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Creates one minimal Windows platform definition with the supplied component compatibility metadata.
+        /// Creates one minimal Windows platform definition with the supplied component support metadata.
         /// </summary>
-        /// <param name="componentCompatibilities">Component compatibility metadata exposed by the platform.</param>
+        /// <param name="componentSupportRules">Component support metadata exposed by the platform.</param>
         /// <returns>Minimal Windows platform definition for packager tests.</returns>
-        static PlatformDefinition CreateWindowsPlatformDefinition(PlatformComponentCompatibilityDefinition[] componentCompatibilities) {
-            if (componentCompatibilities == null) {
-                throw new ArgumentNullException(nameof(componentCompatibilities));
+        static PlatformDefinition CreateWindowsPlatformDefinition(PlatformComponentSupportRule[] componentSupportRules) {
+            if (componentSupportRules == null) {
+                throw new ArgumentNullException(nameof(componentSupportRules));
             }
 
             return new PlatformDefinition(
@@ -2912,7 +2863,7 @@ namespace helengine.editor.tests {
                         true,
                         ["png", "tga"])
                 ],
-                componentCompatibilities);
+                componentSupportRules);
         }
 
         /// <summary>
@@ -3075,7 +3026,7 @@ namespace helengine.editor.tests {
                                 ["multiply", "ignore"])
                         ])
                 ],
-                Array.Empty<PlatformComponentCompatibilityDefinition>(),
+                Array.Empty<PlatformComponentSupportRule>(),
                 Array.Empty<PlatformCodegenProfileDefinition>(),
                 Array.Empty<PlatformStorageProfileDefinition>(),
                 Array.Empty<PlatformMediaProfileDefinition>());
@@ -3170,3 +3121,5 @@ namespace helengine.editor.tests {
         }
     }
 }
+
+

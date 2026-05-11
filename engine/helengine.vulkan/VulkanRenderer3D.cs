@@ -17,9 +17,9 @@ namespace helengine.vulkan {
         /// </summary>
         static readonly uint TransformBufferSizeBytes = (uint)Marshal.SizeOf<StandardMeshShaderData>();
         /// <summary>
-        /// Size in bytes of the legacy single-matrix transform payload used by gizmo shaders and other non-standard materials.
+        /// Size in bytes of the single-matrix transform payload used by gizmo shaders and other non-standard materials.
         /// </summary>
-        static readonly uint LegacyTransformBufferSizeBytes = (uint)Marshal.SizeOf<float4x4>();
+        static readonly uint SingleMatrixTransformBufferSizeBytes = (uint)Marshal.SizeOf<float4x4>();
         /// <summary>
         /// Maximum number of textured 3D materials that can allocate descriptor sets.
         /// </summary>
@@ -468,7 +468,7 @@ namespace helengine.vulkan {
                     StandardMeshShaderData transformData = BuildStandardMeshShaderData(drawable.Parent, runtimeMaterial);
                     UpdateTransformBuffer(transformData, dynamicOffset);
                 } else {
-                    float4x4 transformData = BuildWorldViewProjectionMatrix(drawable.Parent);
+                    float4x4 transformData = BuildSingleMatrixWorldViewProjection(drawable.Parent);
                     UpdateTransformBuffer(transformData, dynamicOffset);
                 }
 
@@ -773,11 +773,11 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
-        /// Builds the legacy world-view-projection transform used by gizmo and helper shaders.
+        /// Builds the single-matrix world-view-projection transform used by gizmo and helper shaders.
         /// </summary>
         /// <param name="entity">Entity to build transform data for.</param>
         /// <returns>Transposed world-view-projection matrix ready for the shader constant buffer.</returns>
-        float4x4 BuildWorldViewProjectionMatrix(Entity entity) {
+        float4x4 BuildSingleMatrixWorldViewProjection(Entity entity) {
             float4 orientation = entity.Orientation;
             float4x4 rotation;
             float4x4.CreateFromQuaternion(ref orientation, out rotation);
@@ -845,9 +845,9 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
-        /// Writes a legacy matrix payload to the dynamic uniform buffer at the specified offset.
+        /// Writes a single-matrix transform payload to the dynamic uniform buffer at the specified offset.
         /// </summary>
-        /// <param name="transformData">Legacy world-view-projection matrix payload.</param>
+        /// <param name="transformData">World-view-projection matrix payload.</param>
         /// <param name="offset">Byte offset into the dynamic uniform buffer.</param>
         unsafe void UpdateTransformBuffer(float4x4 transformData, uint offset) {
             void* mapped;
@@ -855,7 +855,7 @@ namespace helengine.vulkan {
                 context.Device,
                 transformUniformBuffer.Memory,
                 offset,
-                LegacyTransformBufferSizeBytes,
+                SingleMatrixTransformBufferSizeBytes,
                 0,
                 &mapped);
             if (mapResult != Result.Success) {
@@ -864,7 +864,7 @@ namespace helengine.vulkan {
 
             try {
                 float4x4* source = &transformData;
-                System.Buffer.MemoryCopy(source, mapped, LegacyTransformBufferSizeBytes, LegacyTransformBufferSizeBytes);
+                System.Buffer.MemoryCopy(source, mapped, SingleMatrixTransformBufferSizeBytes, SingleMatrixTransformBufferSizeBytes);
             } finally {
                 context.Api.UnmapMemory(context.Device, transformUniformBuffer.Memory);
             }

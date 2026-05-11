@@ -206,7 +206,7 @@ namespace helengine.editor {
         /// </summary>
         readonly MaterialAssetSettingsService MaterialAssetSettingsService;
         /// <summary>
-        /// Target platform id whose material settings should drive packaged compatibility payloads.
+        /// Target platform id whose material settings should drive packaged mirrored material payloads.
         /// </summary>
         readonly string TargetPlatformId;
         /// <summary>
@@ -243,9 +243,9 @@ namespace helengine.editor {
         readonly HashSet<string> ReferencedShaderAssetIdsSet;
 
         /// <summary>
-        /// Builder-provided component compatibility metadata keyed by serialized type id.
+        /// Builder-provided component support metadata keyed by serialized type id.
         /// </summary>
-        readonly Dictionary<string, PlatformComponentCompatibilityDefinition> ComponentCompatibilitiesByTypeId;
+        readonly Dictionary<string, PlatformComponentSupportRule> ComponentSupportRulesByTypeId;
 
         /// <summary>
         /// Platform identifier used for diagnostics.
@@ -253,7 +253,7 @@ namespace helengine.editor {
         readonly string PlatformId;
 
         /// <summary>
-        /// Shared transform service used when platform compatibility marks a component as transformable.
+        /// Shared transform service used when platform support rules mark a component as transformable.
         /// </summary>
         readonly SceneComponentPackagingTransformService TransformService;
 
@@ -304,7 +304,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
         /// <param name="importers">Importer registrations supplied by the editor host.</param>
-        /// <param name="platformDefinition">Builder-provided platform definition that carries compatibility metadata.</param>
+        /// <param name="platformDefinition">Builder-provided platform definition that carries support metadata.</param>
         public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers, PlatformDefinition platformDefinition)
             : this(projectRootPath, importers, platformDefinition?.PlatformId, platformDefinition, null, null) {
         }
@@ -314,7 +314,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
         /// <param name="importers">Importer registrations supplied by the editor host.</param>
-        /// <param name="platformDefinition">Builder-provided platform definition that carries compatibility metadata.</param>
+        /// <param name="platformDefinition">Builder-provided platform definition that carries support metadata.</param>
         /// <param name="defaultFontAsset">Packaged default font asset used by player builds.</param>
         /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
         public EditorPlatformBuildScenePackager(
@@ -332,7 +332,7 @@ namespace helengine.editor {
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
         /// <param name="importers">Importer registrations supplied by the editor host.</param>
         /// <param name="targetPlatformId">Platform id that should be reported to the asset-import pipeline.</param>
-        /// <param name="platformDefinition">Optional builder-provided platform definition that carries compatibility metadata.</param>
+        /// <param name="platformDefinition">Optional builder-provided platform definition that carries support metadata.</param>
         /// <param name="defaultFontAsset">Packaged default font asset used by player builds.</param>
         /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
         EditorPlatformBuildScenePackager(
@@ -387,7 +387,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
         /// <param name="importers">Importer registrations supplied by the editor host.</param>
-        /// <param name="platformDefinition">Builder-provided platform definition that carries compatibility metadata.</param>
+        /// <param name="platformDefinition">Builder-provided platform definition that carries support metadata.</param>
         /// <param name="defaultFontAsset">Packaged default font asset used by player builds.</param>
         /// <param name="materialBuilder">Builder used to translate schema-driven material settings during packaging.</param>
         /// <param name="selectedBuildProfileId">Selected build profile id for the current packaging operation.</param>
@@ -420,7 +420,7 @@ namespace helengine.editor {
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
         /// <param name="importers">Importer registrations supplied by the editor host.</param>
         /// <param name="targetPlatformId">Platform id that should be reported to the asset-import pipeline.</param>
-        /// <param name="platformDefinition">Optional builder-provided platform definition that carries compatibility metadata.</param>
+        /// <param name="platformDefinition">Optional builder-provided platform definition that carries support metadata.</param>
         /// <param name="defaultFontAsset">Packaged default font asset used by player builds.</param>
         /// <param name="materialBuilder">Builder used to translate schema-driven material settings during packaging.</param>
         /// <param name="selectedBuildProfileId">Selected build profile id for the current packaging operation.</param>
@@ -470,7 +470,7 @@ namespace helengine.editor {
             ReferencedShaderAssetIds = new List<string>();
             ReferencedShaderAssetIdsSet = new HashSet<string>(StringComparer.Ordinal);
             PlatformId = string.IsNullOrWhiteSpace(targetPlatformId) ? "windows" : targetPlatformId;
-            ComponentCompatibilitiesByTypeId = BuildEffectiveCompatibilityLookup(platformDefinition?.ComponentCompatibilities);
+            ComponentSupportRulesByTypeId = BuildEffectiveSupportRuleLookup(platformDefinition?.ComponentSupportRules);
             TransformService = new SceneComponentPackagingTransformService(
                 AssetsRootPath,
                 ProjectContentManager,
@@ -802,12 +802,12 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(record));
             }
 
-            PlatformComponentCompatibilityDefinition compatibility = GetComponentCompatibility(record.ComponentTypeId);
-            if (compatibility.CompatibilityKind == PlatformComponentCompatibilityKind.PassThrough) {
+            PlatformComponentSupportRule supportRule = GetComponentSupportRule(record.ComponentTypeId);
+            if (supportRule.SupportKind == PlatformComponentSupportKind.PassThrough) {
                 return record;
             }
 
-            if (compatibility.CompatibilityKind == PlatformComponentCompatibilityKind.Transform) {
+            if (supportRule.SupportKind == PlatformComponentSupportKind.Transform) {
                 if (TransformService.TryTransform(record, buildRootPath, out SceneComponentAssetRecord transformedRecord)) {
                     return transformedRecord;
                 }
@@ -815,185 +815,185 @@ namespace helengine.editor {
                 throw new InvalidOperationException(BuildUnsupportedTransformMessage(record.ComponentTypeId));
             }
 
-            throw new InvalidOperationException(BuildUnsupportedComponentMessage(record.ComponentTypeId, compatibility));
+            throw new InvalidOperationException(BuildUnsupportedComponentMessage(record.ComponentTypeId, supportRule));
         }
 
         /// <summary>
-        /// Resolves the compatibility definition for one serialized component type id.
+        /// Resolves the support rule for one serialized component type id.
         /// </summary>
         /// <param name="componentTypeId">Serialized component type id.</param>
-        /// <returns>Matching compatibility definition.</returns>
-        PlatformComponentCompatibilityDefinition GetComponentCompatibility(string componentTypeId) {
+        /// <returns>Matching support rule.</returns>
+        PlatformComponentSupportRule GetComponentSupportRule(string componentTypeId) {
             if (string.IsNullOrWhiteSpace(componentTypeId)) {
                 throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
             }
 
-            if (!ComponentCompatibilitiesByTypeId.TryGetValue(componentTypeId, out PlatformComponentCompatibilityDefinition compatibility)) {
+            if (!ComponentSupportRulesByTypeId.TryGetValue(componentTypeId, out PlatformComponentSupportRule supportRule)) {
                 if (TransformService.CanTransform(componentTypeId)) {
-                    return new PlatformComponentCompatibilityDefinition(
+                    return new PlatformComponentSupportRule(
                         componentTypeId,
-                        PlatformComponentCompatibilityKind.Transform,
+                        PlatformComponentSupportKind.Transform,
                         "Eligible reflected components are rewritten into packaged ordinal payloads.",
                         string.Empty);
                 }
 
-                throw new InvalidOperationException($"Platform '{PlatformId}' does not declare compatibility for component '{componentTypeId}'.");
+                throw new InvalidOperationException($"Platform '{PlatformId}' does not declare support for component '{componentTypeId}'.");
             }
 
-            return compatibility;
+            return supportRule;
         }
 
         /// <summary>
-        /// Builds one compatibility lookup that preserves the built-in defaults while allowing builder-provided entries to override them.
+        /// Builds one support-rule lookup that preserves the built-in defaults while allowing builder-provided entries to override them.
         /// </summary>
-        /// <param name="componentCompatibilities">Optional builder-provided compatibility entries.</param>
-        /// <returns>Case-insensitive compatibility lookup.</returns>
-        static Dictionary<string, PlatformComponentCompatibilityDefinition> BuildEffectiveCompatibilityLookup(
-            IReadOnlyList<PlatformComponentCompatibilityDefinition> componentCompatibilities) {
-            Dictionary<string, PlatformComponentCompatibilityDefinition> lookup =
-                new Dictionary<string, PlatformComponentCompatibilityDefinition>(StringComparer.OrdinalIgnoreCase);
-            Dictionary<string, PlatformComponentCompatibilityDefinition> defaultCompatibilityLookup =
-                new Dictionary<string, PlatformComponentCompatibilityDefinition>(StringComparer.OrdinalIgnoreCase);
-            HashSet<string> builderCompatibilityTypeIds =
+        /// <param name="componentSupportRules">Optional builder-provided support-rule entries.</param>
+        /// <returns>Case-insensitive support-rule lookup.</returns>
+        static Dictionary<string, PlatformComponentSupportRule> BuildEffectiveSupportRuleLookup(
+            IReadOnlyList<PlatformComponentSupportRule> componentSupportRules) {
+            Dictionary<string, PlatformComponentSupportRule> lookup =
+                new Dictionary<string, PlatformComponentSupportRule>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, PlatformComponentSupportRule> defaultSupportRuleLookup =
+                new Dictionary<string, PlatformComponentSupportRule>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> builderSupportRuleTypeIds =
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            PlatformComponentCompatibilityDefinition[] defaultCompatibilities = CreateDefaultComponentCompatibilities();
-            for (int index = 0; index < defaultCompatibilities.Length; index++) {
-                PlatformComponentCompatibilityDefinition compatibility = defaultCompatibilities[index];
-                lookup.Add(compatibility.ComponentTypeId, compatibility);
-                defaultCompatibilityLookup.Add(compatibility.ComponentTypeId, compatibility);
+            PlatformComponentSupportRule[] defaultSupportRules = CreateDefaultComponentSupportRules();
+            for (int index = 0; index < defaultSupportRules.Length; index++) {
+                PlatformComponentSupportRule supportRule = defaultSupportRules[index];
+                lookup.Add(supportRule.ComponentTypeId, supportRule);
+                defaultSupportRuleLookup.Add(supportRule.ComponentTypeId, supportRule);
             }
 
-            if (componentCompatibilities == null) {
+            if (componentSupportRules == null) {
                 return lookup;
             }
 
-            for (int index = 0; index < componentCompatibilities.Count; index++) {
-                PlatformComponentCompatibilityDefinition compatibility = componentCompatibilities[index];
-                if (compatibility == null) {
-                    throw new InvalidOperationException("Platform compatibility metadata must not contain null entries.");
+            for (int index = 0; index < componentSupportRules.Count; index++) {
+                PlatformComponentSupportRule supportRule = componentSupportRules[index];
+                if (supportRule == null) {
+                    throw new InvalidOperationException("Platform support metadata must not contain null entries.");
                 }
-                if (!builderCompatibilityTypeIds.Add(compatibility.ComponentTypeId)) {
-                    throw new InvalidOperationException($"Platform compatibility metadata already contains an entry for '{compatibility.ComponentTypeId}'.");
+                if (!builderSupportRuleTypeIds.Add(supportRule.ComponentTypeId)) {
+                    throw new InvalidOperationException($"Platform support metadata already contains an entry for '{supportRule.ComponentTypeId}'.");
                 }
 
-                if (ShouldPreserveDefaultCompatibility(defaultCompatibilityLookup, compatibility)) {
+                if (ShouldPreserveDefaultSupportRule(defaultSupportRuleLookup, supportRule)) {
                     continue;
                 }
 
-                lookup[compatibility.ComponentTypeId] = compatibility;
+                lookup[supportRule.ComponentTypeId] = supportRule;
             }
 
             return lookup;
         }
 
         /// <summary>
-        /// Returns true when one builder-provided compatibility would weaken a required built-in transform contract.
+        /// Returns true when one builder-provided support rule would weaken a required built-in transform contract.
         /// </summary>
-        /// <param name="defaultCompatibilityLookup">Built-in default compatibility metadata keyed by serialized component type id.</param>
-        /// <param name="builderCompatibility">Builder-provided compatibility metadata under evaluation.</param>
-        /// <returns>True when the built-in compatibility must be preserved; otherwise false.</returns>
-        static bool ShouldPreserveDefaultCompatibility(
-            IReadOnlyDictionary<string, PlatformComponentCompatibilityDefinition> defaultCompatibilityLookup,
-            PlatformComponentCompatibilityDefinition builderCompatibility) {
-            if (defaultCompatibilityLookup == null) {
-                throw new ArgumentNullException(nameof(defaultCompatibilityLookup));
-            } else if (builderCompatibility == null) {
-                throw new ArgumentNullException(nameof(builderCompatibility));
+        /// <param name="defaultSupportRuleLookup">Built-in default support metadata keyed by serialized component type id.</param>
+        /// <param name="builderSupportRule">Builder-provided support metadata under evaluation.</param>
+        /// <returns>True when the built-in support rule must be preserved; otherwise false.</returns>
+        static bool ShouldPreserveDefaultSupportRule(
+            IReadOnlyDictionary<string, PlatformComponentSupportRule> defaultSupportRuleLookup,
+            PlatformComponentSupportRule builderSupportRule) {
+            if (defaultSupportRuleLookup == null) {
+                throw new ArgumentNullException(nameof(defaultSupportRuleLookup));
+            } else if (builderSupportRule == null) {
+                throw new ArgumentNullException(nameof(builderSupportRule));
             }
 
-            if (!defaultCompatibilityLookup.TryGetValue(builderCompatibility.ComponentTypeId, out PlatformComponentCompatibilityDefinition defaultCompatibility)) {
+            if (!defaultSupportRuleLookup.TryGetValue(builderSupportRule.ComponentTypeId, out PlatformComponentSupportRule defaultSupportRule)) {
                 return false;
             }
 
-            return defaultCompatibility.CompatibilityKind == PlatformComponentCompatibilityKind.Transform
-                && builderCompatibility.CompatibilityKind == PlatformComponentCompatibilityKind.PassThrough;
+            return defaultSupportRule.SupportKind == PlatformComponentSupportKind.Transform
+                && builderSupportRule.SupportKind == PlatformComponentSupportKind.PassThrough;
         }
 
         /// <summary>
-        /// Builds the built-in component compatibility defaults used by legacy constructor paths.
+        /// Builds the built-in component support rules used by the current constructor paths.
         /// </summary>
-        /// <returns>Default shared component compatibility entries.</returns>
-        static PlatformComponentCompatibilityDefinition[] CreateDefaultComponentCompatibilities() {
+        /// <returns>Default shared component support entries.</returns>
+        static PlatformComponentSupportRule[] CreateDefaultComponentSupportRules() {
             return [
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     MeshComponentTypeId,
-                    PlatformComponentCompatibilityKind.Transform,
+                    PlatformComponentSupportKind.Transform,
                     "Mesh components are normalized during packaging.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     CameraComponentTypeId,
-                    PlatformComponentCompatibilityKind.Transform,
+                    PlatformComponentSupportKind.Transform,
                     "Camera components are normalized during packaging.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     FPSComponentTypeId,
-                    PlatformComponentCompatibilityKind.Transform,
+                    PlatformComponentSupportKind.Transform,
                     "FPS overlay font references are rewritten during packaging.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     TextComponentTypeId,
-                    PlatformComponentCompatibilityKind.Transform,
+                    PlatformComponentSupportKind.Transform,
                     "Text component font references are rewritten during packaging.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     RigidBody3DComponentTypeId,
-                    PlatformComponentCompatibilityKind.PassThrough,
+                    PlatformComponentSupportKind.PassThrough,
                     "3D rigid-body components are emitted unchanged for the current runtime loader.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     BoxCollider3DComponentTypeId,
-                    PlatformComponentCompatibilityKind.PassThrough,
+                    PlatformComponentSupportKind.PassThrough,
                     "3D box collider components are emitted unchanged for the current runtime loader.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     KinematicMotion3DComponentTypeId,
-                    PlatformComponentCompatibilityKind.PassThrough,
+                    PlatformComponentSupportKind.PassThrough,
                     "3D kinematic motion components are emitted unchanged for the current runtime loader.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     CharacterController3DComponentTypeId,
-                    PlatformComponentCompatibilityKind.PassThrough,
+                    PlatformComponentSupportKind.PassThrough,
                     "3D character-controller components are emitted unchanged for the current runtime loader.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     "helengine.RoundedRectComponent",
-                    PlatformComponentCompatibilityKind.Transform,
+                    PlatformComponentSupportKind.Transform,
                     "Rounded rectangle visuals are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     "helengine.DirectionalLightComponent",
-                    PlatformComponentCompatibilityKind.Transform,
+                    PlatformComponentSupportKind.Transform,
                     "Directional light payloads are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     "helengine.PointLightComponent",
-                    PlatformComponentCompatibilityKind.Transform,
+                    PlatformComponentSupportKind.Transform,
                     "Point light payloads are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     "helengine.SpotLightComponent",
-                    PlatformComponentCompatibilityKind.Transform,
+                    PlatformComponentSupportKind.Transform,
                     "Spot light payloads are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     MenuComponent.SerializedComponentTypeId,
-                    PlatformComponentCompatibilityKind.Transform,
+                    PlatformComponentSupportKind.Transform,
                     "Baked demo menu root components are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     MenuPanelComponent.SerializedComponentTypeId,
-                    PlatformComponentCompatibilityKind.Transform,
+                    PlatformComponentSupportKind.Transform,
                     "Baked demo menu panel metadata is rewritten into strict runtime payloads during packaging.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     MenuItemComponent.SerializedComponentTypeId,
-                    PlatformComponentCompatibilityKind.Transform,
+                    PlatformComponentSupportKind.Transform,
                     "Baked demo menu item metadata is rewritten into strict runtime payloads during packaging.",
                     string.Empty),
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     MenuSelectedDescriptionComponent.SerializedComponentTypeId,
-                    PlatformComponentCompatibilityKind.Transform,
+                    PlatformComponentSupportKind.Transform,
                     "Baked demo menu selected-description markers are rewritten into strict runtime payloads during packaging.",
                     string.Empty)
             ];
@@ -1003,19 +1003,19 @@ namespace helengine.editor {
         /// Builds the diagnostic message used when a component is explicitly unsupported.
         /// </summary>
         /// <param name="componentTypeId">Serialized component type id.</param>
-        /// <param name="compatibility">Compatibility metadata supplied by the builder.</param>
+        /// <param name="supportRule">Support metadata supplied by the builder.</param>
         /// <returns>Formatted diagnostic message.</returns>
-        static string BuildUnsupportedComponentMessage(string componentTypeId, PlatformComponentCompatibilityDefinition compatibility) {
-            if (compatibility == null) {
-                throw new ArgumentNullException(nameof(compatibility));
+        static string BuildUnsupportedComponentMessage(string componentTypeId, PlatformComponentSupportRule supportRule) {
+            if (supportRule == null) {
+                throw new ArgumentNullException(nameof(supportRule));
             }
 
-            string message = string.IsNullOrWhiteSpace(compatibility.Reason)
+            string message = string.IsNullOrWhiteSpace(supportRule.Reason)
                 ? $"Platform does not support serialized component type '{componentTypeId}'."
-                : compatibility.Reason;
+                : supportRule.Reason;
 
-            if (!string.IsNullOrWhiteSpace(compatibility.Remediation)) {
-                message = string.Concat(message, " ", compatibility.Remediation);
+            if (!string.IsNullOrWhiteSpace(supportRule.Remediation)) {
+                message = string.Concat(message, " ", supportRule.Remediation);
             }
 
             return message;
@@ -1088,17 +1088,17 @@ namespace helengine.editor {
             using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1 && version != 2 && version != CameraComponentPayloadVersion) {
+            if (version != CameraComponentPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
             }
 
             byte cameraDrawOrder = reader.ReadByte();
             ushort layerMask = reader.ReadUInt16();
             float4 viewport = ReadFloat4(reader);
-            float nearPlaneDistance = version >= CameraComponentPayloadVersion ? reader.ReadSingle() : 0.1f;
-            float farPlaneDistance = version >= CameraComponentPayloadVersion ? reader.ReadSingle() : 100f;
+            float nearPlaneDistance = reader.ReadSingle();
+            float farPlaneDistance = reader.ReadSingle();
             CameraClearSettings clearSettings = ReadClearSettings(reader);
-            CameraRenderSettings renderSettings = version >= 2 ? ReadRenderSettings(reader) : new CameraRenderSettings();
+            CameraRenderSettings renderSettings = ReadRenderSettings(reader);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -1131,11 +1131,11 @@ namespace helengine.editor {
             using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != FPSComponentPayloadVersion && version != 1) {
+            if (version != FPSComponentPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported FPS component payload version '{version}'.");
             }
 
-            SceneAssetReference fontReference = version >= 2 ? ReadOptionalReference(reader) : BuildEditorFontReference();
+            SceneAssetReference fontReference = ReadOptionalReference(reader);
             SceneAssetReference rewrittenFontReference = RewriteFontReference(fontReference, buildRootPath);
             double refreshIntervalSeconds = BitConverter.Int64BitsToDouble(reader.ReadInt64());
             int2 padding = reader.ReadInt2();
@@ -1363,10 +1363,10 @@ namespace helengine.editor {
                 return CreateFileSystemReference(cookedRelativePath);
             }
 
-            AssetImportSettings compatibilityMaterialSettings;
-            if (MaterialAssetSettingsService.TryLoad(fullPath, out compatibilityMaterialSettings) &&
-                HasValidPlatformMaterialSettings(compatibilityMaterialSettings, TargetPlatformId)) {
-                MaterialAssetSettingsService.ApplyPlatformCompatibilityFields(materialAsset, compatibilityMaterialSettings, TargetPlatformId);
+            AssetImportSettings platformMaterialSettings;
+            if (MaterialAssetSettingsService.TryLoad(fullPath, out platformMaterialSettings) &&
+                HasValidPlatformMaterialSettings(platformMaterialSettings, TargetPlatformId)) {
+                MaterialAssetSettingsService.ApplyPlatformMaterialFields(materialAsset, platformMaterialSettings, TargetPlatformId);
             }
 
             RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
@@ -1413,15 +1413,8 @@ namespace helengine.editor {
                 return;
             }
 
+            string sourcePath = ResolveImportedTextureAssetPath(diffuseTextureAssetId);
             TextureAsset textureAsset;
-            string sourcePath;
-            if (TryResolveSourceTextureAsset(materialAssetPath, diffuseTextureAssetId, out textureAsset, out sourcePath)) {
-                string sourceCookedRelativePath = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
-                WriteAsset(Path.Combine(buildRootPath, sourceCookedRelativePath), textureAsset);
-                return;
-            }
-
-            sourcePath = ResolveImportedTextureAssetPath(diffuseTextureAssetId);
             try {
                 textureAsset = ProjectContentManager.Load<TextureAsset>(sourcePath, EditorContentProcessorIds.TextureAsset);
             } catch (Exception ex) {
@@ -1430,35 +1423,6 @@ namespace helengine.editor {
 
             string cookedRelativePath = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
             WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
-        }
-
-        /// <summary>
-        /// Attempts to resolve one legacy diffuse texture reference through the authored source tree instead of the cache.
-        /// </summary>
-        /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
-        /// <param name="diffuseTextureAssetId">Diffuse texture asset id stored on the material asset.</param>
-        /// <param name="textureAsset">Resolved source texture asset when available.</param>
-        /// <param name="sourcePath">Absolute source texture path when available.</param>
-        /// <returns>True when the diffuse texture resolved through the authored source tree; otherwise false.</returns>
-        bool TryResolveSourceTextureAsset(string materialAssetPath, string diffuseTextureAssetId, out TextureAsset textureAsset, out string sourcePath) {
-            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
-                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
-            }
-            if (string.IsNullOrWhiteSpace(diffuseTextureAssetId)) {
-                textureAsset = null;
-                sourcePath = string.Empty;
-                return false;
-            }
-
-            if (!TryResolveSourceTexturePath(materialAssetPath, diffuseTextureAssetId, out sourcePath)) {
-                textureAsset = null;
-                return false;
-            }
-            if (!AssetImportManager.TryLoadTextureAsset(sourcePath, out textureAsset) || textureAsset == null) {
-                throw new InvalidOperationException($"Texture source file '{sourcePath}' could not be imported for packaging.");
-            }
-
-            return true;
         }
 
         /// <summary>
@@ -1492,108 +1456,6 @@ namespace helengine.editor {
             }
 
             return Path.Combine(ProjectRootPath, "cache", assetId);
-        }
-
-        /// <summary>
-        /// Resolves one legacy diffuse texture identifier through the authored material directory, imported-model source directory, or project assets root.
-        /// </summary>
-        /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
-        /// <param name="assetId">Diffuse texture asset identifier stored on the material asset.</param>
-        /// <param name="texturePath">Resolved absolute texture source path when available.</param>
-        /// <returns>True when a matching source texture exists; otherwise false.</returns>
-        bool TryResolveSourceTexturePath(string materialAssetPath, string assetId, out string texturePath) {
-            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
-                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
-            }
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            if (TryResolveTexturePathRelativeToDirectory(Path.GetDirectoryName(Path.GetFullPath(materialAssetPath)), assetId, out texturePath)) {
-                return true;
-            }
-            if (TryResolveTexturePathRelativeToImportedModelSource(materialAssetPath, assetId, out texturePath)) {
-                return true;
-            }
-            if (TryResolveTexturePathRelativeToDirectory(AssetsRootPath, assetId, out texturePath)) {
-                return true;
-            }
-
-            texturePath = string.Empty;
-            return false;
-        }
-
-        /// <summary>
-        /// Attempts to resolve one texture identifier relative to the imported-model source directory that owns the authored companion material.
-        /// </summary>
-        /// <param name="materialAssetPath">Absolute path to the authored companion material asset.</param>
-        /// <param name="assetId">Diffuse texture asset identifier stored on the material asset.</param>
-        /// <param name="texturePath">Resolved absolute texture source path when available.</param>
-        /// <returns>True when a matching texture exists beside the imported model source; otherwise false.</returns>
-        bool TryResolveTexturePathRelativeToImportedModelSource(string materialAssetPath, string assetId, out string texturePath) {
-            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
-                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
-            }
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string materialDirectoryPath = Path.GetDirectoryName(Path.GetFullPath(materialAssetPath));
-            if (string.IsNullOrWhiteSpace(materialDirectoryPath)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string modelDirectoryName = Path.GetFileName(materialDirectoryPath);
-            string modelSourceRootPath = Path.GetDirectoryName(materialDirectoryPath);
-            if (string.IsNullOrWhiteSpace(modelDirectoryName) || string.IsNullOrWhiteSpace(modelSourceRootPath) || !Directory.Exists(modelSourceRootPath)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string[] candidatePaths = Directory.GetFiles(modelSourceRootPath);
-            for (int index = 0; index < candidatePaths.Length; index++) {
-                string candidatePath = candidatePaths[index];
-                if (!AssetImportManager.IsModelExtension(Path.GetExtension(candidatePath))) {
-                    continue;
-                }
-                if (!string.Equals(Path.GetFileNameWithoutExtension(candidatePath), modelDirectoryName, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
-                }
-                if (TryResolveTexturePathRelativeToDirectory(Path.GetDirectoryName(candidatePath), assetId, out texturePath)) {
-                    return true;
-                }
-            }
-
-            texturePath = string.Empty;
-            return false;
-        }
-
-        /// <summary>
-        /// Attempts to resolve one texture identifier relative to the supplied source directory.
-        /// </summary>
-        /// <param name="baseDirectoryPath">Base directory that should receive the texture identifier.</param>
-        /// <param name="assetId">Diffuse texture asset identifier stored on the material asset.</param>
-        /// <param name="texturePath">Resolved absolute texture source path when available.</param>
-        /// <returns>True when a matching texture exists; otherwise false.</returns>
-        static bool TryResolveTexturePathRelativeToDirectory(string baseDirectoryPath, string assetId, out string texturePath) {
-            if (string.IsNullOrWhiteSpace(baseDirectoryPath) || string.IsNullOrWhiteSpace(assetId)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string candidateTexturePath = Path.IsPathRooted(assetId)
-                ? Path.GetFullPath(assetId)
-                : Path.GetFullPath(Path.Combine(baseDirectoryPath, assetId));
-            if (!File.Exists(candidateTexturePath)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            texturePath = candidateTexturePath;
-            return true;
         }
 
         /// <summary>
@@ -2279,3 +2141,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

@@ -89,7 +89,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             Array.Empty<PlatformGraphicsProfileDefinition>(),
             Array.Empty<PlatformAssetRequirementDefinition>(),
             Array.Empty<PlatformMaterialSchemaDefinition>(),
-            Array.Empty<PlatformComponentCompatibilityDefinition>(),
+            Array.Empty<PlatformComponentSupportRule>(),
             Array.Empty<PlatformCodegenProfileDefinition>(),
             Array.Empty<PlatformStorageProfileDefinition>(),
             Array.Empty<PlatformMediaProfileDefinition>());
@@ -117,7 +117,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             Array.Empty<PlatformGraphicsProfileDefinition>(),
             Array.Empty<PlatformAssetRequirementDefinition>(),
             Array.Empty<PlatformMaterialSchemaDefinition>(),
-            Array.Empty<PlatformComponentCompatibilityDefinition>(),
+            Array.Empty<PlatformComponentSupportRule>(),
             Array.Empty<PlatformCodegenProfileDefinition>(),
             Array.Empty<PlatformStorageProfileDefinition>(),
             Array.Empty<PlatformMediaProfileDefinition>());
@@ -143,7 +143,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             Array.Empty<PlatformGraphicsProfileDefinition>(),
             Array.Empty<PlatformAssetRequirementDefinition>(),
             Array.Empty<PlatformMaterialSchemaDefinition>(),
-            Array.Empty<PlatformComponentCompatibilityDefinition>(),
+            Array.Empty<PlatformComponentSupportRule>(),
             Array.Empty<PlatformCodegenProfileDefinition>(),
             Array.Empty<PlatformStorageProfileDefinition>(),
             Array.Empty<PlatformMediaProfileDefinition>());
@@ -169,7 +169,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             Array.Empty<PlatformGraphicsProfileDefinition>(),
             Array.Empty<PlatformAssetRequirementDefinition>(),
             Array.Empty<PlatformMaterialSchemaDefinition>(),
-            Array.Empty<PlatformComponentCompatibilityDefinition>(),
+            Array.Empty<PlatformComponentSupportRule>(),
             Array.Empty<PlatformCodegenProfileDefinition>(),
             Array.Empty<PlatformStorageProfileDefinition>(),
             Array.Empty<PlatformMediaProfileDefinition>());
@@ -211,7 +211,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             Array.Empty<PlatformGraphicsProfileDefinition>(),
             Array.Empty<PlatformAssetRequirementDefinition>(),
             Array.Empty<PlatformMaterialSchemaDefinition>(),
-            Array.Empty<PlatformComponentCompatibilityDefinition>(),
+            Array.Empty<PlatformComponentSupportRule>(),
             Array.Empty<PlatformCodegenProfileDefinition>(),
             Array.Empty<PlatformStorageProfileDefinition>(),
             Array.Empty<PlatformMediaProfileDefinition>());
@@ -247,7 +247,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             Array.Empty<PlatformGraphicsProfileDefinition>(),
             Array.Empty<PlatformAssetRequirementDefinition>(),
             Array.Empty<PlatformMaterialSchemaDefinition>(),
-            Array.Empty<PlatformComponentCompatibilityDefinition>(),
+            Array.Empty<PlatformComponentSupportRule>(),
             Array.Empty<PlatformCodegenProfileDefinition>(),
             Array.Empty<PlatformStorageProfileDefinition>(),
             Array.Empty<PlatformMediaProfileDefinition>());
@@ -1533,3 +1533,4 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("#include \"float4.hpp\"", normalizedEntityHeader, StringComparison.Ordinal);
     }
 }
+

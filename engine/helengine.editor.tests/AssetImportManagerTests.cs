@@ -93,11 +93,11 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures unsupported legacy `*.hasset` payloads are silently regenerated with the current schema.
+        /// Ensures unsupported asset-import-settings versions are rejected instead of being regenerated.
         /// </summary>
         [Fact]
-        public void LoadOrCreateImportSettings_WhenSettingsUseUnsupportedVersion_RewritesDefaults() {
-            string sourcePath = WriteSourceTexture("legacy-settings.png");
+        public void LoadOrCreateImportSettings_WhenSettingsUseUnsupportedVersion_Throws() {
+            string sourcePath = WriteSourceTexture("unsupported-settings-version.png");
             string settingsPath = sourcePath + ".hasset";
             AssetImportManager manager = CreateManager();
             AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
@@ -106,19 +106,12 @@ namespace helengine.editor.tests {
                 AssetImportSettingsBinarySerializer.Serialize(stream, settings);
             }
 
-            byte[] legacySettings = File.ReadAllBytes(settingsPath);
-            legacySettings[5] = 1;
-            File.WriteAllBytes(settingsPath, legacySettings);
+            byte[] unsupportedVersionSettings = File.ReadAllBytes(settingsPath);
+            unsupportedVersionSettings[5] = 2;
+            File.WriteAllBytes(settingsPath, unsupportedVersionSettings);
 
-            AssetImportSettings loadedSettings = manager.LoadOrCreateImportSettings(sourcePath);
-
-            Assert.Equal("test-texture", loadedSettings.Importer.ImporterId);
-            Assert.False(string.IsNullOrWhiteSpace(loadedSettings.Importer.SourceChecksum));
-            Assert.False(string.IsNullOrWhiteSpace(loadedSettings.Importer.AssetId));
-            using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-                Assert.Equal(AssetImportSettingsBinarySerializer.CurrentVersion, header.Version);
-            }
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => manager.LoadOrCreateImportSettings(sourcePath));
+            Assert.Contains("Unsupported asset import settings binary version", exception.Message);
         }
 
         /// <summary>

@@ -13,7 +13,7 @@ public class PlatformDefinition {
     /// <param name="graphicsProfiles">Graphics profiles exposed by the platform.</param>
     /// <param name="assetRequirements">Asset requirements exposed by the platform.</param>
     /// <param name="materialSchemas">Material authoring schemas exposed by the platform.</param>
-    /// <param name="componentCompatibilities">Component compatibility rules exposed by the platform.</param>
+    /// <param name="componentSupportRules">Component support rules exposed by the platform.</param>
     /// <param name="codegenProfiles">Codegen profiles exposed by the platform.</param>
     /// <param name="storageProfiles">Storage/runtime profiles exposed by the platform.</param>
     /// <param name="mediaProfiles">Media profiles exposed by the platform.</param>
@@ -24,7 +24,7 @@ public class PlatformDefinition {
         PlatformGraphicsProfileDefinition[] graphicsProfiles,
         PlatformAssetRequirementDefinition[] assetRequirements,
         PlatformMaterialSchemaDefinition[] materialSchemas,
-        PlatformComponentCompatibilityDefinition[] componentCompatibilities,
+        PlatformComponentSupportRule[] componentSupportRules,
         PlatformCodegenProfileDefinition[] codegenProfiles,
         PlatformStorageProfileDefinition[] storageProfiles,
         PlatformMediaProfileDefinition[] mediaProfiles) {
@@ -40,8 +40,8 @@ public class PlatformDefinition {
             throw new ArgumentNullException(nameof(assetRequirements), "Asset requirements are required.");
         } else if (materialSchemas == null) {
             throw new ArgumentNullException(nameof(materialSchemas), "Material schemas are required.");
-        } else if (componentCompatibilities == null) {
-            throw new ArgumentNullException(nameof(componentCompatibilities), "Component compatibilities are required.");
+        } else if (componentSupportRules == null) {
+            throw new ArgumentNullException(nameof(componentSupportRules), "Component support rules are required.");
         } else if (codegenProfiles == null) {
             throw new ArgumentNullException(nameof(codegenProfiles), "Codegen profiles are required.");
         } else if (storageProfiles == null) {
@@ -56,8 +56,8 @@ public class PlatformDefinition {
             throw new ArgumentException("Asset requirements cannot contain null entries.", nameof(assetRequirements));
         } else if (Array.Exists(materialSchemas, materialSchema => materialSchema == null)) {
             throw new ArgumentException("Material schemas cannot contain null entries.", nameof(materialSchemas));
-        } else if (Array.Exists(componentCompatibilities, componentCompatibility => componentCompatibility == null)) {
-            throw new ArgumentException("Component compatibilities cannot contain null entries.", nameof(componentCompatibilities));
+        } else if (Array.Exists(componentSupportRules, componentSupportRule => componentSupportRule == null)) {
+            throw new ArgumentException("Component support rules cannot contain null entries.", nameof(componentSupportRules));
         } else if (Array.Exists(codegenProfiles, codegenProfile => codegenProfile == null)) {
             throw new ArgumentException("Codegen profiles cannot contain null entries.", nameof(codegenProfiles));
         } else if (Array.Exists(storageProfiles, storageProfile => storageProfile == null)) {
@@ -72,7 +72,7 @@ public class PlatformDefinition {
         GraphicsProfiles = [.. graphicsProfiles];
         AssetRequirements = [.. assetRequirements];
         MaterialSchemas = [.. materialSchemas];
-        ComponentCompatibilities = [.. componentCompatibilities];
+        ComponentSupportRules = [.. componentSupportRules];
         CodegenProfiles = [.. codegenProfiles];
         StorageProfiles = [.. storageProfiles];
         MediaProfiles = [.. mediaProfiles];
@@ -88,7 +88,7 @@ public class PlatformDefinition {
         PlatformGraphicsProfileDefinition[] graphicsProfiles,
         PlatformAssetRequirementDefinition[] assetRequirements,
         PlatformMaterialSchemaDefinition[] materialSchemas,
-        PlatformComponentCompatibilityDefinition[] componentCompatibilities,
+        PlatformComponentSupportRule[] componentSupportRules,
         PlatformCodegenProfileDefinition[] codegenProfiles)
         : this(
             platformId,
@@ -97,7 +97,7 @@ public class PlatformDefinition {
             graphicsProfiles,
             assetRequirements,
             materialSchemas,
-            componentCompatibilities,
+            componentSupportRules,
             codegenProfiles,
             Array.Empty<PlatformStorageProfileDefinition>(),
             Array.Empty<PlatformMediaProfileDefinition>()) {
@@ -113,7 +113,7 @@ public class PlatformDefinition {
         PlatformGraphicsProfileDefinition[] graphicsProfiles,
         PlatformAssetRequirementDefinition[] assetRequirements,
         PlatformMaterialSchemaDefinition[] materialSchemas,
-        PlatformComponentCompatibilityDefinition[] componentCompatibilities,
+        PlatformComponentSupportRule[] componentSupportRules,
         PlatformCodegenProfileDefinition[] codegenProfiles,
         PlatformMediaProfileDefinition[] mediaProfiles)
         : this(
@@ -123,7 +123,7 @@ public class PlatformDefinition {
             graphicsProfiles,
             assetRequirements,
             materialSchemas,
-            componentCompatibilities,
+            componentSupportRules,
             codegenProfiles,
             Array.Empty<PlatformStorageProfileDefinition>(),
             mediaProfiles) {
@@ -139,7 +139,7 @@ public class PlatformDefinition {
         PlatformGraphicsProfileDefinition[] graphicsProfiles,
         PlatformAssetRequirementDefinition[] assetRequirements,
         PlatformMaterialSchemaDefinition[] materialSchemas,
-        PlatformComponentCompatibilityDefinition[] componentCompatibilities)
+        PlatformComponentSupportRule[] componentSupportRules)
         : this(
             platformId,
             displayName,
@@ -147,7 +147,7 @@ public class PlatformDefinition {
             graphicsProfiles,
             assetRequirements,
             materialSchemas,
-            componentCompatibilities,
+            componentSupportRules,
             Array.Empty<PlatformCodegenProfileDefinition>()) {
     }
 
@@ -160,7 +160,7 @@ public class PlatformDefinition {
         PlatformBuildProfileDefinition[] buildProfiles,
         PlatformGraphicsProfileDefinition[] graphicsProfiles,
         PlatformAssetRequirementDefinition[] assetRequirements,
-        PlatformComponentCompatibilityDefinition[] componentCompatibilities,
+        PlatformComponentSupportRule[] componentSupportRules,
         PlatformCodegenProfileDefinition[] codegenProfiles,
         PlatformStorageProfileDefinition[] storageProfiles,
         PlatformMediaProfileDefinition[] mediaProfiles)
@@ -171,7 +171,7 @@ public class PlatformDefinition {
             graphicsProfiles,
             assetRequirements,
             Array.Empty<PlatformMaterialSchemaDefinition>(),
-            componentCompatibilities,
+            componentSupportRules,
             codegenProfiles,
             storageProfiles,
             mediaProfiles) {
@@ -186,7 +186,7 @@ public class PlatformDefinition {
         PlatformBuildProfileDefinition[] buildProfiles,
         PlatformGraphicsProfileDefinition[] graphicsProfiles,
         PlatformAssetRequirementDefinition[] assetRequirements,
-        PlatformComponentCompatibilityDefinition[] componentCompatibilities,
+        PlatformComponentSupportRule[] componentSupportRules,
         PlatformCodegenProfileDefinition[] codegenProfiles)
         : this(
             platformId,
@@ -195,7 +195,7 @@ public class PlatformDefinition {
             graphicsProfiles,
             assetRequirements,
             Array.Empty<PlatformMaterialSchemaDefinition>(),
-            componentCompatibilities,
+            componentSupportRules,
             codegenProfiles,
             Array.Empty<PlatformStorageProfileDefinition>(),
             Array.Empty<PlatformMediaProfileDefinition>()) {
@@ -210,7 +210,7 @@ public class PlatformDefinition {
         PlatformBuildProfileDefinition[] buildProfiles,
         PlatformGraphicsProfileDefinition[] graphicsProfiles,
         PlatformAssetRequirementDefinition[] assetRequirements,
-        PlatformComponentCompatibilityDefinition[] componentCompatibilities,
+        PlatformComponentSupportRule[] componentSupportRules,
         PlatformCodegenProfileDefinition[] codegenProfiles,
         PlatformMediaProfileDefinition[] mediaProfiles)
         : this(
@@ -220,7 +220,7 @@ public class PlatformDefinition {
             graphicsProfiles,
             assetRequirements,
             Array.Empty<PlatformMaterialSchemaDefinition>(),
-            componentCompatibilities,
+            componentSupportRules,
             codegenProfiles,
             Array.Empty<PlatformStorageProfileDefinition>(),
             mediaProfiles) {
@@ -235,7 +235,7 @@ public class PlatformDefinition {
         PlatformBuildProfileDefinition[] buildProfiles,
         PlatformGraphicsProfileDefinition[] graphicsProfiles,
         PlatformAssetRequirementDefinition[] assetRequirements,
-        PlatformComponentCompatibilityDefinition[] componentCompatibilities)
+        PlatformComponentSupportRule[] componentSupportRules)
         : this(
             platformId,
             displayName,
@@ -243,12 +243,12 @@ public class PlatformDefinition {
             graphicsProfiles,
             assetRequirements,
             Array.Empty<PlatformMaterialSchemaDefinition>(),
-            componentCompatibilities,
+            componentSupportRules,
             Array.Empty<PlatformCodegenProfileDefinition>()) {
     }
 
     /// <summary>
-    /// Initializes one platform definition with only material schemas and no compatibility/codegen/storage/media metadata.
+    /// Initializes one platform definition with only material schemas and no support-rule/codegen/storage/media metadata.
     /// </summary>
     public PlatformDefinition(
         string platformId,
@@ -264,7 +264,7 @@ public class PlatformDefinition {
             graphicsProfiles,
             assetRequirements,
             materialSchemas,
-            Array.Empty<PlatformComponentCompatibilityDefinition>(),
+            Array.Empty<PlatformComponentSupportRule>(),
             Array.Empty<PlatformCodegenProfileDefinition>(),
             Array.Empty<PlatformStorageProfileDefinition>(),
             Array.Empty<PlatformMediaProfileDefinition>()) {
@@ -301,9 +301,9 @@ public class PlatformDefinition {
     public PlatformMaterialSchemaDefinition[] MaterialSchemas { get; }
 
     /// <summary>
-    /// Gets the component compatibility rules exposed by the platform.
+    /// Gets the component support rules exposed by the platform.
     /// </summary>
-    public PlatformComponentCompatibilityDefinition[] ComponentCompatibilities { get; }
+    public PlatformComponentSupportRule[] ComponentSupportRules { get; }
 
     /// <summary>
     /// Gets the codegen profiles exposed by the platform.
@@ -320,3 +320,5 @@ public class PlatformDefinition {
     /// </summary>
     public PlatformMediaProfileDefinition[] MediaProfiles { get; }
 }
+
+

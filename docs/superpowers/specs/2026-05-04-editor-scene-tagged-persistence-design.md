@@ -157,7 +157,7 @@ Verify tagged editor payloads package into strict runtime payloads that the runt
 
 ## Non-goals
 
-- backward compatibility with existing positional editor scene payloads
+- support for existing positional editor scene payloads
 - changing the outer `.helen` asset container format
 - making runtime deserializers tolerant to arbitrary editor payload evolution
 - full generated serialization infrastructure in this slice

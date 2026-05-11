@@ -429,7 +429,7 @@ This plan covers every requirement in the spec:
 - Build modal control and per-platform restore: Task 2
 - queue snapshot behavior: Task 3
 - Windows Debug/Release selection and separate artifacts: Task 4
-- backward compatibility for older build-config files: Task 1
+- older build-config support: Task 1
 
 ## Notes for the Implementer
 

@@ -318,7 +318,7 @@ namespace helengine.editor {
         readonly MaterialAssetSettingsService MaterialAssetSettingsService;
 
         /// <summary>
-        /// Target platform id whose material settings should drive packaged compatibility payloads.
+        /// Target platform id whose material settings should drive packaged mirrored material payloads.
         /// </summary>
         readonly string TargetPlatformId;
 
@@ -653,7 +653,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Deserializes one automatic scripted component for packaging, treating legacy empty payloads as a default instance whose reflected members all remain at their type defaults.
+        /// Deserializes one automatic scripted component for packaging through its resolved persistence descriptor.
         /// </summary>
         /// <param name="record">Serialized component record being packaged.</param>
         /// <param name="descriptor">Resolved persistence descriptor for the component type.</param>
@@ -666,59 +666,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(descriptor));
             }
 
-            if (descriptor is AutomaticScriptComponentPersistenceDescriptor && (record.Payload == null || record.Payload.Length == 0)) {
-                Type componentType = ResolveAutomaticComponentType(record.ComponentTypeId);
-                return CreateAutomaticComponentInstance(componentType);
-            }
-
             return descriptor.DeserializeComponent(record, null, null);
-        }
-
-        /// <summary>
-        /// Resolves one scripted component type id for automatic packaging.
-        /// </summary>
-        /// <param name="componentTypeId">Serialized scripted component type identifier.</param>
-        /// <returns>Resolved scripted component type.</returns>
-        Type ResolveAutomaticComponentType(string componentTypeId) {
-            if (string.IsNullOrWhiteSpace(componentTypeId)) {
-                throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
-            }
-
-            Type componentType = Type.GetType(componentTypeId, false);
-            if (componentType == null && ScriptTypeResolver != null) {
-                componentType = ScriptTypeResolver.Resolve(componentTypeId);
-            }
-            if (componentType == null) {
-                throw new InvalidOperationException($"Scripted component type '{componentTypeId}' could not be resolved.");
-            }
-
-            return componentType;
-        }
-
-        /// <summary>
-        /// Creates one scripted component instance for automatic packaging when no persisted member payload is required.
-        /// </summary>
-        /// <param name="componentType">Resolved scripted component type to instantiate.</param>
-        /// <returns>Instantiated scripted component.</returns>
-        static Component CreateAutomaticComponentInstance(Type componentType) {
-            if (componentType == null) {
-                throw new ArgumentNullException(nameof(componentType));
-            }
-            if (!typeof(Component).IsAssignableFrom(componentType)) {
-                throw new InvalidOperationException($"Automatic script-component packaging requires a {nameof(Component)} type.");
-            }
-
-            ConstructorInfo constructor = componentType.GetConstructor(Type.EmptyTypes);
-            if (constructor == null || !constructor.IsPublic) {
-                throw new InvalidOperationException($"Scripted component type '{componentType.FullName}' must expose a public parameterless constructor.");
-            }
-
-            object instance = Activator.CreateInstance(componentType);
-            if (instance is not Component component) {
-                throw new InvalidOperationException($"Scripted component type '{componentType.FullName}' could not be instantiated.");
-            }
-
-            return component;
         }
 
         /// <summary>
@@ -962,7 +910,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Reads one serialized mesh payload from either the tolerant tagged editor format or the legacy binary editor format.
+        /// Reads one serialized mesh payload from the current tagged editor format.
         /// </summary>
         /// <param name="record">Scene component record to interpret.</param>
         /// <param name="modelReference">Persisted model reference.</param>
@@ -977,18 +925,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(record));
             }
 
-            try {
-                ReadTaggedMeshComponentRecord(
-                    record,
-                    out modelReference,
-                    out materialReferences,
-                    out renderOrder3D);
-                return;
-            } catch (EndOfStreamException) {
-            } catch (InvalidOperationException) {
-            }
-
-            ReadLegacyVersionedMeshComponentRecord(
+            ReadTaggedMeshComponentRecord(
                 record,
                 out modelReference,
                 out materialReferences,
@@ -996,7 +933,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Reads one serialized camera payload from either the tolerant tagged editor format or the legacy binary editor format.
+        /// Reads one serialized camera payload from the current tagged editor format.
         /// </summary>
         /// <param name="record">Scene component record to interpret.</param>
         /// <param name="cameraDrawOrder">Persisted camera draw order.</param>
@@ -1015,20 +952,6 @@ namespace helengine.editor {
             out CameraRenderSettings renderSettings) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
-            }
-
-            byte[] payload = record.Payload ?? Array.Empty<byte>();
-            if (IsLegacyVersionedCameraPayload(payload)) {
-                ReadLegacyVersionedCameraComponentRecord(
-                    record,
-                    out cameraDrawOrder,
-                    out layerMask,
-                    out viewport,
-                    out nearPlaneDistance,
-                    out farPlaneDistance,
-                    out clearSettings,
-                    out renderSettings);
-                return;
             }
 
             ReadTaggedCameraComponentRecord(
@@ -1082,13 +1005,11 @@ namespace helengine.editor {
             using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != FPSComponentPayloadVersion && version != 1) {
+            if (version != FPSComponentPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported FPS component payload version '{version}'.");
             }
 
-            SceneAssetReference fontReference = version >= 2
-                ? FontAssetScenePersistenceSupport.ReadOptionalReference(reader)
-                : FontAssetScenePersistenceSupport.BuildEditorFontReference();
+            SceneAssetReference fontReference = FontAssetScenePersistenceSupport.ReadOptionalReference(reader);
             double refreshIntervalSeconds = BitConverter.Int64BitsToDouble(reader.ReadInt64());
             int2 padding = reader.ReadInt2();
             byte renderOrder2D = reader.ReadByte();
@@ -1414,54 +1335,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Reads one legacy binary camera payload into the runtime values needed for packaged rewriting.
-        /// </summary>
-        /// <param name="record">Scene component record to interpret.</param>
-        /// <param name="cameraDrawOrder">Persisted camera draw order.</param>
-        /// <param name="layerMask">Persisted camera layer mask.</param>
-        /// <param name="viewport">Persisted camera viewport.</param>
-        /// <param name="clearSettings">Persisted camera clear settings.</param>
-        /// <param name="renderSettings">Persisted camera render settings.</param>
-        void ReadLegacyVersionedCameraComponentRecord(
-            SceneComponentAssetRecord record,
-            out byte cameraDrawOrder,
-            out ushort layerMask,
-            out float4 viewport,
-            out float nearPlaneDistance,
-            out float farPlaneDistance,
-            out CameraClearSettings clearSettings,
-            out CameraRenderSettings renderSettings) {
-            if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-            if (!string.Equals(record.ComponentTypeId, CameraComponentTypeId, StringComparison.Ordinal)) {
-                throw new InvalidOperationException($"Expected camera record but received '{record.ComponentTypeId}'.");
-            }
-
-            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != 1 && version != 2 && version != CameraComponentPayloadVersion) {
-                throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
-            }
-
-            cameraDrawOrder = reader.ReadByte();
-            layerMask = reader.ReadUInt16();
-            viewport = ReadFloat4(reader);
-            if (version >= CameraComponentPayloadVersion) {
-                nearPlaneDistance = reader.ReadSingle();
-                farPlaneDistance = reader.ReadSingle();
-            } else {
-                nearPlaneDistance = 0.1f;
-                farPlaneDistance = 100f;
-            }
-            clearSettings = ReadClearSettings(reader);
-            renderSettings = version >= 2
-                ? ReadRenderSettings(reader)
-                : new CameraRenderSettings();
-        }
-
-        /// <summary>
         /// Reads one tagged mesh payload into the authored asset references and render order needed for packaged rewriting.
         /// </summary>
         /// <param name="record">Scene component record to interpret.</param>
@@ -1492,19 +1365,12 @@ namespace helengine.editor {
                 }
             }
 
-            if (reader.TryGetFieldReader(MeshMaterialReferenceFieldName, out EngineBinaryReader materialReferenceReader)) {
-                using (materialReferenceReader) {
-                    SceneAssetReference materialReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(materialReferenceReader);
-                    materialReferences = materialReference == null
-                        ? Array.Empty<SceneAssetReference>()
-                        : new[] { materialReference };
-                }
+            if (!reader.TryGetFieldReader(MeshMaterialReferencesFieldName, out EngineBinaryReader materialReferencesReader)) {
+                throw new InvalidOperationException("Mesh component payload must include MaterialReferences.");
             }
 
-            if (reader.TryGetFieldReader(MeshMaterialReferencesFieldName, out EngineBinaryReader materialReferencesReader)) {
-                using (materialReferencesReader) {
-                    materialReferences = SceneComponentBinaryFieldEncoding.ReadOptionalReferenceArray(materialReferencesReader);
-                }
+            using (materialReferencesReader) {
+                materialReferences = SceneComponentBinaryFieldEncoding.ReadOptionalReferenceArray(materialReferencesReader);
             }
 
             if (reader.TryGetFieldReader(MeshRenderOrder3DFieldName, out EngineBinaryReader renderOrder3DReader)) {
@@ -1512,30 +1378,6 @@ namespace helengine.editor {
                     renderOrder3D = renderOrder3DReader.ReadByte();
                 }
             }
-        }
-
-        /// <summary>
-        /// Reads one legacy binary mesh payload into the authored asset references and render order needed for packaged rewriting.
-        /// </summary>
-        /// <param name="record">Scene component record to interpret.</param>
-        /// <param name="modelReference">Persisted model reference.</param>
-        /// <param name="materialReferences">Persisted material references ordered by submesh slot.</param>
-        /// <param name="renderOrder3D">Persisted render order.</param>
-        void ReadLegacyVersionedMeshComponentRecord(
-            SceneComponentAssetRecord record,
-            out SceneAssetReference modelReference,
-            out SceneAssetReference[] materialReferences,
-            out byte renderOrder3D) {
-            if (record == null) {
-                throw new ArgumentNullException(nameof(record));
-            }
-            if (!string.Equals(record.ComponentTypeId, MeshComponentTypeId, StringComparison.Ordinal)) {
-                throw new InvalidOperationException($"Expected mesh record but received '{record.ComponentTypeId}'.");
-            }
-
-            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            MeshComponentScenePayloadSerializer.Read(reader, out modelReference, out materialReferences, out renderOrder3D);
         }
 
         /// <summary>
@@ -1889,10 +1731,10 @@ namespace helengine.editor {
                 return CreateFileSystemReference(cookedRelativePath);
             }
 
-            AssetImportSettings compatibilityMaterialSettings;
-            if (MaterialAssetSettingsService.TryLoad(fullPath, out compatibilityMaterialSettings) &&
-                HasValidPlatformMaterialSettings(compatibilityMaterialSettings, TargetPlatformId)) {
-                MaterialAssetSettingsService.ApplyPlatformCompatibilityFields(materialAsset, compatibilityMaterialSettings, TargetPlatformId);
+            AssetImportSettings platformMaterialSettings;
+            if (MaterialAssetSettingsService.TryLoad(fullPath, out platformMaterialSettings) &&
+                HasValidPlatformMaterialSettings(platformMaterialSettings, TargetPlatformId)) {
+                MaterialAssetSettingsService.ApplyPlatformMaterialFields(materialAsset, platformMaterialSettings, TargetPlatformId);
             }
 
             RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
@@ -1939,15 +1781,8 @@ namespace helengine.editor {
                 return;
             }
 
+            string sourcePath = ResolveImportedTextureAssetPath(diffuseTextureAssetId);
             TextureAsset textureAsset;
-            string sourcePath;
-            if (TryResolveSourceTextureAsset(materialAssetPath, diffuseTextureAssetId, out textureAsset, out sourcePath)) {
-                string sourceCookedRelativePath = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
-                WriteAsset(Path.Combine(buildRootPath, sourceCookedRelativePath), textureAsset);
-                return;
-            }
-
-            sourcePath = ResolveImportedTextureAssetPath(diffuseTextureAssetId);
             try {
                 textureAsset = ProjectContentManager.Load<TextureAsset>(sourcePath, EditorContentProcessorIds.TextureAsset);
             } catch (Exception ex) {
@@ -1955,35 +1790,6 @@ namespace helengine.editor {
             }
             string cookedRelativePath = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
             WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
-        }
-
-        /// <summary>
-        /// Attempts to resolve one legacy diffuse texture reference through the authored source tree instead of the cache.
-        /// </summary>
-        /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
-        /// <param name="diffuseTextureAssetId">Diffuse texture asset id stored on the material asset.</param>
-        /// <param name="textureAsset">Resolved source texture asset when available.</param>
-        /// <param name="sourcePath">Absolute source texture path when available.</param>
-        /// <returns>True when the diffuse texture resolved through the authored source tree; otherwise false.</returns>
-        bool TryResolveSourceTextureAsset(string materialAssetPath, string diffuseTextureAssetId, out TextureAsset textureAsset, out string sourcePath) {
-            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
-                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
-            }
-            if (string.IsNullOrWhiteSpace(diffuseTextureAssetId)) {
-                textureAsset = null;
-                sourcePath = string.Empty;
-                return false;
-            }
-
-            if (!TryResolveSourceTexturePath(materialAssetPath, diffuseTextureAssetId, out sourcePath)) {
-                textureAsset = null;
-                return false;
-            }
-            if (!AssetImportManager.TryLoadTextureAsset(sourcePath, out textureAsset) || textureAsset == null) {
-                throw new InvalidOperationException($"Texture source file '{sourcePath}' could not be imported for packaging.");
-            }
-
-            return true;
         }
 
         /// <summary>
@@ -2022,108 +1828,6 @@ namespace helengine.editor {
             }
 
             return Path.Combine(projectRootPath, "cache", assetId);
-        }
-
-        /// <summary>
-        /// Resolves one legacy diffuse texture identifier through the authored material directory, imported-model source directory, or project assets root.
-        /// </summary>
-        /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
-        /// <param name="assetId">Diffuse texture asset identifier stored on the material asset.</param>
-        /// <param name="texturePath">Resolved absolute texture source path when available.</param>
-        /// <returns>True when a matching source texture exists; otherwise false.</returns>
-        bool TryResolveSourceTexturePath(string materialAssetPath, string assetId, out string texturePath) {
-            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
-                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
-            }
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            if (TryResolveTexturePathRelativeToDirectory(Path.GetDirectoryName(Path.GetFullPath(materialAssetPath)), assetId, out texturePath)) {
-                return true;
-            }
-            if (TryResolveTexturePathRelativeToImportedModelSource(materialAssetPath, assetId, out texturePath)) {
-                return true;
-            }
-            if (TryResolveTexturePathRelativeToDirectory(AssetsRootPath, assetId, out texturePath)) {
-                return true;
-            }
-
-            texturePath = string.Empty;
-            return false;
-        }
-
-        /// <summary>
-        /// Attempts to resolve one texture identifier relative to the imported-model source directory that owns the authored companion material.
-        /// </summary>
-        /// <param name="materialAssetPath">Absolute path to the authored companion material asset.</param>
-        /// <param name="assetId">Diffuse texture asset identifier stored on the material asset.</param>
-        /// <param name="texturePath">Resolved absolute texture source path when available.</param>
-        /// <returns>True when a matching texture exists beside the imported model source; otherwise false.</returns>
-        bool TryResolveTexturePathRelativeToImportedModelSource(string materialAssetPath, string assetId, out string texturePath) {
-            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
-                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
-            }
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string materialDirectoryPath = Path.GetDirectoryName(Path.GetFullPath(materialAssetPath));
-            if (string.IsNullOrWhiteSpace(materialDirectoryPath)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string modelDirectoryName = Path.GetFileName(materialDirectoryPath);
-            string modelSourceRootPath = Path.GetDirectoryName(materialDirectoryPath);
-            if (string.IsNullOrWhiteSpace(modelDirectoryName) || string.IsNullOrWhiteSpace(modelSourceRootPath) || !Directory.Exists(modelSourceRootPath)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string[] candidatePaths = Directory.GetFiles(modelSourceRootPath);
-            for (int index = 0; index < candidatePaths.Length; index++) {
-                string candidatePath = candidatePaths[index];
-                if (!AssetImportManager.IsModelExtension(Path.GetExtension(candidatePath))) {
-                    continue;
-                }
-                if (!string.Equals(Path.GetFileNameWithoutExtension(candidatePath), modelDirectoryName, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
-                }
-                if (TryResolveTexturePathRelativeToDirectory(Path.GetDirectoryName(candidatePath), assetId, out texturePath)) {
-                    return true;
-                }
-            }
-
-            texturePath = string.Empty;
-            return false;
-        }
-
-        /// <summary>
-        /// Attempts to resolve one texture identifier relative to the supplied source directory.
-        /// </summary>
-        /// <param name="baseDirectoryPath">Base directory that should receive the texture identifier.</param>
-        /// <param name="assetId">Diffuse texture asset identifier stored on the material asset.</param>
-        /// <param name="texturePath">Resolved absolute texture source path when available.</param>
-        /// <returns>True when a matching texture exists; otherwise false.</returns>
-        static bool TryResolveTexturePathRelativeToDirectory(string baseDirectoryPath, string assetId, out string texturePath) {
-            if (string.IsNullOrWhiteSpace(baseDirectoryPath) || string.IsNullOrWhiteSpace(assetId)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string candidateTexturePath = Path.IsPathRooted(assetId)
-                ? Path.GetFullPath(assetId)
-                : Path.GetFullPath(Path.Combine(baseDirectoryPath, assetId));
-            if (!File.Exists(candidateTexturePath)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            texturePath = candidateTexturePath;
-            return true;
         }
 
         /// <summary>
@@ -2733,3 +2437,4 @@ namespace helengine.editor {
         }
     }
 }
+

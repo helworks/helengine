@@ -162,7 +162,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures legacy X sources that switch materials produce one submesh and one generated material asset per material.
+        /// Ensures DirectX `.x` sources that switch materials produce one submesh and one generated material asset per material.
         /// </summary>
         [Fact]
         public void ImportModel_WhenXUsesTwoMaterials_ReturnsTwoSubmeshesAndTwoGeneratedMaterials() {

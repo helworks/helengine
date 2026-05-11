@@ -368,13 +368,12 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateCharacterControllerRecord() {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
+            writer.WriteByte(1);
             writer.WriteFloat3(new float3(1f, 0f, 0f));
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(3d));
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(1d));
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.75d));
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.3d));
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(45d));
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.CharacterController3DComponent",

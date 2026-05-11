@@ -62,9 +62,9 @@ public class PlatformDefinitionTests {
                     ])
             ],
             [
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     "helengine.FPSComponent",
-                    PlatformComponentCompatibilityKind.PassThrough,
+                    PlatformComponentSupportKind.PassThrough,
                     "FPS overlay is canonical on this platform.",
                     string.Empty)
             ],
@@ -101,9 +101,10 @@ public class PlatformDefinitionTests {
         Assert.Equal("texture", definition.AssetRequirements[0].RequirementId);
         Assert.Equal("standard-shader", definition.MaterialSchemas[0].SchemaId);
         Assert.Equal(PlatformMaterialFieldKind.AssetReference, definition.MaterialSchemas[0].Fields[0].FieldKind);
-        Assert.Equal("helengine.FPSComponent", definition.ComponentCompatibilities[0].ComponentTypeId);
+        Assert.Equal("helengine.FPSComponent", definition.ComponentSupportRules[0].ComponentTypeId);
         Assert.Equal("default", definition.CodegenProfiles[0].ProfileId);
         Assert.Equal("install-tree", definition.StorageProfiles[0].ProfileId);
         Assert.Equal("install-tree", definition.MediaProfiles[0].ProfileId);
     }
 }
+

@@ -31,12 +31,12 @@ namespace helengine.editor {
         const int ButtonWidth = 80;
 
         /// <summary>
-        /// Field id used by compatibility shader-backed schemas for shader assignment.
+        /// Field id used by shader-backed schemas for shader assignment.
         /// </summary>
         const string ShaderAssetIdFieldId = "shader-asset-id";
 
         /// <summary>
-        /// Field id used by compatibility shader-backed schemas for texture assignment.
+        /// Field id used by shader-backed schemas for texture assignment.
         /// </summary>
         const string TextureAssetIdFieldId = "texture-id";
 
@@ -46,22 +46,22 @@ namespace helengine.editor {
         const string UseCustomShaderFieldId = "use-custom-shader";
 
         /// <summary>
-        /// Field id used by compatibility shader-backed schemas to toggle shadow casting.
+        /// Field id used by shader-backed schemas to toggle shadow casting.
         /// </summary>
         const string CastsShadowFieldId = "casts-shadow";
 
         /// <summary>
-        /// Field id used by compatibility shader-backed schemas to toggle shadow receiving.
+        /// Field id used by shader-backed schemas to toggle shadow receiving.
         /// </summary>
         const string ReceivesShadowFieldId = "receives-shadow";
 
         /// <summary>
-        /// Field id used by compatibility shader-backed schemas for vertex program assignment.
+        /// Field id used by shader-backed schemas for vertex program assignment.
         /// </summary>
         const string VertexProgramFieldId = "vertex-program";
 
         /// <summary>
-        /// Field id used by compatibility shader-backed schemas for pixel program assignment.
+        /// Field id used by shader-backed schemas for pixel program assignment.
         /// </summary>
         const string PixelProgramFieldId = "pixel-program";
 
@@ -677,14 +677,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Saves the material sidecar and mirrors the active platform fields back into the raw material asset for compatibility.
+        /// Saves the material sidecar and mirrors the active platform fields back into the serialized material asset used by preview consumers.
         /// </summary>
         void SaveCurrentMaterialState(string platformId) {
             if (CurrentEntry == null || CurrentAsset == null || CurrentSettings == null) {
                 throw new InvalidOperationException("Cannot save a material view that is not bound to an asset.");
             }
 
-            SettingsService.ApplyPlatformCompatibilityFields(CurrentAsset, CurrentSettings, platformId);
+            SettingsService.ApplyPlatformMaterialFields(CurrentAsset, CurrentSettings, platformId);
             SaveMaterialAsset(CurrentEntry.FullPath, CurrentAsset);
             SettingsService.Save(CurrentEntry.FullPath, CurrentSettings);
             RefreshShaderResources(CurrentAsset.ShaderAssetId);

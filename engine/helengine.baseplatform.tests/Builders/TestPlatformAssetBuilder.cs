@@ -119,9 +119,9 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
                     ])
             ],
             [
-                new PlatformComponentCompatibilityDefinition(
+                new PlatformComponentSupportRule(
                     "helengine.FPSComponent",
-                    PlatformComponentCompatibilityKind.PassThrough,
+                    PlatformComponentSupportKind.PassThrough,
                     "FPS overlay is canonical on this platform.",
                     string.Empty)
             ],
@@ -275,3 +275,4 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
         return stream.ToArray();
     }
 }
+

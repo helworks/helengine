@@ -330,7 +330,7 @@ Expected:
 - FAIL because `MeshComponent` has no slot collection
 - FAIL because persistence still writes one material reference
 
-- [ ] **Step 3: Implement slot-based mesh persistence with legacy compatibility**
+- [ ] **Step 3: Implement slot-based mesh persistence with single-material compatibility**
 
 ```csharp
 public class MeshComponent : Component, IDrawable3D {
@@ -378,10 +378,10 @@ writer.WriteField(
 
 ```csharp
 if (version == 1) {
-    SceneAssetReference legacyMaterial = ReadOptionalReference(reader);
-    meshComponent.Materials = legacyMaterial == null
+    SceneAssetReference singleMaterialReference = ReadOptionalReference(reader);
+    meshComponent.Materials = singleMaterialReference == null
         ? Array.Empty<RuntimeMaterial>()
-        : new[] { referenceResolver.ResolveMaterial(legacyMaterial) };
+        : new[] { referenceResolver.ResolveMaterial(singleMaterialReference) };
 }
 ```
 
@@ -395,7 +395,7 @@ rtk dotnet test engine/helengine.editor.tests/helengine.editor.tests.csproj --fi
 
 Expected:
 - PASS for slot-array save/load behavior
-- PASS for legacy single-material payload compatibility
+- PASS for single-material payload compatibility
 
 - [ ] **Step 5: Commit**
 

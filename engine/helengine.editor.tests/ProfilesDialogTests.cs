@@ -423,9 +423,9 @@ namespace helengine.editor.tests {
                         ["png", "tga"])
                 ],
                 [
-                    new PlatformComponentCompatibilityDefinition(
+                    new PlatformComponentSupportRule(
                         "helengine.FPSComponent",
-                        PlatformComponentCompatibilityKind.PassThrough,
+                        PlatformComponentSupportKind.PassThrough,
                         "FPS overlay is canonical on this platform.",
                         string.Empty)
                 ],
@@ -499,3 +499,4 @@ namespace helengine.editor.tests {
         }
     }
 }
+
