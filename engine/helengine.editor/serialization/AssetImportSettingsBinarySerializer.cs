@@ -117,22 +117,20 @@ namespace helengine.editor {
 
                 AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings();
                 platformSettings.Model.FlipWinding = ReadBooleanByte(reader);
-                if (header.Version >= 3) {
-                    platformSettings.Material.SchemaId = reader.ReadString();
+                platformSettings.Material.SchemaId = reader.ReadString();
 
-                    int fieldValueCount = reader.ReadInt32();
-                    if (fieldValueCount < 0) {
-                        throw new InvalidOperationException("Asset import settings material field count cannot be negative.");
+                int fieldValueCount = reader.ReadInt32();
+                if (fieldValueCount < 0) {
+                    throw new InvalidOperationException("Asset import settings material field count cannot be negative.");
+                }
+
+                for (int fieldIndex = 0; fieldIndex < fieldValueCount; fieldIndex++) {
+                    string fieldId = reader.ReadString();
+                    if (string.IsNullOrWhiteSpace(fieldId)) {
+                        throw new InvalidOperationException("Asset import settings cannot contain a blank material field id.");
                     }
 
-                    for (int fieldIndex = 0; fieldIndex < fieldValueCount; fieldIndex++) {
-                        string fieldId = reader.ReadString();
-                        if (string.IsNullOrWhiteSpace(fieldId)) {
-                            throw new InvalidOperationException("Asset import settings cannot contain a blank material field id.");
-                        }
-
-                        platformSettings.Material.FieldValues.Add(fieldId, reader.ReadString());
-                    }
+                    platformSettings.Material.FieldValues.Add(fieldId, reader.ReadString());
                 }
                 settings.Processor.Platforms.Add(platformId, platformSettings);
             }
@@ -153,7 +151,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected asset import settings record kind '{header.RecordKind}'.");
             } else if (header.ValueKind != (ushort)ValueKind) {
                 throw new InvalidOperationException($"Unexpected asset import settings value kind '{header.ValueKind}'.");
-            } else if (header.Version != 2 && header.Version != CurrentVersion) {
+            } else if (header.Version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported asset import settings binary version '{header.Version}'.");
             }
         }

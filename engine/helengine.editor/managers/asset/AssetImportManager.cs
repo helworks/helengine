@@ -1224,13 +1224,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            try {
-                using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                    settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
-                }
-            } catch {
-                settings = null;
-                return false;
+            using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
             }
 
             return true;

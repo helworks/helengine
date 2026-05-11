@@ -139,6 +139,36 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures older packaged FPS payload versions are rejected during runtime scene loading.
+        /// </summary>
+        [Fact]
+        public void Load_WhenSceneContainsOlderVersionFpsOverlay_ThrowsUnsupportedPayloadVersion() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                TempRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            SceneAsset sceneAsset = new SceneAsset {
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "root-entity",
+                        Name = "Root",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "Helengine.FPSComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteOlderVersionFpsComponentPayload()
+                            }
+                        }
+                    }
+                }
+            };
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => loadService.Load(sceneAsset));
+            Assert.Contains("Unsupported FPS component payload version", exception.Message);
+        }
+
+        /// <summary>
         /// Ensures packaged runtime scene loading materializes mesh components through the registry.
         /// </summary>
         [Fact]
@@ -1111,6 +1141,20 @@ namespace helengine.editor.tests.serialization.scene {
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(2);
             WriteFontReference(writer);
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
+            writer.WriteInt2(new int2(8, 6));
+            writer.WriteByte(250);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one older serialized FPS component payload that omits the packaged font reference.
+        /// </summary>
+        /// <returns>Serialized older-version FPS component payload.</returns>
+        byte[] WriteOlderVersionFpsComponentPayload() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
             writer.WriteInt2(new int2(8, 6));
             writer.WriteByte(250);

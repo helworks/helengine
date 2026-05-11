@@ -974,13 +974,11 @@ namespace helengine.editor {
             using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != FPSComponentPayloadVersion && version != 1) {
+            if (version != FPSComponentPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported FPS component payload version '{version}'.");
             }
 
-            SceneAssetReference fontReference = version >= 2
-                ? FontAssetScenePersistenceSupport.ReadOptionalReference(reader)
-                : FontAssetScenePersistenceSupport.BuildEditorFontReference();
+            SceneAssetReference fontReference = FontAssetScenePersistenceSupport.ReadOptionalReference(reader);
             double refreshIntervalSeconds = BitConverter.Int64BitsToDouble(reader.ReadInt64());
             int2 padding = reader.ReadInt2();
             byte renderOrder2D = reader.ReadByte();

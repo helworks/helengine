@@ -72,18 +72,16 @@ namespace helengine.editor {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1 && version != CurrentVersion) {
+            if (version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported box collider component payload version '{version}'.");
             }
 
             BoxCollider3DComponent component = new BoxCollider3DComponent {
                 Size = reader.ReadFloat3()
             };
-            if (version >= 2) {
-                component.CollisionLayer = reader.ReadUInt16();
-                component.CollisionMask = reader.ReadUInt16();
-                component.IsTrigger = reader.ReadByte() != 0;
-            }
+            component.CollisionLayer = reader.ReadUInt16();
+            component.CollisionMask = reader.ReadUInt16();
+            component.IsTrigger = reader.ReadByte() != 0;
 
             return component;
         }

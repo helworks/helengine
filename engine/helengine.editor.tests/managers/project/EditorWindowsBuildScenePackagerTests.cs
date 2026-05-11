@@ -393,6 +393,25 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures older FPS component payloads are rejected during Windows scene packaging.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsOlderVersionFpsOverlay_ThrowsUnsupportedPayloadVersion() {
+            string sceneId = "Scenes/OlderVersionFpsScene.helen";
+
+            WriteSceneAsset(sceneId, "Helengine.FPSComponent", WriteOlderVersionFpsComponentPayload(), Array.Empty<SceneAssetReference>());
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("Unsupported FPS component payload version", exception.Message);
+        }
+
+        /// <summary>
         /// Ensures packaged scenes rewrite text component font references into file-backed assets.
         /// </summary>
         [Fact]
@@ -2362,6 +2381,20 @@ namespace helengine.editor.tests {
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(fpsComponent, 0, saveState);
             return record.Payload;
+        }
+
+        /// <summary>
+        /// Writes one older FPS component payload that predates packaged font references.
+        /// </summary>
+        /// <returns>Serialized older-version FPS component payload.</returns>
+        byte[] WriteOlderVersionFpsComponentPayload() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteInt64(BitConverter.DoubleToInt64Bits(0.5d));
+            writer.WriteInt2(new int2(8, 6));
+            writer.WriteByte(250);
+            return stream.ToArray();
         }
 
         /// <summary>

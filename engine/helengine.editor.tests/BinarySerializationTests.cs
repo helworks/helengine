@@ -498,7 +498,7 @@ namespace helengine.editor.tests {
                 data = stream.ToArray();
             }
 
-            data[5] = 1;
+            data[5] = 2;
 
             using MemoryStream deserializeStream = new MemoryStream(data);
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AssetImportSettingsBinarySerializer.Deserialize(deserializeStream));
