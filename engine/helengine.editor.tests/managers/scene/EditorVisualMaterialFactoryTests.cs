@@ -28,11 +28,24 @@ namespace helengine.editor.tests.managers.scene {
         }
 
         /// <summary>
-        /// Ensures editor-only scene visuals render as overlay geometry instead of competing with authored scene depth.
+        /// Ensures the shared non-shadow-casting editor visual material still participates in normal scene depth testing.
         /// </summary>
         [Fact]
-        public void CreateNonShadowCastingStandardMaterial_DisablesDepthTestingAndDepthWrites() {
+        public void CreateNonShadowCastingStandardMaterial_PreservesOpaqueDepthTesting() {
             RuntimeMaterial material = EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial();
+
+            Assert.True(material.RenderState.DepthTestEnabled);
+            Assert.True(material.RenderState.DepthWriteEnabled);
+            Assert.Equal(MaterialBlendMode.Opaque, material.RenderState.BlendMode);
+            Assert.False(material.CastsShadows);
+        }
+
+        /// <summary>
+        /// Ensures the overlay editor visual material stays visible on top of authored scene depth when explicitly requested.
+        /// </summary>
+        [Fact]
+        public void CreateOverlayStandardMaterial_DisablesDepthTestingAndDepthWrites() {
+            RuntimeMaterial material = EditorVisualMaterialFactory.CreateOverlayStandardMaterial();
 
             Assert.False(material.RenderState.DepthTestEnabled);
             Assert.False(material.RenderState.DepthWriteEnabled);

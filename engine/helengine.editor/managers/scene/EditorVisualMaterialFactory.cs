@@ -4,7 +4,7 @@ namespace helengine.editor {
     /// </summary>
     public static class EditorVisualMaterialFactory {
         /// <summary>
-        /// Creates one standard-material instance that remains visible in the editor but never contributes to shadow maps.
+        /// Creates one standard-material instance that remains visible in the editor but still participates in normal scene depth.
         /// </summary>
         /// <returns>Runtime material instance configured for editor-only visual meshes.</returns>
         public static RuntimeMaterial CreateNonShadowCastingStandardMaterial() {
@@ -19,7 +19,7 @@ namespace helengine.editor {
                 genericMaterialInstance.LightingModel = sharedStandardMaterial.LightingModel;
                 genericMaterialInstance.SupportsNormalMapping = sharedStandardMaterial.SupportsNormalMapping;
                 genericMaterialInstance.SupportsEmissive = sharedStandardMaterial.SupportsEmissive;
-                ApplyEditorOverlayRenderState(genericMaterialInstance);
+                ApplyEditorVisualRenderState(genericMaterialInstance);
                 return genericMaterialInstance;
             }
 
@@ -36,12 +36,34 @@ namespace helengine.editor {
             materialInstance.LightingModel = sharedStandardMaterial.LightingModel;
             materialInstance.SupportsNormalMapping = sharedStandardMaterial.SupportsNormalMapping;
             materialInstance.SupportsEmissive = sharedStandardMaterial.SupportsEmissive;
-            ApplyEditorOverlayRenderState(materialInstance);
+            ApplyEditorVisualRenderState(materialInstance);
             return materialInstance;
         }
 
         /// <summary>
-        /// Forces one editor-only visual material to behave like overlay geometry so it remains pickable regardless of scene depth.
+        /// Creates one standard-material instance that behaves like overlay geometry for editor icons that must remain visible on top.
+        /// </summary>
+        /// <returns>Runtime material instance configured for editor-only overlay visuals.</returns>
+        public static RuntimeMaterial CreateOverlayStandardMaterial() {
+            RuntimeMaterial material = CreateNonShadowCastingStandardMaterial();
+            ApplyEditorOverlayRenderState(material);
+            return material;
+        }
+
+        /// <summary>
+        /// Applies the shared non-shadow-casting editor visual material state without changing normal scene depth behavior.
+        /// </summary>
+        /// <param name="material">Editor-only runtime material to configure.</param>
+        static void ApplyEditorVisualRenderState(RuntimeMaterial material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            material.CastsShadows = false;
+        }
+
+        /// <summary>
+        /// Forces one editor-only visual material to behave like overlay geometry so it remains visible regardless of scene depth.
         /// </summary>
         /// <param name="material">Editor-only runtime material to configure.</param>
         static void ApplyEditorOverlayRenderState(RuntimeMaterial material) {
@@ -49,7 +71,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(material));
             }
 
-            material.CastsShadows = false;
+            ApplyEditorVisualRenderState(material);
             material.RenderState.BlendMode = MaterialBlendMode.AlphaBlend;
             material.RenderState.DepthTestEnabled = false;
             material.RenderState.DepthWriteEnabled = false;
