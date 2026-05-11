@@ -1413,15 +1413,8 @@ namespace helengine.editor {
                 return;
             }
 
+            string sourcePath = ResolveImportedTextureAssetPath(diffuseTextureAssetId);
             TextureAsset textureAsset;
-            string sourcePath;
-            if (TryResolveSourceTextureAsset(materialAssetPath, diffuseTextureAssetId, out textureAsset, out sourcePath)) {
-                string sourceCookedRelativePath = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
-                WriteAsset(Path.Combine(buildRootPath, sourceCookedRelativePath), textureAsset);
-                return;
-            }
-
-            sourcePath = ResolveImportedTextureAssetPath(diffuseTextureAssetId);
             try {
                 textureAsset = ProjectContentManager.Load<TextureAsset>(sourcePath, EditorContentProcessorIds.TextureAsset);
             } catch (Exception ex) {
@@ -1430,35 +1423,6 @@ namespace helengine.editor {
 
             string cookedRelativePath = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
             WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
-        }
-
-        /// <summary>
-        /// Attempts to resolve one legacy diffuse texture reference through the authored source tree instead of the cache.
-        /// </summary>
-        /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
-        /// <param name="diffuseTextureAssetId">Diffuse texture asset id stored on the material asset.</param>
-        /// <param name="textureAsset">Resolved source texture asset when available.</param>
-        /// <param name="sourcePath">Absolute source texture path when available.</param>
-        /// <returns>True when the diffuse texture resolved through the authored source tree; otherwise false.</returns>
-        bool TryResolveSourceTextureAsset(string materialAssetPath, string diffuseTextureAssetId, out TextureAsset textureAsset, out string sourcePath) {
-            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
-                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
-            }
-            if (string.IsNullOrWhiteSpace(diffuseTextureAssetId)) {
-                textureAsset = null;
-                sourcePath = string.Empty;
-                return false;
-            }
-
-            if (!TryResolveSourceTexturePath(materialAssetPath, diffuseTextureAssetId, out sourcePath)) {
-                textureAsset = null;
-                return false;
-            }
-            if (!AssetImportManager.TryLoadTextureAsset(sourcePath, out textureAsset) || textureAsset == null) {
-                throw new InvalidOperationException($"Texture source file '{sourcePath}' could not be imported for packaging.");
-            }
-
-            return true;
         }
 
         /// <summary>
@@ -1492,108 +1456,6 @@ namespace helengine.editor {
             }
 
             return Path.Combine(ProjectRootPath, "cache", assetId);
-        }
-
-        /// <summary>
-        /// Resolves one legacy diffuse texture identifier through the authored material directory, imported-model source directory, or project assets root.
-        /// </summary>
-        /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
-        /// <param name="assetId">Diffuse texture asset identifier stored on the material asset.</param>
-        /// <param name="texturePath">Resolved absolute texture source path when available.</param>
-        /// <returns>True when a matching source texture exists; otherwise false.</returns>
-        bool TryResolveSourceTexturePath(string materialAssetPath, string assetId, out string texturePath) {
-            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
-                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
-            }
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            if (TryResolveTexturePathRelativeToDirectory(Path.GetDirectoryName(Path.GetFullPath(materialAssetPath)), assetId, out texturePath)) {
-                return true;
-            }
-            if (TryResolveTexturePathRelativeToImportedModelSource(materialAssetPath, assetId, out texturePath)) {
-                return true;
-            }
-            if (TryResolveTexturePathRelativeToDirectory(AssetsRootPath, assetId, out texturePath)) {
-                return true;
-            }
-
-            texturePath = string.Empty;
-            return false;
-        }
-
-        /// <summary>
-        /// Attempts to resolve one texture identifier relative to the imported-model source directory that owns the authored companion material.
-        /// </summary>
-        /// <param name="materialAssetPath">Absolute path to the authored companion material asset.</param>
-        /// <param name="assetId">Diffuse texture asset identifier stored on the material asset.</param>
-        /// <param name="texturePath">Resolved absolute texture source path when available.</param>
-        /// <returns>True when a matching texture exists beside the imported model source; otherwise false.</returns>
-        bool TryResolveTexturePathRelativeToImportedModelSource(string materialAssetPath, string assetId, out string texturePath) {
-            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
-                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
-            }
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string materialDirectoryPath = Path.GetDirectoryName(Path.GetFullPath(materialAssetPath));
-            if (string.IsNullOrWhiteSpace(materialDirectoryPath)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string modelDirectoryName = Path.GetFileName(materialDirectoryPath);
-            string modelSourceRootPath = Path.GetDirectoryName(materialDirectoryPath);
-            if (string.IsNullOrWhiteSpace(modelDirectoryName) || string.IsNullOrWhiteSpace(modelSourceRootPath) || !Directory.Exists(modelSourceRootPath)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string[] candidatePaths = Directory.GetFiles(modelSourceRootPath);
-            for (int index = 0; index < candidatePaths.Length; index++) {
-                string candidatePath = candidatePaths[index];
-                if (!AssetImportManager.IsModelExtension(Path.GetExtension(candidatePath))) {
-                    continue;
-                }
-                if (!string.Equals(Path.GetFileNameWithoutExtension(candidatePath), modelDirectoryName, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
-                }
-                if (TryResolveTexturePathRelativeToDirectory(Path.GetDirectoryName(candidatePath), assetId, out texturePath)) {
-                    return true;
-                }
-            }
-
-            texturePath = string.Empty;
-            return false;
-        }
-
-        /// <summary>
-        /// Attempts to resolve one texture identifier relative to the supplied source directory.
-        /// </summary>
-        /// <param name="baseDirectoryPath">Base directory that should receive the texture identifier.</param>
-        /// <param name="assetId">Diffuse texture asset identifier stored on the material asset.</param>
-        /// <param name="texturePath">Resolved absolute texture source path when available.</param>
-        /// <returns>True when a matching texture exists; otherwise false.</returns>
-        static bool TryResolveTexturePathRelativeToDirectory(string baseDirectoryPath, string assetId, out string texturePath) {
-            if (string.IsNullOrWhiteSpace(baseDirectoryPath) || string.IsNullOrWhiteSpace(assetId)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string candidateTexturePath = Path.IsPathRooted(assetId)
-                ? Path.GetFullPath(assetId)
-                : Path.GetFullPath(Path.Combine(baseDirectoryPath, assetId));
-            if (!File.Exists(candidateTexturePath)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            texturePath = candidateTexturePath;
-            return true;
         }
 
         /// <summary>

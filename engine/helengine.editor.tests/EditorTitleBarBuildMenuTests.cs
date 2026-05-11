@@ -83,7 +83,9 @@ namespace helengine.editor.tests {
         public void BuildMenu_WhenPlatformsActivated_RaisesPlatformsRequested() {
             EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
             bool raised = false;
+            bool buildSettingsRaised = false;
             titleBar.PlatformsRequested += () => raised = true;
+            titleBar.BuildSettingsRequested += () => buildSettingsRaised = true;
 
             InvokePrivate(titleBar, "ToggleBuildMenu");
 
@@ -93,6 +95,7 @@ namespace helengine.editor.tests {
             activeItems[0].Action();
 
             Assert.True(raised);
+            Assert.False(buildSettingsRaised);
             Assert.False(buildMenu.IsVisible);
         }
 

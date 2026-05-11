@@ -331,15 +331,7 @@ namespace helengine.editor {
                 return;
             }
 
-            string diffuseTexturePath;
-            if (TryResolveSourceTexturePath(materialPath, materialAsset.DiffuseTextureAssetId, out diffuseTexturePath)) {
-                TextureAsset sourceTextureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, EditorContentProcessorIds.TextureAsset);
-                RuntimeTexture sourceRuntimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(sourceTextureAsset);
-                runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, sourceRuntimeTexture);
-                return;
-            }
-
-            diffuseTexturePath = ResolveImportedTextureAssetPath(materialAsset.DiffuseTextureAssetId);
+            string diffuseTexturePath = ResolveImportedTextureAssetPath(materialAsset.DiffuseTextureAssetId);
             TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, EditorContentProcessorIds.TextureAsset);
             RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
             runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
@@ -361,40 +353,6 @@ namespace helengine.editor {
             }
 
             return fullPath;
-        }
-
-        /// <summary>
-        /// Resolves one authored diffuse texture file that lives beside the serialized material asset.
-        /// </summary>
-        /// <param name="materialPath">Absolute path to the serialized material asset.</param>
-        /// <param name="assetId">Imported texture asset identifier stored on the material asset.</param>
-        /// <param name="texturePath">Resolved source texture path when one exists.</param>
-        /// <returns>True when the source texture path exists; otherwise false.</returns>
-        bool TryResolveSourceTexturePath(string materialPath, string assetId, out string texturePath) {
-            if (string.IsNullOrWhiteSpace(materialPath)) {
-                throw new ArgumentException("Material path must be provided.", nameof(materialPath));
-            }
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string materialDirectoryPath = Path.GetDirectoryName(Path.GetFullPath(materialPath));
-            if (string.IsNullOrWhiteSpace(materialDirectoryPath)) {
-                texturePath = string.Empty;
-                return false;
-            }
-
-            string candidateTexturePath = Path.IsPathRooted(assetId)
-                ? Path.GetFullPath(assetId)
-                : Path.GetFullPath(Path.Combine(materialDirectoryPath, assetId));
-            if (File.Exists(candidateTexturePath)) {
-                texturePath = candidateTexturePath;
-                return true;
-            }
-
-            texturePath = string.Empty;
-            return false;
         }
 
         /// <summary>

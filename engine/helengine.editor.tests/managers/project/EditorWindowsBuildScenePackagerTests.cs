@@ -152,10 +152,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures imported-model companion materials can package legacy source-oriented texture ids through the model source directory instead of requiring a cache entry with the same literal file name.
+        /// Ensures packaging rejects source-oriented texture ids that are not backed by imported cache assets.
         /// </summary>
         [Fact]
-        public void Package_WhenImportedModelCompanionMaterialUsesLegacySourceTextureId_ImportsTextureFromModelSourceDirectory() {
+        public void Package_WhenImportedModelCompanionMaterialUsesSourceTextureIdWithoutCachedAsset_Throws() {
             string sceneId = "Scenes/ImportedModelScene.helen";
             string materialRelativePath = "Models/Riemers/racer/x3ds_mat_ruedas.helmat.hasset";
             string sourceModelRelativePath = "Models/Riemers/racer.x";
@@ -172,16 +172,9 @@ namespace helengine.editor.tests {
                     new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".jpg" }),
                     new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".x" })
                 ]);
-            packager.Package(new[] { sceneId }, BuildRootPath);
 
-            string packagedTexturePath = Path.Combine(BuildRootPath, "cooked", "imported", "RUEDAS.JPG");
-            Assert.True(File.Exists(packagedTexturePath));
-
-            using FileStream stream = new FileStream(packagedTexturePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            TextureAsset textureAsset = Assert.IsType<TextureAsset>(AssetSerializer.Deserialize(stream));
-            Assert.Equal((ushort)1, textureAsset.Width);
-            Assert.Equal((ushort)1, textureAsset.Height);
-            Assert.Equal(new byte[] { 255, 128, 64, 255 }, textureAsset.Colors);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("Imported texture 'RUEDAS.JPG'", exception.Message);
         }
 
         /// <summary>

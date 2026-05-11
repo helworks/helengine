@@ -100,10 +100,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures regeneration removes legacy nested output folders from earlier project layouts.
+        /// Ensures solution generation leaves unrelated assets-side output folders untouched.
         /// </summary>
         [Fact]
-        public void GenerateSolutionFiles_WhenLegacyOutputFoldersExist_RemovesThem() {
+        public void GenerateSolutionFiles_WhenAssetsOutputFoldersExist_LeavesThemUntouched() {
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "obj"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "bin"));
 
@@ -111,8 +111,8 @@ namespace helengine.editor.tests {
 
             service.GenerateSolutionFiles();
 
-            Assert.False(Directory.Exists(Path.Combine(TempProjectRootPath, "assets", "obj")));
-            Assert.False(Directory.Exists(Path.Combine(TempProjectRootPath, "assets", "bin")));
+            Assert.True(Directory.Exists(Path.Combine(TempProjectRootPath, "assets", "obj")));
+            Assert.True(Directory.Exists(Path.Combine(TempProjectRootPath, "assets", "bin")));
             Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay", "gameplay.csproj")));
         }
 

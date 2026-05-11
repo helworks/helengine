@@ -1825,15 +1825,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Raises the Platforms command event while also forwarding the legacy Build Settings event during migration.
+        /// Raises the Platforms command event.
         /// </summary>
         void RaisePlatformsRequested() {
             HideMenus();
             if (PlatformsRequested != null) {
                 PlatformsRequested();
-            }
-            if (BuildSettingsRequested != null) {
-                BuildSettingsRequested();
             }
         }
 

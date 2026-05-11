@@ -167,7 +167,6 @@ namespace helengine.editor {
         /// <returns>Absolute path to the generated solution file.</returns>
         public string GenerateSolutionFiles() {
             Directory.CreateDirectory(ProjectRootPath);
-            DeleteLegacyProjectFolders();
             GeneratedCodeSolutionValue = BuildGeneratedCodeSolution();
             for (int index = 0; index < GeneratedCodeSolutionValue.ModuleProjects.Count; index++) {
                 EditorGeneratedCodeModuleProject moduleProject = GeneratedCodeSolutionValue.ModuleProjects[index];
@@ -348,21 +347,6 @@ namespace helengine.editor {
                 builder.AppendLine("    </Reference>");
             }
             builder.AppendLine("  </ItemGroup>");
-        }
-
-        /// <summary>
-        /// Deletes legacy output folders that may remain inside the assets project root from earlier layouts.
-        /// </summary>
-        void DeleteLegacyProjectFolders() {
-            string legacyObjPath = Path.Combine(ProjectRootPath, AssetsFolderName, LegacyIntermediateFolderName);
-            if (Directory.Exists(legacyObjPath)) {
-                Directory.Delete(legacyObjPath, true);
-            }
-
-            string legacyBinPath = Path.Combine(ProjectRootPath, AssetsFolderName, LegacyBinaryFolderName);
-            if (Directory.Exists(legacyBinPath)) {
-                Directory.Delete(legacyBinPath, true);
-            }
         }
 
         /// <summary>
