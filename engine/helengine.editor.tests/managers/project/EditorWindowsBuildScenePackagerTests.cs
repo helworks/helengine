@@ -210,7 +210,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Package_WhenImportedModelCompanionMaterialUsesLegacySourceTextureId_ImportsTextureFromModelSourceDirectory() {
             string sceneId = "Scenes/ImportedModelScene.helen";
-            string materialRelativePath = "Models/Riemers/racer/x3ds_mat_ruedas.helmat.hasset";
+            string materialRelativePath = "Models/Riemers/racer/x3ds_mat_ruedas.helmat";
             string sourceModelRelativePath = "Models/Riemers/racer.x";
             string sourceTextureRelativePath = "Models/Riemers/ruedas.jpg";
 
