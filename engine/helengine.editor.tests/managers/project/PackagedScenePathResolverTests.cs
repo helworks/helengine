@@ -5,7 +5,7 @@ namespace helengine.editor.tests.managers.project;
 /// </summary>
 public sealed class PackagedScenePathResolverTests {
     /// <summary>
-    /// Verifies the startup scene keeps its authored file name instead of being rewritten to the legacy main-scene alias.
+    /// Verifies the startup scene keeps its authored file name instead of being rewritten to the former main-scene alias.
     /// </summary>
     [Fact]
     public void BuildRelativePath_for_startup_scene_preserves_the_authored_file_name() {

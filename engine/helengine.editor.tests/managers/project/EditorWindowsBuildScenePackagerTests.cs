@@ -635,12 +635,12 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures legacy binary camera payloads are rejected during packaging.
+        /// Ensures older binary camera payloads are rejected during packaging.
         /// </summary>
         [Fact]
         public void Package_WhenSceneContainsLegacyVersionedCameraPayload_ThrowsUnsupportedPayloadVersion() {
             string sceneId = "Scenes/CameraScene.helen";
-            byte[] legacyPayload;
+            byte[] olderVersionPayload;
             using (MemoryStream stream = new MemoryStream()) {
                 using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
                 writer.WriteByte(2);
@@ -662,10 +662,10 @@ namespace helengine.editor.tests {
                 writer.WriteByte((byte)DepthPrepassMode.Always);
                 writer.WriteSingle(128f);
                 writer.WriteByte((byte)PostProcessTier.High);
-                legacyPayload = stream.ToArray();
+                olderVersionPayload = stream.ToArray();
             }
 
-            WriteSceneAsset(sceneId, "helengine.CameraComponent", legacyPayload);
+            WriteSceneAsset(sceneId, "helengine.CameraComponent", olderVersionPayload);
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
@@ -674,22 +674,22 @@ namespace helengine.editor.tests {
 
         /// <summary>
         /// <summary>
-        /// Ensures legacy binary mesh payloads are rejected during packaging.
+        /// Ensures older binary mesh payloads are rejected during packaging.
         /// </summary>
         [Fact]
         public void Package_WhenSceneContainsLegacyVersionedMeshPayload_ThrowsUnsupportedPayloadVersion() {
             string sceneId = "Scenes/MeshScene.helen";
-            byte[] legacyPayload;
+            byte[] olderVersionPayload;
             using (MemoryStream stream = new MemoryStream()) {
                 using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
                 writer.WriteByte(1);
                 writer.WriteByte(0);
                 writer.WriteByte(0);
                 writer.WriteByte(23);
-                legacyPayload = stream.ToArray();
+                olderVersionPayload = stream.ToArray();
             }
 
-            WriteSceneAsset(sceneId, "helengine.MeshComponent", legacyPayload);
+            WriteSceneAsset(sceneId, "helengine.MeshComponent", olderVersionPayload);
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));

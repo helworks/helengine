@@ -177,7 +177,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures legacy scene-asset payload versions are rejected instead of being normalized forward.
+        /// Ensures older scene-asset payload versions are rejected instead of being normalized forward.
         /// </summary>
         [Fact]
         public void DeserializeSceneAsset_WhenPayloadVersionIsLegacy_ThrowsUnsupportedAssetBinaryVersion() {
@@ -191,8 +191,8 @@ namespace helengine.editor.tests {
             EngineBinaryHeaderSerializer.Write(stream, header);
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian, true)) {
                 writer.WriteString("scene-id");
-                writer.WriteArray(Array.Empty<SceneEntityAsset>(), static (arrayWriter, entity) => throw new InvalidOperationException($"Unexpected legacy entity payload write for '{entity.Id}'.")); 
-                writer.WriteArray(Array.Empty<SceneAssetReference>(), static (arrayWriter, reference) => throw new InvalidOperationException($"Unexpected legacy reference payload write for '{reference.AssetId}'.")); 
+                writer.WriteArray(Array.Empty<SceneEntityAsset>(), static (arrayWriter, entity) => throw new InvalidOperationException($"Unexpected older-version entity payload write for '{entity.Id}'."));
+                writer.WriteArray(Array.Empty<SceneAssetReference>(), static (arrayWriter, reference) => throw new InvalidOperationException($"Unexpected older-version reference payload write for '{reference.AssetId}'."));
                 writer.WriteUInt32(55u);
             }
 
@@ -399,7 +399,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void AssetSerializer_Deserialize_WithInvalidHeader_Throws() {
-            byte[] data = System.Text.Encoding.UTF8.GetBytes("legacy-asset");
+            byte[] data = System.Text.Encoding.UTF8.GetBytes("older-asset");
 
             Assert.Throws<InvalidOperationException>(() => AssetSerializer.DeserializeFromBytes(data));
         }
@@ -436,7 +436,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void AssetImportSettingsBinarySerializer_Deserialize_WithInvalidHeader_Throws() {
-            using MemoryStream stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("legacy-settings"));
+            using MemoryStream stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("older-settings"));
 
             Assert.Throws<InvalidOperationException>(() => AssetImportSettingsBinarySerializer.Deserialize(stream));
         }
@@ -556,10 +556,10 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShaderCacheMetadataStore_TryLoad_WithInvalidMetadata_Throws() {
             ShaderCacheMetadataStore store = new ShaderCacheMetadataStore(TempRootPath, ShaderCompileTarget.DirectX11);
-            string metadataPath = ShaderPackagePaths.GetMetadataPath(TempRootPath, "legacyShader", ShaderCompileTarget.DirectX11);
-            File.WriteAllText(metadataPath, "legacy-metadata");
+            string metadataPath = ShaderPackagePaths.GetMetadataPath(TempRootPath, "olderShader", ShaderCompileTarget.DirectX11);
+            File.WriteAllText(metadataPath, "older-metadata");
 
-            Assert.Throws<InvalidOperationException>(() => store.TryLoad("legacyShader", out _));
+            Assert.Throws<InvalidOperationException>(() => store.TryLoad("olderShader", out _));
             Assert.True(File.Exists(metadataPath));
         }
 

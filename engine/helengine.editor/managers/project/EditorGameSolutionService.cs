@@ -360,7 +360,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns the primary generated module project used by legacy single-module callers during migration.
+        /// Returns the primary generated module project for callers that use the first generated module entry.
         /// </summary>
         /// <returns>Primary generated module project.</returns>
         EditorGeneratedCodeModuleProject GetPrimaryModuleProject() {

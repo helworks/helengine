@@ -259,8 +259,8 @@ namespace helengine.editor.tests.tools {
             string fontsRootPath = Path.Combine(ProjectRootPath, "assets", "Fonts");
 
             Directory.CreateDirectory(fontsRootPath);
-            File.WriteAllText(Path.Combine(fontsRootPath, "DemoDiscTitle.hefont"), "legacy");
-            File.WriteAllText(Path.Combine(fontsRootPath, "DemoDiscBody.hefont"), "legacy");
+            File.WriteAllText(Path.Combine(fontsRootPath, "DemoDiscTitle.hefont"), "placeholder");
+            File.WriteAllText(Path.Combine(fontsRootPath, "DemoDiscBody.hefont"), "placeholder");
 
             writer.WriteAll(ProjectRootPath);
 

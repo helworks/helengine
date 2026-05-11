@@ -16,7 +16,7 @@ namespace helengine.editor {
         /// <summary>
         /// Height used by the existing build-planning controls so their positions stay unchanged when the dialog grows.
         /// </summary>
-        public const int LegacyContentHeight = 560;
+        public const int DialogContentHeight = 560;
         /// <summary>
         /// Height reserved for the draggable title bar.
         /// </summary>
@@ -1563,7 +1563,7 @@ namespace helengine.editor {
         /// Anchors the copy-settings button, output-folder, and add-to-build controls to the lower portion of the left column.
         /// </summary>
         void LayoutLowerLeftControls() {
-            int outputFieldY = GetLegacyContentHeightPixels() - GetHeaderHeightPixels() - GetPanelPaddingPixels() - GetFooterButtonHeightPixels() - DialogMetrics.ScalePixels(8) - DialogMetrics.ScalePixels(16) - GetOutputFieldHeightPixels();
+            int outputFieldY = GetDialogContentHeightPixels() - GetHeaderHeightPixels() - GetPanelPaddingPixels() - GetFooterButtonHeightPixels() - DialogMetrics.ScalePixels(8) - DialogMetrics.ScalePixels(16) - GetOutputFieldHeightPixels();
             int addButtonY = outputFieldY + GetOutputFieldHeightPixels() + DialogMetrics.ScalePixels(16) + DialogMetrics.ScalePixels(18) + DialogMetrics.ScalePixels(16);
             int outputLabelY = outputFieldY - DialogMetrics.ScalePixels(20);
             int copySettingsButtonY = outputLabelY - DialogMetrics.ScalePixels(16) - GetFooterButtonHeightPixels();
@@ -1675,7 +1675,7 @@ namespace helengine.editor {
         /// Applies the static layout for the queue button based on the current panel geometry.
         /// </summary>
         void LayoutStaticControls() {
-            int buildQueueButtonY = GetLegacyContentHeightPixels() - GetHeaderHeightPixels() - GetPanelPaddingPixels() - GetFooterButtonHeightPixels() - DialogMetrics.ScalePixels(8);
+            int buildQueueButtonY = GetDialogContentHeightPixels() - GetHeaderHeightPixels() - GetPanelPaddingPixels() - GetFooterButtonHeightPixels() - DialogMetrics.ScalePixels(8);
             AddToBuildButtonHost.Position = new float3(0f, buildQueueButtonY, 0.1f);
             BuildQueueButtonHost.Position = new float3(GetFooterButtonWidthPixels() + DialogMetrics.ScalePixels(8), buildQueueButtonY, 0.1f);
             QueueListBackground.Size = new int2(GetQueueColumnWidthPixels(), GetQueueSectionHeight());
@@ -1700,7 +1700,7 @@ namespace helengine.editor {
         /// Positions and sizes the build-log section beneath the existing controls.
         /// </summary>
         void LayoutBuildLogsSection() {
-            int buildLogsTopY = GetLegacyContentHeightPixels();
+            int buildLogsTopY = GetDialogContentHeightPixels();
             int buildLogsWidth = DialogWidth - (GetPanelPaddingPixels() * 2);
             int buildLogsInnerWidth = buildLogsWidth - (GetBuildLogsPaddingPixels() * 2);
             int progressTrackY = GetBuildLogsPaddingPixels() + GetBuildLogsTitleHeightPixels() + DialogMetrics.ScalePixels(6);
@@ -2327,7 +2327,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Height available for the queue section chrome and cards.</returns>
         int GetQueueSectionHeight() {
-            return GetLegacyContentHeightPixels() - GetHeaderHeightPixels() - GetPanelPaddingPixels() - GetFooterButtonHeightPixels() - DialogMetrics.ScalePixels(20);
+            return GetDialogContentHeightPixels() - GetHeaderHeightPixels() - GetPanelPaddingPixels() - GetFooterButtonHeightPixels() - DialogMetrics.ScalePixels(20);
         }
 
         /// <summary>
@@ -2529,11 +2529,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Gets the scaled legacy content height.
+        /// Gets the scaled dialog content height.
         /// </summary>
-        /// <returns>Scaled legacy content height in pixels.</returns>
-        int GetLegacyContentHeightPixels() {
-            return DialogMetrics.ScalePixels(LegacyContentHeight);
+        /// <returns>Scaled dialog content height in pixels.</returns>
+        int GetDialogContentHeightPixels() {
+            return DialogMetrics.ScalePixels(DialogContentHeight);
         }
 
         /// <summary>

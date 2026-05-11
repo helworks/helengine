@@ -275,7 +275,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the session primary viewport accessors resolve through tracked viewport instances instead of legacy singleton fields.
+        /// Ensures the session primary viewport accessors resolve through tracked viewport instances instead of older singleton fields.
         /// </summary>
         [Fact]
         public void ViewportAccessors_WhenTrackedViewportExists_ReturnTrackedViewportPanelAndSceneCamera() {

@@ -1058,7 +1058,7 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures legacy packaged light payload version 1 is rejected during runtime scene loading.
+        /// Ensures older packaged light payload version 1 is rejected during runtime scene loading.
         /// </summary>
         [Fact]
         public void Load_WhenSceneContainsLegacyLightComponentPayloadVersion1_ThrowsUnsupportedPayloadVersion() {
@@ -1067,7 +1067,7 @@ namespace helengine.editor.tests.serialization.scene {
                 TempRootPath,
                 ShaderCompileTarget.DirectX11);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
-            byte[] legacyPayload;
+            byte[] olderVersionPayload;
             using (MemoryStream stream = new MemoryStream()) {
                 using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
                 writer.WriteByte(1);
@@ -1082,7 +1082,7 @@ namespace helengine.editor.tests.serialization.scene {
                 writer.WriteSingle(24f);
                 writer.WriteSingle(20f);
                 writer.WriteSingle(36f);
-                legacyPayload = stream.ToArray();
+                olderVersionPayload = stream.ToArray();
             }
 
             SceneAsset sceneAsset = new SceneAsset {
@@ -1094,7 +1094,7 @@ namespace helengine.editor.tests.serialization.scene {
                             new SceneComponentAssetRecord {
                                 ComponentTypeId = "helengine.SpotLightComponent",
                                 ComponentIndex = 0,
-                                Payload = legacyPayload
+                                Payload = olderVersionPayload
                             }
                         }
                     }

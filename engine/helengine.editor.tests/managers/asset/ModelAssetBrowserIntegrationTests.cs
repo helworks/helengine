@@ -26,7 +26,7 @@ namespace helengine.editor.tests.managers.asset {
         }
 
         /// <summary>
-        /// Ensures a legacy DirectX model extension is classified as a model entry by the asset browser.
+        /// Ensures a DirectX `.x` model extension is classified as a model entry by the asset browser.
         /// </summary>
         [Fact]
         public void LoadEntries_WhenXFileExists_ClassifiesEntryAsModel() {

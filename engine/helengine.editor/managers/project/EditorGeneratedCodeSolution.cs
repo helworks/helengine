@@ -24,7 +24,7 @@ namespace helengine.editor {
         public IReadOnlyList<EditorGeneratedCodeModuleProject> ModuleProjects { get; }
 
         /// <summary>
-        /// Gets the primary module project used by legacy single-assembly callers during migration.
+        /// Gets the primary module project for callers that use the first generated module entry.
         /// </summary>
         public EditorGeneratedCodeModuleProject PrimaryModuleProject => ModuleProjects[0];
     }

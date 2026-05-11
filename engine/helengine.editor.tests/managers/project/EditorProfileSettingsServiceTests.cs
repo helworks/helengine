@@ -62,7 +62,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the service ignores the legacy combined profile document under `user_settings/profile_config.json`.
+        /// Ensures the service ignores the older combined profile document under `user_settings/profile_config.json`.
         /// </summary>
         [Fact]
         public void Load_WhenLegacyCombinedProfileDocumentExists_IgnoresItAndSeedsCurrentPlatformFiles() {

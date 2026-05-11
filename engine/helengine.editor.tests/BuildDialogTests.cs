@@ -1013,9 +1013,9 @@ namespace helengine.editor.tests {
             TextComponent buildLogsText = GetPrivateField<TextComponent>(dialog, "BuildLogsText");
 
             Assert.Equal(
-                BuildDialog.LegacyContentHeight - BuildDialog.HeaderHeight - BuildDialog.PanelPadding - BuildDialog.FooterButtonHeight - 8,
+                BuildDialog.DialogContentHeight - BuildDialog.HeaderHeight - BuildDialog.PanelPadding - BuildDialog.FooterButtonHeight - 8,
                 (int)buildQueueButtonHost.LocalPosition.Y);
-            Assert.Equal(BuildDialog.LegacyContentHeight, (int)buildLogsRoot.LocalPosition.Y);
+            Assert.Equal(BuildDialog.DialogContentHeight, (int)buildLogsRoot.LocalPosition.Y);
             Assert.True(buildLogsRoot.LocalPosition.Y > addToBuildButtonHost.LocalPosition.Y + BuildDialog.FooterButtonHeight);
             Assert.Equal(0f, buildLogsBackground.Radius);
             Assert.Equal(BuildDialog.BuildLogsSectionHeight, buildLogsBackground.Size.Y);

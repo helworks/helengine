@@ -112,11 +112,11 @@ public sealed class EditorProjectLocalSettingsServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures legacy local settings under `settings/project.json` are ignored in favor of the current user-settings file.
+    /// Ensures older-layout local settings under `settings/project.json` are ignored in favor of the current user-settings file.
     /// </summary>
     [Fact]
     public void LoadActivePlatform_WhenLegacySettingsExist_IgnoresThemAndSeedsCurrentUserSettings() {
-        WriteLegacySettingsFile(
+        WriteOlderLayoutSettingsFile(
             """
             {
               "activePlatform": "android"
@@ -150,10 +150,10 @@ public sealed class EditorProjectLocalSettingsServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Writes raw project-local settings JSON to the legacy settings path.
+    /// Writes raw project-local settings JSON to the older-layout settings path.
     /// </summary>
     /// <param name="json">JSON payload to persist.</param>
-    void WriteLegacySettingsFile(string json) {
+    void WriteOlderLayoutSettingsFile(string json) {
         string settingsDirectoryPath = Path.Combine(TempProjectRootPath, "settings");
         Directory.CreateDirectory(settingsDirectoryPath);
         File.WriteAllText(Path.Combine(settingsDirectoryPath, "project.json"), json);

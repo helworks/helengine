@@ -134,7 +134,7 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures legacy build-config files without a debug-build field load as release builds.
+    /// Ensures older build-config files without a debug-build field load as release builds.
     /// </summary>
     [Fact]
     public void Load_WhenBuildConfigOmitsDebugBuild_DefaultsItToFalse() {

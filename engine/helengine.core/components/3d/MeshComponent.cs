@@ -12,7 +12,7 @@ namespace helengine {
         public RuntimeModel Model { get; set; }
 
         /// <summary>
-        /// Gets or sets the legacy primary runtime material bound to slot zero.
+        /// Gets or sets the primary runtime material bound to slot zero.
         /// </summary>
         public RuntimeMaterial Material {
             get {

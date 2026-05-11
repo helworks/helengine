@@ -67,7 +67,7 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures empty automatic-script payloads are rejected instead of being treated as legacy default instances.
+        /// Ensures empty automatic-script payloads are rejected instead of being treated as older default instances.
         /// </summary>
         [Fact]
         public void DeserializeComponent_WhenAutomaticScriptPayloadIsEmpty_ThrowsUnsupportedPayloadVersion() {
