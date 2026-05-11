@@ -5,7 +5,37 @@ namespace helengine.editor.tests.serialization.scene {
     /// <summary>
     /// Verifies the automatic reflected editor persistence fallback for scripted components.
     /// </summary>
-    public sealed class AutomaticScriptComponentPersistenceDescriptorTests {
+    public sealed class AutomaticScriptComponentPersistenceDescriptorTests : IDisposable {
+        /// <summary>
+        /// Temporary content root used to initialize the runtime core required by entity-backed tests.
+        /// </summary>
+        readonly string TempContentRootPath;
+
+        /// <summary>
+        /// Initializes the runtime core required by automatic script-component persistence tests.
+        /// </summary>
+        public AutomaticScriptComponentPersistenceDescriptorTests() {
+            TempContentRootPath = Path.Combine(Path.GetTempPath(), "helengine-automatic-script-component-persistence-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(TempContentRootPath);
+
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = TempContentRootPath
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+        }
+
+        /// <summary>
+        /// Disposes the runtime core and temporary content root created for the current test instance.
+        /// </summary>
+        public void Dispose() {
+            if (Core.Instance != null) {
+                Core.Instance.Dispose();
+            }
+            if (Directory.Exists(TempContentRootPath)) {
+                Directory.Delete(TempContentRootPath, true);
+            }
+        }
+
         /// <summary>
         /// Ensures supported scripted-component members serialize through the reflected fallback and round-trip successfully without warning noise.
         /// </summary>
@@ -67,10 +97,10 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures empty automatic-script payloads are rejected instead of being treated as older default instances.
+        /// Ensures empty automatic-script payloads materialize default component instances instead of failing editor deserialization.
         /// </summary>
         [Fact]
-        public void DeserializeComponent_WhenAutomaticScriptPayloadIsEmpty_ThrowsUnsupportedPayloadVersion() {
+        public void DeserializeComponent_WhenAutomaticScriptPayloadIsEmpty_ReturnsDefaultComponentState() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
                 ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestUpdateOnlyScriptComponent)),
@@ -78,8 +108,9 @@ namespace helengine.editor.tests.serialization.scene {
                 Payload = Array.Empty<byte>()
             };
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => descriptor.DeserializeComponent(record, null, null));
-            Assert.Contains("Automatic script component payload must use the current tagged scene payload format.", exception.Message);
+            TestUpdateOnlyScriptComponent component = Assert.IsType<TestUpdateOnlyScriptComponent>(descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Equal(0, component.UpdateOrder);
         }
 
         /// <summary>

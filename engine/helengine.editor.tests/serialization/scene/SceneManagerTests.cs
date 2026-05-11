@@ -303,13 +303,15 @@ namespace helengine.editor.tests.serialization.scene {
         byte[] WriteCameraComponentPayload(byte drawOrder) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(3);
             writer.WriteByte(drawOrder);
             writer.WriteUInt16(EditorLayerMasks.SceneObjects);
             writer.WriteSingle(0f);
             writer.WriteSingle(0f);
             writer.WriteSingle(1f);
             writer.WriteSingle(1f);
+            writer.WriteSingle(0.1f);
+            writer.WriteSingle(1000f);
             writer.WriteByte(1);
             writer.WriteSingle(0f);
             writer.WriteSingle(0f);
@@ -319,6 +321,9 @@ namespace helengine.editor.tests.serialization.scene {
             writer.WriteSingle(1f);
             writer.WriteByte(1);
             writer.WriteByte(0);
+            writer.WriteByte((byte)DepthPrepassMode.Disabled);
+            writer.WriteSingle(40f);
+            writer.WriteByte((byte)PostProcessTier.Disabled);
             return stream.ToArray();
         }
     }

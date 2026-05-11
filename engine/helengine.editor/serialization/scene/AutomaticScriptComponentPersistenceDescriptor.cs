@@ -85,7 +85,7 @@ namespace helengine.editor {
             Component component = CreateComponent(componentType);
             byte[] payload = record.Payload ?? Array.Empty<byte>();
             if (payload.Length == 0) {
-                throw new InvalidOperationException("Automatic script component payload must use the current tagged scene payload format.");
+                return component;
             }
 
             EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(payload);

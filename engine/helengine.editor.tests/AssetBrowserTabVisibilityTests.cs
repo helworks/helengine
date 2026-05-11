@@ -20,6 +20,7 @@ namespace helengine.editor.tests {
         public AssetBrowserTabVisibilityTests() {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-asset-browser-tab-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets"));
+            EditorInputCaptureService.Reset();
 
             Core core = new Core(new CoreInitializationOptions {
                 ContentRootPath = TempProjectRootPath
@@ -31,6 +32,7 @@ namespace helengine.editor.tests {
         /// Deletes the temporary project root after the test completes.
         /// </summary>
         public void Dispose() {
+            EditorInputCaptureService.Reset();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }

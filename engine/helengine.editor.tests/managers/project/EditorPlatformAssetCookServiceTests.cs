@@ -349,17 +349,20 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     /// <param name="materialRelativePath">Project-relative material path encoded into the payload.</param>
     /// <returns>Serialized mesh-component payload.</returns>
     static byte[] WriteMeshComponentPayload(string materialRelativePath) {
-        using MemoryStream stream = new();
-        using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-        writer.WriteByte(1);
-        writer.WriteByte(0);
-        writer.WriteByte(1);
-        writer.WriteInt32((int)SceneAssetReferenceSourceKind.FileSystem);
-        writer.WriteString(materialRelativePath);
-        writer.WriteString(string.Empty);
-        writer.WriteString(string.Empty);
-        writer.WriteByte(0);
-        return stream.ToArray();
+        EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+        writer.WriteField("MaterialReferences", fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(
+            fieldWriter,
+            [
+                new SceneAssetReference {
+                    SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                    RelativePath = materialRelativePath,
+                    ProviderId = string.Empty,
+                    AssetId = string.Empty
+                }
+            ]));
+        writer.WriteField("RenderOrder3D", fieldWriter => fieldWriter.WriteByte(0));
+
+        return writer.BuildPayload();
     }
 
     /// <summary>

@@ -954,10 +954,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures empty automatic-script payloads with no persisted members are rejected during packaging.
+        /// Ensures empty automatic-script payloads with no persisted members package into valid runtime ordinal payloads.
         /// </summary>
         [Fact]
-        public void Package_WhenAutomaticScriptComponentHasNoPersistedMembersAndPayloadIsEmpty_ThrowsUnsupportedPayloadVersion() {
+        public void Package_WhenAutomaticScriptComponentHasNoPersistedMembersAndPayloadIsEmpty_WritesValidRuntimePayload() {
             string sceneId = "Scenes/LegacyEmptyAutomaticScriptScene.helen";
             string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestScriptComponentWithoutPersistedMembers));
 
@@ -991,15 +991,23 @@ namespace helengine.editor.tests {
                 null,
                 new FakeScriptTypeResolver(typeof(TestScriptComponentWithoutPersistedMembers)));
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
-            Assert.Contains("Unsupported editor tagged scene component payload version", exception.Message);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            using FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
+
+            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            Assert.Equal(0, reader.ReadInt32());
         }
 
         /// <summary>
-        /// Ensures empty automatic-script payloads with persisted reflected members are rejected during packaging.
+        /// Ensures empty automatic-script payloads with reflected inherited members package using default component values.
         /// </summary>
         [Fact]
-        public void Package_WhenAutomaticScriptComponentUsesLegacyEmptyPayload_ThrowsUnsupportedPayloadVersion() {
+        public void Package_WhenAutomaticScriptComponentUsesLegacyEmptyPayload_WritesDefaultReflectedMemberValues() {
             string sceneId = "Scenes/LegacyEmptyUpdateScriptScene.helen";
             string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestUpdateOnlyScriptComponent));
 
@@ -1033,8 +1041,17 @@ namespace helengine.editor.tests {
                 null,
                 new FakeScriptTypeResolver(typeof(TestUpdateOnlyScriptComponent)));
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
-            Assert.Contains("Unsupported editor tagged scene component payload version", exception.Message);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            using FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
+
+            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            Assert.Equal(1, reader.ReadInt32());
+            Assert.Equal((byte)0, reader.ReadByte());
         }
 
         /// <summary>

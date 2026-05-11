@@ -99,6 +99,26 @@ namespace helengine.editor {
         const string FPSComponentTypeId = "helengine.FPSComponent";
 
         /// <summary>
+        /// Stable tagged field name used for FPS font-reference persistence.
+        /// </summary>
+        const string FPSFontReferenceFieldName = "FontReference";
+
+        /// <summary>
+        /// Stable tagged field name used for FPS refresh-interval persistence.
+        /// </summary>
+        const string FPSRefreshIntervalSecondsFieldName = "RefreshIntervalSeconds";
+
+        /// <summary>
+        /// Stable tagged field name used for FPS padding persistence.
+        /// </summary>
+        const string FPSPaddingFieldName = "Padding";
+
+        /// <summary>
+        /// Stable tagged field name used for FPS 2D render-order persistence.
+        /// </summary>
+        const string FPSRenderOrder2DFieldName = "RenderOrder2D";
+
+        /// <summary>
         /// Stable serialized component id for text components.
         /// </summary>
         const string TextComponentTypeId = "helengine.TextComponent";
@@ -925,6 +945,11 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(record));
             }
 
+            byte[] payload = record.Payload ?? Array.Empty<byte>();
+            if (IsLegacyVersionedMeshPayload(payload)) {
+                throw new InvalidOperationException($"Unsupported mesh component payload version '{ReadPayloadVersion(payload)}'.");
+            }
+
             ReadTaggedMeshComponentRecord(
                 record,
                 out modelReference,
@@ -952,6 +977,11 @@ namespace helengine.editor {
             out CameraRenderSettings renderSettings) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
+            }
+
+            byte[] payload = record.Payload ?? Array.Empty<byte>();
+            if (IsLegacyVersionedCameraPayload(payload)) {
+                throw new InvalidOperationException($"Unsupported camera component payload version '{ReadPayloadVersion(payload)}'.");
             }
 
             ReadTaggedCameraComponentRecord(
@@ -997,22 +1027,57 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Returns whether one mesh payload uses an older versioned binary layout instead of the tagged editor field format.
+        /// </summary>
+        /// <param name="payload">Serialized mesh payload bytes to inspect.</param>
+        /// <returns>True when the payload should be rejected as an older binary format.</returns>
+        bool IsLegacyVersionedMeshPayload(byte[] payload) {
+            if (payload == null || payload.Length == 0) {
+                return false;
+            }
+
+            byte version = payload[0];
+            if (version != EditorTaggedSceneComponentPayloadFormat.CurrentVersion) {
+                return true;
+            }
+
+            if (payload.Length < 5) {
+                return true;
+            }
+
+            int fieldCount = BitConverter.ToInt32(payload, 1);
+            if (fieldCount < 0) {
+                return true;
+            }
+
+            return fieldCount > payload.Length;
+        }
+
+        /// <summary>
+        /// Reads the leading payload version byte when one is available.
+        /// </summary>
+        /// <param name="payload">Serialized payload bytes to inspect.</param>
+        /// <returns>Leading payload version byte or zero when the payload is empty.</returns>
+        static byte ReadPayloadVersion(byte[] payload) {
+            if (payload == null || payload.Length == 0) {
+                return 0;
+            }
+
+            return payload[0];
+        }
+
+        /// <summary>
         /// Rewrites one serialized FPS payload into the strict runtime FPS payload shape.
         /// </summary>
         /// <param name="record">Serialized FPS component record to rewrite.</param>
         /// <returns>Rewritten FPS component record.</returns>
         SceneComponentAssetRecord RewriteFPSComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
-            using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != FPSComponentPayloadVersion) {
-                throw new InvalidOperationException($"Unsupported FPS component payload version '{version}'.");
-            }
-
-            SceneAssetReference fontReference = FontAssetScenePersistenceSupport.ReadOptionalReference(reader);
-            double refreshIntervalSeconds = BitConverter.Int64BitsToDouble(reader.ReadInt64());
-            int2 padding = reader.ReadInt2();
-            byte renderOrder2D = reader.ReadByte();
+            ReadFPSComponentRecord(
+                record,
+                out SceneAssetReference fontReference,
+                out double refreshIntervalSeconds,
+                out int2 padding,
+                out byte renderOrder2D);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
@@ -1027,6 +1092,98 @@ namespace helengine.editor {
                 ComponentIndex = record.ComponentIndex,
                 Payload = writeStream.ToArray()
             };
+        }
+
+        /// <summary>
+        /// Reads one serialized FPS payload from either the current tagged editor format or the current authored binary format.
+        /// </summary>
+        /// <param name="record">Serialized FPS component record to interpret.</param>
+        /// <param name="fontReference">Persisted font reference.</param>
+        /// <param name="refreshIntervalSeconds">Persisted refresh interval.</param>
+        /// <param name="padding">Persisted overlay padding.</param>
+        /// <param name="renderOrder2D">Persisted 2D render order.</param>
+        void ReadFPSComponentRecord(
+            SceneComponentAssetRecord record,
+            out SceneAssetReference fontReference,
+            out double refreshIntervalSeconds,
+            out int2 padding,
+            out byte renderOrder2D) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            byte[] payload = record.Payload ?? Array.Empty<byte>();
+            if (TryReadTaggedFPSComponentRecord(payload, out fontReference, out refreshIntervalSeconds, out padding, out renderOrder2D)) {
+                return;
+            }
+
+            using MemoryStream readStream = new MemoryStream(payload, false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != FPSComponentPayloadVersion) {
+                throw new InvalidOperationException($"Unsupported FPS component payload version '{version}'.");
+            }
+
+            fontReference = FontAssetScenePersistenceSupport.ReadOptionalReference(reader);
+            refreshIntervalSeconds = BitConverter.Int64BitsToDouble(reader.ReadInt64());
+            padding = reader.ReadInt2();
+            renderOrder2D = reader.ReadByte();
+        }
+
+        /// <summary>
+        /// Attempts to read one FPS payload from the current tagged editor format.
+        /// </summary>
+        /// <param name="payload">Serialized payload bytes to inspect.</param>
+        /// <param name="fontReference">Persisted font reference when decoding succeeds.</param>
+        /// <param name="refreshIntervalSeconds">Persisted refresh interval when decoding succeeds.</param>
+        /// <param name="padding">Persisted overlay padding when decoding succeeds.</param>
+        /// <param name="renderOrder2D">Persisted 2D render order when decoding succeeds.</param>
+        /// <returns>True when the payload matched the tagged editor format; otherwise false.</returns>
+        bool TryReadTaggedFPSComponentRecord(
+            byte[] payload,
+            out SceneAssetReference fontReference,
+            out double refreshIntervalSeconds,
+            out int2 padding,
+            out byte renderOrder2D) {
+            fontReference = null;
+            refreshIntervalSeconds = 0d;
+            padding = int2.Zero;
+            renderOrder2D = 0;
+
+            try {
+                EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(payload);
+                bool foundTaggedField = false;
+                if (reader.TryGetFieldReader(FPSFontReferenceFieldName, out EngineBinaryReader fontReferenceReader)) {
+                    foundTaggedField = true;
+                    using (fontReferenceReader) {
+                        fontReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(fontReferenceReader);
+                    }
+                }
+                if (reader.TryGetFieldReader(FPSRefreshIntervalSecondsFieldName, out EngineBinaryReader refreshIntervalReader)) {
+                    foundTaggedField = true;
+                    using (refreshIntervalReader) {
+                        refreshIntervalSeconds = BitConverter.Int64BitsToDouble(refreshIntervalReader.ReadInt64());
+                    }
+                }
+                if (reader.TryGetFieldReader(FPSPaddingFieldName, out EngineBinaryReader paddingReader)) {
+                    foundTaggedField = true;
+                    using (paddingReader) {
+                        padding = paddingReader.ReadInt2();
+                    }
+                }
+                if (reader.TryGetFieldReader(FPSRenderOrder2DFieldName, out EngineBinaryReader renderOrderReader)) {
+                    foundTaggedField = true;
+                    using (renderOrderReader) {
+                        renderOrder2D = renderOrderReader.ReadByte();
+                    }
+                }
+
+                return foundTaggedField;
+            } catch (InvalidOperationException) {
+                return false;
+            } catch (EndOfStreamException) {
+                return false;
+            }
         }
 
         /// <summary>
