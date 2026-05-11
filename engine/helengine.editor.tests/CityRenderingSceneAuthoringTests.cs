@@ -32,6 +32,22 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the authored spotlight street-slice scene references generated racer companion materials through their real `.helmat` assets instead of import-settings sidecars.
+        /// </summary>
+        [Fact]
+        public void DeserializeCitySpotlightStreetSliceSceneAsset_RacerMaterialReferencesDoNotUseHelmatHassetSidecars() {
+            SceneAsset sceneAsset = ReadSceneAsset("spotlight_street_slice.helen");
+
+            Assert.DoesNotContain(
+                sceneAsset.AssetReferences ?? Array.Empty<SceneAssetReference>(),
+                reference => !string.IsNullOrWhiteSpace(reference.RelativePath)
+                    && reference.RelativePath.Contains(".helmat.hasset", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(
+                sceneAsset.AssetReferences ?? Array.Empty<SceneAssetReference>(),
+                reference => string.Equals(reference.RelativePath, "models/Riemers/racer/x3ds_mat_ruedas.helmat", StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
         /// Reads one city rendering scene asset from the authored project scene folder.
         /// </summary>
         /// <param name="sceneFileName">File name of the authored rendering scene.</param>
