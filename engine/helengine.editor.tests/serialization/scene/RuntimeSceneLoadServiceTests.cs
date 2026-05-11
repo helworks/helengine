@@ -1200,9 +1200,9 @@ namespace helengine.editor.tests.serialization.scene {
         byte[] WriteMeshComponentPayload() {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(MeshComponentScenePayloadSerializer.CurrentVersion);
             writer.WriteByte(0);
-            writer.WriteByte(0);
+            writer.WriteInt32(0);
             writer.WriteByte(9);
             return stream.ToArray();
         }
@@ -1230,13 +1230,15 @@ namespace helengine.editor.tests.serialization.scene {
         byte[] WriteCameraComponentPayload() {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(3);
             writer.WriteByte(17);
             writer.WriteUInt16(EditorLayerMasks.SceneObjects);
             writer.WriteSingle(12f);
             writer.WriteSingle(24f);
             writer.WriteSingle(640f);
             writer.WriteSingle(360f);
+            writer.WriteSingle(0.42f);
+            writer.WriteSingle(128f);
             writer.WriteByte(1);
             writer.WriteSingle(0.25f);
             writer.WriteSingle(0.5f);
@@ -1246,6 +1248,9 @@ namespace helengine.editor.tests.serialization.scene {
             writer.WriteSingle(0.42f);
             writer.WriteByte(1);
             writer.WriteByte(9);
+            writer.WriteByte((byte)DepthPrepassMode.Always);
+            writer.WriteSingle(128f);
+            writer.WriteByte((byte)PostProcessTier.High);
             return stream.ToArray();
         }
 
