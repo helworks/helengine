@@ -773,6 +773,11 @@ namespace helengine.editor {
                         "RoundedRectCorners::TopLeft | RoundedRectCorners::TopRight",
                         "static_cast<::RoundedRectCorners>(static_cast<int32_t>(RoundedRectCorners::TopLeft) | static_cast<int32_t>(RoundedRectCorners::TopRight))");
                 }
+
+                if (string.Equals(fileName, "ScrollComponent.cpp", StringComparison.OrdinalIgnoreCase)) {
+                    updatedContents = RewriteGeneratedScrollComponentSizeInitialization(updatedContents);
+                }
+
                 updatedContents = updatedContents.Replace("point->", "point.");
                 return updatedContents;
             }
@@ -926,6 +931,11 @@ namespace helengine.editor {
             if (isPs2Build
                 && string.Equals(fileName, "file-stream.cpp", StringComparison.OrdinalIgnoreCase)) {
                 return InsertPs2FileStreamSupport(contents);
+            }
+
+            if (string.Equals(fileName, "EngineBinaryReader.cpp", StringComparison.OrdinalIgnoreCase)
+                && contents.Contains("std::string EngineBinaryReader::ReadString()", StringComparison.Ordinal)) {
+                return RewriteNativeReaderNullableStringReturns(contents);
             }
 
             if (string.Equals(fileName, "native_dictionary.hpp", StringComparison.OrdinalIgnoreCase)
@@ -1423,6 +1433,52 @@ namespace helengine.editor {
             }
 
             return contents + newline + implementation;
+        }
+
+        /// <summary>
+        /// Rewrites the generated native reader so nullable strings become empty strings instead of invalid null conversions.
+        /// </summary>
+        /// <param name="contents">Current reader source contents.</param>
+        /// <returns>Updated reader source contents.</returns>
+        static string RewriteNativeReaderNullableStringReturns(string contents) {
+            if (string.IsNullOrEmpty(contents)
+                || !contents.Contains("std::string EngineBinaryReader::ReadString()", StringComparison.Ordinal)
+                || !contents.Contains("return nullptr;    }", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            string originalPattern = @"std::string EngineBinaryReader::ReadString\(\)\s*\{\s*const int32_t length = this->ReadInt32\(\);\s*if \(length == -1\)\s*\{\s*return nullptr;\s*\}\s*else\s+if \(length < -1\)\s*\{\s*throw new InvalidOperationException\(""String length cannot be negative\.""\);\s*\}\s*else\s+if \(length == 0\)\s*\{\s*return String::Empty;\s*\}\s*Array<uint8_t> \*bytes = this->ReadBytes\(length\);\s*return Encoding::GetString\(Encoding::UTF8, bytes\);\s*\}";
+            string replacement = @"std::string EngineBinaryReader::ReadString()
+{
+const int32_t length = this->ReadInt32();
+    if (length == -1)
+    {
+return String::Empty;    }
+else     if (length < -1)
+    {
+throw new InvalidOperationException(""String length cannot be negative."");
+    }
+else     if (length == 0)
+    {
+return String::Empty;    }
+Array<uint8_t> *bytes = this->ReadBytes(length);
+return Encoding::GetString(Encoding::UTF8, bytes);}";
+            return global::System.Text.RegularExpressions.Regex.Replace(contents, originalPattern, replacement, global::System.Text.RegularExpressions.RegexOptions.Singleline);
+        }
+
+        /// <summary>
+        /// Rewrites the generated scroll-component constructor so its size backing field matches the managed default value-type initialization semantics.
+        /// </summary>
+        /// <param name="contents">Current scroll-component source contents.</param>
+        /// <returns>Updated scroll-component source contents.</returns>
+        static string RewriteGeneratedScrollComponentSizeInitialization(string contents) {
+            if (string.IsNullOrEmpty(contents)
+                || !contents.Contains("ScrollComponent::ScrollComponent()", StringComparison.Ordinal)
+                || !contents.Contains("SizeValue()", StringComparison.Ordinal)) {
+                return contents;
+            }
+
+            return contents.Replace("SizeValue()", "SizeValue(new int2())", StringComparison.Ordinal);
         }
 
         /// <summary>

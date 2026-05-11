@@ -527,6 +527,40 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies generated native string readers return empty strings for nullable payloads instead of invalid null conversions.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_rewrites_nullable_native_strings_to_empty_strings() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-engine-binary-reader");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string sourcePath = Path.Combine(generatedCoreRootPath, "EngineBinaryReader.cpp");
+        File.WriteAllText(
+            sourcePath,
+            "std::string EngineBinaryReader::ReadString()\n"
+            + "{\n"
+            + "const int32_t length = this->ReadInt32();\n"
+            + "    if (length == -1)\n"
+            + "    {\n"
+            + "return nullptr;    }\n"
+            + "else     if (length < -1)\n"
+            + "    {\n"
+            + "throw new InvalidOperationException(\"String length cannot be negative.\");\n"
+            + "    }\n"
+            + "else     if (length == 0)\n"
+            + "    {\n"
+            + "return String::Empty;    }\n"
+            + "Array<uint8_t> *bytes = this->ReadBytes(length);\n"
+            + "return Encoding::GetString(Encoding::UTF8, bytes);\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "windows");
+
+        string normalizedSource = File.ReadAllText(sourcePath);
+        Assert.Contains("return String::Empty;    }", normalizedSource);
+        Assert.DoesNotContain("return nullptr;    }", normalizedSource);
+    }
+
+    /// <summary>
     /// Verifies generated native path support rewrites PS2 device-root path handling so packaged disc assets can be resolved without `std::filesystem`.
     /// </summary>
     [Fact]
@@ -1082,6 +1116,26 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         string normalizedSource = File.ReadAllText(sourcePath);
         Assert.Contains("pointer.set_DeltaX(pointer.get_DeltaX() + pointerWrapDeltaOffset.X);", normalizedSource);
         Assert.Contains("pointer.set_DeltaY(pointer.get_DeltaY() + pointerWrapDeltaOffset.Y);", normalizedSource);
+    }
+
+    /// <summary>
+    /// Verifies generated scroll-component source initializes its size backing field to a zero vector so runtime deserialization preserves managed value-type defaults.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_initializes_scroll_component_size_value() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-scroll-component-size-value");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string sourcePath = Path.Combine(generatedCoreRootPath, "ScrollComponent.cpp");
+        File.WriteAllText(
+            sourcePath,
+            "ScrollComponent::ScrollComponent() : ScrollOffset(0), ScrollOffsetChanged(), ContentRootValue(), ItemCountValue(0), ItemExtentValue(1), RequiresPointerInsideValue(true), ScrollStepCountValue(1), SizeValue(), VisibleItemCountValue(0), WheelNotchSizeValue(StandardWheelNotch)\n"
+            + "{\n"
+            + "}\n");
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string normalizedSource = File.ReadAllText(sourcePath);
+        Assert.Contains("SizeValue(new int2())", normalizedSource);
     }
 
     /// <summary>
