@@ -1,19 +1,19 @@
 namespace helengine.baseplatform.Definitions;
 
 /// <summary>
-/// Describes how one platform handles one serialized component type.
+/// Describes how one platform supports one serialized component type.
 /// </summary>
-public class PlatformComponentCompatibilityDefinition {
+public class PlatformComponentSupportRule {
     /// <summary>
-    /// Initializes one component compatibility definition.
+    /// Initializes one component support rule.
     /// </summary>
     /// <param name="componentTypeId">Stable serialized component type identifier.</param>
-    /// <param name="compatibilityKind">How the platform handles the component.</param>
+    /// <param name="supportKind">How the platform handles the component.</param>
     /// <param name="reason">Human-readable reason or summary.</param>
     /// <param name="remediation">Optional remediation text shown when the component is unsupported or transformed.</param>
-    public PlatformComponentCompatibilityDefinition(
+    public PlatformComponentSupportRule(
         string componentTypeId,
-        PlatformComponentCompatibilityKind compatibilityKind,
+        PlatformComponentSupportKind supportKind,
         string reason,
         string remediation) {
         if (string.IsNullOrWhiteSpace(componentTypeId)) {
@@ -21,7 +21,7 @@ public class PlatformComponentCompatibilityDefinition {
         }
 
         ComponentTypeId = componentTypeId;
-        CompatibilityKind = compatibilityKind;
+        SupportKind = supportKind;
         Reason = reason ?? string.Empty;
         Remediation = remediation ?? string.Empty;
     }
@@ -34,7 +34,7 @@ public class PlatformComponentCompatibilityDefinition {
     /// <summary>
     /// Gets how the platform handles the component.
     /// </summary>
-    public PlatformComponentCompatibilityKind CompatibilityKind { get; }
+    public PlatformComponentSupportKind SupportKind { get; }
 
     /// <summary>
     /// Gets the human-readable reason or summary.

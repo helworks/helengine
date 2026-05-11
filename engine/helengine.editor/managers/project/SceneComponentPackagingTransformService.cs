@@ -318,7 +318,7 @@ namespace helengine.editor {
         readonly MaterialAssetSettingsService MaterialAssetSettingsService;
 
         /// <summary>
-        /// Target platform id whose material settings should drive packaged compatibility payloads.
+        /// Target platform id whose material settings should drive packaged mirrored material payloads.
         /// </summary>
         readonly string TargetPlatformId;
 
@@ -1700,10 +1700,10 @@ namespace helengine.editor {
                 return CreateFileSystemReference(cookedRelativePath);
             }
 
-            AssetImportSettings compatibilityMaterialSettings;
-            if (MaterialAssetSettingsService.TryLoad(fullPath, out compatibilityMaterialSettings) &&
-                HasValidPlatformMaterialSettings(compatibilityMaterialSettings, TargetPlatformId)) {
-                MaterialAssetSettingsService.ApplyPlatformMaterialFields(materialAsset, compatibilityMaterialSettings, TargetPlatformId);
+            AssetImportSettings platformMaterialSettings;
+            if (MaterialAssetSettingsService.TryLoad(fullPath, out platformMaterialSettings) &&
+                HasValidPlatformMaterialSettings(platformMaterialSettings, TargetPlatformId)) {
+                MaterialAssetSettingsService.ApplyPlatformMaterialFields(materialAsset, platformMaterialSettings, TargetPlatformId);
             }
 
             RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
@@ -2379,3 +2379,4 @@ namespace helengine.editor {
         }
     }
 }
+

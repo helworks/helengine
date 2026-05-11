@@ -194,9 +194,9 @@ namespace helengine.editor.tests {
 
             PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(
                 [
-                    new PlatformComponentCompatibilityDefinition(
+                    new PlatformComponentSupportRule(
                         "helengine.MeshComponent",
-                        PlatformComponentCompatibilityKind.Transform,
+                        PlatformComponentSupportKind.Transform,
                         "Mesh components must be rewritten into packaged runtime payloads.",
                         string.Empty)
                 ]);
@@ -231,7 +231,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures compatibility packaging ignores malformed material sidecars that do not define a schema or field values.
+        /// Ensures packaging ignores malformed material sidecars that do not define a schema or field values.
         /// </summary>
         [Fact]
         public void Package_WhenMaterialSidecarHasNoSchema_PreservesTopLevelMaterialShaderFields() {
@@ -503,7 +503,7 @@ namespace helengine.editor.tests {
         /// Ensures a city-style standard-shader material packages with a shader contract the player can resolve.
         /// </summary>
         [Fact]
-        public void Package_WhenStandardShaderMaterialUsesCompatibilitySidecar_WritesPlayerResolvableShaderContract() {
+        public void Package_WhenStandardShaderMaterialUsesMirroredFieldSidecar_WritesPlayerResolvableShaderContract() {
             string sceneId = "Scenes/MaterialScene.helen";
             string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.helmat";
 
@@ -753,10 +753,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures menu components still package successfully when the platform omits explicit compatibility metadata and the packager falls back to the automatic transform path.
+        /// Ensures menu components still package successfully when the platform omits explicit support metadata and the packager falls back to the automatic transform path.
         /// </summary>
         [Fact]
-        public void Package_WhenPlatformOmitsMenuCompatibility_StillPackagesMenuComponentThroughFallback() {
+        public void Package_WhenPlatformOmitsMenuSupportRules_StillPackagesMenuComponentThroughFallback() {
             string menuSceneId = "Scenes/MenuScene.helen";
             string playableSceneId = "Scenes/TestPlayableScene.helen";
 
@@ -766,7 +766,7 @@ namespace helengine.editor.tests {
             WriteEmptySceneAsset(playableSceneId);
 
             FontAsset defaultFont = CreatePackagedFontAsset();
-            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
@@ -796,10 +796,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures reflectable built-in engine components package and load through the automatic fallback when the platform omits explicit compatibility metadata.
+        /// Ensures reflectable built-in engine components package and load through the automatic fallback when the platform omits explicit support metadata.
         /// </summary>
         [Fact]
-        public void Package_WhenPlatformOmitsCompatibilityForReflectableEngineComponent_UsesAutomaticFallback() {
+        public void Package_WhenPlatformOmitsSupportRulesForReflectableEngineComponent_UsesAutomaticFallback() {
             string sceneId = "Scenes/LineRendererScene.helen";
             ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
             LineRendererComponent component = new LineRendererComponent();
@@ -824,7 +824,7 @@ namespace helengine.editor.tests {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             });
 
-            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
@@ -882,7 +882,7 @@ namespace helengine.editor.tests {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             });
 
-            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
@@ -924,7 +924,7 @@ namespace helengine.editor.tests {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             });
 
-            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
@@ -1010,7 +1010,7 @@ namespace helengine.editor.tests {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             });
 
-            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
@@ -1068,10 +1068,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures builder-supplied compatibility metadata does not remove the default pass-through physics component compatibility required by packaged runtime scenes.
+        /// Ensures builder-supplied support metadata does not remove the default pass-through physics component support rules required by packaged runtime scenes.
         /// </summary>
         [Fact]
-        public void Package_WhenPlatformOmitsPassThroughPhysicsCompatibility_PreservesDefaultPhysicsCompatibility() {
+        public void Package_WhenPlatformOmitsPassThroughPhysicsSupportRules_PreservesDefaultPhysicsSupportRules() {
             string sceneId = "Scenes/PhysicsScene.helen";
             WriteSceneAsset(sceneId, new SceneAsset {
                 Id = sceneId,
@@ -1100,7 +1100,7 @@ namespace helengine.editor.tests {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             });
 
-            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
@@ -1176,25 +1176,25 @@ namespace helengine.editor.tests {
         /// Ensures builder-provided pass-through light metadata cannot weaken the built-in runtime light transform contract.
         /// </summary>
         [Fact]
-        public void Package_WhenPlatformDowngradesBuiltInLightCompatibilityToPassThrough_PreservesRuntimeLightTransforms() {
+        public void Package_WhenPlatformDowngradesBuiltInLightSupportRulesToPassThrough_PreservesRuntimeLightTransforms() {
             string sceneId = "Scenes/LightingUiScene.helen";
             WriteSceneAsset(sceneId, BuildLightingAndUiSceneAsset(sceneId));
 
             PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(
                 [
-                    new PlatformComponentCompatibilityDefinition(
+                    new PlatformComponentSupportRule(
                         "helengine.DirectionalLightComponent",
-                        PlatformComponentCompatibilityKind.PassThrough,
+                        PlatformComponentSupportKind.PassThrough,
                         "Legacy builder metadata still expects authored directional light payloads.",
                         string.Empty),
-                    new PlatformComponentCompatibilityDefinition(
+                    new PlatformComponentSupportRule(
                         "helengine.PointLightComponent",
-                        PlatformComponentCompatibilityKind.PassThrough,
+                        PlatformComponentSupportKind.PassThrough,
                         "Legacy builder metadata still expects authored point light payloads.",
                         string.Empty),
-                    new PlatformComponentCompatibilityDefinition(
+                    new PlatformComponentSupportRule(
                         "helengine.SpotLightComponent",
-                        PlatformComponentCompatibilityKind.PassThrough,
+                        PlatformComponentSupportKind.PassThrough,
                         "Legacy builder metadata still expects authored spot light payloads.",
                         string.Empty)
                 ]);
@@ -1446,7 +1446,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures platform-provided compatibility metadata can reject unsupported components with a clear reason.
+        /// Ensures platform-provided support metadata can reject unsupported components with a clear reason.
         /// </summary>
         [Fact]
         public void Package_WhenPlatformMarksComponentUnsupported_FailsWithTheBuilderReason() {
@@ -1476,9 +1476,9 @@ namespace helengine.editor.tests {
                         ["png", "tga"])
                 ],
                 [
-                    new PlatformComponentCompatibilityDefinition(
+                    new PlatformComponentSupportRule(
                         "helengine.BadComponent",
-                        PlatformComponentCompatibilityKind.Unsupported,
+                        PlatformComponentSupportKind.Unsupported,
                         "This platform does not support the component.",
                         "Remove the component before building.")
                 ]);
@@ -2102,7 +2102,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Writes one city-style standard material asset and compatibility sidecar that mirrors the colored cube-grid authored content.
+        /// Writes one city-style standard material asset and mirrored-field sidecar that mirrors the colored cube-grid authored content.
         /// </summary>
         /// <param name="materialRelativePath">Project-relative material path to write.</param>
         void WriteCityStyleStandardMaterialAsset(string materialRelativePath, string diffuseTextureAssetId = "") {
@@ -2728,13 +2728,13 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Creates one minimal Windows platform definition with the supplied component compatibility metadata.
+        /// Creates one minimal Windows platform definition with the supplied component support metadata.
         /// </summary>
-        /// <param name="componentCompatibilities">Component compatibility metadata exposed by the platform.</param>
+        /// <param name="componentSupportRules">Component support metadata exposed by the platform.</param>
         /// <returns>Minimal Windows platform definition for packager tests.</returns>
-        static PlatformDefinition CreateWindowsPlatformDefinition(PlatformComponentCompatibilityDefinition[] componentCompatibilities) {
-            if (componentCompatibilities == null) {
-                throw new ArgumentNullException(nameof(componentCompatibilities));
+        static PlatformDefinition CreateWindowsPlatformDefinition(PlatformComponentSupportRule[] componentSupportRules) {
+            if (componentSupportRules == null) {
+                throw new ArgumentNullException(nameof(componentSupportRules));
             }
 
             return new PlatformDefinition(
@@ -2762,7 +2762,7 @@ namespace helengine.editor.tests {
                         true,
                         ["png", "tga"])
                 ],
-                componentCompatibilities);
+                componentSupportRules);
         }
 
         /// <summary>
@@ -2925,7 +2925,7 @@ namespace helengine.editor.tests {
                                 ["multiply", "ignore"])
                         ])
                 ],
-                Array.Empty<PlatformComponentCompatibilityDefinition>(),
+                Array.Empty<PlatformComponentSupportRule>(),
                 Array.Empty<PlatformCodegenProfileDefinition>(),
                 Array.Empty<PlatformStorageProfileDefinition>(),
                 Array.Empty<PlatformMediaProfileDefinition>());
@@ -3020,3 +3020,5 @@ namespace helengine.editor.tests {
         }
     }
 }
+
+

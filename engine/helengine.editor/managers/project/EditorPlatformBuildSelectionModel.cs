@@ -15,7 +15,7 @@ namespace helengine.editor {
         /// <param name="graphicsProfiles">Graphics profiles exposed by the builder.</param>
         /// <param name="assetRequirements">Asset requirements exposed by the builder.</param>
         /// <param name="materialSchemas">Material schemas exposed by the builder.</param>
-        /// <param name="componentCompatibilities">Component compatibility rules exposed by the builder.</param>
+        /// <param name="componentSupportRules">Component support rules exposed by the builder.</param>
         /// <param name="codegenProfiles">Codegen profiles exposed by the builder.</param>
         /// <param name="storageProfiles">Storage/runtime profiles exposed by the builder.</param>
         /// <param name="mediaProfiles">Media profiles exposed by the builder.</param>
@@ -27,7 +27,7 @@ namespace helengine.editor {
             PlatformGraphicsProfileDefinition[] graphicsProfiles,
             PlatformAssetRequirementDefinition[] assetRequirements,
             PlatformMaterialSchemaDefinition[] materialSchemas,
-            PlatformComponentCompatibilityDefinition[] componentCompatibilities,
+            PlatformComponentSupportRule[] componentSupportRules,
             PlatformCodegenProfileDefinition[] codegenProfiles,
             PlatformStorageProfileDefinition[] storageProfiles,
             PlatformMediaProfileDefinition[] mediaProfiles) {
@@ -51,8 +51,8 @@ namespace helengine.editor {
             if (materialSchemas == null) {
                 throw new ArgumentNullException(nameof(materialSchemas));
             }
-            if (componentCompatibilities == null) {
-                throw new ArgumentNullException(nameof(componentCompatibilities));
+            if (componentSupportRules == null) {
+                throw new ArgumentNullException(nameof(componentSupportRules));
             }
             if (codegenProfiles == null) {
                 throw new ArgumentNullException(nameof(codegenProfiles));
@@ -70,7 +70,7 @@ namespace helengine.editor {
             GraphicsProfiles = graphicsProfiles;
             AssetRequirements = assetRequirements;
             MaterialSchemas = materialSchemas;
-            ComponentCompatibilities = componentCompatibilities;
+            ComponentSupportRules = componentSupportRules;
             CodegenProfiles = codegenProfiles;
             StorageProfiles = storageProfiles;
             MediaProfiles = mediaProfiles;
@@ -107,9 +107,9 @@ namespace helengine.editor {
         public PlatformMaterialSchemaDefinition[] MaterialSchemas { get; }
 
         /// <summary>
-        /// Gets the component compatibility rules exposed by the platform builder.
+        /// Gets the component support rules exposed by the platform builder.
         /// </summary>
-        public PlatformComponentCompatibilityDefinition[] ComponentCompatibilities { get; }
+        public PlatformComponentSupportRule[] ComponentSupportRules { get; }
 
         /// <summary>
         /// Gets the codegen profiles exposed by the platform builder.
@@ -149,7 +149,7 @@ namespace helengine.editor {
                 definition.GraphicsProfiles,
                 definition.AssetRequirements,
                 definition.MaterialSchemas,
-                definition.ComponentCompatibilities,
+                definition.ComponentSupportRules,
                 definition.CodegenProfiles,
                 definition.StorageProfiles,
                 definition.MediaProfiles);

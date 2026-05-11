@@ -79,10 +79,10 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     }
 
     /// <summary>
-    /// Ensures packaging seeds missing material sidecars from the material compatibility fields when a builder is available.
+    /// Ensures packaging seeds missing material sidecars from the material mirrored material fields when a builder is available.
     /// </summary>
     [Fact]
-    public void Package_when_builder_is_available_and_material_sidecar_is_missing_seeds_platform_material_settings_from_compatibility_fields() {
+    public void Package_when_builder_is_available_and_material_sidecar_is_missing_seeds_platform_material_settings_from_mirrored_fields() {
         string materialRelativePath = "Materials/TestMaterial.helmat";
         WriteMaterialAsset(materialRelativePath, "StaleShader");
 
@@ -147,7 +147,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     }
 
     /// <summary>
-    /// Writes one serialized material asset that still points at stale top-level compatibility fields.
+    /// Writes one serialized material asset that still points at stale top-level mirrored material fields.
     /// </summary>
     /// <param name="materialRelativePath">Project-relative material path to write.</param>
     /// <param name="shaderAssetId">Stale top-level shader asset id referenced by the material.</param>
@@ -255,3 +255,5 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         return stream.ToArray();
     }
 }
+
+

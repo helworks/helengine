@@ -3,7 +3,7 @@ namespace helengine.baseplatform.Definitions;
 /// <summary>
 /// Identifies how one platform handles one serialized component type.
 /// </summary>
-public enum PlatformComponentCompatibilityKind {
+public enum PlatformComponentSupportKind {
     /// <summary>
     /// The serialized component record can be emitted unchanged.
     /// </summary>

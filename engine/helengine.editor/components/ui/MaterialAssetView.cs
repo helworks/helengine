@@ -31,12 +31,12 @@ namespace helengine.editor {
         const int ButtonWidth = 80;
 
         /// <summary>
-        /// Field id used by compatibility shader-backed schemas for shader assignment.
+        /// Field id used by shader-backed schemas for shader assignment.
         /// </summary>
         const string ShaderAssetIdFieldId = "shader-asset-id";
 
         /// <summary>
-        /// Field id used by compatibility shader-backed schemas for texture assignment.
+        /// Field id used by shader-backed schemas for texture assignment.
         /// </summary>
         const string TextureAssetIdFieldId = "texture-id";
 
@@ -46,22 +46,22 @@ namespace helengine.editor {
         const string UseCustomShaderFieldId = "use-custom-shader";
 
         /// <summary>
-        /// Field id used by compatibility shader-backed schemas to toggle shadow casting.
+        /// Field id used by shader-backed schemas to toggle shadow casting.
         /// </summary>
         const string CastsShadowFieldId = "casts-shadow";
 
         /// <summary>
-        /// Field id used by compatibility shader-backed schemas to toggle shadow receiving.
+        /// Field id used by shader-backed schemas to toggle shadow receiving.
         /// </summary>
         const string ReceivesShadowFieldId = "receives-shadow";
 
         /// <summary>
-        /// Field id used by compatibility shader-backed schemas for vertex program assignment.
+        /// Field id used by shader-backed schemas for vertex program assignment.
         /// </summary>
         const string VertexProgramFieldId = "vertex-program";
 
         /// <summary>
-        /// Field id used by compatibility shader-backed schemas for pixel program assignment.
+        /// Field id used by shader-backed schemas for pixel program assignment.
         /// </summary>
         const string PixelProgramFieldId = "pixel-program";
 

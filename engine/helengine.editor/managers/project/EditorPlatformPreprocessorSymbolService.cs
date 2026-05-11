@@ -42,7 +42,7 @@ namespace helengine.editor {
         /// Resolves the generated-core input codegen symbols required by the supplied platform definition.
         /// </summary>
         /// <param name="platformDefinition">Typed platform metadata exposed by the active builder.</param>
-        /// <returns>Ordered platform and generated-core compatibility symbols.</returns>
+        /// <returns>Ordered platform and generated-core symbols.</returns>
         public static IReadOnlyList<string> ResolvePortableInputSymbols(PlatformDefinition platformDefinition) {
             if (platformDefinition == null) {
                 throw new ArgumentNullException(nameof(platformDefinition));

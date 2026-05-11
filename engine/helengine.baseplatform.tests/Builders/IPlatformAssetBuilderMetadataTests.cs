@@ -20,7 +20,7 @@ public class IPlatformAssetBuilderMetadataTests {
         Assert.Equal("windows", builder.Definition.PlatformId);
         Assert.Equal("debug", builder.Definition.BuildProfiles[0].ProfileId);
         Assert.Equal("standard-shader", builder.Definition.MaterialSchemas[0].SchemaId);
-        Assert.Equal("helengine.FPSComponent", builder.Definition.ComponentCompatibilities[0].ComponentTypeId);
+        Assert.Equal("helengine.FPSComponent", builder.Definition.ComponentSupportRules[0].ComponentTypeId);
         Assert.Equal("default", builder.Definition.CodegenProfiles[0].ProfileId);
     }
 
@@ -55,3 +55,4 @@ public class IPlatformAssetBuilderMetadataTests {
         Assert.Equal(new[] { "ForwardStandardShader" }, result.ReferencedShaderAssetIds);
     }
 }
+

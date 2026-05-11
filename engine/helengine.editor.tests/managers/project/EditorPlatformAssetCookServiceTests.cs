@@ -66,7 +66,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
                 Array.Empty<helengine.baseplatform.Definitions.PlatformGraphicsProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformAssetRequirementDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformMaterialSchemaDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformComponentCompatibilityDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformComponentSupportRule>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformCodegenProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformStorageProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformMediaProfileDefinition>()),
@@ -112,7 +112,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
                 Array.Empty<helengine.baseplatform.Definitions.PlatformGraphicsProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformAssetRequirementDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformMaterialSchemaDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformComponentCompatibilityDefinition>(),
+                Array.Empty<helengine.baseplatform.Definitions.PlatformComponentSupportRule>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformCodegenProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformStorageProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformMediaProfileDefinition>()),
@@ -238,7 +238,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Writes one serialized material asset with compatibility shader fields and no import-settings sidecar.
+    /// Writes one serialized material asset with shader-backed material fields and no import-settings sidecar.
     /// </summary>
     /// <param name="materialRelativePath">Project-relative material path to write.</param>
     /// <param name="materialAssetId">Serialized material asset identifier.</param>

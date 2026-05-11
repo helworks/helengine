@@ -189,7 +189,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
     }
 
     /// <summary>
-    /// Verifies standard shader compatibility fields mirror authored texture and shadow values back into the raw material payload.
+    /// Verifies standard shader mirrored material fields mirror authored texture and shadow values back into the raw material payload.
     /// </summary>
     [Fact]
     public void ApplyPlatformMaterialFields_when_standard_shader_fields_are_present_mirrors_texture_and_shadow_values() {
@@ -226,7 +226,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
     }
 
     /// <summary>
-    /// Verifies non-shader platform settings clear shader compatibility fields on the raw material payload.
+    /// Verifies non-shader platform settings clear shader mirrored material fields on the raw material payload.
     /// </summary>
     [Fact]
     public void ApplyPlatformMaterialFields_when_shader_fields_are_missing_clears_shader_values() {
@@ -253,3 +253,4 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         Assert.Equal("Mesh", materialAsset.Variant);
     }
 }
+

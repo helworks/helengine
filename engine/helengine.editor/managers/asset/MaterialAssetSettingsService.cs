@@ -157,7 +157,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="materialAsset">Material asset to update.</param>
         /// <param name="settings">Material sidecar settings that hold per-platform field values.</param>
-        /// <param name="platformId">Platform whose material settings should drive the compatibility payload.</param>
+        /// <param name="platformId">Platform whose material settings should drive the mirrored material payload.</param>
         /// <returns>True when the top-level material asset changed.</returns>
         public bool ApplyPlatformMaterialFields(MaterialAsset materialAsset, AssetImportSettings settings, string platformId) {
             if (materialAsset == null) {
@@ -184,23 +184,23 @@ namespace helengine.editor {
             if (IsStandardShaderSchema(platformSettings.Material.SchemaId)) {
                 bool useCustomShader = IsCustomShaderEnabled(platformSettings.Material.FieldValues);
                 if (useCustomShader) {
-                    changed |= ApplyCustomShaderCompatibilityField(platformSettings.Material.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, StandardShaderAssetId, value => materialAsset.ShaderAssetId = value);
-                    changed |= ApplyCustomShaderCompatibilityField(platformSettings.Material.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, StandardVertexProgramName, value => materialAsset.VertexProgram = value);
-                    changed |= ApplyCustomShaderCompatibilityField(platformSettings.Material.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, StandardPixelProgramName, value => materialAsset.PixelProgram = value);
+                    changed |= ApplyCustomShaderMirroredField(platformSettings.Material.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, StandardShaderAssetId, value => materialAsset.ShaderAssetId = value);
+                    changed |= ApplyCustomShaderMirroredField(platformSettings.Material.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, StandardVertexProgramName, value => materialAsset.VertexProgram = value);
+                    changed |= ApplyCustomShaderMirroredField(platformSettings.Material.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, StandardPixelProgramName, value => materialAsset.PixelProgram = value);
                 } else {
-                    changed |= ApplyStandardShaderCompatibilityFields(materialAsset);
+                    changed |= ApplyStandardShaderMirroredFields(materialAsset);
                     changed |= ApplyMaterialVariant(materialAsset, StandardShaderVariantName);
                 }
             } else {
-                changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, value => materialAsset.ShaderAssetId = value, true);
-                changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, value => materialAsset.VertexProgram = value, true);
-                changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, value => materialAsset.PixelProgram = value, true);
+                changed |= ApplyMirroredField(platformSettings.Material.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, value => materialAsset.ShaderAssetId = value, true);
+                changed |= ApplyMirroredField(platformSettings.Material.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, value => materialAsset.VertexProgram = value, true);
+                changed |= ApplyMirroredField(platformSettings.Material.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, value => materialAsset.PixelProgram = value, true);
                 changed |= ApplyMaterialVariant(materialAsset, MeshVariantName);
             }
 
-            changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, TextureAssetIdFieldId, materialAsset.DiffuseTextureAssetId, value => materialAsset.DiffuseTextureAssetId = value, true);
-            changed |= ApplyBooleanCompatibilityField(platformSettings.Material.FieldValues, CastsShadowFieldId, materialAsset.CastsShadows, value => materialAsset.CastsShadows = value);
-            changed |= ApplyBooleanCompatibilityField(platformSettings.Material.FieldValues, ReceivesShadowFieldId, materialAsset.ReceivesShadows, value => materialAsset.ReceivesShadows = value);
+            changed |= ApplyMirroredField(platformSettings.Material.FieldValues, TextureAssetIdFieldId, materialAsset.DiffuseTextureAssetId, value => materialAsset.DiffuseTextureAssetId = value, true);
+            changed |= ApplyMirroredBooleanField(platformSettings.Material.FieldValues, CastsShadowFieldId, materialAsset.CastsShadows, value => materialAsset.CastsShadows = value);
+            changed |= ApplyMirroredBooleanField(platformSettings.Material.FieldValues, ReceivesShadowFieldId, materialAsset.ReceivesShadows, value => materialAsset.ReceivesShadows = value);
             return changed;
         }
 
@@ -440,15 +440,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies one serialized compatibility field from a field-value map to the target material asset.
+        /// Applies one serialized mirrored material field from a field-value map to the target material asset.
         /// </summary>
         /// <param name="fieldValues">Serialized field values published for one platform.</param>
-        /// <param name="fieldId">Compatibility field identifier to read.</param>
+        /// <param name="fieldId">Field identifier to read.</param>
         /// <param name="currentValue">Current value stored on the material asset.</param>
         /// <param name="applyValue">Callback that writes the updated value back to the material asset.</param>
         /// <param name="clearWhenMissing">True when the field should be cleared to an empty string if it was not authored for the platform.</param>
         /// <returns>True when the material asset changed.</returns>
-        bool ApplyCompatibilityField(
+        bool ApplyMirroredField(
             Dictionary<string, string> fieldValues,
             string fieldId,
             string currentValue,
@@ -473,14 +473,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies one serialized boolean compatibility field to the target material asset.
+        /// Applies one serialized boolean mirrored material field to the target material asset.
         /// </summary>
         /// <param name="fieldValues">Serialized field values published for one platform.</param>
-        /// <param name="fieldId">Compatibility field identifier to read.</param>
+        /// <param name="fieldId">Field identifier to read.</param>
         /// <param name="currentValue">Current value stored on the material asset.</param>
         /// <param name="applyValue">Callback that writes the updated value back to the material asset.</param>
         /// <returns>True when the material asset changed.</returns>
-        bool ApplyBooleanCompatibilityField(
+        bool ApplyMirroredBooleanField(
             Dictionary<string, string> fieldValues,
             string fieldId,
             bool currentValue,
@@ -526,7 +526,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Determines whether one material schema uses the standard shader compatibility path.
+        /// Determines whether one material schema uses the standard shader mirrored-field path.
         /// </summary>
         /// <param name="schemaId">Material schema identifier to inspect.</param>
         /// <returns>True when the schema uses the standard shader path.</returns>
@@ -579,15 +579,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies the standard shader compatibility payload to the material asset.
+        /// Applies the standard shader mirrored material payload to the material asset.
         /// </summary>
         /// <param name="materialAsset">Material asset to update.</param>
         /// <returns>True when the material asset changed.</returns>
-        bool ApplyStandardShaderCompatibilityFields(MaterialAsset materialAsset) {
+        bool ApplyStandardShaderMirroredFields(MaterialAsset materialAsset) {
             bool changed = false;
-            changed |= ApplyFixedCompatibilityField(materialAsset.ShaderAssetId, StandardShaderAssetId, value => materialAsset.ShaderAssetId = value);
-            changed |= ApplyFixedCompatibilityField(materialAsset.VertexProgram, StandardVertexProgramName, value => materialAsset.VertexProgram = value);
-            changed |= ApplyFixedCompatibilityField(materialAsset.PixelProgram, StandardPixelProgramName, value => materialAsset.PixelProgram = value);
+            changed |= ApplyFixedMirroredField(materialAsset.ShaderAssetId, StandardShaderAssetId, value => materialAsset.ShaderAssetId = value);
+            changed |= ApplyFixedMirroredField(materialAsset.VertexProgram, StandardVertexProgramName, value => materialAsset.VertexProgram = value);
+            changed |= ApplyFixedMirroredField(materialAsset.PixelProgram, StandardPixelProgramName, value => materialAsset.PixelProgram = value);
             return changed;
         }
 
@@ -633,7 +633,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies one custom-shader compatibility field while preserving the current material value until the user authors a replacement.
+        /// Applies one custom-shader mirrored material field while preserving the current material value until the user authors a replacement.
         /// </summary>
         /// <param name="fieldValues">Serialized material field values keyed by field id.</param>
         /// <param name="fieldId">Field identifier to inspect.</param>
@@ -641,7 +641,7 @@ namespace helengine.editor {
         /// <param name="fallbackValue">Fallback value used when the current material value is blank.</param>
         /// <param name="applyValue">Callback that writes the updated value back to the material asset.</param>
         /// <returns>True when the material asset changed.</returns>
-        bool ApplyCustomShaderCompatibilityField(
+        bool ApplyCustomShaderMirroredField(
             Dictionary<string, string> fieldValues,
             string fieldId,
             string currentValue,
@@ -675,13 +675,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies one fixed compatibility value to the target material asset when the value changes.
+        /// Applies one fixed mirrored value to the target material asset when the value changes.
         /// </summary>
         /// <param name="currentValue">Current value stored on the material asset.</param>
         /// <param name="nextValue">Value to apply when it differs.</param>
         /// <param name="applyValue">Callback that writes the updated value back to the material asset.</param>
         /// <returns>True when the material asset changed.</returns>
-        bool ApplyFixedCompatibilityField(string currentValue, string nextValue, Action<string> applyValue) {
+        bool ApplyFixedMirroredField(string currentValue, string nextValue, Action<string> applyValue) {
             if (string.Equals(currentValue ?? string.Empty, nextValue ?? string.Empty, StringComparison.Ordinal)) {
                 return false;
             }
@@ -691,7 +691,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies one mesh-derived material variant to the compatibility payload when the value changes.
+        /// Applies one mesh-derived material variant to the mirrored material payload when the value changes.
         /// </summary>
         /// <param name="materialAsset">Material asset to update.</param>
         /// <param name="variantName">Mesh-derived variant name to apply.</param>
@@ -712,3 +712,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

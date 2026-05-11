@@ -111,7 +111,7 @@ namespace helengine.editor {
         /// Returns the builder instance that should own material cooking for the current build.
         /// </summary>
         /// <param name="materialBuilder">Builder loaded for the active platform.</param>
-        /// <returns>The builder when it publishes material schemas; otherwise null to keep compatibility material packaging active.</returns>
+        /// <returns>The builder when it publishes material schemas; otherwise null to keep top-level material packaging active.</returns>
         static IPlatformAssetBuilder ResolveEffectiveMaterialBuilder(IPlatformAssetBuilder materialBuilder) {
             if (materialBuilder == null) {
                 return null;

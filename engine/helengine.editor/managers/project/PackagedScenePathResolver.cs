@@ -7,7 +7,7 @@ namespace helengine.editor {
         /// Builds one packaged runtime scene path for the supplied authored scene id.
         /// </summary>
         /// <param name="sceneId">Authored project-relative scene id.</param>
-        /// <param name="sceneIndex">Zero-based build-order index retained for call-site compatibility.</param>
+        /// <param name="sceneIndex">Zero-based build-order index retained for call-site stability.</param>
         /// <returns>Normalized runtime-relative packaged scene path.</returns>
         public static string BuildRelativePath(string sceneId, int sceneIndex) {
             if (sceneIndex < 0) {
