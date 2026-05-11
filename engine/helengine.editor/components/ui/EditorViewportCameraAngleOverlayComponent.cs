@@ -185,6 +185,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Returns the world-space axis-label entities owned by this viewport overlay.
+        /// </summary>
+        /// <returns>Axis-label entities owned by the overlay.</returns>
+        public IReadOnlyList<EditorEntity> GetAxisLabelEntities() {
+            if (AxisLabelEntities == null) {
+                return Array.Empty<EditorEntity>();
+            }
+
+            return AxisLabelEntities;
+        }
+
+        /// <summary>
         /// Creates overlay entities when this component is attached.
         /// </summary>
         /// <param name="entity">Owning viewport entity.</param>

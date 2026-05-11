@@ -257,6 +257,7 @@ namespace helengine.editor {
             hierarchyContextMenu.Show(rowContextMenuItems, localPosition, GetContextMenuHostSize());
         }
 
+
         /// <summary>
         /// Synchronizes tracked expanded entities with the current scene graph.
         /// </summary>

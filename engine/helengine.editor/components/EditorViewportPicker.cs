@@ -34,6 +34,10 @@ namespace helengine.editor {
         /// </summary>
         readonly CameraComponent GizmoCamera;
         /// <summary>
+        /// Collector that resolves the gizmo drawables owned by this viewport only.
+        /// </summary>
+        readonly EditorViewportGizmoDrawableCollector GizmoDrawableCollector;
+        /// <summary>
         /// Entity that owns the picker camera.
         /// </summary>
         readonly EditorEntity PickerEntity;
@@ -91,12 +95,14 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="sceneCamera">Scene view camera that provides scene-object viewport and transform.</param>
         /// <param name="gizmoCamera">Gizmo overlay camera that provides transform-axis viewport and transform.</param>
+        /// <param name="gizmoDrawableCollector">Collector that resolves the viewport-owned gizmo drawables used for hover picking.</param>
         /// <param name="pickerEntity">Entity owning the picker camera.</param>
         /// <param name="pickerCamera">Camera that renders the picker pass.</param>
         /// <param name="pickerRenderer">Renderer that executes the picker pass.</param>
         public EditorViewportPicker(
             CameraComponent sceneCamera,
             CameraComponent gizmoCamera,
+            EditorViewportGizmoDrawableCollector gizmoDrawableCollector,
             EditorEntity pickerEntity,
             CameraComponent pickerCamera,
             helengine.directx11.DirectX11Renderer3D pickerRenderer) {
@@ -105,6 +111,9 @@ namespace helengine.editor {
             }
             if (gizmoCamera == null) {
                 throw new ArgumentNullException(nameof(gizmoCamera));
+            }
+            if (gizmoDrawableCollector == null) {
+                throw new ArgumentNullException(nameof(gizmoDrawableCollector));
             }
             if (pickerEntity == null) {
                 throw new ArgumentNullException(nameof(pickerEntity));
@@ -118,6 +127,7 @@ namespace helengine.editor {
 
             SceneCamera = sceneCamera;
             GizmoCamera = gizmoCamera;
+            GizmoDrawableCollector = gizmoDrawableCollector;
             PickerEntity = pickerEntity;
             PickerCamera = pickerCamera;
             PickerRenderer = pickerRenderer;
@@ -135,7 +145,7 @@ namespace helengine.editor {
             }
 
             bool isTransformGizmoToolActive = IsTransformGizmoToolActive();
-            Entity hoveredAxis = isTransformGizmoToolActive ? EditorGizmoHoverService.HoveredAxisEntity : null;
+            Entity hoveredAxis = isTransformGizmoToolActive ? EditorGizmoHoverService.GetHoveredAxis(SceneCamera) : null;
 
             if (hoveredAxis != null && input.GetMouseLeftButtonState() == ButtonState.Pressed) {
                 return;
@@ -143,12 +153,12 @@ namespace helengine.editor {
 
             int2 pointer = input.GetMousePosition();
             if (EditorInputCaptureService.IsPointerBlocked(pointer)) {
-                EditorGizmoHoverService.ClearHoveredHandle();
+                EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
                 return;
             }
 
             if (!IsPointerInsideViewport(input)) {
-                EditorGizmoHoverService.ClearHoveredHandle();
+                EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
                 return;
             }
 
@@ -157,7 +167,7 @@ namespace helengine.editor {
                     return;
                 }
 
-                EditorGizmoHoverService.ClearHoveredHandle();
+                EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
                 QueuePick(input, EditorLayerMasks.SceneObjects, PickModeSelection);
                 return;
             }
@@ -177,7 +187,7 @@ namespace helengine.editor {
             base.ComponentRemoved(entity);
             DisposeReadbackTexture();
             DisposePickerRenderTarget();
-            EditorGizmoHoverService.ClearHoveredHandle();
+            EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
         }
 
         /// <summary>
@@ -284,22 +294,22 @@ namespace helengine.editor {
         /// <param name="pickId">Pick identifier read from the picker target.</param>
         void ResolveHoverPick(int pickId) {
             if (pickId == 0) {
-                EditorGizmoHoverService.ClearHoveredHandle();
+                EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
                 return;
             }
 
             if (!PickEntitiesById.TryGetValue(pickId, out Entity entity)) {
-                EditorGizmoHoverService.ClearHoveredHandle();
+                EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
                 return;
             }
 
             Entity hoveredAxis = ResolveTransformHandleEntity(entity);
             if (hoveredAxis == null) {
-                EditorGizmoHoverService.ClearHoveredHandle();
+                EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
                 return;
             }
 
-            EditorGizmoHoverService.SetHoveredHandle(hoveredAxis);
+            EditorGizmoHoverService.SetHoveredHandle(SceneCamera, hoveredAxis);
         }
 
         /// <summary>
@@ -347,6 +357,10 @@ namespace helengine.editor {
             }
 
             queue.Clear();
+            if (pickMode == PickModeHoverAxis) {
+                GizmoDrawableCollector.PopulateRenderQueue(queue);
+                return;
+            }
 
             List<IDrawable3D> drawables = Core.Instance.ObjectManager.Drawables3D;
             for (int i = 0; i < drawables.Count; i++) {
@@ -372,6 +386,10 @@ namespace helengine.editor {
         void BuildPickColors(int pickMode) {
             PickColors.Clear();
             PickEntitiesById.Clear();
+            if (pickMode == PickModeHoverAxis) {
+                BuildHoverPickColors();
+                return;
+            }
 
             List<IDrawable3D> drawables = Core.Instance.ObjectManager.Drawables3D;
             int colorIndex = 1;
@@ -395,6 +413,37 @@ namespace helengine.editor {
                 } else {
                     selectedEntity = EditorViewportSceneSelectionFilter.ResolveSelectableEntity(drawable.Parent);
                 }
+                if (selectedEntity == null) {
+                    continue;
+                }
+
+                int id = colorIndex;
+                if (id > 0xFFFFFF) {
+                    throw new InvalidOperationException("Pick id exceeded the maximum supported color range.");
+                }
+
+                byte r = (byte)(id & 0xFF);
+                byte g = (byte)((id >> 8) & 0xFF);
+                byte b = (byte)((id >> 16) & 0xFF);
+                PickColors[drawable] = new byte4(r, g, b, 255);
+                PickEntitiesById[id] = selectedEntity;
+                colorIndex++;
+            }
+        }
+
+        /// <summary>
+        /// Builds the pick-color table for only the gizmo drawables owned by this viewport.
+        /// </summary>
+        void BuildHoverPickColors() {
+            IReadOnlyList<IDrawable3D> drawables = GizmoDrawableCollector.CaptureOwnedDrawables();
+            int colorIndex = 1;
+            for (int index = 0; index < drawables.Count; index++) {
+                IDrawable3D drawable = drawables[index];
+                if (drawable == null || drawable.Parent == null || !drawable.Parent.Enabled) {
+                    continue;
+                }
+
+                Entity selectedEntity = ResolveTransformHandleEntity(drawable.Parent);
                 if (selectedEntity == null) {
                     continue;
                 }

@@ -177,7 +177,7 @@ namespace helengine.editor {
             DragPlaneNormal = planeNormal;
             DragStartEntityPosition = selectionStartPosition;
             EditorGizmoDragService.BeginDrag(SceneCamera, selectedEntity);
-            EditorGizmoHoverService.SetHoveredHandle(hoveredHandle);
+            EditorGizmoHoverService.SetHoveredHandle(SceneCamera, hoveredHandle);
         }
 
         /// <summary>
@@ -207,7 +207,7 @@ namespace helengine.editor {
             int2 pointer = input.GetMousePosition();
             if (DragConstraintType == TransformGizmoHandleConstraintType.Axis) {
                 if (!TryComputeAxisParameter(pointer, DragStartEntityPosition, DragPrimaryDirection, out double currentAxisParameter)) {
-                    EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
+                    EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
                     return;
                 }
 
@@ -220,7 +220,7 @@ namespace helengine.editor {
                 DragChanged = DragChanged || newPosition != DragStartEntityPosition;
             } else if (DragConstraintType == TransformGizmoHandleConstraintType.Plane) {
                 if (!TryComputePlanePoint(pointer, DragStartEntityPosition, DragPlaneNormal, out float3 currentPlanePoint)) {
-                    EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
+                    EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
                     return;
                 }
 
@@ -235,7 +235,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Transform gizmo handle constraint type is not supported.");
             }
 
-            EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
+            EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
         }
 
         /// <summary>

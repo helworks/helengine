@@ -851,19 +851,7 @@ namespace helengine.directx11 {
             }
 
             deviceContext.OutputMerger.SetTargets(depthStencilView, renderTargetView);
-            if (clearColor) {
-                deviceContext.ClearRenderTargetView(renderTargetView, new RawColor4(clearColorValue.X, clearColorValue.Y, clearColorValue.Z, clearColorValue.W));
-            }
-            DepthStencilClearFlags clearFlags = 0;
-            if (clearDepth) {
-                clearFlags |= DepthStencilClearFlags.Depth;
-            }
-            if (clearStencil) {
-                clearFlags |= DepthStencilClearFlags.Stencil;
-            }
-            if (clearFlags != 0) {
-                deviceContext.ClearDepthStencilView(depthStencilView, clearFlags, clearDepthValue, clearStencilValue);
-            }
+            ApplyCameraClear(deviceContext, camera, context.Surface, renderTarget, renderTargetView, depthStencilView);
 
             deviceContext.Rasterizer.State = rasterizerState3D;
             deviceContext.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
@@ -897,6 +885,88 @@ namespace helengine.directx11 {
             UpdateShadowAtlasBindings(false);
             UpdatePointShadowBindings(0);
             PrepareForwardLightState(context);
+        }
+
+        /// <summary>
+        /// Applies the active camera clear settings to the current output target.
+        /// </summary>
+        /// <param name="deviceContext">Immediate device context executing the clear.</param>
+        /// <param name="camera">Camera whose clear settings should be applied.</param>
+        /// <param name="surface">Swap-chain surface receiving backbuffer rendering.</param>
+        /// <param name="renderTarget">Explicit camera render target, or null when rendering to the backbuffer.</param>
+        /// <param name="renderTargetView">Resolved render-target view for the active pass.</param>
+        /// <param name="depthStencilView">Resolved depth-stencil view for the active pass.</param>
+        void ApplyCameraClear(
+            DeviceContext deviceContext,
+            CameraComponent camera,
+            DirectX11SwapChainSurface surface,
+            RenderTarget renderTarget,
+            RenderTargetView renderTargetView,
+            DepthStencilView depthStencilView) {
+            if (deviceContext == null) {
+                throw new ArgumentNullException(nameof(deviceContext));
+            }
+            if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            }
+            if (surface == null) {
+                throw new ArgumentNullException(nameof(surface));
+            }
+            if (renderTargetView == null) {
+                throw new ArgumentNullException(nameof(renderTargetView));
+            }
+            if (depthStencilView == null) {
+                throw new ArgumentNullException(nameof(depthStencilView));
+            }
+
+            CameraClearSettings clearSettings = camera.ClearSettings;
+            bool clearColor = clearSettings.ClearColorEnabled;
+            float4 clearColorValue = clearSettings.ClearColor;
+            bool clearDepth = clearSettings.ClearDepthEnabled;
+            float clearDepthValue = clearSettings.ClearDepth;
+            bool clearStencil = clearSettings.ClearStencilEnabled;
+            byte clearStencilValue = clearSettings.ClearStencil;
+            if (clearColor) {
+                if (DirectX11CameraClearRegionResolver.RequiresViewportScopedBackBufferColorClear(renderTarget, surface, camera.Viewport)) {
+                    ClearViewportColorRegion(renderTargetView, clearColorValue, camera.Viewport, surface.Width, surface.Height);
+                } else {
+                    deviceContext.ClearRenderTargetView(renderTargetView, new RawColor4(clearColorValue.X, clearColorValue.Y, clearColorValue.Z, clearColorValue.W));
+                }
+            }
+
+            DepthStencilClearFlags clearFlags = 0;
+            if (clearDepth) {
+                clearFlags |= DepthStencilClearFlags.Depth;
+            }
+            if (clearStencil) {
+                clearFlags |= DepthStencilClearFlags.Stencil;
+            }
+            if (clearFlags != 0) {
+                deviceContext.ClearDepthStencilView(depthStencilView, clearFlags, clearDepthValue, clearStencilValue);
+            }
+        }
+
+        /// <summary>
+        /// Clears one color render target only within the active camera viewport rectangle.
+        /// </summary>
+        /// <param name="renderTargetView">Render target view to clear.</param>
+        /// <param name="clearColorValue">Color to write into the viewport region.</param>
+        /// <param name="viewport">Viewport rectangle that should receive the clear.</param>
+        /// <param name="targetWidth">Target width in pixels.</param>
+        /// <param name="targetHeight">Target height in pixels.</param>
+        void ClearViewportColorRegion(
+            RenderTargetView renderTargetView,
+            float4 clearColorValue,
+            float4 viewport,
+            int targetWidth,
+            int targetHeight) {
+            if (renderTargetView == null) {
+                throw new ArgumentNullException(nameof(renderTargetView));
+            }
+
+            using DeviceContext1 deviceContext1 = Device.ImmediateContext.QueryInterface<DeviceContext1>();
+            RawRectangle rectangle = DirectX11CameraClearRegionResolver.ResolveViewportRectangle(viewport, targetWidth, targetHeight);
+            deviceContext1.ClearView(renderTargetView, new RawColor4(clearColorValue.X, clearColorValue.Y, clearColorValue.Z, clearColorValue.W), new[] { rectangle });
         }
 
         /// <summary>

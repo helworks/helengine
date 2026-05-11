@@ -62,6 +62,55 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures selecting one scene entity through the editor session creates a visible component platform tab strip on the properties panel.
+        /// </summary>
+        [Fact]
+        public void HandleSelectionChanged_WhenSceneEntityIsSelected_ShowsPropertiesPlatformTabs() {
+            EditorSession session = CreateSession();
+            EditorEntity entity = new EditorEntity {
+                Name = "Cube"
+            };
+            entity.AddComponent(new CameraComponent());
+
+            InvokePrivate(session, "HandleSelectionChanged", new EditorSelectionChangedEventArgs(entity, true));
+
+            PropertiesPanel propertiesPanel = GetPrivateField<PropertiesPanel>(session, "propertiesPanel");
+            PlatformTabStripView tabStrip = GetPrivateField<PlatformTabStripView>(propertiesPanel, "ComponentPlatformTabStrip");
+            List<EditorEntity> tabHosts = GetPrivateField<List<EditorEntity>>(tabStrip, "TabHosts");
+
+            Assert.True(tabStrip.Root.Enabled);
+            Assert.Equal(2, tabHosts.Count);
+            Assert.All(tabHosts, host => Assert.True(host.Enabled));
+        }
+
+        /// <summary>
+        /// Ensures the live session path builds drawable tab visuals for the properties platform strip instead of only enabling empty hosts.
+        /// </summary>
+        [Fact]
+        public void HandleSelectionChanged_WhenSceneEntityIsSelected_BuildsPropertiesPlatformTabVisuals() {
+            EditorSession session = CreateSession();
+            EditorEntity entity = new EditorEntity {
+                Name = "Cube"
+            };
+            entity.AddComponent(new CameraComponent());
+
+            InvokePrivate(session, "HandleSelectionChanged", new EditorSelectionChangedEventArgs(entity, true));
+
+            PropertiesPanel propertiesPanel = GetPrivateField<PropertiesPanel>(session, "propertiesPanel");
+            PlatformTabStripView tabStrip = GetPrivateField<PlatformTabStripView>(propertiesPanel, "ComponentPlatformTabStrip");
+            List<EditorEntity> tabHosts = GetPrivateField<List<EditorEntity>>(tabStrip, "TabHosts");
+            EditorEntity firstTabHost = Assert.IsType<EditorEntity>(tabHosts[0]);
+            TabComponent firstTab = Assert.Single(firstTabHost.Components.OfType<TabComponent>());
+            RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(firstTab, "roundedRect");
+            Entity textEntity = GetPrivateField<Entity>(firstTab, "textEntity");
+            TextComponent label = Assert.IsType<TextComponent>(Assert.Single(textEntity.Components));
+
+            Assert.NotNull(background);
+            Assert.NotNull(textEntity);
+            Assert.NotNull(label);
+        }
+
+        /// <summary>
         /// Ensures a selected model replaces the preview with a model preview source.
         /// </summary>
         [Fact]
@@ -190,7 +239,7 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to read.</param>
         /// <returns>Field value cast to the requested type.</returns>
         T GetPrivateField<T>(object target, string fieldName) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo field = FindPrivateField(target.GetType(), fieldName);
             return Assert.IsType<T>(field.GetValue(target));
         }
 
@@ -201,8 +250,34 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to assign.</param>
         /// <param name="value">Value assigned to the field.</param>
         void SetPrivateField(object target, string fieldName, object value) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo field = FindPrivateField(target.GetType(), fieldName);
             field.SetValue(target, value);
+        }
+
+        /// <summary>
+        /// Finds one non-public instance field declared on the supplied type or any of its base types.
+        /// </summary>
+        /// <param name="type">Type whose inheritance chain should be searched.</param>
+        /// <param name="fieldName">Field name to resolve.</param>
+        /// <returns>Resolved field info.</returns>
+        static FieldInfo FindPrivateField(Type type, string fieldName) {
+            if (type == null) {
+                throw new ArgumentNullException(nameof(type));
+            } else if (string.IsNullOrWhiteSpace(fieldName)) {
+                throw new ArgumentException("Field name must be provided.", nameof(fieldName));
+            }
+
+            Type currentType = type;
+            while (currentType != null) {
+                FieldInfo field = currentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+                if (field != null) {
+                    return field;
+                }
+
+                currentType = currentType.BaseType;
+            }
+
+            throw new InvalidOperationException($"Could not resolve private field '{fieldName}' on '{type.FullName}'.");
         }
 
         /// <summary>

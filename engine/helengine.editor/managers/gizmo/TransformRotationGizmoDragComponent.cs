@@ -156,7 +156,7 @@ namespace helengine.editor {
             DragAccumulatedAngle = 0.0;
             DragPreviousVector = dragVector;
             EditorGizmoDragService.BeginDrag(SceneCamera, selectedEntity);
-            EditorGizmoHoverService.SetHoveredHandle(hoveredHandle);
+            EditorGizmoHoverService.SetHoveredHandle(SceneCamera, hoveredHandle);
         }
 
         /// <summary>
@@ -185,13 +185,13 @@ namespace helengine.editor {
 
             int2 pointer = input.GetMousePosition();
             if (!TryComputePlanePoint(pointer, DragRotationCenter, DragRotationAxis, out float3 planePoint)) {
-                EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
+                EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
                 return;
             }
 
             float3 currentVector = NormalizeSafe(planePoint - DragRotationCenter, float3.Zero);
             if (currentVector == float3.Zero) {
-                EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
+                EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
                 return;
             }
 
@@ -210,7 +210,7 @@ namespace helengine.editor {
                 DraggedEntity.Orientation = newOrientation;
             }
             DragChanged = DragChanged || !newOrientation.Equals(DragStartEntityOrientation);
-            EditorGizmoHoverService.SetHoveredHandle(DragHandleEntity);
+            EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
         }
 
         /// <summary>

@@ -25,6 +25,7 @@ namespace helengine.editor {
         /// </summary>
         public override void Update() {
             Panel.UpdateContentViewportFromCurrentBounds();
+            Panel.SynchronizeContentRenderQueue();
             Panel.UpdateTransformEdits();
         }
     }
