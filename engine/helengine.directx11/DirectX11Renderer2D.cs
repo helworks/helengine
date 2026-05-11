@@ -150,7 +150,7 @@ namespace helengine.directx11 {
         internal void RenderCamera(ICamera camera) {
             ConfigureSpritePipeline(spriteInputLayout);
 
-            float4 viewport = camera.Viewport;
+            float4 viewport = ResolveCameraViewport(camera);
             Device.ImmediateContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
             currentScissorLeft = (int)Math.Round(viewport.X);
             currentScissorTop = (int)Math.Round(viewport.Y);
@@ -171,6 +171,25 @@ namespace helengine.directx11 {
 
             IRenderQueue2D renderQueue = camera.RenderQueue2D;
             renderQueue.VisitOrdered(this);
+        }
+
+        /// <summary>
+        /// Resolves one authored camera viewport against the active backbuffer or explicit render target dimensions.
+        /// </summary>
+        /// <param name="camera">Camera whose viewport should be resolved.</param>
+        /// <returns>Viewport rectangle expressed in pixel-space coordinates.</returns>
+        float4 ResolveCameraViewport(ICamera camera) {
+            if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            }
+
+            RenderTarget renderTarget = camera.RenderTarget;
+            if (renderTarget != null) {
+                return CameraViewportResolver.ResolveViewport(camera.Viewport, renderTarget.Width, renderTarget.Height);
+            }
+
+            int2 mainWindowSize = parentRenderer.MainWindowSize;
+            return CameraViewportResolver.ResolveViewport(camera.Viewport, mainWindowSize.X, mainWindowSize.Y);
         }
 
         /// <summary>
@@ -272,13 +291,14 @@ namespace helengine.directx11 {
             };
 
             string text = drawable.Text ?? string.Empty;
+            double fontScale = Math.Max((double)drawable.FontScale, 0.0001d);
             if (drawable.WrapText) {
-                text = TextLayoutUtils.WrapText(text, font, drawable.Size.X);
+                text = TextLayoutUtils.WrapText(text, font, Math.Max(1, (int)Math.Round(drawable.Size.X / fontScale)));
             }
 
             double offsetX = 0d;
             double offsetY = 0d;
-            double lineHeight = Math.Max((double)font.LineHeight, 1d);
+            double lineHeight = Math.Max((double)font.LineHeight * fontScale, 1d);
             // Snap the baseline to whole pixels to avoid clipped glyph edges at fractional offsets.
             double baseX = Math.Round(pos.X);
             double baseY = Math.Round(pos.Y);
@@ -293,7 +313,7 @@ namespace helengine.directx11 {
                 }
 
                 if (c == ' ') {
-                    offsetX += font.FontInfo.SpaceWidth;
+                    offsetX += font.FontInfo.SpaceWidth * fontScale;
                     continue;
                 }
 
@@ -302,18 +322,20 @@ namespace helengine.directx11 {
                 }
 
                 shaderData.sourceRect = info.SourceRect;
-                double pixelW = shaderData.sourceRect.Z * data.Width;
-                double pixelH = shaderData.sourceRect.W * data.Height;
+                double pixelW = shaderData.sourceRect.Z * data.Width * fontScale;
+                double pixelH = shaderData.sourceRect.W * data.Height * fontScale;
 
                 double snappedLineOffsetY = Math.Round(offsetY);
                 shaderData.destRect = new float4(
                     (float)(baseX + offsetX),
-                    (float)(baseY + snappedLineOffsetY + info.OffsetY),
+                    (float)(baseY + snappedLineOffsetY + (info.OffsetY * fontScale)),
                     (float)pixelW,
                     (float)pixelH
                 );
 
-                double advance = info.AdvanceWidth > 0 ? info.AdvanceWidth : pixelW;
+                double advance = info.AdvanceWidth > 0
+                    ? info.AdvanceWidth * fontScale
+                    : pixelW;
                 offsetX += advance;
 
                 context.UpdateSubresource(ref shaderData, spriteConstantBuffer);

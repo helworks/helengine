@@ -356,6 +356,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures model assets preserve embedded PS2 packed mesh bytes through the HELE asset serializer.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_ModelAssetWithEmbeddedPs2PackedMeshBytes_RoundTrips() {
+            ModelAsset asset = CreateModelAsset();
+            asset.Ps2PackedMeshBytes = new byte[] {
+                1, 2, 3, 4,
+                5, 6, 7, 8,
+                9, 10, 11, 12,
+                13, 14, 15, 16
+            };
+
+            byte[] data = AssetSerializer.SerializeToBytes(asset);
+            ModelAsset deserialized = (ModelAsset)AssetSerializer.DeserializeFromBytes(data);
+            EngineBinaryHeader header = ReadHeader(data);
+
+            Assert.Equal(EditorAssetBinarySerializer.CurrentVersion, header.Version);
+            Assert.Equal(asset.Ps2PackedMeshBytes, deserialized.Ps2PackedMeshBytes);
+        }
+
+        /// <summary>
         /// Ensures nested shader assets round-trip through the HELE asset serializer.
         /// </summary>
         [Fact]

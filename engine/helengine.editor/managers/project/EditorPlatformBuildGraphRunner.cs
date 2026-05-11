@@ -38,6 +38,7 @@ namespace helengine.editor {
         readonly EditorPlatformLayoutPlanService LayoutPlanService;
         readonly EditorPlatformContainerWriter ContainerWriter;
         readonly EditorPlatformArtifactVariantResolver ArtifactVariantResolver;
+        readonly IScriptTypeResolver ScriptTypeResolver;
 
         /// <summary>
         /// Initializes one build-graph runner for the supplied project and platform descriptor.
@@ -113,6 +114,7 @@ namespace helengine.editor {
             LayoutPlanService = new EditorPlatformLayoutPlanService();
             ContainerWriter = new EditorPlatformContainerWriter();
             ArtifactVariantResolver = new EditorPlatformArtifactVariantResolver();
+            ScriptTypeResolver = scriptTypeResolver;
         }
 
         /// <summary>
@@ -152,6 +154,8 @@ namespace helengine.editor {
                 queueItem,
                 workspace);
             PlatformBuildCodeModule[] codeModules = RunCompileCode(selectedCodegenProfile, selectedStorageProfile, queueItem, workspace);
+            CopySceneReferencedRuntimeModuleSourcesIntoGeneratedCore(cookedManifest, codeModules, workspace.GeneratedCoreRootPath, workspace.CodeRootPath, workspace.CookRootPath);
+            EmitGeneratedRuntimeComponentDeserializersForCookedScenes(cookedManifest, workspace.GeneratedCoreRootPath, workspace.CookRootPath);
             cookedManifest = ReplaceCodeModules(cookedManifest, codeModules);
             cookedManifest = RunResolveVariants(cookedManifest, workspace);
             cookedManifest = RunLayoutMedia(cookedManifest, selectedStorageProfile, selectedMediaProfile, workspace);
@@ -239,6 +243,142 @@ namespace helengine.editor {
                 queueItem.SelectedCodeModuleIds,
                 queueItem.SelectedCodegenOptionValues,
                 workspace.CodeRootPath);
+        }
+
+        /// <summary>
+        /// Copies the scene-referenced generated module source files into the shared generated-core root so native player builds can compile gameplay components against the shared runtime support tree.
+        /// </summary>
+        /// <param name="cookedManifest">Cooked manifest whose scene payloads should drive gameplay source inclusion.</param>
+        /// <param name="codeModules">Compiled runtime code modules included in the current build.</param>
+        /// <param name="generatedCoreRootPath">Generated core source root that will be compiled into the native player.</param>
+        /// <param name="codeRootPath">Generated module output root produced by the authored-code phase.</param>
+        /// <param name="cookRootPath">Cook root that contains the packaged scene payloads.</param>
+        void CopySceneReferencedRuntimeModuleSourcesIntoGeneratedCore(
+            PlatformBuildManifest cookedManifest,
+            PlatformBuildCodeModule[] codeModules,
+            string generatedCoreRootPath,
+            string codeRootPath,
+            string cookRootPath) {
+            if (cookedManifest == null) {
+                throw new ArgumentNullException(nameof(cookedManifest));
+            }
+            if (codeModules == null || codeModules.Length == 0) {
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(codeRootPath)) {
+                throw new ArgumentException("Code root path must be provided.", nameof(codeRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(cookRootPath)) {
+                throw new ArgumentException("Cook root path must be provided.", nameof(cookRootPath));
+            }
+
+            Dictionary<string, string> generatedModuleRootsById = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < codeModules.Length; index++) {
+                PlatformBuildCodeModule codeModule = codeModules[index];
+                if (codeModule != null && !string.IsNullOrWhiteSpace(codeModule.ModuleId)) {
+                    generatedModuleRootsById[codeModule.ModuleId] = Path.Combine(codeRootPath, codeModule.ModuleId);
+                }
+            }
+
+            List<string> cookedSceneAssetPaths = new List<string>(cookedManifest.Scenes.Length);
+            for (int index = 0; index < cookedManifest.Scenes.Length; index++) {
+                PlatformBuildScene scene = cookedManifest.Scenes[index];
+                if (scene != null && !string.IsNullOrWhiteSpace(scene.SourceIdentity)) {
+                    cookedSceneAssetPaths.Add(Path.Combine(cookRootPath, scene.SourceIdentity.Replace('/', Path.DirectorySeparatorChar)));
+                }
+            }
+
+            IReadOnlyList<Type> sceneReferencedComponentTypes = EditorGeneratedCoreRegenerationService.DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(
+                cookedSceneAssetPaths,
+                ScriptTypeResolver);
+            for (int typeIndex = 0; typeIndex < sceneReferencedComponentTypes.Count; typeIndex++) {
+                Type componentType = sceneReferencedComponentTypes[typeIndex];
+                string moduleId = componentType.Assembly.GetName().Name ?? string.Empty;
+                if (!generatedModuleRootsById.TryGetValue(moduleId, out string generatedModuleRootPath)) {
+                    continue;
+                }
+                if (!Directory.Exists(generatedModuleRootPath)) {
+                    throw new DirectoryNotFoundException($"Compiled runtime code module root '{generatedModuleRootPath}' was not found.");
+                }
+
+                CopyGeneratedModuleSourceIfPresent(generatedModuleRootPath, generatedCoreRootPath, componentType.Name + ".hpp");
+                CopyGeneratedModuleSourceIfPresent(generatedModuleRootPath, generatedCoreRootPath, componentType.Name + ".cpp");
+            }
+        }
+
+        /// <summary>
+        /// Regenerates native automatic runtime component deserializers for the assembly-qualified scripted component types referenced by the cooked scenes.
+        /// </summary>
+        /// <param name="cookedManifest">Cooked manifest whose scene payloads should drive generated deserializer coverage.</param>
+        /// <param name="generatedCoreRootPath">Generated core source root that will be compiled into the native player.</param>
+        /// <param name="cookRootPath">Cook root that contains the packaged scene payloads.</param>
+        void EmitGeneratedRuntimeComponentDeserializersForCookedScenes(
+            PlatformBuildManifest cookedManifest,
+            string generatedCoreRootPath,
+            string cookRootPath) {
+            if (cookedManifest == null) {
+                throw new ArgumentNullException(nameof(cookedManifest));
+            }
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(cookRootPath)) {
+                throw new ArgumentException("Cook root path must be provided.", nameof(cookRootPath));
+            }
+
+            List<string> cookedSceneAssetPaths = new List<string>(cookedManifest.Scenes.Length);
+            for (int index = 0; index < cookedManifest.Scenes.Length; index++) {
+                PlatformBuildScene scene = cookedManifest.Scenes[index];
+                if (scene == null || string.IsNullOrWhiteSpace(scene.SourceIdentity)) {
+                    continue;
+                }
+
+                cookedSceneAssetPaths.Add(Path.Combine(cookRootPath, scene.SourceIdentity.Replace('/', Path.DirectorySeparatorChar)));
+            }
+
+            EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
+                generatedCoreRootPath,
+                cookedSceneAssetPaths,
+                ScriptTypeResolver);
+        }
+
+        /// <summary>
+        /// Copies one generated module source file into the shared generated-core root when the file exists and does not conflict with an existing core file.
+        /// </summary>
+        /// <param name="generatedModuleRootPath">Generated runtime module output root produced by the authored-code phase.</param>
+        /// <param name="generatedCoreRootPath">Shared generated-core root consumed by the native player build.</param>
+        /// <param name="fileName">Generated source file name to mirror.</param>
+        void CopyGeneratedModuleSourceIfPresent(string generatedModuleRootPath, string generatedCoreRootPath, string fileName) {
+            if (string.IsNullOrWhiteSpace(generatedModuleRootPath)) {
+                throw new ArgumentException("Generated module root path must be provided.", nameof(generatedModuleRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new ArgumentException("File name must be provided.", nameof(fileName));
+            }
+
+            string sourcePath = Path.Combine(generatedModuleRootPath, fileName);
+            if (!File.Exists(sourcePath)) {
+                return;
+            }
+
+            string destinationPath = Path.Combine(generatedCoreRootPath, fileName);
+            if (File.Exists(destinationPath)) {
+                string existingContents = File.ReadAllText(destinationPath);
+                string newContents = File.ReadAllText(sourcePath);
+                if (!string.Equals(existingContents, newContents, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException($"Generated runtime module source '{fileName}' conflicts with an existing generated-core source file.");
+                }
+
+                return;
+            }
+
+            File.Copy(sourcePath, destinationPath, true);
         }
 
         /// <summary>

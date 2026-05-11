@@ -1,4 +1,5 @@
 using helengine.editor;
+using helengine.directx11;
 using Xunit;
 
 namespace helengine.editor.tests.rendering {
@@ -43,6 +44,27 @@ namespace helengine.editor.tests.rendering {
             Assert.Equal("EditorPointShadowDepth", shaderAsset.Id);
             Assert.NotNull(shaderAsset.Binaries);
             Assert.NotEmpty(shaderAsset.Binaries);
+        }
+
+        /// <summary>
+        /// Ensures mesh-authored built-in standard materials can resolve through the real DirectX11 material-build path.
+        /// </summary>
+        [Fact]
+        public void BuildMaterialFromRaw_WhenUsingBuiltInStandardShaderMeshVariant_CompilesForDirectX11() {
+            using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
+            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, "ForwardStandardShader.hlsl");
+            MaterialAsset materialAsset = new MaterialAsset {
+                Id = "ForwardStandardShader.mesh.material",
+                ShaderAssetId = shaderAsset.Id,
+                VertexProgram = "ForwardStandardShader.vs",
+                PixelProgram = "ForwardStandardShader.ps",
+                Variant = "Mesh",
+                RenderState = new MaterialRenderState()
+            };
+
+            RuntimeMaterial material = renderer.BuildMaterialFromRaw(materialAsset, shaderAsset);
+
+            Assert.NotNull(material);
         }
     }
 }

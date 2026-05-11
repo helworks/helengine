@@ -19,6 +19,7 @@ namespace helengine.editor {
                 genericMaterialInstance.LightingModel = sharedStandardMaterial.LightingModel;
                 genericMaterialInstance.SupportsNormalMapping = sharedStandardMaterial.SupportsNormalMapping;
                 genericMaterialInstance.SupportsEmissive = sharedStandardMaterial.SupportsEmissive;
+                ApplyEditorOverlayRenderState(genericMaterialInstance);
                 return genericMaterialInstance;
             }
 
@@ -35,8 +36,23 @@ namespace helengine.editor {
             materialInstance.LightingModel = sharedStandardMaterial.LightingModel;
             materialInstance.SupportsNormalMapping = sharedStandardMaterial.SupportsNormalMapping;
             materialInstance.SupportsEmissive = sharedStandardMaterial.SupportsEmissive;
-            materialInstance.CastsShadows = false;
+            ApplyEditorOverlayRenderState(materialInstance);
             return materialInstance;
+        }
+
+        /// <summary>
+        /// Forces one editor-only visual material to behave like overlay geometry so it remains pickable regardless of scene depth.
+        /// </summary>
+        /// <param name="material">Editor-only runtime material to configure.</param>
+        static void ApplyEditorOverlayRenderState(RuntimeMaterial material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            material.CastsShadows = false;
+            material.RenderState.BlendMode = MaterialBlendMode.AlphaBlend;
+            material.RenderState.DepthTestEnabled = false;
+            material.RenderState.DepthWriteEnabled = false;
         }
     }
 }

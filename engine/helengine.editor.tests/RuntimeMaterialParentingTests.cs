@@ -53,6 +53,27 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures child materials inherit unresolved constant-buffer values from their parent material.
+        /// </summary>
+        [Fact]
+        public void TryResolveConstantBufferData_WhenChildHasNoLocalOverride_InheritsParentPayload() {
+            TestRuntimeMaterial parentMaterial = new TestRuntimeMaterial();
+            RuntimeMaterial childMaterial = new RuntimeMaterial();
+            MaterialLayout layout = CreateFirstLayout();
+            byte[] payload = new byte[] { 9, 8, 7, 6 };
+
+            parentMaterial.SetLayout(layout);
+            parentMaterial.Properties.SetConstantBufferData("MaterialParams", payload);
+            childMaterial.SetParentMaterial(parentMaterial);
+
+            bool resolved = childMaterial.TryResolveConstantBufferData("MaterialParams", out byte[] resolvedPayload);
+
+            Assert.True(resolved);
+            Assert.Equal(payload, resolvedPayload);
+            Assert.NotSame(payload, resolvedPayload);
+        }
+
+        /// <summary>
         /// Creates the initial material layout used by parented material synchronization tests.
         /// </summary>
         /// <returns>Material layout with one texture and one constant buffer.</returns>

@@ -89,7 +89,10 @@ namespace helengine.editor {
                 ShaderAssetId = shaderAsset.Id,
                 VertexProgram = StandardVertexProgramName,
                 PixelProgram = StandardPixelProgramName,
-                Variant = DefaultVariantName
+                Variant = DefaultVariantName,
+                ConstantBuffers = [
+                    StandardMaterialBaseColorDefaults.CreateWhiteConstantBufferAsset()
+                ]
             };
             RuntimeMaterial runtimeMaterial = renderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
             StandardMaterialTextureBindingDefaults.Apply(runtimeMaterial);

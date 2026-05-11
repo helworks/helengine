@@ -43,6 +43,22 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures DirectX11 shadow rendering does not reuse the unbiased forward rasterizer state, which causes severe self-shadowing on simple lit meshes.
+        /// </summary>
+        [Fact]
+        public void Constructor_WhenCreatingShadowRasterizer_UsesDedicatedDepthBiasForShadowPasses() {
+            using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
+
+            RasterizerState shadowRasterizerState = GetRequiredRasterizerState(renderer, "shadowRasterizerState3D");
+            RasterizerStateDescription description = shadowRasterizerState.Description;
+
+            Assert.True(description.IsFrontCounterClockwise);
+            Assert.Equal(SharpDX.Direct3D11.CullMode.Back, description.CullMode);
+            Assert.NotEqual(0, description.DepthBias);
+            Assert.True(description.SlopeScaledDepthBias > 0f);
+        }
+
+        /// <summary>
         /// Retrieves one private rasterizer-state field and fails clearly when it cannot be resolved.
         /// </summary>
         /// <param name="renderer">Renderer instance that owns the state.</param>

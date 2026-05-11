@@ -46,6 +46,63 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Reproduces the current city export failure by packaging the selected Windows scenes one at a time and surfacing the first scene that throws while reading engine binary data.
+        /// </summary>
+        [Fact]
+        public void Package_WhenUsingCityWindowsSceneSelection_ReportsTheSceneThatFailsDuringPackaging() {
+            string cityProjectRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".tmp-city-repro"));
+            string buildRootPath = Path.Combine(Path.GetTempPath(), "helengine-city-packager-repro", Guid.NewGuid().ToString("N"));
+            string[] sceneIds = [
+                "scenes/DemoDiscMainMenu.helen",
+                "scenes/rendering/cube_test.helen",
+                "scenes/rendering/colored_cube_grid.helen",
+                "scenes/rendering/textured_cube_grid.helen"
+            ];
+
+            Directory.CreateDirectory(buildRootPath);
+
+            try {
+                IReadOnlyList<IAssetImporterRegistration> importers = LoadEditorHostImporters();
+                FontAsset defaultFontAsset = CreatePackagedFontAsset();
+                EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                    cityProjectRootPath,
+                    importers,
+                    defaultFontAsset);
+
+                for (int index = 0; index < sceneIds.Length; index++) {
+                    string sceneId = sceneIds[index];
+                    Exception exception = Record.Exception(() => packager.Package(new[] { sceneId }, buildRootPath));
+                    if (exception != null) {
+                        throw new InvalidOperationException($"City export failed while packaging scene '{sceneId}'.", exception);
+                    }
+                }
+            } finally {
+                if (Directory.Exists(buildRootPath)) {
+                    Directory.Delete(buildRootPath, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Loads the editor host's default importer registrations so the repro test matches the real Windows build path.
+        /// </summary>
+        /// <returns>Importer registrations used by the editor host.</returns>
+        static IReadOnlyList<IAssetImporterRegistration> LoadEditorHostImporters() {
+            string appAssemblyPath = @"C:\dev\helworks\helengine\helengine.ui\helengine.editor.app\bin\Debug\net9.0-windows\helengine.editor.app.dll";
+            Assembly appAssembly = Assembly.LoadFrom(appAssemblyPath);
+            Type importerFactoryType = appAssembly.GetType("helengine.editor.app.EditorHostImporterFactory", throwOnError: true);
+            MethodInfo createDefaultMethod = importerFactoryType.GetMethod(
+                "CreateDefault",
+                BindingFlags.Public | BindingFlags.Static);
+            if (createDefaultMethod == null) {
+                throw new InvalidOperationException("Editor host importer factory did not expose its default importer set.");
+            }
+
+            object result = createDefaultMethod.Invoke(null, null);
+            return Assert.IsAssignableFrom<IReadOnlyList<IAssetImporterRegistration>>(result);
+        }
+
+        /// <summary>
         /// Resolves the packaged scene file path for one authored scene inside the supplied build output root.
         /// </summary>
         /// <param name="buildRootPath">Build output root that contains packaged scene assets.</param>
@@ -92,6 +149,39 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
             Assert.Equal(new[] { shaderAssetId }, result.ReferencedShaderAssetIds);
+        }
+
+        /// <summary>
+        /// Ensures imported-model companion materials can package legacy source-oriented texture ids through the model source directory instead of requiring a cache entry with the same literal file name.
+        /// </summary>
+        [Fact]
+        public void Package_WhenImportedModelCompanionMaterialUsesLegacySourceTextureId_ImportsTextureFromModelSourceDirectory() {
+            string sceneId = "Scenes/ImportedModelScene.helen";
+            string materialRelativePath = "Models/Riemers/racer/x3ds_mat_ruedas.helmat.hasset";
+            string sourceModelRelativePath = "Models/Riemers/racer.x";
+            string sourceTextureRelativePath = "Models/Riemers/ruedas.jpg";
+
+            WriteMaterialAsset(materialRelativePath, "ForwardStandardShader", "RUEDAS.JPG");
+            WriteSourceTextureAsset(sourceModelRelativePath);
+            WriteSourceTextureAsset(sourceTextureRelativePath);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                [
+                    new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".jpg" }),
+                    new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".x" })
+                ]);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string packagedTexturePath = Path.Combine(BuildRootPath, "cooked", "imported", "RUEDAS.JPG");
+            Assert.True(File.Exists(packagedTexturePath));
+
+            using FileStream stream = new FileStream(packagedTexturePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            TextureAsset textureAsset = Assert.IsType<TextureAsset>(AssetSerializer.Deserialize(stream));
+            Assert.Equal((ushort)1, textureAsset.Width);
+            Assert.Equal((ushort)1, textureAsset.Height);
+            Assert.Equal(new byte[] { 255, 128, 64, 255 }, textureAsset.Colors);
         }
 
         /// <summary>
@@ -185,7 +275,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures custom shader mode stays opt-in while the packager still supplies the standard shader defaults and mesh variant.
+        /// Ensures custom shader mode stays opt-in while the packager still supplies the standard shader defaults and packaged standard-shader variant.
         /// </summary>
         [Fact]
         public void Package_WhenCustomShaderIsDisabled_UsesMeshVariantAndStandardShaderDefaults() {
@@ -210,7 +300,7 @@ namespace helengine.editor.tests {
 
             Assert.NotNull(materialBuilder.LastMaterialCookRequest);
             Assert.Equal("false", materialBuilder.LastMaterialCookRequest.FieldValues["use-custom-shader"]);
-            Assert.Equal("Mesh", materialBuilder.LastMaterialCookRequest.FieldValues["variant"]);
+            Assert.Equal("default", materialBuilder.LastMaterialCookRequest.FieldValues["variant"]);
             Assert.Equal(shaderAssetId, materialBuilder.LastMaterialCookRequest.FieldValues["shader-asset-id"]);
             Assert.Equal(shaderAssetId + ".vs", materialBuilder.LastMaterialCookRequest.FieldValues["vertex-program"]);
             Assert.Equal(shaderAssetId + ".ps", materialBuilder.LastMaterialCookRequest.FieldValues["pixel-program"]);
@@ -346,6 +436,158 @@ namespace helengine.editor.tests {
             Assert.Equal("Hello world", loadedTextComponent.Text);
             Assert.NotNull(loadedTextComponent.Font);
             Assert.Equal(defaultFont.FontInfo.Name, loadedTextComponent.Font.FontInfo.Name);
+        }
+
+        /// <summary>
+        /// Ensures file-backed material references in packaged mesh payloads are rewritten to the cooked player-material location.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneReferencesFileSystemMaterial_LeavesPackagedRuntimeLoadable() {
+            string sceneId = "Scenes/MaterialScene.helen";
+            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.helmat";
+            string shaderAssetId = "ForwardStandardShader";
+
+            WriteShaderCachePackage(shaderAssetId, ShaderCompileTarget.DirectX11);
+            WriteMaterialAsset(materialRelativePath, shaderAssetId);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.helmat");
+            Assert.True(File.Exists(cookedMaterialPath));
+            using (FileStream cookedMaterialStream = File.OpenRead(cookedMaterialPath)) {
+                MaterialAsset cookedMaterial = Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(cookedMaterialStream));
+                Assert.Equal("default", cookedMaterial.Variant);
+            }
+
+            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+
+            MeshComponent firstMeshComponent = Assert.IsType<MeshComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is MeshComponent));
+            Assert.NotNull(firstMeshComponent.Material);
+        }
+
+        /// <summary>
+        /// Ensures a city-style standard-shader material packages with a shader contract the player can resolve.
+        /// </summary>
+        [Fact]
+        public void Package_WhenStandardShaderMaterialUsesCompatibilitySidecar_WritesPlayerResolvableShaderContract() {
+            string sceneId = "Scenes/MaterialScene.helen";
+            string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.helmat";
+
+            WriteCityStyleStandardMaterialAsset(materialRelativePath);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.helmat");
+            using FileStream cookedMaterialStream = File.OpenRead(cookedMaterialPath);
+            MaterialAsset cookedMaterial = Assert.IsType<MaterialAsset>(AssetSerializer.Deserialize(cookedMaterialStream));
+
+            Assert.Equal("ForwardStandardShader", cookedMaterial.ShaderAssetId);
+            Assert.Equal("ForwardStandardShader.vs", cookedMaterial.VertexProgram);
+            Assert.Equal("ForwardStandardShader.ps", cookedMaterial.PixelProgram);
+            Assert.Equal("default", cookedMaterial.Variant);
+        }
+
+        /// <summary>
+        /// Ensures packaged standard-shader materials copy imported diffuse textures into the player-visible cooked texture location.
+        /// </summary>
+        [Fact]
+        public void Package_WhenMaterialUsesImportedDiffuseTexture_WritesCookedImportedTextureAndLoadsRuntimeMaterial() {
+            string sceneId = "Scenes/TexturedMaterialScene.helen";
+            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.helmat";
+            string textureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
+
+            WriteCachedTextureAsset(textureAssetId);
+            WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                defaultFont);
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string cookedTexturePath = Path.Combine(BuildRootPath, "cooked", "imported", textureAssetId);
+            Assert.True(File.Exists(cookedTexturePath));
+
+            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(packagedScenePath)) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            InitializeRuntimeCore(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                runtimeContentManager,
+                BuildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
+
+            MeshComponent firstMeshComponent = Assert.IsType<MeshComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is MeshComponent));
+            RuntimeTexture resolvedTexture = firstMeshComponent.Material.ResolveTexture();
+            Assert.NotNull(resolvedTexture);
+        }
+
+        /// <summary>
+        /// Ensures builder-backed Windows material cooking still copies imported diffuse textures into the player-visible cooked texture location.
+        /// </summary>
+        [Fact]
+        public void Package_WhenBuilderCooksMaterialWithImportedDiffuseTexture_WritesCookedImportedTexture() {
+            string sceneId = "Scenes/TexturedMaterialScene.helen";
+            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.helmat";
+            string textureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
+
+            WriteCachedTextureAsset(textureAssetId);
+            WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            FontAsset defaultFont = CreatePackagedFontAsset();
+            TestPlatformMaterialAssetBuilder materialBuilder = new TestPlatformMaterialAssetBuilder();
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                materialBuilder.Definition,
+                defaultFont,
+                materialBuilder,
+                "debug",
+                "directx11");
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            string cookedTexturePath = Path.Combine(BuildRootPath, "cooked", "imported", textureAssetId);
+            Assert.True(File.Exists(cookedTexturePath));
         }
 
         /// <summary>
@@ -605,6 +847,113 @@ namespace helengine.editor.tests {
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             Entity loadedRoot = Assert.Single(loadedRoots);
             Assert.IsType<LineRendererComponent>(Assert.Single(loadedRoot.Components, loadedComponent => loadedComponent is LineRendererComponent));
+        }
+
+        /// <summary>
+        /// Ensures legacy scripted scene records with empty authored payloads still package when automatic runtime persistence discovers zero persisted members.
+        /// </summary>
+        [Fact]
+        public void Package_WhenAutomaticScriptComponentHasNoPersistedMembersAndPayloadIsEmpty_WritesValidRuntimePayload() {
+            string sceneId = "Scenes/LegacyEmptyAutomaticScriptScene.helen";
+            string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestScriptComponentWithoutPersistedMembers));
+
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "script-root",
+                        Name = "ScriptRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = componentTypeId,
+                                ComponentIndex = 0,
+                                Payload = Array.Empty<byte>()
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            });
+
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition,
+                null,
+                new FakeScriptTypeResolver(typeof(TestScriptComponentWithoutPersistedMembers)));
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
+            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            Assert.Equal(0, reader.ReadInt32());
+            Assert.Equal(payloadStream.Length, payloadStream.Position);
+        }
+
+        /// <summary>
+        /// Ensures legacy scripted scene records with empty authored payloads still package when automatic runtime persistence should restore default reflected member values.
+        /// </summary>
+        [Fact]
+        public void Package_WhenAutomaticScriptComponentUsesLegacyEmptyPayload_WritesDefaultReflectedMemberValues() {
+            string sceneId = "Scenes/LegacyEmptyUpdateScriptScene.helen";
+            string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestUpdateOnlyScriptComponent));
+
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "update-root",
+                        Name = "UpdateRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = componentTypeId,
+                                ComponentIndex = 0,
+                                Payload = Array.Empty<byte>()
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                },
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            });
+
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentCompatibilityDefinition>());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition,
+                null,
+                new FakeScriptTypeResolver(typeof(TestUpdateOnlyScriptComponent)));
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
+            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            Assert.Equal(1, reader.ReadInt32());
+            Assert.Equal((byte)0, reader.ReadByte());
+            Assert.Equal(payloadStream.Length, payloadStream.Position);
         }
 
         /// <summary>
@@ -1720,7 +2069,8 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="materialRelativePath">Project-relative material path to write.</param>
         /// <param name="shaderAssetId">Shader asset id referenced by the material.</param>
-        void WriteMaterialAsset(string materialRelativePath, string shaderAssetId) {
+        /// <param name="diffuseTextureAssetId">Optional diffuse texture asset id authored on the material.</param>
+        void WriteMaterialAsset(string materialRelativePath, string shaderAssetId, string diffuseTextureAssetId = "") {
             string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
 
@@ -1731,11 +2081,22 @@ namespace helengine.editor.tests {
                 PixelProgram = string.Concat(shaderAssetId, ".ps"),
                 Variant = "default",
                 RenderState = new MaterialRenderState(),
-                ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>()
+                ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>(),
+                DiffuseTextureAssetId = diffuseTextureAssetId
             };
 
             using FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, materialAsset);
+        }
+
+        /// <summary>
+        /// Writes one minimal source texture or model file into the project assets tree.
+        /// </summary>
+        /// <param name="relativePath">Project-relative source path to create.</param>
+        void WriteSourceTextureAsset(string relativePath) {
+            string sourcePath = Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(sourcePath));
+            File.WriteAllBytes(sourcePath, new byte[] { 1, 2, 3, 4 });
         }
 
         /// <summary>
@@ -1758,6 +2119,70 @@ namespace helengine.editor.tests {
 
             using FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, materialAsset);
+        }
+
+        /// <summary>
+        /// Writes one city-style standard material asset and compatibility sidecar that mirrors the colored cube-grid authored content.
+        /// </summary>
+        /// <param name="materialRelativePath">Project-relative material path to write.</param>
+        void WriteCityStyleStandardMaterialAsset(string materialRelativePath, string diffuseTextureAssetId = "") {
+            string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
+
+            MaterialAsset materialAsset = new MaterialAsset {
+                Id = materialRelativePath,
+                ShaderAssetId = "ForwardStandardShader",
+                VertexProgram = "ForwardStandardShader.vs",
+                PixelProgram = "ForwardStandardShader.ps",
+                Variant = "Mesh",
+                RenderState = new MaterialRenderState(),
+                ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>(),
+                DiffuseTextureAssetId = diffuseTextureAssetId,
+                CastsShadows = true,
+                ReceivesShadows = true
+            };
+
+            using (FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                AssetSerializer.Serialize(stream, materialAsset);
+            }
+
+            AssetImportSettings settings = new AssetImportSettings();
+            settings.Importer.ImporterId = "helengine.material";
+            settings.Importer.SourceChecksum = string.Empty;
+            settings.Importer.AssetId = materialRelativePath;
+            settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings {
+                Material = new MaterialAssetProcessorSettings {
+                    SchemaId = "standard-shader",
+                    FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                        ["use-custom-shader"] = "false",
+                        ["texture-id"] = diffuseTextureAssetId,
+                        ["casts-shadow"] = "true",
+                        ["receives-shadow"] = "true",
+                        ["base-color"] = "#FF4040FF"
+                    }
+                }
+            };
+
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            settingsService.Save(materialPath, settings);
+        }
+
+        /// <summary>
+        /// Writes one cached imported texture asset using the project cache location expected by scene packaging.
+        /// </summary>
+        /// <param name="textureAssetId">Imported texture asset identifier to write.</param>
+        void WriteCachedTextureAsset(string textureAssetId) {
+            string texturePath = Path.Combine(ProjectRootPath, "cache", textureAssetId);
+            Directory.CreateDirectory(Path.GetDirectoryName(texturePath));
+
+            TextureAsset textureAsset = new TextureAsset {
+                Width = 1,
+                Height = 1,
+                Colors = new byte[] { 255, 255, 255, 255 }
+            };
+
+            using FileStream stream = new FileStream(texturePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, textureAsset);
         }
 
         /// <summary>

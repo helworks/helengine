@@ -42,8 +42,8 @@ namespace helengine.editor.tests {
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = "windows",
                 SelectedSceneIds = [
-                    "Scenes/B.helen",
-                    "Scenes/A.helen"
+                    "B",
+                    "A"
                 ],
                 SelectedCodeModuleIds = [
                     "gameplay",
@@ -51,11 +51,11 @@ namespace helengine.editor.tests {
                 ],
                 SceneOrders = [
                     new EditorBuildSceneOrderDocument {
-                        SceneId = "Scenes/A.helen",
+                        SceneId = "A",
                         OrderNumber = 2
                     },
                     new EditorBuildSceneOrderDocument {
-                        SceneId = "Scenes/B.helen",
+                        SceneId = "B",
                         OrderNumber = 1
                     }
                 ]
@@ -64,7 +64,7 @@ namespace helengine.editor.tests {
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
             EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "Scenes/B.helen", "Scenes/A.helen" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "B", "A" }, queueItem.SelectedSceneIds);
             Assert.Equal("debug", queueItem.SelectedBuildProfileId);
             Assert.Equal("directx11", queueItem.SelectedGraphicsProfileId);
             Assert.Equal("default", queueItem.SelectedCodegenProfileId);
@@ -93,7 +93,7 @@ namespace helengine.editor.tests {
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = "ps2",
                 SelectedSceneIds = [
-                    "Scenes/A.helen"
+                    "A"
                 ]
             };
 
@@ -122,7 +122,7 @@ namespace helengine.editor.tests {
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
             EditorBuildQueueItemDocument queueItem = factory.Create(platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal(new[] { "Scenes/A.helen", "Scenes/B.helen" }, queueItem.SelectedSceneIds);
+            Assert.Equal(new[] { "A", "B" }, queueItem.SelectedSceneIds);
         }
 
         /// <summary>

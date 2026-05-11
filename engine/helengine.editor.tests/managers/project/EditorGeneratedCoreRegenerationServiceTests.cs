@@ -1,5 +1,6 @@
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Profiles;
+using helengine.editor.tests.testing;
 
 namespace helengine.editor.tests.managers.project;
 
@@ -321,6 +322,94 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies cooked scenes that serialize assembly-qualified scripted component type ids cause matching native runtime deserializers to be generated.
+    /// </summary>
+    [Fact]
+    public void Emit_cooked_scene_automatic_runtime_component_deserializers_includes_scene_referenced_project_component_types() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-component-deserializers-from-scenes");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "RuntimeComponentRegistry.cpp"),
+            "#include \"RuntimeComponentRegistry.hpp\"" + Environment.NewLine
+            + "::RuntimeComponentRegistry* RuntimeComponentRegistry::CreateDefault()" + Environment.NewLine
+            + "{" + Environment.NewLine
+            + "::RuntimeComponentRegistry *registry = new ::RuntimeComponentRegistry();" + Environment.NewLine
+            + "return registry;}" + Environment.NewLine);
+
+        string scenePath = Path.Combine(RootPath, "project-component-scene.hasset");
+        using (FileStream stream = File.Create(scenePath)) {
+            AssetSerializer.Serialize(
+                stream,
+                new SceneAsset {
+                    RootEntities = [
+                        new SceneEntityAsset {
+                            Components = [
+                                new SceneComponentAssetRecord {
+                                    ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestUpdateOnlyScriptComponent)),
+                                    Payload = Array.Empty<byte>()
+                                }
+                            ]
+                        }
+                    ]
+                });
+        }
+
+        EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
+            generatedCoreRootPath,
+            [scenePath],
+            null);
+
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeTestUpdateOnlyScriptComponentDeserializer.hpp")));
+        Assert.True(File.Exists(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeTestUpdateOnlyScriptComponentDeserializer.cpp")));
+        string registrationSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp"));
+        Assert.Contains("GeneratedRuntimeTestUpdateOnlyScriptComponentDeserializer", registrationSource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies normalization preserves scene-driven runtime component registration instead of rewriting it back to the engine-only automatic set.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_preserves_scene_referenced_project_component_registration() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-preserves-scene-project-component-registration");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        File.WriteAllText(
+            Path.Combine(generatedCoreRootPath, "RuntimeComponentRegistry.cpp"),
+            "#include \"RuntimeComponentRegistry.hpp\"" + Environment.NewLine
+            + "::RuntimeComponentRegistry* RuntimeComponentRegistry::CreateDefault()" + Environment.NewLine
+            + "{" + Environment.NewLine
+            + "::RuntimeComponentRegistry *registry = new ::RuntimeComponentRegistry();" + Environment.NewLine
+            + "return registry;}" + Environment.NewLine);
+
+        string scenePath = Path.Combine(RootPath, "normalize-scene-project-component-registration.hasset");
+        using (FileStream stream = File.Create(scenePath)) {
+            AssetSerializer.Serialize(
+                stream,
+                new SceneAsset {
+                    RootEntities = [
+                        new SceneEntityAsset {
+                            Components = [
+                                new SceneComponentAssetRecord {
+                                    ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestUpdateOnlyScriptComponent)),
+                                    Payload = Array.Empty<byte>()
+                                }
+                            ]
+                        }
+                    ]
+                });
+        }
+
+        EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
+            generatedCoreRootPath,
+            [scenePath],
+            null);
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
+
+        string registrationSource = File.ReadAllText(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeComponentDeserializerRegistration.cpp"));
+        Assert.Contains("GeneratedRuntimeTestUpdateOnlyScriptComponentDeserializer", registrationSource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies generated sources that reference AppContext receive the bundled AppContext include during normalization.
     /// </summary>
     [Fact]
@@ -381,6 +470,74 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         string normalizedSource = File.ReadAllText(sourcePath);
         Assert.Contains("this->set_DepthPrepassMode(::DepthPrepassMode::Auto);", normalizedSource);
         Assert.Contains("this->set_PostProcessTier(::PostProcessTier::High);", normalizedSource);
+    }
+
+    /// <summary>
+    /// Verifies generated gameplay return-to-menu sources normalize Windows-incompatible property, enum, and value-type translations before native player compilation.
+    /// </summary>
+    [Fact]
+    public void Normalize_generated_native_sources_fixes_demo_disc_return_to_menu_component_windows_translation() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "normalize-demo-disc-return-to-menu");
+        Directory.CreateDirectory(generatedCoreRootPath);
+        string headerPath = Path.Combine(generatedCoreRootPath, "DemoDiscReturnToMenuComponent.hpp");
+        string sourcePath = Path.Combine(generatedCoreRootPath, "DemoDiscReturnToMenuComponent.cpp");
+        File.WriteAllText(
+            headerPath,
+            "class DemoDiscReturnToMenuComponent : public UpdateComponent {" + Environment.NewLine
+            + "private:" + Environment.NewLine
+            + "    InputGamepadState* PreviousGamepadState;" + Environment.NewLine
+            + "    InputGamepadState* ReadPrimaryGamepadState(InputSystem* inputSystem);" + Environment.NewLine
+            + "    bool WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton* button);" + Environment.NewLine
+            + "};" + Environment.NewLine);
+        File.WriteAllText(
+            sourcePath,
+            "void DemoDiscReturnToMenuComponent::Update() {" + Environment.NewLine
+            + "InputSystem *inputSystem = Core->Instance != nullptr ? Core->Instance->Input : nullptr;" + Environment.NewLine
+            + "this->PreviousGamepadState = nullptr;" + Environment.NewLine
+            + "}" + Environment.NewLine
+            + "InputGamepadState* DemoDiscReturnToMenuComponent::ReadPrimaryGamepadState(InputSystem* inputSystem) { if (inputSystem == nullptr) { return nullptr;    }" + Environment.NewLine
+            + "return inputSystem->GetGamepadState(0);}" + Environment.NewLine
+            + "void DemoDiscReturnToMenuComponent::ReturnToMainMenu() {" + Environment.NewLine
+            + "if (Core->Instance == nullptr) {}" + Environment.NewLine
+            + "if (ComponentExecutionContext->CurrentMode == ComponentExecutionMode->Editor) {" + Environment.NewLine
+            + "std::string resolvedScenePath = Core->Instance->InitializationOptions->ScenePathResolver->ResolveScenePath(MainMenuSceneId);" + Environment.NewLine
+            + "SceneAsset *sceneAsset = Core->Instance->ContentManager->Load<SceneAsset*>(resolvedScenePath, RuntimeContentProcessorIds->SceneAsset);" + Environment.NewLine
+            + "Core->Instance->SceneLoadService->Load(sceneAsset);" + Environment.NewLine
+            + "if (Parent != nullptr) { Parent->Enabled = false; }" + Environment.NewLine
+            + "} else if (Core->Instance->SceneManager == nullptr) {" + Environment.NewLine
+            + "} else { Core->Instance->SceneManager->LoadScene(MainMenuSceneId, SceneLoadMode->Single); }" + Environment.NewLine
+            + "}" + Environment.NewLine
+            + "bool DemoDiscReturnToMenuComponent::WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton* button) { return currentState->IsButtonDown(button) && !previousState->IsButtonDown(button); }" + Environment.NewLine
+            + "bool DemoDiscReturnToMenuComponent::WasReturnPressed(InputSystem* inputSystem) {" + Environment.NewLine
+            + "#if DESKTOP_PLATFORM" + Environment.NewLine
+            + "if (inputSystem->WasKeyPressed(Keys->Escape) || inputSystem->WasKeyPressed(Keys->Back)) { return true; }" + Environment.NewLine
+            + "#endif" + Environment.NewLine
+            + "InputGamepadState *currentGamepadState = this->ReadPrimaryGamepadState(inputSystem);" + Environment.NewLine
+            + "if (!currentGamepadState->Connected) { return false; }" + Environment.NewLine
+            + "return this->WasGamepadButtonPressed(currentGamepadState, this->PreviousGamepadState, InputGamepadButton->East) || this->WasGamepadButtonPressed(currentGamepadState, this->PreviousGamepadState, InputGamepadButton->North) || this->WasGamepadButtonPressed(currentGamepadState, this->PreviousGamepadState, InputGamepadButton->Select);" + Environment.NewLine
+            + "}" + Environment.NewLine);
+
+        EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "windows");
+
+        string normalizedHeader = File.ReadAllText(headerPath);
+        string normalizedSource = File.ReadAllText(sourcePath);
+        Assert.Contains("InputGamepadState PreviousGamepadState;", normalizedHeader);
+        Assert.Contains("InputGamepadState ReadPrimaryGamepadState(InputSystem* inputSystem);", normalizedHeader);
+        Assert.Contains("#include \"RuntimeContentProcessorIds.hpp\"", normalizedSource);
+        Assert.Contains("InputSystem *inputSystem = Core::get_Instance() != nullptr ? Core::get_Instance()->get_Input() : nullptr;", normalizedSource);
+        Assert.Contains("this->PreviousGamepadState = InputGamepadState();", normalizedSource);
+        Assert.Contains("InputGamepadState currentGamepadState = this->ReadPrimaryGamepadState(inputSystem);", normalizedSource);
+        Assert.Contains("ComponentExecutionContext::get_CurrentMode() == ComponentExecutionMode::Editor", normalizedSource);
+        Assert.Contains("Core::get_Instance()->get_InitializationOptions()->get_ScenePathResolver()->ResolveScenePath(MainMenuSceneId);", normalizedSource);
+        Assert.Contains("Core::get_Instance()->get_ContentManager()->Load<SceneAsset*>(resolvedScenePath, RuntimeContentProcessorIds::SceneAsset);", normalizedSource);
+        Assert.Contains("Core::get_Instance()->get_SceneManager()->LoadScene(MainMenuSceneId, SceneLoadMode::Single);", normalizedSource);
+        Assert.Contains("Parent->set_Enabled(false);", normalizedSource);
+        Assert.Contains("#if DESKTOP_PLATFORM", normalizedSource);
+        Assert.Contains("Keys::Escape", normalizedSource);
+        Assert.Contains("return currentState.IsButtonDown(button) && !previousState.IsButtonDown(button);", normalizedSource);
+        Assert.Contains("InputGamepadButton::East", normalizedSource);
+        Assert.DoesNotContain("ResolveSceneContentPath", normalizedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildPackagedSceneContentPath", normalizedSource, StringComparison.Ordinal);
     }
 
     /// <summary>

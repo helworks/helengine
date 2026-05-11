@@ -83,7 +83,12 @@ namespace helengine.editor {
             Type componentType = ResolveComponentType(record.ComponentTypeId);
             ScriptComponentReflectionSchema schema = SchemaBuilder.Build(componentType);
             Component component = CreateComponent(componentType);
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
+            byte[] payload = record.Payload ?? Array.Empty<byte>();
+            if (payload.Length == 0) {
+                return component;
+            }
+
+            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(payload);
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
                 if (reader.TryGetFieldReader(member.Name, out EngineBinaryReader fieldReader)) {

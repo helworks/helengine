@@ -95,6 +95,12 @@ namespace helengine.editor {
             return new SceneAsset {
                 Id = sceneId,
                 AssetReferences = assetReferences.ToArray(),
+                SceneSettings = new SceneSettingsAsset {
+                    CanvasProfile = new SceneCanvasProfile {
+                        Width = DemoMenuLayout.CanvasWidth,
+                        Height = DemoMenuLayout.CanvasHeight
+                    }
+                },
                 RootEntities = new[] {
                     BuildCameraEntityAsset(),
                     BuildMenuRootEntityAsset(providerTypeName, definition)
@@ -125,7 +131,7 @@ namespace helengine.editor {
             EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
             writer.WriteField("CameraDrawOrder", fieldWriter => fieldWriter.WriteByte(0));
             writer.WriteField("LayerMask", fieldWriter => fieldWriter.WriteUInt16(1));
-            writer.WriteField("Viewport", fieldWriter => fieldWriter.WriteFloat4(new float4(0f, 0f, DemoMenuLayout.CanvasWidth, DemoMenuLayout.CanvasHeight)));
+            writer.WriteField("Viewport", fieldWriter => fieldWriter.WriteFloat4(new float4(0f, 0f, 1f, 1f)));
             writer.WriteField(
                 "ClearSettings",
                 fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraClearSettings(
@@ -166,8 +172,13 @@ namespace helengine.editor {
                 BindingMode = ViewportComponent.ScreenBindingMode,
                 FixedSize = new int2(DemoMenuLayout.CanvasWidth, DemoMenuLayout.CanvasHeight)
             };
+            ReferenceCanvasFitComponent referenceCanvasFitComponent = new ReferenceCanvasFitComponent {
+                ReferenceWidth = DemoMenuLayout.CanvasWidth,
+                ReferenceHeight = DemoMenuLayout.CanvasHeight
+            };
             SceneComponentAssetRecord buildRecord = DemoMenuBuildDescriptor.SerializeComponent(buildComponent, 0, null);
             SceneComponentAssetRecord viewportRecord = AutomaticDescriptor.SerializeComponent(viewportComponent, 1, null);
+            SceneComponentAssetRecord referenceCanvasFitRecord = AutomaticDescriptor.SerializeComponent(referenceCanvasFitComponent, 2, null);
 
             return new SceneEntityAsset {
                 Id = "demo-disc-menu-root",
@@ -175,7 +186,7 @@ namespace helengine.editor {
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
-                Components = new[] { buildRecord, viewportRecord },
+                Components = new[] { buildRecord, viewportRecord, referenceCanvasFitRecord },
                 Children = new[] {
                     BuildGeneratedRootEntityAsset(definition)
                 }

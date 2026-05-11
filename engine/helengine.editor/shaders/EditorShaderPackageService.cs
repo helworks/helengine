@@ -57,6 +57,10 @@ namespace helengine.editor {
             string packagePath = ShaderPackagePaths.GetPackagePath(shaderCachePath, shaderId, RuntimeTarget);
             bool compiled = ModuleManager.EnsureShaderCompiled(shaderId);
             if (!compiled && !File.Exists(packagePath)) {
+                if (EditorBuiltInShaderAssetLibrary.TryLoadShaderAssetById(RuntimeTarget, shaderId, out ShaderAsset builtInShaderAsset)) {
+                    return builtInShaderAsset;
+                }
+
                 throw new FileNotFoundException("Shader package was not found.", packagePath);
             }
 

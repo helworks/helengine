@@ -45,6 +45,11 @@ cbuffer ShadowBuffer : register(b2)
     float4x4 shadowLight3WorldToShadowClip;
 };
 
+cbuffer BaseColorBuffer : register(b3)
+{
+    float4 baseColor;
+};
+
 Texture2D shadowAtlasTexture : register(t1);
 SamplerState shadowAtlasSampler : register(s1);
 TextureCube pointShadowTexture0 : register(t2);
@@ -252,7 +257,8 @@ float3 EvaluateForwardLight(
 
 float4 PS(PS_IN input) : SV_Target
 {
-    float3 surfaceColor = DiffuseTexture.Sample(DiffuseTextureSampler, input.texCoord).rgb;
+    float4 sampledBaseColor = DiffuseTexture.Sample(DiffuseTextureSampler, input.texCoord) * baseColor;
+    float3 surfaceColor = sampledBaseColor.rgb;
     float3 ambientColor = float3(0.12f, 0.13f, 0.15f);
     float3 normal = normalize(input.normal);
     float3 viewDirection = normalize(cameraPosition.xyz - input.worldPos);
@@ -279,5 +285,5 @@ float4 PS(PS_IN input) : SV_Target
         color += EvaluateForwardLight(light3ColorAndType, light3DirectionAndShadow, light3PositionAndRange, light3SpotAngles, shadowLight3AtlasRect, shadowLight3Metadata, shadowLight3WorldToShadowClip, surfaceColor, input.worldPos, normal, viewDirection);
     }
 
-    return float4(saturate(color), 1.0f);
+    return float4(saturate(color), sampledBaseColor.a);
 }

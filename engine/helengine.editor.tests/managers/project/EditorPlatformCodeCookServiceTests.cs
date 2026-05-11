@@ -137,6 +137,34 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
     }
 
     [Fact]
+    public void Compile_code_modules_passes_windows_platform_preprocessor_symbols_to_codegen() {
+        RecordingCodegenToolRunner toolRunner = new();
+        EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("gameplay", "assets/Scripts", [], ["always-loaded"])
+        ]);
+
+        service.CompileModules(
+            manifestDocument,
+            "windows",
+            "windows-loose-files",
+            "/tmp/fake-codegen.exe",
+            new PlatformCodegenProfileDefinition(
+                "windows-cpp",
+                "Windows C++",
+                "Default Windows C++ codegen profile.",
+                PlatformCodegenLanguage.Cpp,
+                PlatformSerializationEndianness.LittleEndian,
+                []),
+            [],
+            new Dictionary<string, string>(),
+            OutputRootPath);
+
+        Assert.Single(toolRunner.Invocations);
+        Assert.Contains("additional-preprocessor-symbols=HELENGINE_INPUT_KEYBOARD,HELENGINE_INPUT_MOUSE,DESKTOP_PLATFORM", toolRunner.Invocations[0].Arguments, StringComparer.Ordinal);
+    }
+
+    [Fact]
     public void Compile_code_modules_throws_when_dependency_module_is_missing() {
         RecordingCodegenToolRunner toolRunner = new();
         EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);

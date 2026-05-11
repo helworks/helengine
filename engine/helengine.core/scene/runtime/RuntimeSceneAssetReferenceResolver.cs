@@ -91,7 +91,7 @@ namespace helengine {
                 ResolveShaderPackagePath(materialAsset.ShaderAssetId),
                 RuntimeContentProcessorIds.ShaderAsset);
             RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-            ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset);
+            ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);
             return runtimeMaterial;
 #endif
         }
@@ -101,18 +101,30 @@ namespace helengine {
         /// </summary>
         /// <param name="runtimeMaterial">Runtime material that should receive the diffuse texture.</param>
         /// <param name="materialAsset">Packaged material asset that declares the authored diffuse texture asset id.</param>
-        void ApplyMaterialDiffuseTexture(RuntimeMaterial runtimeMaterial, MaterialAsset materialAsset) {
+        /// <param name="materialPath">Absolute path to the serialized material asset.</param>
+        void ApplyMaterialDiffuseTexture(RuntimeMaterial runtimeMaterial, MaterialAsset materialAsset, string materialPath) {
             if (runtimeMaterial == null) {
                 throw new ArgumentNullException(nameof(runtimeMaterial));
             }
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
+            if (string.IsNullOrWhiteSpace(materialPath)) {
+                throw new ArgumentException("Material path must be provided.", nameof(materialPath));
+            }
             if (string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
                 return;
             }
 
-            string diffuseTexturePath = ResolveImportedTexturePackagePath(materialAsset.DiffuseTextureAssetId);
+            string diffuseTexturePath;
+            if (TryResolveSourceTexturePath(materialPath, materialAsset.DiffuseTextureAssetId, out diffuseTexturePath)) {
+                TextureAsset sourceTextureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, RuntimeContentProcessorIds.TextureAsset);
+                RuntimeTexture sourceRuntimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(sourceTextureAsset);
+                runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, sourceRuntimeTexture);
+                return;
+            }
+
+            diffuseTexturePath = ResolveImportedTexturePackagePath(materialAsset.DiffuseTextureAssetId);
             TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, RuntimeContentProcessorIds.TextureAsset);
             RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
             runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
@@ -179,6 +191,40 @@ namespace helengine {
             }
 
             return Path.Combine(ContentRootPath, ImportedTextureDirectoryName, assetId);
+        }
+
+        /// <summary>
+        /// Resolves one authored diffuse texture file that lives beside the serialized material asset.
+        /// </summary>
+        /// <param name="materialPath">Absolute path to the serialized material asset.</param>
+        /// <param name="assetId">Imported texture asset identifier stored on the material asset.</param>
+        /// <param name="texturePath">Resolved source texture path when one exists.</param>
+        /// <returns>True when the source texture path exists; otherwise false.</returns>
+        bool TryResolveSourceTexturePath(string materialPath, string assetId, out string texturePath) {
+            if (string.IsNullOrWhiteSpace(materialPath)) {
+                throw new ArgumentException("Material path must be provided.", nameof(materialPath));
+            }
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                texturePath = string.Empty;
+                return false;
+            }
+
+            string materialDirectoryPath = Path.GetDirectoryName(Path.GetFullPath(materialPath));
+            if (string.IsNullOrWhiteSpace(materialDirectoryPath)) {
+                texturePath = string.Empty;
+                return false;
+            }
+
+            string candidateTexturePath = Path.IsPathRooted(assetId)
+                ? Path.GetFullPath(assetId)
+                : Path.GetFullPath(Path.Combine(materialDirectoryPath, assetId));
+            if (File.Exists(candidateTexturePath)) {
+                texturePath = candidateTexturePath;
+                return true;
+            }
+
+            texturePath = string.Empty;
+            return false;
         }
 
         /// <summary>

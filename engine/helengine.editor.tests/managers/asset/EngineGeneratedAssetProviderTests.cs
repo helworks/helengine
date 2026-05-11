@@ -106,5 +106,27 @@ namespace helengine.editor.tests.managers.asset {
 
             Assert.Same(firstMaterial, secondMaterial);
         }
+
+        /// <summary>
+        /// Ensures the generated standard material writes a white base-color constant buffer before the runtime material is built.
+        /// </summary>
+        [Fact]
+        public void TryResolveRuntimeMaterial_WhenResolvingStandardMaterial_WritesWhiteBaseColorBuffer() {
+            EngineGeneratedAssetProvider provider = new EngineGeneratedAssetProvider();
+            AssetBrowserEntry standardEntry = AssetBrowserEntry.CreateGeneratedAsset(
+                "Standard",
+                EngineGeneratedAssetProvider.StandardMaterialRelativePath,
+                AssetEntryKind.Material,
+                EngineGeneratedAssetProvider.ProviderIdValue,
+                EngineGeneratedMaterialCache.StandardAssetId);
+
+            Assert.True(provider.TryResolveRuntimeMaterial(standardEntry, out RuntimeMaterial runtimeMaterial));
+
+            MaterialAsset materialAsset = Assert.Single(RenderManager3D.BuiltMaterialAssets);
+            MaterialConstantBufferAsset baseColorBuffer = Assert.Single(materialAsset.ConstantBuffers);
+            Assert.Equal("BaseColorBuffer", baseColorBuffer.Name);
+            Assert.Equal(16, baseColorBuffer.Data.Length);
+            Assert.NotNull(runtimeMaterial);
+        }
     }
 }

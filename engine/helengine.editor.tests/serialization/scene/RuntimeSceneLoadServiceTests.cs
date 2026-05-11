@@ -364,7 +364,7 @@ namespace helengine.editor.tests.serialization.scene {
             Directory.CreateDirectory(Path.GetDirectoryName(bodyFontPath));
             File.WriteAllBytes(bodyFontPath, new byte[] { 5, 6, 7, 8 });
 
-            SceneAsset authoredSceneAsset = BuildDemoMenuSceneAsset();
+            SceneAsset authoredSceneAsset = BuildMinimalSceneLoadingMenuSceneAsset();
             string authoredScenePath = Path.Combine(assetsRootPath, "Scenes", "TestMenu.helen");
             Directory.CreateDirectory(Path.GetDirectoryName(authoredScenePath));
             using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
@@ -618,6 +618,34 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures the baked menu fit component scales the main panel and its scroll step when the live window is 640x480.
+        /// </summary>
+        [Fact]
+        public void Load_WhenMenuRunsAt640x480_ScalesPanelLayoutAndScrollStep() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
+
+            string projectRootPath = Path.Combine(TempRootPath, "menu-640x480-fit-project");
+            string buildRootPath = PackageDemoMenuScene(projectRootPath, "menu-640x480-fit-build");
+            MenuComponent menuHostComponent = LoadPackagedMenu(buildRootPath);
+            Core.Instance.Update();
+            TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
+            Entity mainPanelEntity = FindPanelEntity(menuHostComponent, "main");
+            ScrollComponent scrollComponent = FindPanelScrollComponent(menuHostComponent, "main");
+
+            input.SetMouseState(CreateMouseStateInsidePanelViewport(menuHostComponent, "main", 0, ButtonState.Released));
+            Core.Instance.Update();
+
+            input.SetMouseState(CreateMouseStateInsidePanelViewport(menuHostComponent, "main", -120, ButtonState.Released));
+            Core.Instance.Update();
+
+            Assert.Equal(new float3(44f, 95f, 0f), mainPanelEntity.LocalPosition);
+            Assert.Equal(new int2(210, 55), scrollComponent.Size);
+            Assert.Equal(1, scrollComponent.ScrollOffset);
+            Assert.Equal(new float3(0f, -31f, 0f), scrollComponent.Parent.LocalPosition);
+        }
+
+        /// <summary>
         /// Ensures keyboard navigation scrolls a secondary scene-select panel opened from the main menu.
         /// </summary>
         [Fact]
@@ -720,7 +748,7 @@ namespace helengine.editor.tests.serialization.scene {
                 EditorAssetBinarySerializer.Serialize(
                     playableSceneStream,
                     new SceneAsset {
-                        Id = "Scenes/TestPlayableScene.helen",
+                        Id = "TestPlayableScene",
                         RootEntities = new[] {
                             new SceneEntityAsset {
                                 Id = "playable-root",
@@ -747,8 +775,8 @@ namespace helengine.editor.tests.serialization.scene {
                 CreateFont());
             packager.Package(new[] { "Scenes/TestMenu.helen", "Scenes/TestPlayableScene.helen" }, buildRootPath);
             RuntimeSceneCatalog sceneCatalog = new RuntimeSceneCatalog(new[] {
-                new RuntimeSceneCatalogEntry("Scenes/TestMenu.helen", GetPackagedSceneRelativePath("Scenes/TestMenu.helen")),
-                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")
+                new RuntimeSceneCatalogEntry("TestMenu", GetPackagedSceneRelativePath("Scenes/TestMenu.helen")),
+                new RuntimeSceneCatalogEntry("TestPlayableScene", "cooked/scenes/TestPlayableScene.hasset")
             });
 
             Core core = new Core(new CoreInitializationOptions {
@@ -782,7 +810,93 @@ namespace helengine.editor.tests.serialization.scene {
             input.Update();
 
             Assert.NotNull(Core.Instance.SceneManager);
-            Assert.True(Core.Instance.SceneManager.IsSceneLoaded("Scenes/TestPlayableScene.helen"));
+            Assert.True(Core.Instance.SceneManager.IsSceneLoaded("TestPlayableScene"));
+        }
+
+        /// <summary>
+        /// Ensures editor menu scene actions resolve stable scene ids through the configured scene-id path resolver.
+        /// </summary>
+        [Fact]
+        public void Load_WhenEditorMenuActionLoadsScene_resolvesThroughSceneIdPathResolver() {
+            string projectRootPath = Path.Combine(TempRootPath, "menu-editor-scene-resolver-project");
+            string assetsRootPath = Path.Combine(projectRootPath, "assets");
+            Directory.CreateDirectory(Path.Combine(assetsRootPath, "Fonts"));
+            Directory.CreateDirectory(Path.Combine(assetsRootPath, "Scenes"));
+
+            File.WriteAllBytes(Path.Combine(assetsRootPath, "Fonts", "DemoDiscTitle.ttf"), new byte[] { 1, 2, 3, 4 });
+            File.WriteAllBytes(Path.Combine(assetsRootPath, "Fonts", "DemoDiscBody.ttf"), new byte[] { 5, 6, 7, 8 });
+
+            string playableScenePath = Path.Combine(assetsRootPath, "Scenes", "TestPlayableScene.helen");
+            using (FileStream playableSceneStream = new FileStream(playableScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                EditorAssetBinarySerializer.Serialize(
+                    playableSceneStream,
+                    new SceneAsset {
+                        Id = "TestPlayableScene",
+                        RootEntities = new[] {
+                            new SceneEntityAsset {
+                                Id = "playable-root",
+                                Name = "PlayableRoot",
+                                Components = Array.Empty<SceneComponentAssetRecord>(),
+                                Children = Array.Empty<SceneEntityAsset>()
+                            }
+                        }
+                    });
+            }
+
+            TestSceneIdPathResolver scenePathResolver = new TestSceneIdPathResolver(new Dictionary<string, string> {
+                ["TestPlayableScene"] = "Scenes/TestPlayableScene.helen"
+            });
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = assetsRootPath,
+                ScenePathResolver = scenePathResolver
+            });
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend());
+            Core.Instance.DefaultFontAsset = CreateFont();
+
+            TestSceneAssetReferenceResolver referenceResolver = new TestSceneAssetReferenceResolver();
+            referenceResolver.RegisterFont(CreateFileFontReference("Fonts/DemoDiscTitle.ttf"), CreateFont());
+            referenceResolver.RegisterFont(CreateFileFontReference("Fonts/DemoDiscBody.ttf"), CreateFont());
+
+            MenuComponent menuHostComponent;
+            SceneAsset menuSceneAsset = BuildMinimalSceneLoadingMenuSceneAsset();
+            using (FileStream menuSceneStream = new FileStream(Path.Combine(assetsRootPath, "Scenes", "TestMenu.helen"), FileMode.Create, FileAccess.Write, FileShare.None)) {
+                EditorAssetBinarySerializer.Serialize(menuSceneStream, menuSceneAsset);
+            }
+
+            SceneLoadService sceneLoadService = new SceneLoadService(CreateDemoMenuPersistenceRegistry(), referenceResolver);
+            IReadOnlyList<EditorEntity> loadedRoots = sceneLoadService.Load(menuSceneAsset);
+            EditorEntity loadedRoot = Assert.Single(loadedRoots, entity => entity.Components.Any(component => component is MenuComponent));
+            menuHostComponent = Assert.IsType<MenuComponent>(Assert.Single(loadedRoot.Components, component => component is MenuComponent));
+
+            TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
+            int initialEntityCount = Core.Instance.ObjectManager.Entities.Count;
+
+            EnterEditorAndRun(() => {
+                input.SetKeyboardState(new KeyboardState());
+                input.EarlyUpdate();
+                menuHostComponent.Update();
+                input.Update();
+
+                input.SetKeyboardState(new KeyboardState(Keys.Enter));
+                input.EarlyUpdate();
+                menuHostComponent.Update();
+                input.Update();
+
+                input.SetKeyboardState(new KeyboardState());
+                input.EarlyUpdate();
+                menuHostComponent.Update();
+                input.Update();
+
+                input.SetKeyboardState(new KeyboardState(Keys.Enter));
+                input.EarlyUpdate();
+                menuHostComponent.Update();
+                input.Update();
+            });
+
+            Assert.Equal("TestPlayableScene", scenePathResolver.LastResolvedSceneId);
+            Assert.Equal(1, scenePathResolver.ResolveCallCount);
+            Assert.False(menuHostComponent.Parent.Enabled);
+            Assert.True(Core.Instance.ObjectManager.Entities.Count > initialEntityCount);
         }
 
         /// <summary>
@@ -1208,7 +1322,7 @@ namespace helengine.editor.tests.serialization.scene {
                             "Secondary runtime test panel.",
                             4,
                             new[] {
-                                new MenuItemDefinition("load-scene", "Select Scene", "Loads a scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "Scenes/TestPlayableScene.helen")),
+                                new MenuItemDefinition("load-scene", "Select Scene", "Loads a scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "TestPlayableScene")),
                                 new MenuItemDefinition("options-back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
                             }),
                         new MenuPanelDefinition(
@@ -1223,6 +1337,65 @@ namespace helengine.editor.tests.serialization.scene {
                                 new MenuItemDefinition("scene-delta", "Scene Delta", "Preview delta district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
                                 new MenuItemDefinition("scene-epsilon", "Scene Epsilon", "Preview epsilon district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
                                 new MenuItemDefinition("scene-select-back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
+                            })
+                    }));
+        }
+
+        /// <summary>
+        /// Creates the component persistence registry required to load the authored baked menu scene shape in editor mode.
+        /// </summary>
+        /// <returns>Persistence registry containing the baked menu descriptors.</returns>
+        ComponentPersistenceRegistry CreateDemoMenuPersistenceRegistry() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            registry.Register(new CameraComponentPersistenceDescriptor());
+            registry.Register(new MenuComponentPersistenceDescriptor());
+            registry.Register(new MenuPanelComponentPersistenceDescriptor());
+            registry.Register(new MenuItemComponentPersistenceDescriptor());
+            registry.Register(new MenuSelectedDescriptionComponentPersistenceDescriptor());
+            registry.Register(new RoundedRectComponentPersistenceDescriptor());
+            registry.Register(new TextComponentPersistenceDescriptor());
+            return registry;
+        }
+
+        /// <summary>
+        /// Builds one minimal baked menu scene asset used by the scene-loading menu regressions.
+        /// </summary>
+        /// <returns>Baked menu scene asset with one panel transition and one scene-loading action.</returns>
+        SceneAsset BuildMinimalSceneLoadingMenuSceneAsset() {
+            DemoMenuSceneAssetFactory factory = new DemoMenuSceneAssetFactory();
+            return factory.BuildSceneAsset(
+                "TestMenu",
+                typeof(TestMenuDefinitionProvider).AssemblyQualifiedName,
+                new MenuDefinition(
+                    "Demo",
+                    "Editor",
+                    "main",
+                    "Fonts/DemoDiscTitle.ttf",
+                    "Fonts/DemoDiscBody.ttf",
+                    new byte4(10, 10, 20, 255),
+                    new byte4(30, 30, 50, 255),
+                    new byte4(60, 60, 90, 255),
+                    new byte4(120, 120, 255, 255),
+                    new byte4(80, 180, 200, 255),
+                    new byte4(255, 255, 255, 255),
+                    new byte4(210, 210, 220, 255),
+                    new[] {
+                        new MenuPanelDefinition(
+                            "main",
+                            "Main Menu",
+                            "Editor resolver test panel.",
+                            4,
+                            new[] {
+                                new MenuItemDefinition("open-options", "Options", "Opens the options panel.", true, new MenuActionDefinition(MenuActionKind.OpenPanel, "options"))
+                            }),
+                        new MenuPanelDefinition(
+                            "options",
+                            "Options",
+                            "Loads one authored test scene through the editor resolver.",
+                            4,
+                            new[] {
+                                new MenuItemDefinition("load-scene", "Load Scene", "Loads the playable scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "TestPlayableScene")),
+                                new MenuItemDefinition("back", "Back", "Returns to the main menu.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
                             })
                     }));
         }
@@ -1413,6 +1586,23 @@ namespace helengine.editor.tests.serialization.scene {
 
             for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
                 CollectEntitiesWithComponent<TComponent>(entity.Children[childIndex], entities);
+            }
+        }
+
+        /// <summary>
+        /// Executes one action while the current thread is marked as editor component execution.
+        /// </summary>
+        /// <param name="action">Action to run inside the editor execution scope.</param>
+        void EnterEditorAndRun(Action action) {
+            if (action == null) {
+                throw new ArgumentNullException(nameof(action));
+            }
+
+            ComponentExecutionContext.EnterEditor();
+            try {
+                action();
+            } finally {
+                ComponentExecutionContext.ExitEditor();
             }
         }
 

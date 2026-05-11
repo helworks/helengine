@@ -181,6 +181,33 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures scene transitions requested from inside an update component are deferred until the active update loop completes.
+        /// </summary>
+        [Fact]
+        public void LoadScene_whenRequestedDuringUpdate_defersSceneDisposalUntilAfterTheUpdateMethodReturns() {
+            WriteSceneAsset("cooked/scenes/Bootstrap.hasset", "root-bootstrap");
+            WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", "root-playable");
+            Core core = CreateCore(CreateSceneCatalog(
+                new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/Bootstrap.hasset"),
+                new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/TestPlayableScene.hasset")));
+
+            core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+
+            Entity bootstrapRoot = Assert.Single(core.SceneManager.LoadedScenes).RootEntities[0];
+            TestSceneLoadTriggerComponent triggerComponent = new TestSceneLoadTriggerComponent {
+                TargetSceneId = "Scenes/TestPlayableScene.helen"
+            };
+            bootstrapRoot.AddComponent(triggerComponent);
+
+            core.Update();
+
+            Assert.True(triggerComponent.HasRequestedLoad);
+            Assert.True(triggerComponent.WasStillAttachedAfterRequest);
+            Assert.True(core.SceneManager.IsSceneLoaded("Scenes/TestPlayableScene.helen"));
+            Assert.False(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
+        }
+
+        /// <summary>
         /// Ensures unload notifications expose the tracked root entities and remove scene bookkeeping.
         /// </summary>
         [Fact]

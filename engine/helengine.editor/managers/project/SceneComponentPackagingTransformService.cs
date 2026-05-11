@@ -210,7 +210,7 @@ namespace helengine.editor {
         /// <summary>
         /// Folder name used for packaged imported texture assets referenced by material albedo bindings.
         /// </summary>
-        const string ImportedTextureDirectoryName = "imported";
+        const string ImportedTextureDirectoryName = "cooked/imported";
 
         /// <summary>
         /// Shader source file used by the packaged generated standard material.
@@ -343,6 +343,11 @@ namespace helengine.editor {
         readonly ScriptComponentReflectionSchemaBuilder ScriptComponentSchemaBuilder;
 
         /// <summary>
+        /// Optional shared script type resolver used for loaded gameplay modules.
+        /// </summary>
+        readonly IScriptTypeResolver ScriptTypeResolver;
+
+        /// <summary>
         /// Automatic reflected-component descriptor used to interpret editor tagged payloads before packaging.
         /// </summary>
         readonly AutomaticScriptComponentPersistenceDescriptor AutomaticScriptComponentDescriptor;
@@ -416,6 +421,7 @@ namespace helengine.editor {
             SelectedBuildProfileId = selectedBuildProfileId ?? string.Empty;
             SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
             ScriptComponentSchemaBuilder = new ScriptComponentReflectionSchemaBuilder();
+            ScriptTypeResolver = scriptTypeResolver;
             AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder, scriptTypeResolver);
             CameraComponentDescriptor = new CameraComponentPersistenceDescriptor();
             RoundedRectComponentDescriptor = new RoundedRectComponentPersistenceDescriptor();
@@ -625,7 +631,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            Component component = descriptor.DeserializeComponent(record, null, null);
+            Component component = DeserializeAutomaticComponentForPackaging(record, descriptor);
             ScriptComponentReflectionSchema schema = ScriptComponentSchemaBuilder.Build(component.GetType());
 
             using MemoryStream stream = new MemoryStream();
@@ -644,6 +650,75 @@ namespace helengine.editor {
             };
 
             return true;
+        }
+
+        /// <summary>
+        /// Deserializes one automatic scripted component for packaging, treating legacy empty payloads as a default instance whose reflected members all remain at their type defaults.
+        /// </summary>
+        /// <param name="record">Serialized component record being packaged.</param>
+        /// <param name="descriptor">Resolved persistence descriptor for the component type.</param>
+        /// <returns>Live component instance ready for runtime payload emission.</returns>
+        Component DeserializeAutomaticComponentForPackaging(SceneComponentAssetRecord record, IComponentPersistenceDescriptor descriptor) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+            if (descriptor == null) {
+                throw new ArgumentNullException(nameof(descriptor));
+            }
+
+            if (descriptor is AutomaticScriptComponentPersistenceDescriptor && (record.Payload == null || record.Payload.Length == 0)) {
+                Type componentType = ResolveAutomaticComponentType(record.ComponentTypeId);
+                return CreateAutomaticComponentInstance(componentType);
+            }
+
+            return descriptor.DeserializeComponent(record, null, null);
+        }
+
+        /// <summary>
+        /// Resolves one scripted component type id for automatic packaging.
+        /// </summary>
+        /// <param name="componentTypeId">Serialized scripted component type identifier.</param>
+        /// <returns>Resolved scripted component type.</returns>
+        Type ResolveAutomaticComponentType(string componentTypeId) {
+            if (string.IsNullOrWhiteSpace(componentTypeId)) {
+                throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
+            }
+
+            Type componentType = Type.GetType(componentTypeId, false);
+            if (componentType == null && ScriptTypeResolver != null) {
+                componentType = ScriptTypeResolver.Resolve(componentTypeId);
+            }
+            if (componentType == null) {
+                throw new InvalidOperationException($"Scripted component type '{componentTypeId}' could not be resolved.");
+            }
+
+            return componentType;
+        }
+
+        /// <summary>
+        /// Creates one scripted component instance for automatic packaging when no persisted member payload is required.
+        /// </summary>
+        /// <param name="componentType">Resolved scripted component type to instantiate.</param>
+        /// <returns>Instantiated scripted component.</returns>
+        static Component CreateAutomaticComponentInstance(Type componentType) {
+            if (componentType == null) {
+                throw new ArgumentNullException(nameof(componentType));
+            }
+            if (!typeof(Component).IsAssignableFrom(componentType)) {
+                throw new InvalidOperationException($"Automatic script-component packaging requires a {nameof(Component)} type.");
+            }
+
+            ConstructorInfo constructor = componentType.GetConstructor(Type.EmptyTypes);
+            if (constructor == null || !constructor.IsPublic) {
+                throw new InvalidOperationException($"Scripted component type '{componentType.FullName}' must expose a public parameterless constructor.");
+            }
+
+            object instance = Activator.CreateInstance(componentType);
+            if (instance is not Component component) {
+                throw new InvalidOperationException($"Scripted component type '{componentType.FullName}' could not be instantiated.");
+            }
+
+            return component;
         }
 
         /// <summary>
@@ -1765,45 +1840,139 @@ namespace helengine.editor {
 
         SceneAssetReference RewriteFileSystemMaterialReference(SceneAssetReference reference, string buildRootPath) {
             string fullPath = ResolveProjectAssetPath(reference.RelativePath);
-            MaterialAsset materialAsset = ProjectContentManager.Load<MaterialAsset>(fullPath, EditorContentProcessorIds.MaterialAsset);
+            MaterialAsset materialAsset;
+            try {
+                materialAsset = ProjectContentManager.Load<MaterialAsset>(fullPath, EditorContentProcessorIds.MaterialAsset);
+            } catch (Exception ex) {
+                throw new InvalidOperationException($"Material '{reference.RelativePath}' at '{fullPath}' could not be loaded for packaging.", ex);
+            }
+            string cookedRelativePath = BuildCookedMaterialRelativePath(reference.RelativePath);
             if (MaterialBuilder != null) {
                 AssetImportSettings materialSettings = LoadMaterialSettingsForCook(fullPath, reference.RelativePath, materialAsset);
-                PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(BuildMaterialCookRequest(reference, materialAsset, materialSettings));
+                PlatformMaterialCookRequest cookRequest = BuildMaterialCookRequest(reference, materialAsset, materialSettings);
+                PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(cookRequest);
                 RememberReferencedShaderAssetIds(cookResult.ReferencedShaderAssetIds);
 
-                string cookedRelativePath = NormalizeRelativePath(reference.RelativePath);
+                CopyReferencedDiffuseTextureAsset(fullPath, ResolveReferencedDiffuseTextureAssetId(materialAsset, cookRequest.FieldValues), buildRootPath);
                 WriteBytes(Path.Combine(buildRootPath, cookedRelativePath), cookResult.CookedMaterialBytes);
                 return CreateFileSystemReference(cookedRelativePath);
             }
 
-            RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
-            CopyReferencedDiffuseTextureAsset(materialAsset, buildRootPath);
+            AssetImportSettings compatibilityMaterialSettings;
+            if (MaterialAssetSettingsService.TryLoad(fullPath, out compatibilityMaterialSettings) &&
+                HasValidPlatformMaterialSettings(compatibilityMaterialSettings, TargetPlatformId)) {
+                MaterialAssetSettingsService.ApplyPlatformCompatibilityFields(materialAsset, compatibilityMaterialSettings, TargetPlatformId);
+            }
 
-            string relativePath = NormalizeRelativePath(reference.RelativePath);
-            CopyFile(fullPath, Path.Combine(buildRootPath, relativePath));
-            return CreateFileSystemReference(relativePath);
+            RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);
+            CopyReferencedDiffuseTextureAsset(fullPath, materialAsset, buildRootPath);
+
+            WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), materialAsset);
+            return CreateFileSystemReference(cookedRelativePath);
         }
 
         /// <summary>
         /// Copies one imported diffuse texture asset referenced by a material into the packaged content root.
         /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the authored material asset whose diffuse texture should be packaged.</param>
         /// <param name="materialAsset">Material asset whose imported diffuse texture should be packaged.</param>
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
-        void CopyReferencedDiffuseTextureAsset(MaterialAsset materialAsset, string buildRootPath) {
+        void CopyReferencedDiffuseTextureAsset(string materialAssetPath, MaterialAsset materialAsset, string buildRootPath) {
+            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
+                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
+            }
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
             if (string.IsNullOrWhiteSpace(buildRootPath)) {
                 throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
             }
-            if (string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
+
+            CopyReferencedDiffuseTextureAsset(materialAssetPath, materialAsset.DiffuseTextureAssetId, buildRootPath);
+        }
+
+        /// <summary>
+        /// Copies one imported diffuse texture asset referenced by a cooked material request into the packaged content root.
+        /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the authored material asset whose diffuse texture should be packaged.</param>
+        /// <param name="diffuseTextureAssetId">Imported diffuse texture asset id that should be copied.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        void CopyReferencedDiffuseTextureAsset(string materialAssetPath, string diffuseTextureAssetId, string buildRootPath) {
+            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
+                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
+            }
+            if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(diffuseTextureAssetId)) {
                 return;
             }
 
-            string sourcePath = ResolveImportedTextureAssetPath(materialAsset.DiffuseTextureAssetId);
-            TextureAsset textureAsset = ProjectContentManager.Load<TextureAsset>(sourcePath, EditorContentProcessorIds.TextureAsset);
-            string cookedRelativePath = BuildImportedTextureCookedRelativePath(materialAsset.DiffuseTextureAssetId);
+            TextureAsset textureAsset;
+            string sourcePath;
+            if (TryResolveSourceTextureAsset(materialAssetPath, diffuseTextureAssetId, out textureAsset, out sourcePath)) {
+                string sourceCookedRelativePath = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
+                WriteAsset(Path.Combine(buildRootPath, sourceCookedRelativePath), textureAsset);
+                return;
+            }
+
+            sourcePath = ResolveImportedTextureAssetPath(diffuseTextureAssetId);
+            try {
+                textureAsset = ProjectContentManager.Load<TextureAsset>(sourcePath, EditorContentProcessorIds.TextureAsset);
+            } catch (Exception ex) {
+                throw new InvalidOperationException($"Imported texture '{diffuseTextureAssetId}' at '{sourcePath}' could not be loaded for packaging.", ex);
+            }
+            string cookedRelativePath = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
             WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
+        }
+
+        /// <summary>
+        /// Attempts to resolve one legacy diffuse texture reference through the authored source tree instead of the cache.
+        /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
+        /// <param name="diffuseTextureAssetId">Diffuse texture asset id stored on the material asset.</param>
+        /// <param name="textureAsset">Resolved source texture asset when available.</param>
+        /// <param name="sourcePath">Absolute source texture path when available.</param>
+        /// <returns>True when the diffuse texture resolved through the authored source tree; otherwise false.</returns>
+        bool TryResolveSourceTextureAsset(string materialAssetPath, string diffuseTextureAssetId, out TextureAsset textureAsset, out string sourcePath) {
+            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
+                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
+            }
+            if (string.IsNullOrWhiteSpace(diffuseTextureAssetId)) {
+                textureAsset = null;
+                sourcePath = string.Empty;
+                return false;
+            }
+
+            if (!TryResolveSourceTexturePath(materialAssetPath, diffuseTextureAssetId, out sourcePath)) {
+                textureAsset = null;
+                return false;
+            }
+            if (!AssetImportManager.TryLoadTextureAsset(sourcePath, out textureAsset) || textureAsset == null) {
+                throw new InvalidOperationException($"Texture source file '{sourcePath}' could not be imported for packaging.");
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Resolves the diffuse texture asset id that one builder-backed material request will require at runtime.
+        /// </summary>
+        /// <param name="materialAsset">Source material asset used as the fallback source.</param>
+        /// <param name="fieldValues">Final builder field values prepared for cooking.</param>
+        /// <returns>Imported diffuse texture asset id that should be copied, or an empty string when the material has no imported texture.</returns>
+        static string ResolveReferencedDiffuseTextureAssetId(MaterialAsset materialAsset, IReadOnlyDictionary<string, string> fieldValues) {
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+
+            if (fieldValues != null &&
+                fieldValues.TryGetValue("texture-id", out string diffuseTextureAssetId) &&
+                !string.IsNullOrWhiteSpace(diffuseTextureAssetId)) {
+                return diffuseTextureAssetId;
+            }
+
+            return materialAsset.DiffuseTextureAssetId ?? string.Empty;
         }
 
         /// <summary>
@@ -1822,6 +1991,108 @@ namespace helengine.editor {
             }
 
             return Path.Combine(projectRootPath, "cache", assetId);
+        }
+
+        /// <summary>
+        /// Resolves one legacy diffuse texture identifier through the authored material directory, imported-model source directory, or project assets root.
+        /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
+        /// <param name="assetId">Diffuse texture asset identifier stored on the material asset.</param>
+        /// <param name="texturePath">Resolved absolute texture source path when available.</param>
+        /// <returns>True when a matching source texture exists; otherwise false.</returns>
+        bool TryResolveSourceTexturePath(string materialAssetPath, string assetId, out string texturePath) {
+            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
+                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
+            }
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                texturePath = string.Empty;
+                return false;
+            }
+
+            if (TryResolveTexturePathRelativeToDirectory(Path.GetDirectoryName(Path.GetFullPath(materialAssetPath)), assetId, out texturePath)) {
+                return true;
+            }
+            if (TryResolveTexturePathRelativeToImportedModelSource(materialAssetPath, assetId, out texturePath)) {
+                return true;
+            }
+            if (TryResolveTexturePathRelativeToDirectory(AssetsRootPath, assetId, out texturePath)) {
+                return true;
+            }
+
+            texturePath = string.Empty;
+            return false;
+        }
+
+        /// <summary>
+        /// Attempts to resolve one texture identifier relative to the imported-model source directory that owns the authored companion material.
+        /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the authored companion material asset.</param>
+        /// <param name="assetId">Diffuse texture asset identifier stored on the material asset.</param>
+        /// <param name="texturePath">Resolved absolute texture source path when available.</param>
+        /// <returns>True when a matching texture exists beside the imported model source; otherwise false.</returns>
+        bool TryResolveTexturePathRelativeToImportedModelSource(string materialAssetPath, string assetId, out string texturePath) {
+            if (string.IsNullOrWhiteSpace(materialAssetPath)) {
+                throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
+            }
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                texturePath = string.Empty;
+                return false;
+            }
+
+            string materialDirectoryPath = Path.GetDirectoryName(Path.GetFullPath(materialAssetPath));
+            if (string.IsNullOrWhiteSpace(materialDirectoryPath)) {
+                texturePath = string.Empty;
+                return false;
+            }
+
+            string modelDirectoryName = Path.GetFileName(materialDirectoryPath);
+            string modelSourceRootPath = Path.GetDirectoryName(materialDirectoryPath);
+            if (string.IsNullOrWhiteSpace(modelDirectoryName) || string.IsNullOrWhiteSpace(modelSourceRootPath) || !Directory.Exists(modelSourceRootPath)) {
+                texturePath = string.Empty;
+                return false;
+            }
+
+            string[] candidatePaths = Directory.GetFiles(modelSourceRootPath);
+            for (int index = 0; index < candidatePaths.Length; index++) {
+                string candidatePath = candidatePaths[index];
+                if (!AssetImportManager.IsModelExtension(Path.GetExtension(candidatePath))) {
+                    continue;
+                }
+                if (!string.Equals(Path.GetFileNameWithoutExtension(candidatePath), modelDirectoryName, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (TryResolveTexturePathRelativeToDirectory(Path.GetDirectoryName(candidatePath), assetId, out texturePath)) {
+                    return true;
+                }
+            }
+
+            texturePath = string.Empty;
+            return false;
+        }
+
+        /// <summary>
+        /// Attempts to resolve one texture identifier relative to the supplied source directory.
+        /// </summary>
+        /// <param name="baseDirectoryPath">Base directory that should receive the texture identifier.</param>
+        /// <param name="assetId">Diffuse texture asset identifier stored on the material asset.</param>
+        /// <param name="texturePath">Resolved absolute texture source path when available.</param>
+        /// <returns>True when a matching texture exists; otherwise false.</returns>
+        static bool TryResolveTexturePathRelativeToDirectory(string baseDirectoryPath, string assetId, out string texturePath) {
+            if (string.IsNullOrWhiteSpace(baseDirectoryPath) || string.IsNullOrWhiteSpace(assetId)) {
+                texturePath = string.Empty;
+                return false;
+            }
+
+            string candidateTexturePath = Path.IsPathRooted(assetId)
+                ? Path.GetFullPath(assetId)
+                : Path.GetFullPath(Path.Combine(baseDirectoryPath, assetId));
+            if (!File.Exists(candidateTexturePath)) {
+                texturePath = string.Empty;
+                return false;
+            }
+
+            texturePath = candidateTexturePath;
+            return true;
         }
 
         /// <summary>
@@ -1854,10 +2125,14 @@ namespace helengine.editor {
 
             string settingsPath = materialAssetPath + AssetImportManager.SettingsExtension;
             if (File.Exists(settingsPath)) {
-                using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                AssetImportSettings settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
-                if (settings.Processor?.Platforms != null && settings.Processor.Platforms.ContainsKey(TargetPlatformId)) {
-                    return settings;
+                try {
+                    using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    AssetImportSettings settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
+                    if (settings.Processor?.Platforms != null && settings.Processor.Platforms.ContainsKey(TargetPlatformId)) {
+                        return settings;
+                    }
+                } catch (Exception ex) when (ex is not InvalidOperationException || !ex.Message.Contains(settingsPath, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException($"Material settings file '{settingsPath}' could not be deserialized for material '{materialRelativePath}'.", ex);
                 }
             }
 
@@ -1942,13 +2217,17 @@ namespace helengine.editor {
                 : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             bool useCustomShader = IsCustomShaderEnabled(fieldValues);
-            fieldValues[VariantFieldId] = MeshVariantName;
             if (IsStandardShaderSchema(materialSettings.SchemaId) && !useCustomShader) {
+                fieldValues[VariantFieldId] = StandardShaderVariantName;
                 ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
                 fieldValues[ShaderAssetIdFieldId] = shaderAsset.Id;
                 fieldValues[VertexProgramFieldId] = StandardVertexProgramName;
                 fieldValues[PixelProgramFieldId] = StandardPixelProgramName;
-            } else if (IsStandardShaderSchema(materialSettings.SchemaId)) {
+            } else {
+                fieldValues[VariantFieldId] = MeshVariantName;
+            }
+
+            if (IsStandardShaderSchema(materialSettings.SchemaId) && useCustomShader) {
                 ResolveCustomShaderCookField(fieldValues, materialAsset, ShaderAssetIdFieldId, StandardShaderAssetId);
                 ResolveCustomShaderCookField(fieldValues, materialAsset, VertexProgramFieldId, StandardVertexProgramName);
                 ResolveCustomShaderCookField(fieldValues, materialAsset, PixelProgramFieldId, StandardPixelProgramName);
@@ -2033,7 +2312,10 @@ namespace helengine.editor {
                     ShaderAssetId = shaderAssetId,
                     VertexProgram = StandardVertexProgramName,
                     PixelProgram = StandardPixelProgramName,
-                    Variant = StandardShaderVariantName
+                    Variant = StandardShaderVariantName,
+                    ConstantBuffers = [
+                        StandardMaterialBaseColorDefaults.CreateWhiteConstantBufferAsset()
+                    ]
                 };
                 WriteAsset(Path.Combine(buildRootPath, StandardGeneratedMaterialRelativePath), materialAsset);
                 return;
@@ -2130,6 +2412,39 @@ namespace helengine.editor {
             string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
             string changedExtensionPath = Path.ChangeExtension(normalizedRelativePath, ".hefont");
             return NormalizeRelativePath(Path.Combine("cooked", changedExtensionPath));
+        }
+
+        /// <summary>
+        /// Builds one cooked packaged-material relative path for an authored file-backed material reference.
+        /// </summary>
+        /// <param name="relativePath">Original project-relative material path.</param>
+        /// <returns>Cooked packaged-material relative path.</returns>
+        string BuildCookedMaterialRelativePath(string relativePath) {
+            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            return NormalizeRelativePath(Path.Combine("cooked", normalizedRelativePath));
+        }
+
+        /// <summary>
+        /// Determines whether one material sidecar contains a usable schema for the requested platform.
+        /// </summary>
+        /// <param name="settings">Material sidecar settings to inspect.</param>
+        /// <param name="platformId">Target platform id whose settings should be validated.</param>
+        /// <returns>True when the sidecar contains a non-empty schema id for the requested platform.</returns>
+        static bool HasValidPlatformMaterialSettings(AssetImportSettings settings, string platformId) {
+            if (settings == null || string.IsNullOrWhiteSpace(platformId)) {
+                return false;
+            }
+            if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return false;
+            }
+            if (!settings.Processor.Platforms.TryGetValue(platformId, out AssetPlatformProcessorSettings platformSettings)) {
+                return false;
+            }
+            if (platformSettings == null || platformSettings.Material == null) {
+                return false;
+            }
+
+            return !string.IsNullOrWhiteSpace(platformSettings.Material.SchemaId);
         }
 
         SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {

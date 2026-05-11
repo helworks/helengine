@@ -2,6 +2,7 @@ using helengine.editor.tests.testing;
 using helengine.directx11;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Collections;
 using SharpDX.Direct3D11;
 using Xunit;
 
@@ -115,6 +116,106 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures the DirectX11 material-binding path resolves authored constant-buffer payloads to their shader slots.
+        /// </summary>
+        [Fact]
+        public void ResolveMaterialConstantBufferBindings_WhenMaterialProvidesLocalPayload_ReturnsResolvedBindingData() {
+            RuntimeMaterial material = CreateMaterialWithConstantBufferBinding("BaseColorBuffer", 3, 16);
+            byte[] expectedData = CreateConstantBufferPayload(1f, 0.5f, 0.25f, 1f);
+            TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
+            MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ResolveMaterialConstantBufferBindings", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(method);
+
+            material.Properties.SetConstantBufferData("BaseColorBuffer", expectedData);
+
+            IList resolvedBindings = Assert.IsAssignableFrom<IList>(method.Invoke(renderer, new object[] { material }));
+
+            Assert.Single(resolvedBindings);
+            AssertResolvedConstantBufferBinding(resolvedBindings[0], "BaseColorBuffer", 3, expectedData);
+        }
+
+        /// <summary>
+        /// Ensures the DirectX11 material-binding path can inherit constant-buffer payloads from one parent material chain.
+        /// </summary>
+        [Fact]
+        public void ResolveMaterialConstantBufferBindings_WhenMaterialInheritsParentPayload_ReturnsParentBindingData() {
+            DirectX11ShaderResource shaderResource = (DirectX11ShaderResource)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11ShaderResource));
+            var rootMaterial = new DirectX11MaterialResource(shaderResource);
+            RuntimeMaterial childMaterial = new RuntimeMaterial();
+            byte[] expectedData = CreateConstantBufferPayload(0.1f, 0.2f, 0.3f, 1f);
+            TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
+            MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ResolveMaterialConstantBufferBindings", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(method);
+
+            rootMaterial.SetLayout(CreateMaterialLayoutWithConstantBufferBinding("BaseColorBuffer", 3, 16));
+            rootMaterial.Properties.SetConstantBufferData("BaseColorBuffer", expectedData);
+            childMaterial.SetParentMaterial(rootMaterial);
+
+            IList resolvedBindings = Assert.IsAssignableFrom<IList>(method.Invoke(renderer, new object[] { childMaterial }));
+
+            Assert.Single(resolvedBindings);
+            AssertResolvedConstantBufferBinding(resolvedBindings[0], "BaseColorBuffer", 3, expectedData);
+        }
+
+        /// <summary>
+        /// Ensures material-owned constant-buffer rebinding does not clear engine-owned forward-light and shadow shader buffers.
+        /// </summary>
+        [Fact]
+        public void ApplyMaterialConstantBufferBindings_WhenMaterialOnlyOwnsBaseColor_PreservesEngineForwardLightAndShadowBuffers() {
+            using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
+            RuntimeMaterial material = new RuntimeMaterial();
+            material.SetLayout(new MaterialLayout(
+                "shader/test",
+                "VS",
+                "PS",
+                "default",
+                new MaterialRenderState(),
+                Array.Empty<MaterialLayoutBinding>(),
+                new[] {
+                    new MaterialLayoutBinding("ForwardLightBuffer", ShaderResourceType.ConstantBuffer, 0, 1, 272),
+                    new MaterialLayoutBinding("ShadowBuffer", ShaderResourceType.ConstantBuffer, 0, 2, 336),
+                    new MaterialLayoutBinding("BaseColorBuffer", ShaderResourceType.ConstantBuffer, 0, 3, 16)
+                },
+                Array.Empty<MaterialLayoutBinding>()));
+            material.Properties.SetConstantBufferData("BaseColorBuffer", CreateConstantBufferPayload(1f, 1f, 1f, 1f));
+            MethodInfo applyMethod = typeof(DirectX11Renderer3D).GetMethod("ApplyMaterialConstantBufferBindings", BindingFlags.Instance | BindingFlags.NonPublic);
+            SharpDX.Direct3D11.Buffer forwardLightBuffer = GetPrivateFieldValue<SharpDX.Direct3D11.Buffer>(renderer, "forwardLightConstantBuffer");
+            SharpDX.Direct3D11.Buffer shadowBuffer = GetPrivateFieldValue<SharpDX.Direct3D11.Buffer>(renderer, "shadowConstantBuffer");
+            DeviceContext context = renderer.Device.ImmediateContext;
+
+            Assert.NotNull(applyMethod);
+            context.PixelShader.SetConstantBuffer(1, forwardLightBuffer);
+            context.PixelShader.SetConstantBuffer(2, shadowBuffer);
+
+            applyMethod.Invoke(renderer, new object[] { material });
+
+            SharpDX.Direct3D11.Buffer reboundForwardLightBuffer = context.PixelShader.GetConstantBuffers(1, 1)[0];
+            SharpDX.Direct3D11.Buffer reboundShadowBuffer = context.PixelShader.GetConstantBuffers(2, 1)[0];
+            Assert.NotNull(reboundForwardLightBuffer);
+            Assert.NotNull(reboundShadowBuffer);
+            Assert.Equal(forwardLightBuffer.NativePointer, reboundForwardLightBuffer.NativePointer);
+            Assert.Equal(shadowBuffer.NativePointer, reboundShadowBuffer.NativePointer);
+        }
+
+        /// <summary>
+        /// Ensures the DirectX11 standard-mesh shader data uploads the inverse-transpose matrix directly so rotated meshes light in world space instead of local space.
+        /// </summary>
+        [Fact]
+        public void BuildStandardMeshShaderData_WhenWorldContainsRotation_UploadsInverseTransposeNormalMatrix() {
+            float4x4.CreateFromYawPitchRoll((float)(Math.PI * 0.5d), 0f, 0f, out float4x4 world);
+            float4x4.InverseTranspose(ref world, out float4x4 expectedUploadedNormalMatrix);
+            MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("BuildStandardMeshShaderData", BindingFlags.Static | BindingFlags.NonPublic);
+
+            Assert.NotNull(method);
+
+            StandardMeshShaderData shaderData = Assert.IsType<StandardMeshShaderData>(method.Invoke(null, new object[] { world, new float3(1f, 2f, 3f), true }));
+
+            AssertMatrixEqual(expectedUploadedNormalMatrix, shaderData.NormalMatrix);
+        }
+
+        /// <summary>
         /// Creates one runtime material with a single texture binding that matches the viewport canvas-plane shader.
         /// </summary>
         /// <returns>Runtime material configured with a `CanvasTexture` binding.</returns>
@@ -132,6 +233,129 @@ namespace helengine.editor.tests.rendering {
                 Array.Empty<MaterialLayoutBinding>(),
                 Array.Empty<MaterialLayoutBinding>()));
             return material;
+        }
+
+        /// <summary>
+        /// Asserts that two matrices match element-by-element within a tight tolerance.
+        /// </summary>
+        /// <param name="expected">Expected matrix value.</param>
+        /// <param name="actual">Actual matrix value.</param>
+        static void AssertMatrixEqual(float4x4 expected, float4x4 actual) {
+            Assert.Equal(expected.M11, actual.M11, 5);
+            Assert.Equal(expected.M12, actual.M12, 5);
+            Assert.Equal(expected.M13, actual.M13, 5);
+            Assert.Equal(expected.M14, actual.M14, 5);
+            Assert.Equal(expected.M21, actual.M21, 5);
+            Assert.Equal(expected.M22, actual.M22, 5);
+            Assert.Equal(expected.M23, actual.M23, 5);
+            Assert.Equal(expected.M24, actual.M24, 5);
+            Assert.Equal(expected.M31, actual.M31, 5);
+            Assert.Equal(expected.M32, actual.M32, 5);
+            Assert.Equal(expected.M33, actual.M33, 5);
+            Assert.Equal(expected.M34, actual.M34, 5);
+            Assert.Equal(expected.M41, actual.M41, 5);
+            Assert.Equal(expected.M42, actual.M42, 5);
+            Assert.Equal(expected.M43, actual.M43, 5);
+            Assert.Equal(expected.M44, actual.M44, 5);
+        }
+
+        /// <summary>
+        /// Creates one runtime material with a single constant-buffer binding for DirectX11 material-binding tests.
+        /// </summary>
+        /// <param name="bindingName">Constant-buffer binding name.</param>
+        /// <param name="slot">DirectX11 shader slot.</param>
+        /// <param name="size">Constant-buffer payload size in bytes.</param>
+        /// <returns>Runtime material configured with the supplied constant-buffer binding.</returns>
+        static RuntimeMaterial CreateMaterialWithConstantBufferBinding(string bindingName, int slot, int size) {
+            RuntimeMaterial material = new RuntimeMaterial();
+            material.SetLayout(CreateMaterialLayoutWithConstantBufferBinding(bindingName, slot, size));
+            return material;
+        }
+
+        /// <summary>
+        /// Creates one material layout with a single constant-buffer binding for DirectX11 material-binding tests.
+        /// </summary>
+        /// <param name="bindingName">Constant-buffer binding name.</param>
+        /// <param name="slot">DirectX11 shader slot.</param>
+        /// <param name="size">Constant-buffer payload size in bytes.</param>
+        /// <returns>Material layout configured with the supplied constant-buffer binding.</returns>
+        static MaterialLayout CreateMaterialLayoutWithConstantBufferBinding(string bindingName, int slot, int size) {
+            return new MaterialLayout(
+                "shader/test",
+                "VS",
+                "PS",
+                "default",
+                new MaterialRenderState(),
+                Array.Empty<MaterialLayoutBinding>(),
+                new[] {
+                    new MaterialLayoutBinding(bindingName, ShaderResourceType.ConstantBuffer, 0, slot, size)
+                },
+                Array.Empty<MaterialLayoutBinding>());
+        }
+
+        /// <summary>
+        /// Creates one packed constant-buffer payload from four single-precision values.
+        /// </summary>
+        /// <param name="x">First packed float.</param>
+        /// <param name="y">Second packed float.</param>
+        /// <param name="z">Third packed float.</param>
+        /// <param name="w">Fourth packed float.</param>
+        /// <returns>Packed 16-byte payload.</returns>
+        static byte[] CreateConstantBufferPayload(float x, float y, float z, float w) {
+            byte[] payload = new byte[sizeof(float) * 4];
+            Array.Copy(BitConverter.GetBytes(x), 0, payload, 0, sizeof(float));
+            Array.Copy(BitConverter.GetBytes(y), 0, payload, sizeof(float), sizeof(float));
+            Array.Copy(BitConverter.GetBytes(z), 0, payload, sizeof(float) * 2, sizeof(float));
+            Array.Copy(BitConverter.GetBytes(w), 0, payload, sizeof(float) * 3, sizeof(float));
+            return payload;
+        }
+
+        /// <summary>
+        /// Verifies one reflected resolved constant-buffer binding.
+        /// </summary>
+        /// <param name="resolvedBinding">Resolved binding object returned by the DirectX11 renderer.</param>
+        /// <param name="expectedName">Expected binding name.</param>
+        /// <param name="expectedSlot">Expected shader slot.</param>
+        /// <param name="expectedData">Expected packed payload.</param>
+        static void AssertResolvedConstantBufferBinding(object resolvedBinding, string expectedName, int expectedSlot, byte[] expectedData) {
+            if (resolvedBinding == null) {
+                throw new ArgumentNullException(nameof(resolvedBinding));
+            }
+
+            Type bindingType = resolvedBinding.GetType();
+            PropertyInfo nameProperty = bindingType.GetProperty("Name");
+            PropertyInfo slotProperty = bindingType.GetProperty("Slot");
+            PropertyInfo dataProperty = bindingType.GetProperty("Data");
+
+            Assert.NotNull(nameProperty);
+            Assert.NotNull(slotProperty);
+            Assert.NotNull(dataProperty);
+            Assert.Equal(expectedName, Assert.IsType<string>(nameProperty.GetValue(resolvedBinding)));
+            Assert.Equal(expectedSlot, Assert.IsType<int>(slotProperty.GetValue(resolvedBinding)));
+            Assert.Equal(expectedData, Assert.IsType<byte[]>(dataProperty.GetValue(resolvedBinding)));
+        }
+
+        /// <summary>
+        /// Reads one private instance field from the supplied object.
+        /// </summary>
+        /// <typeparam name="TValue">Expected field value type.</typeparam>
+        /// <param name="instance">Object that owns the requested field.</param>
+        /// <param name="fieldName">Private field name to read.</param>
+        /// <returns>Field value cast to the requested type.</returns>
+        static TValue GetPrivateFieldValue<TValue>(object instance, string fieldName) {
+            if (instance == null) {
+                throw new ArgumentNullException(nameof(instance));
+            }
+            if (string.IsNullOrWhiteSpace(fieldName)) {
+                throw new ArgumentException("Field name must be provided.", nameof(fieldName));
+            }
+
+            FieldInfo field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (field == null) {
+                throw new InvalidOperationException($"Could not find private field '{fieldName}'.");
+            }
+
+            return (TValue)field.GetValue(instance);
         }
 
         /// <summary>

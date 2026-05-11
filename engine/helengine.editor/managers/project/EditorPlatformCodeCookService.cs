@@ -62,7 +62,8 @@ namespace helengine.editor {
                 }
 
                 string moduleRootPath = Path.Combine(outputRootPath, moduleEntry.ModuleId);
-                string projectFilePath = WriteModuleProjectFile(moduleEntry, moduleRootPath);
+                string projectFilePath = WriteModuleProjectFile(moduleEntry, moduleRootPath, platformId);
+                IReadOnlyList<string> platformSymbols = EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId);
                 string languageToken = "cpp";
                 string endiannessToken = codegenProfile.Endianness == helengine.baseplatform.Profiles.PlatformSerializationEndianness.BigEndian
                     ? "big"
@@ -76,6 +77,10 @@ namespace helengine.editor {
                     "--language", languageToken,
                     "--endianness", endiannessToken
                 ];
+                if (platformSymbols.Count > 0) {
+                    arguments.Add("--set");
+                    arguments.Add($"additional-preprocessor-symbols={string.Join(",", platformSymbols)}");
+                }
 
                 if (selectedOptionValues != null) {
                     foreach (KeyValuePair<string, string> selectedOption in selectedOptionValues.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)) {
@@ -203,11 +208,22 @@ namespace helengine.editor {
             return EnumerateModuleScriptFiles(moduleEntry).Any();
         }
 
-        string WriteModuleProjectFile(EditorCodeModuleManifestEntry moduleEntry, string moduleRootPath) {
+        string WriteModuleProjectFile(EditorCodeModuleManifestEntry moduleEntry, string moduleRootPath, string platformId) {
+            if (moduleEntry == null) {
+                throw new ArgumentNullException(nameof(moduleEntry));
+            }
+            if (string.IsNullOrWhiteSpace(moduleRootPath)) {
+                throw new ArgumentException("Module root path must be provided.", nameof(moduleRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
             string projectRootPath = Path.Combine(moduleRootPath, "_project");
             Directory.CreateDirectory(projectRootPath);
             string intermediateRootPath = Path.Combine(projectRootPath, "obj");
             string outputPath = Path.Combine(projectRootPath, moduleEntry.ModuleId + ".csproj");
+            IReadOnlyList<string> platformSymbols = EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId);
             StringBuilder projectBuilder = new();
             projectBuilder.AppendLine("<Project Sdk=\"Microsoft.NET.Sdk\">");
             projectBuilder.AppendLine("  <PropertyGroup>");
@@ -222,6 +238,9 @@ namespace helengine.editor {
             projectBuilder.AppendLine("    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>");
             projectBuilder.AppendLine("    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>");
             projectBuilder.AppendLine($"    <BaseIntermediateOutputPath>{EscapeXml(intermediateRootPath)}{Path.DirectorySeparatorChar}</BaseIntermediateOutputPath>");
+            if (platformSymbols.Count > 0) {
+                projectBuilder.AppendLine($"    <DefineConstants>{EscapeXml(string.Join(";", platformSymbols))}</DefineConstants>");
+            }
             projectBuilder.AppendLine("  </PropertyGroup>");
             projectBuilder.AppendLine("  <ItemGroup>");
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.core\" HintPath=\"{EscapeXml(typeof(Core).Assembly.Location)}\" />");

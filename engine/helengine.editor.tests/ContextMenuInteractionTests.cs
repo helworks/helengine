@@ -105,6 +105,38 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures pointer routing still works when the active UI camera uses a normalized fullscreen viewport instead of authored pixel bounds.
+        /// </summary>
+        [Fact]
+        public void ClickingContextMenuRow_WithNormalizedFullscreenCamera_InvokesMenuItemAction() {
+            TestRenderManager3D renderManager = new TestRenderManager3D();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentRootPath = TempRootPath
+            });
+            core.Initialize(renderManager, new TestRenderManager2D(), Input);
+            renderManager.OnWindowResize(IntPtr.Zero, 320, 240);
+            CreateNormalizedUiCamera(0b0000000000000010);
+
+            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            menu.Show(
+                new[] {
+                    new ContextMenuItem("Open", HandleMenuItemActivated)
+                },
+                new int2(40, 24),
+                new int2(320, 240));
+
+            int2 rowPointer = new int2(
+                menu.Position.X + 16,
+                menu.Position.Y + ContextMenu.PaddingY + (ContextMenu.RowHeight / 2));
+
+            AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+            AdvanceCoreInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
+
+            Assert.Equal(1, ActivationCount);
+        }
+
+        /// <summary>
         /// Ensures adjacent visible menu rows are laid out flush with no vertical gap between their strips.
         /// </summary>
         [Fact]
@@ -314,6 +346,24 @@ namespace helengine.editor.tests {
                 LayerMask = layerMask,
                 CameraDrawOrder = 255,
                 Viewport = new float4(0f, 0f, width, height)
+            };
+            cameraEntity.AddComponent(camera);
+        }
+
+        /// <summary>
+        /// Creates the UI camera using a normalized fullscreen viewport so pointer routing exercises viewport-to-window resolution.
+        /// </summary>
+        /// <param name="layerMask">Layer mask used by the camera.</param>
+        void CreateNormalizedUiCamera(ushort layerMask) {
+            EditorEntity cameraEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = layerMask
+            };
+
+            CameraComponent camera = new CameraComponent {
+                LayerMask = layerMask,
+                CameraDrawOrder = 255,
+                Viewport = new float4(0f, 0f, 1f, 1f)
             };
             cameraEntity.AddComponent(camera);
         }

@@ -42,5 +42,10 @@ namespace helengine {
         /// Authored submesh ranges and their material slot names.
         /// </summary>
         public ModelSubmeshAsset[] Submeshes;
+
+        /// <summary>
+        /// PS2-specific qword-aligned packed mesh bytes used directly by the VU renderer path.
+        /// </summary>
+        public byte[] Ps2PackedMeshBytes;
     }
 }

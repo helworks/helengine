@@ -235,20 +235,13 @@ namespace helengine.vulkan {
             NextClipChain.Clear();
             ActiveClipRects.Clear();
 
-            float4 viewport = camera.Viewport;
+            float4 viewport = CameraViewportResolver.ResolveViewport(camera.Viewport, currentSurface.LogicalWidth, currentSurface.LogicalHeight);
             double offsetX = viewport.X;
             double offsetY = viewport.Y;
             double width = viewport.Z;
             double height = viewport.W;
             double logicalSurfaceWidth = currentSurface.LogicalWidth;
             double logicalSurfaceHeight = currentSurface.LogicalHeight;
-
-            if (width <= 1.0 && height <= 1.0) {
-                offsetX *= logicalSurfaceWidth;
-                offsetY *= logicalSurfaceHeight;
-                width *= logicalSurfaceWidth;
-                height *= logicalSurfaceHeight;
-            }
 
             if (width <= 0.0 || height <= 0.0) {
                 return;
@@ -370,13 +363,14 @@ namespace helengine.vulkan {
             float3 position = text.Parent.Position;
             byte4 color = text.Color;
             string content = text.Text ?? string.Empty;
+            double fontScale = Math.Max((double)text.FontScale, 0.0001d);
             if (text.WrapText) {
-                content = TextLayoutUtils.WrapText(content, font, text.Size.X);
+                content = TextLayoutUtils.WrapText(content, font, Math.Max(1, (int)Math.Round(text.Size.X / fontScale)));
             }
 
             double offsetX = 0.0;
             double offsetY = 0.0;
-            double lineHeight = Math.Max(font.LineHeight, 1.0f);
+            double lineHeight = Math.Max(font.LineHeight * fontScale, 1.0f);
             double baseX = Math.Round(position.X);
             double baseY = Math.Round(position.Y);
 
@@ -390,7 +384,7 @@ namespace helengine.vulkan {
                 }
 
                 if (c == ' ') {
-                    offsetX += font.FontInfo.SpaceWidth;
+                    offsetX += font.FontInfo.SpaceWidth * fontScale;
                     continue;
                 }
 
@@ -398,16 +392,18 @@ namespace helengine.vulkan {
                     continue;
                 }
 
-                double pixelW = info.SourceRect.Z * texture.Width;
-                double pixelH = info.SourceRect.W * texture.Height;
+                double pixelW = info.SourceRect.Z * texture.Width * fontScale;
+                double pixelH = info.SourceRect.W * texture.Height * fontScale;
                 double snappedLineOffsetY = Math.Round(offsetY);
 
                 double drawX = baseX + offsetX;
-                double drawY = baseY + snappedLineOffsetY + info.OffsetY;
+                double drawY = baseY + snappedLineOffsetY + (info.OffsetY * fontScale);
 
                 DrawQuad(texture, drawX, drawY, pixelW, pixelH, info.SourceRect, color);
 
-                double advance = info.AdvanceWidth > 0 ? info.AdvanceWidth : pixelW;
+                double advance = info.AdvanceWidth > 0
+                    ? info.AdvanceWidth * fontScale
+                    : pixelW;
                 offsetX += advance;
             }
         }

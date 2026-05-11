@@ -315,6 +315,9 @@ namespace helengine {
             FPSComponent.RecordUpdateFrame();
 
             ObjectManager.Update();
+            if (SceneManager != null) {
+                SceneManager.FlushPendingOperations();
+            }
             UpdatePhysics(elapsedSeconds);
 
             Input.Update();

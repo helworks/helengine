@@ -26,6 +26,24 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures normalized full-surface viewports still resolve to full-target clears on DirectX11.
+        /// </summary>
+        [Fact]
+        public void RequiresViewportScopedBackBufferColorClear_WhenViewportUsesNormalizedFullSurface_ReturnsFalse() {
+            DirectX11SwapChainSurface surface = new DirectX11SwapChainSurface {
+                Width = 1280,
+                Height = 720
+            };
+
+            bool requiresScopedClear = DirectX11CameraClearRegionResolver.RequiresViewportScopedBackBufferColorClear(
+                null,
+                surface,
+                new float4(0f, 0f, 1f, 1f));
+
+            Assert.False(requiresScopedClear);
+        }
+
+        /// <summary>
         /// Ensures partial backbuffer viewports request viewport-scoped color clears.
         /// </summary>
         [Fact]
@@ -57,6 +75,22 @@ namespace helengine.editor.tests.rendering {
             Assert.Equal(10, rectangle.Top);
             Assert.Equal(128, rectangle.Right);
             Assert.Equal(96, rectangle.Bottom);
+        }
+
+        /// <summary>
+        /// Ensures normalized viewport rectangles scale into target pixels before clamping.
+        /// </summary>
+        [Fact]
+        public void ResolveViewportRectangle_WhenViewportUsesNormalizedSubRegion_ScalesToTargetPixels() {
+            RawRectangle rectangle = DirectX11CameraClearRegionResolver.ResolveViewportRectangle(
+                new float4(0.25f, 0.125f, 0.5f, 0.25f),
+                1280,
+                720);
+
+            Assert.Equal(320, rectangle.Left);
+            Assert.Equal(90, rectangle.Top);
+            Assert.Equal(960, rectangle.Right);
+            Assert.Equal(270, rectangle.Bottom);
         }
     }
 }

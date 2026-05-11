@@ -100,6 +100,34 @@ namespace helengine.editor.tests.managers.rendering {
         }
 
         /// <summary>
+        /// Ensures text glyph bounds and advances honor one authored font scale.
+        /// </summary>
+        [Fact]
+        public void Build_WhenQueueContainsScaledText_EmitsScaledGlyphQuads() {
+            Entity entity = CreateEntity(new float3(10f, 20f, 0f), true);
+            TextComponent text = new TextComponent {
+                Font = CreateFont(),
+                Text = "AA",
+                FontScale = 0.5f,
+                Color = new byte4(9, 8, 7, 6)
+            };
+            entity.AddComponent(text);
+
+            RenderList2D queue = new RenderList2D(1);
+            queue.Add(text);
+
+            RenderCommandListBuilder2D builder = new RenderCommandListBuilder2D();
+            RenderCommandList2D commandList = builder.Build(queue);
+
+            Assert.Equal(2, commandList.Count);
+
+            int firstPayloadIndex = commandList.GetGlyphQuadPayloadIndex(0);
+            int secondPayloadIndex = commandList.GetGlyphQuadPayloadIndex(1);
+            Assert.Equal(new float4(10f, 20.5f, 2.5f, 2.5f), commandList.GetGlyphQuadBounds(firstPayloadIndex));
+            Assert.Equal(new float4(13f, 20.5f, 2.5f, 2.5f), commandList.GetGlyphQuadBounds(secondPayloadIndex));
+        }
+
+        /// <summary>
         /// Ensures a rounded rectangle becomes one rounded-rectangle command with preserved shape parameters.
         /// </summary>
         [Fact]

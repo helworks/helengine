@@ -49,6 +49,11 @@ namespace helengine {
         public RuntimeSceneCatalog SceneCatalog { get; set; }
 
         /// <summary>
+        /// Gets or sets the optional editor-side resolver used to map stable scene ids back to authored scene paths.
+        /// </summary>
+        public ISceneIdPathResolver ScenePathResolver { get; set; }
+
+        /// <summary>
         /// Validates option values for initialization.
         /// </summary>
         public void Normalize() {

@@ -171,13 +171,14 @@ namespace helengine {
         void EmitText(ITextDrawable2D text) {
             FontAsset font = text.Font;
             string content = text.Text ?? string.Empty;
+            double fontScale = Math.Max((double)text.FontScale, 0.0001d);
             if (text.WrapText) {
-                content = TextLayoutUtils.WrapText(content, font, text.Size.X);
+                content = TextLayoutUtils.WrapText(content, font, Math.Max(1, (int)Math.Round(text.Size.X / fontScale)));
             }
 
             double offsetX = 0d;
             double offsetY = 0d;
-            double lineHeight = Math.Max((double)font.LineHeight, 1d);
+            double lineHeight = Math.Max((double)font.LineHeight * fontScale, 1d);
             double baseX = Math.Round(text.Parent.Position.X);
             double baseY = Math.Round(text.Parent.Position.Y);
 
@@ -190,7 +191,7 @@ namespace helengine {
                 }
 
                 if (character == ' ') {
-                    offsetX += font.FontInfo.SpaceWidth;
+                    offsetX += font.FontInfo.SpaceWidth * fontScale;
                     continue;
                 }
 
@@ -198,20 +199,22 @@ namespace helengine {
                     continue;
                 }
 
-                double glyphWidth = glyph.SourceRect.Z * font.AtlasWidth;
-                double glyphHeight = glyph.SourceRect.W * font.AtlasHeight;
+                double glyphWidth = glyph.SourceRect.Z * font.AtlasWidth * fontScale;
+                double glyphHeight = glyph.SourceRect.W * font.AtlasHeight * fontScale;
                 double snappedLineOffsetY = Math.Round(offsetY);
                 CommandListValue.AddGlyphQuad(
                     font.Texture,
                     new float4(
                         (float)(baseX + offsetX),
-                        (float)(baseY + snappedLineOffsetY + glyph.OffsetY),
+                        (float)(baseY + snappedLineOffsetY + (glyph.OffsetY * fontScale)),
                         (float)glyphWidth,
                         (float)glyphHeight),
                     glyph.SourceRect,
                     text.Color);
 
-                double advanceWidth = glyph.AdvanceWidth > 0f ? glyph.AdvanceWidth : glyphWidth;
+                double advanceWidth = glyph.AdvanceWidth > 0f
+                    ? glyph.AdvanceWidth * fontScale
+                    : glyphWidth;
                 offsetX += advanceWidth;
             }
         }

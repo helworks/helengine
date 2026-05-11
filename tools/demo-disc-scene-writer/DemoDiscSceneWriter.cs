@@ -9,9 +9,9 @@ namespace helengine.demo_disc_scene_writer {
     /// </summary>
     public sealed class DemoDiscSceneWriter {
         /// <summary>
-        /// Scene id used by the generated menu scene.
+        /// Authored scene path used by the generated menu scene asset.
         /// </summary>
-        const string MenuSceneId = "Scenes/DemoDiscMainMenu.helen";
+        const string MenuScenePath = "Scenes/DemoDiscMainMenu.helen";
 
         /// <summary>
         /// Project-relative folder that owns the generated demo-disc menu source files.
@@ -24,19 +24,19 @@ namespace helengine.demo_disc_scene_writer {
         const string DefaultMenuModuleId = "gameplay";
 
         /// <summary>
+        /// Curated playable scene paths packaged by the demo-disc build.
+        /// </summary>
+        static readonly string[] CuratedScenePaths = new[] {
+            MenuScenePath,
+            "scenes/rendering/cube_test.helen",
+            "scenes/rendering/colored_cube_grid.helen",
+            "scenes/rendering/textured_cube_grid.helen"
+        };
+
+        /// <summary>
         /// Curated playable scene ids packaged by the demo-disc build.
         /// </summary>
-        static readonly string[] CuratedSceneIds = new[] {
-            MenuSceneId,
-            "scenes/physics/test_scene_dynamic_stack_boxes.helen",
-            "scenes/physics/test_scene_dynamic_sphere_ramp.helen",
-            "scenes/physics/test_scene_character_steps.helen",
-            "scenes/physics/test_scene_character_slope.helen",
-            "scenes/physics/test_scene_character_moving_platform.helen",
-            "scenes/physics/test_scene_kinematic_push.helen",
-            "scenes/physics/test_scene_mesh_ground_stability.helen",
-            "scenes/physics/test_scene_trigger_volume.helen"
-        };
+        static readonly string[] CuratedSceneIds = BuildCuratedSceneIds();
 
         /// <summary>
         /// Font writer used to copy authored source fonts into the generated project.
@@ -133,7 +133,7 @@ namespace helengine.demo_disc_scene_writer {
                 throw new ArgumentException("Provider type name must be provided.", nameof(providerTypeName));
             }
 
-            string scenePath = Path.Combine(assetsRootPath, MenuSceneId.Replace('/', Path.DirectorySeparatorChar));
+            string scenePath = Path.Combine(assetsRootPath, MenuScenePath.Replace('/', Path.DirectorySeparatorChar));
             string sceneDirectoryPath = Path.GetDirectoryName(scenePath);
             if (string.IsNullOrWhiteSpace(sceneDirectoryPath)) {
                 throw new InvalidOperationException("Menu scene directory could not be resolved.");
@@ -141,7 +141,7 @@ namespace helengine.demo_disc_scene_writer {
 
             Directory.CreateDirectory(sceneDirectoryPath);
             MenuDefinition definition = BuildMenuDefinition();
-            SceneAsset sceneAsset = SceneBuildService.BuildSceneAsset(MenuSceneId, providerTypeName, definition);
+            SceneAsset sceneAsset = SceneBuildService.BuildSceneAsset(SceneIdUtility.FromPath(MenuScenePath), providerTypeName, definition);
 
             using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
             helengine.files.EditorAssetBinarySerializer.Serialize(stream, sceneAsset);
@@ -294,6 +294,19 @@ namespace helengine.demo_disc_scene_writer {
         }
 
         /// <summary>
+        /// Builds the curated stable scene ids that the generated menu and build config should reference.
+        /// </summary>
+        /// <returns>Curated stable scene ids derived from the authored scene asset names.</returns>
+        static string[] BuildCuratedSceneIds() {
+            string[] sceneIds = new string[CuratedScenePaths.Length];
+            for (int index = 0; index < CuratedScenePaths.Length; index++) {
+                sceneIds[index] = SceneIdUtility.FromPath(CuratedScenePaths[index]);
+            }
+
+            return sceneIds;
+        }
+
+        /// <summary>
         /// Builds the shared baked menu definition used by both the scene writer and future editor rebuild entrypoints.
         /// </summary>
         /// <returns>Baked demo-disc menu definition.</returns>
@@ -347,14 +360,9 @@ namespace helengine.demo_disc_scene_writer {
         /// <returns>Curated scene-selection items.</returns>
         MenuItemDefinition[] CreateSceneSelectItems() {
             return new[] {
-                new MenuItemDefinition("scene-stack-boxes", "Stack Boxes", "Physics stress test with stacked dynamic boxes.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "scenes/physics/test_scene_dynamic_stack_boxes.helen")),
-                new MenuItemDefinition("scene-ramp", "Sphere Ramp", "Dynamic sphere ramp test for broad motion and bounce.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "scenes/physics/test_scene_dynamic_sphere_ramp.helen")),
-                new MenuItemDefinition("scene-steps", "Character Steps", "Character controller step traversal test.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "scenes/physics/test_scene_character_steps.helen")),
-                new MenuItemDefinition("scene-slope", "Character Slope", "Character controller slope handling test.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "scenes/physics/test_scene_character_slope.helen")),
-                new MenuItemDefinition("scene-platform", "Moving Platform", "Character moving-platform interaction test.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "scenes/physics/test_scene_character_moving_platform.helen")),
-                new MenuItemDefinition("scene-push", "Kinematic Push", "Kinematic pusher interaction test.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "scenes/physics/test_scene_kinematic_push.helen")),
-                new MenuItemDefinition("scene-ground", "Ground Stability", "Ground contact and settling stability test.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "scenes/physics/test_scene_mesh_ground_stability.helen")),
-                new MenuItemDefinition("scene-trigger", "Trigger Volume", "Trigger enter and exit test scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "scenes/physics/test_scene_trigger_volume.helen")),
+                new MenuItemDefinition("scene-cube-test", "Cube Test", "Minimal one-cube rendering validation scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, SceneIdUtility.FromPath("scenes/rendering/cube_test.helen"))),
+                new MenuItemDefinition("scene-colored-cube-grid", "Colored Cube Grid", "Sixteen rotating cubes with distinct lit material colors.", true, new MenuActionDefinition(MenuActionKind.LoadScene, SceneIdUtility.FromPath("scenes/rendering/colored_cube_grid.helen"))),
+                new MenuItemDefinition("scene-textured-cube-grid", "Textured Cube Grid", "Sixteen rotating cubes with distinct lit texture materials.", true, new MenuActionDefinition(MenuActionKind.LoadScene, SceneIdUtility.FromPath("scenes/rendering/textured_cube_grid.helen"))),
                 new MenuItemDefinition("scene-back", "Back", "Returns to the main menu.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
             };
         }
@@ -376,14 +384,9 @@ namespace helengine.demo_disc_scene_writer {
             builder.AppendLine("        /// <returns>Curated scene menu items.</returns>");
             builder.AppendLine("        public MenuItemDefinition[] CreateSceneItems() {");
             builder.AppendLine("            return new[] {");
-            builder.AppendLine("                new MenuItemDefinition(\"scene-stack-boxes\", \"Stack Boxes\", \"Physics stress test with stacked dynamic boxes.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"scenes/physics/test_scene_dynamic_stack_boxes.helen\")),");
-            builder.AppendLine("                new MenuItemDefinition(\"scene-ramp\", \"Sphere Ramp\", \"Dynamic sphere ramp test for broad motion and bounce.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"scenes/physics/test_scene_dynamic_sphere_ramp.helen\")),");
-            builder.AppendLine("                new MenuItemDefinition(\"scene-steps\", \"Character Steps\", \"Character controller step traversal test.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"scenes/physics/test_scene_character_steps.helen\")),");
-            builder.AppendLine("                new MenuItemDefinition(\"scene-slope\", \"Character Slope\", \"Character controller slope handling test.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"scenes/physics/test_scene_character_slope.helen\")),");
-            builder.AppendLine("                new MenuItemDefinition(\"scene-platform\", \"Moving Platform\", \"Character moving-platform interaction test.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"scenes/physics/test_scene_character_moving_platform.helen\")),");
-            builder.AppendLine("                new MenuItemDefinition(\"scene-push\", \"Kinematic Push\", \"Kinematic pusher interaction test.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"scenes/physics/test_scene_kinematic_push.helen\")),");
-            builder.AppendLine("                new MenuItemDefinition(\"scene-ground\", \"Ground Stability\", \"Ground contact and settling stability test.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"scenes/physics/test_scene_mesh_ground_stability.helen\")),");
-            builder.AppendLine("                new MenuItemDefinition(\"scene-trigger\", \"Trigger Volume\", \"Trigger enter and exit test scene.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"scenes/physics/test_scene_trigger_volume.helen\")),");
+            builder.AppendLine("                new MenuItemDefinition(\"scene-cube-test\", \"Cube Test\", \"Minimal one-cube rendering validation scene.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"cube_test\")),");
+            builder.AppendLine("                new MenuItemDefinition(\"scene-colored-cube-grid\", \"Colored Cube Grid\", \"Sixteen rotating cubes with distinct lit material colors.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"colored_cube_grid\")),");
+            builder.AppendLine("                new MenuItemDefinition(\"scene-textured-cube-grid\", \"Textured Cube Grid\", \"Sixteen rotating cubes with distinct lit texture materials.\", true, new MenuActionDefinition(MenuActionKind.LoadScene, \"textured_cube_grid\")),");
             builder.AppendLine("                new MenuItemDefinition(\"scene-back\", \"Back\", \"Returns to the main menu.\", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))");
             builder.AppendLine("            };");
             builder.AppendLine("        }");

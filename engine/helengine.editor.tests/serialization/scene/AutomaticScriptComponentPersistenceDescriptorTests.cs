@@ -67,6 +67,23 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures legacy empty payloads materialize default automatic scripted components instead of failing during editor scene open.
+        /// </summary>
+        [Fact]
+        public void DeserializeComponent_WhenAutomaticScriptPayloadIsEmpty_ReturnsDefaultComponentState() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestUpdateOnlyScriptComponent)),
+                ComponentIndex = 0,
+                Payload = Array.Empty<byte>()
+            };
+
+            TestUpdateOnlyScriptComponent component = Assert.IsType<TestUpdateOnlyScriptComponent>(descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Equal((byte)0, component.UpdateOrder);
+        }
+
+        /// <summary>
         /// Ensures unsupported reflected member types fail clearly instead of being silently skipped.
         /// </summary>
         [Fact]

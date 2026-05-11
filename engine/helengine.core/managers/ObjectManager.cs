@@ -50,6 +50,11 @@ public class ObjectManager {
     public List<IUpdateable> Updateables { get; private set; }
 
     /// <summary>
+    /// Gets whether the object manager is currently iterating the update list.
+    /// </summary>
+    public bool IsUpdateLoopActive => updateLoopActive;
+
+    /// <summary>
     /// Gets the number of update order layers available for helper methods.
     /// </summary>
     public byte UpdateOrderLayers { get; private set; } = 4;

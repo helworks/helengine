@@ -39,6 +39,10 @@ namespace helengine {
         /// Update component that polls input when selection is enabled.
         /// </summary>
         TextComponentSelectionUpdateComponent SelectionUpdateComponentValue;
+        /// <summary>
+        /// Uniform glyph scale applied during text layout, hit testing, and rendering.
+        /// </summary>
+        float FontScaleValue;
         byte RenderOrder2DValue;
 
         /// <summary>
@@ -109,6 +113,23 @@ namespace helengine {
         /// Gets or sets the font asset used for rendering.
         /// </summary>
         public FontAsset Font { get; set; }
+
+        /// <summary>
+        /// Gets or sets the uniform glyph scale applied during rendering and interaction.
+        /// </summary>
+        public float FontScale {
+            get { return FontScaleValue; }
+            set {
+                if (value <= 0f) {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Font scale must be greater than zero.");
+                }
+
+                if (FontScaleValue != value) {
+                    FontScaleValue = value;
+                    UpdateSelectionVisual();
+                }
+            }
+        }
 
         /// <summary>
         /// Gets or sets the layer mask used to filter cameras.
@@ -182,6 +203,7 @@ namespace helengine {
             Color = new byte4(255, 255, 255, 255);
             SourceRect = new float4(0, 0, 1, 1);
             WrapText = false;
+            FontScaleValue = 1f;
         }
 
         /// <summary>
@@ -370,7 +392,7 @@ namespace helengine {
                 selectionLineIndex,
                 SelectionStart,
                 Math.Min(SelectionEnd, selectionLineEndIndex));
-            double lineHeight = Math.Max((double)Font.LineHeight, 1.0);
+            double lineHeight = Math.Max((double)Font.LineHeight * GetResolvedFontScale(), 1.0);
 
             SelectionEntityValue.LocalPosition = new float3(
                 (float)selectionStartX,
@@ -429,27 +451,28 @@ namespace helengine {
         /// <param name="character">Character to measure.</param>
         /// <returns>Advance width in pixels.</returns>
         double ResolveCharacterAdvance(char character) {
+            double fontScale = GetResolvedFontScale();
             if (character == '\r' || character == '\n') {
                 return 0.0;
             }
 
             if (character == ' ') {
-                return Math.Max((double)Font.FontInfo.SpaceWidth, 1.0);
+                return Math.Max((double)Font.FontInfo.SpaceWidth, 1.0) * fontScale;
             }
 
             FontChar glyph;
             if (Font.Characters != null && Font.Characters.TryGetValue(character, out glyph)) {
                 if (glyph.AdvanceWidth > 0f) {
-                    return glyph.AdvanceWidth;
+                    return glyph.AdvanceWidth * fontScale;
                 }
 
                 double sourceWidth = (double)glyph.SourceRect.Z;
                 if (sourceWidth > 0.0) {
-                    return sourceWidth;
+                    return sourceWidth * fontScale;
                 }
             }
 
-            return 1.0;
+            return 1.0 * fontScale;
         }
 
         /// <summary>
@@ -465,8 +488,9 @@ namespace helengine {
 
             float3 position = Parent.Position;
             float2 textSize = Font.MeasureString(TextValue);
-            double textWidth = textSize.X;
-            double textHeight = textSize.Y;
+            double fontScale = GetResolvedFontScale();
+            double textWidth = textSize.X * fontScale;
+            double textHeight = textSize.Y * fontScale;
 
             return x >= position.X &&
                    x < position.X + textWidth &&
@@ -687,10 +711,18 @@ namespace helengine {
         /// <param name="localY">Pointer Y position relative to the text origin.</param>
         /// <returns>Line index that contains the pointer.</returns>
         int ResolveLineIndexFromLocalY(double localY) {
-            double lineHeight = Math.Max((double)Font.LineHeight, 1.0);
+            double lineHeight = Math.Max((double)Font.LineHeight * GetResolvedFontScale(), 1.0);
             int lineIndex = (int)(localY / lineHeight);
             int maxLineIndex = Math.Max(0, ResolveLineCount() - 1);
             return Math.Max(0, Math.Min(lineIndex, maxLineIndex));
+        }
+
+        /// <summary>
+        /// Resolves the uniform glyph scale used by layout, hit testing, and rendering.
+        /// </summary>
+        /// <returns>Positive glyph scale.</returns>
+        double GetResolvedFontScale() {
+            return Math.Max((double)FontScaleValue, 0.0001d);
         }
 
         /// <summary>

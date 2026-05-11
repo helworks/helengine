@@ -29,15 +29,15 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
 
     [Fact]
     public void Cook_scene_build_outputs_runtime_hasset_and_sets_startup_scene_from_order() {
-        string startupSceneId = "Scenes/MainMenu.helen";
-        string secondarySceneId = "Scenes/Level01.helen";
+        string startupScenePath = "Scenes/MainMenu.helen";
+        string secondaryScenePath = "Scenes/Level01.helen";
         string sourceModelRelativePath = "Models/Sponza.obj";
         string sourceModelPath = Path.Combine(ProjectRootPath, "assets", sourceModelRelativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(sourceModelPath)!);
         File.WriteAllText(sourceModelPath, "o Sponza\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n");
 
         WriteSceneAsset(
-            startupSceneId,
+            startupScenePath,
             new[] {
                 new SceneAssetReference {
                     SourceKind = SceneAssetReferenceSourceKind.FileSystem,
@@ -46,7 +46,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
                     AssetId = string.Empty
                 }
             });
-        WriteSceneAsset(secondarySceneId, Array.Empty<SceneAssetReference>());
+        WriteSceneAsset(secondaryScenePath, Array.Empty<SceneAssetReference>());
 
         EditorPlatformAssetCookService service = new(
             ProjectRootPath,
@@ -70,11 +70,11 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
                 Array.Empty<helengine.baseplatform.Definitions.PlatformCodegenProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformStorageProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformMediaProfileDefinition>()),
-            new[] { startupSceneId, secondarySceneId },
+            new[] { "MainMenu", "Level01" },
             BuildRootPath,
             new[] { "windows" });
 
-        Assert.Equal(startupSceneId, manifest.StartupSceneId);
+        Assert.Equal("MainMenu", manifest.StartupSceneId);
         Assert.Contains(manifest.CookedArtifacts, artifact => artifact.RelativePath.EndsWith(".hasset", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(manifest.CookedArtifacts, artifact => artifact.RelativePath.EndsWith(".obj", StringComparison.OrdinalIgnoreCase));
         Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "MainMenu.hasset")));
@@ -90,11 +90,11 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     /// </summary>
     [Fact]
     public void Cook_when_secondary_scene_uses_lowercase_scenes_root_writes_it_beneath_cooked_scenes_without_duplicate_root_segment() {
-        string startupSceneId = "scenes/menu.helen";
-        string secondarySceneId = "scenes/rendering/directional_shadow_plaza.helen";
+        string startupScenePath = "scenes/menu.helen";
+        string secondaryScenePath = "scenes/rendering/directional_shadow_plaza.helen";
 
-        WriteSceneAsset(startupSceneId, Array.Empty<SceneAssetReference>());
-        WriteSceneAsset(secondarySceneId, Array.Empty<SceneAssetReference>());
+        WriteSceneAsset(startupScenePath, Array.Empty<SceneAssetReference>());
+        WriteSceneAsset(secondaryScenePath, Array.Empty<SceneAssetReference>());
 
         EditorPlatformAssetCookService service = new(
             ProjectRootPath,
@@ -116,7 +116,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
                 Array.Empty<helengine.baseplatform.Definitions.PlatformCodegenProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformStorageProfileDefinition>(),
                 Array.Empty<helengine.baseplatform.Definitions.PlatformMediaProfileDefinition>()),
-            new[] { startupSceneId, secondarySceneId },
+            new[] { "menu", "directional_shadow_plaza" },
             BuildRootPath,
             new[] { "windows" });
 
@@ -155,14 +155,14 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
 
         PlatformBuildManifest manifest = service.Cook(
             builder.Definition,
-            ["Scenes/rendering/point-shadow.helen"],
+            ["point-shadow"],
             BuildRootPath,
             ["windows"],
             builder,
             "debug",
             "directx11");
 
-        Assert.Equal("Scenes/rendering/point-shadow.helen", manifest.StartupSceneId);
+        Assert.Equal("point-shadow", manifest.StartupSceneId);
         Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "rendering", "point-shadow.hasset")));
     }
 
@@ -178,10 +178,10 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         EditorPlatformAssetBuilderLoader builderLoader = new();
         helengine.baseplatform.Builders.IPlatformAssetBuilder builder = builderLoader.Load(platformDescriptor.BuilderAssemblyPath);
 
-        string sceneId = "Scenes/PhysicsTrigger.helen";
+        string scenePath = "Scenes/PhysicsTrigger.helen";
         string materialRelativePath = "Materials/physics/PhysicsDemoNeutral.helmat";
         WriteMaterialAsset(materialRelativePath, "PhysicsDemoNeutral");
-        WriteSceneAssetWithMaterial(sceneId, materialRelativePath);
+        WriteSceneAssetWithMaterial(scenePath, materialRelativePath);
 
         EditorPlatformAssetCookService service = new(
             ProjectRootPath,
@@ -193,14 +193,14 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
 
         PlatformBuildManifest manifest = service.Cook(
             builder.Definition,
-            [sceneId],
+            ["PhysicsTrigger"],
             BuildRootPath,
             ["windows"],
             builder,
             "debug",
             "directx11");
 
-        Assert.Equal(sceneId, manifest.StartupSceneId);
+        Assert.Equal("PhysicsTrigger", manifest.StartupSceneId);
         Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "PhysicsTrigger.hasset")));
         string cookedMaterialPath = Path.Combine(BuildRootPath, "Materials", "physics", "PhysicsDemoNeutral.helmat");
         Assert.True(File.Exists(cookedMaterialPath));

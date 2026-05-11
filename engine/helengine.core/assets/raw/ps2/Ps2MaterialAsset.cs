@@ -24,6 +24,26 @@ namespace helengine {
         public Ps2RenderClass RenderClass;
 
         /// <summary>
+        /// Gets or sets the cooked base-color red channel used by PS2 lit and unlit material paths.
+        /// </summary>
+        public byte BaseColorR;
+
+        /// <summary>
+        /// Gets or sets the cooked base-color green channel used by PS2 lit and unlit material paths.
+        /// </summary>
+        public byte BaseColorG;
+
+        /// <summary>
+        /// Gets or sets the cooked base-color blue channel used by PS2 lit and unlit material paths.
+        /// </summary>
+        public byte BaseColorB;
+
+        /// <summary>
+        /// Gets or sets the cooked base-color alpha channel used by PS2 lit and unlit material paths.
+        /// </summary>
+        public byte BaseColorA;
+
+        /// <summary>
         /// Gets or sets the cooked texture path consumed by the PS2 runtime.
         /// </summary>
         public string TextureRelativePath;

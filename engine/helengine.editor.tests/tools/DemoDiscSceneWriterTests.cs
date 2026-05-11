@@ -94,7 +94,7 @@ namespace helengine.editor.tests.tools {
 
             Assert.Equal((byte)0, cameraComponent.CameraDrawOrder);
             Assert.Equal((ushort)1, cameraComponent.LayerMask);
-            Assert.Equal(new float4(0f, 0f, 1280f, 720f), cameraComponent.Viewport);
+            Assert.Equal(new float4(0f, 0f, 1f, 1f), cameraComponent.Viewport);
         }
 
         /// <summary>
@@ -191,6 +191,34 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
+        /// Ensures the generated menu scene persists the authored reference canvas and a runtime fit component that can scale the subtree into smaller windows.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuSceneIsGenerated_BakesReferenceCanvasFitMetadata() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            SceneAsset sceneAsset = ReadGeneratedSceneAsset();
+            SceneEntityAsset menuEntity = Assert.Single(sceneAsset.RootEntities, entity => entity.Name == "DemoDiscMenuRoot");
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            string referenceCanvasFitTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(ReferenceCanvasFitComponent));
+            SceneComponentAssetRecord referenceCanvasFitRecord = Assert.Single(
+                menuEntity.Components,
+                component => string.Equals(component.ComponentTypeId, referenceCanvasFitTypeId, StringComparison.Ordinal));
+
+            ReferenceCanvasFitComponent referenceCanvasFitComponent = Assert.IsType<ReferenceCanvasFitComponent>(
+                descriptor.DeserializeComponent(referenceCanvasFitRecord, null, new TestSceneAssetReferenceResolver()));
+
+            Assert.NotNull(sceneAsset.SceneSettings);
+            Assert.NotNull(sceneAsset.SceneSettings.CanvasProfile);
+            Assert.Equal(DemoMenuLayout.CanvasWidth, sceneAsset.SceneSettings.CanvasProfile.Width);
+            Assert.Equal(DemoMenuLayout.CanvasHeight, sceneAsset.SceneSettings.CanvasProfile.Height);
+            Assert.Equal(DemoMenuLayout.CanvasWidth, referenceCanvasFitComponent.ReferenceWidth);
+            Assert.Equal(DemoMenuLayout.CanvasHeight, referenceCanvasFitComponent.ReferenceHeight);
+        }
+
+        /// <summary>
         /// Ensures generated demo-disc source files are written beneath the codebase folder instead of the asset root.
         /// </summary>
         [Fact]
@@ -259,6 +287,40 @@ namespace helengine.editor.tests.tools {
             writer.WriteAll(ProjectRootPath);
 
             Assert.DoesNotContain("NewScene.helen", ReadSelectedSceneIds(), StringComparer.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the generated build configuration stores concise scene ids instead of authored scene paths.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenBuildConfigIsGenerated_StoresConciseSceneIds() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            string[] sceneIds = ReadSelectedSceneIds();
+            Assert.Contains("DemoDiscMainMenu", sceneIds, StringComparer.Ordinal);
+            Assert.Contains("cube_test", sceneIds, StringComparer.Ordinal);
+            Assert.Contains("colored_cube_grid", sceneIds, StringComparer.Ordinal);
+            Assert.Contains("textured_cube_grid", sceneIds, StringComparer.Ordinal);
+            Assert.DoesNotContain("Scenes/DemoDiscMainMenu.helen", sceneIds, StringComparer.Ordinal);
+            Assert.DoesNotContain("scenes/rendering/cube_test.helen", sceneIds, StringComparer.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures the generated demo-disc scene catalog source emits scene ids instead of authored scene paths.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenMenuSceneCatalogSourceIsGenerated_UsesSceneIdsInLoadSceneActions() {
+            DemoDiscSceneWriter writer = new DemoDiscSceneWriter(new DemoDiscFontWriter());
+
+            writer.WriteAll(ProjectRootPath);
+
+            string sceneCatalogSource = File.ReadAllText(Path.Combine(ProjectRootPath, "assets", "codebase", "menu", "DemoDiscSceneCatalog.cs"));
+            Assert.Contains("\"cube_test\"", sceneCatalogSource, StringComparison.Ordinal);
+            Assert.Contains("\"colored_cube_grid\"", sceneCatalogSource, StringComparison.Ordinal);
+            Assert.Contains("\"textured_cube_grid\"", sceneCatalogSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("\"scenes/rendering/cube_test.helen\"", sceneCatalogSource, StringComparison.Ordinal);
         }
 
         /// <summary>

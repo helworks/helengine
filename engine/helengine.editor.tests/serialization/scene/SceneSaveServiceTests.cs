@@ -601,6 +601,34 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures a point light loaded from scene data registers its hidden editor visual drawable immediately so viewport picking can target it without requiring a later transform edit.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenSceneContainsPointLightEntity_RegistersHiddenEditorVisualDrawableImmediately() {
+            EditorSceneCreationService creationService = new EditorSceneCreationService();
+            EditorEntity pointLightEntity = creationService.CreatePointLight();
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            registry.Register(new PointLightComponentPersistenceDescriptor());
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "PointLightPicker.helen");
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            EditorEntity loadedPointLightEntity = Assert.Single(loadService.Load(asset));
+            EditorEntity loadedVisualEntity = Assert.IsType<EditorEntity>(Assert.Single(loadedPointLightEntity.Children));
+            IDrawable3D visualDrawable = Assert.IsAssignableFrom<IDrawable3D>(Assert.Single(loadedVisualEntity.Components, component => component is EditorPointLightVisualComponent));
+
+            Assert.Contains(visualDrawable, Core.Instance.ObjectManager.Drawables3D);
+            Assert.Same(loadedPointLightEntity, EditorViewportSceneSelectionFilter.ResolveSelectableEntity(visualDrawable.Parent));
+        }
+
+        /// <summary>
         /// Ensures editor-only component platform overrides round-trip through scene save and load without adding duplicate live components.
         /// </summary>
         [Fact]

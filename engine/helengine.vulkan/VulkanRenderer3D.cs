@@ -662,20 +662,13 @@ namespace helengine.vulkan {
         /// <param name="surface">Surface receiving the render output.</param>
         /// <returns>Aspect ratio used for projection matrix creation.</returns>
         unsafe double SetViewportAndScissor(ICamera camera, VulkanSwapchainSurface surface) {
-            float4 viewport = camera.Viewport;
+            float4 viewport = CameraViewportResolver.ResolveViewport(camera.Viewport, surface.LogicalWidth, surface.LogicalHeight);
             double offsetX = viewport.X;
             double offsetY = viewport.Y;
             double width = viewport.Z;
             double height = viewport.W;
             double logicalSurfaceWidth = surface.LogicalWidth;
             double logicalSurfaceHeight = surface.LogicalHeight;
-
-            if (width <= 1.0 && height <= 1.0) {
-                offsetX *= logicalSurfaceWidth;
-                offsetY *= logicalSurfaceHeight;
-                width *= logicalSurfaceWidth;
-                height *= logicalSurfaceHeight;
-            }
 
             if (width <= 0.0 || height <= 0.0) {
                 return 0.0;

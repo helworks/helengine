@@ -15,6 +15,7 @@ namespace helengine.editor {
         readonly FontAsset DefaultFontAsset;
         readonly AssetFileHasher FileHasher;
         readonly IScriptTypeResolver ScriptTypeResolver;
+        readonly EditorProjectSceneCatalogService SceneCatalogService;
 
         /// <summary>
         /// Initializes one asset-cook service for the supplied project and optional script resolver.
@@ -46,6 +47,7 @@ namespace helengine.editor {
             DefaultFontAsset = defaultFontAsset;
             ScriptTypeResolver = scriptTypeResolver;
             FileHasher = fileHasher ?? new AssetFileHasher();
+            SceneCatalogService = new EditorProjectSceneCatalogService(ProjectRootPath);
         }
 
         public PlatformBuildManifest Cook(
@@ -85,9 +87,10 @@ namespace helengine.editor {
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
                 ScriptTypeResolver);
-            packager.Package(orderedSceneIds, fullOutputRootPath);
+            List<string> orderedScenePaths = ResolveOrderedScenePaths(orderedSceneIds);
+            packager.Package(orderedScenePaths, fullOutputRootPath);
 
-            PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, fullOutputRootPath);
+            PlatformBuildScene[] scenes = BuildSceneEntries(orderedSceneIds, orderedScenePaths, fullOutputRootPath);
             PlatformBuildArtifact[] cookedArtifacts = BuildCookedArtifacts(fullOutputRootPath, targetIds);
 
             return new PlatformBuildManifest(
@@ -122,15 +125,26 @@ namespace helengine.editor {
             return materialBuilder;
         }
 
-        PlatformBuildScene[] BuildSceneEntries(IReadOnlyList<string> orderedSceneIds, string outputRootPath) {
+        PlatformBuildScene[] BuildSceneEntries(IReadOnlyList<string> orderedSceneIds, IReadOnlyList<string> orderedScenePaths, string outputRootPath) {
+            if (orderedSceneIds == null) {
+                throw new ArgumentNullException(nameof(orderedSceneIds));
+            }
+            if (orderedScenePaths == null) {
+                throw new ArgumentNullException(nameof(orderedScenePaths));
+            }
+            if (orderedSceneIds.Count != orderedScenePaths.Count) {
+                throw new InvalidOperationException("Ordered scene ids and authored scene paths must contain the same number of entries.");
+            }
+
             PlatformBuildScene[] scenes = new PlatformBuildScene[orderedSceneIds.Count];
             for (int index = 0; index < orderedSceneIds.Count; index++) {
                 string sceneId = orderedSceneIds[index];
-                string cookedRelativePath = BuildCookedSceneRelativePath(sceneId, index);
+                string authoredScenePath = orderedScenePaths[index];
+                string cookedRelativePath = BuildCookedSceneRelativePath(authoredScenePath, index);
                 uint physics3DSceneFeatureFlags = ReadCookedScenePhysics3DFeatureFlags(outputRootPath, cookedRelativePath);
                 scenes[index] = new PlatformBuildScene(
                     sceneId,
-                    Path.GetFileNameWithoutExtension(sceneId),
+                    SceneIdUtility.FromPath(authoredScenePath),
                     cookedRelativePath,
                     [
                         new PlatformBuildPayloadReference(cookedRelativePath, cookedRelativePath)
@@ -143,6 +157,24 @@ namespace helengine.editor {
             }
 
             return scenes;
+        }
+
+        /// <summary>
+        /// Resolves the authored project-relative scene paths for the supplied stable scene ids.
+        /// </summary>
+        /// <param name="orderedSceneIds">Stable scene ids selected for the build.</param>
+        /// <returns>Project-relative authored scene paths in build order.</returns>
+        List<string> ResolveOrderedScenePaths(IReadOnlyList<string> orderedSceneIds) {
+            if (orderedSceneIds == null) {
+                throw new ArgumentNullException(nameof(orderedSceneIds));
+            }
+
+            List<string> orderedScenePaths = new List<string>(orderedSceneIds.Count);
+            for (int index = 0; index < orderedSceneIds.Count; index++) {
+                orderedScenePaths.Add(SceneCatalogService.ResolveScenePath(orderedSceneIds[index]));
+            }
+
+            return orderedScenePaths;
         }
 
         /// <summary>
@@ -160,13 +192,17 @@ namespace helengine.editor {
             }
 
             string fullScenePath = Path.Combine(outputRootPath, cookedRelativePath.Replace('/', Path.DirectorySeparatorChar));
-            using FileStream stream = File.OpenRead(fullScenePath);
-            Asset asset = AssetSerializer.Deserialize(stream);
-            if (asset is not SceneAsset sceneAsset) {
-                throw new InvalidOperationException($"Cooked scene '{cookedRelativePath}' did not deserialize into a SceneAsset.");
-            }
+            try {
+                using FileStream stream = File.OpenRead(fullScenePath);
+                Asset asset = AssetSerializer.Deserialize(stream);
+                if (asset is not SceneAsset sceneAsset) {
+                    throw new InvalidOperationException($"Cooked scene '{cookedRelativePath}' did not deserialize into a SceneAsset.");
+                }
 
-            return sceneAsset.Physics3DSceneFeatureFlags;
+                return sceneAsset.Physics3DSceneFeatureFlags;
+            } catch (Exception ex) when (ex is not InvalidOperationException || !ex.Message.Contains(cookedRelativePath, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Cooked scene '{cookedRelativePath}' at '{fullScenePath}' could not be read for physics feature discovery.", ex);
+            }
         }
 
         PlatformBuildArtifact[] BuildCookedArtifacts(string outputRootPath, IReadOnlyList<string> targetIds) {

@@ -130,6 +130,10 @@ namespace helengine {
         /// <param name="memberInfo">Member to inspect.</param>
         /// <returns>True when the member should participate in ordinal payload restore.</returns>
         static bool IsSupportedMember(MemberInfo memberInfo) {
+            if (memberInfo.IsDefined(typeof(ScenePersistenceIgnoreAttribute), false)) {
+                return false;
+            }
+
             if (memberInfo is PropertyInfo propertyInfo) {
                 if (propertyInfo.GetMethod == null || !propertyInfo.GetMethod.IsPublic) {
                     return false;

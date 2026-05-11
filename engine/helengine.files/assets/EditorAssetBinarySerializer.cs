@@ -236,6 +236,7 @@ namespace helengine.files {
             writer.WriteArray(asset.Indices16, WriteUInt16Value);
             writer.WriteArray(asset.Indices32, WriteUInt32Value);
             writer.WriteArray(asset.Submeshes, WriteModelSubmeshAsset);
+            writer.WriteByteArray(asset.Ps2PackedMeshBytes);
         }
 
         /// <summary>
@@ -255,7 +256,8 @@ namespace helengine.files {
                 TexCoords = reader.ReadArray(ReadFloat2),
                 Indices16 = reader.ReadArray(ReadUInt16Value),
                 Indices32 = reader.ReadArray(ReadUInt32Value),
-                Submeshes = version >= 8 ? reader.ReadArray(ReadModelSubmeshAsset) : null
+                Submeshes = version >= 8 ? reader.ReadArray(ReadModelSubmeshAsset) : null,
+                Ps2PackedMeshBytes = version >= 10 ? reader.ReadByteArray() : null
             };
         }
 

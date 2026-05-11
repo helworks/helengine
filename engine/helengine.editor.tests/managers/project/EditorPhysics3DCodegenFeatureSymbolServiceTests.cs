@@ -27,7 +27,7 @@ public sealed class EditorPhysics3DCodegenFeatureSymbolServiceTests : IDisposabl
     }
 
     /// <summary>
-    /// Verifies selected authored scenes resolve the expected compact stripping symbol set.
+    /// Verifies selected stable scene ids resolve the expected compact stripping symbol set.
     /// </summary>
     [Fact]
     public void ResolveSymbols_WithSelectedScenes_ReturnsExpectedPhysicsFeatureSymbols() {
@@ -77,7 +77,7 @@ public sealed class EditorPhysics3DCodegenFeatureSymbolServiceTests : IDisposabl
 
         EditorPhysics3DCodegenFeatureSymbolService service = new EditorPhysics3DCodegenFeatureSymbolService(ProjectRootPath);
 
-        IReadOnlyList<string> symbols = service.ResolveSymbols(["Scenes/PhysicsScene.helen"]);
+        IReadOnlyList<string> symbols = service.ResolveSymbols(["PhysicsScene"]);
 
         Assert.Collection(
             symbols,
@@ -87,13 +87,13 @@ public sealed class EditorPhysics3DCodegenFeatureSymbolServiceTests : IDisposabl
     }
 
     /// <summary>
-    /// Verifies project-relative scene ids cannot escape the source assets folder.
+    /// Verifies missing scene ids fail fast instead of being treated as relative asset paths.
     /// </summary>
     [Fact]
-    public void ResolveSymbols_WhenSceneEscapesAssetsRoot_Throws() {
+    public void ResolveSymbols_WhenSceneIdDoesNotExist_Throws() {
         EditorPhysics3DCodegenFeatureSymbolService service = new EditorPhysics3DCodegenFeatureSymbolService(ProjectRootPath);
 
-        Assert.Throws<InvalidOperationException>(() => service.ResolveSymbols(["..\\outside.helen"]));
+        Assert.Throws<InvalidOperationException>(() => service.ResolveSymbols(["MissingScene"]));
     }
 
     /// <summary>

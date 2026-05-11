@@ -372,12 +372,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Loads one scene targeted by the baked menu using the editor direct-load path or the runtime scene manager.
+        /// Loads one scene targeted by the baked menu using the editor resolver path or the runtime scene manager.
         /// </summary>
-        /// <param name="scenePath">Authored scene identifier targeted by the menu item.</param>
-        void LoadScene(string scenePath) {
-            if (string.IsNullOrWhiteSpace(scenePath)) {
-                throw new InvalidOperationException("Scene-loading baked menu items must provide a scene path.");
+        /// <param name="sceneId">Stable scene id targeted by the menu item.</param>
+        void LoadScene(string sceneId) {
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                throw new InvalidOperationException("Scene-loading baked menu items must provide a scene id.");
             }
             if (Core.Instance == null) {
                 throw new InvalidOperationException("A core instance must exist before loading a scene from the baked menu.");
@@ -387,9 +387,12 @@ namespace helengine {
                 if (Core.Instance.SceneLoadService == null) {
                     throw new InvalidOperationException("Core scene loading services must be initialized before loading a scene from the baked menu.");
                 }
+                if (Core.Instance.InitializationOptions.ScenePathResolver == null) {
+                    throw new InvalidOperationException("An editor scene-id path resolver must be configured before editor menu scene loading can occur.");
+                }
 
-                string resolvedScenePath = ResolveSceneContentPath(scenePath);
-                SceneAsset sceneAsset = Core.Instance.ContentManager.Load<SceneAsset>(resolvedScenePath, RuntimeContentProcessorIds.SceneAsset);
+                string authoredScenePath = Core.Instance.InitializationOptions.ScenePathResolver.ResolveScenePath(sceneId);
+                SceneAsset sceneAsset = Core.Instance.ContentManager.Load<SceneAsset>(authoredScenePath, RuntimeContentProcessorIds.SceneAsset);
                 Core.Instance.SceneLoadService.Load(sceneAsset);
                 if (Parent != null) {
                     Parent.Enabled = false;
@@ -397,7 +400,7 @@ namespace helengine {
             } else if (Core.Instance.SceneManager == null) {
                 throw new InvalidOperationException("Core scene manager must be initialized before runtime menu scene loading can occur.");
             } else {
-                Core.Instance.SceneManager.LoadScene(scenePath, SceneLoadMode.Single);
+                Core.Instance.SceneManager.LoadScene(sceneId, SceneLoadMode.Single);
             }
         }
 
@@ -704,10 +707,36 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(itemsRootEntity));
             }
 
+            float itemStep = ResolveItemsScrollStep(itemsRootEntity);
             itemsRootEntity.LocalPosition = new float3(
                 0f,
-                -scrollOffset * (DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing),
+                -scrollOffset * itemStep,
                 0f);
+        }
+
+        /// <summary>
+        /// Resolves the row-to-row scroll step from the baked item-root subtree instead of relying on authored layout constants.
+        /// </summary>
+        /// <param name="itemsRootEntity">Item-root entity whose child layout should define the scroll step.</param>
+        /// <returns>Resolved per-item scroll step in local pixels.</returns>
+        float ResolveItemsScrollStep(Entity itemsRootEntity) {
+            if (itemsRootEntity.Children == null || itemsRootEntity.Children.Count == 0) {
+                return DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing;
+            }
+
+            if (itemsRootEntity.Children.Count >= 2) {
+                float step = itemsRootEntity.Children[1].LocalPosition.Y - itemsRootEntity.Children[0].LocalPosition.Y;
+                if (step > 0f) {
+                    return step;
+                }
+            }
+
+            RoundedRectComponent background = FindFirstComponent<RoundedRectComponent>(itemsRootEntity.Children[0]);
+            if (background != null && background.Size.Y > 0) {
+                return background.Size.Y;
+            }
+
+            return DemoMenuLayout.ButtonHeight + DemoMenuLayout.ButtonSpacing;
         }
 
         /// <summary>
@@ -752,6 +781,20 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Finds the first component of the requested type on one entity and returns null when it is absent.
+        /// </summary>
+        /// <typeparam name="TComponent">Component type to resolve.</typeparam>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <returns>Resolved component when present; otherwise null.</returns>
+        TComponent FindFirstComponent<TComponent>(Entity entity) where TComponent : Component {
+            if (TryFindComponent<TComponent>(entity, out TComponent component)) {
+                return component;
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Builds a readable identifier for one entity used in diagnostics across editor and runtime paths.
         /// </summary>
         /// <param name="entity">Entity to describe.</param>
@@ -779,91 +822,6 @@ namespace helengine {
 
             component = null;
             return false;
-        }
-
-        /// <summary>
-        /// Resolves one authored scene id into the content-relative path available in the current execution layout.
-        /// </summary>
-        /// <param name="scenePath">Authored or packaged scene path requested by the baked menu item.</param>
-        /// <returns>Content-relative path that exists beneath the current content root.</returns>
-        string ResolveSceneContentPath(string scenePath) {
-            if (Core.Instance == null) {
-                throw new InvalidOperationException("A core instance must exist before resolving demo menu scene paths.");
-            }
-            if (string.IsNullOrWhiteSpace(scenePath)) {
-                throw new ArgumentException("Scene path must be provided.", nameof(scenePath));
-            }
-
-            string normalizedScenePath = NormalizeRelativeContentPath(scenePath);
-            string contentRootPath = Core.Instance.InitializationOptions.ContentRootPath;
-            if (DoesContentFileExist(contentRootPath, normalizedScenePath)) {
-                return normalizedScenePath;
-            }
-            if (ComponentExecutionContext.CurrentMode == ComponentExecutionMode.Editor) {
-                throw new InvalidOperationException(
-                    $"Menu scene '{scenePath}' could not be found in authored form '{normalizedScenePath}'.");
-            }
-
-            string packagedScenePath = BuildPackagedSceneContentPath(normalizedScenePath);
-            if (DoesContentFileExist(contentRootPath, packagedScenePath)) {
-                return packagedScenePath;
-            }
-
-            throw new InvalidOperationException(
-                $"Menu scene '{scenePath}' could not be found in authored form '{normalizedScenePath}' or packaged form '{packagedScenePath}'.");
-        }
-
-        /// <summary>
-        /// Builds the packaged content-relative path used by player builds for one authored scene id.
-        /// </summary>
-        /// <param name="scenePath">Normalized authored scene id.</param>
-        /// <returns>Packaged content-relative scene path.</returns>
-        string BuildPackagedSceneContentPath(string scenePath) {
-            if (string.IsNullOrWhiteSpace(scenePath)) {
-                throw new ArgumentException("Scene path must be provided.", nameof(scenePath));
-            }
-
-            if (scenePath.EndsWith(".hasset", StringComparison.OrdinalIgnoreCase)) {
-                return scenePath;
-            }
-            if (scenePath.StartsWith("cooked/", StringComparison.OrdinalIgnoreCase)) {
-                return scenePath;
-            }
-
-            string changedExtensionPath = Path.ChangeExtension(scenePath, ".hasset");
-            return NormalizeRelativeContentPath(Path.Combine("scenes", changedExtensionPath));
-        }
-
-        /// <summary>
-        /// Returns whether the supplied content-relative path exists beneath the current content root.
-        /// </summary>
-        /// <param name="contentRootPath">Absolute content root path.</param>
-        /// <param name="relativePath">Content-relative path to inspect.</param>
-        /// <returns>True when the content file exists.</returns>
-        bool DoesContentFileExist(string contentRootPath, string relativePath) {
-            if (string.IsNullOrWhiteSpace(contentRootPath)) {
-                throw new ArgumentException("Content root path must be provided.", nameof(contentRootPath));
-            }
-            if (string.IsNullOrWhiteSpace(relativePath)) {
-                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
-            }
-
-            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
-            string fullPath = Path.GetFullPath(Path.Combine(contentRootPath, normalizedRelativePath));
-            return File.Exists(fullPath);
-        }
-
-        /// <summary>
-        /// Normalizes one content-relative path to the forward-slash form used by runtime asset ids.
-        /// </summary>
-        /// <param name="relativePath">Relative content path to normalize.</param>
-        /// <returns>Normalized content-relative path.</returns>
-        string NormalizeRelativeContentPath(string relativePath) {
-            if (string.IsNullOrWhiteSpace(relativePath)) {
-                throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
-            }
-
-            return relativePath.Replace('\\', '/');
         }
 
         /// <summary>

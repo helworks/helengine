@@ -12,6 +12,10 @@ namespace helengine.editor {
         /// </summary>
         const string DefaultVariantName = "default";
         /// <summary>
+        /// Mesh-material variant name used by file-backed standard materials in editor scene loading paths.
+        /// </summary>
+        const string MeshVariantName = "Mesh";
+        /// <summary>
         /// Shared vertex entry point used by built-in editor runtime shaders.
         /// </summary>
         const string DefaultVertexEntryPoint = "VS";
@@ -68,6 +72,29 @@ namespace helengine.editor {
                 ShaderAsset shaderAsset = CompileShaderAsset(target, shaderPath);
                 ShaderAssetsByKey[cacheKey] = shaderAsset;
                 return shaderAsset;
+            }
+        }
+
+        /// <summary>
+        /// Attempts to load one built-in editor shader asset from its stable shader id.
+        /// </summary>
+        /// <param name="target">Backend target that should consume the compiled shader asset.</param>
+        /// <param name="shaderId">Stable built-in shader asset id.</param>
+        /// <param name="shaderAsset">Resolved built-in shader asset when the id maps to a built-in shader source file.</param>
+        /// <returns>True when the shader id mapped to a built-in shader source file; otherwise false.</returns>
+        public static bool TryLoadShaderAssetById(ShaderCompileTarget target, string shaderId, out ShaderAsset shaderAsset) {
+            shaderAsset = null;
+            if (string.IsNullOrWhiteSpace(shaderId)) {
+                return false;
+            }
+
+            string shaderFileName = shaderId + ".hlsl";
+            try {
+                shaderAsset = LoadShaderAsset(target, shaderFileName);
+                return true;
+            } catch (FileNotFoundException) {
+                shaderAsset = null;
+                return false;
             }
         }
 
@@ -146,39 +173,74 @@ namespace helengine.editor {
                 false,
                 false);
             ShaderDefine[] defines = ShaderPlatformDefines.BuildDefines(target, ShaderModelValue, Array.Empty<ShaderDefine>());
-            ShaderCompileResult vertexResult = CompileStage(
-                compileService,
-                sourceInfo,
-                target,
-                ShaderStage.Vertex,
-                BuildProgramName(shaderName, ShaderStage.Vertex),
-                DefaultVertexEntryPoint,
-                compileOptions,
-                defines);
-            ShaderCompileResult pixelResult = CompileStage(
-                compileService,
-                sourceInfo,
-                target,
-                ShaderStage.Pixel,
-                BuildProgramName(shaderName, ShaderStage.Pixel),
-                DefaultPixelEntryPoint,
-                compileOptions,
-                defines);
-
-            ValidateCompileResult(vertexResult, "vertex");
-            ValidateCompileResult(pixelResult, "pixel");
-
             string targetName = ShaderTargetNames.GetTargetName(target);
+            string[] variants = GetSupportedVariants(shaderName);
+            List<ShaderProgramBinary> binaries = new List<ShaderProgramBinary>();
+            ShaderProgramDefinition vertexProgram = null;
+            ShaderProgramDefinition pixelProgram = null;
+            for (int variantIndex = 0; variantIndex < variants.Length; variantIndex++) {
+                string variantName = variants[variantIndex];
+                ShaderCompileResult vertexResult = CompileStage(
+                    compileService,
+                    sourceInfo,
+                    target,
+                    ShaderStage.Vertex,
+                    BuildProgramName(shaderName, ShaderStage.Vertex),
+                    DefaultVertexEntryPoint,
+                    compileOptions,
+                    defines);
+                ShaderCompileResult pixelResult = CompileStage(
+                    compileService,
+                    sourceInfo,
+                    target,
+                    ShaderStage.Pixel,
+                    BuildProgramName(shaderName, ShaderStage.Pixel),
+                    DefaultPixelEntryPoint,
+                    compileOptions,
+                    defines);
+
+                ValidateCompileResult(vertexResult, "vertex");
+                ValidateCompileResult(pixelResult, "pixel");
+
+                if (vertexProgram == null) {
+                    vertexProgram = vertexResult.ProgramDefinition;
+                }
+                if (pixelProgram == null) {
+                    pixelProgram = pixelResult.ProgramDefinition;
+                }
+
+                binaries.Add(new ShaderProgramBinary(vertexResult.ProgramDefinition.Name, ShaderStage.Vertex, targetName, variantName, vertexResult.Binary.Bytecode));
+                binaries.Add(new ShaderProgramBinary(pixelResult.ProgramDefinition.Name, ShaderStage.Pixel, targetName, variantName, pixelResult.Binary.Bytecode));
+            }
+
             ShaderProgramDefinition[] programs = new[] {
-                vertexResult.ProgramDefinition,
-                pixelResult.ProgramDefinition
+                vertexProgram,
+                pixelProgram
             };
-            ShaderProgramBinary[] binaries = new[] {
-                new ShaderProgramBinary(vertexResult.ProgramDefinition.Name, ShaderStage.Vertex, targetName, DefaultVariantName, vertexResult.Binary.Bytecode),
-                new ShaderProgramBinary(pixelResult.ProgramDefinition.Name, ShaderStage.Pixel, targetName, DefaultVariantName, pixelResult.Binary.Bytecode)
-            };
-            var moduleDefinition = new ShaderModuleDefinition(shaderName, programs, binaries);
+            var moduleDefinition = new ShaderModuleDefinition(shaderName, programs, binaries.ToArray());
             return ShaderAsset.FromDefinition(moduleDefinition, target);
+        }
+
+        /// <summary>
+        /// Resolves the built-in shader variants that should be published for one built-in shader source file.
+        /// </summary>
+        /// <param name="shaderName">Stable built-in shader asset id.</param>
+        /// <returns>Ordered built-in shader variants that should be emitted into the shader asset.</returns>
+        static string[] GetSupportedVariants(string shaderName) {
+            if (string.IsNullOrWhiteSpace(shaderName)) {
+                throw new ArgumentException("Shader name must be provided.", nameof(shaderName));
+            }
+
+            if (string.Equals(shaderName, "ForwardStandardShader", StringComparison.Ordinal)) {
+                return new[] {
+                    DefaultVariantName,
+                    MeshVariantName
+                };
+            }
+
+            return new[] {
+                DefaultVariantName
+            };
         }
 
         /// <summary>

@@ -38,7 +38,7 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
         Directory.CreateDirectory(generatedCoreRootPath);
 
         PlatformBuildScene startupScene = new(
-            "Scenes/NewScene.helen",
+            "NewScene",
             "NewScene",
             "Scenes/NewScene.helen",
             Array.Empty<PlatformBuildPayloadReference>(),
@@ -57,7 +57,7 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
             "project",
             "1.0.0",
             "1.0.0",
-            "Scenes/NewScene.helen",
+            "NewScene",
             [startupScene],
             Array.Empty<PlatformBuildAsset>(),
             Array.Empty<PlatformBuildArtifact>(),
@@ -98,10 +98,12 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
         Assert.Contains("cooked/scenes/NewScene.hasset", startupSource);
         Assert.Contains("he_runtime_scene_catalog_entries", sceneCatalogSource);
         Assert.Contains("he_runtime_scene_cooked_relative_path", sceneCatalogSource);
-        Assert.Contains("\"Scenes/NewScene.helen\"", sceneCatalogSource);
+        Assert.Contains("\"NewScene\"", sceneCatalogSource);
+        Assert.DoesNotContain("\"Scenes/NewScene.helen\"", sceneCatalogSource, StringComparison.Ordinal);
         Assert.Contains("\"cooked/scenes/NewScene.hasset\"", sceneCatalogSource);
         Assert.Contains("he_runtime_physics3d_scene_feature_flags", physicsSource);
-        Assert.Contains("\"Scenes/NewScene.helen\"", physicsSource);
+        Assert.Contains("\"NewScene\"", physicsSource);
+        Assert.DoesNotContain("\"Scenes/NewScene.helen\"", physicsSource, StringComparison.Ordinal);
         Assert.Contains("33u", physicsSource);
         Assert.Contains("kRuntimeCodeModuleDependencies_1", codeModuleSource);
         Assert.Contains("HERuntimeCodeModuleLoadState::ResidentAtStartup", codeModuleSource);

@@ -34,6 +34,16 @@ namespace helengine {
         readonly Dictionary<string, LoadedSceneRecord> LoadedSceneRecordsById;
 
         /// <summary>
+        /// Deferred scene operations requested during the active object-manager update sweep.
+        /// </summary>
+        readonly List<PendingSceneOperation> PendingOperations;
+
+        /// <summary>
+        /// Tracks whether deferred scene operations are currently being flushed.
+        /// </summary>
+        bool IsFlushingPendingOperations;
+
+        /// <summary>
         /// Initializes one runtime scene manager.
         /// </summary>
         /// <param name="sceneCatalog">Catalog used to resolve built scenes by stable identifier.</param>
@@ -47,6 +57,7 @@ namespace helengine {
             ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             LoadedSceneRecords = new List<LoadedSceneRecord>();
             LoadedSceneRecordsById = new Dictionary<string, LoadedSceneRecord>(StringComparer.OrdinalIgnoreCase);
+            PendingOperations = new List<PendingSceneOperation>();
         }
 
         /// <summary>
@@ -83,6 +94,44 @@ namespace helengine {
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id is required.", nameof(sceneId));
             }
+            if (ObjectManager.IsUpdateLoopActive && !IsFlushingPendingOperations) {
+                PendingOperations.Add(PendingSceneOperation.CreateLoad(sceneId, loadMode));
+                return;
+            }
+
+            LoadSceneImmediate(sceneId, loadMode);
+        }
+
+        /// <summary>
+        /// Flushes any runtime scene operations that were deferred during the active object-manager update sweep.
+        /// </summary>
+        public void FlushPendingOperations() {
+            if (PendingOperations.Count == 0) {
+                return;
+            }
+
+            IsFlushingPendingOperations = true;
+            try {
+                while (PendingOperations.Count > 0) {
+                    PendingSceneOperation operation = PendingOperations[0];
+                    PendingOperations.RemoveAt(0);
+                    if (operation.OperationKind == PendingSceneOperationKind.Load) {
+                        LoadSceneImmediate(operation.SceneId, operation.LoadMode);
+                    } else {
+                        UnloadSceneImmediate(operation.SceneId);
+                    }
+                }
+            } finally {
+                IsFlushingPendingOperations = false;
+            }
+        }
+
+        /// <summary>
+        /// Loads one built scene immediately.
+        /// </summary>
+        /// <param name="sceneId">Stable scene identifier to load.</param>
+        /// <param name="loadMode">Runtime load behavior to apply.</param>
+        void LoadSceneImmediate(string sceneId, SceneLoadMode loadMode) {
             if (!SceneCatalog.TryGetEntry(sceneId, out RuntimeSceneCatalogEntry entry)) {
                 throw new InvalidOperationException($"Runtime scene '{sceneId}' was not found in the build scene catalog.");
             }
@@ -118,6 +167,19 @@ namespace helengine {
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id is required.", nameof(sceneId));
             }
+            if (ObjectManager.IsUpdateLoopActive && !IsFlushingPendingOperations) {
+                PendingOperations.Add(PendingSceneOperation.CreateUnload(sceneId));
+                return;
+            }
+
+            UnloadSceneImmediate(sceneId);
+        }
+
+        /// <summary>
+        /// Unloads one currently tracked scene record immediately.
+        /// </summary>
+        /// <param name="sceneId">Stable scene identifier to unload.</param>
+        void UnloadSceneImmediate(string sceneId) {
             if (!LoadedSceneRecordsById.TryGetValue(sceneId, out LoadedSceneRecord loadedSceneRecord)) {
                 throw new InvalidOperationException($"Runtime scene '{sceneId}' is not currently loaded.");
             }

@@ -176,7 +176,7 @@ namespace helengine {
 
             for (int i = 0; i < cameras.Count; i++) {
                 ICamera camera = cameras[i];
-                if (!camera.Viewport.Contains(x, y)) {
+                if (!ResolveViewportInWindowSpace(camera).Contains(x, y)) {
                     continue;
                 }
 
@@ -221,7 +221,7 @@ namespace helengine {
 
             for (int i = 0; i < cameras.Count; i++) {
                 ICamera camera = cameras[i];
-                if (!camera.Viewport.Contains(x, y)) {
+                if (!ResolveViewportInWindowSpace(camera).Contains(x, y)) {
                     continue;
                 }
                 if ((interactable.Parent.LayerMask & camera.LayerMask) == 0) {
@@ -239,6 +239,27 @@ namespace helengine {
             }
 
             return matchedCamera;
+        }
+
+        /// <summary>
+        /// Resolves one camera viewport into window-space pixels so pointer routing matches the active render target dimensions.
+        /// </summary>
+        /// <param name="camera">Camera whose viewport should be resolved.</param>
+        /// <returns>Viewport rectangle in window-space pixels.</returns>
+        float4 ResolveViewportInWindowSpace(ICamera camera) {
+            if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            }
+            if (Core.RenderManager3D == null) {
+                return camera.Viewport;
+            }
+
+            int2 mainWindowSize = Core.RenderManager3D.MainWindowSize;
+            if (mainWindowSize.X <= 0 || mainWindowSize.Y <= 0) {
+                return camera.Viewport;
+            }
+
+            return CameraViewportResolver.ResolveViewport(camera.Viewport, mainWindowSize.X, mainWindowSize.Y);
         }
 
         /// <summary>

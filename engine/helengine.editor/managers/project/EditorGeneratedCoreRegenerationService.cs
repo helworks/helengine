@@ -268,40 +268,7 @@ namespace helengine.editor {
         /// <param name="platformDefinition">Typed platform metadata exposed by the active builder.</param>
         /// <returns>Preprocessor symbols that should be supplied to the input codegen run.</returns>
         internal static IReadOnlyList<string> ResolvePortableInputPreprocessorSymbols(PlatformDefinition platformDefinition) {
-            if (platformDefinition == null) {
-                throw new ArgumentNullException(nameof(platformDefinition));
-            }
-
-            if (string.Equals(platformDefinition.PlatformId, "windows", StringComparison.OrdinalIgnoreCase)) {
-                return [
-                    "HELENGINE_INPUT_KEYBOARD",
-                    "HELENGINE_INPUT_MOUSE",
-                    "DESKTOP_PLATFORM",
-                    "HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION",
-                    "HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION"
-                ];
-            }
-
-            if (string.Equals(platformDefinition.PlatformId, "ps2", StringComparison.OrdinalIgnoreCase)) {
-                return [
-                    "PS2_PLATFORM",
-                    "HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION",
-                    "HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION"
-                ];
-            }
-
-            if (string.Equals(platformDefinition.PlatformId, "psp", StringComparison.OrdinalIgnoreCase)) {
-                return [
-                    "PSP_PLATFORM",
-                    "HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION",
-                    "HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION"
-                ];
-            }
-
-            return [
-                "HELENGINE_CODEGEN_DISABLE_MENU_REFLECTION",
-                "HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION"
-            ];
+            return EditorPlatformPreprocessorSymbolService.ResolvePortableInputSymbols(platformDefinition);
         }
 
         /// <summary>
@@ -474,7 +441,12 @@ namespace helengine.editor {
 
             bool isPs2Build = string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase);
             RemoveEditorOnlyGeneratedSourceFiles(generatedCoreRootPath);
-            EmitGeneratedAutomaticRuntimeComponentDeserializers(generatedCoreRootPath);
+            string generatedRuntimeComponentRegistrationSourcePath = Path.Combine(
+                generatedCoreRootPath,
+                "GeneratedRuntimeComponentDeserializerRegistration.cpp");
+            if (!File.Exists(generatedRuntimeComponentRegistrationSourcePath)) {
+                EmitGeneratedAutomaticRuntimeComponentDeserializers(generatedCoreRootPath);
+            }
             IReadOnlyList<string> featureManifestEntries = LoadGeneratedFeatureManifestEntries(generatedCoreRootPath);
             string[] sourceFiles = Directory.GetFiles(generatedCoreRootPath, "*.*", SearchOption.AllDirectories);
             Array.Sort(sourceFiles, StringComparer.OrdinalIgnoreCase);
@@ -500,7 +472,7 @@ namespace helengine.editor {
         /// Emits generated native runtime component deserializers for engine-owned components that use automatic packaged scene persistence.
         /// </summary>
         /// <param name="generatedCoreRootPath">Absolute generated core output root that should receive the generated native files.</param>
-        internal static void EmitGeneratedAutomaticRuntimeComponentDeserializers(string generatedCoreRootPath) {
+        internal static void EmitGeneratedAutomaticRuntimeComponentDeserializers(string generatedCoreRootPath, IReadOnlyList<Type> additionalComponentTypes = null) {
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             }
@@ -508,7 +480,7 @@ namespace helengine.editor {
             Directory.CreateDirectory(generatedCoreRootPath);
             ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
             ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
-            IReadOnlyList<ScriptComponentReflectionSchema> schemas = DiscoverAutomaticRuntimeComponentSchemas(schemaBuilder, generator);
+            IReadOnlyList<ScriptComponentReflectionSchema> schemas = DiscoverAutomaticRuntimeComponentSchemas(schemaBuilder, generator, additionalComponentTypes);
             if (schemas.Count == 0) {
                 return;
             }
@@ -534,14 +506,38 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Discovers the engine-owned component schemas that can participate in generated native runtime deserializer emission.
+        /// Regenerates automatic native runtime component deserializers for the assembly-qualified scripted component types referenced by cooked scenes.
+        /// </summary>
+        /// <param name="generatedCoreRootPath">Absolute generated core output root that should receive the generated native files.</param>
+        /// <param name="cookedSceneAssetPaths">Cooked scene asset paths whose serialized component records should drive generated deserializer coverage.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
+        internal static void EmitCookedSceneAutomaticRuntimeComponentDeserializers(
+            string generatedCoreRootPath,
+            IReadOnlyList<string> cookedSceneAssetPaths,
+            IScriptTypeResolver scriptTypeResolver) {
+            if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
+                throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
+            }
+            if (cookedSceneAssetPaths == null) {
+                throw new ArgumentNullException(nameof(cookedSceneAssetPaths));
+            }
+
+            EmitGeneratedAutomaticRuntimeComponentDeserializers(
+                generatedCoreRootPath,
+                DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(cookedSceneAssetPaths, scriptTypeResolver));
+        }
+
+        /// <summary>
+        /// Discovers the component schemas that can participate in generated native runtime deserializer emission.
         /// </summary>
         /// <param name="schemaBuilder">Reflected schema builder used for component discovery.</param>
         /// <param name="generator">Native deserializer generator used to validate supported schemas.</param>
+        /// <param name="additionalComponentTypes">Additional scene-referenced scripted component types that must participate in generated native runtime deserializer emission.</param>
         /// <returns>Deterministically ordered schemas eligible for generated native runtime deserializer emission.</returns>
         static IReadOnlyList<ScriptComponentReflectionSchema> DiscoverAutomaticRuntimeComponentSchemas(
             ScriptComponentReflectionSchemaBuilder schemaBuilder,
-            ScriptComponentPlayerDeserializerGenerator generator) {
+            ScriptComponentPlayerDeserializerGenerator generator,
+            IReadOnlyList<Type> additionalComponentTypes) {
             if (schemaBuilder == null) {
                 throw new ArgumentNullException(nameof(schemaBuilder));
             }
@@ -549,20 +545,152 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(generator));
             }
 
-            Type[] componentTypes = typeof(Component).Assembly
+            HashSet<Type> requiredAdditionalComponentTypes = new HashSet<Type>();
+            if (additionalComponentTypes != null) {
+                for (int index = 0; index < additionalComponentTypes.Count; index++) {
+                    Type additionalComponentType = additionalComponentTypes[index];
+                    if (additionalComponentType == null) {
+                        continue;
+                    }
+                    if (!IsEligibleAutomaticRuntimeComponentType(additionalComponentType)) {
+                        throw new InvalidOperationException($"Scene-referenced scripted component type '{additionalComponentType.FullName}' is not eligible for automatic native runtime deserializer generation.");
+                    }
+
+                    requiredAdditionalComponentTypes.Add(additionalComponentType);
+                }
+            }
+
+            HashSet<Type> componentTypes = new HashSet<Type>(
+                typeof(Component).Assembly
                 .GetTypes()
                 .Where(IsEligibleAutomaticRuntimeComponentType)
+                .OrderBy(type => type.FullName, StringComparer.Ordinal));
+            foreach (Type additionalComponentType in requiredAdditionalComponentTypes) {
+                componentTypes.Add(additionalComponentType);
+            }
+
+            List<Type> orderedComponentTypes = componentTypes
                 .OrderBy(type => type.FullName, StringComparer.Ordinal)
-                .ToArray();
-            List<ScriptComponentReflectionSchema> schemas = new List<ScriptComponentReflectionSchema>(componentTypes.Length);
-            for (int index = 0; index < componentTypes.Length; index++) {
-                ScriptComponentReflectionSchema schema = schemaBuilder.Build(componentTypes[index]);
+                .ToList();
+            List<ScriptComponentReflectionSchema> schemas = new List<ScriptComponentReflectionSchema>(orderedComponentTypes.Count);
+            for (int index = 0; index < orderedComponentTypes.Count; index++) {
+                Type componentType = orderedComponentTypes[index];
+                ScriptComponentReflectionSchema schema = schemaBuilder.Build(componentType);
                 if (generator.CanGenerateNativeDeserializer(schema)) {
                     schemas.Add(schema);
+                    continue;
+                }
+                if (requiredAdditionalComponentTypes.Contains(componentType)) {
+                    throw new InvalidOperationException($"Native runtime deserializer generation does not support scene-referenced scripted component type '{componentType.FullName}'.");
                 }
             }
 
             return schemas;
+        }
+
+        /// <summary>
+        /// Discovers the assembly-qualified automatic scripted component runtime types referenced by cooked scene payloads.
+        /// </summary>
+        /// <param name="cookedSceneAssetPaths">Cooked scene asset paths whose serialized component records should be inspected.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
+        /// <returns>Distinct scene-referenced automatic scripted component runtime types.</returns>
+        internal static IReadOnlyList<Type> DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(
+            IReadOnlyList<string> cookedSceneAssetPaths,
+            IScriptTypeResolver scriptTypeResolver) {
+            if (cookedSceneAssetPaths == null) {
+                throw new ArgumentNullException(nameof(cookedSceneAssetPaths));
+            }
+
+            HashSet<Type> componentTypes = new HashSet<Type>();
+            for (int index = 0; index < cookedSceneAssetPaths.Count; index++) {
+                string cookedSceneAssetPath = cookedSceneAssetPaths[index];
+                if (string.IsNullOrWhiteSpace(cookedSceneAssetPath)) {
+                    continue;
+                }
+                if (!File.Exists(cookedSceneAssetPath)) {
+                    throw new FileNotFoundException($"Cooked scene asset '{cookedSceneAssetPath}' was not found.", cookedSceneAssetPath);
+                }
+
+                try {
+                    using FileStream stream = File.OpenRead(cookedSceneAssetPath);
+                    Asset asset = AssetSerializer.Deserialize(stream);
+                    if (asset is not SceneAsset sceneAsset) {
+                        throw new InvalidOperationException($"Cooked scene '{cookedSceneAssetPath}' did not deserialize into a SceneAsset.");
+                    }
+
+                    CollectAutomaticRuntimeComponentTypes(sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>(), scriptTypeResolver, componentTypes);
+                } catch (Exception ex) when (ex is not InvalidOperationException || !ex.Message.Contains(cookedSceneAssetPath, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException($"Cooked scene asset '{cookedSceneAssetPath}' could not be deserialized while discovering automatic runtime components.", ex);
+                }
+            }
+
+            return componentTypes
+                .OrderBy(type => type.FullName, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Recursively collects the assembly-qualified automatic scripted component types referenced by one entity tree.
+        /// </summary>
+        /// <param name="entities">Entity tree whose serialized component records should be inspected.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
+        /// <param name="componentTypes">Set that receives distinct scene-referenced component types.</param>
+        static void CollectAutomaticRuntimeComponentTypes(
+            IReadOnlyList<SceneEntityAsset> entities,
+            IScriptTypeResolver scriptTypeResolver,
+            HashSet<Type> componentTypes) {
+            if (entities == null) {
+                throw new ArgumentNullException(nameof(entities));
+            }
+            if (componentTypes == null) {
+                throw new ArgumentNullException(nameof(componentTypes));
+            }
+
+            for (int entityIndex = 0; entityIndex < entities.Count; entityIndex++) {
+                SceneEntityAsset entity = entities[entityIndex];
+                if (entity == null) {
+                    continue;
+                }
+
+                SceneComponentAssetRecord[] components = entity.Components ?? Array.Empty<SceneComponentAssetRecord>();
+                for (int componentIndex = 0; componentIndex < components.Length; componentIndex++) {
+                    SceneComponentAssetRecord componentRecord = components[componentIndex];
+                    if (componentRecord == null || string.IsNullOrWhiteSpace(componentRecord.ComponentTypeId) || !componentRecord.ComponentTypeId.Contains(',')) {
+                        continue;
+                    }
+
+                    Type componentType = ResolveAutomaticRuntimeComponentType(componentRecord.ComponentTypeId, scriptTypeResolver);
+                    if (!typeof(Component).IsAssignableFrom(componentType)) {
+                        throw new InvalidOperationException($"Scene-referenced scripted component type '{componentRecord.ComponentTypeId}' does not derive from Component.");
+                    }
+
+                    componentTypes.Add(componentType);
+                }
+
+                CollectAutomaticRuntimeComponentTypes(entity.Children ?? Array.Empty<SceneEntityAsset>(), scriptTypeResolver, componentTypes);
+            }
+        }
+
+        /// <summary>
+        /// Resolves one assembly-qualified automatic scripted component type id back to the loaded runtime type.
+        /// </summary>
+        /// <param name="componentTypeId">Assembly-qualified scripted component type id.</param>
+        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
+        /// <returns>Resolved scripted component runtime type.</returns>
+        static Type ResolveAutomaticRuntimeComponentType(string componentTypeId, IScriptTypeResolver scriptTypeResolver) {
+            if (string.IsNullOrWhiteSpace(componentTypeId)) {
+                throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
+            }
+
+            Type componentType = Type.GetType(componentTypeId, false);
+            if (componentType == null && scriptTypeResolver != null) {
+                componentType = scriptTypeResolver.Resolve(componentTypeId);
+            }
+            if (componentType == null) {
+                throw new InvalidOperationException($"Scene-referenced scripted component type '{componentTypeId}' could not be resolved for native runtime deserializer generation.");
+            }
+
+            return componentType;
         }
 
         /// <summary>
@@ -860,6 +988,76 @@ namespace helengine.editor {
                     StringComparison.Ordinal);
                 updatedContents = updatedContents.Replace(
                     "bool WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton button);",
+                    "bool WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button);",
+                    StringComparison.Ordinal);
+                return updatedContents;
+            }
+
+            if (string.Equals(fileName, "DemoDiscReturnToMenuComponent.cpp", StringComparison.OrdinalIgnoreCase)) {
+                string updatedContents = contents;
+                if (!updatedContents.Contains("#include \"RuntimeContentProcessorIds.hpp\"", StringComparison.Ordinal)) {
+                    updatedContents = InsertIncludeAfterOwnHeader(updatedContents, "#include \"RuntimeContentProcessorIds.hpp\"");
+                }
+                updatedContents = updatedContents.Replace(
+                    "InputSystem *inputSystem = Core->Instance != nullptr ? Core->Instance->Input : nullptr;",
+                    "InputSystem *inputSystem = Core::get_Instance() != nullptr ? Core::get_Instance()->get_Input() : nullptr;",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "relativePath.Replace('/', Path::DirectorySeparatorChar).Replace('\\\\', Path::DirectorySeparatorChar)",
+                    "String::Replace(String::Replace(relativePath, '/', Path::DirectorySeparatorChar), '\\\\', Path::DirectorySeparatorChar)",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "relativePath.Replace('\\\\', '/')",
+                    "String::Replace(relativePath, '\\\\', '/')",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "InputGamepadState *currentGamepadState = this->ReadPrimaryGamepadState(inputSystem);",
+                    "InputGamepadState currentGamepadState = this->ReadPrimaryGamepadState(inputSystem);",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "InputGamepadState* DemoDiscReturnToMenuComponent::ReadPrimaryGamepadState(InputSystem* inputSystem)",
+                    "InputGamepadState DemoDiscReturnToMenuComponent::ReadPrimaryGamepadState(InputSystem* inputSystem)",
+                    StringComparison.Ordinal);
+                updatedContents = Regex.Replace(
+                    updatedContents,
+                    @"return nullptr;\s*}\s*return inputSystem->GetGamepadState\(0\);}",
+                    "return InputGamepadState();    }\nreturn inputSystem->GetGamepadState(0);}",
+                    RegexOptions.CultureInvariant);
+                updatedContents = updatedContents.Replace(
+                    "bool DemoDiscReturnToMenuComponent::WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton* button)",
+                    "bool DemoDiscReturnToMenuComponent::WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button)",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("Core->Instance", "Core::get_Instance()", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("->InitializationOptions->ScenePathResolver", "->get_InitializationOptions()->get_ScenePathResolver()", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("->InitializationOptions->ContentRootPath", "->get_InitializationOptions()->get_ContentRootPath()", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("->SceneLoadService", "->get_SceneLoadService()", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("->SceneManager", "->get_SceneManager()", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("->ContentManager", "->get_ContentManager()", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("RuntimeContentProcessorIds->SceneAsset", "RuntimeContentProcessorIds::SceneAsset", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("SceneLoadMode->Single", "SceneLoadMode::Single", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("ComponentExecutionContext->CurrentMode", "ComponentExecutionContext::get_CurrentMode()", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("ComponentExecutionMode->Editor", "ComponentExecutionMode::Editor", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("this->PreviousGamepadState = nullptr;", "this->PreviousGamepadState = InputGamepadState();", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("Parent->Enabled = false;", "Parent->set_Enabled(false);", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("Keys->", "Keys::", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("InputGamepadButton->", "InputGamepadButton::", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("currentGamepadState->", "currentGamepadState.", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("currentState->", "currentState.", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("previousState->", "previousState.", StringComparison.Ordinal);
+                return updatedContents;
+            }
+
+            if (string.Equals(fileName, "DemoDiscReturnToMenuComponent.hpp", StringComparison.OrdinalIgnoreCase)) {
+                string updatedContents = contents.Replace(
+                    "InputGamepadState* PreviousGamepadState;",
+                    "InputGamepadState PreviousGamepadState;",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "InputGamepadState* ReadPrimaryGamepadState(InputSystem* inputSystem);",
+                    "InputGamepadState ReadPrimaryGamepadState(InputSystem* inputSystem);",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "bool WasGamepadButtonPressed(InputGamepadState* currentState, InputGamepadState* previousState, InputGamepadButton* button);",
                     "bool WasGamepadButtonPressed(InputGamepadState currentState, InputGamepadState previousState, InputGamepadButton button);",
                     StringComparison.Ordinal);
                 return updatedContents;
@@ -1733,7 +1931,7 @@ return Encoding::GetString(Encoding::UTF8, bytes);}";
         /// <param name="contents">Current file helper source contents.</param>
         /// <returns>Updated file helper source contents.</returns>
         static string InsertPs2FileSupport(string contents) {
-            if (string.IsNullOrEmpty(contents) || contents.Contains("FileSupportResolvePs2DiscReadPath", StringComparison.Ordinal)) {
+            if (string.IsNullOrEmpty(contents)) {
                 return contents;
             }
 
@@ -1757,26 +1955,38 @@ return Encoding::GetString(Encoding::UTF8, bytes);}";
                 updatedContents = InsertBlockAfterLastInclude(updatedContents, helperBlock.TrimEnd());
             }
 
-            updatedContents = Regex.Replace(
-                updatedContents,
-                @"std::ifstream file\(fileName\);\s*return file\.good\(\);",
-                "#if HE_CPP_PLATFORM_PS2" + newline
-                + "\tstd::string physicalPs2Path = FileSupportResolvePs2DiscSearchPath(fileName);" + newline
-                + "\tif (!physicalPs2Path.empty()) {" + newline
-                + "\t\tsceCdlFILE fileInfo {};" + newline
-                + "\t\treturn sceCdSearchFile(&fileInfo, physicalPs2Path.c_str()) != 0;" + newline
-                + "\t}" + newline
-                + "\tstd::FILE* file = std::fopen(FileSupportResolvePs2DiscReadPath(fileName).c_str(), \"rb\");" + newline
-                + "\tif (file == nullptr) {" + newline
-                + "\t\treturn false;" + newline
-                + "\t}" + newline
-                + "\tstd::fclose(file);" + newline
-                + "\treturn true;" + newline
-                + "#else" + newline
-                + "\tstd::ifstream file(fileName);" + newline
-                + "\treturn file.good();" + newline
-                + "#endif",
-                RegexOptions.CultureInvariant);
+            updatedContents = updatedContents.Replace(
+                "\t\treturn sceCdSearchFile(&fileInfo, physicalPs2Path.c_str()) != 0;",
+                "\t\tif (sceCdSearchFile(&fileInfo, physicalPs2Path.c_str()) != 0) {" + newline
+                + "\t\t\treturn true;" + newline
+                + "\t\t}",
+                StringComparison.Ordinal);
+
+            if (!updatedContents.Contains("FileSupportResolvePs2DiscSearchPath(fileName)", StringComparison.Ordinal)) {
+                updatedContents = Regex.Replace(
+                    updatedContents,
+                    @"std::ifstream file\(fileName\);\s*return file\.good\(\);",
+                    "#if HE_CPP_PLATFORM_PS2" + newline
+                    + "\tstd::string physicalPs2Path = FileSupportResolvePs2DiscSearchPath(fileName);" + newline
+                    + "\tif (!physicalPs2Path.empty()) {" + newline
+                    + "\t\tsceCdlFILE fileInfo {};" + newline
+                    + "\t\tif (sceCdSearchFile(&fileInfo, physicalPs2Path.c_str()) != 0) {" + newline
+                    + "\t\t\treturn true;" + newline
+                    + "\t\t}" + newline
+                    + "\t}" + newline
+                    + "\tstd::FILE* file = std::fopen(FileSupportResolvePs2DiscReadPath(fileName).c_str(), \"rb\");" + newline
+                    + "\tif (file == nullptr) {" + newline
+                    + "\t\treturn false;" + newline
+                    + "\t}" + newline
+                    + "\tstd::fclose(file);" + newline
+                    + "\treturn true;" + newline
+                    + "#else" + newline
+                    + "\tstd::ifstream file(fileName);" + newline
+                    + "\treturn file.good();" + newline
+                    + "#endif",
+                    RegexOptions.CultureInvariant);
+            }
+
             updatedContents = updatedContents.Replace(
                 "\treturn new FileStream(filePath, FileMode::Open, FileAccess::Read, FileShare::Read);",
                 "#if HE_CPP_PLATFORM_PS2" + newline
@@ -2466,3 +2676,4 @@ return Encoding::GetString(Encoding::UTF8, bytes);}";
         }
     }
 }
+

@@ -12,6 +12,7 @@ namespace helengine.editor {
         /// Absolute source assets root used to resolve project-relative scene ids.
         /// </summary>
         readonly string AssetsRootPath;
+        readonly EditorProjectSceneCatalogService SceneCatalogService;
 
         /// <summary>
         /// Initializes one 3D physics codegen feature-symbol resolver for the supplied project root.
@@ -24,12 +25,13 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
+            SceneCatalogService = new EditorProjectSceneCatalogService(ProjectRootPath);
         }
 
         /// <summary>
-        /// Resolves the unioned 3D physics scene feature mask required by the supplied authored scene ids.
+        /// Resolves the unioned 3D physics scene feature mask required by the supplied stable scene ids.
         /// </summary>
-        /// <param name="sceneIds">Project-relative authored scene ids selected for the build.</param>
+        /// <param name="sceneIds">Stable scene ids selected for the build.</param>
         /// <returns>Unioned 3D physics scene feature mask.</returns>
         public PhysicsSceneFeatureFlags3D ResolveFeatureFlags(IReadOnlyList<string> sceneIds) {
             if (sceneIds == null) {
@@ -46,9 +48,9 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the ordered 3D physics preprocessor symbols required by the supplied authored scene ids.
+        /// Resolves the ordered 3D physics preprocessor symbols required by the supplied stable scene ids.
         /// </summary>
-        /// <param name="sceneIds">Project-relative authored scene ids selected for the build.</param>
+        /// <param name="sceneIds">Stable scene ids selected for the build.</param>
         /// <returns>Ordered preprocessor symbols for generated-core stripping.</returns>
         public IReadOnlyList<string> ResolveSymbols(IReadOnlyList<string> sceneIds) {
             PhysicsSceneFeatureFlags3D featureFlags = ResolveFeatureFlags(sceneIds);
@@ -58,14 +60,15 @@ namespace helengine.editor {
         /// <summary>
         /// Loads one authored scene asset from the project source assets folder.
         /// </summary>
-        /// <param name="sceneId">Project-relative scene id to load.</param>
+        /// <param name="sceneId">Stable scene id to load.</param>
         /// <returns>Loaded scene asset.</returns>
         SceneAsset LoadSceneAsset(string sceneId) {
             if (string.IsNullOrWhiteSpace(sceneId)) {
                 throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
             }
 
-            string fullScenePath = ResolveProjectAssetPath(sceneId);
+            string relativeScenePath = SceneCatalogService.ResolveScenePath(sceneId);
+            string fullScenePath = ResolveProjectAssetPath(relativeScenePath);
             using FileStream stream = File.OpenRead(fullScenePath);
             Asset asset = AssetSerializer.Deserialize(stream);
             if (asset is not SceneAsset sceneAsset) {

@@ -14,6 +14,10 @@ namespace helengine.editor {
         const string EditorFontAssetId = "ui-font";
 
         /// <summary>
+        /// Absolute path to the project root folder.
+        /// </summary>
+        readonly string ProjectRootPath;
+        /// <summary>
         /// Absolute path to the project assets folder.
         /// </summary>
         readonly string AssetsRootPath;
@@ -34,6 +38,10 @@ namespace helengine.editor {
         /// Resolves file-system font source files through the imported font cache.
         /// </summary>
         readonly EditorFileSystemFontResolver FileSystemFontResolver;
+        /// <summary>
+        /// Loads per-platform material settings sidecars for file-backed scene materials.
+        /// </summary>
+        readonly MaterialAssetSettingsService MaterialSettingsService;
 
         /// <summary>
         /// Initializes a new runtime asset resolver for scene loading.
@@ -49,9 +57,11 @@ namespace helengine.editor {
             }
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
+            ProjectRootPath = fullProjectRootPath;
             AssetsRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "assets"));
             ImportRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "cache"));
             AssetContentManager = assetContentManager;
+            MaterialSettingsService = new MaterialAssetSettingsService();
         }
 
         /// <summary>
@@ -72,10 +82,12 @@ namespace helengine.editor {
             }
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
+            ProjectRootPath = fullProjectRootPath;
             AssetsRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "assets"));
             ImportRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "cache"));
             AssetContentManager = assetContentManager;
             FileSystemModelResolver = fileSystemModelResolver;
+            MaterialSettingsService = new MaterialAssetSettingsService();
         }
 
         /// <summary>
@@ -104,11 +116,13 @@ namespace helengine.editor {
             }
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
+            ProjectRootPath = fullProjectRootPath;
             AssetsRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "assets"));
             ImportRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "cache"));
             AssetContentManager = assetContentManager;
             FileSystemModelResolver = fileSystemModelResolver;
             FileSystemFontResolver = fileSystemFontResolver;
+            MaterialSettingsService = new MaterialAssetSettingsService();
         }
 
         /// <summary>
@@ -211,14 +225,90 @@ namespace helengine.editor {
         RuntimeMaterial ResolveFileSystemMaterial(SceneAssetReference reference) {
             string fullPath = ResolveFileSystemAssetPath(reference);
             MaterialAsset materialAsset = AssetContentManager.Load<MaterialAsset>(fullPath, EditorContentProcessorIds.MaterialAsset);
+            ApplyMaterialSettingsRuntimeFields(fullPath, materialAsset);
             if (string.IsNullOrWhiteSpace(materialAsset.ShaderAssetId)) {
                 throw new InvalidOperationException("Material asset did not provide a shader asset id.");
             }
 
             ShaderAsset shaderAsset = EditorShaderPackageService.LoadShaderAsset(materialAsset.ShaderAssetId);
             RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
-            ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset);
+            ApplyMaterialDiffuseTexture(runtimeMaterial, materialAsset, fullPath);
             return runtimeMaterial;
+        }
+
+        /// <summary>
+        /// Applies one file-backed material's active-platform settings sidecar to the runtime-facing material payload used by editor scene loading.
+        /// </summary>
+        /// <param name="fullPath">Absolute path to the serialized material asset.</param>
+        /// <param name="materialAsset">Material asset to update before runtime material construction.</param>
+        void ApplyMaterialSettingsRuntimeFields(string fullPath, MaterialAsset materialAsset) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Material path must be provided.", nameof(fullPath));
+            } else if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+
+            AssetImportSettings settings;
+            if (!MaterialSettingsService.TryLoad(fullPath, out settings) || settings == null) {
+                return;
+            }
+
+            string platformId = ResolveActiveProjectPlatformId(settings);
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                return;
+            }
+
+            MaterialSettingsService.ApplyPlatformRuntimeFields(materialAsset, settings, platformId);
+        }
+
+        /// <summary>
+        /// Resolves the active project platform that should drive file-backed material settings during editor scene loading.
+        /// </summary>
+        /// <param name="settings">Material sidecar settings that may expose per-platform field values.</param>
+        /// <returns>Active platform identifier, or an empty string when no compatible platform settings exist.</returns>
+        string ResolveActiveProjectPlatformId(AssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            EditorProjectPlatformsDocument platformsDocument = new EditorProjectPlatformsService(ProjectRootPath).Load();
+            IReadOnlyList<string> supportedPlatforms = platformsDocument.SupportedPlatforms;
+            string activePlatformId = new EditorProjectLocalSettingsService(ProjectRootPath, supportedPlatforms).LoadActivePlatform();
+            if (HasPlatformMaterialSettings(settings, activePlatformId)) {
+                return activePlatformId;
+            }
+
+            for (int index = 0; index < supportedPlatforms.Count; index++) {
+                string platformId = supportedPlatforms[index];
+                if (HasPlatformMaterialSettings(settings, platformId)) {
+                    return platformId;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Returns true when the material sidecar publishes material settings for the supplied platform identifier.
+        /// </summary>
+        /// <param name="settings">Material sidecar settings to inspect.</param>
+        /// <param name="platformId">Platform identifier to locate.</param>
+        /// <returns>True when matching platform material settings exist.</returns>
+        bool HasPlatformMaterialSettings(AssetImportSettings settings, string platformId) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            if (string.IsNullOrWhiteSpace(platformId) || settings.Processor == null || settings.Processor.Platforms == null) {
+                return false;
+            }
+
+            AssetPlatformProcessorSettings platformSettings;
+            if (!settings.Processor.Platforms.TryGetValue(platformId, out platformSettings) || platformSettings == null) {
+                return false;
+            }
+
+            return platformSettings.Material != null;
         }
 
         /// <summary>
@@ -226,18 +316,30 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="runtimeMaterial">Runtime material that should receive the diffuse texture.</param>
         /// <param name="materialAsset">Serialized material asset that declares the authored diffuse texture asset id.</param>
-        void ApplyMaterialDiffuseTexture(RuntimeMaterial runtimeMaterial, MaterialAsset materialAsset) {
+        /// <param name="materialPath">Absolute path to the serialized material asset.</param>
+        void ApplyMaterialDiffuseTexture(RuntimeMaterial runtimeMaterial, MaterialAsset materialAsset, string materialPath) {
             if (runtimeMaterial == null) {
                 throw new ArgumentNullException(nameof(runtimeMaterial));
             }
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
+            if (string.IsNullOrWhiteSpace(materialPath)) {
+                throw new ArgumentException("Material path must be provided.", nameof(materialPath));
+            }
             if (string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
                 return;
             }
 
-            string diffuseTexturePath = ResolveImportedTextureAssetPath(materialAsset.DiffuseTextureAssetId);
+            string diffuseTexturePath;
+            if (TryResolveSourceTexturePath(materialPath, materialAsset.DiffuseTextureAssetId, out diffuseTexturePath)) {
+                TextureAsset sourceTextureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, EditorContentProcessorIds.TextureAsset);
+                RuntimeTexture sourceRuntimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(sourceTextureAsset);
+                runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, sourceRuntimeTexture);
+                return;
+            }
+
+            diffuseTexturePath = ResolveImportedTextureAssetPath(materialAsset.DiffuseTextureAssetId);
             TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, EditorContentProcessorIds.TextureAsset);
             RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
             runtimeMaterial.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
@@ -259,6 +361,40 @@ namespace helengine.editor {
             }
 
             return fullPath;
+        }
+
+        /// <summary>
+        /// Resolves one authored diffuse texture file that lives beside the serialized material asset.
+        /// </summary>
+        /// <param name="materialPath">Absolute path to the serialized material asset.</param>
+        /// <param name="assetId">Imported texture asset identifier stored on the material asset.</param>
+        /// <param name="texturePath">Resolved source texture path when one exists.</param>
+        /// <returns>True when the source texture path exists; otherwise false.</returns>
+        bool TryResolveSourceTexturePath(string materialPath, string assetId, out string texturePath) {
+            if (string.IsNullOrWhiteSpace(materialPath)) {
+                throw new ArgumentException("Material path must be provided.", nameof(materialPath));
+            }
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                texturePath = string.Empty;
+                return false;
+            }
+
+            string materialDirectoryPath = Path.GetDirectoryName(Path.GetFullPath(materialPath));
+            if (string.IsNullOrWhiteSpace(materialDirectoryPath)) {
+                texturePath = string.Empty;
+                return false;
+            }
+
+            string candidateTexturePath = Path.IsPathRooted(assetId)
+                ? Path.GetFullPath(assetId)
+                : Path.GetFullPath(Path.Combine(materialDirectoryPath, assetId));
+            if (File.Exists(candidateTexturePath)) {
+                texturePath = candidateTexturePath;
+                return true;
+            }
+
+            texturePath = string.Empty;
+            return false;
         }
 
         /// <summary>

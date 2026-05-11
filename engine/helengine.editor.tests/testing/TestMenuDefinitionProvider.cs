@@ -37,7 +37,7 @@ namespace helengine.editor.tests.testing {
                         "Launch a packaged scene.",
                         6,
                         new[] {
-                            new MenuItemDefinition("scene-one", "Downtown Morning", "Opens the sample city scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "Scenes/TestPlayableScene.helen")),
+                            new MenuItemDefinition("scene-one", "Downtown Morning", "Opens the sample city scene.", true, new MenuActionDefinition(MenuActionKind.LoadScene, "TestPlayableScene")),
                             new MenuItemDefinition("scene-back", "Back", "Returns to the main menu.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
                         }),
                     new MenuPanelDefinition(

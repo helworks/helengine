@@ -17,7 +17,7 @@ namespace helengine {
         public float4x4 WorldViewProj;
 
         /// <summary>
-        /// Transposed inverse-world matrix used to transform normals without depending on HLSL inverse intrinsics.
+        /// Inverse-transpose normal transform uploaded directly for HLSL normal-vector rotation.
         /// </summary>
         public float4x4 NormalMatrix;
 

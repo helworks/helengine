@@ -44,6 +44,10 @@ namespace helengine.editor {
         /// Field id used by shader-backed schemas to toggle shadow receiving.
         /// </summary>
         const string ReceivesShadowFieldId = "receives-shadow";
+        /// <summary>
+        /// Field id used by the standard shader schema for authored base color.
+        /// </summary>
+        const string BaseColorFieldId = "base-color";
 
         /// <summary>
         /// Schema id used by the Windows standard material path.
@@ -69,6 +73,11 @@ namespace helengine.editor {
         /// Mesh-derived variant used for ordinary material assets.
         /// </summary>
         const string MeshVariantName = "Mesh";
+
+        /// <summary>
+        /// Shader variant used by the built-in forward standard shader package.
+        /// </summary>
+        const string StandardShaderVariantName = "default";
 
         /// <summary>
         /// Loads one material-settings sidecar or creates seeded defaults when the sidecar is missing or incomplete.
@@ -180,17 +189,47 @@ namespace helengine.editor {
                     changed |= ApplyCustomShaderCompatibilityField(platformSettings.Material.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, StandardPixelProgramName, value => materialAsset.PixelProgram = value);
                 } else {
                     changed |= ApplyStandardShaderCompatibilityFields(materialAsset);
+                    changed |= ApplyMaterialVariant(materialAsset, StandardShaderVariantName);
                 }
             } else {
                 changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, value => materialAsset.ShaderAssetId = value, true);
                 changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, value => materialAsset.VertexProgram = value, true);
                 changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, value => materialAsset.PixelProgram = value, true);
+                changed |= ApplyMaterialVariant(materialAsset, MeshVariantName);
             }
 
             changed |= ApplyCompatibilityField(platformSettings.Material.FieldValues, TextureAssetIdFieldId, materialAsset.DiffuseTextureAssetId, value => materialAsset.DiffuseTextureAssetId = value, true);
             changed |= ApplyBooleanCompatibilityField(platformSettings.Material.FieldValues, CastsShadowFieldId, materialAsset.CastsShadows, value => materialAsset.CastsShadows = value);
             changed |= ApplyBooleanCompatibilityField(platformSettings.Material.FieldValues, ReceivesShadowFieldId, materialAsset.ReceivesShadows, value => materialAsset.ReceivesShadows = value);
-            changed |= ApplyMaterialVariant(materialAsset, MeshVariantName);
+            return changed;
+        }
+
+        /// <summary>
+        /// Applies one platform's runtime-facing material fields, including standard-shader constant-buffer hydration required by editor scene loading.
+        /// </summary>
+        /// <param name="materialAsset">Material asset to update.</param>
+        /// <param name="settings">Material sidecar settings that hold per-platform field values.</param>
+        /// <param name="platformId">Platform whose material settings should drive the runtime-facing payload.</param>
+        /// <returns>True when the material asset changed.</returns>
+        public bool ApplyPlatformRuntimeFields(MaterialAsset materialAsset, AssetImportSettings settings, string platformId) {
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            bool changed = ApplyPlatformCompatibilityFields(materialAsset, settings, platformId);
+            AssetPlatformProcessorSettings platformSettings = ResolvePlatformSettings(settings, platformId);
+            if (platformSettings == null || platformSettings.Material == null) {
+                return changed;
+            }
+
+            if (IsStandardShaderSchema(platformSettings.Material.SchemaId)) {
+                changed |= ApplyStandardShaderRuntimeFields(materialAsset, platformSettings.Material.FieldValues);
+            }
+
             return changed;
         }
 
@@ -391,6 +430,31 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves one platform settings payload from the material sidecar.
+        /// </summary>
+        /// <param name="settings">Material sidecar settings to inspect.</param>
+        /// <param name="platformId">Platform identifier to resolve.</param>
+        /// <returns>Resolved platform settings, or null when the requested platform has no settings.</returns>
+        AssetPlatformProcessorSettings ResolvePlatformSettings(AssetImportSettings settings, string platformId) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            } else if (settings.Processor == null) {
+                throw new InvalidOperationException("Material settings must include processor settings.");
+            } else if (settings.Processor.Platforms == null) {
+                throw new InvalidOperationException("Material settings must include processor platform settings.");
+            }
+
+            AssetPlatformProcessorSettings platformSettings;
+            if (!settings.Processor.Platforms.TryGetValue(platformId, out platformSettings)) {
+                return null;
+            }
+
+            return platformSettings;
+        }
+
+        /// <summary>
         /// Applies one serialized compatibility field from a field-value map to the target material asset.
         /// </summary>
         /// <param name="fieldValues">Serialized field values published for one platform.</param>
@@ -486,6 +550,50 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Applies the standard-shader runtime payload that is derived from schema-backed material fields.
+        /// </summary>
+        /// <param name="materialAsset">Material asset to update.</param>
+        /// <param name="fieldValues">Standard-shader field values keyed by field id.</param>
+        /// <returns>True when the material asset changed.</returns>
+        bool ApplyStandardShaderRuntimeFields(MaterialAsset materialAsset, Dictionary<string, string> fieldValues) {
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            } else if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            }
+
+            byte[] baseColorData = ResolveStandardShaderBaseColorBufferData(fieldValues);
+            return UpsertConstantBuffer(materialAsset, StandardMaterialBaseColorDefaults.BaseColorBufferName, baseColorData);
+        }
+
+        /// <summary>
+        /// Resolves the packed standard-shader base-color constant-buffer payload from one field-value map.
+        /// </summary>
+        /// <param name="fieldValues">Field values that may contain an authored base color.</param>
+        /// <returns>Sixteen-byte constant-buffer payload for the standard-shader base color.</returns>
+        byte[] ResolveStandardShaderBaseColorBufferData(Dictionary<string, string> fieldValues) {
+            if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            }
+
+            string serializedColor;
+            if (!fieldValues.TryGetValue(BaseColorFieldId, out serializedColor) || string.IsNullOrWhiteSpace(serializedColor)) {
+                return StandardMaterialBaseColorDefaults.CreateWhiteConstantBufferData();
+            }
+
+            byte4 parsedColor;
+            if (!EditorColorUtils.TryParseHtmlColor(serializedColor, out parsedColor)) {
+                throw new InvalidOperationException("Standard material base color must use #RRGGBB or #RRGGBBAA.");
+            }
+
+            return StandardMaterialBaseColorDefaults.CreateConstantBufferData(new float4(
+                parsedColor.X / 255f,
+                parsedColor.Y / 255f,
+                parsedColor.Z / 255f,
+                parsedColor.W / 255f));
+        }
+
+        /// <summary>
         /// Applies the standard shader compatibility payload to the material asset.
         /// </summary>
         /// <param name="materialAsset">Material asset to update.</param>
@@ -496,6 +604,47 @@ namespace helengine.editor {
             changed |= ApplyFixedCompatibilityField(materialAsset.VertexProgram, StandardVertexProgramName, value => materialAsset.VertexProgram = value);
             changed |= ApplyFixedCompatibilityField(materialAsset.PixelProgram, StandardPixelProgramName, value => materialAsset.PixelProgram = value);
             return changed;
+        }
+
+        /// <summary>
+        /// Inserts or replaces one named constant-buffer payload on the material asset.
+        /// </summary>
+        /// <param name="materialAsset">Material asset to update.</param>
+        /// <param name="bufferName">Constant-buffer binding name.</param>
+        /// <param name="data">Constant-buffer payload to store.</param>
+        /// <returns>True when the material asset changed.</returns>
+        bool UpsertConstantBuffer(MaterialAsset materialAsset, string bufferName, byte[] data) {
+            if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            } else if (string.IsNullOrWhiteSpace(bufferName)) {
+                throw new ArgumentException("Buffer name must be provided.", nameof(bufferName));
+            } else if (data == null) {
+                throw new ArgumentNullException(nameof(data));
+            }
+
+            MaterialConstantBufferAsset[] constantBuffers = materialAsset.ConstantBuffers ?? Array.Empty<MaterialConstantBufferAsset>();
+            for (int index = 0; index < constantBuffers.Length; index++) {
+                MaterialConstantBufferAsset constantBuffer = constantBuffers[index];
+                if (constantBuffer == null || !string.Equals(constantBuffer.Name, bufferName, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                if (constantBuffer.Data != null && constantBuffer.Data.SequenceEqual(data)) {
+                    return false;
+                }
+
+                constantBuffer.Data = [.. data];
+                return true;
+            }
+
+            MaterialConstantBufferAsset[] expandedBuffers = new MaterialConstantBufferAsset[constantBuffers.Length + 1];
+            Array.Copy(constantBuffers, expandedBuffers, constantBuffers.Length);
+            expandedBuffers[constantBuffers.Length] = new MaterialConstantBufferAsset {
+                Name = bufferName,
+                Data = [.. data]
+            };
+            materialAsset.ConstantBuffers = expandedBuffers;
+            return true;
         }
 
         /// <summary>

@@ -64,6 +64,41 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures materials resolve assigned constant-buffer data from their local property block.
+        /// </summary>
+        [Fact]
+        public void TryResolveConstantBufferData_WhenLocalValueExists_ReturnsCopiedPayload() {
+            TestRuntimeMaterial material = new TestRuntimeMaterial();
+            MaterialLayout layout = CreateFirstLayout();
+            byte[] payload = new byte[] { 1, 2, 3, 4 };
+
+            material.SetLayout(layout);
+            material.Properties.SetConstantBufferData("MaterialParams", payload);
+
+            bool resolved = material.TryResolveConstantBufferData("MaterialParams", out byte[] resolvedPayload);
+
+            Assert.True(resolved);
+            Assert.Equal(payload, resolvedPayload);
+            Assert.NotSame(payload, resolvedPayload);
+        }
+
+        /// <summary>
+        /// Ensures materials without any assigned constant-buffer value resolve no payload instead of throwing.
+        /// </summary>
+        [Fact]
+        public void TryResolveConstantBufferData_WithoutAssignedValue_ReturnsFalse() {
+            TestRuntimeMaterial material = new TestRuntimeMaterial();
+            MaterialLayout layout = CreateFirstLayout();
+
+            material.SetLayout(layout);
+
+            bool resolved = material.TryResolveConstantBufferData("MaterialParams", out byte[] resolvedPayload);
+
+            Assert.False(resolved);
+            Assert.Null(resolvedPayload);
+        }
+
+        /// <summary>
         /// Ensures child materials resolve their root parent for renderer-side backend material lookup.
         /// </summary>
         [Fact]

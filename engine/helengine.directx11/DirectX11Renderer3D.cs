@@ -36,6 +36,14 @@ namespace helengine.directx11 {
         /// Maximum number of point-shadow cube textures bound by the built-in forward shader.
         /// </summary>
         const int MaximumPointShadowTextureSlots = 4;
+        /// <summary>
+        /// Constant depth bias applied while rendering shadow maps to reduce self-shadowing on simple authored geometry.
+        /// </summary>
+        const int ShadowDepthBias = 1000;
+        /// <summary>
+        /// Slope-scaled depth bias applied while rendering shadow maps so grazing-angle receivers do not collapse into full self-shadowing.
+        /// </summary>
+        const float ShadowSlopeScaledDepthBias = 1.0f;
 
         /// <summary>
         /// Tracks elapsed time for frame statistics.
@@ -102,6 +110,10 @@ namespace helengine.directx11 {
         /// </summary>
         Dictionary<string, List<DirectX11MaterialResource>> MaterialsByShaderAssetId;
         /// <summary>
+        /// Cache of DirectX11 constant buffers keyed by shader slot for per-material payload uploads.
+        /// </summary>
+        Dictionary<int, Buffer> MaterialConstantBuffersBySlot;
+        /// <summary>
         /// Blend state for standard rendering.
         /// </summary>
         BlendState blendState;
@@ -117,6 +129,10 @@ namespace helengine.directx11 {
         /// Rasterizer state used for 3D rendering.
         /// </summary>
         RasterizerState rasterizerState3D;
+        /// <summary>
+        /// Rasterizer state used while rendering shadow maps.
+        /// </summary>
+        RasterizerState shadowRasterizerState3D;
         /// Depth-stencil state used for 3D rendering.
         /// </summary>
         DepthStencilState depthStencilState3D;
@@ -252,6 +268,7 @@ namespace helengine.directx11 {
             LightSelectionServiceValue = new DirectX11LightSelectionService();
             ShadowResourcePlannerValue = new DirectX11ShadowResourcePlanner();
             PointShadowCubeResourcesValue = new List<DirectX11PointShadowCubeResources>();
+            MaterialConstantBuffersBySlot = new Dictionary<int, Buffer>();
 
             WindowResized += OnWindowResized;
 
@@ -294,6 +311,15 @@ namespace helengine.directx11 {
                 IsDepthClipEnabled = true
             };
             rasterizerState3D = new RasterizerState(Device, rasterizerDesc3D);
+            var shadowRasterizerDesc3D = new RasterizerStateDescription {
+                CullMode = CullMode.Back,
+                FillMode = FillMode.Solid,
+                IsFrontCounterClockwise = true,
+                IsDepthClipEnabled = true,
+                DepthBias = ShadowDepthBias,
+                SlopeScaledDepthBias = ShadowSlopeScaledDepthBias
+            };
+            shadowRasterizerState3D = new RasterizerState(Device, shadowRasterizerDesc3D);
 
             var depthStencilDesc3D = new DepthStencilStateDescription {
                 IsDepthEnabled = true,
@@ -366,6 +392,7 @@ namespace helengine.directx11 {
             surfacesByHandle.Clear();
 
             depthStencilState3D?.Dispose();
+            shadowRasterizerState3D?.Dispose();
             rasterizerState3D?.Dispose();
             materialTextureSampler?.Dispose();
             blendState?.Dispose();
@@ -374,6 +401,7 @@ namespace helengine.directx11 {
             forwardLightConstantBuffer?.Dispose();
             customPassConstantBuffer?.Dispose();
             constantBuffer?.Dispose();
+            DisposeMaterialConstantBuffers();
             ShadowAtlasResourcesValue?.Dispose();
             ShadowDepthShaderPassValue?.Dispose();
             PointShadowDepthShaderPassValue?.Dispose();
@@ -744,7 +772,7 @@ namespace helengine.directx11 {
             float3 cameraTarget = cameraPos + cameraForward;
             float4x4.CreateLookAt(ref cameraPos, ref cameraTarget, ref cameraUp, out view);
 
-            float4 viewport = camera.Viewport;
+            float4 viewport = CameraViewportResolver.ResolveViewport(camera.Viewport, directX11Target.Width, directX11Target.Height);
             context.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
 
             float4x4 projection = CameraProjectionUtils.CreatePerspectiveProjection(camera, (float)Math.PI / 4.0f, viewport.Z / viewport.W);
@@ -866,7 +894,7 @@ namespace helengine.directx11 {
             float3 cameraTarget = cameraPos + cameraForward;
             float4x4.CreateLookAt(ref cameraPos, ref cameraTarget, ref cameraUp, out view);
 
-            float4 viewport = camera.Viewport;
+            float4 viewport = ResolveCameraViewport(camera, context.Surface);
             deviceContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
 
             float4x4 projection = CameraProjectionUtils.CreatePerspectiveProjection(camera, (float)Math.PI / 4.0f, viewport.Z / viewport.W);
@@ -927,8 +955,9 @@ namespace helengine.directx11 {
             bool clearStencil = clearSettings.ClearStencilEnabled;
             byte clearStencilValue = clearSettings.ClearStencil;
             if (clearColor) {
-                if (DirectX11CameraClearRegionResolver.RequiresViewportScopedBackBufferColorClear(renderTarget, surface, camera.Viewport)) {
-                    ClearViewportColorRegion(renderTargetView, clearColorValue, camera.Viewport, surface.Width, surface.Height);
+                float4 viewport = ResolveCameraViewport(camera, surface);
+                if (DirectX11CameraClearRegionResolver.RequiresViewportScopedBackBufferColorClear(renderTarget, surface, viewport)) {
+                    ClearViewportColorRegion(renderTargetView, clearColorValue, viewport, surface.Width, surface.Height);
                 } else {
                     deviceContext.ClearRenderTargetView(renderTargetView, new RawColor4(clearColorValue.X, clearColorValue.Y, clearColorValue.Z, clearColorValue.W));
                 }
@@ -1039,7 +1068,7 @@ namespace helengine.directx11 {
             deviceContext.Rasterizer.State = rasterizerState3D;
             deviceContext.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
             deviceContext.OutputMerger.SetBlendState(null);
-            float4 viewport = camera.Viewport;
+            float4 viewport = ResolveCameraViewport(camera, context.Surface);
             deviceContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
             ActiveRasterizerState = rasterizerState3D;
             ActiveDepthStencilState = depthStencilState3D;
@@ -1049,6 +1078,28 @@ namespace helengine.directx11 {
             deviceContext.PixelShader.SetConstantBuffer(0, constantBuffer);
             deviceContext.PixelShader.SetConstantBuffer(1, forwardLightConstantBuffer);
             deviceContext.PixelShader.SetConstantBuffer(2, shadowConstantBuffer);
+        }
+
+        /// <summary>
+        /// Resolves one authored camera viewport against the active backbuffer or render-target dimensions.
+        /// </summary>
+        /// <param name="camera">Camera whose viewport should be resolved.</param>
+        /// <param name="surface">Swap-chain surface receiving backbuffer rendering when no explicit render target is bound.</param>
+        /// <returns>Viewport rectangle expressed in pixel-space coordinates.</returns>
+        static float4 ResolveCameraViewport(CameraComponent camera, DirectX11SwapChainSurface surface) {
+            if (camera == null) {
+                throw new ArgumentNullException(nameof(camera));
+            }
+            if (surface == null) {
+                throw new ArgumentNullException(nameof(surface));
+            }
+
+            RenderTarget renderTarget = camera.RenderTarget;
+            if (renderTarget != null) {
+                return CameraViewportResolver.ResolveViewport(camera.Viewport, renderTarget.Width, renderTarget.Height);
+            }
+
+            return CameraViewportResolver.ResolveViewport(camera.Viewport, surface.Width, surface.Height);
         }
 
         /// <summary>
@@ -1225,7 +1276,7 @@ namespace helengine.directx11 {
             IReadOnlyList<DirectX11PointShadowCubeResources> pointShadowCubeResources = GetPointShadowCubeResources(shadowResourceSet);
             DirectX11ShaderPass pointShadowPass = GetPointShadowDepthShaderPass();
             var deviceContext = Device.ImmediateContext;
-            deviceContext.Rasterizer.State = rasterizerState3D;
+            deviceContext.Rasterizer.State = shadowRasterizerState3D;
             deviceContext.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
             deviceContext.OutputMerger.SetBlendState(null);
             deviceContext.InputAssembler.InputLayout = pointShadowPass.InputLayout;
@@ -1365,7 +1416,7 @@ namespace helengine.directx11 {
             var deviceContext = Device.ImmediateContext;
             deviceContext.OutputMerger.SetTargets(atlasResources.DepthStencilView, (RenderTargetView)null);
             deviceContext.ClearDepthStencilView(atlasResources.DepthStencilView, DepthStencilClearFlags.Depth, 1f, 0);
-            deviceContext.Rasterizer.State = rasterizerState3D;
+            deviceContext.Rasterizer.State = shadowRasterizerState3D;
             deviceContext.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
             deviceContext.OutputMerger.SetBlendState(null);
             deviceContext.InputAssembler.InputLayout = shadowPass.InputLayout;
@@ -1606,18 +1657,15 @@ namespace helengine.directx11 {
                 };
                 context.UpdateSubresource(ref customData, customPassConstantBuffer);
             } else {
-                    RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
-                    if (BuiltInMaterialIds.UsesStandardMeshTransform(rootMaterial.Id)) {
-                    float4x4 normalMatrix;
-                    float4x4.InverseTranspose(ref world, out normalMatrix);
-
-                    var standardData = new StandardMeshShaderData {
-                        World = worldTransposed,
-                        WorldViewProj = worldViewProjTransposed,
-                        NormalMatrix = normalMatrix,
-                        CameraPosition = new float4(currentCameraPosition.X, currentCameraPosition.Y, currentCameraPosition.Z, 0f),
-                        MaterialFlags = new float4(runtimeMaterial.ReceivesShadows ? 1f : 0f, 0f, 0f, 0f)
-                    };
+                RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
+                if (BuiltInMaterialIds.UsesStandardMeshTransform(
+                    rootMaterial.Id,
+                    rootMaterial.Layout.ShaderAssetId,
+                    rootMaterial.Layout.VertexProgram,
+                    rootMaterial.Layout.PixelProgram)) {
+                    StandardMeshShaderData standardData = BuildStandardMeshShaderData(world, currentCameraPosition, runtimeMaterial.ReceivesShadows);
+                    standardData.World = worldTransposed;
+                    standardData.WorldViewProj = worldViewProjTransposed;
                     context.UpdateSubresource(ref standardData, constantBuffer);
                 } else {
                     context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
@@ -1625,6 +1673,25 @@ namespace helengine.directx11 {
             }
 
             DrawSubmesh(data, ResolveSubmesh(data, submission.SubmeshIndex));
+        }
+
+        /// <summary>
+        /// Builds the packed transform payload consumed by the built-in standard mesh shader.
+        /// </summary>
+        /// <param name="world">World transform for the current draw.</param>
+        /// <param name="cameraPosition">World-space camera position for the current draw.</param>
+        /// <param name="receivesShadows">Whether the current material should sample forward shadows.</param>
+        /// <returns>Standard-mesh shader data configured for one draw.</returns>
+        static StandardMeshShaderData BuildStandardMeshShaderData(float4x4 world, float3 cameraPosition, bool receivesShadows) {
+            float4x4.InverseTranspose(ref world, out float4x4 inverseTransposeNormalMatrix);
+
+            return new StandardMeshShaderData {
+                World = default,
+                WorldViewProj = default,
+                NormalMatrix = inverseTransposeNormalMatrix,
+                CameraPosition = new float4(cameraPosition.X, cameraPosition.Y, cameraPosition.Z, 0f),
+                MaterialFlags = new float4(receivesShadows ? 1f : 0f, 0f, 0f, 0f)
+            };
         }
 
         /// <summary>
@@ -1917,6 +1984,7 @@ namespace helengine.directx11 {
             }
 
             ApplyMaterialRenderState(material.RenderState);
+            ApplyMaterialConstantBufferBindings(material);
             if (material.Layout.TextureBindings.Length > 0) {
                 ShaderResourceView resourceView = ResolveMaterialTextureResourceView(material);
                 context.PixelShader.SetShaderResource(0, resourceView);
@@ -1925,6 +1993,116 @@ namespace helengine.directx11 {
                 context.PixelShader.SetShaderResource(0, null);
                 context.PixelShader.SetSampler(0, null);
             }
+        }
+
+        /// <summary>
+        /// Applies per-material constant-buffer payloads for the current draw.
+        /// </summary>
+        /// <param name="material">Resolved runtime material instance that provides constant-buffer values.</param>
+        void ApplyMaterialConstantBufferBindings(RuntimeMaterial material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            var context = Device.ImmediateContext;
+            MaterialLayoutBinding[] layoutBindings = material.Layout.ConstantBufferBindings;
+            for (int bindingIndex = 0; bindingIndex < layoutBindings.Length; bindingIndex++) {
+                MaterialLayoutBinding binding = layoutBindings[bindingIndex];
+                if (binding == null) {
+                    continue;
+                }
+
+                if (IsEngineManagedConstantBufferBinding(binding.Name)) {
+                    continue;
+                }
+
+                if (!material.TryResolveConstantBufferData(binding.Name, out _)) {
+                    context.VertexShader.SetConstantBuffer(binding.Slot, null);
+                    context.PixelShader.SetConstantBuffer(binding.Slot, null);
+                }
+            }
+
+            List<DirectX11MaterialConstantBufferBinding> resolvedBindings = ResolveMaterialConstantBufferBindings(material);
+            for (int bindingIndex = 0; bindingIndex < resolvedBindings.Count; bindingIndex++) {
+                DirectX11MaterialConstantBufferBinding binding = resolvedBindings[bindingIndex];
+                Buffer constantBuffer = GetOrCreateMaterialConstantBuffer(binding.Slot, binding.Data.Length);
+                context.UpdateSubresource(binding.Data, constantBuffer);
+                context.VertexShader.SetConstantBuffer(binding.Slot, constantBuffer);
+                context.PixelShader.SetConstantBuffer(binding.Slot, constantBuffer);
+            }
+        }
+
+        /// <summary>
+        /// Resolves the material constant-buffer payloads that should be uploaded for one draw.
+        /// </summary>
+        /// <param name="material">Resolved runtime material instance that provides constant-buffer values.</param>
+        /// <returns>Resolved DirectX11 constant-buffer payloads keyed by their shader slots.</returns>
+        List<DirectX11MaterialConstantBufferBinding> ResolveMaterialConstantBufferBindings(RuntimeMaterial material) {
+            if (material == null) {
+                throw new ArgumentNullException(nameof(material));
+            }
+
+            var resolvedBindings = new List<DirectX11MaterialConstantBufferBinding>();
+            MaterialLayoutBinding[] layoutBindings = material.Layout.ConstantBufferBindings;
+            for (int bindingIndex = 0; bindingIndex < layoutBindings.Length; bindingIndex++) {
+                MaterialLayoutBinding binding = layoutBindings[bindingIndex];
+                if (!material.TryResolveConstantBufferData(binding.Name, out byte[] data)) {
+                    continue;
+                }
+
+                resolvedBindings.Add(new DirectX11MaterialConstantBufferBinding(binding.Name, binding.Slot, data));
+            }
+
+            return resolvedBindings;
+        }
+
+        /// <summary>
+        /// Determines whether one shader constant-buffer binding is owned by the renderer rather than by runtime material properties.
+        /// </summary>
+        /// <param name="bindingName">Shader constant-buffer binding name to classify.</param>
+        /// <returns>True when the renderer manages the binding for the active pass; otherwise false.</returns>
+        static bool IsEngineManagedConstantBufferBinding(string bindingName) {
+            if (string.IsNullOrWhiteSpace(bindingName)) {
+                return false;
+            }
+
+            return string.Equals(bindingName, "TransformBuffer", StringComparison.Ordinal)
+                || string.Equals(bindingName, "ForwardLightBuffer", StringComparison.Ordinal)
+                || string.Equals(bindingName, "ShadowBuffer", StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Resolves one cached DirectX11 constant buffer for a material shader slot.
+        /// </summary>
+        /// <param name="slot">DirectX11 constant-buffer slot to bind.</param>
+        /// <param name="sizeInBytes">Required constant-buffer size in bytes.</param>
+        /// <returns>Cached constant buffer that matches the requested slot and size.</returns>
+        Buffer GetOrCreateMaterialConstantBuffer(int slot, int sizeInBytes) {
+            if (slot < 0) {
+                throw new ArgumentOutOfRangeException(nameof(slot), "Constant-buffer slot cannot be negative.");
+            }
+
+            if (sizeInBytes <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(sizeInBytes), "Constant-buffer size must be positive.");
+            }
+
+            if (sizeInBytes % 16 != 0) {
+                throw new InvalidOperationException($"DirectX11 constant-buffer size must be 16-byte aligned, but slot {slot} requested {sizeInBytes} bytes.");
+            }
+
+            if (MaterialConstantBuffersBySlot.TryGetValue(slot, out Buffer cachedBuffer)) {
+                if (cachedBuffer.Description.SizeInBytes == sizeInBytes) {
+                    return cachedBuffer;
+                }
+
+                cachedBuffer.Dispose();
+                MaterialConstantBuffersBySlot.Remove(slot);
+            }
+
+            Buffer constantBuffer = new Buffer(Device, sizeInBytes, ResourceUsage.Default,
+                BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
+            MaterialConstantBuffersBySlot.Add(slot, constantBuffer);
+            return constantBuffer;
         }
 
         /// <summary>
@@ -1989,6 +2167,22 @@ namespace helengine.directx11 {
 
             throw new InvalidOperationException("3D material textures must be DirectX11 texture resources.");
         }
+
+        /// <summary>
+        /// Disposes cached DirectX11 material constant buffers.
+        /// </summary>
+        void DisposeMaterialConstantBuffers() {
+            if (MaterialConstantBuffersBySlot == null) {
+                return;
+            }
+
+            foreach (KeyValuePair<int, Buffer> pair in MaterialConstantBuffersBySlot) {
+                pair.Value?.Dispose();
+            }
+
+            MaterialConstantBuffersBySlot.Clear();
+        }
+
         /// <summary>
         /// Gets the fallback material used for drawables without materials.
         /// </summary>

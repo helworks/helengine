@@ -140,6 +140,35 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Attempts to resolve one constant-buffer payload by binding name after applying parent-material inheritance.
+        /// </summary>
+        /// <param name="bindingName">Constant-buffer binding name to resolve.</param>
+        /// <param name="data">Resolved copied payload when one is assigned.</param>
+        /// <returns>True when a payload is assigned on this material chain; otherwise false.</returns>
+        public bool TryResolveConstantBufferData(string bindingName, out byte[] data) {
+            if (string.IsNullOrWhiteSpace(bindingName)) {
+                data = null;
+                return false;
+            }
+
+            int bindingIndex = Layout.FindConstantBufferBindingIndex(bindingName);
+            if (bindingIndex >= 0) {
+                byte[] localData = Properties.GetConstantBufferData(bindingIndex);
+                if (localData != null) {
+                    data = localData;
+                    return true;
+                }
+            }
+
+            if (ParentMaterialValue != null) {
+                return ParentMaterialValue.TryResolveConstantBufferData(bindingName, out data);
+            }
+
+            data = null;
+            return false;
+        }
+
+        /// <summary>
         /// Replaces the material render state with a copied instance so the runtime material owns its own values.
         /// </summary>
         /// <param name="renderState">Render state to apply to the runtime material.</param>

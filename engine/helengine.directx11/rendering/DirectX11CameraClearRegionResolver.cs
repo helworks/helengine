@@ -39,10 +39,11 @@ namespace helengine.directx11 {
                 throw new ArgumentOutOfRangeException(nameof(targetHeight), "Target height must be positive.");
             }
 
-            int left = ClampToRange((int)Math.Floor(viewport.X), 0, targetWidth);
-            int top = ClampToRange((int)Math.Floor(viewport.Y), 0, targetHeight);
-            int right = ClampToRange((int)Math.Ceiling(viewport.X + viewport.Z), left, targetWidth);
-            int bottom = ClampToRange((int)Math.Ceiling(viewport.Y + viewport.W), top, targetHeight);
+            float4 resolvedViewport = CameraViewportResolver.ResolveViewport(viewport, targetWidth, targetHeight);
+            int left = ClampToRange((int)Math.Floor(resolvedViewport.X), 0, targetWidth);
+            int top = ClampToRange((int)Math.Floor(resolvedViewport.Y), 0, targetHeight);
+            int right = ClampToRange((int)Math.Ceiling(resolvedViewport.X + resolvedViewport.Z), left, targetWidth);
+            int bottom = ClampToRange((int)Math.Ceiling(resolvedViewport.Y + resolvedViewport.W), top, targetHeight);
             return new RawRectangle(left, top, right, bottom);
         }
 
