@@ -911,7 +911,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the built-in component compatibility defaults used by legacy constructor paths.
+        /// Builds the built-in component compatibility defaults used by the current constructor paths.
         /// </summary>
         /// <returns>Default shared component compatibility entries.</returns>
         static PlatformComponentCompatibilityDefinition[] CreateDefaultComponentCompatibilities() {
@@ -1366,7 +1366,7 @@ namespace helengine.editor {
             AssetImportSettings compatibilityMaterialSettings;
             if (MaterialAssetSettingsService.TryLoad(fullPath, out compatibilityMaterialSettings) &&
                 HasValidPlatformMaterialSettings(compatibilityMaterialSettings, TargetPlatformId)) {
-                MaterialAssetSettingsService.ApplyPlatformCompatibilityFields(materialAsset, compatibilityMaterialSettings, TargetPlatformId);
+                MaterialAssetSettingsService.ApplyPlatformMaterialFields(materialAsset, compatibilityMaterialSettings, TargetPlatformId);
             }
 
             RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);

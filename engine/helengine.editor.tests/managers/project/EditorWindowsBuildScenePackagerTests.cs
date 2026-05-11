@@ -257,7 +257,7 @@ namespace helengine.editor.tests {
             bool isValid = Assert.IsType<bool>(validationMethod.Invoke(null, [settings, "windows"]));
 
             if (isValid) {
-                settingsService.ApplyPlatformCompatibilityFields(materialAsset, settings, "windows");
+                settingsService.ApplyPlatformMaterialFields(materialAsset, settings, "windows");
             }
 
             Assert.False(isValid);

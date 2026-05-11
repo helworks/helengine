@@ -3503,7 +3503,7 @@ namespace helengine.editor {
                         materialAsset,
                         SupportedPlatforms,
                         ResolvePlatformSelectionModel);
-                    if (materialAssetSettingsService.ApplyPlatformCompatibilityFields(materialAsset, settings, CurrentProjectPlatform)) {
+                    if (materialAssetSettingsService.ApplyPlatformMaterialFields(materialAsset, settings, CurrentProjectPlatform)) {
                         SaveMaterialAsset(entry.FullPath, materialAsset);
                     }
 
@@ -3984,7 +3984,7 @@ namespace helengine.editor {
                         materialAsset,
                         SupportedPlatforms,
                         ResolvePlatformSelectionModel);
-                    if (materialAssetSettingsService.ApplyPlatformCompatibilityFields(materialAsset, settings, CurrentProjectPlatform)) {
+                    if (materialAssetSettingsService.ApplyPlatformMaterialFields(materialAsset, settings, CurrentProjectPlatform)) {
                         SaveMaterialAsset(entry.FullPath, materialAsset);
                     }
 

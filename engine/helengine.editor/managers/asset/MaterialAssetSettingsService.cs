@@ -153,13 +153,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies one platform's compatibility fields back into the top-level material asset payload used by existing preview and runtime paths.
+        /// Applies one platform's serialized material fields to the top-level material asset payload used by editor material preview paths.
         /// </summary>
         /// <param name="materialAsset">Material asset to update.</param>
         /// <param name="settings">Material sidecar settings that hold per-platform field values.</param>
         /// <param name="platformId">Platform whose material settings should drive the compatibility payload.</param>
         /// <returns>True when the top-level material asset changed.</returns>
-        public bool ApplyPlatformCompatibilityFields(MaterialAsset materialAsset, AssetImportSettings settings, string platformId) {
+        public bool ApplyPlatformMaterialFields(MaterialAsset materialAsset, AssetImportSettings settings, string platformId) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             } else if (settings == null) {
@@ -220,7 +220,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            bool changed = ApplyPlatformCompatibilityFields(materialAsset, settings, platformId);
+            bool changed = ApplyPlatformMaterialFields(materialAsset, settings, platformId);
             AssetPlatformProcessorSettings platformSettings = ResolvePlatformSettings(settings, platformId);
             if (platformSettings == null || platformSettings.Material == null) {
                 return changed;
@@ -368,7 +368,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Seeds any missing field values from the published schema defaults and legacy shader-backed material fields.
+        /// Seeds any missing field values from the published schema defaults.
         /// </summary>
         /// <param name="materialSettings">Material settings payload to seed.</param>
         /// <param name="materialSchema">Schema whose fields should be present in the payload.</param>
@@ -389,7 +389,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                materialSettings.FieldValues[field.FieldId] = ResolveSeedValue(field, materialAsset);
+                materialSettings.FieldValues[field.FieldId] = ResolveSeedValue(field);
                 changed = true;
             }
 
@@ -397,26 +397,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the seeded value for one material field from legacy shader-backed material data when available.
+        /// Resolves the seeded value for one material field from the published schema default.
         /// </summary>
         /// <param name="field">Field definition that requires a seeded value.</param>
-        /// <param name="materialAsset">Current material asset authored on disk.</param>
         /// <returns>Seeded serialized field value.</returns>
-        string ResolveSeedValue(PlatformMaterialFieldDefinition field, MaterialAsset materialAsset) {
-            if (string.Equals(field.FieldId, ShaderAssetIdFieldId, StringComparison.OrdinalIgnoreCase)) {
-                return materialAsset.ShaderAssetId ?? string.Empty;
-            } else if (string.Equals(field.FieldId, TextureAssetIdFieldId, StringComparison.OrdinalIgnoreCase)) {
-                return materialAsset.DiffuseTextureAssetId ?? string.Empty;
-            } else if (string.Equals(field.FieldId, VertexProgramFieldId, StringComparison.OrdinalIgnoreCase)) {
-                return materialAsset.VertexProgram ?? string.Empty;
-            } else if (string.Equals(field.FieldId, PixelProgramFieldId, StringComparison.OrdinalIgnoreCase)) {
-                return materialAsset.PixelProgram ?? string.Empty;
-            } else if (string.Equals(field.FieldId, CastsShadowFieldId, StringComparison.OrdinalIgnoreCase)) {
-                return materialAsset.CastsShadows ? "true" : "false";
-            } else if (string.Equals(field.FieldId, ReceivesShadowFieldId, StringComparison.OrdinalIgnoreCase)) {
-                return materialAsset.ReceivesShadows ? "true" : "false";
-            }
-
+        string ResolveSeedValue(PlatformMaterialFieldDefinition field) {
             return field.DefaultValue ?? string.Empty;
         }
 

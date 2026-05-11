@@ -1703,7 +1703,7 @@ namespace helengine.editor {
             AssetImportSettings compatibilityMaterialSettings;
             if (MaterialAssetSettingsService.TryLoad(fullPath, out compatibilityMaterialSettings) &&
                 HasValidPlatformMaterialSettings(compatibilityMaterialSettings, TargetPlatformId)) {
-                MaterialAssetSettingsService.ApplyPlatformCompatibilityFields(materialAsset, compatibilityMaterialSettings, TargetPlatformId);
+                MaterialAssetSettingsService.ApplyPlatformMaterialFields(materialAsset, compatibilityMaterialSettings, TargetPlatformId);
             }
 
             RememberReferencedShaderAssetId(materialAsset.ShaderAssetId);

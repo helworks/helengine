@@ -677,14 +677,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Saves the material sidecar and mirrors the active platform fields back into the raw material asset for compatibility.
+        /// Saves the material sidecar and mirrors the active platform fields back into the serialized material asset used by preview consumers.
         /// </summary>
         void SaveCurrentMaterialState(string platformId) {
             if (CurrentEntry == null || CurrentAsset == null || CurrentSettings == null) {
                 throw new InvalidOperationException("Cannot save a material view that is not bound to an asset.");
             }
 
-            SettingsService.ApplyPlatformCompatibilityFields(CurrentAsset, CurrentSettings, platformId);
+            SettingsService.ApplyPlatformMaterialFields(CurrentAsset, CurrentSettings, platformId);
             SaveMaterialAsset(CurrentEntry.FullPath, CurrentAsset);
             SettingsService.Save(CurrentEntry.FullPath, CurrentSettings);
             RefreshShaderResources(CurrentAsset.ShaderAssetId);
