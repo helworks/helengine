@@ -9,11 +9,6 @@ namespace helengine.editor {
         const string ModelReferenceFieldName = "ModelReference";
 
         /// <summary>
-        /// Stable tagged field name used for mesh material-reference persistence.
-        /// </summary>
-        const string MaterialReferenceFieldName = "MaterialReference";
-
-        /// <summary>
         /// Stable tagged field name used for mesh material-reference array persistence.
         /// </summary>
         const string MaterialReferencesFieldName = "MaterialReferences";
@@ -65,7 +60,6 @@ namespace helengine.editor {
             SceneAssetReference[] materialReferences = ResolveMaterialReferences(meshComponent, saveState);
             EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
             writer.WriteField(ModelReferenceFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(fieldWriter, modelReference));
-            writer.WriteField(MaterialReferenceFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(fieldWriter, materialReferences.Length == 0 ? null : materialReferences[0]));
             writer.WriteField(MaterialReferencesFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(fieldWriter, materialReferences));
             writer.WriteField(RenderOrder3DFieldName, fieldWriter => fieldWriter.WriteByte(meshComponent.RenderOrder3D));
 
@@ -170,7 +164,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Reads one ordered material-reference array from the tagged mesh payload, falling back to the legacy single-material field when required.
+        /// Reads one ordered material-reference array from the tagged mesh payload.
         /// </summary>
         /// <param name="reader">Tagged field reader positioned at the mesh payload.</param>
         /// <returns>Ordered material references by submesh slot.</returns>
@@ -179,22 +173,13 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(reader));
             }
 
-            if (reader.TryGetFieldReader(MaterialReferencesFieldName, out EngineBinaryReader materialReferencesReader)) {
-                using (materialReferencesReader) {
-                    return SceneComponentBinaryFieldEncoding.ReadOptionalReferenceArray(materialReferencesReader);
-                }
+            if (!reader.TryGetFieldReader(MaterialReferencesFieldName, out EngineBinaryReader materialReferencesReader)) {
+                throw new InvalidOperationException("Mesh component payload must include MaterialReferences.");
             }
 
-            if (reader.TryGetFieldReader(MaterialReferenceFieldName, out EngineBinaryReader materialReferenceReader)) {
-                using (materialReferenceReader) {
-                    SceneAssetReference materialReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(materialReferenceReader);
-                    return materialReference == null
-                        ? Array.Empty<SceneAssetReference>()
-                        : new[] { materialReference };
-                }
+            using (materialReferencesReader) {
+                return SceneComponentBinaryFieldEncoding.ReadOptionalReferenceArray(materialReferencesReader);
             }
-
-            return Array.Empty<SceneAssetReference>();
         }
 
         /// <summary>
