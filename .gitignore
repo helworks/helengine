@@ -10,5 +10,6 @@ render-validation-output/
 .codex-build
 .codex-out/
 .tmp/
+.tmp*
 rtk/
 .worktrees/
