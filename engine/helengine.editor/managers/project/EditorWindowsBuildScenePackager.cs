@@ -1756,7 +1756,34 @@ namespace helengine.editor {
                 ResolveCustomShaderCookField(fieldValues, materialAsset, PixelProgramFieldId, StandardPixelProgramName);
             }
 
+            ApplyImportedTextureCookField(fieldValues, materialAsset);
+
             return fieldValues;
+        }
+
+        /// <summary>
+        /// Populates one builder-visible imported texture path when the target material schema expects a cooked runtime texture payload.
+        /// </summary>
+        /// <param name="fieldValues">Cook field-value map being prepared for the platform builder.</param>
+        /// <param name="materialAsset">Source material asset used as the fallback source for authored values.</param>
+        void ApplyImportedTextureCookField(Dictionary<string, string> fieldValues, MaterialAsset materialAsset) {
+            if (fieldValues == null) {
+                throw new ArgumentNullException(nameof(fieldValues));
+            } else if (materialAsset == null) {
+                throw new ArgumentNullException(nameof(materialAsset));
+            }
+
+            if (fieldValues.TryGetValue("texture-relative-path", out string textureRelativePath) &&
+                !string.IsNullOrWhiteSpace(textureRelativePath)) {
+                return;
+            }
+
+            string diffuseTextureAssetId = ResolveReferencedDiffuseTextureAssetId(materialAsset, fieldValues);
+            if (string.IsNullOrWhiteSpace(diffuseTextureAssetId)) {
+                return;
+            }
+
+            fieldValues["texture-relative-path"] = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
         }
 
         /// <summary>

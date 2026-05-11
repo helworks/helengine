@@ -213,6 +213,55 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.Equal(16, cookedMaterial.ConstantBuffers[0].Data.Length);
     }
 
+    /// <summary>
+    /// Verifies imported cooked texture assets stay classified as generic assets instead of models.
+    /// </summary>
+    [Fact]
+    public void ResolveArtifactKind_when_imported_cooked_texture_is_supplied_returns_asset() {
+        string importedTexturePath = Path.Combine(BuildRootPath, "cooked", "imported", "0123456789ABCDEF0123456789ABCDEF.hasset");
+        Directory.CreateDirectory(Path.GetDirectoryName(importedTexturePath)!);
+        WriteSerializedAsset(importedTexturePath, new TextureAsset {
+            Id = "ImportedTexture",
+            Width = 2,
+            Height = 2,
+            Colors = new byte[] {
+                0xFF, 0x00, 0x00, 0xFF,
+                0x00, 0xFF, 0x00, 0xFF,
+                0x00, 0x00, 0xFF, 0xFF,
+                0xFF, 0xFF, 0xFF, 0xFF
+            }
+        });
+
+        string artifactKind = InvokeResolveArtifactKind(importedTexturePath, "cooked/imported/0123456789ABCDEF0123456789ABCDEF.hasset");
+
+        Assert.Equal("asset", artifactKind);
+    }
+
+    /// <summary>
+    /// Verifies imported cooked model assets still classify as models when their runtime path does not include a `Models` segment.
+    /// </summary>
+    [Fact]
+    public void ResolveArtifactKind_when_imported_cooked_model_is_supplied_returns_model() {
+        string importedModelPath = Path.Combine(BuildRootPath, "cooked", "imported", "FEDCBA9876543210FEDCBA9876543210.hasset");
+        Directory.CreateDirectory(Path.GetDirectoryName(importedModelPath)!);
+        WriteSerializedAsset(importedModelPath, new ModelAsset {
+            Id = "ImportedModel",
+            Positions = [float3.Zero, new float3(1.0f, 0.0f, 0.0f), new float3(0.0f, 1.0f, 0.0f)],
+            Normals = [new float3(0.0f, 0.0f, 1.0f), new float3(0.0f, 0.0f, 1.0f), new float3(0.0f, 0.0f, 1.0f)],
+            TexCoords = [new float2(0.0f, 0.0f), new float2(1.0f, 0.0f), new float2(0.0f, 1.0f)],
+            BoundsMin = float3.Zero,
+            BoundsMax = new float3(1.0f, 1.0f, 0.0f),
+            Indices16 = [0, 1, 2],
+            Indices32 = Array.Empty<uint>(),
+            Submeshes = Array.Empty<ModelSubmeshAsset>(),
+            Ps2PackedMeshBytes = Array.Empty<byte>()
+        });
+
+        string artifactKind = InvokeResolveArtifactKind(importedModelPath, "cooked/imported/FEDCBA9876543210FEDCBA9876543210.hasset");
+
+        Assert.Equal("model", artifactKind);
+    }
+
     void WriteSceneAsset(string sceneId, SceneAssetReference[] assetReferences) {
         string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(scenePath)!);
@@ -311,6 +360,34 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         writer.WriteString(string.Empty);
         writer.WriteByte(0);
         return stream.ToArray();
+    }
+
+    /// <summary>
+    /// Invokes the private artifact-kind resolver so regression coverage can stay pinned to the exact exporter seam.
+    /// </summary>
+    /// <param name="fullPath">Full cooked file path passed to the resolver.</param>
+    /// <param name="relativePath">Runtime-relative cooked path passed to the resolver.</param>
+    /// <returns>Resolved artifact kind string.</returns>
+    static string InvokeResolveArtifactKind(string fullPath, string relativePath) {
+        Type serviceType = typeof(EditorPlatformAssetCookService);
+        System.Reflection.MethodInfo method = serviceType.GetMethod(
+            "ResolveArtifactKind",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static,
+            null,
+            [typeof(string), typeof(string)],
+            null) ?? throw new InvalidOperationException("EditorPlatformAssetCookService.ResolveArtifactKind(string, string) was not found.");
+        object result = method.Invoke(null, [fullPath, relativePath]) ?? throw new InvalidOperationException("Artifact kind resolver returned null.");
+        return Assert.IsType<string>(result);
+    }
+
+    /// <summary>
+    /// Serializes one asset to disk so classification tests can use real cooked payloads instead of synthetic markers.
+    /// </summary>
+    /// <param name="fullPath">Full destination path for the serialized asset.</param>
+    /// <param name="asset">Asset instance to serialize.</param>
+    static void WriteSerializedAsset(string fullPath, Asset asset) {
+        using FileStream stream = new(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+        AssetSerializer.Serialize(stream, asset);
     }
 
     /// <summary>

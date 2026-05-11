@@ -417,6 +417,54 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures PS2 builder-backed material cook requests translate imported `texture-id` values into cooked runtime `texture-relative-path` values.
+        /// </summary>
+        [Fact]
+        public void Package_WhenPs2BuilderCooksMaterialWithImportedDiffuseTexture_PopulatesTextureRelativePath() {
+            string sceneId = "Scenes/TexturedMaterialScene.helen";
+            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.helmat";
+            string textureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
+
+            WriteCachedTextureAsset(textureAssetId);
+            WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            RecordingMaterialBuilder materialBuilder = new RecordingMaterialBuilder(
+                CreatePs2MaterialBuilderDefinition(),
+                request => new PlatformMaterialCookResult(
+                    AssetSerializer.SerializeToBytes(new Ps2MaterialAsset {
+                        RendererFamilyId = "ps2-standard-forward",
+                        LightingMode = Ps2MaterialLightingMode.Unlit,
+                        AlphaMode = Ps2MaterialAlphaMode.Opaque,
+                        RenderClass = Ps2RenderClass.Opaque,
+                        TextureRelativePath = request.FieldValues["texture-relative-path"],
+                        DoubleSided = false,
+                        CastShadows = true,
+                        UseVertexColor = false,
+                        ExpensiveModeAllowed = false,
+                        Roughness = 0f,
+                        SpecularStrength = 0f,
+                        EmissiveStrength = 0f
+                    }),
+                    Array.Empty<string>()));
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "ps2",
+                materialBuilder,
+                "debug",
+                "ps2-standard-forward");
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            Assert.NotNull(materialBuilder.LastMaterialCookRequest);
+            Assert.Equal(
+                "cooked/imported/" + textureAssetId,
+                materialBuilder.LastMaterialCookRequest.FieldValues["texture-relative-path"]);
+        }
+
+        /// <summary>
         /// Ensures packaged scenes preserve FPS overlay components for the player runtime loader.
         /// </summary>
         [Fact]

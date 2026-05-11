@@ -217,7 +217,7 @@ namespace helengine.editor {
             for (int index = 0; index < cookedFilePaths.Length; index++) {
                 string fullPath = cookedFilePaths[index];
                 string relativePath = NormalizeRelativePath(Path.GetRelativePath(outputRootPath, fullPath));
-                artifactPool.AddFile(fullPath, relativePath, ResolveArtifactKind(relativePath), variantId);
+                artifactPool.AddFile(fullPath, relativePath, ResolveArtifactKind(fullPath, relativePath), variantId);
             }
 
             return artifactPool.ToArray();
@@ -227,7 +227,7 @@ namespace helengine.editor {
             return PackagedScenePathResolver.BuildRelativePath(sceneId, sceneIndex);
         }
 
-        static string ResolveArtifactKind(string relativePath) {
+        static string ResolveArtifactKind(string fullPath, string relativePath) {
             if (string.IsNullOrWhiteSpace(relativePath)) {
                 return "asset";
             }
@@ -241,14 +241,40 @@ namespace helengine.editor {
             if (relativePath.StartsWith("cooked/shaders/", StringComparison.OrdinalIgnoreCase)) {
                 return "shader";
             }
-            if (relativePath.Contains("/models/", StringComparison.OrdinalIgnoreCase) || relativePath.StartsWith("cooked/imported/Models/", StringComparison.OrdinalIgnoreCase) || relativePath.StartsWith("cooked/imported/", StringComparison.OrdinalIgnoreCase)) {
+            if (relativePath.Contains("/models/", StringComparison.OrdinalIgnoreCase) || relativePath.StartsWith("cooked/imported/Models/", StringComparison.OrdinalIgnoreCase)) {
                 return "model";
             }
             if (relativePath.Contains("/materials/", StringComparison.OrdinalIgnoreCase)) {
                 return "material";
             }
+            if (relativePath.StartsWith("cooked/imported/", StringComparison.OrdinalIgnoreCase)) {
+                return ResolveImportedArtifactKind(fullPath, relativePath);
+            }
 
             return "asset";
+        }
+
+        static string ResolveImportedArtifactKind(string fullPath, string relativePath) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Full path must be provided for imported artifact classification.", nameof(fullPath));
+            }
+            if (!File.Exists(fullPath)) {
+                throw new InvalidOperationException($"Cooked imported artifact '{relativePath}' was not found at '{fullPath}' during classification.");
+            }
+
+            try {
+                using FileStream stream = File.OpenRead(fullPath);
+                Asset asset = AssetSerializer.Deserialize(stream);
+                if (asset is ModelAsset) {
+                    return "model";
+                }
+                if (asset is MaterialAsset || asset is Ps2MaterialAsset) {
+                    return "material";
+                }
+                return "asset";
+            } catch (Exception ex) {
+                throw new InvalidOperationException($"Cooked imported artifact '{relativePath}' at '{fullPath}' could not be classified from serialized content.", ex);
+            }
         }
 
         static string NormalizeRelativePath(string relativePath) {
