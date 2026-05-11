@@ -68,7 +68,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
     }
 
     /// <summary>
-    /// Verifies material settings are created per platform and seeded from legacy shader-backed material fields.
+    /// Verifies material settings are created per platform and seeded from the authored shader-backed material fields.
     /// </summary>
     [Fact]
     public void MaterialAssetSettingsService_loads_or_creates_platform_material_settings_from_schema_metadata() {
@@ -179,12 +179,12 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         Assert.True(File.Exists(materialAssetPath + ".hasset"));
         Assert.Equal("standard-shader", settings.Processor.Platforms["windows"].Material.SchemaId);
         Assert.Equal("false", settings.Processor.Platforms["windows"].Material.FieldValues["use-custom-shader"]);
-        Assert.Equal("shaders/test", settings.Processor.Platforms["windows"].Material.FieldValues["shader-asset-id"]);
-        Assert.Equal("textures/test", settings.Processor.Platforms["windows"].Material.FieldValues["texture-id"]);
-        Assert.Equal("false", settings.Processor.Platforms["windows"].Material.FieldValues["casts-shadow"]);
+        Assert.Equal(string.Empty, settings.Processor.Platforms["windows"].Material.FieldValues["shader-asset-id"]);
+        Assert.Equal(string.Empty, settings.Processor.Platforms["windows"].Material.FieldValues["texture-id"]);
+        Assert.Equal("true", settings.Processor.Platforms["windows"].Material.FieldValues["casts-shadow"]);
         Assert.Equal("true", settings.Processor.Platforms["windows"].Material.FieldValues["receives-shadow"]);
-        Assert.Equal("Test.vs", settings.Processor.Platforms["windows"].Material.FieldValues["vertex-program"]);
-        Assert.Equal("Test.ps", settings.Processor.Platforms["windows"].Material.FieldValues["pixel-program"]);
+        Assert.Equal(string.Empty, settings.Processor.Platforms["windows"].Material.FieldValues["vertex-program"]);
+        Assert.Equal(string.Empty, settings.Processor.Platforms["windows"].Material.FieldValues["pixel-program"]);
         Assert.Equal("#ffffff", settings.Processor.Platforms["windows"].Material.FieldValues["base-color"]);
     }
 
@@ -192,7 +192,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
     /// Verifies standard shader compatibility fields mirror authored texture and shadow values back into the raw material payload.
     /// </summary>
     [Fact]
-    public void ApplyPlatformCompatibilityFields_when_standard_shader_fields_are_present_mirrors_texture_and_shadow_values() {
+    public void ApplyPlatformMaterialFields_when_standard_shader_fields_are_present_mirrors_texture_and_shadow_values() {
         MaterialAsset materialAsset = new MaterialAsset {
             ShaderAssetId = "shaders/test",
             VertexProgram = "Test.vs",
@@ -213,7 +213,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
 
         MaterialAssetSettingsService service = new MaterialAssetSettingsService();
 
-        bool changed = service.ApplyPlatformCompatibilityFields(materialAsset, settings, "windows");
+        bool changed = service.ApplyPlatformMaterialFields(materialAsset, settings, "windows");
 
         Assert.True(changed);
         Assert.Equal("ForwardStandardShader", materialAsset.ShaderAssetId);
@@ -222,14 +222,14 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         Assert.Equal("Textures/Brick.png", materialAsset.DiffuseTextureAssetId);
         Assert.False(materialAsset.CastsShadows);
         Assert.False(materialAsset.ReceivesShadows);
-        Assert.Equal("Mesh", materialAsset.Variant);
+        Assert.Equal("default", materialAsset.Variant);
     }
 
     /// <summary>
     /// Verifies non-shader platform settings clear shader compatibility fields on the raw material payload.
     /// </summary>
     [Fact]
-    public void ApplyPlatformCompatibilityFields_when_shader_fields_are_missing_clears_legacy_shader_values() {
+    public void ApplyPlatformMaterialFields_when_shader_fields_are_missing_clears_shader_values() {
         MaterialAsset materialAsset = new MaterialAsset {
             ShaderAssetId = "shaders/test",
             VertexProgram = "Test.vs",
@@ -244,7 +244,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
 
         MaterialAssetSettingsService service = new MaterialAssetSettingsService();
 
-        bool changed = service.ApplyPlatformCompatibilityFields(materialAsset, settings, "ps2");
+        bool changed = service.ApplyPlatformMaterialFields(materialAsset, settings, "ps2");
 
         Assert.True(changed);
         Assert.Equal(string.Empty, materialAsset.ShaderAssetId);

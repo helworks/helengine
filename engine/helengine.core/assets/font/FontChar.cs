@@ -44,17 +44,5 @@ namespace helengine {
             BearingY = bearingY;
         }
 
-        /// <summary>
-        /// Legacy constructor for backward compatibility.
-        /// </summary>
-        /// <param name="r">UV source rectangle.</param>
-        /// <param name="offsetY">Vertical offset from baseline.</param>
-        public FontChar(float4 r, float offsetY) {
-            SourceRect = r;
-            OffsetY = offsetY;
-            AdvanceWidth = r.Z; // Use width as advance width by default
-            BearingX = 0;
-            BearingY = 0;
-        }
     }
 }

@@ -51,19 +51,5 @@ namespace helengine.editor {
             BearingY = bearingY;
         }
 
-        /// <summary>
-        /// Initializes a glyph using only offset and source rectangle, deriving other metrics from the rectangle.
-        /// </summary>
-        /// <param name="r">Source rectangle for the glyph.</param>
-        /// <param name="bmp">Bitmap containing the glyph pixels.</param>
-        /// <param name="offsetY">Vertical baseline offset.</param>
-        public TempFontChar(int4 r, Bitmap bmp, float offsetY) {
-            SourceRect = r;
-            Bitmap = bmp;
-            OffsetY = offsetY;
-            AdvanceWidth = r.Z; // Use width as advance width by default
-            BearingX = 0;
-            BearingY = 0;
-        }
     }
 }

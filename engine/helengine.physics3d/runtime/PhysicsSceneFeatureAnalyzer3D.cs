@@ -601,18 +601,14 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1 && version != 2) {
+            if (version != 2) {
                 throw new InvalidOperationException($"Unsupported box collider component payload version '{version}'.");
             }
 
             reader.ReadFloat3();
-            if (version >= 2) {
-                reader.ReadUInt16();
-                reader.ReadUInt16();
-                return reader.ReadByte() != 0;
-            }
-
-            return false;
+            reader.ReadUInt16();
+            reader.ReadUInt16();
+            return reader.ReadByte() != 0;
         }
 
         /// <summary>
@@ -624,17 +620,11 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1 && version != 2) {
+            if (version != 1) {
                 throw new InvalidOperationException($"Unsupported sphere collider component payload version '{version}'.");
             }
 
             reader.ReadSingle();
-            if (version >= 2) {
-                reader.ReadUInt16();
-                reader.ReadUInt16();
-                return reader.ReadByte() != 0;
-            }
-
             return false;
         }
 
@@ -647,18 +637,12 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1 && version != 2) {
+            if (version != 1) {
                 throw new InvalidOperationException($"Unsupported capsule collider component payload version '{version}'.");
             }
 
             reader.ReadSingle();
             reader.ReadSingle();
-            if (version >= 2) {
-                reader.ReadUInt16();
-                reader.ReadUInt16();
-                return reader.ReadByte() != 0;
-            }
-
             return false;
         }
 
@@ -671,7 +655,7 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1 && version != 2) {
+            if (version != 1) {
                 throw new InvalidOperationException($"Unsupported static mesh collider component payload version '{version}'.");
             }
 
@@ -683,12 +667,6 @@ namespace helengine {
             int indexCount = reader.ReadInt32();
             for (int index = 0; index < indexCount; index++) {
                 reader.ReadInt32();
-            }
-
-            if (version >= 2) {
-                reader.ReadUInt16();
-                reader.ReadUInt16();
-                return reader.ReadByte() != 0;
             }
 
             return false;

@@ -515,7 +515,7 @@ namespace helengine.physics3d.tests {
                 LocalOrientation = float4.Identity,
                 Components = new[] {
                     CreateBoxColliderRecord(boxSize),
-                    CreateCharacterControllerRecord(desiredMoveDirection, moveSpeed, 1d, 0.75d, 0.3d, 45d)
+                    CreateCharacterControllerRecord(desiredMoveDirection, moveSpeed, 1d, 0.75d, 0.3d)
                 },
                 Children = Array.Empty<SceneEntityAsset>()
             };
@@ -656,8 +656,11 @@ namespace helengine.physics3d.tests {
         static SceneComponentAssetRecord CreateBoxColliderRecord(float3 boxSize) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
+            writer.WriteByte(2);
             writer.WriteFloat3(boxSize);
+            writer.WriteUInt16(1);
+            writer.WriteUInt16(ushort.MaxValue);
+            writer.WriteByte(0);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.BoxCollider3DComponent",
@@ -770,24 +773,21 @@ namespace helengine.physics3d.tests {
         /// <param name="gravityScale">Gravity multiplier used by the controller.</param>
         /// <param name="stepHeight">Maximum rise the controller can snap upward in one step.</param>
         /// <param name="groundSnapDistance">Maximum downward snap distance used to keep the controller grounded.</param>
-        /// <param name="maximumSlopeDegrees">Maximum walkable slope angle in degrees.</param>
         /// <returns>Serialized scene component record.</returns>
         static SceneComponentAssetRecord CreateCharacterControllerRecord(
             float3 desiredMoveDirection,
             double moveSpeed,
             double gravityScale,
             double stepHeight,
-            double groundSnapDistance,
-            double maximumSlopeDegrees) {
+            double groundSnapDistance) {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
+            writer.WriteByte(1);
             writer.WriteFloat3(desiredMoveDirection);
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(moveSpeed));
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(gravityScale));
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(stepHeight));
             writer.WriteInt64(BitConverter.DoubleToInt64Bits(groundSnapDistance));
-            writer.WriteInt64(BitConverter.DoubleToInt64Bits(maximumSlopeDegrees));
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.CharacterController3DComponent",

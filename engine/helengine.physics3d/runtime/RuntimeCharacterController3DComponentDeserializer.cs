@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>
         /// Current payload version for serialized character-controller component scene records.
         /// </summary>
-        const byte CurrentVersion = 2;
+        const byte CurrentVersion = 1;
 
         /// <summary>
         /// Stable serialized component id for 3D character-controller components.
@@ -28,22 +28,17 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1 && version != CurrentVersion) {
+            if (version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported character controller component payload version '{version}'.");
             }
 
-            CharacterController3DComponent component = new CharacterController3DComponent {
+            return new CharacterController3DComponent {
                 DesiredMoveDirection = reader.ReadFloat3(),
                 MoveSpeed = BitConverter.Int64BitsToDouble(reader.ReadInt64()),
                 GravityScale = BitConverter.Int64BitsToDouble(reader.ReadInt64()),
                 StepHeight = BitConverter.Int64BitsToDouble(reader.ReadInt64()),
                 GroundSnapDistance = BitConverter.Int64BitsToDouble(reader.ReadInt64())
             };
-            if (version >= 2) {
-                component.MaximumSlopeDegrees = BitConverter.Int64BitsToDouble(reader.ReadInt64());
-            }
-
-            return component;
         }
     }
 }
