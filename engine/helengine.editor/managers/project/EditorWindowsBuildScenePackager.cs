@@ -1088,17 +1088,17 @@ namespace helengine.editor {
             using MemoryStream readStream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(readStream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1 && version != 2 && version != CameraComponentPayloadVersion) {
+            if (version != CameraComponentPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported camera component payload version '{version}'.");
             }
 
             byte cameraDrawOrder = reader.ReadByte();
             ushort layerMask = reader.ReadUInt16();
             float4 viewport = ReadFloat4(reader);
-            float nearPlaneDistance = version >= CameraComponentPayloadVersion ? reader.ReadSingle() : 0.1f;
-            float farPlaneDistance = version >= CameraComponentPayloadVersion ? reader.ReadSingle() : 100f;
+            float nearPlaneDistance = reader.ReadSingle();
+            float farPlaneDistance = reader.ReadSingle();
             CameraClearSettings clearSettings = ReadClearSettings(reader);
-            CameraRenderSettings renderSettings = version >= 2 ? ReadRenderSettings(reader) : new CameraRenderSettings();
+            CameraRenderSettings renderSettings = ReadRenderSettings(reader);
 
             using MemoryStream writeStream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);

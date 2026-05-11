@@ -623,74 +623,65 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures legacy binary camera payloads still package into runtime-loadable camera components.
+        /// Ensures legacy binary camera payloads are rejected during packaging.
         /// </summary>
         [Fact]
-        public void Package_WhenSceneContainsLegacyVersionedCameraPayload_PackagesAndLoadsCameraComponent() {
+        public void Package_WhenSceneContainsLegacyVersionedCameraPayload_ThrowsUnsupportedPayloadVersion() {
             string sceneId = "Scenes/CameraScene.helen";
-            WriteSceneAsset(sceneId, "helengine.CameraComponent", WriteLegacyCameraComponentPayloadVersion2());
-
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
-            packager.Package(new[] { sceneId }, BuildRootPath);
-
-            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
-            SceneAsset packagedScene;
-            using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            byte[] legacyPayload;
+            using (MemoryStream stream = new MemoryStream()) {
+                using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+                writer.WriteByte(2);
+                writer.WriteByte(17);
+                writer.WriteUInt16(EditorLayerMasks.SceneObjects);
+                writer.WriteSingle(12f);
+                writer.WriteSingle(24f);
+                writer.WriteSingle(640f);
+                writer.WriteSingle(360f);
+                writer.WriteByte(1);
+                writer.WriteSingle(0.25f);
+                writer.WriteSingle(0.5f);
+                writer.WriteSingle(0.75f);
+                writer.WriteSingle(1f);
+                writer.WriteByte(1);
+                writer.WriteSingle(0.42f);
+                writer.WriteByte(1);
+                writer.WriteByte(9);
+                writer.WriteByte((byte)DepthPrepassMode.Always);
+                writer.WriteSingle(128f);
+                writer.WriteByte((byte)PostProcessTier.High);
+                legacyPayload = stream.ToArray();
             }
 
-            InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
-            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
-            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
-            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
-            CameraComponent cameraComponent = Assert.IsType<CameraComponent>(
-                Assert.Single(loadedRoots[0].Components, component => component is CameraComponent));
+            WriteSceneAsset(sceneId, "helengine.CameraComponent", legacyPayload);
 
-            Assert.Equal((byte)17, cameraComponent.CameraDrawOrder);
-            Assert.Equal((ushort)1, cameraComponent.LayerMask);
-            Assert.Equal(new float4(12f, 24f, 640f, 360f), cameraComponent.Viewport);
-            Assert.Equal(DepthPrepassMode.Always, cameraComponent.RenderSettings.DepthPrepassMode);
-            Assert.Equal(128f, cameraComponent.RenderSettings.ShadowDistance);
-            Assert.Equal(PostProcessTier.High, cameraComponent.RenderSettings.PostProcessTier);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("Unsupported camera component payload version", exception.Message);
         }
 
         /// <summary>
-        /// Ensures legacy binary mesh payloads still package into runtime-loadable mesh components.
+        /// <summary>
+        /// Ensures legacy binary mesh payloads are rejected during packaging.
         /// </summary>
         [Fact]
-        public void Package_WhenSceneContainsLegacyVersionedMeshPayload_PackagesAndLoadsMeshComponent() {
+        public void Package_WhenSceneContainsLegacyVersionedMeshPayload_ThrowsUnsupportedPayloadVersion() {
             string sceneId = "Scenes/MeshScene.helen";
-            WriteSceneAsset(sceneId, "helengine.MeshComponent", WriteLegacyMeshComponentPayloadVersion1());
-
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
-            packager.Package(new[] { sceneId }, BuildRootPath);
-
-            string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
-            SceneAsset packagedScene;
-            using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            byte[] legacyPayload;
+            using (MemoryStream stream = new MemoryStream()) {
+                using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+                writer.WriteByte(1);
+                writer.WriteByte(0);
+                writer.WriteByte(0);
+                writer.WriteByte(23);
+                legacyPayload = stream.ToArray();
             }
 
-            InitializeRuntimeCore(BuildRootPath);
-            ContentManager runtimeContentManager = new ContentManager(BuildRootPath);
-            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
-            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
-                runtimeContentManager,
-                BuildRootPath,
-                ShaderCompileTarget.DirectX11);
-            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
-            IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
-            MeshComponent meshComponent = Assert.IsType<MeshComponent>(
-                Assert.Single(loadedRoots[0].Components, component => component is MeshComponent));
+            WriteSceneAsset(sceneId, "helengine.MeshComponent", legacyPayload);
 
-            Assert.Equal((byte)23, meshComponent.RenderOrder3D);
-            Assert.Null(meshComponent.Model);
-            Assert.Null(meshComponent.Material);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("Unsupported mesh component payload version", exception.Message);
         }
 
         /// <summary>
@@ -2397,35 +2388,6 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Writes one legacy binary camera component payload using the pre-tagged versioned scene format.
-        /// </summary>
-        /// <returns>Serialized legacy binary camera component payload.</returns>
-        byte[] WriteLegacyCameraComponentPayloadVersion2() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(2);
-            writer.WriteByte(17);
-            writer.WriteUInt16(EditorLayerMasks.SceneObjects);
-            writer.WriteSingle(12f);
-            writer.WriteSingle(24f);
-            writer.WriteSingle(640f);
-            writer.WriteSingle(360f);
-            writer.WriteByte(1);
-            writer.WriteSingle(0.25f);
-            writer.WriteSingle(0.5f);
-            writer.WriteSingle(0.75f);
-            writer.WriteSingle(1f);
-            writer.WriteByte(1);
-            writer.WriteSingle(0.42f);
-            writer.WriteByte(1);
-            writer.WriteByte(9);
-            writer.WriteByte((byte)DepthPrepassMode.Always);
-            writer.WriteSingle(128f);
-            writer.WriteByte((byte)PostProcessTier.High);
-            return stream.ToArray();
-        }
-
-        /// <summary>
         /// Creates one tagged camera component record that matches the modern editor scene payload shape.
         /// </summary>
         /// <returns>Serialized tagged camera component record.</returns>
@@ -2450,20 +2412,6 @@ namespace helengine.editor.tests {
                 ComponentIndex = 0,
                 Payload = writer.BuildPayload()
             };
-        }
-
-        /// <summary>
-        /// Writes one legacy binary mesh component payload using the pre-tagged versioned scene format.
-        /// </summary>
-        /// <returns>Serialized legacy binary mesh component payload.</returns>
-        byte[] WriteLegacyMeshComponentPayloadVersion1() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            writer.WriteByte(0);
-            writer.WriteByte(0);
-            writer.WriteByte(23);
-            return stream.ToArray();
         }
 
         /// <summary>

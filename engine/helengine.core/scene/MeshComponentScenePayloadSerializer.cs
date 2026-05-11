@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Reads and writes packaged runtime mesh-component payloads with backward compatibility for legacy single-material records.
+    /// Reads and writes packaged runtime mesh-component payloads using the current multi-material record layout.
     /// </summary>
     public static class MeshComponentScenePayloadSerializer {
         /// <summary>
@@ -37,7 +37,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Reads one packaged runtime mesh-component payload and resolves legacy payload versions when required.
+        /// Reads one packaged runtime mesh-component payload using the current payload version only.
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload start.</param>
         /// <param name="modelReference">Decoded packaged model reference.</param>
@@ -53,12 +53,8 @@ namespace helengine {
             }
 
             byte version = reader.ReadByte();
-            if (version == 1) {
-                ReadVersion1(reader, out modelReference, out materialReferences, out renderOrder3D);
-                return;
-            }
             if (version == CurrentVersion) {
-                ReadVersion2(reader, out modelReference, out materialReferences, out renderOrder3D);
+                ReadCurrentVersion(reader, out modelReference, out materialReferences, out renderOrder3D);
                 return;
             }
 
@@ -66,37 +62,14 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Reads one legacy version-1 mesh-component payload that stores a single material reference.
-        /// </summary>
-        /// <param name="reader">Source reader positioned after the version byte.</param>
-        /// <param name="modelReference">Decoded packaged model reference.</param>
-        /// <param name="materialReferences">Decoded packaged material references ordered by submesh slot.</param>
-        /// <param name="renderOrder3D">Decoded 3D render order.</param>
-        static void ReadVersion1(
-            EngineBinaryReader reader,
-            out SceneAssetReference modelReference,
-            out SceneAssetReference[] materialReferences,
-            out byte renderOrder3D) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            modelReference = ReadOptionalReference(reader);
-            SceneAssetReference materialReference = ReadOptionalReference(reader);
-            renderOrder3D = reader.ReadByte();
-            materialReferences = materialReference == null
-                ? Array.Empty<SceneAssetReference>()
-                : new[] { materialReference };
-        }
-
         /// <summary>
-        /// Reads one version-2 mesh-component payload that stores one material-reference array.
+        /// Reads one current-version mesh-component payload that stores one material-reference array.
         /// </summary>
         /// <param name="reader">Source reader positioned after the version byte.</param>
         /// <param name="modelReference">Decoded packaged model reference.</param>
         /// <param name="materialReferences">Decoded packaged material references ordered by submesh slot.</param>
         /// <param name="renderOrder3D">Decoded 3D render order.</param>
-        static void ReadVersion2(
+        static void ReadCurrentVersion(
             EngineBinaryReader reader,
             out SceneAssetReference modelReference,
             out SceneAssetReference[] materialReferences,
