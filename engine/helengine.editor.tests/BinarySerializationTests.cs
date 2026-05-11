@@ -177,10 +177,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures legacy version-five scene assets receive default scene settings when the payload omits them.
+        /// Ensures legacy scene-asset payload versions are rejected instead of being normalized forward.
         /// </summary>
         [Fact]
-        public void DeserializeSceneAsset_WhenVersionFivePayloadOmitsSceneSettings_UsesDefaultCanvasProfile() {
+        public void DeserializeSceneAsset_WhenPayloadVersionIsLegacy_ThrowsUnsupportedAssetBinaryVersion() {
             using MemoryStream stream = new MemoryStream();
             EngineBinaryHeader header = new EngineBinaryHeader(
                 EngineBinaryEndianness.LittleEndian,
@@ -197,11 +197,8 @@ namespace helengine.editor.tests {
             }
 
             stream.Position = 0;
-            SceneAsset deserialized = Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
-
-            Assert.Equal(55u, deserialized.Physics3DSceneFeatureFlags);
-            Assert.Equal(SceneCanvasProfile.DefaultWidth, deserialized.SceneSettings.CanvasProfile.Width);
-            Assert.Equal(SceneCanvasProfile.DefaultHeight, deserialized.SceneSettings.CanvasProfile.Height);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => EditorAssetBinarySerializer.Deserialize(stream));
+            Assert.Contains("Unsupported asset binary version", exception.Message);
         }
 
         /// <summary>
