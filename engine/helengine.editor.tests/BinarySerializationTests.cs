@@ -205,6 +205,21 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Verifies the packaged Windows city startup scene still deserializes cleanly in managed code.
+        /// </summary>
+        [Fact]
+        public void DeserializePackagedCityMainMenuSceneAsset_FromWindowsBuildOutput_Succeeds() {
+            string packagedScenePath = @"C:\dev\helprojs\output\windows\cooked\scenes\DemoDiscMainMenu.hasset";
+            Assert.True(File.Exists(packagedScenePath));
+
+            using FileStream stream = File.OpenRead(packagedScenePath);
+            SceneAsset scene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+
+            Assert.NotEmpty(scene.RootEntities);
+            Assert.Contains(scene.RootEntities, entity => entity.Components.Any(component => component.ComponentTypeId == MenuComponent.SerializedComponentTypeId));
+        }
+
+        /// <summary>
         /// Ensures texture assets round-trip through the HELE asset serializer.
         /// </summary>
         [Fact]

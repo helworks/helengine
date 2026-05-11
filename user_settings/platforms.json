@@ -17,6 +17,15 @@
       "playerSourceRootPath": "../../helengine-ps2",
       "generatedCoreCppRootPath": "../tmp/helengine-core-cpp-regenerated",
       "codegenToolPath": "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
+    },
+    {
+      "engineVersion": "1.0.0+13db86b8a91031015e3d0475799b6e6b1a56b309",
+      "platformId": "psp",
+      "displayName": "PSP",
+      "builderAssemblyPath": "../../helengine-psp/builder/bin/Debug/net9.0/helengine.psp.builder.dll",
+      "playerSourceRootPath": "../../helengine-psp",
+      "generatedCoreCppRootPath": "../tmp/helengine-core-cpp-regenerated",
+      "codegenToolPath": "../../csharpcodegen/codegen/bin/Debug/net9.0/codegen.exe"
     }
   ]
 }

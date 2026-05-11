@@ -667,7 +667,7 @@ namespace helengine.files {
             writer.WriteFloat3(asset.LocalPosition);
             writer.WriteFloat3(asset.LocalScale);
             writer.WriteFloat4(asset.LocalOrientation);
-            writer.WriteArray(asset.Components, (valueWriter, value) => WriteSceneComponentAssetRecord(valueWriter, value, SceneEntityPayloadVersion));
+            writer.WriteArray(asset.Components, WriteSceneComponentAssetRecordValue);
             writer.WriteArray(asset.PlatformTransformOverrides, WriteSceneEntityPlatformTransformOverrideAsset);
             writer.WriteArray(asset.PlatformComponentOverrides, WriteSceneEntityPlatformComponentOverrideAsset);
             writer.WriteArray(asset.Children, WriteSceneEntityAsset);
@@ -769,7 +769,7 @@ namespace helengine.files {
             }
 
             writer.WriteString(asset.PlatformId);
-            writer.WriteArray(asset.RemovedComponentKeys, (valueWriter, value) => valueWriter.WriteString(value));
+            writer.WriteArray(asset.RemovedComponentKeys, WriteStringValue);
             writer.WriteArray(asset.AddedComponents, WriteSceneEntityPlatformAddedComponentAsset);
         }
 
@@ -802,8 +802,8 @@ namespace helengine.files {
 
             return new SceneEntityPlatformComponentOverrideAsset {
                 PlatformId = reader.ReadString(),
-                RemovedComponentKeys = reader.ReadArray(valueReader => valueReader.ReadString()) ?? Array.Empty<string>(),
-                AddedComponents = reader.ReadArray(valueReader => ReadSceneEntityPlatformAddedComponentAsset(valueReader, SceneEntityPayloadVersion)) ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>()
+                RemovedComponentKeys = reader.ReadArray(ReadStringValue) ?? Array.Empty<string>(),
+                AddedComponents = reader.ReadArray(ReadSceneEntityPlatformAddedComponentAssetValue) ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>()
             };
         }
 
@@ -821,6 +821,15 @@ namespace helengine.files {
             return new SceneEntityPlatformAddedComponentAsset {
                 Component = ReadSceneComponentAssetRecord(reader, sceneEntityPayloadVersion)
             };
+        }
+
+        /// <summary>
+        /// Reads one platform-only component payload attached to a scene entity using the current scene payload version.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Deserialized platform-only component payload.</returns>
+        static SceneEntityPlatformAddedComponentAsset ReadSceneEntityPlatformAddedComponentAssetValue(EngineBinaryReader reader) {
+            return ReadSceneEntityPlatformAddedComponentAsset(reader, SceneEntityPayloadVersion);
         }
 
         /// <summary>
@@ -1251,6 +1260,15 @@ namespace helengine.files {
         /// <returns>Deserialized string value.</returns>
         static string ReadStringValue(EngineBinaryReader reader) {
             return reader.ReadString();
+        }
+
+        /// <summary>
+        /// Writes one scene-component record into a scene entity using the current scene payload version.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="asset">Scene component record to serialize.</param>
+        static void WriteSceneComponentAssetRecordValue(EngineBinaryWriter writer, SceneComponentAssetRecord asset) {
+            WriteSceneComponentAssetRecord(writer, asset, SceneEntityPayloadVersion);
         }
 
         /// <summary>
