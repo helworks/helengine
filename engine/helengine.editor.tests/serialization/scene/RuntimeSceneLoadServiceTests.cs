@@ -1028,39 +1028,35 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures legacy packaged light payload version 1 still materializes correctly.
+        /// Ensures legacy packaged light payload version 1 is rejected during runtime scene loading.
         /// </summary>
         [Fact]
-        public void Load_WhenSceneContainsLegacyLightComponentPayloadVersion1_MaterializesAllSupportedLightFamilies() {
+        public void Load_WhenSceneContainsLegacyLightComponentPayloadVersion1_ThrowsUnsupportedPayloadVersion() {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
                 Core.Instance.ContentManager,
                 TempRootPath,
                 ShaderCompileTarget.DirectX11);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+            byte[] legacyPayload;
+            using (MemoryStream stream = new MemoryStream()) {
+                using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+                writer.WriteByte(1);
+                writer.WriteSingle(0.8f);
+                writer.WriteSingle(0.9f);
+                writer.WriteSingle(1f);
+                writer.WriteSingle(1f);
+                writer.WriteSingle(2.5f);
+                writer.WriteByte(0);
+                writer.WriteByte((byte)ShadowMapMode.Disabled);
+                writer.WriteSingle(0.45f);
+                writer.WriteSingle(24f);
+                writer.WriteSingle(20f);
+                writer.WriteSingle(36f);
+                legacyPayload = stream.ToArray();
+            }
+
             SceneAsset sceneAsset = new SceneAsset {
                 RootEntities = new[] {
-                    new SceneEntityAsset {
-                        Id = "directional-light",
-                        Name = "DirectionalLight",
-                        Components = new[] {
-                            new SceneComponentAssetRecord {
-                                ComponentTypeId = "helengine.DirectionalLightComponent",
-                                ComponentIndex = 0,
-                                Payload = WriteLegacyDirectionalLightComponentPayloadVersion1()
-                            }
-                        }
-                    },
-                    new SceneEntityAsset {
-                        Id = "point-light",
-                        Name = "PointLight",
-                        Components = new[] {
-                            new SceneComponentAssetRecord {
-                                ComponentTypeId = "helengine.PointLightComponent",
-                                ComponentIndex = 0,
-                                Payload = WriteLegacyPointLightComponentPayloadVersion1()
-                            }
-                        }
-                    },
                     new SceneEntityAsset {
                         Id = "spot-light",
                         Name = "SpotLight",
@@ -1068,42 +1064,15 @@ namespace helengine.editor.tests.serialization.scene {
                             new SceneComponentAssetRecord {
                                 ComponentTypeId = "helengine.SpotLightComponent",
                                 ComponentIndex = 0,
-                                Payload = WriteLegacySpotLightComponentPayloadVersion1()
+                                Payload = legacyPayload
                             }
                         }
                     }
                 }
             };
 
-            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
-            Assert.Equal(3, loadedRoots.Count);
-
-            DirectionalLightComponent directionalLight = Assert.IsType<DirectionalLightComponent>(Assert.Single(loadedRoots[0].Components, component => component is DirectionalLightComponent));
-            PointLightComponent pointLight = Assert.IsType<PointLightComponent>(Assert.Single(loadedRoots[1].Components, component => component is PointLightComponent));
-            SpotLightComponent spotLight = Assert.IsType<SpotLightComponent>(Assert.Single(loadedRoots[2].Components, component => component is SpotLightComponent));
-
-            Assert.Equal(new float4(0.3f, 0.4f, 0.5f, 1f), directionalLight.Color);
-            Assert.Equal(3.0f, directionalLight.Intensity);
-            Assert.True(directionalLight.ShadowsEnabled);
-            Assert.Equal(ShadowMapMode.Forced, directionalLight.ShadowMapMode);
-            Assert.Equal(0.7f, directionalLight.ShadowStrength);
-            Assert.Equal(50f, directionalLight.ShadowDistance);
-
-            Assert.Equal(new float4(1f, 0.8f, 0.6f, 1f), pointLight.Color);
-            Assert.Equal(4.0f, pointLight.Intensity);
-            Assert.True(pointLight.ShadowsEnabled);
-            Assert.Equal(ShadowMapMode.Auto, pointLight.ShadowMapMode);
-            Assert.Equal(0.85f, pointLight.ShadowStrength);
-            Assert.Equal(18f, pointLight.Range);
-
-            Assert.Equal(new float4(0.8f, 0.9f, 1f, 1f), spotLight.Color);
-            Assert.Equal(2.5f, spotLight.Intensity);
-            Assert.False(spotLight.ShadowsEnabled);
-            Assert.Equal(ShadowMapMode.Disabled, spotLight.ShadowMapMode);
-            Assert.Equal(0.45f, spotLight.ShadowStrength);
-            Assert.Equal(24f, spotLight.Range);
-            Assert.Equal(20f, spotLight.InnerConeAngleDegrees);
-            Assert.Equal(36f, spotLight.OuterConeAngleDegrees);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => loadService.Load(sceneAsset));
+            Assert.Contains("Unsupported spot light payload version", exception.Message);
         }
 
         /// <summary>
@@ -1626,18 +1595,6 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Writes one legacy serialized directional light component payload using runtime payload version 1.
-        /// </summary>
-        /// <returns>Serialized legacy directional light component payload.</returns>
-        byte[] WriteLegacyDirectionalLightComponentPayloadVersion1() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            WriteLegacyCommonLightFields(writer, new float4(0.3f, 0.4f, 0.5f, 1f), 3.0f, true, ShadowMapMode.Forced, 0.7f);
-            return stream.ToArray();
-        }
-
-        /// <summary>
         /// Writes one serialized point light component payload.
         /// </summary>
         /// <returns>Serialized point light component payload.</returns>
@@ -1653,19 +1610,6 @@ namespace helengine.editor.tests.serialization.scene {
                 ShadowStrength = 0.85f,
                 Range = 18f
             });
-            return stream.ToArray();
-        }
-
-        /// <summary>
-        /// Writes one legacy serialized point light component payload using runtime payload version 1.
-        /// </summary>
-        /// <returns>Serialized legacy point light component payload.</returns>
-        byte[] WriteLegacyPointLightComponentPayloadVersion1() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            WriteLegacyCommonLightFields(writer, new float4(1f, 0.8f, 0.6f, 1f), 4.0f, true, ShadowMapMode.Auto, 0.85f);
-            writer.WriteSingle(18f);
             return stream.ToArray();
         }
 
@@ -1688,51 +1632,6 @@ namespace helengine.editor.tests.serialization.scene {
                 OuterConeAngleDegrees = 36f
             });
             return stream.ToArray();
-        }
-
-        /// <summary>
-        /// Writes one legacy serialized spot light component payload using runtime payload version 1.
-        /// </summary>
-        /// <returns>Serialized legacy spot light component payload.</returns>
-        byte[] WriteLegacySpotLightComponentPayloadVersion1() {
-            using MemoryStream stream = new MemoryStream();
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-            writer.WriteByte(1);
-            WriteLegacyCommonLightFields(writer, new float4(0.8f, 0.9f, 1f, 1f), 2.5f, false, ShadowMapMode.Disabled, 0.45f);
-            writer.WriteSingle(24f);
-            writer.WriteSingle(20f);
-            writer.WriteSingle(36f);
-            return stream.ToArray();
-        }
-
-        /// <summary>
-        /// Writes the shared legacy light payload fields used by runtime payload version 1.
-        /// </summary>
-        /// <param name="writer">Destination writer receiving the payload.</param>
-        /// <param name="color">Light color to encode.</param>
-        /// <param name="intensity">Light intensity to encode.</param>
-        /// <param name="shadowsEnabled">Whether shadows are enabled.</param>
-        /// <param name="shadowMapMode">Shadow map mode to encode.</param>
-        /// <param name="shadowStrength">Shadow strength to encode.</param>
-        void WriteLegacyCommonLightFields(
-            EngineBinaryWriter writer,
-            float4 color,
-            float intensity,
-            bool shadowsEnabled,
-            ShadowMapMode shadowMapMode,
-            float shadowStrength) {
-            if (writer == null) {
-                throw new ArgumentNullException(nameof(writer));
-            }
-
-            writer.WriteSingle(color.X);
-            writer.WriteSingle(color.Y);
-            writer.WriteSingle(color.Z);
-            writer.WriteSingle(color.W);
-            writer.WriteSingle(intensity);
-            writer.WriteByte(shadowsEnabled ? (byte)1 : (byte)0);
-            writer.WriteByte((byte)shadowMapMode);
-            writer.WriteSingle(shadowStrength);
         }
 
         /// <summary>
