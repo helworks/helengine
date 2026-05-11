@@ -15,7 +15,7 @@ This change is driven by the immediate `Flip Winding` need for Sponza, but the d
 - Persist the editor's active platform per project in `settings/project.json`.
 - Add a model processor boolean setting named `Flip Winding`.
 - Apply `Flip Winding` during processing, not rendering.
-- Silently invalidate and rewrite old `*.hasset` versions instead of supporting legacy layouts.
+- Silently invalidate and rewrite old `*.hasset` versions instead of supporting prior layouts.
 
 ## Non-Goals
 
@@ -98,7 +98,7 @@ Old `*.hasset` files are not supported for reading as a compatibility format. Wh
 
 This replacement should happen silently with no warning UI.
 
-That keeps the editor logic simple and avoids carrying partial legacy behavior while there are no released engine versions to preserve.
+That keeps the editor logic simple and avoids carrying partial old-format behavior while there are no released engine versions to preserve.
 
 ## Platform Source Of Truth
 

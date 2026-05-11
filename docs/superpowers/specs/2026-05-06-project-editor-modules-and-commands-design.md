@@ -18,7 +18,7 @@ Add a general project-authored editor module system to the existing code-module 
 
 - Do not redesign the runtime packaging graph beyond filtering editor modules out of it.
 - Do not add Unity-style folder magic such as a special `Editor` directory with implicit semantics.
-- Do not add backward compatibility for old `helengine.DemoMenu*` serialized ids.
+- Do not add support for old `helengine.DemoMenu*` serialized ids.
 - Do not expose unrestricted editor internals directly to project assemblies.
 - Do not require a UI surface for command invocation in this slice if service-level invocation is enough to prove the architecture.
 

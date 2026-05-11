@@ -1,17 +1,17 @@
-# Remove All Legacy Design
+# Current-Format-Only Design
 
 ## Summary
 
-`helengine` currently carries multiple classes of legacy behavior: old asset and scene payload readers, editor migration and packaging fallbacks, repo tooling that rewrites older data forward, and tests and fixtures that preserve those paths. The new policy is strict: the current format is the only supported format. There will be no migration tool, no fallback loader, no legacy packaging branch, and no compatibility-only tests.
+`helengine` currently carries multiple classes of old-format compatibility behavior: old asset and scene payload readers, editor migration and packaging fallbacks, repo tooling that rewrites older data forward, and tests and fixtures that preserve those paths. The new policy is strict: the current format is the only supported format. There will be no migration tool, no fallback loader, no packaging compatibility branch, and no compatibility-only tests.
 
-This design removes every legacy implementation path repo-wide and allows old payloads, old local settings files, and old editor-authored scene records to fail immediately.
+This design removes every old-format implementation path repo-wide and allows old payloads, old local settings files, and old editor-authored scene records to fail immediately.
 
 ## Goals
 
-- Remove runtime support for legacy asset, scene, and component payload formats.
-- Remove editor support for legacy persistence, packaging, migration, and rewrite paths.
+- Remove runtime support for old asset, scene, and component payload formats.
+- Remove editor support for old persistence, packaging, migration, and rewrite paths.
 - Remove tooling that exists only to normalize or rewrite older authored data.
-- Remove tests, fixtures, and docs that preserve or describe legacy compatibility behavior.
+- Remove tests, fixtures, and docs that preserve or describe old-format compatibility behavior.
 - Keep only the current format as the single authoritative format across runtime, editor, and build systems.
 
 ## Non-Goals
@@ -19,8 +19,8 @@ This design removes every legacy implementation path repo-wide and allows old pa
 - Keep backward readability for any old payload version.
 - Add a one-time normalization tool.
 - Preserve old project-local settings files, old scene payload layouts, or old asset payload layouts.
-- Preserve legacy behavior behind feature flags or opt-in switches.
-- Clean up every historical mention of the word "legacy" when it does not represent executable compatibility logic.
+- Preserve old-format behavior behind feature flags or opt-in switches.
+- Clean up every historical mention of old-format compatibility wording when it does not represent executable compatibility logic.
 
 ## Current Problem
 
@@ -43,7 +43,7 @@ Each stage will remove one subsystem's compatibility code completely, then recom
 
 ### Big-Bang Repo-Wide Removal
 
-Deleting every legacy path in one shot is possible, but it creates a very poor debugging surface. The likely outcome is a large number of unrelated compile and behavior breaks with no clear subsystem boundary.
+Deleting every old-format path in one shot is possible, but it creates a very poor debugging surface. The likely outcome is a large number of unrelated compile and behavior breaks with no clear subsystem boundary.
 
 ### Normalize Then Delete
 
@@ -62,7 +62,7 @@ Core serialization and runtime scene loading will only recognize the current pay
 That means:
 
 - remove old-version branches from `EditorAssetBinarySerializer`
-- remove legacy scene entity readers
+- remove old scene entity readers
 - remove version-aware fallback branches from mesh and light payload serializers when those branches exist only for older layouts
 - make runtime component deserializers reject non-current payload versions immediately
 
@@ -74,8 +74,8 @@ Editor code will stop compensating for older authored data.
 
 That means:
 
-- remove legacy binary scene payload readers from packaging transforms
-- remove legacy single-material and old light payload fallback handling from editor persistence
+- remove old binary scene payload readers from packaging transforms
+- remove old single-material and old light payload fallback handling from editor persistence
 - remove migration of old project-local settings or old scene identifiers
 - remove compatibility mirroring paths that only exist to seed or preserve old raw material fields
 
@@ -99,10 +99,10 @@ Tests and fixtures that protect old behavior will be removed, not rewritten to p
 
 That means:
 
-- delete legacy compatibility tests
+- delete old-format compatibility tests
 - delete helpers that write old payload versions as test input
 - remove or replace fixtures that exist only to validate migration or fallback behavior
-- update docs and specs so they no longer claim backward compatibility where the code no longer provides it
+- update docs and specs so they no longer claim old-format support where the code no longer provides it
 
 The remaining test suite should validate only the current format and current editor/runtime paths.
 
@@ -119,7 +119,7 @@ This avoids turning the project into a cosmetic rename exercise instead of a for
 
 ## Deletion Policy
 
-When a legacy branch is removed, replacement behavior should be one of two things only:
+When an old-format branch is removed, replacement behavior should be one of two things only:
 
 - use the current format path
 - reject the input as unsupported
@@ -161,6 +161,6 @@ At the end of this work, `helengine` will have one format contract everywhere:
 - one current editor persistence path
 - one current packaging path
 - zero migration code
-- zero legacy compatibility tests
+- zero old-format compatibility tests
 
 Any older data is unsupported by design.

@@ -373,7 +373,7 @@ The engine should stay ready for a future DirectX 9 or DirectX 8 style backend, 
 The practical rule is:
 
 - Windows DX11 path gets the richer renderer
-- legacy backends consume the same scene and material intent through a reduced capability profile
+- reduced-capability backends consume the same scene and material intent through a reduced capability profile
 - no engine-level authoring rewrite is required just because a backend is simpler
 
 DirectX 9 era constraints mean a future backend will likely need:

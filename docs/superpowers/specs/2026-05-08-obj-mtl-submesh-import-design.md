@@ -98,7 +98,7 @@ Editor and runtime mesh serialization should be versioned forward to support:
 - an ordered list of material references
 - render order
 
-Backward compatibility is required. Existing payloads with one material reference should deserialize into a single-slot binding. When a legacy scene loads a model that now exposes more than one submesh, slot zero should receive the authored material and the remaining slots should use fallback material behavior until explicitly assigned.
+Existing single-material payloads should deserialize into a single-slot binding. When an older scene loads a model that now exposes more than one submesh, slot zero should receive the authored material and the remaining slots should use fallback material behavior until explicitly assigned.
 
 ### 5. OBJ and MTL import changes
 
@@ -224,7 +224,7 @@ New mesh payloads:
 ## Risks
 
 - This change crosses the importer, editor, runtime, and renderer layers, so partial implementation will leave the engine in an inconsistent state.
-- Scene backward compatibility must be handled deliberately because current mesh payloads assume a single material.
+- Existing scene payload support must be handled deliberately because current mesh payloads assume a single material.
 - Renderer draw-loop changes may expose assumptions elsewhere in culling, render ordering, or debug tooling that currently treat one mesh component as one draw.
 
 ## Recommendation

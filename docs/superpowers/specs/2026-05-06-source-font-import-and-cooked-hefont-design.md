@@ -172,7 +172,7 @@ The build error should identify the source font path that failed.
 - No new font descriptor asset type in this slice.
 - No runtime direct loading of `.ttf` or `.otf`.
 - No broad redesign of all asset importers.
-- No silent backward compatibility layer for authored `.hefont` project assets unless needed later for migration tooling.
+- No silent old-format support layer for authored `.hefont` project assets unless needed later for migration tooling.
 
 ## Testing
 
