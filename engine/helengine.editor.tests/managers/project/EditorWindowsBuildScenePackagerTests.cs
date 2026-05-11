@@ -841,10 +841,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures legacy scripted scene records with empty authored payloads still package when automatic runtime persistence discovers zero persisted members.
+        /// Ensures empty automatic-script payloads with no persisted members are rejected during packaging.
         /// </summary>
         [Fact]
-        public void Package_WhenAutomaticScriptComponentHasNoPersistedMembersAndPayloadIsEmpty_WritesValidRuntimePayload() {
+        public void Package_WhenAutomaticScriptComponentHasNoPersistedMembersAndPayloadIsEmpty_ThrowsUnsupportedPayloadVersion() {
             string sceneId = "Scenes/LegacyEmptyAutomaticScriptScene.helen";
             string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestScriptComponentWithoutPersistedMembers));
 
@@ -878,26 +878,15 @@ namespace helengine.editor.tests {
                 null,
                 new FakeScriptTypeResolver(typeof(TestScriptComponentWithoutPersistedMembers)));
 
-            packager.Package(new[] { sceneId }, BuildRootPath);
-
-            SceneAsset packagedScene;
-            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
-            }
-
-            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
-            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
-            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
-            Assert.Equal(0, reader.ReadInt32());
-            Assert.Equal(payloadStream.Length, payloadStream.Position);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("Unsupported editor tagged scene component payload version", exception.Message);
         }
 
         /// <summary>
-        /// Ensures legacy scripted scene records with empty authored payloads still package when automatic runtime persistence should restore default reflected member values.
+        /// Ensures empty automatic-script payloads with persisted reflected members are rejected during packaging.
         /// </summary>
         [Fact]
-        public void Package_WhenAutomaticScriptComponentUsesLegacyEmptyPayload_WritesDefaultReflectedMemberValues() {
+        public void Package_WhenAutomaticScriptComponentUsesLegacyEmptyPayload_ThrowsUnsupportedPayloadVersion() {
             string sceneId = "Scenes/LegacyEmptyUpdateScriptScene.helen";
             string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestUpdateOnlyScriptComponent));
 
@@ -931,20 +920,8 @@ namespace helengine.editor.tests {
                 null,
                 new FakeScriptTypeResolver(typeof(TestUpdateOnlyScriptComponent)));
 
-            packager.Package(new[] { sceneId }, BuildRootPath);
-
-            SceneAsset packagedScene;
-            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
-            }
-
-            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
-            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
-            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
-            Assert.Equal(1, reader.ReadInt32());
-            Assert.Equal((byte)0, reader.ReadByte());
-            Assert.Equal(payloadStream.Length, payloadStream.Position);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("Unsupported editor tagged scene component payload version", exception.Message);
         }
 
         /// <summary>

@@ -67,10 +67,10 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures legacy empty payloads materialize default automatic scripted components instead of failing during editor scene open.
+        /// Ensures empty automatic-script payloads are rejected instead of being treated as legacy default instances.
         /// </summary>
         [Fact]
-        public void DeserializeComponent_WhenAutomaticScriptPayloadIsEmpty_ReturnsDefaultComponentState() {
+        public void DeserializeComponent_WhenAutomaticScriptPayloadIsEmpty_ThrowsUnsupportedPayloadVersion() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
                 ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestUpdateOnlyScriptComponent)),
@@ -78,9 +78,8 @@ namespace helengine.editor.tests.serialization.scene {
                 Payload = Array.Empty<byte>()
             };
 
-            TestUpdateOnlyScriptComponent component = Assert.IsType<TestUpdateOnlyScriptComponent>(descriptor.DeserializeComponent(record, null, null));
-
-            Assert.Equal((byte)0, component.UpdateOrder);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => descriptor.DeserializeComponent(record, null, null));
+            Assert.Contains("Automatic script component payload must use the current tagged scene payload format.", exception.Message);
         }
 
         /// <summary>

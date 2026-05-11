@@ -653,7 +653,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Deserializes one automatic scripted component for packaging, treating legacy empty payloads as a default instance whose reflected members all remain at their type defaults.
+        /// Deserializes one automatic scripted component for packaging through its resolved persistence descriptor.
         /// </summary>
         /// <param name="record">Serialized component record being packaged.</param>
         /// <param name="descriptor">Resolved persistence descriptor for the component type.</param>
@@ -666,59 +666,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(descriptor));
             }
 
-            if (descriptor is AutomaticScriptComponentPersistenceDescriptor && (record.Payload == null || record.Payload.Length == 0)) {
-                Type componentType = ResolveAutomaticComponentType(record.ComponentTypeId);
-                return CreateAutomaticComponentInstance(componentType);
-            }
-
             return descriptor.DeserializeComponent(record, null, null);
-        }
-
-        /// <summary>
-        /// Resolves one scripted component type id for automatic packaging.
-        /// </summary>
-        /// <param name="componentTypeId">Serialized scripted component type identifier.</param>
-        /// <returns>Resolved scripted component type.</returns>
-        Type ResolveAutomaticComponentType(string componentTypeId) {
-            if (string.IsNullOrWhiteSpace(componentTypeId)) {
-                throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
-            }
-
-            Type componentType = Type.GetType(componentTypeId, false);
-            if (componentType == null && ScriptTypeResolver != null) {
-                componentType = ScriptTypeResolver.Resolve(componentTypeId);
-            }
-            if (componentType == null) {
-                throw new InvalidOperationException($"Scripted component type '{componentTypeId}' could not be resolved.");
-            }
-
-            return componentType;
-        }
-
-        /// <summary>
-        /// Creates one scripted component instance for automatic packaging when no persisted member payload is required.
-        /// </summary>
-        /// <param name="componentType">Resolved scripted component type to instantiate.</param>
-        /// <returns>Instantiated scripted component.</returns>
-        static Component CreateAutomaticComponentInstance(Type componentType) {
-            if (componentType == null) {
-                throw new ArgumentNullException(nameof(componentType));
-            }
-            if (!typeof(Component).IsAssignableFrom(componentType)) {
-                throw new InvalidOperationException($"Automatic script-component packaging requires a {nameof(Component)} type.");
-            }
-
-            ConstructorInfo constructor = componentType.GetConstructor(Type.EmptyTypes);
-            if (constructor == null || !constructor.IsPublic) {
-                throw new InvalidOperationException($"Scripted component type '{componentType.FullName}' must expose a public parameterless constructor.");
-            }
-
-            object instance = Activator.CreateInstance(componentType);
-            if (instance is not Component component) {
-                throw new InvalidOperationException($"Scripted component type '{componentType.FullName}' could not be instantiated.");
-            }
-
-            return component;
         }
 
         /// <summary>

@@ -112,10 +112,10 @@ public sealed class EditorProjectLocalSettingsServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures the service migrates legacy local settings from `settings/project.json` into `user_settings/project.json`.
+    /// Ensures legacy local settings under `settings/project.json` are ignored in favor of the current user-settings file.
     /// </summary>
     [Fact]
-    public void LoadActivePlatform_WhenLegacySettingsExist_MigratesToUserSettingsAndDeletesLegacyFile() {
+    public void LoadActivePlatform_WhenLegacySettingsExist_IgnoresThemAndSeedsCurrentUserSettings() {
         WriteLegacySettingsFile(
             """
             {
@@ -126,9 +126,9 @@ public sealed class EditorProjectLocalSettingsServiceTests : IDisposable {
 
         string activePlatform = service.LoadActivePlatform();
 
-        Assert.Equal("android", activePlatform);
-        Assert.Equal("android", ReadActivePlatformFromDisk());
-        Assert.False(File.Exists(Path.Combine(TempProjectRootPath, "settings", "project.json")));
+        Assert.Equal("windows", activePlatform);
+        Assert.Equal("windows", ReadActivePlatformFromDisk());
+        Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "settings", "project.json")));
     }
 
     /// <summary>

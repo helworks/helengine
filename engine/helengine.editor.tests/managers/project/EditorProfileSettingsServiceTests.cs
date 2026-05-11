@@ -62,6 +62,37 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the service ignores the legacy combined profile document under `user_settings/profile_config.json`.
+        /// </summary>
+        [Fact]
+        public void Load_WhenLegacyCombinedProfileDocumentExists_IgnoresItAndSeedsCurrentPlatformFiles() {
+            Directory.CreateDirectory(Path.Combine(TempRootPath, "user_settings"));
+            File.WriteAllText(
+                Path.Combine(TempRootPath, "user_settings", "profile_config.json"),
+                """
+                {
+                  "platforms": [
+                    {
+                      "platformId": "windows",
+                      "build": {
+                        "textureScalePercent": 25
+                      }
+                    }
+                  ]
+                }
+                """);
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+
+            EditorProfileSettingsDocument document = service.Load(new List<string> { "windows" });
+
+            Assert.Single(document.Platforms);
+            Assert.Equal("windows", document.Platforms[0].PlatformId);
+            Assert.Equal(100, document.Platforms[0].Build.TextureScalePercent);
+            Assert.True(File.Exists(Path.Combine(TempRootPath, "user_settings", "profile_config.json")));
+            Assert.True(File.Exists(Path.Combine(TempRootPath, "settings", "platform.windows.json")));
+        }
+
+        /// <summary>
         /// Ensures loading one supported subset leaves an unavailable platform file untouched on disk.
         /// </summary>
         [Fact]

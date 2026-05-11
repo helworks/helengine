@@ -29,15 +29,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Gets the absolute path to the legacy `user_settings/profile_config.json` file.
-        /// </summary>
-        string LegacyProfileConfigFilePath {
-            get {
-                return Path.Combine(ProjectRootPath, "user_settings", "profile_config.json");
-            }
-        }
-
-        /// <summary>
         /// Initializes one profile-settings service for the supplied project root directory.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative path to the current project root directory.</param>
@@ -87,13 +78,7 @@ namespace helengine.editor {
                 return document;
             }
 
-            document = TryLoadLegacyDocument();
-            if (document == null) {
-                return null;
-            }
-
-            Save(document);
-            return TryLoadSplitDocument();
+            return null;
         }
 
         /// <summary>
@@ -160,37 +145,6 @@ namespace helengine.editor {
             }
 
             return document;
-        }
-
-        /// <summary>
-        /// Attempts to load the legacy combined profile settings document from `user_settings/profile_config.json`.
-        /// </summary>
-        /// <returns>Loaded legacy document, or null when the file is missing or malformed.</returns>
-        EditorProfileSettingsDocument TryLoadLegacyDocument() {
-            if (!File.Exists(LegacyProfileConfigFilePath)) {
-                return null;
-            }
-
-            try {
-                string json = File.ReadAllText(LegacyProfileConfigFilePath);
-                EditorProfileSettingsDocument document = JsonSerializer.Deserialize<EditorProfileSettingsDocument>(json, JsonSerializerOptions);
-                if (document == null || document.Platforms == null) {
-                    return null;
-                }
-
-                for (int index = 0; index < document.Platforms.Count; index++) {
-                    EditorPlatformProfileSettingsDocument platform = document.Platforms[index];
-                    if (platform == null || string.IsNullOrWhiteSpace(platform.PlatformId)) {
-                        continue;
-                    }
-
-                    NormalizePlatform(platform, platform.PlatformId);
-                }
-
-                return document;
-            } catch {
-                return null;
-            }
         }
 
         /// <summary>
