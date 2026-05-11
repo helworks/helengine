@@ -205,6 +205,70 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds a cone mesh aligned to +Y with its tip at Y=0 and its base at Y=height.
+        /// </summary>
+        /// <param name="radius">Cone base radius in world units.</param>
+        /// <param name="height">Cone height in world units.</param>
+        /// <param name="segments">Segment count used for roundness.</param>
+        /// <returns>Generated cone model asset whose tip starts at the local origin.</returns>
+        public static ModelAsset CreateTipCone(float radius, float height, int segments) {
+            ValidatePrimitiveArguments(radius, height, segments);
+
+            List<float3> positions = new List<float3>(segments * 2 + 2);
+            List<float3> normals = new List<float3>(segments * 2 + 2);
+            List<float2> texCoords = new List<float2>(segments * 2 + 2);
+            List<int> indices = new List<int>(segments * 12);
+
+            double slope = radius / height;
+            for (int i = 0; i < segments; i++) {
+                double fraction = (double)i / segments;
+                double angle = fraction * Math.PI * 2.0;
+                float x = (float)(Math.Cos(angle) * radius);
+                float z = (float)(Math.Sin(angle) * radius);
+                float3 sideNormal = Normalize3(new float3(x, (float)(-slope), z));
+
+                positions.Add(new float3(x, height, z));
+                normals.Add(sideNormal);
+                texCoords.Add(new float2((float)fraction, 1f));
+            }
+
+            int tipIndex = positions.Count;
+            positions.Add(new float3(0f, 0f, 0f));
+            normals.Add(new float3(0f, -1f, 0f));
+            texCoords.Add(new float2(0.5f, 0f));
+
+            for (int i = 0; i < segments; i++) {
+                int current = i;
+                int next = (i + 1) % segments;
+                AddDoubleSidedTriangle(indices, tipIndex, current, next);
+            }
+
+            int baseCenterIndex = positions.Count;
+            positions.Add(new float3(0f, height, 0f));
+            normals.Add(new float3(0f, 1f, 0f));
+            texCoords.Add(new float2(0.5f, 0.5f));
+
+            int baseRingStart = positions.Count;
+            for (int i = 0; i < segments; i++) {
+                double fraction = (double)i / segments;
+                double angle = fraction * Math.PI * 2.0;
+                float x = (float)(Math.Cos(angle) * radius);
+                float z = (float)(Math.Sin(angle) * radius);
+                positions.Add(new float3(x, height, z));
+                normals.Add(new float3(0f, 1f, 0f));
+                texCoords.Add(new float2((x / radius + 1f) * 0.5f, (z / radius + 1f) * 0.5f));
+            }
+
+            for (int i = 0; i < segments; i++) {
+                int current = baseRingStart + i;
+                int next = baseRingStart + ((i + 1) % segments);
+                AddDoubleSidedTriangle(indices, baseCenterIndex, next, current);
+            }
+
+            return CreateModelAsset(positions, normals, texCoords, indices);
+        }
+
+        /// <summary>
         /// Builds a box mesh aligned to +Y with its base resting at Y=0.
         /// </summary>
         /// <param name="width">Box width along local X.</param>
@@ -797,11 +861,11 @@ namespace helengine.editor {
             texCoords.Add(new float2(0f, 1f));
 
             indices.Add(startIndex + 0);
+            indices.Add(startIndex + 2);
             indices.Add(startIndex + 1);
-            indices.Add(startIndex + 2);
             indices.Add(startIndex + 0);
-            indices.Add(startIndex + 2);
             indices.Add(startIndex + 3);
+            indices.Add(startIndex + 2);
         }
 
         /// <summary>

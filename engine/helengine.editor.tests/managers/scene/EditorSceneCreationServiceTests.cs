@@ -316,10 +316,10 @@ namespace helengine.editor.tests.managers.scene {
         }
 
         /// <summary>
-        /// Ensures the spot-light visual cone extends along the engine forward direction on the local negative Z axis.
+        /// Ensures the spot-light visual cone points along the engine forward direction with its tip at the light origin.
         /// </summary>
         [Fact]
-        public void CreateSpotLightVisual_WhenBuilt_PointsTowardNegativeZ() {
+        public void CreateSpotLightVisual_WhenBuilt_HasTipAtOriginAndPointsTowardNegativeZ() {
             MethodInfo createModelAssetMethod = typeof(EditorSpotLightVisualResources).GetMethod("CreateModelAsset", BindingFlags.NonPublic | BindingFlags.Static);
             Assert.NotNull(createModelAssetMethod);
 
@@ -328,14 +328,28 @@ namespace helengine.editor.tests.managers.scene {
 
             float minZ = float.MaxValue;
             float maxZ = float.MinValue;
+            float tipRadius = float.MaxValue;
+            float baseRadius = float.MinValue;
             for (int index = 0; index < modelAsset.Positions.Length; index++) {
-                float z = modelAsset.Positions[index].Z;
+                float3 position = modelAsset.Positions[index];
+                float z = position.Z;
+                float horizontalRadius = (float)Math.Sqrt((position.X * position.X) + (position.Y * position.Y));
                 minZ = Math.Min(minZ, z);
                 maxZ = Math.Max(maxZ, z);
+
+                if (Math.Abs(z - maxZ) < 0.0001f) {
+                    tipRadius = Math.Min(tipRadius, horizontalRadius);
+                }
+
+                if (Math.Abs(z - minZ) < 0.0001f) {
+                    baseRadius = Math.Max(baseRadius, horizontalRadius);
+                }
             }
 
             Assert.True(minZ < -0.1f);
             Assert.InRange(Math.Abs(maxZ - 0f), 0f, 0.0001f);
+            Assert.InRange(tipRadius, 0f, 0.0001f);
+            Assert.True(baseRadius > 0.1f);
         }
 
         /// <summary>

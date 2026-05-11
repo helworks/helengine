@@ -51,7 +51,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Builds one combined spot-light model from a forward cone.
+        /// Builds one combined spot-light model from a forward cone that starts at the light origin.
         /// </summary>
         /// <returns>Raw model asset representing the editor spot-light visual.</returns>
         static ModelAsset CreateModelAsset() {
@@ -65,7 +65,7 @@ namespace helengine {
                 normals,
                 texCoords,
                 indices,
-                helengine.editor.TransformGizmoMeshFactory.CreateCone(ConeRadius, ConeLength, RoundSegments),
+                helengine.editor.TransformGizmoMeshFactory.CreateTipCone(ConeRadius, ConeLength, RoundSegments),
                 CreateNegativeZAxisOrientation(),
                 float3.Zero);
 

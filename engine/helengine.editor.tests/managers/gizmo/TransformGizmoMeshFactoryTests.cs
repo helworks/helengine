@@ -117,6 +117,50 @@ namespace helengine.editor.tests.managers.gizmo {
         }
 
         /// <summary>
+        /// Ensures the tip cone generator places the tip at the local origin and the base at the requested height.
+        /// </summary>
+        [Fact]
+        public void CreateTipCone_UsesRequestedDimensionsWithTipAtZero() {
+            ModelAsset model = TransformGizmoMeshFactory.CreateTipCone(0.2f, 0.3f, 24);
+
+            float minY = float.MaxValue;
+            float maxY = float.MinValue;
+            float tipRadius = float.MaxValue;
+            float baseRadius = float.MinValue;
+
+            for (int positionIndex = 0; positionIndex < model.Positions.Length; positionIndex++) {
+                float3 position = model.Positions[positionIndex];
+                float horizontalRadius = (float)Math.Sqrt((position.X * position.X) + (position.Z * position.Z));
+
+                minY = Math.Min(minY, position.Y);
+                maxY = Math.Max(maxY, position.Y);
+
+                if (Math.Abs(position.Y - minY) < FloatTolerance) {
+                    tipRadius = Math.Min(tipRadius, horizontalRadius);
+                }
+
+                if (Math.Abs(position.Y - maxY) < FloatTolerance) {
+                    baseRadius = Math.Max(baseRadius, horizontalRadius);
+                }
+            }
+
+            Assert.InRange(Math.Abs(minY - 0.0f), 0f, FloatTolerance);
+            Assert.InRange(Math.Abs(maxY - 0.3f), 0f, FloatTolerance);
+            Assert.InRange(tipRadius, 0f, FloatTolerance);
+            Assert.True(baseRadius > 0.19f);
+        }
+
+        /// <summary>
+        /// Ensures the box generator winds every face to match its authored outward-facing normals.
+        /// </summary>
+        [Fact]
+        public void CreateBox_WindsTrianglesToMatchFaceNormals() {
+            ModelAsset model = TransformGizmoMeshFactory.CreateBox(0.2f, 0.3f, 0.4f);
+
+            AssertAllTrianglesFollowVertexNormals(model);
+        }
+
+        /// <summary>
         /// Ensures the sphere generator produces vertices at the expected pole and equator positions.
         /// </summary>
         [Fact]
@@ -159,6 +203,36 @@ namespace helengine.editor.tests.managers.gizmo {
         [InlineData(1f, 2)]
         public void CreateSphere_ThrowsWhenArgumentsAreInvalid(float radius, int segments) {
             Assert.Throws<ArgumentOutOfRangeException>(() => TransformGizmoMeshFactory.CreateSphere(radius, segments));
+        }
+
+        /// <summary>
+        /// Verifies that every indexed triangle in one generated model asset has a geometric face normal aligned with its authored vertex normals.
+        /// </summary>
+        /// <param name="model">Generated model asset to validate.</param>
+        void AssertAllTrianglesFollowVertexNormals(ModelAsset model) {
+            Assert.NotNull(model);
+            Assert.NotNull(model.Positions);
+            Assert.NotNull(model.Normals);
+            Assert.NotNull(model.Indices16);
+
+            for (int triangleStart = 0; triangleStart < model.Indices16.Length; triangleStart += 3) {
+                ushort index0 = model.Indices16[triangleStart];
+                ushort index1 = model.Indices16[triangleStart + 1];
+                ushort index2 = model.Indices16[triangleStart + 2];
+
+                float3 position0 = model.Positions[index0];
+                float3 position1 = model.Positions[index1];
+                float3 position2 = model.Positions[index2];
+                float3 edge1 = position1 - position0;
+                float3 edge2 = position2 - position0;
+                float3 geometricNormal = float3.Normalize(float3.Cross(edge1, edge2));
+                float3 authoredNormal = float3.Normalize(model.Normals[index0]);
+                float alignment = float3.Dot(geometricNormal, authoredNormal);
+
+                Assert.True(
+                    alignment > 0.5f,
+                    $"Triangle starting at index {triangleStart} winds against its authored normal. Alignment={alignment}.");
+            }
         }
 
         /// <summary>
