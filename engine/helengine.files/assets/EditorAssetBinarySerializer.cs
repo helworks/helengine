@@ -374,6 +374,10 @@ namespace helengine.files {
             writer.WriteInt32((int)asset.LightingMode);
             writer.WriteInt32((int)asset.AlphaMode);
             writer.WriteInt32((int)asset.RenderClass);
+            writer.WriteByte(asset.BaseColorR);
+            writer.WriteByte(asset.BaseColorG);
+            writer.WriteByte(asset.BaseColorB);
+            writer.WriteByte(asset.BaseColorA);
             writer.WriteString(asset.TextureRelativePath);
             writer.WriteByte(asset.DoubleSided ? (byte)1 : (byte)0);
             writer.WriteByte(asset.CastShadows ? (byte)1 : (byte)0);
@@ -396,6 +400,10 @@ namespace helengine.files {
                 LightingMode = (Ps2MaterialLightingMode)reader.ReadInt32(),
                 AlphaMode = (Ps2MaterialAlphaMode)reader.ReadInt32(),
                 RenderClass = (Ps2RenderClass)reader.ReadInt32(),
+                BaseColorR = reader.ReadByte(),
+                BaseColorG = reader.ReadByte(),
+                BaseColorB = reader.ReadByte(),
+                BaseColorA = reader.ReadByte(),
                 TextureRelativePath = reader.ReadString(),
                 DoubleSided = reader.ReadByte() != 0,
                 CastShadows = reader.ReadByte() != 0,
