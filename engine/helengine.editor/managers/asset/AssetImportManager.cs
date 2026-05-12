@@ -785,7 +785,12 @@ namespace helengine.editor {
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
             AssetImportSettings settings = null;
-            bool loadedFromDisk = settingsFileExists && TryLoadImportSettings(settingsPath, out settings);
+            bool loadedFromDisk = false;
+            try {
+                loadedFromDisk = settingsFileExists && TryLoadImportSettings(settingsPath, out settings);
+            } catch (Exception ex) {
+                throw new InvalidOperationException($"Failed to load generic import settings for source '{sourcePath}'.", ex);
+            }
             bool repaired = false;
             if (!loadedFromDisk) {
                 settings = CreateDefaultSettings(sourcePath);
@@ -1266,13 +1271,17 @@ namespace helengine.editor {
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
-            if (settingsFileExists && TryLoadImportSettings(settingsPath, out settings)) {
-                bool repaired = RepairLoadedImportSettings(sourcePath, settings);
-                UpdateSettingsChecksum(settings, sourcePath);
-                if (repaired) {
-                    SaveImportSettings(sourcePath, settings);
+            try {
+                if (settingsFileExists && TryLoadImportSettings(settingsPath, out settings)) {
+                    bool repaired = RepairLoadedImportSettings(sourcePath, settings);
+                    UpdateSettingsChecksum(settings, sourcePath);
+                    if (repaired) {
+                        SaveImportSettings(sourcePath, settings);
+                    }
+                    return true;
                 }
-                return true;
+            } catch (Exception ex) {
+                throw new InvalidOperationException($"Failed to load generic import settings for source '{sourcePath}'.", ex);
             }
 
             if (!TryCreateDefaultSettings(sourcePath, out settings)) {
@@ -1665,7 +1674,12 @@ namespace helengine.editor {
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
             ModelAssetImportSettings settings = null;
-            bool loadedFromDisk = settingsFileExists && TryLoadModelImportSettings(settingsPath, out settings);
+            bool loadedFromDisk = false;
+            try {
+                loadedFromDisk = settingsFileExists && TryLoadModelImportSettings(settingsPath, out settings);
+            } catch (Exception ex) {
+                throw new InvalidOperationException($"Failed to load model import settings for source '{sourcePath}'.", ex);
+            }
             bool repaired = false;
             if (!loadedFromDisk) {
                 settings = CreateDefaultModelImportSettings(sourcePath);
@@ -1712,13 +1726,17 @@ namespace helengine.editor {
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
-            if (settingsFileExists && TryLoadModelImportSettings(settingsPath, out settings)) {
-                bool repaired = RepairModelImporterId(sourcePath, settings);
-                UpdateModelImportSettingsChecksum(settings, sourcePath);
-                if (repaired) {
-                    SaveModelImportSettings(sourcePath, settings);
+            try {
+                if (settingsFileExists && TryLoadModelImportSettings(settingsPath, out settings)) {
+                    bool repaired = RepairModelImporterId(sourcePath, settings);
+                    UpdateModelImportSettingsChecksum(settings, sourcePath);
+                    if (repaired) {
+                        SaveModelImportSettings(sourcePath, settings);
+                    }
+                    return true;
                 }
-                return true;
+            } catch (Exception ex) {
+                throw new InvalidOperationException($"Failed to load model import settings for source '{sourcePath}'.", ex);
             }
 
             if (!TryCreateDefaultModelImportSettings(sourcePath, out settings)) {

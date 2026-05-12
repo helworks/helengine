@@ -1991,8 +1991,8 @@ namespace helengine.editor {
         /// <returns>Packaged file-backed texture reference.</returns>
         SceneAssetReference RewriteFileSystemTextureReference(SceneAssetReference reference, string buildRootPath) {
             string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
-            AssetImportSettings settings;
-            if (!AssetImportManager.TryLoadOrCreateImportSettings(sourcePath, out settings) || settings == null) {
+            TextureAssetImportSettings settings;
+            if (!AssetImportManager.TryLoadOrCreateTextureImportSettings(sourcePath, out settings) || settings == null) {
                 throw new InvalidOperationException($"Texture source '{reference.RelativePath}' could not create import settings for packaging.");
             }
             if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
