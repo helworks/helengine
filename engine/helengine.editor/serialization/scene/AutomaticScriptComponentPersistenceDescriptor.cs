@@ -88,17 +88,79 @@ namespace helengine.editor {
                 return component;
             }
 
-            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(payload);
-            for (int index = 0; index < schema.Members.Count; index++) {
-                ScriptComponentReflectionMember member = schema.Members[index];
-                if (reader.TryGetFieldReader(member.Name, out EngineBinaryReader fieldReader)) {
-                    using (fieldReader) {
-                        member.SetValue(component, ReadSupportedValue(fieldReader, member.ValueType));
-                    }
-                }
+            if (TryDeserializeTaggedPayload(component, schema, payload)) {
+                return component;
             }
 
+            DeserializeRuntimePayload(component, schema, payload);
             return component;
+        }
+
+        /// <summary>
+        /// Attempts to deserialize one payload through the tolerant tagged editor scene-component format.
+        /// </summary>
+        /// <param name="component">Target component instance receiving restored member values.</param>
+        /// <param name="schema">Reflected schema that defines the member layout.</param>
+        /// <param name="payload">Serialized component payload bytes.</param>
+        /// <returns>True when the payload matched the tagged editor format; otherwise false.</returns>
+        static bool TryDeserializeTaggedPayload(Component component, ScriptComponentReflectionSchema schema, byte[] payload) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            } else if (schema == null) {
+                throw new ArgumentNullException(nameof(schema));
+            } else if (payload == null) {
+                throw new ArgumentNullException(nameof(payload));
+            }
+
+            try {
+                EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(payload);
+                for (int index = 0; index < schema.Members.Count; index++) {
+                    ScriptComponentReflectionMember member = schema.Members[index];
+                    if (reader.TryGetFieldReader(member.Name, out EngineBinaryReader fieldReader)) {
+                        using (fieldReader) {
+                            member.SetValue(component, ReadSupportedValue(fieldReader, member.ValueType));
+                        }
+                    }
+                }
+
+                return true;
+            } catch (Exception ex) when (ex is EndOfStreamException || ex is InvalidOperationException) {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Deserializes one payload through the strict ordinal runtime scripted-component format.
+        /// </summary>
+        /// <param name="component">Target component instance receiving restored member values.</param>
+        /// <param name="schema">Reflected schema that defines the member layout.</param>
+        /// <param name="payload">Serialized component payload bytes.</param>
+        static void DeserializeRuntimePayload(Component component, ScriptComponentReflectionSchema schema, byte[] payload) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            } else if (schema == null) {
+                throw new ArgumentNullException(nameof(schema));
+            } else if (payload == null) {
+                throw new ArgumentNullException(nameof(payload));
+            }
+
+            using MemoryStream stream = new MemoryStream(payload, false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != AutomaticScriptComponentRuntimeDeserializer.CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported automatic scripted component payload version '{version}'.");
+            }
+
+            int memberCount = reader.ReadInt32();
+            if (memberCount != schema.Members.Count) {
+                throw new InvalidOperationException(
+                    $"Automatic scripted component payload expected {schema.Members.Count} members but contained {memberCount}.");
+            }
+
+            for (int index = 0; index < schema.Members.Count; index++) {
+                ScriptComponentReflectionMember member = schema.Members[index];
+                member.SetValue(component, ReadSupportedValue(reader, member.ValueType));
+            }
         }
 
         /// <summary>

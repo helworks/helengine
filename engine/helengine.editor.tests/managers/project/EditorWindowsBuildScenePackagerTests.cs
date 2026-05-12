@@ -1517,6 +1517,47 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures tagged camera payloads on ordinary authored scene components package into runtime scenes without failing the shared transform path.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsTaggedCameraComponent_WritesPackagedScene() {
+            string sceneId = "Scenes/TaggedCameraScene.helen";
+            SceneComponentAssetRecord cameraRecord = CreateTaggedCameraComponentRecord();
+
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "camera-root",
+                        Name = "CameraRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            cameraRecord
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            });
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "windows");
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
+            SceneComponentAssetRecord packagedCameraRecord = Assert.Single(
+                packagedRoot.Components,
+                component => string.Equals(component.ComponentTypeId, "helengine.CameraComponent", StringComparison.Ordinal));
+
+            Assert.NotNull(packagedCameraRecord);
+        }
+
+        /// <summary>
         /// Ensures the committed point-shadow smoke scene packages without failing the component rewrite pipeline.
         /// </summary>
         [Fact]
@@ -1538,6 +1579,114 @@ namespace helengine.editor.tests {
 
             Assert.NotNull(result);
             Assert.True(File.Exists(GetPackagedScenePath(BuildRootPath, sceneId)));
+        }
+
+        /// <summary>
+        /// Ensures zero-member automatic script components authored in runtime payload form package without being re-read as tagged editor payloads.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsRuntimeEncodedZeroMemberAutomaticScriptComponent_PackagesSuccessfully() {
+            string sceneId = "Scenes/ReturnToMenuScene.helen";
+            byte[] payload;
+            using (MemoryStream stream = new MemoryStream()) {
+                using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+                writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+                writer.WriteInt32(1);
+                writer.WriteByte(0);
+                payload = stream.ToArray();
+            }
+
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "return-root",
+                        Name = "ReturnRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "city.menu.DemoDiscReturnToMenuComponent, gameplay",
+                                ComponentIndex = 0,
+                                Payload = payload
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            });
+
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition,
+                null,
+                new FakeScriptTypeResolver(typeof(TestDemoDiscReturnToMenuComponent)));
+
+            EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
+            Assert.NotNull(result);
+            Assert.True(File.Exists(GetPackagedScenePath(BuildRootPath, sceneId)));
+        }
+
+        /// <summary>
+        /// Ensures runtime directional-shadow tower-spin records remain supported when a scene already contains the built-in packaged component id.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneContainsRuntimeDirectionalShadowTowerSpin_PreservesSupportedRuntimeRecord() {
+            string sceneId = "Scenes/RuntimeDirectionalShadowTowerSpin.helen";
+            byte[] payload;
+            using (MemoryStream stream = new MemoryStream()) {
+                using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+                writer.WriteByte(DirectionalShadowMotionComponentScenePayloadSerializer.CurrentVersion);
+                DirectionalShadowMotionComponentScenePayloadSerializer.WriteTowerSpin(
+                    writer,
+                    new DirectionalShadowTowerSpinComponent {
+                        BaseYawRadians = 0.5f,
+                        AngularSpeedRadians = 1.25f
+                    });
+                payload = stream.ToArray();
+            }
+
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = "tower-root",
+                        Name = "TowerRoot",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = DirectionalShadowTowerSpinComponent.SerializedComponentTypeId,
+                                ComponentIndex = 0,
+                                Payload = payload
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            });
+
+            PlatformDefinition platformDefinition = CreateWindowsPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                platformDefinition);
+
+            EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
+            Assert.NotNull(result);
+
+            SceneAsset packagedScene;
+            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
+                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
+            Assert.Equal(DirectionalShadowTowerSpinComponent.SerializedComponentTypeId, packagedRecord.ComponentTypeId);
+            Assert.Equal(payload, packagedRecord.Payload);
         }
 
         /// <summary>
