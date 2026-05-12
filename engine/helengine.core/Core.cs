@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace helengine {
     /// <summary>
     /// Central runtime coordinating managers, lifecycle, and shared services.
@@ -35,6 +37,18 @@ namespace helengine {
         /// Registry that stores the active textbox shortcut bindings.
         /// </summary>
         TextBoxShortcutRegistry TextBoxShortcutRegistryValue;
+        /// <summary>
+        /// Tracks elapsed wall-clock time for the parameterless update path.
+        /// </summary>
+        readonly Stopwatch UpdateStopwatchValue;
+        /// <summary>
+        /// Stores whether one previous measured update timestamp has been captured yet.
+        /// </summary>
+        bool HasPreviousMeasuredUpdateSeconds;
+        /// <summary>
+        /// Stores the previous measured elapsed update time returned by the host clock.
+        /// </summary>
+        double PreviousMeasuredUpdateSeconds;
 
         /// <summary>
         /// Initializes a new core instance with default initialization options.
@@ -60,6 +74,7 @@ namespace helengine {
             PointerInteractionSystem = new PointerInteractionSystem(this, Input);
             TextClipboardServiceValue = new NullTextClipboardService();
             TextBoxShortcutRegistryValue = new TextBoxShortcutRegistry();
+            UpdateStopwatchValue = Stopwatch.StartNew();
         }
 
         /// <summary>
@@ -111,6 +126,14 @@ namespace helengine {
         /// Gets the elapsed time, in seconds, that was applied during the most recent update.
         /// </summary>
         public double FrameDeltaSeconds { get; private set; }
+        /// <summary>
+        /// Gets the elapsed scaled update time, in seconds, that components can read during the current update.
+        /// </summary>
+        public float DeltaTime { get; private set; }
+        /// <summary>
+        /// Gets the elapsed unscaled update time, in seconds, that components can read during the current update.
+        /// </summary>
+        public float UnscaledDeltaTime { get; private set; }
 
         /// <summary>
         /// Gets the accumulated update time, in seconds, since this core instance started running.
@@ -296,10 +319,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Advances the engine update loop for objects and input using the configured default frame delta.
+        /// Advances the engine update loop using real elapsed time measured between parameterless update calls.
         /// </summary>
         public virtual void Update() {
-            Update(InitializationOptions.DefaultUpdateDeltaSeconds);
+            double currentMeasuredUpdateSeconds = GetCurrentMeasuredUpdateSeconds();
+            double elapsedSeconds = ResolveMeasuredElapsedSeconds(currentMeasuredUpdateSeconds);
+            AdvanceUpdate(elapsedSeconds, currentMeasuredUpdateSeconds);
         }
 
         /// <summary>
@@ -308,20 +333,8 @@ namespace helengine {
         /// <param name="elapsedSeconds">Elapsed frame time in seconds supplied by the host runtime.</param>
         public virtual void Update(double elapsedSeconds) {
             ValidateElapsedSeconds(elapsedSeconds);
-            FrameDeltaSeconds = elapsedSeconds;
-            TotalElapsedSeconds += elapsedSeconds;
-
-            Input.EarlyUpdate();
-            FPSComponent.RecordUpdateFrame();
-
-            ObjectManager.Update();
-            if (SceneManager != null) {
-                SceneManager.FlushPendingOperations();
-            }
-            UpdatePhysics(elapsedSeconds);
-
-            Input.Update();
-            PointerInteractionSystem.Update();
+            double currentMeasuredUpdateSeconds = GetCurrentMeasuredUpdateSeconds();
+            AdvanceUpdate(elapsedSeconds, currentMeasuredUpdateSeconds);
         }
 
         /// <summary>
@@ -352,6 +365,54 @@ namespace helengine {
             if (elapsedSeconds < 0d) {
                 throw new ArgumentOutOfRangeException(nameof(elapsedSeconds), "Elapsed frame time cannot be negative.");
             }
+        }
+
+        /// <summary>
+        /// Returns the current measured elapsed time used to resolve parameterless update deltas.
+        /// </summary>
+        /// <returns>Total elapsed wall-clock seconds from the active host clock.</returns>
+        protected virtual double GetCurrentMeasuredUpdateSeconds() {
+            return UpdateStopwatchValue.Elapsed.TotalMilliseconds / 1000d;
+        }
+
+        /// <summary>
+        /// Computes elapsed seconds from the measured update time stream.
+        /// </summary>
+        /// <param name="currentMeasuredUpdateSeconds">Current measured elapsed update time in seconds.</param>
+        /// <returns>Elapsed seconds since the previous measured update, or zero on the first update.</returns>
+        double ResolveMeasuredElapsedSeconds(double currentMeasuredUpdateSeconds) {
+            if (!HasPreviousMeasuredUpdateSeconds) {
+                return 0d;
+            }
+
+            return currentMeasuredUpdateSeconds - PreviousMeasuredUpdateSeconds;
+        }
+
+        /// <summary>
+        /// Applies one elapsed update slice to cached timing state and the normal update pipeline.
+        /// </summary>
+        /// <param name="elapsedSeconds">Elapsed update time in seconds.</param>
+        /// <param name="currentMeasuredUpdateSeconds">Current measured elapsed update time captured for this update.</param>
+        void AdvanceUpdate(double elapsedSeconds, double currentMeasuredUpdateSeconds) {
+            float elapsedSecondsFloat = (float)elapsedSeconds;
+            FrameDeltaSeconds = elapsedSeconds;
+            UnscaledDeltaTime = elapsedSecondsFloat;
+            DeltaTime = elapsedSecondsFloat;
+            TotalElapsedSeconds += elapsedSeconds;
+            PreviousMeasuredUpdateSeconds = currentMeasuredUpdateSeconds;
+            HasPreviousMeasuredUpdateSeconds = true;
+
+            Input.EarlyUpdate();
+            FPSComponent.RecordUpdateFrame();
+
+            ObjectManager.Update();
+            if (SceneManager != null) {
+                SceneManager.FlushPendingOperations();
+            }
+            UpdatePhysics(elapsedSeconds);
+
+            Input.Update();
+            PointerInteractionSystem.Update();
         }
 
         /// <summary>

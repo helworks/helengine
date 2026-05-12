@@ -34,7 +34,7 @@ namespace helengine {
         public int RenderList3DInitialCapacity { get; set; } = 64;
 
         /// <summary>
-        /// Gets or sets the default elapsed update time used when hosts call the parameterless core update path.
+        /// Gets or sets the default elapsed update time available to hosts that choose to drive <see cref="Core.Update(double)"/> explicitly.
         /// </summary>
         public double DefaultUpdateDeltaSeconds { get; set; } = 1.0d / 60.0d;
 

@@ -36,7 +36,13 @@ namespace helengine {
 
         /// <inheritdoc />
         public override void Update() {
-            Update(InitializationOptions.DefaultUpdateDeltaSeconds);
+            ComponentExecutionContext.EnterEditor();
+            try {
+                base.Update();
+                EditorObjectManager.Update();
+            } finally {
+                ComponentExecutionContext.ExitEditor();
+            }
         }
 
         /// <inheritdoc />
