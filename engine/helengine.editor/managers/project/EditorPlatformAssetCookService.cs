@@ -98,6 +98,8 @@ namespace helengine.editor {
                 ProjectId,
                 ProjectVersion,
                 RequiredEngineVersion,
+                ResolvePlatformName(platformDefinition, materialBuilder),
+                ResolvePlatformVersion(materialBuilder),
                 orderedSceneIds[0],
                 scenes,
                 Array.Empty<PlatformBuildAsset>(),
@@ -123,6 +125,42 @@ namespace helengine.editor {
             }
 
             return materialBuilder;
+        }
+
+        /// <summary>
+        /// Resolves the stable platform identifier that should be stamped into the cooked manifest.
+        /// </summary>
+        /// <param name="platformDefinition">Resolved platform definition selected for the current build.</param>
+        /// <param name="builder">Loaded platform builder used by the build graph.</param>
+        /// <returns>Stable platform identifier reported by the selected builder.</returns>
+        static string ResolvePlatformName(PlatformDefinition platformDefinition, IPlatformAssetBuilder builder) {
+            if (builder?.Descriptor != null && !string.IsNullOrWhiteSpace(builder.Descriptor.TargetPlatformId)) {
+                return builder.Descriptor.TargetPlatformId;
+            }
+            if (platformDefinition == null) {
+                throw new ArgumentNullException(nameof(platformDefinition));
+            }
+            if (string.IsNullOrWhiteSpace(platformDefinition.PlatformId)) {
+                throw new InvalidOperationException("Platform definition must declare a platform id.");
+            }
+
+            return platformDefinition.PlatformId;
+        }
+
+        /// <summary>
+        /// Resolves the builder-stamped platform version that should be reported by the running artifact.
+        /// </summary>
+        /// <param name="builder">Loaded platform builder used by the build graph.</param>
+        /// <returns>Builder-stamped runtime platform version string.</returns>
+        static string ResolvePlatformVersion(IPlatformAssetBuilder builder) {
+            if (builder?.Descriptor == null) {
+                throw new InvalidOperationException("Platform builder descriptor is required to stamp runtime platform version metadata.");
+            }
+            if (string.IsNullOrWhiteSpace(builder.Descriptor.BuilderVersion)) {
+                throw new InvalidOperationException("Platform builder descriptor must declare a builder version.");
+            }
+
+            return builder.Descriptor.BuilderVersion;
         }
 
         PlatformBuildScene[] BuildSceneEntries(IReadOnlyList<string> orderedSceneIds, IReadOnlyList<string> orderedScenePaths, string outputRootPath) {

@@ -501,7 +501,7 @@ namespace helengine.editor {
             this.core.DefaultFontAsset = this.uiFont;
 
             EditorKeyboardFocusService.Reset();
-            core.Initialize(render3D, render2D, input);
+            core.Initialize(render3D, render2D, input, CreateEditorPlatformInfo());
             EditorComponentAddCatalog.Initialize();
             core.Input.SetKeyboardActive(true);
 
@@ -4470,6 +4470,14 @@ namespace helengine.editor {
             }
 
             return projectDocument.Version;
+        }
+
+        /// <summary>
+        /// Creates the explicit runtime platform metadata injected into the editor-owned core instance.
+        /// </summary>
+        /// <returns>Stable editor host platform metadata used by runtime systems during editor execution.</returns>
+        PlatformInfo CreateEditorPlatformInfo() {
+            return new PlatformInfo("editor", RequiredEngineVersion);
         }
 
         /// <summary>

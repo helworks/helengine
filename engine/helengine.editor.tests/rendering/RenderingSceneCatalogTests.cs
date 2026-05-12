@@ -35,7 +35,7 @@ namespace helengine.editor.tests.rendering {
             Core = new Core(new CoreInitializationOptions {
                 ContentRootPath = repositoryRootPath
             });
-            Core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null);
+            Core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>

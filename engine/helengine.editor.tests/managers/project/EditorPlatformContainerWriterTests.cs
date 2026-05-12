@@ -32,6 +32,8 @@ namespace helengine.editor.tests.managers.project {
                 "project",
                 "1.0.0",
                 "1.0.0-engine",
+                "windows",
+                "2026.05.12",
                 Array.Empty<PlatformBuildScene>(),
                 Array.Empty<PlatformBuildAsset>());
 

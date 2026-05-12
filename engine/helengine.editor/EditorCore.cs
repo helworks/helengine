@@ -28,8 +28,9 @@ namespace helengine {
             RenderManager3D render3D,
             RenderManager2D render2D,
             IInputBackend input,
+            PlatformInfo platformInfo,
             CoreInitializationOptions options) {
-            base.Initialize(render3D, render2D, input, options);
+            base.Initialize(render3D, render2D, input, platformInfo, options);
 
             EditorObjectManager = new ObjectManager(InitializationOptions);
         }

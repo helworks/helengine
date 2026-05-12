@@ -127,6 +127,10 @@ namespace helengine {
         /// </summary>
         public double FrameDeltaSeconds { get; private set; }
         /// <summary>
+        /// Gets the platform metadata injected by the active host during core initialization.
+        /// </summary>
+        public PlatformInfo PlatformInfo { get; private set; }
+        /// <summary>
         /// Gets the elapsed scaled update time, in seconds, that components can read during the current update.
         /// </summary>
         public float DeltaTime { get; private set; }
@@ -200,8 +204,9 @@ namespace helengine {
         /// <param name="render3D">3D renderer instance.</param>
         /// <param name="render2D">2D renderer instance.</param>
         /// <param name="input">Platform-specific input backend instance.</param>
-        public virtual void Initialize(RenderManager3D render3D, RenderManager2D render2D, IInputBackend input) {
-            Initialize(render3D, render2D, input, InitializationOptions);
+        /// <param name="platformInfo">Runtime platform metadata injected by the active host.</param>
+        public virtual void Initialize(RenderManager3D render3D, RenderManager2D render2D, IInputBackend input, PlatformInfo platformInfo) {
+            Initialize(render3D, render2D, input, platformInfo, InitializationOptions);
         }
 
         /// <summary>
@@ -210,15 +215,22 @@ namespace helengine {
         /// <param name="render3D">3D renderer instance.</param>
         /// <param name="render2D">2D renderer instance.</param>
         /// <param name="input">Platform-specific input backend instance.</param>
+        /// <param name="platformInfo">Runtime platform metadata injected by the active host.</param>
         /// <param name="options">Initialization options that control ordering and list sizing.</param>
         public virtual void Initialize(
             RenderManager3D render3D,
             RenderManager2D render2D,
             IInputBackend input,
+            PlatformInfo platformInfo,
             CoreInitializationOptions options) {
+            if (platformInfo == null) {
+                throw new ArgumentNullException(nameof(platformInfo));
+            }
+
             RenderManager3D = render3D;
             RenderManager2D = render2D;
             Input.SetBackend(input);
+            PlatformInfo = platformInfo;
 
             if (options == null) {
                 throw new ArgumentNullException(nameof(options));

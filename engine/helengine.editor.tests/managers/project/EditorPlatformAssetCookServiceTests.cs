@@ -57,22 +57,14 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
                 new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" })
             },
             null);
+        TestPlatformMaterialAssetBuilder builder = new TestPlatformMaterialAssetBuilder();
 
         PlatformBuildManifest manifest = service.Cook(
-            new helengine.baseplatform.Definitions.PlatformDefinition(
-                "windows",
-                "Windows",
-                Array.Empty<helengine.baseplatform.Definitions.PlatformBuildProfileDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformGraphicsProfileDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformAssetRequirementDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformMaterialSchemaDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformComponentSupportRule>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformCodegenProfileDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformStorageProfileDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformMediaProfileDefinition>()),
+            builder.Definition,
             new[] { "MainMenu", "Level01" },
             BuildRootPath,
-            new[] { "windows" });
+            new[] { "windows" },
+            builder);
 
         Assert.Equal("MainMenu", manifest.StartupSceneId);
         Assert.Contains(manifest.CookedArtifacts, artifact => artifact.RelativePath.EndsWith(".hasset", StringComparison.OrdinalIgnoreCase));
@@ -103,22 +95,14 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             "1.0.0",
             Array.Empty<IAssetImporterRegistration>(),
             null);
+        TestPlatformMaterialAssetBuilder builder = new TestPlatformMaterialAssetBuilder();
 
         PlatformBuildManifest manifest = service.Cook(
-            new helengine.baseplatform.Definitions.PlatformDefinition(
-                "windows",
-                "Windows",
-                Array.Empty<helengine.baseplatform.Definitions.PlatformBuildProfileDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformGraphicsProfileDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformAssetRequirementDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformMaterialSchemaDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformComponentSupportRule>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformCodegenProfileDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformStorageProfileDefinition>(),
-                Array.Empty<helengine.baseplatform.Definitions.PlatformMediaProfileDefinition>()),
+            builder.Definition,
             new[] { "menu", "directional_shadow_plaza" },
             BuildRootPath,
-            new[] { "windows" });
+            new[] { "windows" },
+            builder);
 
         Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "menu.hasset")));
         Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "scenes", "rendering", "directional_shadow_plaza.hasset")));

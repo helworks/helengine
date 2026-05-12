@@ -69,6 +69,8 @@ namespace helengine.editor {
                 cookedManifest.ProjectId,
                 cookedManifest.ProjectVersion,
                 cookedManifest.RequiredEngineVersion,
+                cookedManifest.PlatformName,
+                cookedManifest.PlatformVersion,
                 cookedManifest.StartupSceneId,
                 cookedManifest.Scenes,
                 cookedManifest.LooseAssets,

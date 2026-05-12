@@ -92,6 +92,28 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures core initialization records the supplied platform metadata for runtime consumers.
+        /// </summary>
+        [Fact]
+        public void Initialize_WithPlatformInfo_StoresPlatformInfo() {
+            Core core = new Core();
+
+            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), TestPlatformInfo.Shared);
+
+            Assert.Same(TestPlatformInfo.Shared, core.PlatformInfo);
+        }
+
+        /// <summary>
+        /// Ensures core initialization rejects missing platform metadata instead of inventing defaults.
+        /// </summary>
+        [Fact]
+        public void Initialize_WithoutPlatformInfo_ThrowsArgumentNullException() {
+            Core core = new Core();
+
+            Assert.Throws<ArgumentNullException>(() => core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), (PlatformInfo)null));
+        }
+
+        /// <summary>
         /// Ensures negative elapsed frame times are rejected instead of silently corrupting timing state.
         /// </summary>
         [Fact]
@@ -109,7 +131,7 @@ namespace helengine.editor.tests {
         Core CreateCore(CoreInitializationOptions options = null) {
             CoreInitializationOptions resolvedOptions = options ?? new CoreInitializationOptions();
             Core core = new Core(resolvedOptions);
-            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), resolvedOptions);
+            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), TestPlatformInfo.Shared, resolvedOptions);
             return core;
         }
 
@@ -124,7 +146,7 @@ namespace helengine.editor.tests {
             }
 
             TestClockDrivenCore core = new TestClockDrivenCore(measuredUpdateSeconds);
-            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend());
+            core.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), TestPlatformInfo.Shared);
             return core;
         }
     }

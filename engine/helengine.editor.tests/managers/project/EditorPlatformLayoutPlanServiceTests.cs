@@ -18,6 +18,8 @@ public sealed class EditorPlatformLayoutPlanServiceTests {
                 "project",
                 "1.0.0",
                 "1.0.0-engine",
+                "windows",
+                "2026.05.12",
                 "Scenes/MainMenu.helen",
                 [
                     new PlatformBuildScene(
@@ -49,7 +51,9 @@ public sealed class EditorPlatformLayoutPlanServiceTests {
                 false,
                 false));
 
-            Assert.Equal("Scenes/MainMenu.helen", manifest.StartupSceneId);
+        Assert.Equal("Scenes/MainMenu.helen", manifest.StartupSceneId);
+        Assert.Equal("windows", manifest.PlatformName);
+        Assert.Equal("2026.05.12", manifest.PlatformVersion);
         Assert.Single(manifest.ArtifactPlacements);
         Assert.Equal("windows-loose-files", manifest.ContainerWritePlan.RuntimeSpecializationId);
         Assert.Equal("container-0", manifest.ContainerWritePlan.ContainerArtifacts[0].ContainerId);
@@ -65,6 +69,8 @@ public sealed class EditorPlatformLayoutPlanServiceTests {
                 "project",
                 "1.0.0",
                 "1.0.0-engine",
+                "windows",
+                "2026.05.12",
                 "Scenes/Menu.helen",
                 [
                     new PlatformBuildScene(

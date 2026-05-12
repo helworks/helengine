@@ -57,6 +57,8 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
             "project",
             "1.0.0",
             "1.0.0",
+            "windows",
+            "2026.05.12",
             "NewScene",
             [startupScene],
             Array.Empty<PlatformBuildAsset>(),
@@ -96,6 +98,10 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
 
         Assert.Contains("he_get_runtime_startup_scene_relative_path", startupSource);
         Assert.Contains("cooked/scenes/NewScene.hasset", startupSource);
+        Assert.Contains("he_get_runtime_platform_name", startupSource);
+        Assert.Contains("he_get_runtime_platform_version", startupSource);
+        Assert.Contains("\"windows\"", startupSource);
+        Assert.Contains("\"2026.05.12\"", startupSource);
         Assert.Contains("he_runtime_scene_catalog_entries", sceneCatalogSource);
         Assert.Contains("he_runtime_scene_cooked_relative_path", sceneCatalogSource);
         Assert.Contains("\"NewScene\"", sceneCatalogSource);

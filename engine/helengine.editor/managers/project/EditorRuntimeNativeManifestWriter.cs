@@ -39,7 +39,7 @@ namespace helengine.editor {
             string sourcePath = Path.Combine(runtimeRootPath, "runtime_startup_manifest.cpp");
 
             File.WriteAllText(headerPath, BuildStartupManifestHeaderContents());
-            File.WriteAllText(sourcePath, BuildStartupManifestSourceContents(startupSceneRelativePath));
+            File.WriteAllText(sourcePath, BuildStartupManifestSourceContents(cookedManifest, startupSceneRelativePath));
         }
 
         /// <summary>
@@ -90,6 +90,8 @@ namespace helengine.editor {
             builder.AppendLine("#pragma once");
             builder.AppendLine();
             builder.AppendLine("const char* he_get_runtime_startup_scene_relative_path();");
+            builder.AppendLine("const char* he_get_runtime_platform_name();");
+            builder.AppendLine("const char* he_get_runtime_platform_version();");
             return builder.ToString();
         }
 
@@ -118,14 +120,28 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="startupSceneRelativePath">Cooked runtime scene path embedded into the native player.</param>
         /// <returns>Generated C++ implementation text.</returns>
-        static string BuildStartupManifestSourceContents(string startupSceneRelativePath) {
+        static string BuildStartupManifestSourceContents(PlatformBuildManifest cookedManifest, string startupSceneRelativePath) {
+            if (cookedManifest == null) {
+                throw new ArgumentNullException(nameof(cookedManifest));
+            }
+
             StringBuilder builder = new();
             builder.AppendLine("#include \"runtime/runtime_startup_manifest.hpp\"");
             builder.AppendLine();
             builder.AppendLine("static const char kRuntimeStartupSceneRelativePath[] = \"" + EscapeCppStringLiteral(startupSceneRelativePath) + "\";");
+            builder.AppendLine("static const char kRuntimePlatformName[] = \"" + EscapeCppStringLiteral(cookedManifest.PlatformName) + "\";");
+            builder.AppendLine("static const char kRuntimePlatformVersion[] = \"" + EscapeCppStringLiteral(cookedManifest.PlatformVersion) + "\";");
             builder.AppendLine();
             builder.AppendLine("const char* he_get_runtime_startup_scene_relative_path() {");
             builder.AppendLine("    return kRuntimeStartupSceneRelativePath;");
+            builder.AppendLine("}");
+            builder.AppendLine();
+            builder.AppendLine("const char* he_get_runtime_platform_name() {");
+            builder.AppendLine("    return kRuntimePlatformName;");
+            builder.AppendLine("}");
+            builder.AppendLine();
+            builder.AppendLine("const char* he_get_runtime_platform_version() {");
+            builder.AppendLine("    return kRuntimePlatformVersion;");
             builder.AppendLine("}");
             return builder.ToString();
         }

@@ -11,6 +11,8 @@ public class PlatformBuildManifest {
     /// <param name="projectId">The stable project identity for the build.</param>
     /// <param name="projectVersion">The project version being built.</param>
     /// <param name="requiredEngineVersion">The exact engine version the cooked output targets.</param>
+    /// <param name="platformName">The stable target platform identifier stamped into the runtime output.</param>
+    /// <param name="platformVersion">The builder-stamped platform version reported by the runtime output.</param>
     /// <param name="startupSceneId">The startup scene chosen by build order.</param>
     /// <param name="scenes">The fully resolved scenes the builder must cook.</param>
     /// <param name="looseAssets">The fully resolved loose assets the builder must cook.</param>
@@ -27,6 +29,8 @@ public class PlatformBuildManifest {
         string projectId,
         string projectVersion,
         string requiredEngineVersion,
+        string platformName,
+        string platformVersion,
         string startupSceneId,
         PlatformBuildScene[] scenes,
         PlatformBuildAsset[] looseAssets,
@@ -42,6 +46,10 @@ public class PlatformBuildManifest {
             throw new ArgumentException("Project version is required.", nameof(projectVersion));
         } else if (string.IsNullOrWhiteSpace(requiredEngineVersion)) {
             throw new ArgumentException("Required engine version is required.", nameof(requiredEngineVersion));
+        } else if (string.IsNullOrWhiteSpace(platformName)) {
+            throw new ArgumentException("Platform name is required.", nameof(platformName));
+        } else if (string.IsNullOrWhiteSpace(platformVersion)) {
+            throw new ArgumentException("Platform version is required.", nameof(platformVersion));
         } else if (startupSceneId == null) {
             throw new ArgumentNullException(nameof(startupSceneId), "Startup scene id is required.");
         } else if (scenes == null) {
@@ -72,6 +80,8 @@ public class PlatformBuildManifest {
         ProjectId = projectId;
         ProjectVersion = projectVersion;
         RequiredEngineVersion = requiredEngineVersion;
+        PlatformName = platformName;
+        PlatformVersion = platformVersion;
         StartupSceneId = startupSceneId;
         Scenes = [.. scenes];
         LooseAssets = [.. looseAssets];
@@ -89,6 +99,8 @@ public class PlatformBuildManifest {
         string projectId,
         string projectVersion,
         string requiredEngineVersion,
+        string platformName,
+        string platformVersion,
         PlatformBuildScene[] scenes,
         PlatformBuildAsset[] looseAssets)
         : this(
@@ -96,6 +108,8 @@ public class PlatformBuildManifest {
             projectId,
             projectVersion,
             requiredEngineVersion,
+            platformName,
+            platformVersion,
             string.Empty,
             scenes,
             looseAssets,
@@ -124,6 +138,16 @@ public class PlatformBuildManifest {
     /// Gets the exact engine version the cooked output targets.
     /// </summary>
     public string RequiredEngineVersion { get; }
+
+    /// <summary>
+    /// Gets the stable target platform identifier stamped into the runtime output.
+    /// </summary>
+    public string PlatformName { get; }
+
+    /// <summary>
+    /// Gets the builder-stamped platform version reported by the runtime output.
+    /// </summary>
+    public string PlatformVersion { get; }
 
     /// <summary>
     /// Gets the startup scene chosen by build order.
