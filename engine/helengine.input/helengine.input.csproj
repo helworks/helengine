@@ -7,8 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\helengine.core\model\int2.cs" Link="int2.cs" />
-    <Compile Include="..\helengine.core\managers\input\KeyState.cs" Link="KeyState.cs" />
+    <ProjectReference Include="..\helengine.core\helengine.core.csproj" SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="*.cs" />
+    <Compile Include="TypeForwarders.cs" />
   </ItemGroup>
 
 </Project>
