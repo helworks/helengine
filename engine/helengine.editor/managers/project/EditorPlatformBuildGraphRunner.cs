@@ -641,6 +641,7 @@ namespace helengine.editor {
             string previousWorkingDirectory = Directory.GetCurrentDirectory();
             string previousPs2RepositoryRootPath = Environment.GetEnvironmentVariable(Ps2RepositoryRootEnvironmentVariableName) ?? string.Empty;
             try {
+                StageBuilderPackageSourceRoot(workspace.PackageRootPath, workspace.BuilderWorkingRootPath);
                 Directory.SetCurrentDirectory(workspace.PackageRootPath);
                 ApplyBuilderEnvironmentOverrides();
                 PlatformBuildReport report = builder.BuildAsync(request, progressReporter, diagnosticCollector, CancellationToken.None).GetAwaiter().GetResult();
@@ -705,6 +706,24 @@ namespace helengine.editor {
             if (Directory.Exists(path)) {
                 Directory.Delete(path, true);
             }
+        }
+
+        static void StageBuilderPackageSourceRoot(string packageRootPath, string builderWorkingRootPath) {
+            if (string.IsNullOrWhiteSpace(packageRootPath)) {
+                throw new ArgumentException("Package root path must be provided.", nameof(packageRootPath));
+            } else if (string.IsNullOrWhiteSpace(builderWorkingRootPath)) {
+                throw new ArgumentException("Builder working root path must be provided.", nameof(builderWorkingRootPath));
+            }
+
+            string fullPackageRootPath = Path.GetFullPath(packageRootPath);
+            string fullBuilderWorkingRootPath = Path.GetFullPath(builderWorkingRootPath);
+            string builderPackageSourceRootPath = Path.Combine(fullBuilderWorkingRootPath, "package-source");
+            if (!Directory.Exists(fullPackageRootPath)) {
+                throw new DirectoryNotFoundException($"Package root '{fullPackageRootPath}' was not found.");
+            }
+
+            DeleteDirectoryIfPresent(builderPackageSourceRootPath);
+            CopyDirectoryTree(fullPackageRootPath, builderPackageSourceRootPath);
         }
 
         PlatformBuildRequest BuildRequest(

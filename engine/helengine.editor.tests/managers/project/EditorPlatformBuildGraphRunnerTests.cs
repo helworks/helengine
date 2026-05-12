@@ -139,6 +139,44 @@ public class EditorPlatformBuildGraphRunnerTests {
     }
 
     /// <summary>
+    /// Verifies the editor runner stages package content into the builder-owned package-source root before platform packaging begins.
+    /// </summary>
+    [Fact]
+    public void StageBuilderPackageSourceRoot_copies_package_content_into_builder_working_root() {
+        string rootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
+        string packageRootPath = Path.Combine(rootPath, "package");
+        string builderWorkingRootPath = Path.Combine(rootPath, "builder");
+        string staleFilePath = Path.Combine(builderWorkingRootPath, "package-source", "stale.bin");
+        string payloadSourcePath = Path.Combine(packageRootPath, "cooked", "scenes", "startup.hasset");
+        string payloadDestinationPath = Path.Combine(builderWorkingRootPath, "package-source", "cooked", "scenes", "startup.hasset");
+
+        try {
+            Directory.CreateDirectory(Path.GetDirectoryName(payloadSourcePath)
+                ?? throw new InvalidOperationException("Unable to resolve the package payload directory."));
+            Directory.CreateDirectory(Path.GetDirectoryName(staleFilePath)
+                ?? throw new InvalidOperationException("Unable to resolve the builder package-source directory."));
+            File.WriteAllText(payloadSourcePath, "scene");
+            File.WriteAllText(staleFilePath, "stale");
+
+            MethodInfo stageBuilderPackageSourceRootMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
+                "StageBuilderPackageSourceRoot",
+                BindingFlags.Static | BindingFlags.NonPublic);
+
+            Assert.NotNull(stageBuilderPackageSourceRootMethod);
+
+            stageBuilderPackageSourceRootMethod.Invoke(null, [packageRootPath, builderWorkingRootPath]);
+
+            Assert.True(File.Exists(payloadDestinationPath));
+            Assert.Equal("scene", File.ReadAllText(payloadDestinationPath));
+            Assert.False(File.Exists(staleFilePath));
+        } finally {
+            if (Directory.Exists(rootPath)) {
+                Directory.Delete(rootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Verifies the build-graph runner writes renderer defaults from the persisted platform profile into generated native source.
     /// </summary>
     [Fact]
