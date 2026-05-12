@@ -676,6 +676,34 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures repeated wheel input keeps using the fixed scene-list viewport after the fitted item root starts moving at 640x480.
+        /// </summary>
+        [Fact]
+        public void Load_WhenMenuRunsAt640x480_AllowsRepeatedWheelScrollInsideFixedViewport() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
+
+            string projectRootPath = Path.Combine(TempRootPath, "menu-640x480-repeat-wheel-project");
+            string buildRootPath = PackageDemoMenuScene(projectRootPath, "menu-640x480-repeat-wheel-build");
+            MenuComponent menuHostComponent = LoadPackagedMenu(buildRootPath);
+            Core.Instance.Update();
+            TestInputBackend input = Assert.IsType<TestInputBackend>(Core.Instance.InputSystem.Backend);
+            ScrollComponent scrollComponent = FindPanelScrollComponent(menuHostComponent, "main");
+
+            input.SetMouseState(CreateMouseStateInsidePanelViewport(menuHostComponent, "main", 0, ButtonState.Released));
+            Core.Instance.Update();
+
+            input.SetMouseState(CreateMouseStateInsidePanelViewport(menuHostComponent, "main", -120, ButtonState.Released));
+            Core.Instance.Update();
+
+            input.SetMouseState(CreateMouseStateInsidePanelViewport(menuHostComponent, "main", -240, ButtonState.Released));
+            Core.Instance.Update();
+
+            Assert.Equal(2, scrollComponent.ScrollOffset);
+            Assert.Equal(new float3(0f, -62f, 0f), scrollComponent.Parent.LocalPosition);
+        }
+
+        /// <summary>
         /// Ensures keyboard navigation scrolls a secondary scene-select panel opened from the main menu.
         /// </summary>
         [Fact]

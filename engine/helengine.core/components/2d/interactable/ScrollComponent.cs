@@ -49,6 +49,11 @@ namespace helengine {
         Entity ContentRootValue;
 
         /// <summary>
+        /// Optional entity that supplies the fixed viewport origin used for hit testing and clip rectangle exposure.
+        /// </summary>
+        Entity ClipOriginEntityValue;
+
+        /// <summary>
         /// Raised when the scroll offset changes because of wheel input or an explicit scroll request.
         /// </summary>
         public event Action<ScrollComponent, int> ScrollOffsetChanged;
@@ -144,6 +149,16 @@ namespace helengine {
                 ContentRootValue = value;
                 ApplyContentRootOffset();
             }
+        }
+
+        /// <summary>
+        /// Gets or sets the entity whose world position should anchor the scroll viewport.
+        /// This binding is runtime-only and is excluded from reflected scene persistence.
+        /// </summary>
+        [ScenePersistenceIgnore]
+        public Entity ClipOriginEntity {
+            get { return ClipOriginEntityValue; }
+            set { ClipOriginEntityValue = value; }
         }
 
         /// <summary>
@@ -304,7 +319,8 @@ namespace helengine {
                 throw new InvalidOperationException("Scroll components require an attached parent entity.");
             }
 
-            float3 origin = Parent.Position;
+            Entity clipOriginEntity = ClipOriginEntityValue ?? Parent;
+            float3 origin = clipOriginEntity.Position;
             return new float4(origin.X, origin.Y, SizeValue.X, SizeValue.Y);
         }
 

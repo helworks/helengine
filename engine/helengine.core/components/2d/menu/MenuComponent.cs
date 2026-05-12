@@ -188,6 +188,7 @@ namespace helengine {
                 MenuItemRuntime[] itemRuntimes = BindItems(panelEntity, panelComponent.PanelId);
                 ScrollComponent itemsScrollComponent = ResolveItemsScrollComponent(panelEntity, panelComponent.PanelId);
                 itemsScrollComponent.ItemCount = itemRuntimes.Length;
+                itemsScrollComponent.ClipOriginEntity = ResolveItemsViewportEntity(itemsScrollComponent, panelComponent.PanelId);
                 MenuPanelRuntime panelRuntime = new MenuPanelRuntime(
                     panelComponent,
                     panelEntity,
@@ -656,6 +657,31 @@ namespace helengine {
             }
 
             return scrollComponent;
+        }
+
+        /// <summary>
+        /// Resolves the fixed viewport entity that clips one baked panel item list.
+        /// </summary>
+        /// <param name="scrollComponent">Scroll component hosted by the moving item root.</param>
+        /// <param name="panelId">Stable panel id used in diagnostics.</param>
+        /// <returns>Viewport entity that should anchor clip and hit-test bounds.</returns>
+        Entity ResolveItemsViewportEntity(ScrollComponent scrollComponent, string panelId) {
+            if (scrollComponent == null) {
+                throw new ArgumentNullException(nameof(scrollComponent));
+            }
+
+            Entity itemsRootEntity = scrollComponent.Parent;
+            if (itemsRootEntity == null || itemsRootEntity.Parent == null) {
+                throw new InvalidOperationException($"Baked menu panel '{panelId}' must parent its scroll root under a viewport entity.");
+            }
+
+            Entity viewportEntity = itemsRootEntity.Parent;
+            ClipRectComponent clipComponent = FindFirstComponent<ClipRectComponent>(viewportEntity);
+            if (clipComponent == null) {
+                throw new InvalidOperationException($"Baked menu panel '{panelId}' must contain a clip viewport above its scroll root.");
+            }
+
+            return viewportEntity;
         }
 
         /// <summary>
