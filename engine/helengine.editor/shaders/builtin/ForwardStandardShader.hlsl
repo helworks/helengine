@@ -9,6 +9,7 @@ cbuffer TransformBuffer : register(b0)
 
 cbuffer ForwardLightBuffer : register(b1)
 {
+    float4 ambientLightColor;
     float4 lightMetadata;
     float4 light0ColorAndType;
     float4 light0DirectionAndShadow;
@@ -259,10 +260,9 @@ float4 PS(PS_IN input) : SV_Target
 {
     float4 sampledBaseColor = DiffuseTexture.Sample(DiffuseTextureSampler, input.texCoord) * baseColor;
     float3 surfaceColor = sampledBaseColor.rgb;
-    float3 ambientColor = float3(0.12f, 0.13f, 0.15f);
     float3 normal = normalize(input.normal);
     float3 viewDirection = normalize(cameraPosition.xyz - input.worldPos);
-    float3 color = surfaceColor * ambientColor;
+    float3 color = surfaceColor * ambientLightColor.rgb;
     int activeLightCount = (int)(lightMetadata.x + 0.5f);
 
     if (activeLightCount > 0)

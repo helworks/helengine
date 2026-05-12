@@ -1273,14 +1273,17 @@ namespace helengine.editor.tests {
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             DirectionalLightComponent directionalLightComponent = Assert.IsType<DirectionalLightComponent>(
                 Assert.Single(loadedRoots[0].Components, component => component is DirectionalLightComponent));
+            AmbientLightComponent ambientLightComponent = Assert.IsType<AmbientLightComponent>(
+                Assert.Single(loadedRoots[1].Components, component => component is AmbientLightComponent));
             PointLightComponent pointLightComponent = Assert.IsType<PointLightComponent>(
-                Assert.Single(loadedRoots[1].Components, component => component is PointLightComponent));
+                Assert.Single(loadedRoots[2].Components, component => component is PointLightComponent));
             SpotLightComponent spotLightComponent = Assert.IsType<SpotLightComponent>(
-                Assert.Single(loadedRoots[2].Components, component => component is SpotLightComponent));
+                Assert.Single(loadedRoots[3].Components, component => component is SpotLightComponent));
             RoundedRectComponent roundedRectComponent = Assert.IsType<RoundedRectComponent>(
-                Assert.Single(loadedRoots[3].Components, component => component is RoundedRectComponent));
+                Assert.Single(loadedRoots[4].Components, component => component is RoundedRectComponent));
 
             Assert.Equal(72f, directionalLightComponent.ShadowDistance);
+            Assert.Equal(1.4f, ambientLightComponent.Intensity);
             Assert.Equal(18f, pointLightComponent.Range);
             Assert.Equal(22f, spotLightComponent.Range);
             Assert.Equal(18f, spotLightComponent.InnerConeAngleDegrees);
@@ -1304,6 +1307,11 @@ namespace helengine.editor.tests {
                         "helengine.DirectionalLightComponent",
                         PlatformComponentSupportKind.PassThrough,
                         "Legacy builder metadata still expects authored directional light payloads.",
+                        string.Empty),
+                    new PlatformComponentSupportRule(
+                        "helengine.AmbientLightComponent",
+                        PlatformComponentSupportKind.PassThrough,
+                        "Legacy builder metadata still expects authored ambient light payloads.",
                         string.Empty),
                     new PlatformComponentSupportRule(
                         "helengine.PointLightComponent",
@@ -1340,12 +1348,15 @@ namespace helengine.editor.tests {
             IReadOnlyList<Entity> loadedRoots = loadService.Load(packagedScene);
             DirectionalLightComponent directionalLightComponent = Assert.IsType<DirectionalLightComponent>(
                 Assert.Single(loadedRoots[0].Components, component => component is DirectionalLightComponent));
+            AmbientLightComponent ambientLightComponent = Assert.IsType<AmbientLightComponent>(
+                Assert.Single(loadedRoots[1].Components, component => component is AmbientLightComponent));
             PointLightComponent pointLightComponent = Assert.IsType<PointLightComponent>(
-                Assert.Single(loadedRoots[1].Components, component => component is PointLightComponent));
+                Assert.Single(loadedRoots[2].Components, component => component is PointLightComponent));
             SpotLightComponent spotLightComponent = Assert.IsType<SpotLightComponent>(
-                Assert.Single(loadedRoots[2].Components, component => component is SpotLightComponent));
+                Assert.Single(loadedRoots[3].Components, component => component is SpotLightComponent));
 
             Assert.Equal(72f, directionalLightComponent.ShadowDistance);
+            Assert.Equal(1.4f, ambientLightComponent.Intensity);
             Assert.Equal(18f, pointLightComponent.Range);
             Assert.Equal(22f, spotLightComponent.Range);
             Assert.Equal(18f, spotLightComponent.InnerConeAngleDegrees);
@@ -2673,6 +2684,24 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Writes one serialized ambient light component payload.
+        /// </summary>
+        /// <returns>Serialized ambient light payload.</returns>
+        byte[] WriteAmbientLightPayload() {
+            AmbientLightComponentPersistenceDescriptor descriptor = new AmbientLightComponentPersistenceDescriptor();
+            AmbientLightComponent lightComponent = new AmbientLightComponent {
+                Color = new float4(0.15f, 0.2f, 0.3f, 1f),
+                Intensity = 1.4f,
+                ShadowsEnabled = false,
+                ShadowMapMode = ShadowMapMode.Disabled,
+                ShadowStrength = 0.2f
+            };
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(lightComponent, 0, null);
+            return record.Payload;
+        }
+
+        /// <summary>
         /// Writes one serialized point light component payload.
         /// </summary>
         /// <returns>Serialized point light payload.</returns>
@@ -2792,6 +2821,21 @@ namespace helengine.editor.tests {
                                 ComponentTypeId = "helengine.DirectionalLightComponent",
                                 ComponentIndex = 0,
                                 Payload = WriteDirectionalLightPayload()
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    },
+                    new SceneEntityAsset {
+                        Id = "ambient-root",
+                        Name = "Ambient",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.AmbientLightComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteAmbientLightPayload()
                             }
                         },
                         Children = Array.Empty<SceneEntityAsset>()

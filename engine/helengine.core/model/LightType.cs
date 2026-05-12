@@ -16,6 +16,11 @@ namespace helengine {
         /// <summary>
         /// Cone-shaped spot light with range falloff.
         /// </summary>
-        Spot = 2
+        Spot = 2,
+
+        /// <summary>
+        /// Global ambient light that contributes non-directional scene illumination.
+        /// </summary>
+        Ambient = 3
     }
 }

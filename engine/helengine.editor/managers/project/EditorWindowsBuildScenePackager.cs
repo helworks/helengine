@@ -967,6 +967,11 @@ namespace helengine.editor {
                     "Directional light payloads are rewritten into strict runtime payloads during packaging.",
                     string.Empty),
                 new PlatformComponentSupportRule(
+                    "helengine.AmbientLightComponent",
+                    PlatformComponentSupportKind.Transform,
+                    "Ambient light payloads are rewritten into strict runtime payloads during packaging.",
+                    string.Empty),
+                new PlatformComponentSupportRule(
                     "helengine.PointLightComponent",
                     PlatformComponentSupportKind.Transform,
                     "Point light payloads are rewritten into strict runtime payloads during packaging.",

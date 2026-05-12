@@ -435,8 +435,12 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     public void Normalize_generated_native_sources_fixes_light_component_enum_member_access() {
         string generatedCoreRootPath = Path.Combine(RootPath, "normalize-light-enums");
         Directory.CreateDirectory(generatedCoreRootPath);
+        string ambientPath = Path.Combine(generatedCoreRootPath, "AmbientLightComponent.cpp");
         string directionalPath = Path.Combine(generatedCoreRootPath, "DirectionalLightComponent.cpp");
         string lightBasePath = Path.Combine(generatedCoreRootPath, "LightComponent.cpp");
+        File.WriteAllText(
+            ambientPath,
+            "AmbientLightComponent::AmbientLightComponent() : LightComponent(LightType.Ambient) {}" + Environment.NewLine);
         File.WriteAllText(
             directionalPath,
             "DirectionalLightComponent::DirectionalLightComponent() : LightComponent(LightType.Directional) {}" + Environment.NewLine);
@@ -446,6 +450,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
 
         EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath, "ps2");
 
+        Assert.Contains("LightType::Ambient", File.ReadAllText(ambientPath));
         Assert.Contains("LightType::Directional", File.ReadAllText(directionalPath));
         Assert.Contains("::ShadowMapMode::Auto", File.ReadAllText(lightBasePath));
     }

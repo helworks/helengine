@@ -148,6 +148,16 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates a root ambient light entity for the scene.
+        /// </summary>
+        /// <returns>Configured ambient-light scene entity.</returns>
+        public EditorEntity CreateAmbientLight() {
+            EditorEntity entity = CreateBaseEntity("Ambient Light");
+            entity.AddComponent(new AmbientLightComponent());
+            return entity;
+        }
+
+        /// <summary>
         /// Creates a root spot light entity for the scene and attaches the editor-only spot-light cone.
         /// </summary>
         /// <returns>Configured spot-light scene entity.</returns>

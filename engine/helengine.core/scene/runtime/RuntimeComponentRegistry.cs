@@ -27,6 +27,7 @@ namespace helengine {
             registry.Register(new RuntimeTextComponentDeserializer());
             registry.Register(new RuntimeRoundedRectComponentDeserializer());
             registry.Register(new RuntimeDirectionalLightComponentDeserializer());
+            registry.Register(new RuntimeAmbientLightComponentDeserializer());
             registry.Register(new RuntimePointLightComponentDeserializer());
             registry.Register(new RuntimeSpotLightComponentDeserializer());
             registry.Register(new RuntimeDirectionalShadowCameraOrbitComponentDeserializer());

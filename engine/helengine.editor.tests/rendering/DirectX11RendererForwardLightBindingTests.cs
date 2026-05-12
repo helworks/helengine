@@ -27,12 +27,20 @@ namespace helengine.editor.tests.rendering {
             secondLight.Intensity = 1.5f;
             secondLightEntity.AddComponent(secondLight);
 
+            Entity ambientLightEntity = CreateLightEntity();
+            AmbientLightComponent ambientLight = new AmbientLightComponent {
+                Color = new float4(0.2f, 0.3f, 0.4f, 1f),
+                Intensity = 2f
+            };
+            ambientLightEntity.AddComponent(ambientLight);
+
             CameraComponent camera = new CameraComponent();
             RenderFrame frame = new RenderFrame(
                 camera,
                 Array.Empty<RenderFrameDrawableSubmission>(),
                 [
                     new RenderFrameLightSubmission(firstLight, 10),
+                    new RenderFrameLightSubmission(ambientLight, 8),
                     new RenderFrameLightSubmission(secondLight, 5)
                 ],
                 Array.Empty<RenderFrameShadowCasterSubmission>());
@@ -41,6 +49,7 @@ namespace helengine.editor.tests.rendering {
                 new DirectX11SwapChainSurface(),
                 [
                     new RenderFrameLightSubmission(firstLight, 10),
+                    new RenderFrameLightSubmission(ambientLight, 8),
                     new RenderFrameLightSubmission(secondLight, 5)
                 ]);
             ForwardLightCaptureRenderer renderer = ForwardLightCaptureRenderer.Create();
@@ -51,6 +60,9 @@ namespace helengine.editor.tests.rendering {
             Assert.Equal((float)LightType.Directional, renderer.LastForwardLightShaderData.Light0.ColorAndType.W);
             Assert.Equal((float)LightType.Point, renderer.LastForwardLightShaderData.Light1.ColorAndType.W);
             Assert.Equal(7f, renderer.LastForwardLightShaderData.Light1.PositionAndRange.W);
+            Assert.Equal(0.4f, renderer.LastForwardLightShaderData.AmbientLightColor.X);
+            Assert.Equal(0.6f, renderer.LastForwardLightShaderData.AmbientLightColor.Y);
+            Assert.Equal(0.8f, renderer.LastForwardLightShaderData.AmbientLightColor.Z);
         }
 
         /// <summary>

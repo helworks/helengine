@@ -23,6 +23,19 @@ namespace helengine.editor.tests.shaders {
         }
 
         /// <summary>
+        /// Ensures the built-in forward standard shader reads ambient lighting from the shared forward-light buffer instead of a hardcoded fallback color.
+        /// </summary>
+        [Fact]
+        public void ForwardStandardShaderSource_WhenInspected_UsesSharedAmbientLightBuffer() {
+            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string shaderPath = Path.Combine(repositoryRootPath, "engine", "helengine.editor", "shaders", "builtin", "ForwardStandardShader.hlsl");
+            string shaderSource = File.ReadAllText(shaderPath);
+
+            Assert.Contains("float4 ambientLightColor;", shaderSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("float3 ambientColor = float3(0.12f, 0.13f, 0.15f);", shaderSource, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Compiles the built-in forward standard shader for one backend and verifies the resolved material layout.
         /// </summary>
         /// <param name="target">Shader backend that should receive the compiled built-in shader.</param>

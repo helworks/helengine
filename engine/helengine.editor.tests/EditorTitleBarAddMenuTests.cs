@@ -95,7 +95,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the Light submenu shows Spot Light, Point Light, and Directional Light when hovered.
+        /// Ensures the Light submenu shows Spot Light, Point Light, Directional Light, and Ambient Light when hovered.
         /// </summary>
         [Fact]
         public void ToggleAddMenu_WhenLightHovered_ShowsExpectedLightSubmenu() {
@@ -117,7 +117,8 @@ namespace helengine.editor.tests {
                 activeLightItems,
                 item => Assert.Equal("Spot Light", item.Label),
                 item => Assert.Equal("Point Light", item.Label),
-                item => Assert.Equal("Directional Light", item.Label));
+                item => Assert.Equal("Directional Light", item.Label),
+                item => Assert.Equal("Ambient Light", item.Label));
         }
 
         /// <summary>

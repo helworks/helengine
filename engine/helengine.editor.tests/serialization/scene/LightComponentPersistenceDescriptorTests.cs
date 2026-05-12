@@ -33,6 +33,30 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures ambient light persistence round-trips the shared authored light fields.
+        /// </summary>
+        [Fact]
+        public void AmbientLightDescriptor_WhenRoundTripped_PreservesSharedFields() {
+            AmbientLightComponentPersistenceDescriptor descriptor = new AmbientLightComponentPersistenceDescriptor();
+            AmbientLightComponent lightComponent = new AmbientLightComponent {
+                Color = new float4(0.1f, 0.2f, 0.35f, 1f),
+                Intensity = 1.75f,
+                ShadowsEnabled = false,
+                ShadowMapMode = ShadowMapMode.Disabled,
+                ShadowStrength = 0.25f
+            };
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(lightComponent, 0, null);
+            AmbientLightComponent loadedLight = Assert.IsType<AmbientLightComponent>(descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Equal(lightComponent.Color, loadedLight.Color);
+            Assert.Equal(lightComponent.Intensity, loadedLight.Intensity);
+            Assert.Equal(lightComponent.ShadowsEnabled, loadedLight.ShadowsEnabled);
+            Assert.Equal(lightComponent.ShadowMapMode, loadedLight.ShadowMapMode);
+            Assert.Equal(lightComponent.ShadowStrength, loadedLight.ShadowStrength);
+        }
+
+        /// <summary>
         /// Ensures point light persistence round-trips shared fields plus range.
         /// </summary>
         [Fact]

@@ -1063,7 +1063,8 @@ namespace helengine.editor {
                 return updatedContents;
             }
 
-            if (string.Equals(fileName, "DirectionalLightComponent.cpp", StringComparison.OrdinalIgnoreCase)
+            if (string.Equals(fileName, "AmbientLightComponent.cpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "DirectionalLightComponent.cpp", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(fileName, "PointLightComponent.cpp", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(fileName, "SpotLightComponent.cpp", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(fileName, "LightComponent.cpp", StringComparison.OrdinalIgnoreCase)) {

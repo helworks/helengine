@@ -1002,6 +1002,17 @@ namespace helengine.editor.tests.serialization.scene {
                         }
                     },
                     new SceneEntityAsset {
+                        Id = "ambient-light",
+                        Name = "AmbientLight",
+                        Components = new[] {
+                            new SceneComponentAssetRecord {
+                                ComponentTypeId = "helengine.AmbientLightComponent",
+                                ComponentIndex = 0,
+                                Payload = WriteAmbientLightComponentPayload()
+                            }
+                        }
+                    },
+                    new SceneEntityAsset {
                         Id = "point-light",
                         Name = "PointLight",
                         Components = new[] {
@@ -1027,11 +1038,12 @@ namespace helengine.editor.tests.serialization.scene {
             };
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
-            Assert.Equal(3, loadedRoots.Count);
+            Assert.Equal(4, loadedRoots.Count);
 
             DirectionalLightComponent directionalLight = Assert.IsType<DirectionalLightComponent>(Assert.Single(loadedRoots[0].Components, component => component is DirectionalLightComponent));
-            PointLightComponent pointLight = Assert.IsType<PointLightComponent>(Assert.Single(loadedRoots[1].Components, component => component is PointLightComponent));
-            SpotLightComponent spotLight = Assert.IsType<SpotLightComponent>(Assert.Single(loadedRoots[2].Components, component => component is SpotLightComponent));
+            AmbientLightComponent ambientLight = Assert.IsType<AmbientLightComponent>(Assert.Single(loadedRoots[1].Components, component => component is AmbientLightComponent));
+            PointLightComponent pointLight = Assert.IsType<PointLightComponent>(Assert.Single(loadedRoots[2].Components, component => component is PointLightComponent));
+            SpotLightComponent spotLight = Assert.IsType<SpotLightComponent>(Assert.Single(loadedRoots[3].Components, component => component is SpotLightComponent));
 
             Assert.Equal(new float4(0.3f, 0.4f, 0.5f, 1f), directionalLight.Color);
             Assert.Equal(3.0f, directionalLight.Intensity);
@@ -1039,6 +1051,12 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(ShadowMapMode.Forced, directionalLight.ShadowMapMode);
             Assert.Equal(0.7f, directionalLight.ShadowStrength);
             Assert.Equal(64f, directionalLight.ShadowDistance);
+
+            Assert.Equal(new float4(0.2f, 0.25f, 0.3f, 1f), ambientLight.Color);
+            Assert.Equal(1.5f, ambientLight.Intensity);
+            Assert.False(ambientLight.ShadowsEnabled);
+            Assert.Equal(ShadowMapMode.Disabled, ambientLight.ShadowMapMode);
+            Assert.Equal(0.2f, ambientLight.ShadowStrength);
 
             Assert.Equal(new float4(1f, 0.8f, 0.6f, 1f), pointLight.Color);
             Assert.Equal(4.0f, pointLight.Intensity);
@@ -1639,6 +1657,24 @@ namespace helengine.editor.tests.serialization.scene {
                 ShadowMapMode = ShadowMapMode.Forced,
                 ShadowStrength = 0.7f,
                 ShadowDistance = 64f
+            });
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Writes one serialized ambient light component payload.
+        /// </summary>
+        /// <returns>Serialized ambient light component payload.</returns>
+        byte[] WriteAmbientLightComponentPayload() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
+            LightComponentScenePayloadSerializer.WriteAmbientLight(writer, new AmbientLightComponent {
+                Color = new float4(0.2f, 0.25f, 0.3f, 1f),
+                Intensity = 1.5f,
+                ShadowsEnabled = false,
+                ShadowMapMode = ShadowMapMode.Disabled,
+                ShadowStrength = 0.2f
             });
             return stream.ToArray();
         }

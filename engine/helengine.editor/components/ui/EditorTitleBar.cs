@@ -608,6 +608,10 @@ namespace helengine.editor {
         /// </summary>
         public event Action AddDirectionalLightRequested;
         /// <summary>
+        /// Raised when the user selects the Add Ambient Light command.
+        /// </summary>
+        public event Action AddAmbientLightRequested;
+        /// <summary>
         /// Raised when the user selects the Build Settings command.
         /// </summary>
         public event Action BuildSettingsRequested;
@@ -789,7 +793,8 @@ namespace helengine.editor {
             return new ContextMenuItem[] {
                 new ContextMenuItem("Spot Light", RaiseAddSpotLightRequested),
                 new ContextMenuItem("Point Light", RaiseAddPointLightRequested),
-                new ContextMenuItem("Directional Light", RaiseAddDirectionalLightRequested)
+                new ContextMenuItem("Directional Light", RaiseAddDirectionalLightRequested),
+                new ContextMenuItem("Ambient Light", RaiseAddAmbientLightRequested)
             };
         }
 
@@ -1811,6 +1816,16 @@ namespace helengine.editor {
             HideMenus();
             if (AddDirectionalLightRequested != null) {
                 AddDirectionalLightRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Add Ambient Light command event after closing title-bar menus.
+        /// </summary>
+        void RaiseAddAmbientLightRequested() {
+            HideMenus();
+            if (AddAmbientLightRequested != null) {
+                AddAmbientLightRequested();
             }
         }
 

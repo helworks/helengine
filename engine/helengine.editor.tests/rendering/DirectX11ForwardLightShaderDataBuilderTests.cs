@@ -124,6 +124,83 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures ambient lights accumulate into the ambient term without consuming packed direct-light slots.
+        /// </summary>
+        [Fact]
+        public void Build_WhenAmbientLightsExist_AccumulatesAmbientColorWithoutConsumingDirectLightSlots() {
+            InitializeCore();
+            Entity firstAmbientEntity = CreateLightEntity();
+            AmbientLightComponent firstAmbientLight = new AmbientLightComponent {
+                Color = new float4(0.1f, 0.2f, 0.3f, 1f),
+                Intensity = 2f
+            };
+            firstAmbientEntity.AddComponent(firstAmbientLight);
+
+            Entity secondAmbientEntity = CreateLightEntity();
+            AmbientLightComponent secondAmbientLight = new AmbientLightComponent {
+                Color = new float4(0.2f, 0.1f, 0.05f, 1f),
+                Intensity = 3f
+            };
+            secondAmbientEntity.AddComponent(secondAmbientLight);
+
+            DirectX11ForwardLightShaderDataBuilder builder = new DirectX11ForwardLightShaderDataBuilder();
+
+            DirectX11ForwardLightShaderData data = builder.Build([
+                new RenderFrameLightSubmission(firstAmbientLight, 10),
+                new RenderFrameLightSubmission(secondAmbientLight, 8)
+            ]);
+
+            Assert.Equal(0f, data.LightMetadata.X);
+            Assert.InRange(data.AmbientLightColor.X, 0.7999f, 0.8001f);
+            Assert.InRange(data.AmbientLightColor.Y, 0.6999f, 0.7001f);
+            Assert.InRange(data.AmbientLightColor.Z, 0.7499f, 0.7501f);
+        }
+
+        /// <summary>
+        /// Ensures ambient lights do not disturb the direct-light slot packing order when mixed with directional or local lights.
+        /// </summary>
+        [Fact]
+        public void Build_WhenAmbientAndDirectLightsAreMixed_PacksOnlyDirectLightsIntoSlots() {
+            InitializeCore();
+            Entity directionalEntity = CreateLightEntity();
+            DirectionalLightComponent directionalLight = new DirectionalLightComponent {
+                ShadowsEnabled = false,
+                Intensity = 2f
+            };
+            directionalEntity.AddComponent(directionalLight);
+
+            Entity ambientEntity = CreateLightEntity();
+            AmbientLightComponent ambientLight = new AmbientLightComponent {
+                Color = new float4(0.25f, 0.1f, 0.05f, 1f),
+                Intensity = 2f
+            };
+            ambientEntity.AddComponent(ambientLight);
+
+            Entity pointEntity = CreateLightEntity();
+            pointEntity.LocalPosition = new float3(4f, 2f, -1f);
+            PointLightComponent pointLight = new PointLightComponent {
+                Range = 9f,
+                Intensity = 1.5f
+            };
+            pointEntity.AddComponent(pointLight);
+
+            DirectX11ForwardLightShaderDataBuilder builder = new DirectX11ForwardLightShaderDataBuilder();
+
+            DirectX11ForwardLightShaderData data = builder.Build([
+                new RenderFrameLightSubmission(directionalLight, 10),
+                new RenderFrameLightSubmission(ambientLight, 9),
+                new RenderFrameLightSubmission(pointLight, 8)
+            ]);
+
+            Assert.Equal(2f, data.LightMetadata.X);
+            Assert.Equal((float)LightType.Directional, data.Light0.ColorAndType.W);
+            Assert.Equal((float)LightType.Point, data.Light1.ColorAndType.W);
+            Assert.InRange(data.AmbientLightColor.X, 0.4999f, 0.5001f);
+            Assert.InRange(data.AmbientLightColor.Y, 0.1999f, 0.2001f);
+            Assert.InRange(data.AmbientLightColor.Z, 0.0999f, 0.1001f);
+        }
+
+        /// <summary>
         /// Initializes a minimal core instance so test entities can be created safely.
         /// </summary>
         void InitializeCore() {

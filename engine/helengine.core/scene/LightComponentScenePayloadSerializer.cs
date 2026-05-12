@@ -53,6 +53,48 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Writes the ambient-light payload fields into the supplied writer.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the payload.</param>
+        /// <param name="lightComponent">Ambient light whose authored values should be serialized.</param>
+        public static void WriteAmbientLight(EngineBinaryWriter writer, AmbientLightComponent lightComponent) {
+            if (writer == null) {
+                throw new ArgumentNullException(nameof(writer));
+            } else if (lightComponent == null) {
+                throw new ArgumentNullException(nameof(lightComponent));
+            }
+
+            WriteCommonLightFields(writer, lightComponent);
+        }
+
+        /// <summary>
+        /// Reads the ambient-light payload fields from the supplied reader.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the ambient-light payload.</param>
+        /// <returns>Ambient light reconstructed from the payload.</returns>
+        public static AmbientLightComponent ReadAmbientLight(EngineBinaryReader reader) {
+            return ReadAmbientLight(reader, CurrentVersion);
+        }
+
+        /// <summary>
+        /// Reads the ambient-light payload fields for the current packaged light payload version.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the ambient-light payload.</param>
+        /// <param name="version">Packaged payload version encoded in the scene payload.</param>
+        /// <returns>Ambient light reconstructed from the payload.</returns>
+        public static AmbientLightComponent ReadAmbientLight(EngineBinaryReader reader, byte version) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            } else if (version != CurrentVersion) {
+                throw new InvalidOperationException($"Unsupported ambient light payload version '{version}'.");
+            }
+
+            AmbientLightComponent lightComponent = new AmbientLightComponent();
+            ReadCommonLightFields(reader, lightComponent);
+            return lightComponent;
+        }
+
+        /// <summary>
         /// Writes the point-light payload fields into the supplied writer.
         /// </summary>
         /// <param name="writer">Destination writer receiving the payload.</param>

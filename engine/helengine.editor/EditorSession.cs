@@ -632,6 +632,7 @@ namespace helengine.editor {
             titleBar.AddSpotLightRequested += HandleAddSpotLightRequested;
             titleBar.AddPointLightRequested += HandleAddPointLightRequested;
             titleBar.AddDirectionalLightRequested += HandleAddDirectionalLightRequested;
+            titleBar.AddAmbientLightRequested += HandleAddAmbientLightRequested;
             AttachScaleSensitiveDialogHandlers();
             EditorBuildExecutionResult startupProjectLibraryLoadResult = LoadProjectLibrariesOnStartup(
                 scriptHotReloadService,
@@ -1421,6 +1422,7 @@ namespace helengine.editor {
             titleBar.AddSpotLightRequested -= HandleAddSpotLightRequested;
             titleBar.AddPointLightRequested -= HandleAddPointLightRequested;
             titleBar.AddDirectionalLightRequested -= HandleAddDirectionalLightRequested;
+            titleBar.AddAmbientLightRequested -= HandleAddAmbientLightRequested;
             DetachScaleSensitiveDialogHandlers();
             scriptHotReloadService.Dispose();
             IReadOnlyList<EditorViewport> viewports = GetViewportPanels();
@@ -2289,6 +2291,13 @@ namespace helengine.editor {
         /// </summary>
         void HandleAddDirectionalLightRequested() {
             CreateAndSelectSceneEntity(SceneCreationService.CreateDirectionalLight);
+        }
+
+        /// <summary>
+        /// Handles the Add Ambient Light command from the editor title bar.
+        /// </summary>
+        void HandleAddAmbientLightRequested() {
+            CreateAndSelectSceneEntity(SceneCreationService.CreateAmbientLight);
         }
 
         /// <summary>
@@ -4128,6 +4137,7 @@ namespace helengine.editor {
             persistenceRegistry.Register(new RoundedRectComponentPersistenceDescriptor());
             persistenceRegistry.Register(new FPSComponentPersistenceDescriptor());
             persistenceRegistry.Register(new DirectionalLightComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new AmbientLightComponentPersistenceDescriptor());
             persistenceRegistry.Register(new PointLightComponentPersistenceDescriptor());
             persistenceRegistry.Register(new SpotLightComponentPersistenceDescriptor());
             persistenceRegistry.Register(new MenuComponentPersistenceDescriptor());

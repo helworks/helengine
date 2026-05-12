@@ -159,6 +159,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures Add > Light > Ambient Light creates an ambient-light entity and selects it.
+        /// </summary>
+        [Fact]
+        public void HandleAddAmbientLightRequested_CreatesAmbientLightEntityAndSelectsIt() {
+            EditorSession session = CreateSessionForAddCommands();
+
+            InvokePrivate(session, "HandleAddAmbientLightRequested");
+
+            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            AmbientLightComponent lightComponent = Assert.IsType<AmbientLightComponent>(Assert.Single(selectedEntity.Components, component => component is AmbientLightComponent));
+
+            Assert.Equal("Ambient Light", selectedEntity.Name);
+            Assert.Equal(1f, lightComponent.Intensity);
+            Assert.Equal(1, GetHierarchyNodeCount(session));
+        }
+
+        /// <summary>
         /// Ensures Add commands mark the current scene as mutated.
         /// </summary>
         [Fact]

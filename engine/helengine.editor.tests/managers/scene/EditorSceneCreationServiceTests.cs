@@ -222,6 +222,27 @@ namespace helengine.editor.tests.managers.scene {
         }
 
         /// <summary>
+        /// Ensures Add > Light > Ambient Light creates a root ambient-light entity with the authored defaults.
+        /// </summary>
+        [Fact]
+        public void CreateAmbientLight_CreatesRootAmbientLightEntityWithDefaultSettings() {
+            EditorSceneCreationService service = new EditorSceneCreationService();
+
+            EditorEntity entity = service.CreateAmbientLight();
+
+            AmbientLightComponent lightComponent = Assert.IsType<AmbientLightComponent>(Assert.Single(entity.Components, component => component is AmbientLightComponent));
+
+            Assert.Equal("Ambient Light", entity.Name);
+            Assert.Equal(EditorLayerMasks.SceneObjects, entity.LayerMask);
+            Assert.Null(entity.Parent);
+            Assert.Equal(float3.Zero, entity.LocalPosition);
+            Assert.Equal(float3.One, entity.LocalScale);
+            Assert.Equal(float4.Identity, entity.LocalOrientation);
+            Assert.Equal(LightType.Ambient, lightComponent.LightType);
+            Assert.False(lightComponent.ShadowsEnabled);
+        }
+
+        /// <summary>
         /// Ensures Add > Point Light creates a point-light-backed scene entity with the hidden editor visual attached.
         /// </summary>
         [Fact]

@@ -19,17 +19,35 @@ namespace helengine.directx11 {
             }
 
             DirectX11ForwardLightShaderData data = new DirectX11ForwardLightShaderData();
-            int activeLightCount = selectedLights.Count;
-            if (activeLightCount > MaximumPackedLightCount) {
-                activeLightCount = MaximumPackedLightCount;
+            int activeLightCount = 0;
+            float3 ambientRadiance = float3.Zero;
+            for (int lightIndex = 0; lightIndex < selectedLights.Count; lightIndex++) {
+                RenderFrameLightSubmission submission = selectedLights[lightIndex];
+                if (submission == null) {
+                    throw new ArgumentNullException(nameof(selectedLights), "Selected light submissions must not contain null entries.");
+                }
+
+                LightComponent light = submission.Light;
+                if (light == null) {
+                    throw new InvalidOperationException("Selected light submissions must include a light component.");
+                }
+
+                if (light.LightType == LightType.Ambient) {
+                    AccumulateAmbientRadiance(ref ambientRadiance, light);
+                    continue;
+                }
+
+                if (activeLightCount >= MaximumPackedLightCount) {
+                    continue;
+                }
+
+                DirectX11ForwardLightSlotShaderData slot = BuildSlot(submission);
+                SetSlot(ref data, activeLightCount, slot);
+                activeLightCount++;
             }
 
+            data.AmbientLightColor = new float4(ambientRadiance.X, ambientRadiance.Y, ambientRadiance.Z, 0f);
             data.LightMetadata = new float4(activeLightCount, 0f, 0f, 0f);
-            for (int lightIndex = 0; lightIndex < activeLightCount; lightIndex++) {
-                DirectX11ForwardLightSlotShaderData slot = BuildSlot(selectedLights[lightIndex]);
-                SetSlot(ref data, lightIndex, slot);
-            }
-
             return data;
         }
 
@@ -114,6 +132,22 @@ namespace helengine.directx11 {
             float innerCosine = (float)Math.Cos(innerRadians);
             float outerCosine = (float)Math.Cos(outerRadians);
             return new float4(innerCosine, outerCosine, 0f, 0f);
+        }
+
+        /// <summary>
+        /// Adds one ambient light contribution into the accumulated ambient radiance term.
+        /// </summary>
+        /// <param name="ambientRadiance">Accumulated ambient radiance that should receive the authored contribution.</param>
+        /// <param name="light">Ambient light whose radiance should be accumulated.</param>
+        void AccumulateAmbientRadiance(ref float3 ambientRadiance, LightComponent light) {
+            if (light == null) {
+                throw new ArgumentNullException(nameof(light));
+            }
+
+            float4 color = light.Color;
+            ambientRadiance.X += color.X * light.Intensity;
+            ambientRadiance.Y += color.Y * light.Intensity;
+            ambientRadiance.Z += color.Z * light.Intensity;
         }
 
         /// <summary>

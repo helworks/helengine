@@ -134,6 +134,11 @@ namespace helengine.editor {
         const string DirectionalLightComponentTypeId = "helengine.DirectionalLightComponent";
 
         /// <summary>
+        /// Stable serialized component id for ambient light components.
+        /// </summary>
+        const string AmbientLightComponentTypeId = "helengine.AmbientLightComponent";
+
+        /// <summary>
         /// Stable serialized component id for point light components.
         /// </summary>
         const string PointLightComponentTypeId = "helengine.PointLightComponent";
@@ -456,6 +461,7 @@ namespace helengine.editor {
             PersistenceRegistry.Register(RoundedRectComponentDescriptor);
             PersistenceRegistry.Register(new FPSComponentPersistenceDescriptor());
             PersistenceRegistry.Register(new DirectionalLightComponentPersistenceDescriptor());
+            PersistenceRegistry.Register(new AmbientLightComponentPersistenceDescriptor());
             PersistenceRegistry.Register(new PointLightComponentPersistenceDescriptor());
             PersistenceRegistry.Register(new SpotLightComponentPersistenceDescriptor());
             PersistenceRegistry.Register(DemoMenuBuildComponentDescriptor);
@@ -480,6 +486,7 @@ namespace helengine.editor {
                 || string.Equals(componentTypeId, TextComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, RoundedRectComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, DirectionalLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, AmbientLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, PointLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, SpotLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, MenuComponent.SerializedComponentTypeId, StringComparison.OrdinalIgnoreCase)
@@ -534,6 +541,11 @@ namespace helengine.editor {
 
             if (string.Equals(record.ComponentTypeId, DirectionalLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 transformedRecord = RewriteDirectionalLightComponentRecord(record);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, AmbientLightComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteAmbientLightComponentRecord(record);
                 return true;
             }
 
@@ -1274,6 +1286,29 @@ namespace helengine.editor {
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = DirectionalLightComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = writeStream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Rewrites one serialized ambient-light payload into the strict runtime light payload shape.
+        /// </summary>
+        /// <param name="record">Serialized ambient light component record to rewrite.</param>
+        /// <returns>Rewritten ambient light component record.</returns>
+        SceneComponentAssetRecord RewriteAmbientLightComponentRecord(SceneComponentAssetRecord record) {
+            Component component = new AmbientLightComponentPersistenceDescriptor().DeserializeComponent(record, null, null);
+            if (component is not AmbientLightComponent lightComponent) {
+                throw new InvalidOperationException($"Expected ambient light descriptor to materialize '{AmbientLightComponentTypeId}'.");
+            }
+
+            using MemoryStream writeStream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(LightComponentScenePayloadSerializer.CurrentVersion);
+            LightComponentScenePayloadSerializer.WriteAmbientLight(writer, lightComponent);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = AmbientLightComponentTypeId,
                 ComponentIndex = record.ComponentIndex,
                 Payload = writeStream.ToArray()
             };

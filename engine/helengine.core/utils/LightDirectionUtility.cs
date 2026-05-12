@@ -29,6 +29,8 @@ namespace helengine {
         public static float3 GetLightDirection(LightComponent lightComponent) {
             if (lightComponent == null) {
                 throw new ArgumentNullException(nameof(lightComponent));
+            } else if (lightComponent.LightType == LightType.Ambient) {
+                throw new InvalidOperationException("Ambient lights do not define a world-space light direction.");
             } else if (lightComponent.Parent == null) {
                 throw new InvalidOperationException("Light directions require the light component to be attached to an entity.");
             }
