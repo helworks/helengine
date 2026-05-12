@@ -120,11 +120,78 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures reference-canvas UI scaled into one matching-aspect `853x480` window keeps pointer hit regions aligned with the visible button.
+        /// </summary>
+        [Fact]
+        public void ResolveTopInteractableAt_WhenReferenceCanvasFitsTo853x480_HitsTheScaledButton() {
+            TestRenderManager3D renderManager = InitializeCoreWithWindow(853, 480);
+            CameraComponent camera = CreateCamera(new float4(0f, 0f, 1f, 1f), EditorLayerMasks.EditorUi);
+
+            EditorEntity root = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.EditorUi
+            };
+            root.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+            root.AddComponent(new ReferenceCanvasFitComponent {
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            });
+
+            EditorEntity buttonEntity = new EditorEntity {
+                InternalEntity = true,
+                LayerMask = EditorLayerMasks.EditorUi,
+                LocalPosition = new float3(160f, 240f, 0f)
+            };
+            root.AddChild(buttonEntity);
+
+            SpriteComponent sprite = new SpriteComponent {
+                Texture = TextureUtils.PixelTexture,
+                Size = new int2(400, 120),
+                RenderOrder2D = 5
+            };
+            buttonEntity.AddComponent(sprite);
+
+            InteractableComponent interactable = new InteractableComponent {
+                Size = new int2(400, 120)
+            };
+            buttonEntity.AddComponent(interactable);
+
+            renderManager.OnWindowResize(IntPtr.Zero, 853, 480);
+            Core.Instance.Update();
+
+            IInteractable2D hit = PointerInteractableHitResolver.ResolveTopInteractableAt(
+                Core.Instance.ObjectManager.Interactables,
+                Core.Instance.ObjectManager.Drawables2D,
+                camera,
+                180,
+                180);
+
+            Assert.Same(interactable, hit);
+        }
+
+        /// <summary>
         /// Initializes the lightweight core services required by pointer hit-resolution tests.
         /// </summary>
         void InitializeCore() {
             Core core = new Core();
             core.Initialize(null, new TestRenderManager2D(), new TestInputBackend());
+        }
+
+        /// <summary>
+        /// Initializes the lightweight core services required by pointer hit-resolution tests using one real 3D render manager window size.
+        /// </summary>
+        /// <param name="windowWidth">Window width exposed to viewport resolution.</param>
+        /// <param name="windowHeight">Window height exposed to viewport resolution.</param>
+        /// <returns>Render manager used to drive future window-resize notifications.</returns>
+        TestRenderManager3D InitializeCoreWithWindow(int windowWidth, int windowHeight) {
+            Core core = new Core();
+            TestRenderManager3D renderManager = new TestRenderManager3D();
+            core.Initialize(renderManager, new TestRenderManager2D(), new TestInputBackend());
+            renderManager.OnWindowResize(IntPtr.Zero, windowWidth, windowHeight);
+            return renderManager;
         }
 
         /// <summary>

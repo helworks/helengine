@@ -4,9 +4,9 @@ namespace helengine {
     /// </summary>
     public interface IAnchorBoundsProvider {
         /// <summary>
-        /// Gets the size of the anchor space in local pixels.
+        /// Gets the resolved anchor space in local pixels.
         /// </summary>
-        int2 AnchorBounds { get; }
+        AnchorSpace AnchorSpace { get; }
 
         /// <summary>
         /// Raised when the anchor bounds change and dependent children should refresh their positions.

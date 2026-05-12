@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Scales one authored 2D subtree from a reference canvas into the current main-window size while preserving the original layout as the source of truth.
     /// </summary>
-    public class ReferenceCanvasFitComponent : UpdateComponent {
+    public class ReferenceCanvasFitComponent : UpdateComponent, IAnchorBoundsProvider {
         /// <summary>
         /// Backing field for the authored reference canvas width.
         /// </summary>
@@ -34,12 +34,29 @@ namespace helengine {
         int SnapshotEntityCountValue;
 
         /// <summary>
+        /// Tracks the current fitted anchor space exposed to anchored descendants.
+        /// </summary>
+        AnchorSpace CurrentAnchorSpaceValue;
+
+        /// <summary>
+        /// Tracks the current fitted origin applied to the root entity of the authored subtree.
+        /// </summary>
+        float2 CurrentCanvasOriginValue;
+
+        /// <summary>
+        /// Raised when the fitted anchor space changes and anchored descendants should refresh.
+        /// </summary>
+        public event Action AnchorBoundsChanged;
+
+        /// <summary>
         /// Initializes a new fit component using the default scene canvas profile as its authored reference.
         /// </summary>
         public ReferenceCanvasFitComponent() {
             ReferenceWidthValue = SceneCanvasProfile.DefaultWidth;
             ReferenceHeightValue = SceneCanvasProfile.DefaultHeight;
             SnapshotsValue = new List<ReferenceCanvasFitSnapshot>();
+            CurrentAnchorSpaceValue = new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
+            CurrentCanvasOriginValue = new float2(0f, 0f);
         }
 
         /// <summary>
@@ -71,6 +88,11 @@ namespace helengine {
                 ApplyCurrentScale();
             }
         }
+
+        /// <summary>
+        /// Gets the fitted anchor space exposed to anchored descendants inside the reference-canvas subtree.
+        /// </summary>
+        public AnchorSpace AnchorSpace => CurrentAnchorSpaceValue;
 
         /// <summary>
         /// Captures the authored subtree and applies the first fit scale when the component is attached.
@@ -184,7 +206,7 @@ namespace helengine {
                 return;
             }
 
-            CaptureSnapshotsRecursive(Parent);
+            CaptureSnapshotsRecursive(Parent, true);
             SnapshotEntityCountValue = SnapshotsValue.Count;
         }
 
@@ -192,15 +214,16 @@ namespace helengine {
         /// Recursively captures one entity subtree into immutable authored snapshots.
         /// </summary>
         /// <param name="entity">Current entity to capture.</param>
-        void CaptureSnapshotsRecursive(Entity entity) {
-            SnapshotsValue.Add(new ReferenceCanvasFitSnapshot(entity));
+        /// <param name="isRootEntity">True when the entity is the root of the fitted subtree.</param>
+        void CaptureSnapshotsRecursive(Entity entity, bool isRootEntity) {
+            SnapshotsValue.Add(new ReferenceCanvasFitSnapshot(entity, isRootEntity));
 
             if (entity.Children == null) {
                 return;
             }
 
             for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
-                CaptureSnapshotsRecursive(entity.Children[childIndex]);
+                CaptureSnapshotsRecursive(entity.Children[childIndex], false);
             }
         }
 
@@ -212,32 +235,111 @@ namespace helengine {
                 return;
             }
 
-            double scale = ResolveCurrentScale();
+            AnchorSpace resolvedAnchorSpace = ResolveCurrentAnchorSpace();
+            float2 resolvedCanvasOrigin = ResolveCurrentCanvasOrigin(resolvedAnchorSpace);
+            bool anchorSpaceChanged = DidAnchorSpaceChange(CurrentAnchorSpaceValue, resolvedAnchorSpace) ||
+                                      DidCanvasOriginChange(CurrentCanvasOriginValue, resolvedCanvasOrigin);
+
+            CurrentAnchorSpaceValue = resolvedAnchorSpace;
+            CurrentCanvasOriginValue = resolvedCanvasOrigin;
             for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
-                SnapshotsValue[snapshotIndex].Apply(scale);
+                SnapshotsValue[snapshotIndex].Apply(resolvedAnchorSpace, resolvedCanvasOrigin, ReferenceWidthValue, ReferenceHeightValue);
             }
 
             for (int snapshotIndex = 0; snapshotIndex < SnapshotsValue.Count; snapshotIndex++) {
                 SnapshotsValue[snapshotIndex].RefreshAnchoring();
             }
+
+            if (anchorSpaceChanged) {
+                RaiseAnchorBoundsChanged();
+            }
         }
 
         /// <summary>
-        /// Resolves the current uniform fit scale using the live main-window dimensions and the authored reference canvas.
+        /// Resolves the current fitted anchor space using the live main-window dimensions and the authored reference canvas.
         /// </summary>
-        /// <returns>Uniform scale that fits the reference canvas inside the current main window.</returns>
-        double ResolveCurrentScale() {
+        /// <returns>Anchor space that descendants should use for local anchoring.</returns>
+        AnchorSpace ResolveCurrentAnchorSpace() {
             int2 mainWindowSize = Core.Instance.RenderManager3D.MainWindowSize;
             double liveWidth = mainWindowSize.X > 0 ? mainWindowSize.X : ReferenceWidthValue;
             double liveHeight = mainWindowSize.Y > 0 ? mainWindowSize.Y : ReferenceHeightValue;
+            if (LiveWindowMatchesReferenceAspect(liveWidth, liveHeight)) {
+                return new AnchorSpace(new int2((int)Math.Round(liveWidth), (int)Math.Round(liveHeight)), new float2(0f, 0f));
+            }
+
             double widthScale = liveWidth / ReferenceWidthValue;
             double heightScale = liveHeight / ReferenceHeightValue;
             double scale = Math.Min(widthScale, heightScale);
             if (scale <= 0d) {
-                return 1d;
+                return new AnchorSpace(new int2(ReferenceWidthValue, ReferenceHeightValue), new float2(0f, 0f));
             }
 
-            return scale;
+            int fittedWidth = Math.Max(1, (int)Math.Round(ReferenceWidthValue * scale));
+            int fittedHeight = Math.Max(1, (int)Math.Round(ReferenceHeightValue * scale));
+            return new AnchorSpace(new int2(fittedWidth, fittedHeight), new float2(0f, 0f));
+        }
+
+        /// <summary>
+        /// Resolves the fitted origin applied to the root entity of the authored subtree.
+        /// </summary>
+        /// <param name="anchorSpace">Anchor space resolved for the current live window.</param>
+        /// <returns>Root-entity offset that places the fitted canvas inside the live window.</returns>
+        float2 ResolveCurrentCanvasOrigin(AnchorSpace anchorSpace) {
+            int2 mainWindowSize = Core.Instance.RenderManager3D.MainWindowSize;
+            double liveWidth = mainWindowSize.X > 0 ? mainWindowSize.X : ReferenceWidthValue;
+            double liveHeight = mainWindowSize.Y > 0 ? mainWindowSize.Y : ReferenceHeightValue;
+            float originX = (float)((liveWidth - anchorSpace.Size.X) * 0.5d);
+            float originY = (float)((liveHeight - anchorSpace.Size.Y) * 0.5d);
+            return new float2(originX, originY);
+        }
+
+        /// <summary>
+        /// Determines whether the current live window should be treated as the same aspect as the authored reference canvas.
+        /// </summary>
+        /// <param name="liveWidth">Resolved live window width.</param>
+        /// <param name="liveHeight">Resolved live window height.</param>
+        /// <returns>True when the live window is within one half-pixel of the authored aspect ratio.</returns>
+        bool LiveWindowMatchesReferenceAspect(double liveWidth, double liveHeight) {
+            double expectedWidth = liveHeight * ReferenceWidthValue / ReferenceHeightValue;
+            double expectedHeight = liveWidth * ReferenceHeightValue / ReferenceWidthValue;
+            return Math.Abs(liveWidth - expectedWidth) <= 0.5d || Math.Abs(liveHeight - expectedHeight) <= 0.5d;
+        }
+
+        /// <summary>
+        /// Determines whether the fitted anchor space changed between layout passes.
+        /// </summary>
+        /// <param name="currentAnchorSpace">Previously applied anchor space.</param>
+        /// <param name="resolvedAnchorSpace">Newly resolved anchor space.</param>
+        /// <returns>True when the size or origin changed.</returns>
+        bool DidAnchorSpaceChange(AnchorSpace currentAnchorSpace, AnchorSpace resolvedAnchorSpace) {
+            if (currentAnchorSpace == null) {
+                return true;
+            }
+
+            return currentAnchorSpace.Size.X != resolvedAnchorSpace.Size.X ||
+                   currentAnchorSpace.Size.Y != resolvedAnchorSpace.Size.Y ||
+                   currentAnchorSpace.Origin.X != resolvedAnchorSpace.Origin.X ||
+                   currentAnchorSpace.Origin.Y != resolvedAnchorSpace.Origin.Y;
+        }
+
+        /// <summary>
+        /// Determines whether the fitted root origin changed between layout passes.
+        /// </summary>
+        /// <param name="currentCanvasOrigin">Previously applied root origin.</param>
+        /// <param name="resolvedCanvasOrigin">Newly resolved root origin.</param>
+        /// <returns>True when the root origin changed.</returns>
+        bool DidCanvasOriginChange(float2 currentCanvasOrigin, float2 resolvedCanvasOrigin) {
+            return currentCanvasOrigin.X != resolvedCanvasOrigin.X ||
+                   currentCanvasOrigin.Y != resolvedCanvasOrigin.Y;
+        }
+
+        /// <summary>
+        /// Raises anchor-space change notifications when listeners are present.
+        /// </summary>
+        void RaiseAnchorBoundsChanged() {
+            if (AnchorBoundsChanged != null) {
+                AnchorBoundsChanged();
+            }
         }
 
         /// <summary>

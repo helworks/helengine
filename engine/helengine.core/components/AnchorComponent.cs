@@ -66,7 +66,7 @@ namespace helengine {
             }
 
             RefreshSubscriptions();
-            int2 anchorBounds = GetAnchorBounds();
+            AnchorSpace anchorSpace = GetAnchorSpace();
             int2 anchoredSize = GetAnchorSize();
             float3 localPosition = Parent.LocalPosition;
 
@@ -75,19 +75,19 @@ namespace helengine {
 
             if (left) {
                 anchorFlags |= LeftAnchorFlag;
-                anchorDistances.X = localPosition.X;
+                anchorDistances.X = localPosition.X - anchorSpace.Origin.X;
             }
             if (right) {
                 anchorFlags |= RightAnchorFlag;
-                anchorDistances.Y = anchorBounds.X - localPosition.X - anchoredSize.X;
+                anchorDistances.Y = anchorSpace.Size.X - (localPosition.X - anchorSpace.Origin.X) - anchoredSize.X;
             }
             if (top) {
                 anchorFlags |= TopAnchorFlag;
-                anchorDistances.Z = localPosition.Y;
+                anchorDistances.Z = localPosition.Y - anchorSpace.Origin.Y;
             }
             if (bottom) {
                 anchorFlags |= BottomAnchorFlag;
-                anchorDistances.W = anchorBounds.Y - localPosition.Y - anchoredSize.Y;
+                anchorDistances.W = anchorSpace.Size.Y - (localPosition.Y - anchorSpace.Origin.Y) - anchoredSize.Y;
             }
 
             AnchorFlags = anchorFlags;
@@ -160,20 +160,20 @@ namespace helengine {
 
             RefreshSubscriptions();
 
-            int2 anchorBounds = GetAnchorBounds();
+            AnchorSpace anchorSpace = GetAnchorSpace();
             int2 anchorSize = GetAnchorSize();
             float3 localPosition = Parent.LocalPosition;
 
             if ((AnchorFlags & LeftAnchorFlag) != 0) {
-                localPosition.X = AnchorDistances.X;
+                localPosition.X = anchorSpace.Origin.X + AnchorDistances.X;
             } else if ((AnchorFlags & RightAnchorFlag) != 0) {
-                localPosition.X = anchorBounds.X - AnchorDistances.Y - anchorSize.X;
+                localPosition.X = anchorSpace.Origin.X + anchorSpace.Size.X - AnchorDistances.Y - anchorSize.X;
             }
 
             if ((AnchorFlags & TopAnchorFlag) != 0) {
-                localPosition.Y = AnchorDistances.Z;
+                localPosition.Y = anchorSpace.Origin.Y + AnchorDistances.Z;
             } else if ((AnchorFlags & BottomAnchorFlag) != 0) {
-                localPosition.Y = anchorBounds.Y - AnchorDistances.W - anchorSize.Y;
+                localPosition.Y = anchorSpace.Origin.Y + anchorSpace.Size.Y - AnchorDistances.W - anchorSize.Y;
             }
 
             Parent.LocalPosition = localPosition;
@@ -304,16 +304,16 @@ namespace helengine {
             Entity current = Parent;
 
             while (current != null) {
-                if (current is IAnchorBoundsProvider provider) {
-                    return provider;
-                }
-
                 if (current.Components != null) {
-                    for (int i = 0; i < current.Components.Count; i++) {
+                    for (int i = current.Components.Count - 1; i >= 0; i--) {
                         if (current.Components[i] is IAnchorBoundsProvider componentProvider) {
                             return componentProvider;
                         }
                     }
+                }
+
+                if (current is IAnchorBoundsProvider provider) {
+                    return provider;
                 }
 
                 current = current.Parent;
@@ -325,13 +325,13 @@ namespace helengine {
         /// <summary>
         /// Resolves the bounds that should be treated as the active anchor space.
         /// </summary>
-        /// <returns>Anchor bounds in local pixels.</returns>
-        int2 GetAnchorBounds() {
+        /// <returns>Anchor space in local pixels.</returns>
+        AnchorSpace GetAnchorSpace() {
             if (anchorBoundsProvider != null) {
-                return anchorBoundsProvider.AnchorBounds;
+                return anchorBoundsProvider.AnchorSpace;
             }
 
-            return Core.Instance.RenderManager3D.MainWindowSize;
+            return new AnchorSpace(Core.Instance.RenderManager3D.MainWindowSize, new float2(0f, 0f));
         }
 
         /// <summary>

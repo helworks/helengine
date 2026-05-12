@@ -144,6 +144,106 @@ namespace helengine.editor.tests.components {
         }
 
         /// <summary>
+        /// Ensures same-aspect widescreen resolutions preserve the same normalized menu layout instead of drifting when the window shrinks.
+        /// </summary>
+        [Fact]
+        public void ComponentAdded_WhenWindowShrinksTo853x480_PreservesNormalizedLayoutFrom1280x720() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+
+            Entity menuRoot = CreateEntity(float3.Zero);
+            menuRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+
+            Entity generatedRoot = CreateEntity(float3.Zero);
+            menuRoot.AddChild(generatedRoot);
+
+            Entity panelEntity = CreateEntity(new float3(88f, 190f, 0f));
+            RoundedRectComponent panelBackground = new RoundedRectComponent {
+                Size = new int2(560, 420),
+                Radius = 18f,
+                BorderThickness = 3f
+            };
+            AnchorComponent panelAnchor = new AnchorComponent();
+            panelEntity.AddComponent(panelBackground);
+            panelEntity.AddComponent(panelAnchor);
+            generatedRoot.AddChild(panelEntity);
+            panelAnchor.SetAnchorDistances(left: 88f, top: 190f);
+
+            menuRoot.AddComponent(new ReferenceCanvasFitComponent {
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            });
+
+            renderManager.OnWindowResize(IntPtr.Zero, 853, 480);
+            Core.Instance.Update();
+
+            AssertFloat3ApproximatelyEqual(new float3(58.64375f, 126.66667f, 0f), panelEntity.LocalPosition, 0.01f);
+            Assert.Equal(new int2(373, 280), panelBackground.Size);
+            AssertFloat4ApproximatelyEqual(new float4(58.64375f, 0f, 126.66667f, 0f), panelAnchor.AnchorDistances, 0.01f);
+        }
+
+        /// <summary>
+        /// Ensures same-aspect widescreen shrink targets keep the authored panel fully inside the visible fitted canvas.
+        /// </summary>
+        [Fact]
+        public void ComponentAdded_WhenWindowIs853x480_KeepsPanelInsideTheVisibleCanvas() {
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
+
+            Entity menuRoot = CreateEntity(float3.Zero);
+            menuRoot.AddComponent(new ViewportComponent {
+                BindingMode = ViewportComponent.ScreenBindingMode,
+                FixedSize = new int2(1280, 720)
+            });
+
+            Entity generatedRoot = CreateEntity(float3.Zero);
+            menuRoot.AddChild(generatedRoot);
+
+            Entity panelEntity = CreateEntity(new float3(88f, 190f, 0f));
+            RoundedRectComponent panelBackground = new RoundedRectComponent {
+                Size = new int2(560, 420),
+                Radius = 18f,
+                BorderThickness = 3f
+            };
+            AnchorComponent panelAnchor = new AnchorComponent();
+            panelEntity.AddComponent(panelBackground);
+            panelEntity.AddComponent(panelAnchor);
+            generatedRoot.AddChild(panelEntity);
+            panelAnchor.SetAnchorDistances(left: 88f, top: 190f);
+
+            Entity descriptionEntity = CreateEntity(new float3(32f, 410f, 0.1f));
+            TextComponent descriptionText = new TextComponent {
+                Font = CreateFont(),
+                Text = "Description",
+                Size = new int2(500, 64),
+                FontScale = 1f
+            };
+            descriptionEntity.AddComponent(descriptionText);
+            panelEntity.AddChild(descriptionEntity);
+
+            menuRoot.AddComponent(new ReferenceCanvasFitComponent {
+                ReferenceWidth = 1280,
+                ReferenceHeight = 720
+            });
+
+            renderManager.OnWindowResize(IntPtr.Zero, 853, 480);
+            Core.Instance.Update();
+
+            float panelRight = panelEntity.LocalPosition.X + panelBackground.Size.X;
+            float panelBottom = panelEntity.LocalPosition.Y + panelBackground.Size.Y;
+            float descriptionBottom = panelEntity.LocalPosition.Y + descriptionEntity.LocalPosition.Y + descriptionText.Size.Y;
+
+            Assert.True(panelEntity.LocalPosition.X >= 0f);
+            Assert.True(panelEntity.LocalPosition.Y >= 0f);
+            Assert.True(panelRight <= 853f);
+            Assert.True(panelBottom <= 480f);
+            Assert.True(descriptionBottom <= 480f);
+        }
+
+        /// <summary>
         /// Creates one initialized entity with the supplied local position.
         /// </summary>
         /// <param name="localPosition">Local position assigned to the entity.</param>
@@ -172,6 +272,44 @@ namespace helengine.editor.tests.components {
                 ['H'] = new FontChar(new float4(0.1f, 0.2f, 0.05f, 0.1f), 1f, 6f, 0f, 0f)
             };
             return new FontAsset(new FontInfo("Test", 10, 3f), texture, characters, 10f, 100, 50);
+        }
+
+        /// <summary>
+        /// Asserts that two three-component floating-point vectors are equal within a caller-supplied tolerance.
+        /// </summary>
+        /// <param name="expected">Expected vector value.</param>
+        /// <param name="actual">Actual vector value.</param>
+        /// <param name="tolerance">Maximum absolute difference allowed for each component.</param>
+        static void AssertFloat3ApproximatelyEqual(float3 expected, float3 actual, float tolerance) {
+            AssertApproximatelyEqual(expected.X, actual.X, tolerance);
+            AssertApproximatelyEqual(expected.Y, actual.Y, tolerance);
+            AssertApproximatelyEqual(expected.Z, actual.Z, tolerance);
+        }
+
+        /// <summary>
+        /// Asserts that two four-component floating-point vectors are equal within a caller-supplied tolerance.
+        /// </summary>
+        /// <param name="expected">Expected vector value.</param>
+        /// <param name="actual">Actual vector value.</param>
+        /// <param name="tolerance">Maximum absolute difference allowed for each component.</param>
+        static void AssertFloat4ApproximatelyEqual(float4 expected, float4 actual, float tolerance) {
+            AssertApproximatelyEqual(expected.X, actual.X, tolerance);
+            AssertApproximatelyEqual(expected.Y, actual.Y, tolerance);
+            AssertApproximatelyEqual(expected.Z, actual.Z, tolerance);
+            AssertApproximatelyEqual(expected.W, actual.W, tolerance);
+        }
+
+        /// <summary>
+        /// Asserts that two floating-point values are equal within a caller-supplied tolerance.
+        /// </summary>
+        /// <param name="expected">Expected floating-point value.</param>
+        /// <param name="actual">Actual floating-point value.</param>
+        /// <param name="tolerance">Maximum absolute difference allowed between the two values.</param>
+        static void AssertApproximatelyEqual(float expected, float actual, float tolerance) {
+            float difference = Math.Abs(expected - actual);
+            Assert.True(
+                difference <= tolerance,
+                $"Expected {expected} but received {actual}. Difference {difference} exceeded tolerance {tolerance}.");
         }
     }
 }

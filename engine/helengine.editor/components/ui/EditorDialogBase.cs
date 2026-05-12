@@ -299,6 +299,11 @@ namespace helengine.editor {
         public int2 AnchorBounds => new int2(DialogWidth, DialogHeight);
 
         /// <summary>
+        /// Gets the resolved anchor space used by anchored children that live under the dialog shell.
+        /// </summary>
+        public AnchorSpace AnchorSpace => new AnchorSpace(AnchorBounds, new float2(0f, 0f));
+
+        /// <summary>
         /// Raised when the dialog size changes and anchored children should refresh.
         /// </summary>
         public event Action AnchorBoundsChanged;

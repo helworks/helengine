@@ -79,12 +79,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Gets the resolved viewport bounds in local pixels.
+        /// Gets the resolved viewport anchor space in local pixels.
         /// </summary>
-        public int2 AnchorBounds {
+        public AnchorSpace AnchorSpace {
             get {
                 RefreshSubscriptions();
-                return ResolveAnchorBounds();
+                return new AnchorSpace(ResolveAnchorBounds(), new float2(0f, 0f));
             }
         }
 

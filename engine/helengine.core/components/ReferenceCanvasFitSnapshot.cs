@@ -7,8 +7,10 @@ namespace helengine {
         /// Initializes one snapshot for the supplied entity and any supported attached layout components.
         /// </summary>
         /// <param name="entity">Entity whose authored state should be preserved.</param>
-        public ReferenceCanvasFitSnapshot(Entity entity) {
+        /// <param name="isRootEntity">True when the entity is the root of the fitted subtree.</param>
+        public ReferenceCanvasFitSnapshot(Entity entity, bool isRootEntity) {
             Entity = entity ?? throw new ArgumentNullException(nameof(entity));
+            IsRootEntity = isRootEntity;
             LocalPosition = entity.LocalPosition;
 
             TrackedAnchorComponent = FindAnchorComponent(entity);
@@ -50,6 +52,11 @@ namespace helengine {
         /// Gets the entity whose authored state is represented by the snapshot.
         /// </summary>
         public Entity Entity { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether the snapshot belongs to the root entity of the fitted subtree.
+        /// </summary>
+        public bool IsRootEntity { get; }
 
         /// <summary>
         /// Gets the authored local position captured for the entity.
@@ -139,43 +146,56 @@ namespace helengine {
         /// <summary>
         /// Applies one absolute fit scale to the captured entity and any supported attached layout components.
         /// </summary>
-        /// <param name="scale">Uniform fit scale resolved for the live window.</param>
-        public void Apply(double scale) {
+        /// <param name="anchorSpace">Anchor space resolved for the live window.</param>
+        /// <param name="canvasOrigin">Origin applied to the fitted subtree root.</param>
+        /// <param name="referenceWidth">Authored reference canvas width.</param>
+        /// <param name="referenceHeight">Authored reference canvas height.</param>
+        public void Apply(AnchorSpace anchorSpace, float2 canvasOrigin, int referenceWidth, int referenceHeight) {
+            double widthScale = referenceWidth > 0 ? (double)anchorSpace.Size.X / referenceWidth : 1d;
+            double heightScale = referenceHeight > 0 ? (double)anchorSpace.Size.Y / referenceHeight : 1d;
+            double scalarScale = Math.Min(widthScale, heightScale);
+            float positionX = ScaleFloat(LocalPosition.X, widthScale);
+            float positionY = ScaleFloat(LocalPosition.Y, heightScale);
+            if (IsRootEntity) {
+                positionX += canvasOrigin.X;
+                positionY += canvasOrigin.Y;
+            }
+
             Entity.LocalPosition = new float3(
-                ScaleFloat(LocalPosition.X, scale),
-                ScaleFloat(LocalPosition.Y, scale),
+                positionX,
+                positionY,
                 LocalPosition.Z);
 
             if (TrackedAnchorComponent != null) {
                 TrackedAnchorComponent.AnchorDistances = new float4(
-                    ScaleFloat(AnchorDistances.X, scale),
-                    ScaleFloat(AnchorDistances.Y, scale),
-                    ScaleFloat(AnchorDistances.Z, scale),
-                    ScaleFloat(AnchorDistances.W, scale));
+                    ScaleFloat(AnchorDistances.X, widthScale),
+                    ScaleFloat(AnchorDistances.Y, widthScale),
+                    ScaleFloat(AnchorDistances.Z, heightScale),
+                    ScaleFloat(AnchorDistances.W, heightScale));
             }
 
             if (TrackedRoundedRectComponent != null) {
-                TrackedRoundedRectComponent.Size = ScaleInt2(RoundedRectSize, scale);
-                TrackedRoundedRectComponent.Radius = ScaleFloat(RoundedRectRadius, scale);
-                TrackedRoundedRectComponent.BorderThickness = ScaleFloat(RoundedRectBorderThickness, scale);
+                TrackedRoundedRectComponent.Size = ScaleInt2(RoundedRectSize, widthScale, heightScale);
+                TrackedRoundedRectComponent.Radius = ScaleFloat(RoundedRectRadius, scalarScale);
+                TrackedRoundedRectComponent.BorderThickness = ScaleFloat(RoundedRectBorderThickness, scalarScale);
             }
 
             if (TrackedTextComponent != null) {
-                TrackedTextComponent.Size = ScaleInt2(TextSize, scale);
-                TrackedTextComponent.FontScale = ScaleFloat(TextFontScale, scale);
+                TrackedTextComponent.Size = ScaleInt2(TextSize, widthScale, heightScale);
+                TrackedTextComponent.FontScale = ScaleFloat(TextFontScale, scalarScale);
             }
 
             if (TrackedClipRectComponent != null) {
-                TrackedClipRectComponent.Size = ScaleInt2(ClipRectSize, scale);
+                TrackedClipRectComponent.Size = ScaleInt2(ClipRectSize, widthScale, heightScale);
             }
 
             if (TrackedInteractableComponent != null) {
-                TrackedInteractableComponent.Size = ScaleInt2(InteractableSize, scale);
+                TrackedInteractableComponent.Size = ScaleInt2(InteractableSize, widthScale, heightScale);
             }
 
             if (TrackedScrollComponent != null) {
-                TrackedScrollComponent.Size = ScaleInt2(ScrollSize, scale);
-                TrackedScrollComponent.ItemExtent = ScaleInt(ScrollItemExtent, scale);
+                TrackedScrollComponent.Size = ScaleInt2(ScrollSize, widthScale, heightScale);
+                TrackedScrollComponent.ItemExtent = ScaleInt(ScrollItemExtent, scalarScale);
             }
         }
 
@@ -306,7 +326,7 @@ namespace helengine {
         /// Scales one signed pixel value while preserving zero and rounding to the nearest integer.
         /// </summary>
         /// <param name="value">Authored pixel value.</param>
-        /// <param name="scale">Uniform fit scale.</param>
+        /// <param name="scale">Resolved scalar scale.</param>
         /// <returns>Scaled pixel value.</returns>
         static int ScaleInt(int value, double scale) {
             if (value == 0) {
@@ -320,17 +340,18 @@ namespace helengine {
         /// Scales one integer vector while preserving zero-valued axes.
         /// </summary>
         /// <param name="value">Authored integer vector.</param>
-        /// <param name="scale">Uniform fit scale.</param>
+        /// <param name="widthScale">Resolved horizontal scale.</param>
+        /// <param name="heightScale">Resolved vertical scale.</param>
         /// <returns>Scaled integer vector.</returns>
-        static int2 ScaleInt2(int2 value, double scale) {
-            return new int2(ScaleInt(value.X, scale), ScaleInt(value.Y, scale));
+        static int2 ScaleInt2(int2 value, double widthScale, double heightScale) {
+            return new int2(ScaleInt(value.X, widthScale), ScaleInt(value.Y, heightScale));
         }
 
         /// <summary>
         /// Scales one authored float value using double precision before casting back to float.
         /// </summary>
         /// <param name="value">Authored float value.</param>
-        /// <param name="scale">Uniform fit scale.</param>
+        /// <param name="scale">Resolved scale.</param>
         /// <returns>Scaled float value.</returns>
         static float ScaleFloat(float value, double scale) {
             return (float)(value * scale);
