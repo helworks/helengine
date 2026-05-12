@@ -129,6 +129,33 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures every authored city rendering showcase scene carries one FPS overlay and the generated editor font reference it needs at runtime.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityRenderingSceneAssets_AllShowcaseScenesContainFpsOverlayAndEditorFontReference() {
+            string[] sceneFileNames = new[] {
+                "cube_test.helen",
+                "colored_cube_grid.helen",
+                "textured_cube_grid.helen",
+                "axis_test.helen",
+                "axis_test2.helen",
+                "directional_shadow_plaza.helen",
+                "spotlight_street_slice.helen"
+            };
+
+            for (int index = 0; index < sceneFileNames.Length; index++) {
+                SceneAsset sceneAsset = ReadSceneAsset(sceneFileNames[index]);
+
+                Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.FPSComponent"));
+                Assert.Contains(
+                    sceneAsset.AssetReferences ?? Array.Empty<SceneAssetReference>(),
+                    reference => string.Equals(reference.RelativePath, "generated/editor/fonts/ui.hefont", StringComparison.Ordinal)
+                        && string.Equals(reference.ProviderId, "editor", StringComparison.Ordinal)
+                        && string.Equals(reference.AssetId, "ui-font", StringComparison.Ordinal));
+            }
+        }
+
+        /// <summary>
         /// Reads one city rendering scene asset from the authored project scene folder.
         /// </summary>
         /// <param name="sceneFileName">File name of the authored rendering scene.</param>
