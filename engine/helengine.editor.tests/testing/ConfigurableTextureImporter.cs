@@ -9,11 +9,40 @@ namespace helengine.editor.tests.testing {
         readonly byte[] Colors;
 
         /// <summary>
+        /// Texture width returned by the importer.
+        /// </summary>
+        readonly ushort Width;
+
+        /// <summary>
+        /// Texture height returned by the importer.
+        /// </summary>
+        readonly ushort Height;
+
+        /// <summary>
         /// Initializes one deterministic importer with the supplied pixel bytes.
         /// </summary>
         /// <param name="colors">Pixel bytes returned for each import.</param>
-        public ConfigurableTextureImporter(byte[] colors) {
-            Colors = colors ?? throw new ArgumentNullException(nameof(colors));
+        public ConfigurableTextureImporter(byte[] colors) : this(1, 1, colors) {
+        }
+
+        /// <summary>
+        /// Initializes one deterministic importer with the supplied dimensions and pixel bytes.
+        /// </summary>
+        /// <param name="width">Texture width returned for each import.</param>
+        /// <param name="height">Texture height returned for each import.</param>
+        /// <param name="colors">Pixel bytes returned for each import.</param>
+        public ConfigurableTextureImporter(int width, int height, byte[] colors) {
+            if (width < 1) {
+                throw new ArgumentOutOfRangeException(nameof(width));
+            } else if (height < 1) {
+                throw new ArgumentOutOfRangeException(nameof(height));
+            } else if (colors == null) {
+                throw new ArgumentNullException(nameof(colors));
+            }
+
+            Width = (ushort)width;
+            Height = (ushort)height;
+            Colors = colors;
         }
 
         /// <summary>
@@ -27,8 +56,8 @@ namespace helengine.editor.tests.testing {
             }
 
             return new TextureAsset {
-                Width = 1,
-                Height = 1,
+                Width = Width,
+                Height = Height,
                 Colors = (byte[])Colors.Clone()
             };
         }

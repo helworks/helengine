@@ -29,6 +29,11 @@ namespace helengine.editor {
         const byte TextComponentPayloadVersion = 1;
 
         /// <summary>
+        /// Current payload version for serialized sprite component scene records.
+        /// </summary>
+        const byte SpriteComponentPayloadVersion = 1;
+
+        /// <summary>
         /// Stable serialized component id for mesh components.
         /// </summary>
         const string MeshComponentTypeId = "helengine.MeshComponent";
@@ -122,6 +127,46 @@ namespace helengine.editor {
         /// Stable serialized component id for text components.
         /// </summary>
         const string TextComponentTypeId = "helengine.TextComponent";
+
+        /// <summary>
+        /// Stable serialized component id for sprite components.
+        /// </summary>
+        const string SpriteComponentTypeId = "helengine.SpriteComponent";
+
+        /// <summary>
+        /// Stable tagged field name used for sprite texture-reference persistence.
+        /// </summary>
+        const string SpriteTextureReferenceFieldName = "TextureReference";
+
+        /// <summary>
+        /// Stable tagged field name used for sprite source-rectangle persistence.
+        /// </summary>
+        const string SpriteSourceRectFieldName = "SourceRect";
+
+        /// <summary>
+        /// Stable tagged field name used for sprite size persistence.
+        /// </summary>
+        const string SpriteSizeFieldName = "Size";
+
+        /// <summary>
+        /// Stable tagged field name used for sprite color persistence.
+        /// </summary>
+        const string SpriteColorFieldName = "Color";
+
+        /// <summary>
+        /// Stable tagged field name used for sprite rotation persistence.
+        /// </summary>
+        const string SpriteRotationFieldName = "Rotation";
+
+        /// <summary>
+        /// Stable tagged field name used for sprite 2D render-order persistence.
+        /// </summary>
+        const string SpriteRenderOrder2DFieldName = "RenderOrder2D";
+
+        /// <summary>
+        /// Stable tagged field name used for sprite layer-mask persistence.
+        /// </summary>
+        const string SpriteLayerMaskFieldName = "LayerMask";
 
         /// <summary>
         /// Stable serialized component id for rounded rectangle components.
@@ -458,6 +503,7 @@ namespace helengine.editor {
             PersistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
             PersistenceRegistry.Register(CameraComponentDescriptor);
             PersistenceRegistry.Register(new TextComponentPersistenceDescriptor());
+            PersistenceRegistry.Register(new SpriteComponentPersistenceDescriptor());
             PersistenceRegistry.Register(RoundedRectComponentDescriptor);
             PersistenceRegistry.Register(new FPSComponentPersistenceDescriptor());
             PersistenceRegistry.Register(new DirectionalLightComponentPersistenceDescriptor());
@@ -484,6 +530,7 @@ namespace helengine.editor {
                 || string.Equals(componentTypeId, CameraComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, FPSComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, TextComponentTypeId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(componentTypeId, SpriteComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, RoundedRectComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, DirectionalLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(componentTypeId, AmbientLightComponentTypeId, StringComparison.OrdinalIgnoreCase)
@@ -539,6 +586,11 @@ namespace helengine.editor {
 
             if (string.Equals(record.ComponentTypeId, TextComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
                 transformedRecord = RewriteTextComponentRecord(record, buildRootPath);
+                return true;
+            }
+
+            if (string.Equals(record.ComponentTypeId, SpriteComponentTypeId, StringComparison.OrdinalIgnoreCase)) {
+                transformedRecord = RewriteSpriteComponentRecord(record, buildRootPath);
                 return true;
             }
 
@@ -1300,6 +1352,120 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Rewrites one serialized sprite payload into the strict runtime sprite payload shape.
+        /// </summary>
+        /// <param name="record">Serialized sprite component record to rewrite.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Rewritten sprite component record.</returns>
+        SceneComponentAssetRecord RewriteSpriteComponentRecord(SceneComponentAssetRecord record, string buildRootPath) {
+            ReadTaggedSpriteComponentRecord(
+                record,
+                out SceneAssetReference textureReference,
+                out float4 sourceRect,
+                out int2 size,
+                out byte4 color,
+                out float rotation,
+                out byte renderOrder2D,
+                out byte layerMask);
+
+            using MemoryStream writeStream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(writeStream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(SpriteComponentPayloadVersion);
+            WriteOptionalReference(writer, RewriteTextureReference(textureReference, buildRootPath));
+            WriteFloat4(writer, sourceRect);
+            writer.WriteInt2(size);
+            FontAssetScenePersistenceSupport.WriteByte4(writer, color);
+            writer.WriteSingle(rotation);
+            writer.WriteByte(renderOrder2D);
+            writer.WriteByte(layerMask);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = SpriteComponentTypeId,
+                ComponentIndex = record.ComponentIndex,
+                Payload = writeStream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Reads one serialized sprite payload from the current tagged editor format.
+        /// </summary>
+        /// <param name="record">Serialized sprite component record to interpret.</param>
+        /// <param name="textureReference">Persisted texture reference.</param>
+        /// <param name="sourceRect">Persisted source rectangle.</param>
+        /// <param name="size">Persisted destination size.</param>
+        /// <param name="color">Persisted color tint.</param>
+        /// <param name="rotation">Persisted rotation.</param>
+        /// <param name="renderOrder2D">Persisted 2D render order.</param>
+        /// <param name="layerMask">Persisted layer mask.</param>
+        void ReadTaggedSpriteComponentRecord(
+            SceneComponentAssetRecord record,
+            out SceneAssetReference textureReference,
+            out float4 sourceRect,
+            out int2 size,
+            out byte4 color,
+            out float rotation,
+            out byte renderOrder2D,
+            out byte layerMask) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(record.Payload ?? Array.Empty<byte>());
+            if (!reader.TryGetFieldReader(SpriteTextureReferenceFieldName, out EngineBinaryReader textureReferenceReader)) {
+                throw new InvalidOperationException("SpriteComponent requires a texture reference before packaging.");
+            }
+
+            using (textureReferenceReader) {
+                textureReference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(textureReferenceReader);
+            }
+            if (textureReference == null) {
+                throw new InvalidOperationException("SpriteComponent requires a texture reference before packaging.");
+            }
+
+            sourceRect = new float4(0f, 0f, 1f, 1f);
+            if (reader.TryGetFieldReader(SpriteSourceRectFieldName, out EngineBinaryReader sourceRectReader)) {
+                using (sourceRectReader) {
+                    sourceRect = sourceRectReader.ReadFloat4();
+                }
+            }
+
+            size = int2.Zero;
+            if (reader.TryGetFieldReader(SpriteSizeFieldName, out EngineBinaryReader sizeReader)) {
+                using (sizeReader) {
+                    size = sizeReader.ReadInt2();
+                }
+            }
+
+            color = new byte4(255, 255, 255, 255);
+            if (reader.TryGetFieldReader(SpriteColorFieldName, out EngineBinaryReader colorReader)) {
+                using (colorReader) {
+                    color = SceneComponentBinaryFieldEncoding.ReadByte4(colorReader);
+                }
+            }
+
+            rotation = 0f;
+            if (reader.TryGetFieldReader(SpriteRotationFieldName, out EngineBinaryReader rotationReader)) {
+                using (rotationReader) {
+                    rotation = rotationReader.ReadSingle();
+                }
+            }
+
+            renderOrder2D = 0;
+            if (reader.TryGetFieldReader(SpriteRenderOrder2DFieldName, out EngineBinaryReader renderOrderReader)) {
+                using (renderOrderReader) {
+                    renderOrder2D = renderOrderReader.ReadByte();
+                }
+            }
+
+            layerMask = RuntimeSceneLayerMask > byte.MaxValue ? byte.MaxValue : (byte)RuntimeSceneLayerMask;
+            if (reader.TryGetFieldReader(SpriteLayerMaskFieldName, out EngineBinaryReader layerMaskReader)) {
+                using (layerMaskReader) {
+                    layerMask = layerMaskReader.ReadByte();
+                }
+            }
+        }
+
+        /// <summary>
         /// Rewrites one serialized ambient-light payload into the strict runtime light payload shape.
         /// </summary>
         /// <param name="record">Serialized ambient light component record to rewrite.</param>
@@ -1784,6 +1950,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Rewrites one texture reference into a cooked packaged texture reference.
+        /// </summary>
+        /// <param name="reference">Serialized texture reference to rewrite.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Packaged file-backed texture reference.</returns>
+        SceneAssetReference RewriteTextureReference(SceneAssetReference reference, string buildRootPath) {
+            if (reference == null) {
+                throw new InvalidOperationException("SpriteComponent requires a texture reference before packaging.");
+            }
+            if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
+                throw new InvalidOperationException($"Unsupported texture reference source kind '{reference.SourceKind}'.");
+            }
+
+            return RewriteFileSystemTextureReference(reference, buildRootPath);
+        }
+
+        /// <summary>
         /// Builds the stable generated reference used for the editor's built-in font asset.
         /// </summary>
         /// <returns>Generated editor-font scene reference.</returns>
@@ -1798,6 +1981,30 @@ namespace helengine.editor {
                 ProviderId = string.Empty,
                 AssetId = string.Empty
             };
+        }
+
+        /// <summary>
+        /// Rewrites one file-backed source texture reference into a cooked packaged texture reference.
+        /// </summary>
+        /// <param name="reference">Serialized texture reference to rewrite.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
+        /// <returns>Packaged file-backed texture reference.</returns>
+        SceneAssetReference RewriteFileSystemTextureReference(SceneAssetReference reference, string buildRootPath) {
+            string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
+            AssetImportSettings settings;
+            if (!AssetImportManager.TryLoadOrCreateImportSettings(sourcePath, out settings) || settings == null) {
+                throw new InvalidOperationException($"Texture source '{reference.RelativePath}' could not create import settings for packaging.");
+            }
+            if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+                throw new InvalidOperationException($"Texture source '{reference.RelativePath}' did not produce an imported asset id for packaging.");
+            }
+            if (!AssetImportManager.TryLoadTextureAsset(sourcePath, out TextureAsset textureAsset) || textureAsset == null) {
+                throw new InvalidOperationException($"Texture source '{reference.RelativePath}' could not be imported for packaging.");
+            }
+
+            string cookedRelativePath = BuildImportedTextureCookedRelativePath(settings.Importer.AssetId);
+            WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
+            return CreateFileSystemReference(cookedRelativePath);
         }
 
         /// <summary>
@@ -1921,7 +2128,7 @@ namespace helengine.editor {
             }
             string cookedRelativePath = BuildCookedMaterialRelativePath(reference.RelativePath);
             if (MaterialBuilder != null) {
-                AssetImportSettings materialSettings = LoadMaterialSettingsForCook(fullPath, reference.RelativePath, materialAsset);
+                MaterialAssetImportSettings materialSettings = LoadMaterialSettingsForCook(fullPath, reference.RelativePath, materialAsset);
                 PlatformMaterialCookRequest cookRequest = BuildMaterialCookRequest(reference, materialAsset, materialSettings);
                 PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(cookRequest);
                 RememberReferencedShaderAssetIds(cookResult.ReferencedShaderAssetIds);
@@ -1931,7 +2138,7 @@ namespace helengine.editor {
                 return CreateFileSystemReference(cookedRelativePath);
             }
 
-            AssetImportSettings platformMaterialSettings;
+            MaterialAssetImportSettings platformMaterialSettings;
             if (MaterialAssetSettingsService.TryLoad(fullPath, out platformMaterialSettings) &&
                 HasValidPlatformMaterialSettings(platformMaterialSettings, TargetPlatformId)) {
                 MaterialAssetSettingsService.ApplyPlatformMaterialFields(materialAsset, platformMaterialSettings, TargetPlatformId);
@@ -2049,7 +2256,7 @@ namespace helengine.editor {
         /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
         /// <param name="materialRelativePath">Project-relative material asset path used in diagnostics.</param>
         /// <returns>Deserialized material settings sidecar.</returns>
-        AssetImportSettings LoadMaterialSettingsForCook(string materialAssetPath, string materialRelativePath, MaterialAsset materialAsset) {
+        MaterialAssetImportSettings LoadMaterialSettingsForCook(string materialAssetPath, string materialRelativePath, MaterialAsset materialAsset) {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             } else if (string.IsNullOrWhiteSpace(materialRelativePath)) {
@@ -2062,7 +2269,7 @@ namespace helengine.editor {
             if (File.Exists(settingsPath)) {
                 try {
                     using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                    AssetImportSettings settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
+                    MaterialAssetImportSettings settings = MaterialAssetImportSettingsBinarySerializer.Deserialize(stream);
                     if (settings.Processor?.Platforms != null && settings.Processor.Platforms.ContainsKey(TargetPlatformId)) {
                         return settings;
                     }
@@ -2107,7 +2314,7 @@ namespace helengine.editor {
         PlatformMaterialCookRequest BuildMaterialCookRequest(
             SceneAssetReference reference,
             MaterialAsset materialAsset,
-            AssetImportSettings materialSettings) {
+            MaterialAssetImportSettings materialSettings) {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
             } else if (materialAsset == null) {
@@ -2116,7 +2323,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(materialSettings));
             }
 
-            MaterialAssetProcessorSettings platformMaterialSettings = materialSettings.Processor.Platforms[TargetPlatformId].Material;
+            MaterialAssetProcessorSettings platformMaterialSettings = materialSettings.Processor.Platforms[TargetPlatformId];
             if (platformMaterialSettings == null) {
                 throw new InvalidOperationException($"Material '{reference.RelativePath}' is missing material settings for target platform '{TargetPlatformId}'.");
             } else if (string.IsNullOrWhiteSpace(platformMaterialSettings.SchemaId)) {
@@ -2392,21 +2599,21 @@ namespace helengine.editor {
         /// <param name="settings">Material sidecar settings to inspect.</param>
         /// <param name="platformId">Target platform id whose settings should be validated.</param>
         /// <returns>True when the sidecar contains a non-empty schema id for the requested platform.</returns>
-        static bool HasValidPlatformMaterialSettings(AssetImportSettings settings, string platformId) {
+        static bool HasValidPlatformMaterialSettings(MaterialAssetImportSettings settings, string platformId) {
             if (settings == null || string.IsNullOrWhiteSpace(platformId)) {
                 return false;
             }
             if (settings.Processor == null || settings.Processor.Platforms == null) {
                 return false;
             }
-            if (!settings.Processor.Platforms.TryGetValue(platformId, out AssetPlatformProcessorSettings platformSettings)) {
+            if (!settings.Processor.Platforms.TryGetValue(platformId, out MaterialAssetProcessorSettings platformSettings)) {
                 return false;
             }
-            if (platformSettings == null || platformSettings.Material == null) {
+            if (platformSettings == null) {
                 return false;
             }
 
-            return !string.IsNullOrWhiteSpace(platformSettings.Material.SchemaId);
+            return !string.IsNullOrWhiteSpace(platformSettings.SchemaId);
         }
 
         SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {

@@ -301,7 +301,7 @@ namespace helengine.editor.tests {
             }
 
             MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
-            Assert.True(settingsService.TryLoad(materialPath, out AssetImportSettings settings));
+            Assert.True(settingsService.TryLoad(materialPath, out MaterialAssetImportSettings settings));
 
             MethodInfo validationMethod = typeof(EditorPlatformBuildScenePackager).GetMethod(
                 "HasValidPlatformMaterialSettings",
@@ -2404,20 +2404,18 @@ namespace helengine.editor.tests {
                 AssetSerializer.Serialize(stream, materialAsset);
             }
 
-            AssetImportSettings settings = new AssetImportSettings();
+            MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = "helengine.material";
             settings.Importer.SourceChecksum = string.Empty;
             settings.Importer.AssetId = materialRelativePath;
-            settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings {
-                Material = new MaterialAssetProcessorSettings {
-                    SchemaId = "standard-shader",
-                    FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
-                        ["use-custom-shader"] = "false",
-                        ["texture-id"] = diffuseTextureAssetId,
-                        ["casts-shadow"] = "true",
-                        ["receives-shadow"] = "true",
-                        ["base-color"] = "#FF4040FF"
-                    }
+            settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
+                SchemaId = "standard-shader",
+                FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                    ["use-custom-shader"] = "false",
+                    ["texture-id"] = diffuseTextureAssetId,
+                    ["casts-shadow"] = "true",
+                    ["receives-shadow"] = "true",
+                    ["base-color"] = "#FF4040FF"
                 }
             };
 
@@ -2449,14 +2447,14 @@ namespace helengine.editor.tests {
         /// <param name="materialRelativePath">Project-relative material path whose sidecar should be written.</param>
         void WriteInvalidMaterialSettings(string materialRelativePath) {
             string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
-            AssetImportSettings settings = new AssetImportSettings();
+            MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = "helengine.material";
             settings.Importer.SourceChecksum = string.Empty;
             settings.Importer.AssetId = materialRelativePath;
-            settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings();
+            settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings();
 
             using FileStream stream = new FileStream(materialPath + ".hasset", FileMode.Create, FileAccess.Write, FileShare.None);
-            AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            MaterialAssetImportSettingsBinarySerializer.Serialize(stream, settings);
         }
 
         /// <summary>

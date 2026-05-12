@@ -94,6 +94,11 @@ namespace helengine.editor {
         readonly ModelAssetProcessor ModelAssetProcessor;
 
         /// <summary>
+        /// Applies processor settings to imported texture assets before they are cached.
+        /// </summary>
+        readonly TextureAssetProcessor TextureAssetProcessor;
+
+        /// <summary>
         /// Initializes a new asset import manager for a project.
         /// </summary>
         /// <param name="projectRootPath">Absolute path to the project root.</param>
@@ -122,6 +127,7 @@ namespace helengine.editor {
             fileHasher = new AssetFileHasher();
             AssetContentManager = contentManager;
             ModelAssetProcessor = new ModelAssetProcessor();
+            TextureAssetProcessor = new TextureAssetProcessor();
             EditorContentManagerConfiguration.ConfigureProjectContentManager(AssetContentManager);
 
             Directory.CreateDirectory(this.projectRootPath);
@@ -604,8 +610,8 @@ namespace helengine.editor {
                 throw new FileNotFoundException("Texture source file was not found.", sourcePath);
             }
 
-            AssetImportSettings settings = LoadOrCreateImportSettings(sourcePath);
-            EnsureImportSettingsValid(settings);
+            TextureAssetImportSettings settings = LoadOrCreateTextureImportSettings(sourcePath);
+            EnsureTextureImportSettingsValid(settings);
 
             EnsureTextureImporterExists(settings.Importer.ImporterId);
             TextureAsset asset = AssetContentManager.Load<TextureAsset>(sourcePath, settings.Importer.ImporterId);
@@ -614,6 +620,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Texture importer '{settings.Importer.ImporterId}' did not return an asset.");
             }
 
+            asset = TextureAssetProcessor.Apply(asset, GetCurrentPlatformTextureProcessorSettings(settings));
             asset.Id = settings.Importer.AssetId;
 
             string outputPath = GetTextureAssetPath(settings.Importer.AssetId);
@@ -622,7 +629,7 @@ namespace helengine.editor {
                 AssetSerializer.Serialize(stream, asset);
             }
 
-            SaveImportSettings(sourcePath, settings);
+            SaveTextureImportSettings(sourcePath, settings);
             return asset;
         }
 
@@ -710,8 +717,8 @@ namespace helengine.editor {
                 throw new FileNotFoundException("Model source file was not found.", sourcePath);
             }
 
-            AssetImportSettings settings = LoadOrCreateImportSettings(sourcePath);
-            EnsureImportSettingsValid(settings);
+            ModelAssetImportSettings settings = LoadOrCreateModelImportSettings(sourcePath);
+            EnsureModelImportSettingsValid(settings);
 
             EnsureModelImporterExists(settings.Importer.ImporterId);
             ImportedModelAssetSet importedModel = AssetContentManager.Load<ImportedModelAssetSet>(sourcePath, settings.Importer.ImporterId);
@@ -731,7 +738,7 @@ namespace helengine.editor {
                 AssetSerializer.Serialize(stream, asset);
             }
 
-            SaveImportSettings(sourcePath, settings);
+            SaveModelImportSettings(sourcePath, settings);
             return asset;
         }
 
@@ -847,8 +854,8 @@ namespace helengine.editor {
         public List<string> ImportTexturesMissingCache() {
             List<string> importedAssets = new List<string>();
             foreach (string sourcePath in EnumerateAssetSourceFiles()) {
-                AssetImportSettings settings;
-                if (!TryLoadOrCreateImportSettings(sourcePath, out settings)) {
+                TextureAssetImportSettings settings;
+                if (!TryLoadOrCreateTextureImportSettings(sourcePath, out settings)) {
                     continue;
                 }
 
@@ -875,8 +882,8 @@ namespace helengine.editor {
         public List<string> ImportModelsMissingCache() {
             List<string> importedAssets = new List<string>();
             foreach (string sourcePath in EnumerateAssetSourceFiles()) {
-                AssetImportSettings settings;
-                if (!TryLoadOrCreateImportSettings(sourcePath, out settings)) {
+                ModelAssetImportSettings settings;
+                if (!TryLoadOrCreateModelImportSettings(sourcePath, out settings)) {
                     continue;
                 }
 
@@ -915,8 +922,8 @@ namespace helengine.editor {
                 throw new FileNotFoundException("Texture source file was not found.", sourcePath);
             }
 
-            AssetImportSettings settings;
-            if (!TryLoadOrCreateImportSettings(sourcePath, out settings)) {
+            TextureAssetImportSettings settings;
+            if (!TryLoadOrCreateTextureImportSettings(sourcePath, out settings)) {
                 asset = null;
                 return false;
             }
@@ -955,8 +962,8 @@ namespace helengine.editor {
                 throw new FileNotFoundException("Text source file was not found.", sourcePath);
             }
 
-            AssetImportSettings settings;
-            if (!TryLoadOrCreateImportSettings(sourcePath, out settings)) {
+            ModelAssetImportSettings settings;
+            if (!TryLoadOrCreateModelImportSettings(sourcePath, out settings)) {
                 asset = null;
                 return false;
             }
@@ -1035,8 +1042,8 @@ namespace helengine.editor {
                 throw new FileNotFoundException("Model source file was not found.", sourcePath);
             }
 
-            AssetImportSettings settings;
-            if (!TryLoadOrCreateImportSettings(sourcePath, out settings)) {
+            ModelAssetImportSettings settings;
+            if (!TryLoadOrCreateModelImportSettings(sourcePath, out settings)) {
                 asset = null;
                 return false;
             }
@@ -1348,6 +1355,193 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Attempts to load typed texture import settings from a settings file.
+        /// </summary>
+        /// <param name="settingsPath">Absolute path to the settings file.</param>
+        /// <param name="settings">Deserialized settings when the file exists.</param>
+        /// <returns>True when the settings file was loaded successfully.</returns>
+        bool TryLoadTextureImportSettings(string settingsPath, out TextureAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(settingsPath)) {
+                throw new ArgumentException("Settings path must be provided.", nameof(settingsPath));
+            }
+
+            settings = null;
+            if (!File.Exists(settingsPath)) {
+                return false;
+            }
+
+            using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            settings = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
+            return true;
+        }
+
+        /// <summary>
+        /// Attempts to load typed model import settings from a settings file.
+        /// </summary>
+        /// <param name="settingsPath">Absolute path to the settings file.</param>
+        /// <param name="settings">Deserialized settings when the file exists.</param>
+        /// <returns>True when the settings file was loaded successfully.</returns>
+        bool TryLoadModelImportSettings(string settingsPath, out ModelAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(settingsPath)) {
+                throw new ArgumentException("Settings path must be provided.", nameof(settingsPath));
+            }
+
+            settings = null;
+            if (!File.Exists(settingsPath)) {
+                return false;
+            }
+
+            using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            settings = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
+            return true;
+        }
+
+        /// <summary>
+        /// Creates new typed texture import settings based on the source file extension.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <returns>Newly created settings.</returns>
+        TextureAssetImportSettings CreateDefaultTextureImportSettings(string sourcePath) {
+            string extension = Path.GetExtension(sourcePath);
+            string importerId = ResolveDefaultImporter(extension);
+            return new TextureAssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = importerId
+                }
+            };
+        }
+
+        /// <summary>
+        /// Creates new typed model import settings based on the source file extension.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <returns>Newly created settings.</returns>
+        ModelAssetImportSettings CreateDefaultModelImportSettings(string sourcePath) {
+            string extension = Path.GetExtension(sourcePath);
+            string importerId = ResolveDefaultImporter(extension);
+            return new ModelAssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = importerId
+                }
+            };
+        }
+
+        /// <summary>
+        /// Attempts to create default typed texture import settings for a source file.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Created settings when defaults are available.</param>
+        /// <returns>True when settings were created from a registered default.</returns>
+        bool TryCreateDefaultTextureImportSettings(string sourcePath, out TextureAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            string extension = Path.GetExtension(sourcePath);
+            string importerId;
+            if (!TryResolveDefaultImporter(extension, out importerId)) {
+                settings = null;
+                return false;
+            }
+
+            settings = new TextureAssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = importerId
+                }
+            };
+            return true;
+        }
+
+        /// <summary>
+        /// Attempts to create default typed model import settings for a source file.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Created settings when defaults are available.</param>
+        /// <returns>True when settings were created from a registered default.</returns>
+        bool TryCreateDefaultModelImportSettings(string sourcePath, out ModelAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            string extension = Path.GetExtension(sourcePath);
+            string importerId;
+            if (!TryResolveDefaultImporter(extension, out importerId)) {
+                settings = null;
+                return false;
+            }
+
+            settings = new ModelAssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = importerId
+                }
+            };
+            return true;
+        }
+
+        /// <summary>
+        /// Repairs loaded typed texture import settings when the importer id is missing or no longer valid for the source extension.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Loaded settings that may need importer normalization.</param>
+        /// <returns>True when the importer id was replaced with the registered default importer.</returns>
+        bool RepairTextureImporterId(string sourcePath, TextureAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            return RepairImporterSettings(sourcePath, settings.Importer);
+        }
+
+        /// <summary>
+        /// Repairs loaded typed model import settings when the importer id is missing or no longer valid for the source extension.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Loaded settings that may need importer normalization.</param>
+        /// <returns>True when the importer id was replaced with the registered default importer.</returns>
+        bool RepairModelImporterId(string sourcePath, ModelAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            return RepairImporterSettings(sourcePath, settings.Importer);
+        }
+
+        /// <summary>
+        /// Repairs importer metadata when the importer id is missing or no longer valid for the source extension.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Importer metadata to repair.</param>
+        /// <returns>True when the importer id was replaced with the registered default importer.</returns>
+        bool RepairImporterSettings(string sourcePath, AssetImporterSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string extension = Path.GetExtension(sourcePath);
+            IReadOnlyList<string> importerIds = GetImporterIdsForExtension(extension);
+            if (importerIds.Count == 0) {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(settings.ImporterId)) {
+                for (int index = 0; index < importerIds.Count; index++) {
+                    if (string.Equals(importerIds[index], settings.ImporterId, StringComparison.OrdinalIgnoreCase)) {
+                        return false;
+                    }
+                }
+            }
+
+            settings.ImporterId = ResolveDefaultImporter(extension);
+            return true;
+        }
+
+        /// <summary>
         /// Ensures required settings fields are populated.
         /// </summary>
         /// <param name="settings">Settings to validate.</param>
@@ -1374,6 +1568,204 @@ namespace helengine.editor {
 
             if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
                 throw new InvalidOperationException("Import settings must specify an asset id.");
+            }
+        }
+
+        /// <summary>
+        /// Loads typed texture import settings for a source file or creates defaults if missing.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <returns>Resolved typed texture import settings.</returns>
+        public TextureAssetImportSettings LoadOrCreateTextureImportSettings(string sourcePath) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            string settingsPath = GetSettingsPath(sourcePath);
+            bool settingsFileExists = File.Exists(settingsPath);
+            TextureAssetImportSettings settings = null;
+            bool loadedFromDisk = settingsFileExists && TryLoadTextureImportSettings(settingsPath, out settings);
+            bool repaired = false;
+            if (!loadedFromDisk) {
+                settings = CreateDefaultTextureImportSettings(sourcePath);
+            } else {
+                repaired = RepairTextureImporterId(sourcePath, settings);
+            }
+
+            UpdateTextureImportSettingsChecksum(settings, sourcePath);
+            if (settingsFileExists && (!loadedFromDisk || repaired)) {
+                SaveTextureImportSettings(sourcePath, settings);
+            }
+
+            return settings;
+        }
+
+        /// <summary>
+        /// Saves typed texture import settings next to the specified source file.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Settings to serialize.</param>
+        public void SaveTextureImportSettings(string sourcePath, TextureAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string settingsPath = GetSettingsPath(sourcePath);
+            EnsureDirectoryForFile(settingsPath);
+            using FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            TextureAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+        }
+
+        /// <summary>
+        /// Attempts to load typed texture import settings or create defaults when missing.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Resolved settings when available; null when no default importer exists.</param>
+        /// <returns>True when settings could be resolved for the source file.</returns>
+        public bool TryLoadOrCreateTextureImportSettings(string sourcePath, out TextureAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            string settingsPath = GetSettingsPath(sourcePath);
+            bool settingsFileExists = File.Exists(settingsPath);
+            if (settingsFileExists && TryLoadTextureImportSettings(settingsPath, out settings)) {
+                bool repaired = RepairTextureImporterId(sourcePath, settings);
+                UpdateTextureImportSettingsChecksum(settings, sourcePath);
+                if (repaired) {
+                    SaveTextureImportSettings(sourcePath, settings);
+                }
+                return true;
+            }
+
+            if (!TryCreateDefaultTextureImportSettings(sourcePath, out settings)) {
+                return false;
+            }
+
+            UpdateTextureImportSettingsChecksum(settings, sourcePath);
+            if (settingsFileExists) {
+                SaveTextureImportSettings(sourcePath, settings);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Loads typed model import settings for a source file or creates defaults if missing.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <returns>Resolved typed model import settings.</returns>
+        public ModelAssetImportSettings LoadOrCreateModelImportSettings(string sourcePath) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            string settingsPath = GetSettingsPath(sourcePath);
+            bool settingsFileExists = File.Exists(settingsPath);
+            ModelAssetImportSettings settings = null;
+            bool loadedFromDisk = settingsFileExists && TryLoadModelImportSettings(settingsPath, out settings);
+            bool repaired = false;
+            if (!loadedFromDisk) {
+                settings = CreateDefaultModelImportSettings(sourcePath);
+            } else {
+                repaired = RepairModelImporterId(sourcePath, settings);
+            }
+
+            UpdateModelImportSettingsChecksum(settings, sourcePath);
+            if (settingsFileExists && (!loadedFromDisk || repaired)) {
+                SaveModelImportSettings(sourcePath, settings);
+            }
+
+            return settings;
+        }
+
+        /// <summary>
+        /// Saves typed model import settings next to the specified source file.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Settings to serialize.</param>
+        public void SaveModelImportSettings(string sourcePath, ModelAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string settingsPath = GetSettingsPath(sourcePath);
+            EnsureDirectoryForFile(settingsPath);
+            using FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            ModelAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+        }
+
+        /// <summary>
+        /// Attempts to load typed model import settings or create defaults when missing.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Resolved settings when available; null when no default importer exists.</param>
+        /// <returns>True when settings could be resolved for the source file.</returns>
+        public bool TryLoadOrCreateModelImportSettings(string sourcePath, out ModelAssetImportSettings settings) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            string settingsPath = GetSettingsPath(sourcePath);
+            bool settingsFileExists = File.Exists(settingsPath);
+            if (settingsFileExists && TryLoadModelImportSettings(settingsPath, out settings)) {
+                bool repaired = RepairModelImporterId(sourcePath, settings);
+                UpdateModelImportSettingsChecksum(settings, sourcePath);
+                if (repaired) {
+                    SaveModelImportSettings(sourcePath, settings);
+                }
+                return true;
+            }
+
+            if (!TryCreateDefaultModelImportSettings(sourcePath, out settings)) {
+                return false;
+            }
+
+            UpdateModelImportSettingsChecksum(settings, sourcePath);
+            if (settingsFileExists) {
+                SaveModelImportSettings(sourcePath, settings);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Ensures required typed texture settings fields are populated.
+        /// </summary>
+        /// <param name="settings">Settings to validate.</param>
+        void EnsureTextureImportSettingsValid(TextureAssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (settings.Importer == null) {
+                throw new InvalidOperationException("Texture import settings must include importer settings.");
+            } else if (settings.Processor == null || settings.Processor.Platforms == null) {
+                throw new InvalidOperationException("Texture import settings must include processor platform settings.");
+            } else if (string.IsNullOrWhiteSpace(settings.Importer.ImporterId)) {
+                throw new InvalidOperationException("Texture import settings must specify an importer id.");
+            } else if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+                throw new InvalidOperationException("Texture import settings must specify an asset id.");
+            }
+        }
+
+        /// <summary>
+        /// Ensures required typed model settings fields are populated.
+        /// </summary>
+        /// <param name="settings">Settings to validate.</param>
+        void EnsureModelImportSettingsValid(ModelAssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (settings.Importer == null) {
+                throw new InvalidOperationException("Model import settings must include importer settings.");
+            } else if (settings.Processor == null || settings.Processor.Platforms == null) {
+                throw new InvalidOperationException("Model import settings must include processor platform settings.");
+            } else if (string.IsNullOrWhiteSpace(settings.Importer.ImporterId)) {
+                throw new InvalidOperationException("Model import settings must specify an importer id.");
+            } else if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+                throw new InvalidOperationException("Model import settings must specify an asset id.");
             }
         }
 
@@ -1715,6 +2107,40 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Updates typed texture import settings to store the current source checksum.
+        /// </summary>
+        /// <param name="settings">Settings to update.</param>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        void UpdateTextureImportSettingsChecksum(TextureAssetImportSettings settings, string sourcePath) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            string checksum = fileHasher.ComputeHash(sourcePath);
+            settings.Importer.SourceChecksum = checksum;
+            settings.Importer.AssetId = BuildTextureAssetId(sourcePath, settings, checksum);
+        }
+
+        /// <summary>
+        /// Updates typed model import settings to store the current source checksum.
+        /// </summary>
+        /// <param name="settings">Settings to update.</param>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        void UpdateModelImportSettingsChecksum(ModelAssetImportSettings settings, string sourcePath) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            string checksum = fileHasher.ComputeHash(sourcePath);
+            settings.Importer.SourceChecksum = checksum;
+            settings.Importer.AssetId = BuildModelAssetId(settings, checksum);
+        }
+
+        /// <summary>
         /// Builds the processed asset identifier that should be used for the current source file and settings.
         /// </summary>
         /// <param name="sourcePath">Absolute path to the source file.</param>
@@ -1733,6 +2159,20 @@ namespace helengine.editor {
             }
 
             if (!IsModelSourceForAssetId(sourcePath, settings)) {
+                if (IsTextureImporterRegistered(settings.Importer.ImporterId)) {
+                    string texturePlatformId = ResolveTextureProcessorPlatformId(settings);
+                    TextureAssetProcessorSettings textureProcessorSettings = GetCurrentPlatformTextureProcessorSettings(settings);
+                    string textureIdentity = string.Concat(
+                        "texture", "\n",
+                        sourceChecksum, "\n",
+                        settings.Importer.ImporterId ?? string.Empty, "\n",
+                        texturePlatformId, "\n",
+                        textureProcessorSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    byte[] textureIdentityBytes = System.Text.Encoding.UTF8.GetBytes(textureIdentity);
+                    byte[] textureHashBytes = System.Security.Cryptography.SHA256.HashData(textureIdentityBytes);
+                    return Convert.ToHexString(textureHashBytes).ToLowerInvariant();
+                }
+
                 if (ShouldUseTextureImporterQualifiedAssetId(sourcePath, settings)) {
                     return BuildImporterQualifiedAssetId(sourceChecksum, settings.Importer.ImporterId);
                 }
@@ -1749,6 +2189,61 @@ namespace helengine.editor {
                 settings.Importer.ImporterId ?? string.Empty, "\n",
                 platformId, "\n",
                 flipWindingFlag);
+            byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
+            byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
+            return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Builds the processed texture asset identifier for the current source file and typed settings.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="settings">Resolved typed texture import settings for the source file.</param>
+        /// <param name="sourceChecksum">Checksum of the source file contents.</param>
+        /// <returns>Processed asset identifier for the current configuration.</returns>
+        string BuildTextureAssetId(string sourcePath, TextureAssetImportSettings settings, string sourceChecksum) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (string.IsNullOrWhiteSpace(sourceChecksum)) {
+                throw new ArgumentException("Source checksum must be provided.", nameof(sourceChecksum));
+            }
+
+            TextureAssetProcessorSettings processorSettings = GetCurrentPlatformTextureProcessorSettings(settings);
+            string platformId = ResolveTextureProcessorPlatformId(settings);
+            string identity = string.Concat(
+                "texture", "\n",
+                sourceChecksum, "\n",
+                settings.Importer.ImporterId ?? string.Empty, "\n",
+                platformId, "\n",
+                processorSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
+            byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
+            return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Builds the processed model asset identifier for the current typed settings.
+        /// </summary>
+        /// <param name="settings">Resolved typed model import settings for the source file.</param>
+        /// <param name="sourceChecksum">Checksum of the source file contents.</param>
+        /// <returns>Processed asset identifier for the current configuration.</returns>
+        string BuildModelAssetId(ModelAssetImportSettings settings, string sourceChecksum) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (string.IsNullOrWhiteSpace(sourceChecksum)) {
+                throw new ArgumentException("Source checksum must be provided.", nameof(sourceChecksum));
+            }
+
+            ModelAssetProcessorSettings processorSettings = GetCurrentPlatformModelProcessorSettings(settings);
+            string platformId = ResolveModelProcessorPlatformId(settings);
+            string identity = string.Concat(
+                "model", "\n",
+                sourceChecksum, "\n",
+                settings.Importer.ImporterId ?? string.Empty, "\n",
+                platformId, "\n",
+                (processorSettings.FlipWinding ? "1" : "0"));
             byte[] identityBytes = System.Text.Encoding.UTF8.GetBytes(identity);
             byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(identityBytes);
             return Convert.ToHexString(hashBytes).ToLowerInvariant();
@@ -1773,6 +2268,22 @@ namespace helengine.editor {
 
             if (!IsTextureImporterRegistered(settings.Importer.ImporterId)) {
                 return false;
+            }
+
+            return ShouldUseTextureImporterQualifiedAssetId(sourcePath, settings.Importer.ImporterId);
+        }
+
+        /// <summary>
+        /// Determines whether texture cache identity must include the selected importer id for one overlapping texture format.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the source file.</param>
+        /// <param name="importerId">Identifier of the importer selected for the source file.</param>
+        /// <returns>True when the texture cache identity must include the importer id.</returns>
+        bool ShouldUseTextureImporterQualifiedAssetId(string sourcePath, string importerId) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            } else if (string.IsNullOrWhiteSpace(importerId)) {
+                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
             }
 
             string normalizedExtension = NormalizeExtension(Path.GetExtension(sourcePath));
@@ -1852,6 +2363,75 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the processor-settings platform key that should drive texture processing for the current manager state.
+        /// </summary>
+        /// <param name="settings">Resolved import settings for the source file.</param>
+        /// <returns>Platform identifier used for texture processor settings, or an empty string when no platform context exists.</returns>
+        string ResolveTextureProcessorPlatformId(AssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            if (!string.IsNullOrWhiteSpace(CurrentPlatformId)) {
+                return CurrentPlatformId;
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null || settings.Processor.Platforms.Count == 0) {
+                return string.Empty;
+            }
+
+            List<string> platformIds = new List<string>(settings.Processor.Platforms.Keys);
+            platformIds.Sort(StringComparer.OrdinalIgnoreCase);
+            return platformIds[0];
+        }
+
+        /// <summary>
+        /// Resolves the processor-settings platform key that should drive texture processing for the current manager state.
+        /// </summary>
+        /// <param name="settings">Resolved typed texture settings for the source file.</param>
+        /// <returns>Platform identifier used for texture processor settings, or an empty string when no platform context exists.</returns>
+        string ResolveTextureProcessorPlatformId(TextureAssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            if (!string.IsNullOrWhiteSpace(CurrentPlatformId)) {
+                return CurrentPlatformId;
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null || settings.Processor.Platforms.Count == 0) {
+                return string.Empty;
+            }
+
+            List<string> platformIds = new List<string>(settings.Processor.Platforms.Keys);
+            platformIds.Sort(StringComparer.OrdinalIgnoreCase);
+            return platformIds[0];
+        }
+
+        /// <summary>
+        /// Resolves the processor-settings platform key that should drive model processing for the current manager state.
+        /// </summary>
+        /// <param name="settings">Resolved typed model settings for the source file.</param>
+        /// <returns>Platform identifier used for model processor settings, or an empty string when no platform context exists.</returns>
+        string ResolveModelProcessorPlatformId(ModelAssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            if (!string.IsNullOrWhiteSpace(CurrentPlatformId)) {
+                return CurrentPlatformId;
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null || settings.Processor.Platforms.Count == 0) {
+                return string.Empty;
+            }
+
+            List<string> platformIds = new List<string>(settings.Processor.Platforms.Keys);
+            platformIds.Sort(StringComparer.OrdinalIgnoreCase);
+            return platformIds[0];
+        }
+
+        /// <summary>
         /// Resolves the model processor settings for the active processing platform, returning defaults when none were saved yet.
         /// </summary>
         /// <param name="settings">Resolved import settings for the source file.</param>
@@ -1876,6 +2456,87 @@ namespace helengine.editor {
             }
 
             return platformSettings.Model;
+        }
+
+        /// <summary>
+        /// Resolves the model processor settings for the active processing platform, returning defaults when none were saved yet.
+        /// </summary>
+        /// <param name="settings">Resolved typed model settings for the source file.</param>
+        /// <returns>Model processor settings for the current platform context.</returns>
+        ModelAssetProcessorSettings GetCurrentPlatformModelProcessorSettings(ModelAssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string platformId = ResolveModelProcessorPlatformId(settings);
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                return new ModelAssetProcessorSettings();
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return new ModelAssetProcessorSettings();
+            }
+
+            ModelAssetProcessorSettings platformSettings;
+            if (!settings.Processor.Platforms.TryGetValue(platformId, out platformSettings) || platformSettings == null) {
+                return new ModelAssetProcessorSettings();
+            }
+
+            return platformSettings;
+        }
+
+        /// <summary>
+        /// Resolves the texture processor settings for the active processing platform, returning defaults when none were saved yet.
+        /// </summary>
+        /// <param name="settings">Resolved import settings for the source file.</param>
+        /// <returns>Texture processor settings for the current platform context.</returns>
+        TextureAssetProcessorSettings GetCurrentPlatformTextureProcessorSettings(AssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string platformId = ResolveTextureProcessorPlatformId(settings);
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                return new TextureAssetProcessorSettings();
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return new TextureAssetProcessorSettings();
+            }
+
+            AssetPlatformProcessorSettings platformSettings;
+            if (!settings.Processor.Platforms.TryGetValue(platformId, out platformSettings) || platformSettings == null || platformSettings.Texture == null) {
+                return new TextureAssetProcessorSettings();
+            }
+
+            return platformSettings.Texture;
+        }
+
+        /// <summary>
+        /// Resolves the texture processor settings for the active processing platform, returning defaults when none were saved yet.
+        /// </summary>
+        /// <param name="settings">Resolved typed texture settings for the source file.</param>
+        /// <returns>Texture processor settings for the current platform context.</returns>
+        TextureAssetProcessorSettings GetCurrentPlatformTextureProcessorSettings(TextureAssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            string platformId = ResolveTextureProcessorPlatformId(settings);
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                return new TextureAssetProcessorSettings();
+            }
+
+            if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return new TextureAssetProcessorSettings();
+            }
+
+            TextureAssetProcessorSettings platformSettings;
+            if (!settings.Processor.Platforms.TryGetValue(platformId, out platformSettings) || platformSettings == null) {
+                return new TextureAssetProcessorSettings();
+            }
+
+            return platformSettings;
         }
 
         /// <summary>

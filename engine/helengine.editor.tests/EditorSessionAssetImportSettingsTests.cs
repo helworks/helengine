@@ -74,13 +74,13 @@ namespace helengine.editor.tests {
 
             InvokePrivate(session, "HandleImportSettingsApplyRequested", entry, request);
 
-            AssetImportSettings savedSettings = manager.LoadOrCreateImportSettings(sourcePath);
+            ModelAssetImportSettings savedSettings = manager.LoadOrCreateModelImportSettings(sourcePath);
             AssetImportSettingsView view = GetPrivateField<AssetImportSettingsView>(panel, "importSettingsView");
             Assert.Equal("windows", session.CurrentProjectPlatform);
             Assert.Equal("windows", manager.CurrentPlatformId);
             Assert.Equal("windows", localSettingsService.LoadActivePlatform());
             Assert.Equal("test-model", savedSettings.Importer.ImporterId);
-            Assert.True(savedSettings.Processor.Platforms["windows"].Model.FlipWinding);
+            Assert.True(savedSettings.Processor.Platforms["windows"].FlipWinding);
             Assert.Equal("windows", view.SelectedPlatformId);
             Assert.True(view.CurrentFlipWindingValue);
         }

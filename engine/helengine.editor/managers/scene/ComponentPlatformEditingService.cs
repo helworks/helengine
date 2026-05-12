@@ -1023,6 +1023,15 @@ namespace helengine.editor {
             public FontAsset ResolveFont(SceneAssetReference reference) {
                 throw new InvalidOperationException("Detached platform override editing does not support font asset reconstruction through the scene resolver.");
             }
+
+            /// <summary>
+            /// Rejects unexpected runtime texture resolution for detached override materialization.
+            /// </summary>
+            /// <param name="reference">Reference that was unexpectedly requested.</param>
+            /// <returns>This method never returns.</returns>
+            public RuntimeTexture ResolveTexture(SceneAssetReference reference) {
+                throw new InvalidOperationException("Detached platform override editing does not support texture asset reconstruction through the scene resolver.");
+            }
         }
     }
 }

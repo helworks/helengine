@@ -19,12 +19,21 @@ namespace helengine.editor.tests.testing {
         readonly FontAsset Font;
 
         /// <summary>
+        /// Shared runtime texture returned for every resolved texture reference.
+        /// </summary>
+        readonly RuntimeTexture Texture;
+
+        /// <summary>
         /// Initializes the reusable dummy runtime assets used for permissive scene loading.
         /// </summary>
         public AnySceneAssetReferenceResolver() {
             Model = new TestRuntimeModel();
             Material = new TestRuntimeMaterial();
             Font = new FontAsset(new FontInfo("Test", 16, 4f), null, new Dictionary<char, FontChar>(), 16f, 1, 1);
+            Texture = new ManagedRuntimeTexture {
+                Width = 1,
+                Height = 1
+            };
         }
 
         /// <summary>
@@ -64,6 +73,19 @@ namespace helengine.editor.tests.testing {
             }
 
             return Font;
+        }
+
+        /// <summary>
+        /// Resolves one texture reference to the shared dummy runtime texture.
+        /// </summary>
+        /// <param name="reference">Ignored scene asset reference.</param>
+        /// <returns>Shared dummy runtime texture.</returns>
+        public RuntimeTexture ResolveTexture(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            return Texture;
         }
     }
 }

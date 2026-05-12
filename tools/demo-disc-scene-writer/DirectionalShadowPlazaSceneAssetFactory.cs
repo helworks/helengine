@@ -42,6 +42,11 @@ namespace helengine.demo_disc_scene_writer {
         const string MeshMaterialReferenceName = "Material";
 
         /// <summary>
+        /// Stable save-state slot name used for serialized font references.
+        /// </summary>
+        const string FontReferenceName = "Font";
+
+        /// <summary>
         /// Descriptor used to serialize authored mesh payloads for committed editor scenes.
         /// </summary>
         readonly MeshComponentPersistenceDescriptor MeshDescriptor;
@@ -62,6 +67,11 @@ namespace helengine.demo_disc_scene_writer {
         readonly RuntimeMaterial PlaceholderMaterial;
 
         /// <summary>
+        /// Descriptor used to serialize the FPS overlay component on the showcase camera.
+        /// </summary>
+        readonly FPSComponentPersistenceDescriptor FpsDescriptor;
+
+        /// <summary>
         /// Initializes the directional-shadow plaza scene factory with the persistence descriptors required for authored output.
         /// </summary>
         public DirectionalShadowPlazaSceneAssetFactory() {
@@ -69,6 +79,7 @@ namespace helengine.demo_disc_scene_writer {
             DirectionalLightDescriptor = new DirectionalLightComponentPersistenceDescriptor();
             PlaceholderModel = new AuthoringPlaceholderRuntimeModel();
             PlaceholderMaterial = new RuntimeMaterial();
+            FpsDescriptor = new FPSComponentPersistenceDescriptor();
         }
 
         /// <summary>
@@ -95,7 +106,8 @@ namespace helengine.demo_disc_scene_writer {
                 AssetReferences = new[] {
                     planeReference,
                     cubeReference,
-                    standardMaterialReference
+                    standardMaterialReference,
+                    CreateEditorFontReference()
                 },
                 RootEntities = new[] {
                     CreateCameraEntity(),
@@ -126,7 +138,8 @@ namespace helengine.demo_disc_scene_writer {
                 LocalOrientation = float4.Identity,
                 Components = new[] {
                     CreateCameraComponentRecord(),
-                    RenderingScriptComponentRecordFactory.CreateCameraOrbitRecord(1, new float3(0f, 0f, 0f), 26f, 10f, 0f, 0.12f, -0.32f)
+                    RenderingScriptComponentRecordFactory.CreateCameraOrbitRecord(1, new float3(0f, 0f, 0f), 26f, 10f, 0f, 0.12f, -0.32f),
+                    CreateFpsComponentRecord()
                 },
                 Children = Array.Empty<SceneEntityAsset>()
             };
@@ -268,6 +281,32 @@ namespace helengine.demo_disc_scene_writer {
                 ComponentTypeId = CameraComponentTypeId,
                 ComponentIndex = 0,
                 Payload = WriteCameraPayload()
+            };
+        }
+
+        /// <summary>
+        /// Creates one serialized FPS overlay component record for the showcase camera.
+        /// </summary>
+        /// <returns>Serialized FPS overlay component record.</returns>
+        SceneComponentAssetRecord CreateFpsComponentRecord() {
+            FPSComponent fpsComponent = new FPSComponent {
+                Font = new FontAsset(new FontInfo("DirectionalShadowPlazaFpsPlaceholder", 16, 4f), null, new Dictionary<char, FontChar>(), 16f, 1, 1)
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(FontReferenceName, CreateEditorFontReference());
+            return FpsDescriptor.SerializeComponent(fpsComponent, 2, saveState);
+        }
+
+        /// <summary>
+        /// Builds the stable scene asset reference for the editor's built-in font.
+        /// </summary>
+        /// <returns>Stable generated editor-font reference.</returns>
+        SceneAssetReference CreateEditorFontReference() {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "generated/editor/fonts/ui.hefont",
+                ProviderId = "editor",
+                AssetId = "ui-font"
             };
         }
 

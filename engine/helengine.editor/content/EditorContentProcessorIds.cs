@@ -31,5 +31,17 @@ namespace helengine.editor {
         /// Processor id used for serialized asset import settings sidecars.
         /// </summary>
         public const string AssetImportSettings = "editor.asset-import-settings";
+        /// <summary>
+        /// Processor id used for serialized texture asset import settings sidecars.
+        /// </summary>
+        public const string TextureAssetImportSettings = "editor.texture-asset-import-settings";
+        /// <summary>
+        /// Processor id used for serialized model asset import settings sidecars.
+        /// </summary>
+        public const string ModelAssetImportSettings = "editor.model-asset-import-settings";
+        /// <summary>
+        /// Processor id used for serialized material asset import settings sidecars.
+        /// </summary>
+        public const string MaterialAssetImportSettings = "editor.material-asset-import-settings";
     }
 }

@@ -87,7 +87,7 @@ namespace helengine.editor {
         /// <param name="supportedPlatforms">Platforms the active project supports.</param>
         /// <param name="selectionModelResolver">Resolver that returns builder metadata for one platform id.</param>
         /// <returns>Resolved settings sidecar payload.</returns>
-        public AssetImportSettings LoadOrCreate(
+        public MaterialAssetImportSettings LoadOrCreate(
             string materialAssetPath,
             MaterialAsset materialAsset,
             IReadOnlyList<string> supportedPlatforms,
@@ -103,7 +103,7 @@ namespace helengine.editor {
             }
 
             string settingsPath = GetSettingsPath(materialAssetPath);
-            AssetImportSettings settings;
+            MaterialAssetImportSettings settings;
             if (!TryLoadSettings(settingsPath, out settings)) {
                 settings = CreateDefaultSettings(materialAsset);
             }
@@ -121,7 +121,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
         /// <param name="settings">Settings payload to save.</param>
-        public void Save(string materialAssetPath, AssetImportSettings settings) {
+        public void Save(string materialAssetPath, MaterialAssetImportSettings settings) {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             } else if (settings == null) {
@@ -135,7 +135,7 @@ namespace helengine.editor {
             }
 
             using FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            MaterialAssetImportSettingsBinarySerializer.Serialize(stream, settings);
         }
 
         /// <summary>
@@ -144,7 +144,7 @@ namespace helengine.editor {
         /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
         /// <param name="settings">Loaded settings when the sidecar exists and deserializes cleanly.</param>
         /// <returns>True when the settings sidecar was loaded successfully.</returns>
-        public bool TryLoad(string materialAssetPath, out AssetImportSettings settings) {
+        public bool TryLoad(string materialAssetPath, out MaterialAssetImportSettings settings) {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             }
@@ -159,7 +159,7 @@ namespace helengine.editor {
         /// <param name="settings">Material sidecar settings that hold per-platform field values.</param>
         /// <param name="platformId">Platform whose material settings should drive the mirrored material payload.</param>
         /// <returns>True when the top-level material asset changed.</returns>
-        public bool ApplyPlatformMaterialFields(MaterialAsset materialAsset, AssetImportSettings settings, string platformId) {
+        public bool ApplyPlatformMaterialFields(MaterialAsset materialAsset, MaterialAssetImportSettings settings, string platformId) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             } else if (settings == null) {
@@ -172,35 +172,34 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            AssetPlatformProcessorSettings platformSettings;
+            MaterialAssetProcessorSettings platformSettings;
             if (!settings.Processor.Platforms.TryGetValue(platformId, out platformSettings) ||
                 platformSettings == null ||
-                platformSettings.Material == null ||
-                platformSettings.Material.FieldValues == null) {
+                platformSettings.FieldValues == null) {
                 return false;
             }
 
             bool changed = false;
-            if (IsStandardShaderSchema(platformSettings.Material.SchemaId)) {
-                bool useCustomShader = IsCustomShaderEnabled(platformSettings.Material.FieldValues);
+            if (IsStandardShaderSchema(platformSettings.SchemaId)) {
+                bool useCustomShader = IsCustomShaderEnabled(platformSettings.FieldValues);
                 if (useCustomShader) {
-                    changed |= ApplyCustomShaderMirroredField(platformSettings.Material.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, StandardShaderAssetId, value => materialAsset.ShaderAssetId = value);
-                    changed |= ApplyCustomShaderMirroredField(platformSettings.Material.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, StandardVertexProgramName, value => materialAsset.VertexProgram = value);
-                    changed |= ApplyCustomShaderMirroredField(platformSettings.Material.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, StandardPixelProgramName, value => materialAsset.PixelProgram = value);
+                    changed |= ApplyCustomShaderMirroredField(platformSettings.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, StandardShaderAssetId, value => materialAsset.ShaderAssetId = value);
+                    changed |= ApplyCustomShaderMirroredField(platformSettings.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, StandardVertexProgramName, value => materialAsset.VertexProgram = value);
+                    changed |= ApplyCustomShaderMirroredField(platformSettings.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, StandardPixelProgramName, value => materialAsset.PixelProgram = value);
                 } else {
                     changed |= ApplyStandardShaderMirroredFields(materialAsset);
                     changed |= ApplyMaterialVariant(materialAsset, StandardShaderVariantName);
                 }
             } else {
-                changed |= ApplyMirroredField(platformSettings.Material.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, value => materialAsset.ShaderAssetId = value, true);
-                changed |= ApplyMirroredField(platformSettings.Material.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, value => materialAsset.VertexProgram = value, true);
-                changed |= ApplyMirroredField(platformSettings.Material.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, value => materialAsset.PixelProgram = value, true);
+                changed |= ApplyMirroredField(platformSettings.FieldValues, ShaderAssetIdFieldId, materialAsset.ShaderAssetId, value => materialAsset.ShaderAssetId = value, true);
+                changed |= ApplyMirroredField(platformSettings.FieldValues, VertexProgramFieldId, materialAsset.VertexProgram, value => materialAsset.VertexProgram = value, true);
+                changed |= ApplyMirroredField(platformSettings.FieldValues, PixelProgramFieldId, materialAsset.PixelProgram, value => materialAsset.PixelProgram = value, true);
                 changed |= ApplyMaterialVariant(materialAsset, MeshVariantName);
             }
 
-            changed |= ApplyMirroredField(platformSettings.Material.FieldValues, TextureAssetIdFieldId, materialAsset.DiffuseTextureAssetId, value => materialAsset.DiffuseTextureAssetId = value, true);
-            changed |= ApplyMirroredBooleanField(platformSettings.Material.FieldValues, CastsShadowFieldId, materialAsset.CastsShadows, value => materialAsset.CastsShadows = value);
-            changed |= ApplyMirroredBooleanField(platformSettings.Material.FieldValues, ReceivesShadowFieldId, materialAsset.ReceivesShadows, value => materialAsset.ReceivesShadows = value);
+            changed |= ApplyMirroredField(platformSettings.FieldValues, TextureAssetIdFieldId, materialAsset.DiffuseTextureAssetId, value => materialAsset.DiffuseTextureAssetId = value, true);
+            changed |= ApplyMirroredBooleanField(platformSettings.FieldValues, CastsShadowFieldId, materialAsset.CastsShadows, value => materialAsset.CastsShadows = value);
+            changed |= ApplyMirroredBooleanField(platformSettings.FieldValues, ReceivesShadowFieldId, materialAsset.ReceivesShadows, value => materialAsset.ReceivesShadows = value);
             return changed;
         }
 
@@ -211,7 +210,7 @@ namespace helengine.editor {
         /// <param name="settings">Material sidecar settings that hold per-platform field values.</param>
         /// <param name="platformId">Platform whose material settings should drive the runtime-facing payload.</param>
         /// <returns>True when the material asset changed.</returns>
-        public bool ApplyPlatformRuntimeFields(MaterialAsset materialAsset, AssetImportSettings settings, string platformId) {
+        public bool ApplyPlatformRuntimeFields(MaterialAsset materialAsset, MaterialAssetImportSettings settings, string platformId) {
             if (materialAsset == null) {
                 throw new ArgumentNullException(nameof(materialAsset));
             } else if (settings == null) {
@@ -221,13 +220,13 @@ namespace helengine.editor {
             }
 
             bool changed = ApplyPlatformMaterialFields(materialAsset, settings, platformId);
-            AssetPlatformProcessorSettings platformSettings = ResolvePlatformSettings(settings, platformId);
-            if (platformSettings == null || platformSettings.Material == null) {
+            MaterialAssetProcessorSettings platformSettings = ResolvePlatformSettings(settings, platformId);
+            if (platformSettings == null) {
                 return changed;
             }
 
-            if (IsStandardShaderSchema(platformSettings.Material.SchemaId)) {
-                changed |= ApplyStandardShaderRuntimeFields(materialAsset, platformSettings.Material.FieldValues);
+            if (IsStandardShaderSchema(platformSettings.SchemaId)) {
+                changed |= ApplyStandardShaderRuntimeFields(materialAsset, platformSettings.FieldValues);
             }
 
             return changed;
@@ -239,7 +238,7 @@ namespace helengine.editor {
         /// <param name="settingsPath">Absolute settings sidecar path.</param>
         /// <param name="settings">Loaded settings when the file exists and deserializes cleanly.</param>
         /// <returns>True when the sidecar was loaded successfully.</returns>
-        bool TryLoadSettings(string settingsPath, out AssetImportSettings settings) {
+        bool TryLoadSettings(string settingsPath, out MaterialAssetImportSettings settings) {
             settings = null;
             if (!File.Exists(settingsPath)) {
                 return false;
@@ -247,7 +246,7 @@ namespace helengine.editor {
 
             try {
                 using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
+                settings = MaterialAssetImportSettingsBinarySerializer.Deserialize(stream);
                 return true;
             } catch {
                 settings = null;
@@ -260,8 +259,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="materialAsset">Current material asset authored on disk.</param>
         /// <returns>Default settings payload with importer metadata initialized.</returns>
-        AssetImportSettings CreateDefaultSettings(MaterialAsset materialAsset) {
-            AssetImportSettings settings = new AssetImportSettings();
+        MaterialAssetImportSettings CreateDefaultSettings(MaterialAsset materialAsset) {
+            MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = MaterialImporterId;
             settings.Importer.SourceChecksum = string.Empty;
             settings.Importer.AssetId = materialAsset.Id ?? string.Empty;
@@ -277,7 +276,7 @@ namespace helengine.editor {
         /// <param name="selectionModelResolver">Resolver that returns builder metadata for one platform id.</param>
         /// <returns>True when the payload changed while being normalized.</returns>
         bool NormalizeSettings(
-            AssetImportSettings settings,
+            MaterialAssetImportSettings settings,
             MaterialAsset materialAsset,
             IReadOnlyList<string> supportedPlatforms,
             Func<string, EditorPlatformBuildSelectionModel> selectionModelResolver) {
@@ -293,11 +292,11 @@ namespace helengine.editor {
                 changed = true;
             }
             if (settings.Processor == null) {
-                settings.Processor = new AssetProcessorSettings();
+                settings.Processor = new MaterialAssetProcessorPlatformSettings();
                 changed = true;
             }
             if (settings.Processor.Platforms == null) {
-                settings.Processor.Platforms = new Dictionary<string, AssetPlatformProcessorSettings>(StringComparer.OrdinalIgnoreCase);
+                settings.Processor.Platforms = new Dictionary<string, MaterialAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
                 changed = true;
             }
             if (string.IsNullOrWhiteSpace(settings.Importer.ImporterId)) {
@@ -315,14 +314,10 @@ namespace helengine.editor {
                     continue;
                 }
 
-                AssetPlatformProcessorSettings platformSettings;
+                MaterialAssetProcessorSettings platformSettings;
                 if (!settings.Processor.Platforms.TryGetValue(platformId, out platformSettings) || platformSettings == null) {
-                    platformSettings = new AssetPlatformProcessorSettings();
+                    platformSettings = new MaterialAssetProcessorSettings();
                     settings.Processor.Platforms[platformId] = platformSettings;
-                    changed = true;
-                }
-                if (platformSettings.Material == null) {
-                    platformSettings.Material = new MaterialAssetProcessorSettings();
                     changed = true;
                 }
 
@@ -332,12 +327,12 @@ namespace helengine.editor {
                     continue;
                 }
 
-                if (string.IsNullOrWhiteSpace(platformSettings.Material.SchemaId)) {
-                    platformSettings.Material.SchemaId = materialSchema.SchemaId;
+                if (string.IsNullOrWhiteSpace(platformSettings.SchemaId)) {
+                    platformSettings.SchemaId = materialSchema.SchemaId;
                     changed = true;
                 }
 
-                changed |= SeedFieldValues(platformSettings.Material, materialSchema, materialAsset);
+                changed |= SeedFieldValues(platformSettings, materialSchema, materialAsset);
             }
 
             return changed;
@@ -420,7 +415,7 @@ namespace helengine.editor {
         /// <param name="settings">Material sidecar settings to inspect.</param>
         /// <param name="platformId">Platform identifier to resolve.</param>
         /// <returns>Resolved platform settings, or null when the requested platform has no settings.</returns>
-        AssetPlatformProcessorSettings ResolvePlatformSettings(AssetImportSettings settings, string platformId) {
+        MaterialAssetProcessorSettings ResolvePlatformSettings(MaterialAssetImportSettings settings, string platformId) {
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             } else if (string.IsNullOrWhiteSpace(platformId)) {
@@ -431,7 +426,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material settings must include processor platform settings.");
             }
 
-            AssetPlatformProcessorSettings platformSettings;
+            MaterialAssetProcessorSettings platformSettings;
             if (!settings.Processor.Platforms.TryGetValue(platformId, out platformSettings)) {
                 return null;
             }

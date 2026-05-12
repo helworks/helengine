@@ -72,6 +72,21 @@ namespace helengine.editor {
                 EditorContentProcessorIds.AssetImportSettings,
                 new BinaryContentProcessor<AssetImportSettings>(AssetImportSettingsBinarySerializer.Deserialize),
                 new[] { AssetImportManager.SettingsExtension });
+            RegisterProcessorIfMissing(
+                contentManager,
+                EditorContentProcessorIds.TextureAssetImportSettings,
+                new BinaryContentProcessor<TextureAssetImportSettings>(TextureAssetImportSettingsBinarySerializer.Deserialize),
+                new[] { AssetImportManager.SettingsExtension });
+            RegisterProcessorIfMissing(
+                contentManager,
+                EditorContentProcessorIds.ModelAssetImportSettings,
+                new BinaryContentProcessor<ModelAssetImportSettings>(ModelAssetImportSettingsBinarySerializer.Deserialize),
+                new[] { AssetImportManager.SettingsExtension });
+            RegisterProcessorIfMissing(
+                contentManager,
+                EditorContentProcessorIds.MaterialAssetImportSettings,
+                new BinaryContentProcessor<MaterialAssetImportSettings>(MaterialAssetImportSettingsBinarySerializer.Deserialize),
+                new[] { AssetImportManager.SettingsExtension });
         }
 
         /// <summary>

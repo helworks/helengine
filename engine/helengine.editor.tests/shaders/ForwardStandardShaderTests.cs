@@ -36,6 +36,23 @@ namespace helengine.editor.tests.shaders {
         }
 
         /// <summary>
+        /// Ensures the built-in forward standard shader does not replace point-light shading with legacy debug axis colors.
+        /// </summary>
+        [Fact]
+        public void ForwardStandardShaderSource_WhenInspected_DoesNotContainPointLightDebugTintOverride() {
+            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string shaderPath = Path.Combine(repositoryRootPath, "engine", "helengine.editor", "shaders", "builtin", "ForwardStandardShader.hlsl");
+            string shaderSource = File.ReadAllText(shaderPath);
+
+            Assert.DoesNotContain("diffuseColor = float3(1.0f, 0.0f, 0.0f) * diffuse * attenuation;", shaderSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("diffuseColor = float3(0.0f, 1.0f, 0.0f) * diffuse * attenuation;", shaderSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("diffuseColor = float3(0.0f, 0.0f, 1.0f) * diffuse * attenuation;", shaderSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("diffuseColor = float3(1.0f, 1.0f, 0.0f) * diffuse * attenuation;", shaderSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("diffuseColor = float3(1.0f, 0.0f, 1.0f) * diffuse * attenuation;", shaderSource, StringComparison.Ordinal);
+            Assert.DoesNotContain("diffuseColor = float3(0.0f, 1.0f, 1.0f) * diffuse * attenuation;", shaderSource, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Compiles the built-in forward standard shader for one backend and verifies the resolved material layout.
         /// </summary>
         /// <param name="target">Shader backend that should receive the compiled built-in shader.</param>

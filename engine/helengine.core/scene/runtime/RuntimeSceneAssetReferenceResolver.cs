@@ -145,6 +145,21 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Resolves one packaged texture reference into a runtime texture instance.
+        /// </summary>
+        /// <param name="reference">Packaged scene asset reference to resolve.</param>
+        /// <returns>Runtime texture instance rebuilt from packaged data.</returns>
+        public RuntimeTexture ResolveTexture(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            string fullPath = ResolveFileBackedAssetPath(reference);
+            TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(fullPath, RuntimeContentProcessorIds.TextureAsset);
+            return Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+        }
+
+        /// <summary>
         /// Resolves one packaged file-backed scene asset reference to an absolute file path inside the packaged content root.
         /// </summary>
         /// <param name="reference">Scene asset reference to resolve.</param>

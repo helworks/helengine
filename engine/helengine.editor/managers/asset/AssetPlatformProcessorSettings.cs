@@ -7,9 +7,15 @@ namespace helengine.editor {
         /// Initializes the processor settings that apply to model assets on this platform.
         /// </summary>
         public AssetPlatformProcessorSettings() {
+            Texture = new TextureAssetProcessorSettings();
             Model = new ModelAssetProcessorSettings();
             Material = new MaterialAssetProcessorSettings();
         }
+
+        /// <summary>
+        /// Gets or sets the processor settings that affect texture asset generation.
+        /// </summary>
+        public TextureAssetProcessorSettings Texture { get; set; }
 
         /// <summary>
         /// Gets or sets the processor settings that affect model asset generation.

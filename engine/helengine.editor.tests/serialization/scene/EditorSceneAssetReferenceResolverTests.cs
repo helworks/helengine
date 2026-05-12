@@ -243,7 +243,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <param name="relativePath">Project-relative material path whose sidecar should be written.</param>
         /// <param name="settings">Material settings payload to persist.</param>
-        void WriteMaterialSettings(string relativePath, AssetImportSettings settings) {
+        void WriteMaterialSettings(string relativePath, MaterialAssetImportSettings settings) {
             if (string.IsNullOrWhiteSpace(relativePath)) {
                 throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
             } else if (settings == null) {
@@ -260,23 +260,21 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <param name="baseColor">Authored base color in editor HTML hex form.</param>
         /// <returns>Material settings payload for the standard shader schema.</returns>
-        AssetImportSettings CreateStandardMaterialSettings(string baseColor) {
+        MaterialAssetImportSettings CreateStandardMaterialSettings(string baseColor) {
             if (string.IsNullOrWhiteSpace(baseColor)) {
                 throw new ArgumentException("Base color must be provided.", nameof(baseColor));
             }
 
-            AssetImportSettings settings = new AssetImportSettings();
+            MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = "helengine.material";
-            settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings {
-                Material = new MaterialAssetProcessorSettings {
-                    SchemaId = "standard-shader",
-                    FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
-                        ["use-custom-shader"] = "false",
-                        ["texture-id"] = string.Empty,
-                        ["casts-shadow"] = "true",
-                        ["receives-shadow"] = "true",
-                        ["base-color"] = baseColor
-                    }
+            settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
+                SchemaId = "standard-shader",
+                FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                    ["use-custom-shader"] = "false",
+                    ["texture-id"] = string.Empty,
+                    ["casts-shadow"] = "true",
+                    ["receives-shadow"] = "true",
+                    ["base-color"] = baseColor
                 }
             };
             return settings;

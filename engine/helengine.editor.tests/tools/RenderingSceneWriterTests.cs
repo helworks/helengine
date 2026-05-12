@@ -69,6 +69,38 @@ namespace helengine.editor.tests.tools {
         }
 
         /// <summary>
+        /// Ensures every rendering showcase scene generated for the menu disc carries one FPS overlay on its camera root.
+        /// </summary>
+        [Fact]
+        public void WriteAll_WhenRenderingShowcaseIsGenerated_BakesFpsOverlayIntoEveryScene() {
+            RenderingSceneWriter writer = new RenderingSceneWriter();
+
+            writer.WriteAll(ProjectRootPath);
+
+            string[] sceneFileNames = new[] {
+                "point-shadow.helen",
+                "point-shadow-lab.helen",
+                "spot-shadow-lab.helen",
+                "directional-shadow-lab.helen",
+                "ps2_basis_light_test.helen",
+                "directional-shadow-plaza.helen"
+            };
+            string fpsTypeId = "helengine.FPSComponent";
+            SceneAssetReference editorFontReference = new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "generated/editor/fonts/ui.hefont",
+                ProviderId = "editor",
+                AssetId = "ui-font"
+            };
+
+            foreach (string sceneFileName in sceneFileNames) {
+                SceneAsset sceneAsset = ReadSceneAsset(sceneFileName);
+                Assert.Equal(1, CountComponents(sceneAsset.RootEntities, fpsTypeId));
+                Assert.Contains(sceneAsset.AssetReferences, reference => reference.RelativePath == editorFontReference.RelativePath);
+            }
+        }
+
+        /// <summary>
         /// Reads one generated rendering scene asset from the isolated temp project.
         /// </summary>
         /// <param name="sceneFileName">Scene file name stored beneath the rendering scene folder.</param>

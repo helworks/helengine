@@ -1378,7 +1378,7 @@ namespace helengine.editor {
             }
             string cookedRelativePath = BuildCookedMaterialRelativePath(reference.RelativePath);
             if (MaterialBuilder != null) {
-                AssetImportSettings materialSettings = LoadMaterialSettingsForCook(fullPath, reference.RelativePath, materialAsset);
+                MaterialAssetImportSettings materialSettings = LoadMaterialSettingsForCook(fullPath, reference.RelativePath, materialAsset);
                 PlatformMaterialCookRequest cookRequest = BuildMaterialCookRequest(reference, materialAsset, materialSettings);
                 PlatformMaterialCookResult cookResult = MaterialBuilder.CookMaterial(cookRequest);
                 RememberReferencedShaderAssetIds(cookResult.ReferencedShaderAssetIds);
@@ -1388,7 +1388,7 @@ namespace helengine.editor {
                 return CreateFileSystemReference(cookedRelativePath);
             }
 
-            AssetImportSettings platformMaterialSettings;
+            MaterialAssetImportSettings platformMaterialSettings;
             if (MaterialAssetSettingsService.TryLoad(fullPath, out platformMaterialSettings) &&
                 HasValidPlatformMaterialSettings(platformMaterialSettings, TargetPlatformId)) {
                 MaterialAssetSettingsService.ApplyPlatformMaterialFields(materialAsset, platformMaterialSettings, TargetPlatformId);
@@ -1502,7 +1502,7 @@ namespace helengine.editor {
         /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
         /// <param name="materialRelativePath">Project-relative material asset path used in diagnostics.</param>
         /// <returns>Deserialized material settings sidecar.</returns>
-        AssetImportSettings LoadMaterialSettingsForCook(string materialAssetPath, string materialRelativePath, MaterialAsset materialAsset) {
+        MaterialAssetImportSettings LoadMaterialSettingsForCook(string materialAssetPath, string materialRelativePath, MaterialAsset materialAsset) {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             } else if (string.IsNullOrWhiteSpace(materialRelativePath)) {
@@ -1515,7 +1515,7 @@ namespace helengine.editor {
             if (File.Exists(settingsPath)) {
                 try {
                     using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                    AssetImportSettings settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
+                    MaterialAssetImportSettings settings = MaterialAssetImportSettingsBinarySerializer.Deserialize(stream);
                     if (settings.Processor?.Platforms != null && settings.Processor.Platforms.ContainsKey(TargetPlatformId)) {
                         return settings;
                     }
@@ -1556,21 +1556,21 @@ namespace helengine.editor {
         /// <param name="settings">Persisted material settings candidate.</param>
         /// <param name="platformId">Target platform whose settings should be validated.</param>
         /// <returns>True when the sidecar contains a non-empty schema id for the requested platform.</returns>
-        static bool HasValidPlatformMaterialSettings(AssetImportSettings settings, string platformId) {
+        static bool HasValidPlatformMaterialSettings(MaterialAssetImportSettings settings, string platformId) {
             if (settings == null || string.IsNullOrWhiteSpace(platformId)) {
                 return false;
             }
             if (settings.Processor == null || settings.Processor.Platforms == null) {
                 return false;
             }
-            if (!settings.Processor.Platforms.TryGetValue(platformId, out AssetPlatformProcessorSettings platformSettings)) {
+            if (!settings.Processor.Platforms.TryGetValue(platformId, out MaterialAssetProcessorSettings platformSettings)) {
                 return false;
             }
-            if (platformSettings == null || platformSettings.Material == null) {
+            if (platformSettings == null) {
                 return false;
             }
 
-            return !string.IsNullOrWhiteSpace(platformSettings.Material.SchemaId);
+            return !string.IsNullOrWhiteSpace(platformSettings.SchemaId);
         }
 
         /// <summary>
@@ -1583,7 +1583,7 @@ namespace helengine.editor {
         PlatformMaterialCookRequest BuildMaterialCookRequest(
             SceneAssetReference reference,
             MaterialAsset materialAsset,
-            AssetImportSettings materialSettings) {
+            MaterialAssetImportSettings materialSettings) {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
             } else if (materialAsset == null) {
@@ -1592,7 +1592,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(materialSettings));
             }
 
-            MaterialAssetProcessorSettings platformMaterialSettings = materialSettings.Processor.Platforms[TargetPlatformId].Material;
+            MaterialAssetProcessorSettings platformMaterialSettings = materialSettings.Processor.Platforms[TargetPlatformId];
             if (platformMaterialSettings == null) {
                 throw new InvalidOperationException($"Material '{reference.RelativePath}' is missing material settings for target platform '{TargetPlatformId}'.");
             } else if (string.IsNullOrWhiteSpace(platformMaterialSettings.SchemaId)) {

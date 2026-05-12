@@ -43,6 +43,7 @@ namespace helengine.editor.tests {
 
             view.Show(
                 ["assimp", "custom"],
+                "assimp",
                 CreateSettings(false, true),
                 ["windows", "android"],
                 "android",
@@ -61,6 +62,7 @@ namespace helengine.editor.tests {
 
             view.Show(
                 ["assimp"],
+                "assimp",
                 CreateSettings(false, false),
                 ["windows", "ps2", "linux", "gamecube", "wii", "xbox", "switch"],
                 "switch",
@@ -80,6 +82,7 @@ namespace helengine.editor.tests {
 
             view.Show(
                 ["assimp"],
+                "assimp",
                 CreateSettings(false, false),
                 ["windows", "android"],
                 "windows",
@@ -103,6 +106,7 @@ namespace helengine.editor.tests {
 
             view.Show(
                 ["assimp"],
+                "assimp",
                 CreateSettings(true, false),
                 ["windows", "android"],
                 "windows",
@@ -124,6 +128,7 @@ namespace helengine.editor.tests {
 
             view.Show(
                 ["assimp", "custom"],
+                "assimp",
                 CreateSettings(false, false),
                 ["windows", "android"],
                 "windows",
@@ -150,6 +155,7 @@ namespace helengine.editor.tests {
 
             view.Show(
                 ["assimp", "custom"],
+                "assimp",
                 CreateSettings(false, false),
                 ["windows", "android"],
                 "windows",
@@ -172,6 +178,7 @@ namespace helengine.editor.tests {
 
             view.Show(
                 ["assimp"],
+                "assimp",
                 CreateSettings(false, false),
                 ["windows"],
                 "windows",
@@ -182,6 +189,7 @@ namespace helengine.editor.tests {
 
             view.Show(
                 ["assimp"],
+                "assimp",
                 CreateSettings(false, false),
                 ["windows"],
                 "windows",
@@ -203,6 +211,7 @@ namespace helengine.editor.tests {
 
             view.Show(
                 ["assimp"],
+                "assimp",
                 CreateSettings(false, false),
                 ["windows", "android"],
                 "windows",
@@ -212,6 +221,7 @@ namespace helengine.editor.tests {
 
             view.Show(
                 ["assimp"],
+                "assimp",
                 CreateSettings(false, false),
                 ["windows"],
                 "windows",
@@ -245,6 +255,7 @@ namespace helengine.editor.tests {
 
             panel.ShowImportSettings(
                 entry,
+                "assimp",
                 CreateSettings(false, false),
                 ["assimp", "custom"],
                 ["windows"],
@@ -265,18 +276,15 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="windowsFlipWinding">Windows processor flip-winding value.</param>
         /// <param name="androidFlipWinding">Android processor flip-winding value.</param>
-        /// <returns>Configured asset import settings document.</returns>
-        AssetImportSettings CreateSettings(bool windowsFlipWinding, bool androidFlipWinding) {
-            AssetImportSettings settings = new AssetImportSettings();
-            settings.Importer.ImporterId = "assimp";
-            settings.Importer.SourceChecksum = "checksum";
-            settings.Importer.AssetId = "asset-id";
-            settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings {
+        /// <returns>Configured processor settings document.</returns>
+        AssetProcessorSettings CreateSettings(bool windowsFlipWinding, bool androidFlipWinding) {
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["windows"] = new AssetPlatformProcessorSettings {
                 Model = new ModelAssetProcessorSettings {
                     FlipWinding = windowsFlipWinding
                 }
             };
-            settings.Processor.Platforms["android"] = new AssetPlatformProcessorSettings {
+            settings.Platforms["android"] = new AssetPlatformProcessorSettings {
                 Model = new ModelAssetProcessorSettings {
                     FlipWinding = androidFlipWinding
                 }

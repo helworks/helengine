@@ -167,7 +167,7 @@ namespace helengine.editor.tests {
             string modelSourcePath = WriteSourceFile("Models/Preview.mock", "model source");
             AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile("Preview", "Models/Preview.mock", modelSourcePath, ".mock", AssetEntryKind.Model);
 
-            AssetImportSettings settings = assetImportManager.LoadOrCreateImportSettings(modelSourcePath);
+            ModelAssetImportSettings settings = assetImportManager.LoadOrCreateModelImportSettings(modelSourcePath);
             Assert.Equal("test-model", settings.Importer.ImporterId);
             ImportedModelAssetSet importedModel = assetImportManager.ContentManager.Load<ImportedModelAssetSet>(modelSourcePath, settings.Importer.ImporterId);
             Assert.NotNull(importedModel);
@@ -233,7 +233,7 @@ namespace helengine.editor.tests {
             AssetImportManager assetImportManager = CreateAssetImportManager(modelImporter);
             string textureSourcePath = WriteSourceFile("Textures/Fabric.png", "texture source");
             assetImportManager.ImportTexture(textureSourcePath);
-            AssetImportSettings textureSettings = assetImportManager.LoadOrCreateImportSettings(textureSourcePath);
+            TextureAssetImportSettings textureSettings = assetImportManager.LoadOrCreateTextureImportSettings(textureSourcePath);
             string cachedTexturePath = Path.Combine(assetImportManager.ImportRootPath, textureSettings.Importer.AssetId);
             using (FileStream stream = new FileStream(cachedTexturePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, new TextureAsset {

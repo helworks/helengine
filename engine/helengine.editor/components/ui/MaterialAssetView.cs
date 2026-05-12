@@ -133,7 +133,7 @@ namespace helengine.editor {
         /// <summary>
         /// Currently loaded material sidecar settings.
         /// </summary>
-        AssetImportSettings CurrentSettings;
+        MaterialAssetImportSettings CurrentSettings;
 
         /// <summary>
         /// Current platform metadata resolver.
@@ -249,7 +249,7 @@ namespace helengine.editor {
         public void Show(
             AssetBrowserEntry entry,
             MaterialAsset materialAsset,
-            AssetImportSettings settings,
+            MaterialAssetImportSettings settings,
             IReadOnlyList<string> supportedPlatforms,
             string activePlatformId,
             Func<string, EditorPlatformBuildSelectionModel> selectionModelResolver) {
@@ -1019,12 +1019,12 @@ namespace helengine.editor {
                 return null;
             }
 
-            AssetPlatformProcessorSettings platformSettings;
+            MaterialAssetProcessorSettings platformSettings;
             if (!CurrentSettings.Processor.Platforms.TryGetValue(platformId, out platformSettings) || platformSettings == null) {
                 return null;
             }
 
-            return platformSettings.Material;
+            return platformSettings;
         }
 
         /// <summary>

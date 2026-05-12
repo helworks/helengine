@@ -43,6 +43,70 @@ namespace helengine.demo_disc_scene_writer {
         /// </summary>
         const string StandardMaterialAssetId = BuiltInMaterialIds.StandardMaterialShaderAssetId;
         /// <summary>
+        /// Stable material importer identifier used by file-backed authored materials.
+        /// </summary>
+        const string MaterialImporterId = "helengine.material";
+        /// <summary>
+        /// Stable Windows standard-material schema identifier used by generated color-material settings.
+        /// </summary>
+        const string WindowsMaterialSchemaId = "standard-shader";
+        /// <summary>
+        /// Stable PS2 lit material schema identifier used by generated basis-test color materials.
+        /// </summary>
+        const string Ps2MaterialSchemaId = "ps2-simple-lit-textured";
+        /// <summary>
+        /// Stable standard shader asset identifier used by generated compatibility materials.
+        /// </summary>
+        const string StandardShaderAssetId = "ForwardStandardShader";
+        /// <summary>
+        /// Stable standard shader vertex program used by generated compatibility materials.
+        /// </summary>
+        const string StandardVertexProgramName = "ForwardStandardShader.vs";
+        /// <summary>
+        /// Stable standard shader pixel program used by generated compatibility materials.
+        /// </summary>
+        const string StandardPixelProgramName = "ForwardStandardShader.ps";
+        /// <summary>
+        /// Stable mesh variant used by generated compatibility materials.
+        /// </summary>
+        const string MeshVariantName = "Mesh";
+        /// <summary>
+        /// Stable material field identifier used to opt into standard-shader defaults on Windows.
+        /// </summary>
+        const string UseCustomShaderFieldId = "use-custom-shader";
+        /// <summary>
+        /// Stable material field identifier used for authored texture bindings on Windows.
+        /// </summary>
+        const string TextureIdFieldId = "texture-id";
+        /// <summary>
+        /// Stable material field identifier used for shadow-casting participation on Windows.
+        /// </summary>
+        const string CastsShadowFieldId = "casts-shadow";
+        /// <summary>
+        /// Stable material field identifier used for shadow receiving on Windows.
+        /// </summary>
+        const string ReceivesShadowFieldId = "receives-shadow";
+        /// <summary>
+        /// Stable material field identifier used for authored base color.
+        /// </summary>
+        const string BaseColorFieldId = "base-color";
+        /// <summary>
+        /// Stable PS2 material field identifier used for alpha mode.
+        /// </summary>
+        const string AlphaModeFieldId = "alpha-mode";
+        /// <summary>
+        /// Stable PS2 material field identifier used for double-sided control.
+        /// </summary>
+        const string DoubleSidedFieldId = "double-sided";
+        /// <summary>
+        /// Stable PS2 material field identifier used for shadow-casting participation.
+        /// </summary>
+        const string Ps2CastShadowsFieldId = "cast-shadows";
+        /// <summary>
+        /// Stable PS2 material field identifier used for vertex-color control.
+        /// </summary>
+        const string VertexColorModeFieldId = "vertex-color-mode";
+        /// <summary>
         /// Layer mask used by user-authored scene objects in packaged runtime scenes.
         /// </summary>
         const ushort SceneObjectsLayerMask = 0b0100000000000000;
@@ -56,6 +120,11 @@ namespace helengine.demo_disc_scene_writer {
         /// Stable save-state slot name used for serialized mesh material references.
         /// </summary>
         const string MeshMaterialReferenceName = "Material";
+
+        /// <summary>
+        /// Stable save-state slot name used for serialized font references.
+        /// </summary>
+        const string FontReferenceName = "Font";
 
         /// <summary>
         /// Scene id written into the committed point-shadow smoke scene asset.
@@ -73,6 +142,10 @@ namespace helengine.demo_disc_scene_writer {
         /// Scene id written into the committed directional-shadow lab scene asset.
         /// </summary>
         const string DirectionalShadowLabSceneId = "Scenes/rendering/directional-shadow-lab.helen";
+        /// <summary>
+        /// Scene id written into the committed PS2 basis and directional-light validation scene asset.
+        /// </summary>
+        const string Ps2BasisLightTestSceneId = "scenes/rendering/ps2_basis_light_test.helen";
         /// <summary>
         /// Scene id written into the committed directional-shadow plaza showcase scene asset.
         /// </summary>
@@ -116,6 +189,15 @@ namespace helengine.demo_disc_scene_writer {
         /// Builds the canonical directional-shadow plaza showcase scene asset.
         /// </summary>
         readonly DirectionalShadowPlazaSceneAssetFactory DirectionalShadowPlazaFactory;
+        /// <summary>
+        /// Writes generated material settings sidecars for file-backed authored materials.
+        /// </summary>
+        readonly MaterialAssetSettingsService MaterialSettingsService;
+
+        /// <summary>
+        /// Descriptor used to serialize the FPS overlay component on each authored scene camera.
+        /// </summary>
+        readonly FPSComponentPersistenceDescriptor FpsDescriptor;
 
         /// <summary>
         /// Initializes the committed rendering scene writer with the persistence descriptors required for authored editor-scene output.
@@ -129,6 +211,8 @@ namespace helengine.demo_disc_scene_writer {
             PlaceholderMaterial = new RuntimeMaterial();
             ShowcaseSourceWriter = new RenderingShowcaseSourceWriter();
             DirectionalShadowPlazaFactory = new DirectionalShadowPlazaSceneAssetFactory();
+            MaterialSettingsService = new MaterialAssetSettingsService();
+            FpsDescriptor = new FPSComponentPersistenceDescriptor();
         }
 
         /// <summary>
@@ -147,11 +231,35 @@ namespace helengine.demo_disc_scene_writer {
             }
 
             ShowcaseSourceWriter.WriteDirectionalShadowPlazaSources(assetsRootPath);
+            WritePs2BasisLightTestSceneAsset(assetsRootPath);
             WriteDirectionalShadowPlazaSceneAsset(assetsRootPath);
             WritePointShadowSceneAsset(assetsRootPath);
             WritePointShadowLabSceneAsset(assetsRootPath);
             WriteSpotShadowLabSceneAsset(assetsRootPath);
             WriteDirectionalShadowLabSceneAsset(assetsRootPath);
+        }
+
+        /// <summary>
+        /// Writes the committed PS2 basis and directional-light validation scene asset.
+        /// </summary>
+        /// <param name="assetsRootPath">Assets root path inside the target project.</param>
+        void WritePs2BasisLightTestSceneAsset(string assetsRootPath) {
+            string scenePath = Path.Combine(assetsRootPath, Ps2BasisLightTestSceneId.Replace('/', Path.DirectorySeparatorChar));
+            string sceneDirectoryPath = Path.GetDirectoryName(scenePath);
+            if (string.IsNullOrWhiteSpace(sceneDirectoryPath)) {
+                throw new InvalidOperationException("PS2 basis-light test scene directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(sceneDirectoryPath);
+            WritePs2BasisLightTestMaterialAssets(assetsRootPath);
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = Ps2BasisLightTestSceneId,
+                AssetReferences = CreatePs2BasisLightTestAssetReferences(),
+                RootEntities = CreatePs2BasisLightTestRootEntities()
+            };
+
+            using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            EditorAssetBinarySerializer.Serialize(stream, sceneAsset);
         }
 
         /// <summary>
@@ -271,7 +379,27 @@ namespace helengine.demo_disc_scene_writer {
             return new[] {
                 CreateGeneratedReference("Engine/Models/Plane", PlaneModelAssetId),
                 CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
-                CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId)
+                CreateGeneratedReference("Engine/Materials/Standard", StandardMaterialAssetId),
+                CreateEditorFontReference()
+            };
+        }
+
+        /// <summary>
+        /// Creates the stable generated asset references required by the committed PS2 basis-light validation scene.
+        /// </summary>
+        /// <returns>Stable scene asset references used by the scene meshes.</returns>
+        SceneAssetReference[] CreatePs2BasisLightTestAssetReferences() {
+            return new[] {
+                CreateGeneratedReference("Engine/Models/Plane", PlaneModelAssetId),
+                CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId),
+                CreatePs2BasisLightTestMaterialReference(0),
+                CreatePs2BasisLightTestMaterialReference(1),
+                CreatePs2BasisLightTestMaterialReference(2),
+                CreatePs2BasisLightTestMaterialReference(3),
+                CreatePs2BasisLightTestMaterialReference(4),
+                CreatePs2BasisLightTestMaterialReference(5),
+                CreatePs2BasisLightTestMaterialReference(6),
+                CreateEditorFontReference()
             };
         }
 
@@ -764,6 +892,117 @@ namespace helengine.demo_disc_scene_writer {
         }
 
         /// <summary>
+        /// Creates the root entity hierarchy stored in the committed PS2 basis-light validation scene.
+        /// </summary>
+        /// <returns>Serialized root entities for the scene.</returns>
+        SceneEntityAsset[] CreatePs2BasisLightTestRootEntities() {
+            float4 cameraOrientation;
+            float4.CreateFromYawPitchRoll(0f, -0.18f, 0f, out cameraOrientation);
+            float4 directionalLightOrientation;
+            float4.CreateFromYawPitchRoll(-0.95f, -0.55f, 0f, out directionalLightOrientation);
+
+            SceneAssetReference planeReference = CreateGeneratedReference("Engine/Models/Plane", PlaneModelAssetId);
+            SceneAssetReference cubeReference = CreateGeneratedReference("Engine/Models/Cube", CubeModelAssetId);
+            SceneAssetReference groundMaterialReference = CreatePs2BasisLightTestMaterialReference(0);
+            SceneAssetReference centerMaterialReference = CreatePs2BasisLightTestMaterialReference(1);
+            SceneAssetReference plusXMaterialReference = CreatePs2BasisLightTestMaterialReference(2);
+            SceneAssetReference minusXMaterialReference = CreatePs2BasisLightTestMaterialReference(3);
+            SceneAssetReference plusZMaterialReference = CreatePs2BasisLightTestMaterialReference(4);
+            SceneAssetReference minusZMaterialReference = CreatePs2BasisLightTestMaterialReference(5);
+            SceneAssetReference cornerMaterialReference = CreatePs2BasisLightTestMaterialReference(6);
+
+            return new[] {
+                CreatePs2BasisLightTestCameraEntity(),
+                CreateMeshEntity(
+                    "ps2-basis-light-test-ground",
+                    "Ps2BasisLightTestGround",
+                    new float3(0f, -1.5f, 0f),
+                    new float3(8f, 1f, 8f),
+                    float4.Identity,
+                    planeReference,
+                    groundMaterialReference),
+                CreateMeshEntity(
+                    "ps2-basis-light-test-center-cube",
+                    "Ps2BasisLightTestCenterCube",
+                    new float3(0f, 0f, 0f),
+                    new float3(1.75f, 1.75f, 1.75f),
+                    float4.Identity,
+                    cubeReference,
+                    centerMaterialReference),
+                CreateMeshEntity(
+                    "ps2-basis-light-test-plus-x-bar",
+                    "Ps2BasisLightTestPlusXBar",
+                    new float3(2.75f, 0f, 0f),
+                    new float3(2.75f, 0.8f, 0.8f),
+                    float4.Identity,
+                    cubeReference,
+                    plusXMaterialReference),
+                CreateMeshEntity(
+                    "ps2-basis-light-test-minus-x-pillar",
+                    "Ps2BasisLightTestMinusXPillar",
+                    new float3(-2.75f, 0f, 0f),
+                    new float3(0.8f, 2.75f, 0.8f),
+                    float4.Identity,
+                    cubeReference,
+                    minusXMaterialReference),
+                CreateMeshEntity(
+                    "ps2-basis-light-test-plus-z-bar",
+                    "Ps2BasisLightTestPlusZBar",
+                    new float3(0f, 0f, 2.75f),
+                    new float3(0.8f, 0.8f, 2.75f),
+                    float4.Identity,
+                    cubeReference,
+                    plusZMaterialReference),
+                CreateMeshEntity(
+                    "ps2-basis-light-test-minus-z-slab",
+                    "Ps2BasisLightTestMinusZSlab",
+                    new float3(0f, -0.55f, -2.75f),
+                    new float3(2.5f, 0.55f, 2.5f),
+                    float4.Identity,
+                    cubeReference,
+                    minusZMaterialReference),
+                CreateMeshEntity(
+                    "ps2-basis-light-test-plus-x-plus-z-corner",
+                    "Ps2BasisLightTestPlusXPlusZCorner",
+                    new float3(2.2f, 0.45f, 2.2f),
+                    new float3(1.1f, 1.1f, 1.1f),
+                    float4.Identity,
+                    cubeReference,
+                    cornerMaterialReference),
+                CreateDirectionalLightEntity(
+                    "ps2-basis-light-test-light",
+                    "Ps2BasisLightTestLight",
+                    new float3(0f, 10f, 0f),
+                    directionalLightOrientation,
+                    2.0f,
+                    48f)
+            };
+        }
+
+        /// <summary>
+        /// Creates the authored camera entity used by the PS2 basis-light validation scene.
+        /// </summary>
+        /// <returns>Serialized camera entity with the known-good rendering-scene payload contract.</returns>
+        SceneEntityAsset CreatePs2BasisLightTestCameraEntity() {
+            return new SceneEntityAsset {
+                Id = "ps2-basis-light-test-camera",
+                Name = "Ps2BasisLightTestCamera",
+                LocalPosition = new float3(0f, 0f, 9f),
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity,
+                Components = new[] {
+                    new SceneComponentAssetRecord {
+                        ComponentTypeId = CameraComponentTypeId,
+                        ComponentIndex = 0,
+                        Payload = WritePs2BasisLightTestCameraPayload()
+                    },
+                    CreateFpsComponentRecord()
+                },
+                Children = Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
         /// Creates one serialized camera entity for the smoke scene.
         /// </summary>
         /// <param name="id">Stable entity id.</param>
@@ -783,9 +1022,36 @@ namespace helengine.demo_disc_scene_writer {
                         ComponentTypeId = CameraComponentTypeId,
                         ComponentIndex = 0,
                         Payload = WriteCameraPayload()
-                    }
+                    },
+                    CreateFpsComponentRecord()
                 },
                 Children = Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
+        /// Creates one serialized FPS overlay component record for a scene camera.
+        /// </summary>
+        /// <returns>Serialized FPS overlay component record.</returns>
+        SceneComponentAssetRecord CreateFpsComponentRecord() {
+            FPSComponent fpsComponent = new FPSComponent {
+                Font = new FontAsset(new FontInfo("RenderingFpsPlaceholder", 16, 4f), null, new Dictionary<char, FontChar>(), 16f, 1, 1)
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(FontReferenceName, CreateEditorFontReference());
+            return FpsDescriptor.SerializeComponent(fpsComponent, 1, saveState);
+        }
+
+        /// <summary>
+        /// Builds the stable scene asset reference for the editor's built-in font.
+        /// </summary>
+        /// <returns>Stable generated editor-font reference.</returns>
+        SceneAssetReference CreateEditorFontReference() {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = "generated/editor/fonts/ui.hefont",
+                ProviderId = "editor",
+                AssetId = "ui-font"
             };
         }
 
@@ -946,6 +1212,163 @@ namespace helengine.demo_disc_scene_writer {
         }
 
         /// <summary>
+        /// Creates one stable file-backed material reference for the supplied PS2 basis-test material index.
+        /// </summary>
+        /// <param name="materialIndex">Stable zero-based basis-test material index.</param>
+        /// <returns>Scene asset reference targeting one file-backed colored material.</returns>
+        SceneAssetReference CreatePs2BasisLightTestMaterialReference(int materialIndex) {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = ResolvePs2BasisLightTestMaterialRelativePath(materialIndex),
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            };
+        }
+
+        /// <summary>
+        /// Writes the file-backed color materials used by the PS2 basis-light validation scene.
+        /// </summary>
+        /// <param name="assetsRootPath">Assets root path inside the target project.</param>
+        void WritePs2BasisLightTestMaterialAssets(string assetsRootPath) {
+            if (string.IsNullOrWhiteSpace(assetsRootPath)) {
+                throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath));
+            }
+
+            string projectRootPath = Directory.GetParent(assetsRootPath)?.FullName
+                ?? throw new InvalidOperationException("Project root path could not be resolved from the assets root.");
+            for (int materialIndex = 0; materialIndex < 7; materialIndex++) {
+                WritePs2BasisLightTestMaterialAsset(projectRootPath, materialIndex);
+            }
+        }
+
+        /// <summary>
+        /// Writes one file-backed color material and settings sidecar used by the PS2 basis-light validation scene.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute project root path.</param>
+        /// <param name="materialIndex">Stable zero-based basis-test material index.</param>
+        void WritePs2BasisLightTestMaterialAsset(string projectRootPath, int materialIndex) {
+            string relativePath = ResolvePs2BasisLightTestMaterialRelativePath(materialIndex);
+            string fullPath = Path.Combine(projectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            string directoryPath = Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException($"Could not resolve a material directory for '{relativePath}'.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
+            using (FileStream stream = File.Create(fullPath)) {
+                global::helengine.editor.AssetSerializer.Serialize(stream, CreatePs2BasisLightTestMaterialAsset(materialIndex));
+            }
+
+            MaterialSettingsService.Save(fullPath, CreatePs2BasisLightTestMaterialSettings(materialIndex));
+        }
+
+        /// <summary>
+        /// Creates one file-backed standard-shader material asset used by the PS2 basis-light validation scene.
+        /// </summary>
+        /// <param name="materialIndex">Stable zero-based basis-test material index.</param>
+        /// <returns>File-backed material asset for the supplied basis-test slot.</returns>
+        MaterialAsset CreatePs2BasisLightTestMaterialAsset(int materialIndex) {
+            return new MaterialAsset {
+                Id = ResolvePs2BasisLightTestMaterialAssetId(materialIndex),
+                ShaderAssetId = StandardShaderAssetId,
+                VertexProgram = StandardVertexProgramName,
+                PixelProgram = StandardPixelProgramName,
+                Variant = MeshVariantName,
+                RenderState = new MaterialRenderState(),
+                ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>(),
+                CastsShadows = true,
+                ReceivesShadows = true
+            };
+        }
+
+        /// <summary>
+        /// Creates one per-platform settings sidecar for the supplied PS2 basis-test material.
+        /// </summary>
+        /// <param name="materialIndex">Stable zero-based basis-test material index.</param>
+        /// <returns>Generated import-settings payload for the supplied basis-test material.</returns>
+        MaterialAssetImportSettings CreatePs2BasisLightTestMaterialSettings(int materialIndex) {
+            MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
+            settings.Importer.ImporterId = MaterialImporterId;
+            settings.Importer.SourceChecksum = string.Empty;
+            settings.Importer.AssetId = ResolvePs2BasisLightTestMaterialAssetId(materialIndex);
+
+            string baseColor = ResolvePs2BasisLightTestMaterialColor(materialIndex);
+
+            MaterialAssetProcessorSettings windowsSettings = new MaterialAssetProcessorSettings();
+            windowsSettings.SchemaId = WindowsMaterialSchemaId;
+            windowsSettings.FieldValues[UseCustomShaderFieldId] = "false";
+            windowsSettings.FieldValues[TextureIdFieldId] = string.Empty;
+            windowsSettings.FieldValues[CastsShadowFieldId] = "true";
+            windowsSettings.FieldValues[ReceivesShadowFieldId] = "true";
+            windowsSettings.FieldValues[BaseColorFieldId] = baseColor;
+            settings.Processor.Platforms["windows"] = windowsSettings;
+
+            MaterialAssetProcessorSettings ps2Settings = new MaterialAssetProcessorSettings();
+            ps2Settings.SchemaId = Ps2MaterialSchemaId;
+            ps2Settings.FieldValues[AlphaModeFieldId] = "opaque";
+            ps2Settings.FieldValues[DoubleSidedFieldId] = "false";
+            ps2Settings.FieldValues[Ps2CastShadowsFieldId] = "true";
+            ps2Settings.FieldValues[VertexColorModeFieldId] = "ignore";
+            ps2Settings.FieldValues[BaseColorFieldId] = baseColor;
+            settings.Processor.Platforms["ps2"] = ps2Settings;
+            return settings;
+        }
+
+        /// <summary>
+        /// Resolves the stable project-relative material path for the supplied PS2 basis-test material index.
+        /// </summary>
+        /// <param name="materialIndex">Stable zero-based basis-test material index.</param>
+        /// <returns>Project-relative material path.</returns>
+        string ResolvePs2BasisLightTestMaterialRelativePath(int materialIndex) {
+            return "materials/rendering/ps2_basis_light_test/" + ResolvePs2BasisLightTestMaterialFileName(materialIndex);
+        }
+
+        /// <summary>
+        /// Resolves the stable material asset id for the supplied PS2 basis-test material index.
+        /// </summary>
+        /// <param name="materialIndex">Stable zero-based basis-test material index.</param>
+        /// <returns>File-backed material asset identifier.</returns>
+        string ResolvePs2BasisLightTestMaterialAssetId(int materialIndex) {
+            return "Materials.rendering.ps2_basis_light_test." + Path.GetFileNameWithoutExtension(ResolvePs2BasisLightTestMaterialFileName(materialIndex));
+        }
+
+        /// <summary>
+        /// Resolves the stable file name for the supplied PS2 basis-test material index.
+        /// </summary>
+        /// <param name="materialIndex">Stable zero-based basis-test material index.</param>
+        /// <returns>Material file name stored under the basis-test material folder.</returns>
+        string ResolvePs2BasisLightTestMaterialFileName(int materialIndex) {
+            switch (materialIndex) {
+                case 0: return "Ground.helmat";
+                case 1: return "Center.helmat";
+                case 2: return "PlusX.helmat";
+                case 3: return "MinusX.helmat";
+                case 4: return "PlusZ.helmat";
+                case 5: return "MinusZ.helmat";
+                case 6: return "Corner.helmat";
+                default: throw new ArgumentOutOfRangeException(nameof(materialIndex), "Basis-test material index must be between 0 and 6.");
+            }
+        }
+
+        /// <summary>
+        /// Resolves the authored base color used by the supplied PS2 basis-test material index.
+        /// </summary>
+        /// <param name="materialIndex">Stable zero-based basis-test material index.</param>
+        /// <returns>Hex RGBA color string stored in platform material settings.</returns>
+        string ResolvePs2BasisLightTestMaterialColor(int materialIndex) {
+            switch (materialIndex) {
+                case 0: return "#202838FF";
+                case 1: return "#F0F0F0FF";
+                case 2: return "#FF4040FF";
+                case 3: return "#C040FFFF";
+                case 4: return "#40D060FF";
+                case 5: return "#4080FFFF";
+                case 6: return "#FFD040FF";
+                default: throw new ArgumentOutOfRangeException(nameof(materialIndex), "Basis-test material index must be between 0 and 6.");
+            }
+        }
+
+        /// <summary>
         /// Writes one serialized camera component payload.
         /// </summary>
         /// <returns>Serialized camera component payload.</returns>
@@ -972,6 +1395,40 @@ namespace helengine.demo_disc_scene_writer {
                     new CameraRenderSettings {
                         DepthPrepassMode = DepthPrepassMode.Auto,
                         ShadowDistance = 60f,
+                        PostProcessTier = PostProcessTier.Disabled
+                    }));
+            return writer.BuildPayload();
+        }
+
+        /// <summary>
+        /// Writes the camera payload used by the PS2 basis-light validation scene using the same contract as the known-good city rendering scenes.
+        /// </summary>
+        /// <returns>Serialized camera component payload.</returns>
+        byte[] WritePs2BasisLightTestCameraPayload() {
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField("CameraDrawOrder", fieldWriter => fieldWriter.WriteByte(0));
+            writer.WriteField("LayerMask", fieldWriter => fieldWriter.WriteUInt16(SceneObjectsLayerMask));
+            writer.WriteField("Viewport", fieldWriter => fieldWriter.WriteFloat4(new float4(0f, 0f, 1f, 1f)));
+            writer.WriteField("NearPlaneDistance", fieldWriter => fieldWriter.WriteSingle(0.1f));
+            writer.WriteField("FarPlaneDistance", fieldWriter => fieldWriter.WriteSingle(64f));
+            writer.WriteField(
+                "ClearSettings",
+                fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraClearSettings(
+                    fieldWriter,
+                    new CameraClearSettings(
+                        true,
+                        new float4(100f / 255f, 149f / 255f, 237f / 255f, 1f),
+                        true,
+                        1f,
+                        false,
+                        0)));
+            writer.WriteField(
+                "RenderSettings",
+                fieldWriter => SceneComponentBinaryFieldEncoding.WriteCameraRenderSettings(
+                    fieldWriter,
+                    new CameraRenderSettings {
+                        DepthPrepassMode = DepthPrepassMode.Auto,
+                        ShadowDistance = 24f,
                         PostProcessTier = PostProcessTier.Disabled
                     }));
             return writer.BuildPayload();

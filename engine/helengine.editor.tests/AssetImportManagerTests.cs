@@ -49,14 +49,14 @@ namespace helengine.editor.tests {
             string sourcePath = WriteSourceTexture("current-settings.png");
             string settingsPath = sourcePath + ".hasset";
             AssetImportManager manager = CreateManager();
-            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
-            manager.SaveImportSettings(sourcePath, settings);
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            manager.SaveTextureImportSettings(sourcePath, settings);
 
             List<string> importedAssets = manager.ImportTexturesMissingCache();
 
             Assert.Single(importedAssets);
             using (FileStream settingsStream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                AssetImportSettings loadedSettings = AssetImportSettingsBinarySerializer.Deserialize(settingsStream);
+                TextureAssetImportSettings loadedSettings = TextureAssetImportSettingsBinarySerializer.Deserialize(settingsStream);
                 Assert.Equal("test-texture", loadedSettings.Importer.ImporterId);
                 Assert.False(string.IsNullOrWhiteSpace(loadedSettings.Importer.SourceChecksum));
                 Assert.False(string.IsNullOrWhiteSpace(loadedSettings.Importer.AssetId));
@@ -100,18 +100,18 @@ namespace helengine.editor.tests {
             string sourcePath = WriteSourceTexture("unsupported-settings-version.png");
             string settingsPath = sourcePath + ".hasset";
             AssetImportManager manager = CreateManager();
-            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
 
             using (FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+                TextureAssetImportSettingsBinarySerializer.Serialize(stream, settings);
             }
 
             byte[] unsupportedVersionSettings = File.ReadAllBytes(settingsPath);
             unsupportedVersionSettings[5] = 2;
             File.WriteAllBytes(settingsPath, unsupportedVersionSettings);
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => manager.LoadOrCreateImportSettings(sourcePath));
-            Assert.Contains("Unsupported asset import settings binary version", exception.Message);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => manager.LoadOrCreateTextureImportSettings(sourcePath));
+            Assert.Contains("Unsupported texture asset import settings binary version", exception.Message);
         }
 
         /// <summary>
@@ -122,17 +122,17 @@ namespace helengine.editor.tests {
             string sourcePath = WriteSourceTexture("missing-importer.tga");
             string settingsPath = sourcePath + ".hasset";
             AssetImportManager manager = CreateTgaManager();
-            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
             settings.Importer.ImporterId = string.Empty;
-            manager.SaveImportSettings(sourcePath, settings);
+            manager.SaveTextureImportSettings(sourcePath, settings);
 
-            AssetImportSettings loadedSettings;
-            bool loaded = manager.TryLoadOrCreateImportSettings(sourcePath, out loadedSettings);
+            TextureAssetImportSettings loadedSettings;
+            bool loaded = manager.TryLoadOrCreateTextureImportSettings(sourcePath, out loadedSettings);
 
             Assert.True(loaded);
             Assert.Equal("pfim", loadedSettings.Importer.ImporterId);
             using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                AssetImportSettings savedSettings = AssetImportSettingsBinarySerializer.Deserialize(stream);
+                TextureAssetImportSettings savedSettings = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
                 Assert.Equal("pfim", savedSettings.Importer.ImporterId);
             }
         }
@@ -148,7 +148,7 @@ namespace helengine.editor.tests {
             manager.RegisterTextureImporter(new TextureImporterRegistration("second-texture", new TestTextureImporter(), new[] { ".png" }));
 
             IReadOnlyList<string> importerIds = manager.GetImporterIdsForExtension(".png");
-            AssetImportSettings settings = manager.LoadOrCreateImportSettings(WriteSourceTexture("shared-extension.png"));
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(WriteSourceTexture("shared-extension.png"));
 
             Assert.Equal(new[] { "first-texture", "second-texture" }, importerIds);
             Assert.Equal("first-texture", settings.Importer.ImporterId);
@@ -199,12 +199,107 @@ namespace helengine.editor.tests {
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out TextureAsset initialAsset));
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, initialAsset.Colors);
 
-            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
             settings.Importer.ImporterId = "magick";
-            manager.SaveImportSettings(sourcePath, settings);
+            manager.SaveTextureImportSettings(sourcePath, settings);
 
             Assert.True(manager.TryLoadTextureAsset(sourcePath, out TextureAsset overriddenAsset));
             Assert.Equal(new byte[] { 9, 8, 7, 6 }, overriddenAsset.Colors);
+        }
+
+        /// <summary>
+        /// Ensures texture import settings can cap the larger texture axis and preserve aspect ratio during cache generation.
+        /// </summary>
+        [Fact]
+        public void TryLoadTextureAsset_WhenTextureMaxResolutionIsCapped_DownsizesWhilePreservingAspectRatio() {
+            string sourcePath = WriteSourceTexture("checker.tga");
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterTextureImporter(new TextureImporterRegistration("pfim", new ConfigurableTextureImporter(1024, 512, new byte[1024 * 512 * 4]), new[] { ".tga" }));
+            manager.CurrentPlatformId = "windows";
+
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Importer.ImporterId = "pfim";
+            settings.Processor.Platforms["windows"] = new TextureAssetProcessorSettings {
+                MaxResolution = 256
+            };
+            manager.SaveTextureImportSettings(sourcePath, settings);
+
+            bool loaded = manager.TryLoadTextureAsset(sourcePath, out TextureAsset asset);
+
+            Assert.True(loaded);
+            Assert.Equal((ushort)256, asset.Width);
+            Assert.Equal((ushort)128, asset.Height);
+        }
+
+        /// <summary>
+        /// Ensures changing the texture max-resolution processor setting produces a new cached asset identity.
+        /// </summary>
+        [Fact]
+        public void TryLoadTextureAsset_WhenTextureMaxResolutionChanges_ReimportsWithANewAssetId() {
+            string sourcePath = WriteSourceTexture("checker-id.tga");
+            ContentManager contentManager = new ContentManager(AssetsRootPath);
+            AssetImportManager manager = new AssetImportManager(ProjectRootPath, contentManager);
+            manager.RegisterTextureImporter(new TextureImporterRegistration("pfim", new ConfigurableTextureImporter(1024, 512, new byte[1024 * 512 * 4]), new[] { ".tga" }));
+            manager.CurrentPlatformId = "windows";
+
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Importer.ImporterId = "pfim";
+            settings.Processor.Platforms["windows"] = new TextureAssetProcessorSettings {
+                MaxResolution = 512
+            };
+            manager.SaveTextureImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
+            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+
+            settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Processor.Platforms["windows"].MaxResolution = 128;
+            manager.SaveTextureImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
+            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+
+            Assert.NotEqual(firstAssetId, secondAssetId);
+        }
+
+        /// <summary>
+        /// Ensures missing texture sidecars are created as typed texture settings documents.
+        /// </summary>
+        [Fact]
+        public void LoadOrCreateTextureImportSettings_WhenTextureSidecarMissing_ReturnsTypedDefaults() {
+            string sourcePath = WriteSourceTexture("typed-defaults.tga");
+            AssetImportManager manager = CreateTgaManager();
+
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+
+            Assert.Equal("pfim", settings.Importer.ImporterId);
+            Assert.NotNull(settings.Processor);
+            Assert.Empty(settings.Processor.Platforms);
+        }
+
+        /// <summary>
+        /// Ensures typed texture sidecars drive cache identity changes when the texture processor settings change.
+        /// </summary>
+        [Fact]
+        public void TryLoadTextureAsset_WhenTextureMaxResolutionChanges_ReimportsWithATypedSidecarAssetId() {
+            string sourcePath = WriteSourceTexture("typed-asset-id.tga");
+            AssetImportManager manager = CreateTgaManager();
+            manager.CurrentPlatformId = "windows";
+
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Processor.Platforms["windows"] = new TextureAssetProcessorSettings {
+                MaxResolution = 512
+            };
+            manager.SaveTextureImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
+            string firstAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+
+            settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Processor.Platforms["windows"].MaxResolution = 128;
+            manager.SaveTextureImportSettings(sourcePath, settings);
+            Assert.True(manager.TryLoadTextureAsset(sourcePath, out _));
+            string secondAssetId = manager.LoadOrCreateTextureImportSettings(sourcePath).Importer.AssetId;
+
+            Assert.NotEqual(firstAssetId, secondAssetId);
         }
 
         /// <summary>

@@ -89,6 +89,30 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the authored city axis-test-2 camera mirrors the original axis-test camera distance on the right side.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityAxisTest2SceneAsset_CameraUsesRightSideMirroredDistance() {
+            SceneAsset sceneAsset = ReadSceneAsset("axis_test2.helen");
+            SceneEntityAsset cameraEntity = FindEntityByName(sceneAsset.RootEntities, "AxisTest2Camera");
+
+            Assert.NotNull(cameraEntity);
+            Assert.Equal(new float3(30f, 6f, 5f), cameraEntity.LocalPosition);
+        }
+
+        /// <summary>
+        /// Ensures the authored city axis-test-2 right wall extends along the mirrored camera forward axis instead of across depth.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityAxisTest2SceneAsset_RightWallExtendsAlongCameraForwardAxis() {
+            SceneAsset sceneAsset = ReadSceneAsset("axis_test2.helen");
+            SceneEntityAsset wallEntity = FindEntityByName(sceneAsset.RootEntities, "AxisTest2Ground");
+
+            Assert.NotNull(wallEntity);
+            Assert.Equal(new float3(14f, 12f, 0.5f), wallEntity.LocalScale);
+        }
+
+        /// <summary>
         /// Ensures the authored spotlight street-slice scene references generated racer companion materials through their real `.helmat` assets instead of import-settings sidecars.
         /// </summary>
         [Fact]
@@ -189,6 +213,36 @@ namespace helengine.editor.tests {
             }
 
             return count;
+        }
+
+        /// <summary>
+        /// Finds one entity by exact display name within the supplied hierarchy.
+        /// </summary>
+        /// <param name="entities">Scene entities to inspect.</param>
+        /// <param name="entityName">Exact display name to locate.</param>
+        /// <returns>Matching scene entity when found; otherwise null.</returns>
+        SceneEntityAsset FindEntityByName(SceneEntityAsset[] entities, string entityName) {
+            if (entities == null) {
+                throw new ArgumentNullException(nameof(entities));
+            } else if (string.IsNullOrWhiteSpace(entityName)) {
+                throw new ArgumentException("Entity name must be provided.", nameof(entityName));
+            }
+
+            for (int index = 0; index < entities.Length; index++) {
+                SceneEntityAsset entity = entities[index];
+                if (entity == null) {
+                    continue;
+                } else if (string.Equals(entity.Name, entityName, StringComparison.Ordinal)) {
+                    return entity;
+                }
+
+                SceneEntityAsset childMatch = FindEntityByName(entity.Children ?? Array.Empty<SceneEntityAsset>(), entityName);
+                if (childMatch != null) {
+                    return childMatch;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>

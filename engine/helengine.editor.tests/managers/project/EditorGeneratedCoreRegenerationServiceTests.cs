@@ -1281,10 +1281,10 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies generated scroll-component source initializes its size backing field to a zero vector so runtime deserialization preserves managed value-type defaults.
+    /// Verifies generated scroll-component source preserves value-type size initialization so generated source matches the generated header contract.
     /// </summary>
     [Fact]
-    public void Normalize_generated_native_sources_initializes_scroll_component_size_value() {
+    public void Normalize_generated_native_sources_preserves_scroll_component_value_type_size_initialization() {
         string generatedCoreRootPath = Path.Combine(RootPath, "normalize-scroll-component-size-value");
         Directory.CreateDirectory(generatedCoreRootPath);
         string sourcePath = Path.Combine(generatedCoreRootPath, "ScrollComponent.cpp");
@@ -1297,7 +1297,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         EditorGeneratedCoreRegenerationService.NormalizeGeneratedNativeSources(generatedCoreRootPath);
 
         string normalizedSource = File.ReadAllText(sourcePath);
-        Assert.Contains("SizeValue(new int2())", normalizedSource);
+        Assert.Contains("SizeValue()", normalizedSource);
     }
 
     /// <summary>

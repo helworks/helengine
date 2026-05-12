@@ -4,8 +4,23 @@ namespace helengine.editor {
     /// </summary>
     public enum AssetImportSettingsBinaryValueKind : ushort {
         /// <summary>
+        /// The payload stores a <see cref="TextureAssetImportSettings"/> instance.
+        /// </summary>
+        TextureAssetImportSettings = 1,
+
+        /// <summary>
+        /// The payload stores a <see cref="ModelAssetImportSettings"/> instance.
+        /// </summary>
+        ModelAssetImportSettings = 2,
+
+        /// <summary>
+        /// The payload stores a <see cref="MaterialAssetImportSettings"/> instance.
+        /// </summary>
+        MaterialAssetImportSettings = 3,
+
+        /// <summary>
         /// The payload stores an <see cref="AssetImportSettings"/> instance.
         /// </summary>
-        AssetImportSettings = 1
+        AssetImportSettings = 4
     }
 }

@@ -239,7 +239,7 @@ namespace helengine.editor {
             if (entry.IsGenerated) {
                 runtimeModel = GeneratedAssetProviderRegistry.ResolveRuntimeModel(entry);
             } else {
-                AssetImportSettings importSettings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
+                ModelAssetImportSettings importSettings = assetImportManager.LoadOrCreateModelImportSettings(entry.FullPath);
                 if (importSettings == null || importSettings.Importer == null || string.IsNullOrWhiteSpace(importSettings.Importer.ImporterId)) {
                     return false;
                 }
@@ -717,7 +717,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Texture source path must be provided.", nameof(sourceTexturePath));
             }
 
-            AssetImportSettings settings = assetImportManager.LoadOrCreateImportSettings(sourceTexturePath);
+            TextureAssetImportSettings settings = assetImportManager.LoadOrCreateTextureImportSettings(sourceTexturePath);
             if (settings == null || settings.Importer == null || string.IsNullOrWhiteSpace(settings.Importer.ImporterId)) {
                 throw new InvalidOperationException("Texture import settings must resolve a valid importer id.");
             }

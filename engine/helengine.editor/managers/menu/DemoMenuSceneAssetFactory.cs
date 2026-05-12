@@ -33,9 +33,19 @@ namespace helengine.editor {
         readonly TextComponentPersistenceDescriptor TextDescriptor;
 
         /// <summary>
+        /// Descriptor used to serialize sprite scene visuals.
+        /// </summary>
+        readonly SpriteComponentPersistenceDescriptor SpriteDescriptor;
+
+        /// <summary>
         /// Descriptor used to serialize rounded rectangle scene visuals.
         /// </summary>
         readonly RoundedRectComponentPersistenceDescriptor RoundedRectDescriptor;
+
+        /// <summary>
+        /// Descriptor used to serialize the FPS overlay component.
+        /// </summary>
+        readonly FPSComponentPersistenceDescriptor FpsDescriptor;
 
         /// <summary>
         /// Descriptor used to serialize automatic reflected component payloads such as clip and scroll metadata.
@@ -56,7 +66,9 @@ namespace helengine.editor {
             DemoMenuItemDescriptor = new MenuItemComponentPersistenceDescriptor();
             DemoMenuSelectedDescriptionDescriptor = new MenuSelectedDescriptionComponentPersistenceDescriptor();
             TextDescriptor = new TextComponentPersistenceDescriptor();
+            SpriteDescriptor = new SpriteComponentPersistenceDescriptor();
             RoundedRectDescriptor = new RoundedRectComponentPersistenceDescriptor();
+            FpsDescriptor = new FPSComponentPersistenceDescriptor();
             AutomaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             PlaceholderFont = new FontAsset(
                 new FontInfo("Placeholder", 16, 4f),
@@ -91,6 +103,9 @@ namespace helengine.editor {
             List<SceneAssetReference> assetReferences = new List<SceneAssetReference>();
             assetReferences.Add(BuildFileFontReference(definition.TitleFontPath));
             assetReferences.Add(BuildFileFontReference(definition.BodyFontPath));
+            if (definition.OverlayImage != null) {
+                assetReferences.Add(BuildFileTextureReference(definition.OverlayImage.TexturePath));
+            }
 
             return new SceneAsset {
                 Id = sceneId,
@@ -102,7 +117,7 @@ namespace helengine.editor {
                     }
                 },
                 RootEntities = new[] {
-                    BuildCameraEntityAsset(),
+                    BuildCameraEntityAsset(definition),
                     BuildMenuRootEntityAsset(providerTypeName, definition)
                 }
             };
@@ -111,14 +126,22 @@ namespace helengine.editor {
         /// <summary>
         /// Builds the serialized camera entity stored in the baked demo-disc scene.
         /// </summary>
-        SceneEntityAsset BuildCameraEntityAsset() {
+        /// <param name="definition">Menu definition that provides the authored body-font reference.</param>
+        SceneEntityAsset BuildCameraEntityAsset(MenuDefinition definition) {
+            if (definition == null) {
+                throw new ArgumentNullException(nameof(definition));
+            }
+
             return new SceneEntityAsset {
                 Id = "demo-disc-camera",
                 Name = "DemoDiscCamera",
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity,
-                Components = new[] { BuildCameraComponentRecord() },
+                Components = new[] {
+                    BuildCameraComponentRecord(),
+                    CreateFpsComponentRecord(definition.BodyFontPath)
+                },
                 Children = Array.Empty<SceneEntityAsset>()
             };
         }
@@ -179,7 +202,6 @@ namespace helengine.editor {
             SceneComponentAssetRecord buildRecord = DemoMenuBuildDescriptor.SerializeComponent(buildComponent, 0, null);
             SceneComponentAssetRecord viewportRecord = AutomaticDescriptor.SerializeComponent(viewportComponent, 1, null);
             SceneComponentAssetRecord referenceCanvasFitRecord = AutomaticDescriptor.SerializeComponent(referenceCanvasFitComponent, 2, null);
-
             return new SceneEntityAsset {
                 Id = "demo-disc-menu-root",
                 Name = "DemoDiscMenuRoot",
@@ -198,6 +220,9 @@ namespace helengine.editor {
         /// </summary>
         SceneEntityAsset BuildGeneratedRootEntityAsset(MenuDefinition definition) {
             List<SceneEntityAsset> children = new List<SceneEntityAsset>();
+            if (definition.OverlayImage != null) {
+                children.Add(BuildOverlayImageEntityAsset(definition.OverlayImage));
+            }
 
             for (int panelIndex = 0; panelIndex < definition.Panels.Length; panelIndex++) {
                 children.Add(BuildPanelEntityAsset(definition, definition.Panels[panelIndex]));
@@ -437,6 +462,40 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Builds one decorative overlay image entity pinned to the top-right of the fitted menu canvas.
+        /// </summary>
+        /// <param name="overlayImage">Overlay image definition to bake.</param>
+        /// <returns>Overlay sprite entity.</returns>
+        SceneEntityAsset BuildOverlayImageEntityAsset(MenuOverlayImageDefinition overlayImage) {
+            if (overlayImage == null) {
+                throw new ArgumentNullException(nameof(overlayImage));
+            }
+
+            SpriteComponent spriteComponent = new SpriteComponent {
+                Size = new int2(overlayImage.Width, overlayImage.Height),
+                RenderOrder2D = 28,
+                LayerMask = RuntimeLayerMask
+            };
+            AnchorComponent anchorComponent = new AnchorComponent();
+            anchorComponent.SetAnchorDistances(right: overlayImage.RightMargin, top: overlayImage.TopMargin);
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(TextureAssetScenePersistenceSupport.TextureReferenceName, BuildFileTextureReference(overlayImage.TexturePath));
+
+            return new SceneEntityAsset {
+                Id = "demo-disc-overlay-image",
+                Name = "DemoDiscOverlayImage",
+                LocalPosition = float3.Zero,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity,
+                Components = new[] {
+                    SpriteDescriptor.SerializeComponent(spriteComponent, 0, saveState),
+                    AutomaticDescriptor.SerializeComponent(anchorComponent, 1, null)
+                },
+                Children = Array.Empty<SceneEntityAsset>()
+            };
+        }
+
+        /// <summary>
         /// Builds one baked text entity.
         /// </summary>
         SceneEntityAsset BuildTextEntityAsset(string entityId, float3 localPosition, string text, string fontPath, byte4 color, int2 size, byte renderOrder2D, AnchorComponent anchorComponent = null) {
@@ -499,9 +558,37 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Serializes the menu-scene FPS overlay using the authored body font reference.
+        /// </summary>
+        /// <param name="fontPath">Project-relative font path used by the overlay.</param>
+        /// <returns>Serialized FPS overlay component record.</returns>
+        SceneComponentAssetRecord CreateFpsComponentRecord(string fontPath) {
+            FPSComponent fpsComponent = new FPSComponent {
+                Font = PlaceholderFont
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, BuildFileFontReference(fontPath));
+            return FpsDescriptor.SerializeComponent(fpsComponent, 3, saveState);
+        }
+
+        /// <summary>
         /// Builds one file-backed font reference for the supplied project-relative path.
         /// </summary>
         SceneAssetReference BuildFileFontReference(string relativePath) {
+            return new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.FileSystem,
+                RelativePath = relativePath.Replace('\\', '/'),
+                ProviderId = string.Empty,
+                AssetId = string.Empty
+            };
+        }
+
+        /// <summary>
+        /// Builds one file-backed texture reference for the supplied project-relative path.
+        /// </summary>
+        /// <param name="relativePath">Project-relative texture path.</param>
+        /// <returns>Stable file-backed texture reference.</returns>
+        SceneAssetReference BuildFileTextureReference(string relativePath) {
             return new SceneAssetReference {
                 SourceKind = SceneAssetReferenceSourceKind.FileSystem,
                 RelativePath = relativePath.Replace('\\', '/'),

@@ -206,53 +206,6 @@ float3 EvaluateForwardLight(
     float3 diffuseColor = surfaceColor * radiance * diffuse * attenuation;
     float3 specularColor = radiance * specular * 0.35f * attenuation;
 
-    if (lightType == 1)
-    {
-        float3 lightToSurface = worldPos - positionAndRange.xyz;
-        float absX = abs(lightToSurface.x);
-        float absY = abs(lightToSurface.y);
-        float absZ = abs(lightToSurface.z);
-        if (absX >= absY && absX >= absZ)
-        {
-            if (lightToSurface.x >= 0.0f)
-            {
-                diffuseColor = float3(0.0f, 1.0f, 0.0f) * diffuse * attenuation;
-                specularColor = float3(0.0f, 0.35f, 0.0f) * specular * attenuation;
-            }
-            else
-            {
-                diffuseColor = float3(1.0f, 0.0f, 0.0f) * diffuse * attenuation;
-                specularColor = float3(0.35f, 0.0f, 0.0f) * specular * attenuation;
-            }
-        }
-        else if (absY >= absX && absY >= absZ)
-        {
-            if (lightToSurface.y >= 0.0f)
-            {
-                diffuseColor = float3(0.0f, 0.0f, 1.0f) * diffuse * attenuation;
-                specularColor = float3(0.0f, 0.0f, 0.35f) * specular * attenuation;
-            }
-            else
-            {
-                diffuseColor = float3(1.0f, 1.0f, 0.0f) * diffuse * attenuation;
-                specularColor = float3(0.35f, 0.35f, 0.0f) * specular * attenuation;
-            }
-        }
-        else
-        {
-            if (lightToSurface.z >= 0.0f)
-            {
-                diffuseColor = float3(1.0f, 0.0f, 1.0f) * diffuse * attenuation;
-                specularColor = float3(0.35f, 0.0f, 0.35f) * specular * attenuation;
-            }
-            else
-            {
-                diffuseColor = float3(0.0f, 1.0f, 1.0f) * diffuse * attenuation;
-                specularColor = float3(0.0f, 0.35f, 0.35f) * specular * attenuation;
-            }
-        }
-    }
-
     return diffuseColor + specularColor;
 }
 

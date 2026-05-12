@@ -167,6 +167,7 @@ namespace helengine.editor.tests.serialization.scene {
             registry.Register(new MenuSelectedDescriptionComponentPersistenceDescriptor());
             registry.Register(new RoundedRectComponentPersistenceDescriptor());
             registry.Register(new TextComponentPersistenceDescriptor());
+            registry.Register(new FPSComponentPersistenceDescriptor());
             return registry;
         }
 

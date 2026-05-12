@@ -16,7 +16,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 3;
+        public const byte CurrentVersion = 4;
 
         /// <summary>
         /// Payload endianness used by the current asset import settings format.
@@ -61,6 +61,10 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Asset import settings cannot contain a blank processor platform id.");
                 } else if (entry.Value == null) {
                     throw new InvalidOperationException($"Asset import settings must include processor settings for platform '{entry.Key}'.");
+                } else if (entry.Value.Texture == null) {
+                    throw new InvalidOperationException($"Asset import settings must include texture processor settings for platform '{entry.Key}'.");
+                } else if (entry.Value.Texture.MaxResolution < 0) {
+                    throw new InvalidOperationException($"Asset import settings cannot contain a negative texture max resolution for platform '{entry.Key}'.");
                 } else if (entry.Value.Model == null) {
                     throw new InvalidOperationException($"Asset import settings must include model processor settings for platform '{entry.Key}'.");
                 } else if (entry.Value.Material == null) {
@@ -71,6 +75,7 @@ namespace helengine.editor {
 
                 writer.WriteString(entry.Key);
                 writer.WriteByte(entry.Value.Model.FlipWinding ? (byte)1 : (byte)0);
+                writer.WriteInt32(entry.Value.Texture.MaxResolution);
                 writer.WriteString(entry.Value.Material.SchemaId ?? string.Empty);
                 writer.WriteInt32(entry.Value.Material.FieldValues.Count);
                 foreach (KeyValuePair<string, string> fieldEntry in entry.Value.Material.FieldValues) {
@@ -117,6 +122,10 @@ namespace helengine.editor {
 
                 AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings();
                 platformSettings.Model.FlipWinding = ReadBooleanByte(reader);
+                platformSettings.Texture.MaxResolution = reader.ReadInt32();
+                if (platformSettings.Texture.MaxResolution < 0) {
+                    throw new InvalidOperationException($"Asset import settings cannot contain a negative texture max resolution for platform '{platformId}'.");
+                }
                 platformSettings.Material.SchemaId = reader.ReadString();
 
                 int fieldValueCount = reader.ReadInt32();

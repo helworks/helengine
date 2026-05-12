@@ -432,6 +432,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures texture processor settings round-trip through the asset import settings serializer for each platform.
+        /// </summary>
+        [Fact]
+        public void AssetImportSettingsBinarySerializer_RoundTripsTextureMaxResolutionPerPlatform() {
+            AssetImportSettings settings = CreateAssetImportSettings();
+            settings.Processor.Platforms["windows"].Texture = new TextureAssetProcessorSettings {
+                MaxResolution = 512
+            };
+            settings.Processor.Platforms["android"].Texture = new TextureAssetProcessorSettings {
+                MaxResolution = 128
+            };
+
+            using MemoryStream stream = new MemoryStream();
+            AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            stream.Position = 0;
+
+            AssetImportSettings deserialized = AssetImportSettingsBinarySerializer.Deserialize(stream);
+
+            Assert.Equal(512, deserialized.Processor.Platforms["windows"].Texture.MaxResolution);
+            Assert.Equal(128, deserialized.Processor.Platforms["android"].Texture.MaxResolution);
+        }
+
+        /// <summary>
         /// Ensures invalid import-settings payload headers are rejected.
         /// </summary>
         [Fact]
@@ -504,6 +527,137 @@ namespace helengine.editor.tests {
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AssetImportSettingsBinarySerializer.Deserialize(deserializeStream));
 
             Assert.Contains("Unsupported asset import settings binary version", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures negative texture processor limits are rejected during asset import settings serialization.
+        /// </summary>
+        [Fact]
+        public void AssetImportSettingsBinarySerializer_Serialize_WhenTextureMaxResolutionIsNegative_Throws() {
+            AssetImportSettings settings = CreateAssetImportSettings();
+            settings.Processor.Platforms["windows"].Texture = new TextureAssetProcessorSettings {
+                MaxResolution = -1
+            };
+
+            using MemoryStream stream = new MemoryStream();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AssetImportSettingsBinarySerializer.Serialize(stream, settings));
+            Assert.Contains("negative texture max resolution", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures typed texture asset import settings round-trip through their dedicated serializer.
+        /// </summary>
+        [Fact]
+        public void TextureAssetImportSettingsBinarySerializer_RoundTripsPlatformSettings() {
+            TextureAssetImportSettings settings = CreateTextureAssetImportSettings();
+
+            using MemoryStream stream = new MemoryStream();
+            TextureAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            byte[] data = stream.ToArray();
+            EngineBinaryHeader header = ReadHeader(data);
+            stream.Position = 0;
+
+            TextureAssetImportSettings deserialized = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
+
+            Assert.Equal(EditorAssetBinarySerializer.FormatId, header.FormatId);
+            Assert.Equal((ushort)TextureAssetImportSettingsBinarySerializer.RecordKind, header.RecordKind);
+            Assert.Equal((ushort)AssetImportSettingsBinaryValueKind.TextureAssetImportSettings, header.ValueKind);
+            Assert.Equal(TextureAssetImportSettingsBinarySerializer.CurrentVersion, header.Version);
+            Assert.Equal("pfim", deserialized.Importer.ImporterId);
+            Assert.Equal(512, deserialized.Processor.Platforms["windows"].MaxResolution);
+            Assert.Equal(128, deserialized.Processor.Platforms["android"].MaxResolution);
+        }
+
+        /// <summary>
+        /// Ensures typed model asset import settings round-trip through their dedicated serializer.
+        /// </summary>
+        [Fact]
+        public void ModelAssetImportSettingsBinarySerializer_RoundTripsPlatformSettings() {
+            ModelAssetImportSettings settings = CreateModelAssetImportSettings();
+
+            using MemoryStream stream = new MemoryStream();
+            ModelAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            byte[] data = stream.ToArray();
+            EngineBinaryHeader header = ReadHeader(data);
+            stream.Position = 0;
+
+            ModelAssetImportSettings deserialized = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
+
+            Assert.Equal(EditorAssetBinarySerializer.FormatId, header.FormatId);
+            Assert.Equal((ushort)ModelAssetImportSettingsBinarySerializer.RecordKind, header.RecordKind);
+            Assert.Equal((ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings, header.ValueKind);
+            Assert.Equal(ModelAssetImportSettingsBinarySerializer.CurrentVersion, header.Version);
+            Assert.True(deserialized.Processor.Platforms["windows"].FlipWinding);
+            Assert.False(deserialized.Processor.Platforms["ps2"].FlipWinding);
+        }
+
+        /// <summary>
+        /// Ensures typed material asset import settings round-trip through their dedicated serializer.
+        /// </summary>
+        [Fact]
+        public void MaterialAssetImportSettingsBinarySerializer_RoundTripsSchemaAndFields() {
+            MaterialAssetImportSettings settings = CreateMaterialAssetImportSettings();
+
+            using MemoryStream stream = new MemoryStream();
+            MaterialAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            byte[] data = stream.ToArray();
+            EngineBinaryHeader header = ReadHeader(data);
+            stream.Position = 0;
+
+            MaterialAssetImportSettings deserialized = MaterialAssetImportSettingsBinarySerializer.Deserialize(stream);
+
+            Assert.Equal(EditorAssetBinarySerializer.FormatId, header.FormatId);
+            Assert.Equal((ushort)MaterialAssetImportSettingsBinarySerializer.RecordKind, header.RecordKind);
+            Assert.Equal((ushort)AssetImportSettingsBinaryValueKind.MaterialAssetImportSettings, header.ValueKind);
+            Assert.Equal(MaterialAssetImportSettingsBinarySerializer.CurrentVersion, header.Version);
+            Assert.Equal("standard-shader", deserialized.Processor.Platforms["windows"].SchemaId);
+            Assert.Equal("#ffffffff", deserialized.Processor.Platforms["windows"].FieldValues["base-color"]);
+            Assert.Equal("Textures/checker", deserialized.Processor.Platforms["windows"].FieldValues["texture-id"]);
+        }
+
+        /// <summary>
+        /// Ensures blank platform ids are rejected by the typed texture settings serializer.
+        /// </summary>
+        [Fact]
+        public void TextureAssetImportSettingsBinarySerializer_Serialize_WhenPlatformIdIsBlank_Throws() {
+            TextureAssetImportSettings settings = CreateTextureAssetImportSettings();
+            settings.Processor.Platforms[string.Empty] = new TextureAssetProcessorSettings {
+                MaxResolution = 64
+            };
+
+            using MemoryStream stream = new MemoryStream();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => TextureAssetImportSettingsBinarySerializer.Serialize(stream, settings));
+            Assert.Contains("blank processor platform id", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures null processor entries are rejected by the typed model settings serializer.
+        /// </summary>
+        [Fact]
+        public void ModelAssetImportSettingsBinarySerializer_Serialize_WhenProcessorMapContainsNullEntry_Throws() {
+            ModelAssetImportSettings settings = CreateModelAssetImportSettings();
+            settings.Processor.Platforms["windows"] = null;
+
+            using MemoryStream stream = new MemoryStream();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ModelAssetImportSettingsBinarySerializer.Serialize(stream, settings));
+            Assert.Contains("must include processor settings for platform 'windows'", exception.Message);
+        }
+
+        /// <summary>
+        /// Ensures null material field values are rejected by the typed material settings serializer.
+        /// </summary>
+        [Fact]
+        public void MaterialAssetImportSettingsBinarySerializer_Serialize_WhenFieldValueIsNull_Throws() {
+            MaterialAssetImportSettings settings = CreateMaterialAssetImportSettings();
+            settings.Processor.Platforms["windows"].FieldValues["texture-id"] = null;
+
+            using MemoryStream stream = new MemoryStream();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => MaterialAssetImportSettingsBinarySerializer.Serialize(stream, settings));
+            Assert.Contains("null material field value", exception.Message);
         }
 
         /// <summary>
@@ -807,6 +961,79 @@ namespace helengine.editor.tests {
                         ["android"] = new AssetPlatformProcessorSettings {
                             Model = new ModelAssetProcessorSettings {
                                 FlipWinding = false
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
+        /// <summary>
+        /// Creates representative typed texture asset import settings for serializer testing.
+        /// </summary>
+        /// <returns>Texture asset import settings with sample values.</returns>
+        static TextureAssetImportSettings CreateTextureAssetImportSettings() {
+            return new TextureAssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = "pfim",
+                    SourceChecksum = "texture-checksum",
+                    AssetId = "texture-id"
+                },
+                Processor = new TextureAssetProcessorPlatformSettings {
+                    Platforms = new Dictionary<string, TextureAssetProcessorSettings> {
+                        ["windows"] = new TextureAssetProcessorSettings {
+                            MaxResolution = 512
+                        },
+                        ["android"] = new TextureAssetProcessorSettings {
+                            MaxResolution = 128
+                        }
+                    }
+                }
+            };
+        }
+
+        /// <summary>
+        /// Creates representative typed model asset import settings for serializer testing.
+        /// </summary>
+        /// <returns>Model asset import settings with sample values.</returns>
+        static ModelAssetImportSettings CreateModelAssetImportSettings() {
+            return new ModelAssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = "assimp",
+                    SourceChecksum = "model-checksum",
+                    AssetId = "model-id"
+                },
+                Processor = new ModelAssetProcessorPlatformSettings {
+                    Platforms = new Dictionary<string, ModelAssetProcessorSettings> {
+                        ["windows"] = new ModelAssetProcessorSettings {
+                            FlipWinding = true
+                        },
+                        ["ps2"] = new ModelAssetProcessorSettings {
+                            FlipWinding = false
+                        }
+                    }
+                }
+            };
+        }
+
+        /// <summary>
+        /// Creates representative typed material asset import settings for serializer testing.
+        /// </summary>
+        /// <returns>Material asset import settings with sample values.</returns>
+        static MaterialAssetImportSettings CreateMaterialAssetImportSettings() {
+            return new MaterialAssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = "helengine.material",
+                    SourceChecksum = string.Empty,
+                    AssetId = "Materials/Demo.helmat"
+                },
+                Processor = new MaterialAssetProcessorPlatformSettings {
+                    Platforms = new Dictionary<string, MaterialAssetProcessorSettings> {
+                        ["windows"] = new MaterialAssetProcessorSettings {
+                            SchemaId = "standard-shader",
+                            FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                                ["base-color"] = "#ffffffff",
+                                ["texture-id"] = "Textures/checker"
                             }
                         }
                     }

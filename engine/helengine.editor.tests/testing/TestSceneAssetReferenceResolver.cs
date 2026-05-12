@@ -21,12 +21,18 @@ namespace helengine.editor.tests.testing {
         readonly Dictionary<string, FontAsset> FontsByReferenceKey;
 
         /// <summary>
+        /// Runtime textures keyed by their stable scene asset reference.
+        /// </summary>
+        readonly Dictionary<string, RuntimeTexture> TexturesByReferenceKey;
+
+        /// <summary>
         /// Initializes empty runtime lookup tables.
         /// </summary>
         public TestSceneAssetReferenceResolver() {
             ModelsByReferenceKey = new Dictionary<string, RuntimeModel>(StringComparer.Ordinal);
             MaterialsByReferenceKey = new Dictionary<string, RuntimeMaterial>(StringComparer.Ordinal);
             FontsByReferenceKey = new Dictionary<string, FontAsset>(StringComparer.Ordinal);
+            TexturesByReferenceKey = new Dictionary<string, RuntimeTexture>(StringComparer.Ordinal);
         }
 
         /// <summary>
@@ -75,6 +81,22 @@ namespace helengine.editor.tests.testing {
             }
 
             FontsByReferenceKey[BuildReferenceKey(reference)] = runtimeFont;
+        }
+
+        /// <summary>
+        /// Registers one runtime texture for a stable scene asset reference.
+        /// </summary>
+        /// <param name="reference">Stable reference to register.</param>
+        /// <param name="runtimeTexture">Runtime texture resolved for the reference.</param>
+        public void RegisterTexture(SceneAssetReference reference, RuntimeTexture runtimeTexture) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+            if (runtimeTexture == null) {
+                throw new ArgumentNullException(nameof(runtimeTexture));
+            }
+
+            TexturesByReferenceKey[BuildReferenceKey(reference)] = runtimeTexture;
         }
 
         /// <summary>
@@ -129,6 +151,24 @@ namespace helengine.editor.tests.testing {
             }
 
             return runtimeFont;
+        }
+
+        /// <summary>
+        /// Resolves one runtime texture from the registered lookup table.
+        /// </summary>
+        /// <param name="reference">Stable reference to resolve.</param>
+        /// <returns>Registered runtime texture.</returns>
+        public RuntimeTexture ResolveTexture(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            string key = BuildReferenceKey(reference);
+            if (!TexturesByReferenceKey.TryGetValue(key, out RuntimeTexture runtimeTexture)) {
+                throw new InvalidOperationException($"Runtime texture was not registered for '{key}'.");
+            }
+
+            return runtimeTexture;
         }
 
         /// <summary>

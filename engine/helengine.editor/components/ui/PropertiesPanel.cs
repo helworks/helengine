@@ -592,22 +592,25 @@ namespace helengine.editor {
         /// Shows import settings for the specified asset entry.
         /// </summary>
         /// <param name="entry">Selected asset entry.</param>
-        /// <param name="settings">Import settings to display.</param>
+        /// <param name="importerId">Importer identifier to display.</param>
+        /// <param name="processorSettings">Processor settings to display.</param>
         /// <param name="importerIds">Registered importer identifiers.</param>
         public void ShowImportSettings(
             AssetBrowserEntry entry,
-            AssetImportSettings settings,
+            string importerId,
+            AssetProcessorSettings processorSettings,
             IReadOnlyList<string> importerIds,
             IReadOnlyList<string> supportedPlatforms,
             string activePlatformId) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
             }
-
-            if (settings == null) {
-                throw new ArgumentNullException(nameof(settings));
+            if (string.IsNullOrWhiteSpace(importerId)) {
+                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
             }
-
+            if (processorSettings == null) {
+                throw new ArgumentNullException(nameof(processorSettings));
+            }
             if (importerIds == null) {
                 throw new ArgumentNullException(nameof(importerIds));
             }
@@ -621,7 +624,7 @@ namespace helengine.editor {
             DeactivateSelectedEntityTransformProjection();
             currentEntry = entry;
             HideRemoveComponentDialog();
-            importSettingsView.Show(importerIds, settings, supportedPlatforms, activePlatformId, entry.EntryKind);
+            importSettingsView.Show(importerIds, importerId, processorSettings, supportedPlatforms, activePlatformId, entry.EntryKind);
             MaterialView.Hide();
             ComponentPlatformTabStrip.Root.Enabled = false;
             SetTransformVisible(false);
@@ -688,7 +691,7 @@ namespace helengine.editor {
         public void ShowMaterialSettings(
             AssetBrowserEntry entry,
             MaterialAsset materialAsset,
-            AssetImportSettings settings,
+            MaterialAssetImportSettings settings,
             IReadOnlyList<string> supportedPlatforms,
             string activePlatformId,
             Func<string, EditorPlatformBuildSelectionModel> selectionModelResolver) {

@@ -902,10 +902,6 @@ namespace helengine.editor {
                         "static_cast<::RoundedRectCorners>(static_cast<int32_t>(RoundedRectCorners::TopLeft) | static_cast<int32_t>(RoundedRectCorners::TopRight))");
                 }
 
-                if (string.Equals(fileName, "ScrollComponent.cpp", StringComparison.OrdinalIgnoreCase)) {
-                    updatedContents = RewriteGeneratedScrollComponentSizeInitialization(updatedContents);
-                }
-
                 updatedContents = updatedContents.Replace("point->", "point.");
                 return updatedContents;
             }
@@ -1744,16 +1740,6 @@ return Encoding::GetString(Encoding::UTF8, bytes);}";
         /// </summary>
         /// <param name="contents">Current scroll-component source contents.</param>
         /// <returns>Updated scroll-component source contents.</returns>
-        static string RewriteGeneratedScrollComponentSizeInitialization(string contents) {
-            if (string.IsNullOrEmpty(contents)
-                || !contents.Contains("ScrollComponent::ScrollComponent()", StringComparison.Ordinal)
-                || !contents.Contains("SizeValue()", StringComparison.Ordinal)) {
-                return contents;
-            }
-
-            return contents.Replace("SizeValue()", "SizeValue(new int2())", StringComparison.Ordinal);
-        }
-
         /// <summary>
         /// Inserts PS2-specific device-path handling into generated native path support so `cdrom0:` roots avoid `std::filesystem` normalization.
         /// </summary>

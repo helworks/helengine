@@ -160,13 +160,44 @@ namespace helengine.editor.tests {
             string sourcePath = WriteSourceModel("flip-winding.obj");
             TestModelImporter modelImporter = new TestModelImporter();
             AssetImportManager manager = CreateManager(modelImporter);
-            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
-            settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings {
-                Model = new ModelAssetProcessorSettings {
-                    FlipWinding = true
-                }
+            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
+            settings.Processor.Platforms["windows"] = new ModelAssetProcessorSettings {
+                FlipWinding = true
             };
-            manager.SaveImportSettings(sourcePath, settings);
+            manager.SaveModelImportSettings(sourcePath, settings);
+
+            ModelAsset importedAsset = manager.ImportModel(sourcePath);
+
+            Assert.Equal(new ushort[] { 0, 2, 1 }, importedAsset.Indices16);
+        }
+
+        /// <summary>
+        /// Ensures missing model sidecars are created as typed model settings documents.
+        /// </summary>
+        [Fact]
+        public void LoadOrCreateModelImportSettings_WhenModelSidecarMissing_ReturnsTypedDefaults() {
+            string sourcePath = WriteSourceModel("typed-defaults.obj");
+            AssetImportManager manager = CreateManager(new TestModelImporter());
+
+            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
+
+            Assert.Equal("test-model", settings.Importer.ImporterId);
+            Assert.NotNull(settings.Processor);
+            Assert.Empty(settings.Processor.Platforms);
+        }
+
+        /// <summary>
+        /// Ensures typed model sidecars drive the platform-specific model processor path.
+        /// </summary>
+        [Fact]
+        public void ImportModel_WhenWindowsProcessorSettingsFlipWinding_UsesTypedModelSettings() {
+            string sourcePath = WriteSourceModel("typed-flip.obj");
+            AssetImportManager manager = CreateManager(new TestModelImporter());
+            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
+            settings.Processor.Platforms["windows"] = new ModelAssetProcessorSettings {
+                FlipWinding = true
+            };
+            manager.SaveModelImportSettings(sourcePath, settings);
 
             ModelAsset importedAsset = manager.ImportModel(sourcePath);
 
@@ -216,18 +247,16 @@ namespace helengine.editor.tests {
             string sourcePath = WriteSourceModel("processor-change.obj");
             TestModelImporter modelImporter = new TestModelImporter();
             AssetImportManager manager = CreateManager(modelImporter);
-            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
-            settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings {
-                Model = new ModelAssetProcessorSettings {
-                    FlipWinding = false
-                }
+            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
+            settings.Processor.Platforms["windows"] = new ModelAssetProcessorSettings {
+                FlipWinding = false
             };
-            manager.SaveImportSettings(sourcePath, settings);
+            manager.SaveModelImportSettings(sourcePath, settings);
 
             ModelAsset firstAsset = manager.ImportModel(sourcePath);
-            settings = manager.LoadOrCreateImportSettings(sourcePath);
-            settings.Processor.Platforms["windows"].Model.FlipWinding = true;
-            manager.SaveImportSettings(sourcePath, settings);
+            settings = manager.LoadOrCreateModelImportSettings(sourcePath);
+            settings.Processor.Platforms["windows"].FlipWinding = true;
+            manager.SaveModelImportSettings(sourcePath, settings);
 
             bool loaded = manager.TryLoadModelAsset(sourcePath, out ModelAsset secondAsset);
 
@@ -246,7 +275,7 @@ namespace helengine.editor.tests {
             string sourcePath = WriteSourceModel("stale-cache.obj");
             TestModelImporter modelImporter = new TestModelImporter();
             AssetImportManager manager = CreateManager(modelImporter);
-            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
             string outputPath = Path.Combine(CacheRootPath, settings.Importer.AssetId);
 
             using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
@@ -278,7 +307,7 @@ namespace helengine.editor.tests {
         public void TryLoadModelAsset_WhenCacheContainsTexture_Throws() {
             string sourcePath = WriteSourceModel("invalid-cache.obj");
             AssetImportManager manager = CreateManager(new TestModelImporter());
-            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
             string outputPath = Path.Combine(CacheRootPath, settings.Importer.AssetId);
             using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, new TextureAsset {
@@ -302,7 +331,7 @@ namespace helengine.editor.tests {
             string sourcePath = WriteSourceModel("startup.obj");
             TestModelImporter modelImporter = new TestModelImporter();
             AssetImportManager manager = CreateManager(modelImporter);
-            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
 
             List<string> importedAssets = manager.ImportModelsMissingCache();
 
@@ -321,8 +350,8 @@ namespace helengine.editor.tests {
             string validSourcePath = WriteSourceModel("valid.obj", "valid model");
             ConditionalThrowingModelImporter modelImporter = new ConditionalThrowingModelImporter("broken marker", "broken import");
             AssetImportManager manager = CreateManager(modelImporter);
-            AssetImportSettings brokenSettings = manager.LoadOrCreateImportSettings(brokenSourcePath);
-            AssetImportSettings validSettings = manager.LoadOrCreateImportSettings(validSourcePath);
+            ModelAssetImportSettings brokenSettings = manager.LoadOrCreateModelImportSettings(brokenSourcePath);
+            ModelAssetImportSettings validSettings = manager.LoadOrCreateModelImportSettings(validSourcePath);
             List<LogEntry> loggedErrors = new List<LogEntry>();
             Action<LogEntry> handleErrorLogged = loggedErrors.Add;
 

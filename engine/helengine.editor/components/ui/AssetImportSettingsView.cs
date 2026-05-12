@@ -335,22 +335,24 @@ namespace helengine.editor {
         /// Shows the view with the provided importer list, current settings, and supported platforms.
         /// </summary>
         /// <param name="importerIds">Registered importer identifiers.</param>
-        /// <param name="settings">Current asset settings to edit.</param>
+        /// <param name="importerId">Current importer identifier to edit.</param>
+        /// <param name="processorSettings">Current processor settings to edit.</param>
         /// <param name="supportedPlatforms">Project-supported platform identifiers.</param>
         /// <param name="activePlatformId">Currently active platform identifier.</param>
         /// <param name="entryKind">Kind of asset entry being edited.</param>
         public void Show(
             IReadOnlyList<string> importerIds,
-            AssetImportSettings settings,
+            string importerId,
+            AssetProcessorSettings processorSettings,
             IReadOnlyList<string> supportedPlatforms,
             string activePlatformId,
             AssetEntryKind entryKind) {
             if (importerIds == null) {
                 throw new ArgumentNullException(nameof(importerIds));
-            } else if (settings == null) {
-                throw new ArgumentNullException(nameof(settings));
-            } else if (settings.Importer == null) {
-                throw new InvalidOperationException("Asset settings must include importer settings.");
+            } else if (string.IsNullOrWhiteSpace(importerId)) {
+                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
+            } else if (processorSettings == null) {
+                throw new ArgumentNullException(nameof(processorSettings));
             } else if (supportedPlatforms == null) {
                 throw new ArgumentNullException(nameof(supportedPlatforms));
             } else if (supportedPlatforms.Count == 0) {
@@ -362,10 +364,10 @@ namespace helengine.editor {
             SetImporterIds(importerIds);
             SetSupportedPlatforms(supportedPlatforms);
 
-            ActiveImporterId = settings.Importer.ImporterId;
-            PendingImporterId = settings.Importer.ImporterId;
-            ActiveProcessorSettings = CloneProcessorSettings(settings.Processor);
-            PendingProcessorSettings = CloneProcessorSettings(settings.Processor);
+            ActiveImporterId = importerId;
+            PendingImporterId = importerId;
+            ActiveProcessorSettings = CloneProcessorSettings(processorSettings);
+            PendingProcessorSettings = CloneProcessorSettings(processorSettings);
             EnsurePlatformSettingsExist(ActiveProcessorSettings);
             EnsurePlatformSettingsExist(PendingProcessorSettings);
             CurrentPlatformId = ResolveSelectedPlatformId(activePlatformId);

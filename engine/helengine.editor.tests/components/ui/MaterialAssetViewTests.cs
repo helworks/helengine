@@ -245,22 +245,24 @@ public sealed class MaterialAssetViewTests : IDisposable {
     /// </summary>
     /// <param name="useCustomShader">True when the custom-shader toggle should be enabled.</param>
     /// <returns>Material import settings for the active platform.</returns>
-    static AssetImportSettings CreateSettings(bool useCustomShader) {
-        AssetImportSettings settings = new AssetImportSettings();
-        settings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings();
-        settings.Processor.Platforms["linux"] = new AssetPlatformProcessorSettings();
-        settings.Processor.Platforms["windows"].Material.SchemaId = "standard-shader";
-        settings.Processor.Platforms["windows"].Material.FieldValues["use-custom-shader"] = useCustomShader ? "true" : "false";
-        settings.Processor.Platforms["windows"].Material.FieldValues["texture-id"] = "textures/diffuse.png";
-        settings.Processor.Platforms["windows"].Material.FieldValues["casts-shadow"] = "true";
-        settings.Processor.Platforms["windows"].Material.FieldValues["receives-shadow"] = "true";
-        settings.Processor.Platforms["windows"].Material.FieldValues["base-color"] = "#ffffff";
-        settings.Processor.Platforms["linux"].Material.SchemaId = "standard-shader";
-        settings.Processor.Platforms["linux"].Material.FieldValues["use-custom-shader"] = "false";
-        settings.Processor.Platforms["linux"].Material.FieldValues["texture-id"] = "textures/diffuse.png";
-        settings.Processor.Platforms["linux"].Material.FieldValues["casts-shadow"] = "true";
-        settings.Processor.Platforms["linux"].Material.FieldValues["receives-shadow"] = "true";
-        settings.Processor.Platforms["linux"].Material.FieldValues["base-color"] = "#ffffff";
+    static MaterialAssetImportSettings CreateSettings(bool useCustomShader) {
+        MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
+        settings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
+            SchemaId = "standard-shader"
+        };
+        settings.Processor.Platforms["linux"] = new MaterialAssetProcessorSettings {
+            SchemaId = "standard-shader"
+        };
+        settings.Processor.Platforms["windows"].FieldValues["use-custom-shader"] = useCustomShader ? "true" : "false";
+        settings.Processor.Platforms["windows"].FieldValues["texture-id"] = "textures/diffuse.png";
+        settings.Processor.Platforms["windows"].FieldValues["casts-shadow"] = "true";
+        settings.Processor.Platforms["windows"].FieldValues["receives-shadow"] = "true";
+        settings.Processor.Platforms["windows"].FieldValues["base-color"] = "#ffffff";
+        settings.Processor.Platforms["linux"].FieldValues["use-custom-shader"] = "false";
+        settings.Processor.Platforms["linux"].FieldValues["texture-id"] = "textures/diffuse.png";
+        settings.Processor.Platforms["linux"].FieldValues["casts-shadow"] = "true";
+        settings.Processor.Platforms["linux"].FieldValues["receives-shadow"] = "true";
+        settings.Processor.Platforms["linux"].FieldValues["base-color"] = "#ffffff";
         return settings;
     }
 

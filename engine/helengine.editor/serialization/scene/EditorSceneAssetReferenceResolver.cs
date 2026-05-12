@@ -183,6 +183,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves one persisted texture reference into a runtime texture instance.
+        /// </summary>
+        /// <param name="reference">Persisted asset reference to resolve.</param>
+        /// <returns>Runtime texture instance rebuilt for the editor session.</returns>
+        public RuntimeTexture ResolveTexture(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
+                throw new InvalidOperationException($"Unsupported texture reference source kind '{reference.SourceKind}'.");
+            }
+
+            string fullPath = ResolveFileSystemAssetPath(reference);
+            TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(fullPath, EditorContentProcessorIds.TextureAsset);
+            return Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+        }
+
+        /// <summary>
         /// Resolves one generated model reference through the generated-asset registry.
         /// </summary>
         /// <param name="reference">Generated model reference to resolve.</param>
@@ -248,7 +267,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
 
-            AssetImportSettings settings;
+            MaterialAssetImportSettings settings;
             if (!MaterialSettingsService.TryLoad(fullPath, out settings) || settings == null) {
                 return;
             }
@@ -266,7 +285,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="settings">Material sidecar settings that may expose per-platform field values.</param>
         /// <returns>Active platform identifier, or an empty string when no compatible platform settings exist.</returns>
-        string ResolveActiveProjectPlatformId(AssetImportSettings settings) {
+        string ResolveActiveProjectPlatformId(MaterialAssetImportSettings settings) {
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
@@ -294,7 +313,7 @@ namespace helengine.editor {
         /// <param name="settings">Material sidecar settings to inspect.</param>
         /// <param name="platformId">Platform identifier to locate.</param>
         /// <returns>True when matching platform material settings exist.</returns>
-        bool HasPlatformMaterialSettings(AssetImportSettings settings, string platformId) {
+        bool HasPlatformMaterialSettings(MaterialAssetImportSettings settings, string platformId) {
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
@@ -303,12 +322,12 @@ namespace helengine.editor {
                 return false;
             }
 
-            AssetPlatformProcessorSettings platformSettings;
+            MaterialAssetProcessorSettings platformSettings;
             if (!settings.Processor.Platforms.TryGetValue(platformId, out platformSettings) || platformSettings == null) {
                 return false;
             }
 
-            return platformSettings.Material != null;
+            return true;
         }
 
         /// <summary>

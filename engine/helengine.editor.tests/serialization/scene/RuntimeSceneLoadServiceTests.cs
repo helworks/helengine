@@ -376,6 +376,41 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures packaged demo menus preserve decorative overlay sprites and their cooked texture references for runtime loading.
+        /// </summary>
+        [Fact]
+        public void Load_WhenPackagedDemoMenuUsesDecorativeOverlayImage_MaterializesSpriteWithCookedTexture() {
+            string projectRootPath = Path.Combine(TempRootPath, "menu-overlay-project");
+            string buildRootPath = PackageDemoMenuScene(projectRootPath, "menu-overlay-build", includeOverlayImage: true);
+
+            SceneAsset sceneAsset;
+            string packagedScenePath = GetPackagedScenePath(buildRootPath, "Scenes/TestMenu.helen");
+            using (FileStream packagedSceneStream = File.OpenRead(packagedScenePath)) {
+                sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            }
+
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(
+                Core.Instance.ContentManager,
+                buildRootPath,
+                ShaderCompileTarget.DirectX11);
+            RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(resolver, RuntimeComponentRegistry.CreateDefault());
+
+            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            List<Entity> spriteEntities = new List<Entity>();
+            for (int rootIndex = 0; rootIndex < loadedRoots.Count; rootIndex++) {
+                CollectEntitiesWithComponent<SpriteComponent>(loadedRoots[rootIndex], spriteEntities);
+            }
+
+            Entity overlayEntity = Assert.Single(spriteEntities);
+            SpriteComponent spriteComponent = Assert.IsType<SpriteComponent>(Assert.Single(overlayEntity.Components, component => component is SpriteComponent));
+            string importedTextureRootPath = Path.Combine(buildRootPath, "cooked", "imported");
+
+            Assert.NotNull(spriteComponent.Texture);
+            Assert.Equal(new int2(220, 220), spriteComponent.Size);
+            Assert.NotEmpty(Directory.GetFiles(importedTextureRootPath, "*", SearchOption.AllDirectories));
+        }
+
+        /// <summary>
         /// Ensures packaged runtime scene loading materializes baked demo menu metadata and hierarchy through the default runtime registry.
         /// </summary>
         [Fact]
@@ -1348,7 +1383,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// Builds one baked demo menu scene asset for runtime materialization tests.
         /// </summary>
         /// <returns>Baked demo menu scene asset.</returns>
-        SceneAsset BuildDemoMenuSceneAsset() {
+        SceneAsset BuildDemoMenuSceneAsset(bool includeOverlayImage = false) {
             DemoMenuSceneAssetFactory factory = new DemoMenuSceneAssetFactory();
             return factory.BuildSceneAsset(
                 "Scenes/TestMenu.helen",
@@ -1402,7 +1437,10 @@ namespace helengine.editor.tests.serialization.scene {
                                 new MenuItemDefinition("scene-epsilon", "Scene Epsilon", "Preview epsilon district.", true, new MenuActionDefinition(MenuActionKind.None, string.Empty)),
                                 new MenuItemDefinition("scene-select-back", "Back", "Returns.", true, new MenuActionDefinition(MenuActionKind.Back, string.Empty))
                             })
-                    }));
+                    },
+                    includeOverlayImage
+                        ? new MenuOverlayImageDefinition("Images/Menu/logo.png", 220, 220, 36, 44)
+                        : null));
         }
 
         /// <summary>
@@ -1418,6 +1456,7 @@ namespace helengine.editor.tests.serialization.scene {
             registry.Register(new MenuSelectedDescriptionComponentPersistenceDescriptor());
             registry.Register(new RoundedRectComponentPersistenceDescriptor());
             registry.Register(new TextComponentPersistenceDescriptor());
+            registry.Register(new FPSComponentPersistenceDescriptor());
             return registry;
         }
 
@@ -1470,7 +1509,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="projectRootPath">Temporary project root that should receive authored content.</param>
         /// <param name="buildFolderName">Unique build folder name under the temporary root.</param>
         /// <returns>Packaged build output root.</returns>
-        string PackageDemoMenuScene(string projectRootPath, string buildFolderName) {
+        string PackageDemoMenuScene(string projectRootPath, string buildFolderName, bool includeOverlayImage = false) {
             string assetsRootPath = Path.Combine(projectRootPath, "assets");
             string buildRootPath = Path.Combine(TempRootPath, buildFolderName);
             Directory.CreateDirectory(assetsRootPath);
@@ -1484,7 +1523,13 @@ namespace helengine.editor.tests.serialization.scene {
             Directory.CreateDirectory(Path.GetDirectoryName(bodyFontPath));
             File.WriteAllBytes(bodyFontPath, new byte[] { 5, 6, 7, 8 });
 
-            SceneAsset authoredSceneAsset = BuildDemoMenuSceneAsset();
+            if (includeOverlayImage) {
+                string overlayTexturePath = Path.Combine(assetsRootPath, "Images", "Menu", "logo.png");
+                Directory.CreateDirectory(Path.GetDirectoryName(overlayTexturePath));
+                File.WriteAllBytes(overlayTexturePath, new byte[] { 9, 10, 11, 12 });
+            }
+
+            SceneAsset authoredSceneAsset = BuildDemoMenuSceneAsset(includeOverlayImage);
             string authoredScenePath = Path.Combine(assetsRootPath, "Scenes", "TestMenu.helen");
             Directory.CreateDirectory(Path.GetDirectoryName(authoredScenePath));
             using (FileStream authoredSceneStream = new FileStream(authoredScenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
@@ -1494,7 +1539,8 @@ namespace helengine.editor.tests.serialization.scene {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 projectRootPath,
                 new IAssetImporterRegistration[] {
-                    new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" })
+                    new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" }),
+                    new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" })
                 },
                 CreateFont());
             packager.Package(new[] { "Scenes/TestMenu.helen" }, buildRootPath);

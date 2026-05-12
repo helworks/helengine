@@ -2685,7 +2685,7 @@ namespace helengine.editor {
                 return entity;
             }
 
-            AssetImportSettings importSettings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
+            ModelAssetImportSettings importSettings = assetImportManager.LoadOrCreateModelImportSettings(entry.FullPath);
             if (importSettings == null || importSettings.Importer == null || string.IsNullOrWhiteSpace(importSettings.Importer.ImporterId)) {
                 throw new InvalidOperationException("Model import settings could not be resolved.");
             }
@@ -3507,7 +3507,7 @@ namespace helengine.editor {
             if (IsMaterialAssetEntry(entry)) {
                 try {
                     MaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
-                    AssetImportSettings settings = materialAssetSettingsService.LoadOrCreate(
+                    MaterialAssetImportSettings settings = materialAssetSettingsService.LoadOrCreate(
                         entry.FullPath,
                         materialAsset,
                         SupportedPlatforms,
@@ -3537,17 +3537,6 @@ namespace helengine.editor {
             }
 
             try {
-                AssetImportSettings settings;
-                if (!assetImportManager.TryLoadOrCreateImportSettings(entry.FullPath, out settings)) {
-                    IReadOnlyList<PropertiesPanel> emptyPanels = GetPropertiesPanels();
-                    for (int index = 0; index < emptyPanels.Count; index++) {
-                        emptyPanels[index].ShowEmpty();
-                    }
-                    RefreshPreviewSource();
-                    return;
-                }
-
-                assetImportManager.SaveImportSettings(entry.FullPath, settings);
                 IReadOnlyList<string> importerIds = assetImportManager.GetImporterIdsForExtension(entry.Extension);
                 if (importerIds.Count == 0) {
                     IReadOnlyList<PropertiesPanel> errorPanels = GetPropertiesPanels();
@@ -3559,8 +3548,49 @@ namespace helengine.editor {
                 }
 
                 IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
-                for (int index = 0; index < propertiesPanels.Count; index++) {
-                    propertiesPanels[index].ShowImportSettings(entry, settings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                if (entry.EntryKind == AssetEntryKind.Model) {
+                    ModelAssetImportSettings settings;
+                    if (!assetImportManager.TryLoadOrCreateModelImportSettings(entry.FullPath, out settings)) {
+                        for (int index = 0; index < propertiesPanels.Count; index++) {
+                            propertiesPanels[index].ShowEmpty();
+                        }
+                        RefreshPreviewSource();
+                        return;
+                    }
+
+                    assetImportManager.SaveModelImportSettings(entry.FullPath, settings);
+                    AssetProcessorSettings processorSettings = CreateModelImportViewProcessorSettings(settings);
+                    for (int index = 0; index < propertiesPanels.Count; index++) {
+                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                    }
+                } else if (entry.EntryKind == AssetEntryKind.Image) {
+                    TextureAssetImportSettings settings;
+                    if (!assetImportManager.TryLoadOrCreateTextureImportSettings(entry.FullPath, out settings)) {
+                        for (int index = 0; index < propertiesPanels.Count; index++) {
+                            propertiesPanels[index].ShowEmpty();
+                        }
+                        RefreshPreviewSource();
+                        return;
+                    }
+
+                    assetImportManager.SaveTextureImportSettings(entry.FullPath, settings);
+                    for (int index = 0; index < propertiesPanels.Count; index++) {
+                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                    }
+                } else {
+                    AssetImportSettings settings;
+                    if (!assetImportManager.TryLoadOrCreateImportSettings(entry.FullPath, out settings)) {
+                        for (int index = 0; index < propertiesPanels.Count; index++) {
+                            propertiesPanels[index].ShowEmpty();
+                        }
+                        RefreshPreviewSource();
+                        return;
+                    }
+
+                    assetImportManager.SaveImportSettings(entry.FullPath, settings);
+                    for (int index = 0; index < propertiesPanels.Count; index++) {
+                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, settings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                    }
                 }
                 RefreshPreviewSource();
             } catch (Exception ex) {
@@ -3609,17 +3639,45 @@ namespace helengine.editor {
             }
 
             try {
-                AssetImportSettings settings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
-                settings.Importer.ImporterId = request.ImporterId;
-                settings.Processor = request.ProcessorSettings;
-                SetActiveProjectPlatform(request.SelectedPlatformId);
-                assetImportManager.SaveImportSettings(entry.FullPath, settings);
+                if (entry.EntryKind == AssetEntryKind.Model) {
+                    ModelAssetImportSettings settings = assetImportManager.LoadOrCreateModelImportSettings(entry.FullPath);
+                    settings.Importer.ImporterId = request.ImporterId;
+                    ApplyModelImportRequestProcessorSettings(settings, request.ProcessorSettings);
+                    SetActiveProjectPlatform(request.SelectedPlatformId);
+                    assetImportManager.SaveModelImportSettings(entry.FullPath, settings);
+                } else if (entry.EntryKind == AssetEntryKind.Image) {
+                    TextureAssetImportSettings settings = assetImportManager.LoadOrCreateTextureImportSettings(entry.FullPath);
+                    settings.Importer.ImporterId = request.ImporterId;
+                    SetActiveProjectPlatform(request.SelectedPlatformId);
+                    assetImportManager.SaveTextureImportSettings(entry.FullPath, settings);
+                } else {
+                    AssetImportSettings settings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
+                    settings.Importer.ImporterId = request.ImporterId;
+                    settings.Processor = request.ProcessorSettings;
+                    SetActiveProjectPlatform(request.SelectedPlatformId);
+                    assetImportManager.SaveImportSettings(entry.FullPath, settings);
+                }
+
                 SceneModelRefreshService.RefreshFileSystemModel(entry.FullPath, entry.RelativePath);
 
                 IReadOnlyList<string> importerIds = assetImportManager.GetImporterIdsForExtension(entry.Extension);
                 IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
-                for (int index = 0; index < propertiesPanels.Count; index++) {
-                    propertiesPanels[index].ShowImportSettings(entry, settings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                if (entry.EntryKind == AssetEntryKind.Model) {
+                    ModelAssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateModelImportSettings(entry.FullPath);
+                    AssetProcessorSettings processorSettings = CreateModelImportViewProcessorSettings(refreshedSettings);
+                    for (int index = 0; index < propertiesPanels.Count; index++) {
+                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                    }
+                } else if (entry.EntryKind == AssetEntryKind.Image) {
+                    TextureAssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateTextureImportSettings(entry.FullPath);
+                    for (int index = 0; index < propertiesPanels.Count; index++) {
+                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                    }
+                } else {
+                    AssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
+                    for (int index = 0; index < propertiesPanels.Count; index++) {
+                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, refreshedSettings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                    }
                 }
             } catch (Exception ex) {
                 IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
@@ -3627,6 +3685,71 @@ namespace helengine.editor {
                     propertiesPanels[index].ShowImportError(entry, ex.Message);
                 }
             }
+        }
+
+        /// <summary>
+        /// Creates one model-focused processor-settings payload for the import-settings view.
+        /// </summary>
+        /// <param name="settings">Typed model import settings to project into the view model.</param>
+        /// <returns>Processor settings payload consumed by the model import-settings UI.</returns>
+        AssetProcessorSettings CreateModelImportViewProcessorSettings(ModelAssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            AssetProcessorSettings processorSettings = new AssetProcessorSettings();
+            if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return processorSettings;
+            }
+
+            foreach (KeyValuePair<string, ModelAssetProcessorSettings> pair in settings.Processor.Platforms) {
+                if (string.IsNullOrWhiteSpace(pair.Key)) {
+                    continue;
+                }
+
+                processorSettings.Platforms[pair.Key] = new AssetPlatformProcessorSettings {
+                    Model = CloneModelProcessorSettings(pair.Value)
+                };
+            }
+
+            return processorSettings;
+        }
+
+        /// <summary>
+        /// Applies one model import-settings request payload to typed model settings.
+        /// </summary>
+        /// <param name="settings">Typed model settings to update.</param>
+        /// <param name="processorSettings">Processor settings payload emitted by the import-settings view.</param>
+        void ApplyModelImportRequestProcessorSettings(ModelAssetImportSettings settings, AssetProcessorSettings processorSettings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (processorSettings == null) {
+                throw new ArgumentNullException(nameof(processorSettings));
+            }
+
+            settings.Processor = new ModelAssetProcessorPlatformSettings();
+            foreach (KeyValuePair<string, AssetPlatformProcessorSettings> pair in processorSettings.Platforms) {
+                if (string.IsNullOrWhiteSpace(pair.Key)) {
+                    continue;
+                }
+
+                settings.Processor.Platforms[pair.Key] = CloneModelProcessorSettings(pair.Value?.Model);
+            }
+        }
+
+        /// <summary>
+        /// Creates one copy of model processor settings.
+        /// </summary>
+        /// <param name="settings">Model processor settings to clone.</param>
+        /// <returns>Cloned model processor settings.</returns>
+        ModelAssetProcessorSettings CloneModelProcessorSettings(ModelAssetProcessorSettings settings) {
+            ModelAssetProcessorSettings clone = new ModelAssetProcessorSettings();
+            if (settings == null) {
+                return clone;
+            }
+
+            clone.FlipWinding = settings.FlipWinding;
+            return clone;
         }
 
         /// <summary>
@@ -3988,7 +4111,7 @@ namespace helengine.editor {
             if (IsMaterialAssetEntry(entry)) {
                 try {
                     MaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
-                    AssetImportSettings settings = materialAssetSettingsService.LoadOrCreate(
+                    MaterialAssetImportSettings settings = materialAssetSettingsService.LoadOrCreate(
                         entry.FullPath,
                         materialAsset,
                         SupportedPlatforms,
@@ -4011,20 +4134,40 @@ namespace helengine.editor {
             }
 
             try {
-                AssetImportSettings settings;
-                if (!assetImportManager.TryLoadOrCreateImportSettings(entry.FullPath, out settings)) {
-                    panel.ShowEmpty();
-                    return;
-                }
-
-                assetImportManager.SaveImportSettings(entry.FullPath, settings);
                 IReadOnlyList<string> importerIds = assetImportManager.GetImporterIdsForExtension(entry.Extension);
                 if (importerIds.Count == 0) {
                     panel.ShowImportError(entry, "No importers are registered for this asset type.");
                     return;
                 }
 
-                panel.ShowImportSettings(entry, settings, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                if (entry.EntryKind == AssetEntryKind.Model) {
+                    ModelAssetImportSettings settings;
+                    if (!assetImportManager.TryLoadOrCreateModelImportSettings(entry.FullPath, out settings)) {
+                        panel.ShowEmpty();
+                        return;
+                    }
+
+                    assetImportManager.SaveModelImportSettings(entry.FullPath, settings);
+                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, CreateModelImportViewProcessorSettings(settings), importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                } else if (entry.EntryKind == AssetEntryKind.Image) {
+                    TextureAssetImportSettings settings;
+                    if (!assetImportManager.TryLoadOrCreateTextureImportSettings(entry.FullPath, out settings)) {
+                        panel.ShowEmpty();
+                        return;
+                    }
+
+                    assetImportManager.SaveTextureImportSettings(entry.FullPath, settings);
+                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                } else {
+                    AssetImportSettings settings;
+                    if (!assetImportManager.TryLoadOrCreateImportSettings(entry.FullPath, out settings)) {
+                        panel.ShowEmpty();
+                        return;
+                    }
+
+                    assetImportManager.SaveImportSettings(entry.FullPath, settings);
+                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, settings.Processor, importerIds, SupportedPlatforms, CurrentProjectPlatform);
+                }
             } catch (Exception ex) {
                 panel.ShowImportError(entry, ex.Message);
             }
@@ -4134,6 +4277,7 @@ namespace helengine.editor {
             persistenceRegistry.Register(new MeshComponentPersistenceDescriptor());
             persistenceRegistry.Register(new CameraComponentPersistenceDescriptor());
             persistenceRegistry.Register(new TextComponentPersistenceDescriptor());
+            persistenceRegistry.Register(new SpriteComponentPersistenceDescriptor());
             persistenceRegistry.Register(new RoundedRectComponentPersistenceDescriptor());
             persistenceRegistry.Register(new FPSComponentPersistenceDescriptor());
             persistenceRegistry.Register(new DirectionalLightComponentPersistenceDescriptor());
