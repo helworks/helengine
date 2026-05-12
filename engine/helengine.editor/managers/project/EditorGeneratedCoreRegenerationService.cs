@@ -1086,6 +1086,26 @@ namespace helengine.editor {
                 return RewriteGeneratedFloat4OutValueTemporary(contents);
             }
 
+            if (string.Equals(fileName, "AxisTestZSpinComponent.cpp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(fileName, "AxisTestCameraForwardSpinComponent.cpp", StringComparison.OrdinalIgnoreCase)) {
+                string updatedContents = RewriteGeneratedFloat4OutValueTemporary(contents);
+                if (!updatedContents.Contains("#include \"Core.hpp\"", StringComparison.Ordinal)) {
+                    updatedContents = InsertIncludeAfterOwnHeader(updatedContents, "#include \"Core.hpp\"");
+                }
+
+                updatedContents = updatedContents.Replace("Core->Instance", "Core::get_Instance()", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace("Parent->LocalOrientation = orientation;", "Parent->set_LocalOrientation(orientation);", StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "float3 *axis = float3->Normalize(new float3(this->CameraForwardAxisX, this->CameraForwardAxisY, this->CameraForwardAxisZ));",
+                    "float3 axis = float3::Normalize(float3(this->CameraForwardAxisX, this->CameraForwardAxisY, this->CameraForwardAxisZ));",
+                    StringComparison.Ordinal);
+                updatedContents = updatedContents.Replace(
+                    "float4->CreateFromAxisAngle(axis, static_cast<float>(angleRadians), orientation);",
+                    "float4::CreateFromAxisAngle(axis, static_cast<float>(angleRadians), orientation);",
+                    StringComparison.Ordinal);
+                return updatedContents;
+            }
+
             if (string.Equals(fileName, "CoreInitializationOptions.cpp", StringComparison.OrdinalIgnoreCase)
                 && contents.Contains("AppContext::BaseDirectory", StringComparison.Ordinal)
                 && !contents.Contains("#include \"system/app_context.hpp\"", StringComparison.Ordinal)) {

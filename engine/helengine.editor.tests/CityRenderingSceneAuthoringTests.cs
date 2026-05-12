@@ -12,6 +12,42 @@ namespace helengine.editor.tests {
         const string CityProjectRootPath = @"C:\dev\helprojs\city";
 
         /// <summary>
+        /// Ensures the authored city demo-disc scene catalog places the axis test as the fourth playable scene entry.
+        /// </summary>
+        [Fact]
+        public void ReadCityDemoDiscSceneCatalogSource_AxisTestIsTheFourthPlayableScene() {
+            string sceneCatalogSource = ReadDemoDiscSceneCatalogSource();
+
+            int cubeTestIndex = sceneCatalogSource.IndexOf("\"cube_test\"", StringComparison.Ordinal);
+            int coloredCubeGridIndex = sceneCatalogSource.IndexOf("\"colored_cube_grid\"", StringComparison.Ordinal);
+            int texturedCubeGridIndex = sceneCatalogSource.IndexOf("\"textured_cube_grid\"", StringComparison.Ordinal);
+            int axisTestIndex = sceneCatalogSource.IndexOf("\"axis_test\"", StringComparison.Ordinal);
+            int directionalShadowPlazaIndex = sceneCatalogSource.IndexOf("\"directional_shadow_plaza\"", StringComparison.Ordinal);
+
+            Assert.True(cubeTestIndex >= 0);
+            Assert.True(coloredCubeGridIndex > cubeTestIndex);
+            Assert.True(texturedCubeGridIndex > coloredCubeGridIndex);
+            Assert.True(axisTestIndex > texturedCubeGridIndex);
+            Assert.True(directionalShadowPlazaIndex > axisTestIndex);
+        }
+
+        /// <summary>
+        /// Ensures the authored city Windows build configuration includes the axis test scene in the selected scene set.
+        /// </summary>
+        [Fact]
+        public void ReadCityWindowsBuildConfig_WindowsSelectedScenesContainAxisTest() {
+            string buildConfigSource = ReadBuildConfigSource();
+
+            int windowsPlatformIndex = buildConfigSource.IndexOf("\"platformId\":  \"windows\"", StringComparison.Ordinal);
+            int axisTestIndex = buildConfigSource.IndexOf("\"axis_test\"", StringComparison.Ordinal);
+            int pspPlatformIndex = buildConfigSource.IndexOf("\"platformId\":  \"psp\"", StringComparison.Ordinal);
+
+            Assert.True(windowsPlatformIndex >= 0);
+            Assert.True(axisTestIndex > windowsPlatformIndex);
+            Assert.True(pspPlatformIndex < 0 || axisTestIndex < pspPlatformIndex);
+        }
+
+        /// <summary>
         /// Ensures the authored colored cube-grid scene stores identity orientation for each generated showcase cube.
         /// </summary>
         [Fact]
@@ -29,6 +65,27 @@ namespace helengine.editor.tests {
             SceneAsset sceneAsset = ReadSceneAsset("textured_cube_grid.helen");
 
             AssertCubeOrientationsAreIdentity(sceneAsset, "TexturedCubeGridCube");
+        }
+
+        /// <summary>
+        /// Ensures the authored city axis-test-2 scene exists as a generated rendering validation asset.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityAxisTest2SceneAsset_GeneratedSceneExists() {
+            SceneAsset sceneAsset = ReadSceneAsset("axis_test2.helen");
+
+            Assert.Equal("axis_test2", sceneAsset.Id);
+        }
+
+        /// <summary>
+        /// Ensures the authored city axis-test-2 scene stores one directional light and one camera-forward-axis spin component.
+        /// </summary>
+        [Fact]
+        public void DeserializeCityAxisTest2SceneAsset_ContainsDirectionalLightRigAndCameraForwardSpinComponent() {
+            SceneAsset sceneAsset = ReadSceneAsset("axis_test2.helen");
+
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "helengine.DirectionalLightComponent"));
+            Assert.Equal(1, CountComponents(sceneAsset.RootEntities, "gameplay.rendering.AxisTestCameraForwardSpinComponent, gameplay"));
         }
 
         /// <summary>
@@ -61,6 +118,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Reads the authored city demo-disc scene catalog source file.
+        /// </summary>
+        /// <returns>Demo-disc scene catalog source text.</returns>
+        string ReadDemoDiscSceneCatalogSource() {
+            string sceneCatalogPath = Path.Combine(CityProjectRootPath, "assets", "codebase", "menu", "DemoDiscSceneCatalog.cs");
+            Assert.True(File.Exists(sceneCatalogPath));
+            return File.ReadAllText(sceneCatalogPath);
+        }
+
+        /// <summary>
+        /// Reads the authored city build configuration source file.
+        /// </summary>
+        /// <returns>Build configuration source text.</returns>
+        string ReadBuildConfigSource() {
+            string buildConfigPath = Path.Combine(CityProjectRootPath, "user_settings", "build_config.json");
+            Assert.True(File.Exists(buildConfigPath));
+            return File.ReadAllText(buildConfigPath);
+        }
+
+        /// <summary>
         /// Asserts all generated showcase cubes beneath the supplied scene share identity local orientation.
         /// </summary>
         /// <param name="sceneAsset">Scene asset whose cube entities should be inspected.</param>
@@ -79,6 +156,39 @@ namespace helengine.editor.tests {
             for (int index = 0; index < cubeEntities.Count; index++) {
                 Assert.Equal(float4.Identity, cubeEntities[index].LocalOrientation);
             }
+        }
+
+        /// <summary>
+        /// Counts matching component records throughout one scene hierarchy.
+        /// </summary>
+        /// <param name="entities">Scene entities to inspect.</param>
+        /// <param name="componentTypeId">Serialized component type identifier to count.</param>
+        /// <returns>Total matching component count.</returns>
+        int CountComponents(SceneEntityAsset[] entities, string componentTypeId) {
+            if (entities == null) {
+                throw new ArgumentNullException(nameof(entities));
+            } else if (string.IsNullOrWhiteSpace(componentTypeId)) {
+                throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
+            }
+
+            int count = 0;
+            for (int index = 0; index < entities.Length; index++) {
+                SceneEntityAsset entity = entities[index];
+                if (entity == null) {
+                    continue;
+                }
+
+                SceneComponentAssetRecord[] components = entity.Components ?? Array.Empty<SceneComponentAssetRecord>();
+                for (int componentIndex = 0; componentIndex < components.Length; componentIndex++) {
+                    if (string.Equals(components[componentIndex].ComponentTypeId, componentTypeId, StringComparison.Ordinal)) {
+                        count++;
+                    }
+                }
+
+                count += CountComponents(entity.Children ?? Array.Empty<SceneEntityAsset>(), componentTypeId);
+            }
+
+            return count;
         }
 
         /// <summary>
