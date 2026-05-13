@@ -241,6 +241,7 @@ namespace helengine.editor {
 
             string projectRootPath = Path.Combine(moduleRootPath, "_project");
             Directory.CreateDirectory(projectRootPath);
+            string generatedGlobalUsingsPath = WriteGeneratedGlobalUsingsFile(projectRootPath, moduleEntry);
             string intermediateRootPath = Path.Combine(projectRootPath, "obj");
             string outputPath = Path.Combine(projectRootPath, moduleEntry.ModuleId + ".csproj");
             IReadOnlyList<string> platformSymbols = EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId);
@@ -267,6 +268,7 @@ namespace helengine.editor {
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.input\" HintPath=\"{EscapeXml(typeof(InputSystem).Assembly.Location)}\" />");
             projectBuilder.AppendLine("  </ItemGroup>");
             projectBuilder.AppendLine("  <ItemGroup>");
+            projectBuilder.AppendLine($"    <Compile Include=\"{EscapeXml(generatedGlobalUsingsPath)}\" />");
 
             string compileGlob = Path.Combine(ResolveProjectPath(moduleEntry.FolderPath), "**", "*.cs");
             projectBuilder.AppendLine($"    <Compile Include=\"{EscapeXml(compileGlob)}\" />");
@@ -278,6 +280,31 @@ namespace helengine.editor {
             projectBuilder.AppendLine("  </ItemGroup>");
             projectBuilder.AppendLine("</Project>");
             File.WriteAllText(outputPath, projectBuilder.ToString());
+            return outputPath;
+        }
+
+        /// <summary>
+        /// Writes the generated global-usings file required for one synthetic module project so runtime scripts resolve the shared engine namespaces consistently.
+        /// </summary>
+        /// <param name="projectRootPath">Synthetic module project root that owns generated build inputs.</param>
+        /// <param name="moduleEntry">Module entry whose kind determines the required global usings.</param>
+        /// <returns>Absolute generated global-usings file path.</returns>
+        static string WriteGeneratedGlobalUsingsFile(string projectRootPath, EditorCodeModuleManifestEntry moduleEntry) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+            if (moduleEntry == null) {
+                throw new ArgumentNullException(nameof(moduleEntry));
+            }
+
+            string outputPath = Path.Combine(projectRootPath, "GlobalUsings.g.cs");
+            StringBuilder builder = new();
+            builder.AppendLine("global using helengine;");
+            if (moduleEntry.ModuleKind == EditorCodeModuleKind.Editor) {
+                builder.AppendLine("global using helengine.editor;");
+            }
+
+            File.WriteAllText(outputPath, builder.ToString());
             return outputPath;
         }
 

@@ -165,6 +165,39 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
     }
 
     [Fact]
+    public void Compile_code_modules_emits_generated_global_usings_for_runtime_scripts() {
+        RecordingCodegenToolRunner toolRunner = new();
+        EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("gameplay", "assets/Scripts", [], ["always-loaded"])
+        ]);
+
+        service.CompileModules(
+            manifestDocument,
+            "windows",
+            "windows-loose-files",
+            "/tmp/fake-codegen.exe",
+            new PlatformCodegenProfileDefinition(
+                "windows-cpp",
+                "Windows C++",
+                "Default Windows C++ codegen profile.",
+                PlatformCodegenLanguage.Cpp,
+                PlatformSerializationEndianness.LittleEndian,
+            []),
+            ["gameplay"],
+            new Dictionary<string, string>(),
+            OutputRootPath);
+
+        string projectRootPath = Path.Combine(OutputRootPath, "gameplay", "_project");
+        string globalUsingsPath = Path.Combine(projectRootPath, "GlobalUsings.g.cs");
+        string projectFilePath = Path.Combine(projectRootPath, "gameplay.csproj");
+
+        Assert.True(File.Exists(globalUsingsPath));
+        Assert.Contains("global using helengine;", File.ReadAllText(globalUsingsPath), StringComparison.Ordinal);
+        Assert.Contains(EscapePathForProjectInclude(globalUsingsPath), File.ReadAllText(projectFilePath), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Compile_code_modules_throws_when_dependency_module_is_missing() {
         RecordingCodegenToolRunner toolRunner = new();
         EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
@@ -380,5 +413,9 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
 
             throw new InvalidOperationException("Expected generated module codegen invocation to supply `--output`.");
         }
+    }
+
+    static string EscapePathForProjectInclude(string path) {
+        return path.Replace("&", "&amp;", StringComparison.Ordinal);
     }
 }
