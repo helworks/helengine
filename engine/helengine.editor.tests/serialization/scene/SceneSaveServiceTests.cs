@@ -127,6 +127,114 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures scene save can infer generated mesh asset references from the live runtime assignments without requiring user-authored save metadata.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenMeshUsesGeneratedAssetsWithoutStoredReferences_InfersReferencesDuringSave() {
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            registry.Register(new MeshComponentPersistenceDescriptor());
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "GeneratedMeshInference.helen");
+
+            EditorEntity root = CreateUserEntity("GeneratedCube", float3.Zero, float3.One, float4.Identity);
+            MeshComponent meshComponent = new MeshComponent {
+                Model = EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId),
+                Material = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId),
+                RenderOrder3D = 9
+            };
+            root.AddComponent(meshComponent);
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.Equal(2, asset.AssetReferences.Length);
+            Assert.Contains(asset.AssetReferences, reference =>
+                reference.SourceKind == SceneAssetReferenceSourceKind.Generated &&
+                reference.ProviderId == EngineGeneratedAssetProvider.ProviderIdValue &&
+                reference.RelativePath == EngineGeneratedAssetProvider.CubeRelativePath &&
+                reference.AssetId == EngineGeneratedModelCache.CubeAssetId);
+            Assert.Contains(asset.AssetReferences, reference =>
+                reference.SourceKind == SceneAssetReferenceSourceKind.Generated &&
+                reference.ProviderId == EngineGeneratedAssetProvider.ProviderIdValue &&
+                reference.RelativePath == EngineGeneratedAssetProvider.StandardMaterialRelativePath &&
+                reference.AssetId == EngineGeneratedMaterialCache.StandardAssetId);
+
+            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
+            RuntimeModel generatedModel = EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId);
+            RuntimeMaterial generatedMaterial = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
+            resolver.RegisterModel(new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = EngineGeneratedAssetProvider.CubeRelativePath,
+                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
+                AssetId = EngineGeneratedModelCache.CubeAssetId
+            }, generatedModel);
+            resolver.RegisterMaterial(new SceneAssetReference {
+                SourceKind = SceneAssetReferenceSourceKind.Generated,
+                RelativePath = EngineGeneratedAssetProvider.StandardMaterialRelativePath,
+                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
+                AssetId = EngineGeneratedMaterialCache.StandardAssetId
+            }, generatedMaterial);
+            SceneLoadService loadService = new SceneLoadService(registry, resolver);
+            EditorEntity loadedRoot = Assert.Single(loadService.Load(asset));
+            MeshComponent loadedMesh = FindMeshComponent(loadedRoot);
+
+            Assert.Same(generatedModel, loadedMesh.Model);
+            Assert.Same(generatedMaterial, loadedMesh.Material);
+            Assert.True(GetSaveComponent(loadedRoot).TryGetComponentState(loadedMesh, out EntityComponentSaveState loadedSaveState));
+            Assert.True(loadedSaveState.TryGetAssetReference("Model", out SceneAssetReference loadedModelReference));
+            Assert.True(loadedSaveState.TryGetAssetReference("Material", out SceneAssetReference loadedMaterialReference));
+            Assert.Equal(EngineGeneratedAssetProvider.CubeRelativePath, loadedModelReference.RelativePath);
+            Assert.Equal(EngineGeneratedAssetProvider.StandardMaterialRelativePath, loadedMaterialReference.RelativePath);
+        }
+
+        /// <summary>
+        /// Ensures scene save can infer the editor default-font reference for FPS overlays without requiring user-authored save metadata.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_WhenFpsUsesDefaultFontWithoutStoredReference_InfersReferenceDuringSave() {
+            Core.Instance.DefaultFontAsset = CreateFont("EditorUi");
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            registry.Register(new FPSComponentPersistenceDescriptor());
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "FpsFontInference.helen");
+
+            EditorEntity root = CreateUserEntity("Fps", float3.Zero, float3.One, float4.Identity);
+            FPSComponent fpsComponent = new FPSComponent {
+                RefreshIntervalSeconds = 1.75d,
+                Padding = new int2(4, 6),
+                RenderOrder2D = 211
+            };
+            root.AddComponent(fpsComponent);
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneAssetReference fontReference = Assert.Single(asset.AssetReferences);
+            Assert.Equal(SceneAssetReferenceSourceKind.Generated, fontReference.SourceKind);
+            Assert.Equal("editor", fontReference.ProviderId);
+            Assert.Equal("ui-font", fontReference.AssetId);
+
+            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
+            resolver.RegisterFont(fontReference, Core.Instance.DefaultFontAsset);
+            SceneLoadService loadService = new SceneLoadService(registry, resolver);
+            EditorEntity loadedRoot = Assert.Single(loadService.Load(asset));
+            FPSComponent loadedComponent = Assert.IsType<FPSComponent>(Assert.Single(loadedRoot.Components, component => component is FPSComponent));
+
+            Assert.Same(Core.Instance.DefaultFontAsset, loadedComponent.Font);
+            Assert.True(GetSaveComponent(loadedRoot).TryGetComponentState(loadedComponent, out EntityComponentSaveState loadedSaveState));
+            Assert.True(loadedSaveState.TryGetAssetReference("Font", out SceneAssetReference loadedFontReference));
+            Assert.Equal(fontReference.AssetId, loadedFontReference.AssetId);
+        }
+
+        /// <summary>
         /// Ensures scene save collects multiple text font references into the generic scene dependency manifest.
         /// </summary>
         [Fact]

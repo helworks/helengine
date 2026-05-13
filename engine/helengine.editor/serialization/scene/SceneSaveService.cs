@@ -28,6 +28,10 @@ namespace helengine.editor {
         /// </summary>
         readonly ComponentPlatformOverridePayloadService OverridePayloadService;
         /// <summary>
+        /// Service that infers stable scene asset references from live runtime component assignments during save.
+        /// </summary>
+        readonly SceneAssetReferenceInferenceService AssetReferenceInferenceService;
+        /// <summary>
         /// Service that resolves common entity transforms separately from projected platform overrides during serialization.
         /// </summary>
         readonly EntityPlatformTransformEditingService TransformEditingService;
@@ -54,6 +58,7 @@ namespace helengine.editor {
             PersistenceRegistry = persistenceRegistry;
             EntityReferenceTable = new SceneEntityReferenceTable();
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
+            AssetReferenceInferenceService = new SceneAssetReferenceInferenceService(ProjectRootPath);
             TransformEditingService = new EntityPlatformTransformEditingService();
             ComponentEditingService = new ComponentPlatformEditingService();
         }
@@ -168,6 +173,7 @@ namespace helengine.editor {
                     if (saveComponent != null) {
                         saveState = saveComponent.GetOrCreateComponentState(component);
                         saveState.ComponentKey = ComponentEditingService.EnsureComponentKey(component, saveComponent);
+                        AssetReferenceInferenceService.PopulateAssetReferences(component, saveState);
                     }
 
                     IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(component);

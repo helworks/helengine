@@ -4,6 +4,11 @@ namespace helengine {
     /// </summary>
     public static class ComponentExecutionPolicy {
         /// <summary>
+        /// Fully qualified runtime type name used to identify the editor-only suppression marker without introducing a core-to-editor assembly dependency.
+        /// </summary>
+        const string EditorUpdateExecutionSuppressionComponentTypeName = "helengine.EditorUpdateExecutionSuppressionComponent";
+
+        /// <summary>
         /// Returns whether the supplied component should execute its lifecycle callbacks in the current mode.
         /// </summary>
         /// <param name="component">Component whose behavior is being evaluated.</param>
@@ -19,7 +24,7 @@ namespace helengine {
             if (ComponentExecutionContext.CurrentMode != ComponentExecutionMode.Editor) {
                 return true;
             }
-            if (!entity.SuppressUpdateComponentExecutionInEditor) {
+            if (!HasEditorUpdateExecutionSuppressionMarker(entity)) {
                 return true;
             }
 #if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
@@ -31,6 +36,26 @@ namespace helengine {
 
             return Attribute.IsDefined(component.GetType(), typeof(RunInEditorAttribute), true);
 #endif
+        }
+
+        /// <summary>
+        /// Returns whether the supplied entity carries the editor-only marker that suppresses gameplay update execution during authoring.
+        /// </summary>
+        /// <param name="entity">Entity whose component collection should be inspected.</param>
+        /// <returns>True when the marker exists; otherwise false.</returns>
+        static bool HasEditorUpdateExecutionSuppressionMarker(Entity entity) {
+            if (entity.Components == null) {
+                return false;
+            }
+
+            for (int index = 0; index < entity.Components.Count; index++) {
+                Component component = entity.Components[index];
+                if (component?.GetType().FullName == EditorUpdateExecutionSuppressionComponentTypeName) {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

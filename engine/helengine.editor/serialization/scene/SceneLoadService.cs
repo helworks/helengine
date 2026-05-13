@@ -24,6 +24,11 @@ namespace helengine.editor {
         readonly ComponentPlatformOverridePayloadService OverridePayloadService;
 
         /// <summary>
+        /// Factory used to create authored scene entities for the active editor host.
+        /// </summary>
+        readonly IEntityFactory EntityFactory;
+
+        /// <summary>
         /// Initializes a new scene load service.
         /// </summary>
         /// <param name="persistenceRegistry">Registry used to deserialize persisted components.</param>
@@ -33,6 +38,7 @@ namespace helengine.editor {
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             EntityReferenceTable = new SceneEntityReferenceTable();
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
+            EntityFactory = new EditorEntityFactory();
         }
 
         /// <summary>
@@ -69,14 +75,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(entityAsset));
             }
 
-            EditorEntity entity = new EditorEntity {
-                Name = entityAsset.Name,
-                LayerMask = EditorLayerMasks.SceneObjects,
-                SuppressUpdateComponentExecutionInEditor = true,
-                LocalPosition = entityAsset.LocalPosition,
-                LocalScale = entityAsset.LocalScale,
-                LocalOrientation = entityAsset.LocalOrientation
-            };
+            EditorEntity entity = ResolveEditorEntity(EntityFactory.Create(entityAsset.Name));
+            entity.LocalPosition = entityAsset.LocalPosition;
+            entity.LocalScale = entityAsset.LocalScale;
+            entity.LocalOrientation = entityAsset.LocalOrientation;
 
             EntitySaveComponent saveComponent = FindEntitySaveComponent(entity);
             if (string.IsNullOrWhiteSpace(entityAsset.Id)) {
@@ -277,5 +279,20 @@ namespace helengine.editor {
 
             return null;
         }
+
+        /// <summary>
+        /// Resolves the editor entity returned by the host-owned authored entity factory.
+        /// </summary>
+        /// <param name="entity">Entity returned by the factory.</param>
+        /// <returns>Resolved editor entity.</returns>
+        EditorEntity ResolveEditorEntity(Entity entity) {
+            if (entity is EditorEntity editorEntity) {
+                return editorEntity;
+            }
+
+            throw new InvalidOperationException("Editor scene load requires the entity factory to return EditorEntity instances.");
+        }
     }
 }
+
+

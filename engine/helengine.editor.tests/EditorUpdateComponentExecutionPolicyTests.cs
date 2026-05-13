@@ -102,14 +102,31 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures plain editor entities without the explicit suppression marker continue to run update-driven component lifecycle in editor mode.
+        /// </summary>
+        [Fact]
+        public void AddComponent_WhenEditorModeAndEntityLacksSuppressionMarker_RunsLifecycleNormally() {
+            EditorEntity entity = new EditorEntity {
+                LayerMask = EditorLayerMasks.SceneObjects
+            };
+            EditorUpdateLifecycleProbeComponent component = new EditorUpdateLifecycleProbeComponent();
+
+            EnterEditorAndRun(() => entity.AddComponent(component));
+
+            Assert.Equal(1, component.ComponentAddedCallCount);
+            Assert.Single(Core.Instance.ObjectManager.Updateables);
+        }
+
+        /// <summary>
         /// Creates one editor scene entity whose update-driven behavior should stay inactive during authoring.
         /// </summary>
         /// <returns>Configured user scene entity.</returns>
         EditorEntity CreateUserSceneEntity() {
-            return new EditorEntity {
-                LayerMask = EditorLayerMasks.SceneObjects,
-                SuppressUpdateComponentExecutionInEditor = true
+            EditorEntity entity = new EditorEntity {
+                LayerMask = EditorLayerMasks.SceneObjects
             };
+            entity.AddComponent(new EditorUpdateExecutionSuppressionComponent());
+            return entity;
         }
 
         /// <summary>

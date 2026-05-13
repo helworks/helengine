@@ -4,13 +4,34 @@ namespace helengine.editor {
     /// </summary>
     public class EditorSceneCreationService {
         /// <summary>
-        /// Stable save-state slot name used by MeshComponent persistence for model references.
+        /// Factory used to create authored scene entities for the active editor host.
+        /// </summary>
+        readonly IEntityFactory EntityFactory;
+
+        /// <summary>
+        /// Stable save-state slot name used by mesh persistence for model references.
         /// </summary>
         const string MeshModelReferenceName = "Model";
+
         /// <summary>
-        /// Stable save-state slot name used by MeshComponent persistence for material references.
+        /// Stable save-state slot name used by mesh persistence for material references.
         /// </summary>
         const string MeshMaterialReferenceName = "Material";
+
+        /// <summary>
+        /// Initializes one editor scene creation service.
+        /// </summary>
+        public EditorSceneCreationService()
+            : this(new EditorEntityFactory()) {
+        }
+
+        /// <summary>
+        /// Initializes one editor scene creation service.
+        /// </summary>
+        /// <param name="entityFactory">Factory used to create authored scene entities for the active editor host.</param>
+        public EditorSceneCreationService(IEntityFactory entityFactory) {
+            EntityFactory = entityFactory ?? throw new ArgumentNullException(nameof(entityFactory));
+        }
 
         /// <summary>
         /// Creates a root empty entity for the scene.
@@ -28,9 +49,7 @@ namespace helengine.editor {
             return CreatePrimitive(
                 "Cube",
                 EngineGeneratedModelCache.CubeAssetId,
-                EngineGeneratedAssetProvider.CubeRelativePath,
-                EngineGeneratedMaterialCache.StandardAssetId,
-                EngineGeneratedAssetProvider.StandardMaterialRelativePath);
+                EngineGeneratedMaterialCache.StandardAssetId);
         }
 
         /// <summary>
@@ -41,9 +60,7 @@ namespace helengine.editor {
             return CreatePrimitive(
                 "Plane",
                 EngineGeneratedModelCache.PlaneAssetId,
-                EngineGeneratedAssetProvider.PlaneRelativePath,
-                EngineGeneratedMaterialCache.StandardAssetId,
-                EngineGeneratedAssetProvider.StandardMaterialRelativePath);
+                EngineGeneratedMaterialCache.StandardAssetId);
         }
 
         /// <summary>
@@ -173,30 +190,20 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="name">Display name assigned to the entity.</param>
         /// <param name="modelAssetId">Stable generated model identifier.</param>
-        /// <param name="modelRelativePath">Virtual generated model path used for persistence.</param>
         /// <param name="materialAssetId">Stable generated material identifier.</param>
-        /// <param name="materialRelativePath">Virtual generated material path used for persistence.</param>
         /// <returns>Configured primitive scene entity.</returns>
         EditorEntity CreatePrimitive(
             string name,
             string modelAssetId,
-            string modelRelativePath,
-            string materialAssetId,
-            string materialRelativePath) {
+            string materialAssetId) {
             if (string.IsNullOrWhiteSpace(name)) {
                 throw new ArgumentException("Primitive name must be provided.", nameof(name));
             }
             if (string.IsNullOrWhiteSpace(modelAssetId)) {
                 throw new ArgumentException("Generated model asset id must be provided.", nameof(modelAssetId));
             }
-            if (string.IsNullOrWhiteSpace(modelRelativePath)) {
-                throw new ArgumentException("Generated model asset path must be provided.", nameof(modelRelativePath));
-            }
             if (string.IsNullOrWhiteSpace(materialAssetId)) {
                 throw new ArgumentException("Generated material asset id must be provided.", nameof(materialAssetId));
-            }
-            if (string.IsNullOrWhiteSpace(materialRelativePath)) {
-                throw new ArgumentException("Generated material asset path must be provided.", nameof(materialRelativePath));
             }
 
             RuntimeModel runtimeModel = EngineGeneratedModelCache.GetRuntimeModel(modelAssetId);
@@ -204,14 +211,11 @@ namespace helengine.editor {
             EditorEntity entity = CreateBaseEntity(name);
 
             try {
-                EntitySaveComponent saveComponent = FindSaveComponent(entity);
                 MeshComponent meshComponent = new MeshComponent {
                     Model = runtimeModel,
                     Material = runtimeMaterial
                 };
                 entity.AddComponent(meshComponent);
-                saveComponent.SetAssetReference(meshComponent, MeshModelReferenceName, BuildGeneratedReference(modelRelativePath, modelAssetId));
-                saveComponent.SetAssetReference(meshComponent, MeshMaterialReferenceName, BuildGeneratedReference(materialRelativePath, materialAssetId));
                 return entity;
             } catch {
                 entity.Enabled = false;
@@ -230,29 +234,20 @@ namespace helengine.editor {
                 throw new ArgumentException("Entity name must be provided.", nameof(name));
             }
 
-            return new EditorEntity {
-                Name = name,
-                LayerMask = EditorLayerMasks.SceneObjects,
-                SuppressUpdateComponentExecutionInEditor = true,
-                LocalPosition = float3.Zero,
-                LocalScale = float3.One,
-                LocalOrientation = float4.Identity
-            };
+            return ResolveEditorEntity(EntityFactory.Create(name));
         }
 
         /// <summary>
-        /// Builds the stable generated-asset reference stored for created primitives.
+        /// Resolves the editor entity returned by the host-owned authored entity factory.
         /// </summary>
-        /// <param name="relativePath">Virtual generated-asset path used for persistence.</param>
-        /// <param name="assetId">Stable generated asset identifier.</param>
-        /// <returns>Stable scene asset reference for the generated asset.</returns>
-        SceneAssetReference BuildGeneratedReference(string relativePath, string assetId) {
-            return new SceneAssetReference {
-                SourceKind = SceneAssetReferenceSourceKind.Generated,
-                RelativePath = relativePath,
-                ProviderId = EngineGeneratedAssetProvider.ProviderIdValue,
-                AssetId = assetId
-            };
+        /// <param name="entity">Entity returned by the factory.</param>
+        /// <returns>Resolved editor entity.</returns>
+        EditorEntity ResolveEditorEntity(Entity entity) {
+            if (entity is EditorEntity editorEntity) {
+                return editorEntity;
+            }
+
+            throw new InvalidOperationException("Editor-authored scene creation requires the entity factory to return EditorEntity instances.");
         }
 
         /// <summary>
@@ -290,3 +285,5 @@ namespace helengine.editor {
         }
     }
 }
+
+

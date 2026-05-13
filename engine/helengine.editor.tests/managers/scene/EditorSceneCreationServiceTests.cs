@@ -64,12 +64,12 @@ namespace helengine.editor.tests.managers.scene {
         }
 
         /// <summary>
-        /// Ensures primitive creation stores both generated model and generated standard material references required by scene saving.
+        /// Ensures primitive creation assigns generated runtime assets without pre-seeding hidden mesh reference metadata.
         /// </summary>
         [Theory]
-        [InlineData("Cube", EngineGeneratedModelCache.CubeAssetId, EngineGeneratedAssetProvider.CubeRelativePath)]
-        [InlineData("Plane", EngineGeneratedModelCache.PlaneAssetId, EngineGeneratedAssetProvider.PlaneRelativePath)]
-        public void CreatePrimitive_StoresGeneratedModelAndMaterialReferences(string expectedName, string modelAssetId, string modelRelativePath) {
+        [InlineData("Cube", EngineGeneratedModelCache.CubeAssetId)]
+        [InlineData("Plane", EngineGeneratedModelCache.PlaneAssetId)]
+        public void CreatePrimitive_AssignsGeneratedRuntimeAssetsWithoutStoredReferences(string expectedName, string modelAssetId) {
             EditorSceneCreationService service = new EditorSceneCreationService();
 
             EditorEntity entity = expectedName == "Cube" ? service.CreateCube() : service.CreatePlane();
@@ -80,17 +80,9 @@ namespace helengine.editor.tests.managers.scene {
             Assert.Equal(expectedName, entity.Name);
             Assert.NotNull(meshComponent.Model);
             Assert.NotNull(meshComponent.Material);
-            Assert.True(saveComponent.TryGetComponentState(meshComponent, out EntityComponentSaveState saveState));
-            Assert.True(saveState.TryGetAssetReference("Model", out SceneAssetReference modelReference));
-            Assert.True(saveState.TryGetAssetReference("Material", out SceneAssetReference materialReference));
-            Assert.Equal(SceneAssetReferenceSourceKind.Generated, modelReference.SourceKind);
-            Assert.Equal(EngineGeneratedAssetProvider.ProviderIdValue, modelReference.ProviderId);
-            Assert.Equal(modelRelativePath, modelReference.RelativePath);
-            Assert.Equal(modelAssetId, modelReference.AssetId);
-            Assert.Equal(SceneAssetReferenceSourceKind.Generated, materialReference.SourceKind);
-            Assert.Equal(EngineGeneratedAssetProvider.ProviderIdValue, materialReference.ProviderId);
-            Assert.Equal(EngineGeneratedAssetProvider.StandardMaterialRelativePath, materialReference.RelativePath);
-            Assert.Equal(EngineGeneratedMaterialCache.StandardAssetId, materialReference.AssetId);
+            Assert.Same(EngineGeneratedModelCache.GetRuntimeModel(modelAssetId), meshComponent.Model);
+            Assert.Same(EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId), meshComponent.Material);
+            Assert.False(saveComponent.TryGetComponentState(meshComponent, out _));
         }
 
         /// <summary>

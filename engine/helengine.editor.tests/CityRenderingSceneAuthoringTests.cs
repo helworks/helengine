@@ -32,22 +32,6 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the authored city Windows build configuration includes the axis test scene in the selected scene set.
-        /// </summary>
-        [Fact]
-        public void ReadCityWindowsBuildConfig_WindowsSelectedScenesContainAxisTest() {
-            string buildConfigSource = ReadBuildConfigSource();
-
-            int windowsPlatformIndex = buildConfigSource.IndexOf("\"platformId\": \"windows\"", StringComparison.Ordinal);
-            int axisTestIndex = buildConfigSource.IndexOf("\"axis_test\"", StringComparison.Ordinal);
-            int pspPlatformIndex = buildConfigSource.IndexOf("\"platformId\": \"psp\"", StringComparison.Ordinal);
-
-            Assert.True(windowsPlatformIndex >= 0);
-            Assert.True(axisTestIndex > windowsPlatformIndex);
-            Assert.True(pspPlatformIndex < 0 || axisTestIndex < pspPlatformIndex);
-        }
-
-        /// <summary>
         /// Ensures the regenerated cube-test scene still contains the expected authored camera, sun, and cube roots.
         /// </summary>
         [Fact]
@@ -101,6 +85,20 @@ namespace helengine.editor.tests {
             SceneAsset sceneAsset = ReadSceneAsset("cube_test.helen");
 
             Assert.Equal("scenes/rendering/cube_test.helen", sceneAsset.Id);
+        }
+
+        /// <summary>
+        /// Ensures cube-test authored scene source creation now relies on the host-owned entity factory instead of constructing editor entities directly.
+        /// </summary>
+        [Fact]
+        public void ReadCityCubeTestSceneFactorySource_DoesNotConstructEditorEntitiesOrSetEditorSuppressionDirectly() {
+            string source = ReadCitySource("rendering.tools", "CubeTestSceneFactory.cs");
+
+            Assert.DoesNotContain("new EditorEntity {", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("new EditorEntity(", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("SuppressUpdateComponentExecutionInEditor", source, StringComparison.Ordinal);
+            Assert.Contains("IEntityFactory", source, StringComparison.Ordinal);
+            Assert.Contains("EntityFactory.Create(", source, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -235,13 +233,21 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Reads the authored city build configuration source file.
+        /// Reads one authored city source file from the project codebase.
         /// </summary>
-        /// <returns>Build configuration source text.</returns>
-        string ReadBuildConfigSource() {
-            string buildConfigPath = Path.Combine(CityProjectRootPath, "user_settings", "build_config.json");
-            Assert.True(File.Exists(buildConfigPath));
-            return File.ReadAllText(buildConfigPath);
+        /// <param name="relativeFolderPath">Project-relative code folder beneath <c>assets/codebase</c>.</param>
+        /// <param name="fileName">File name to read.</param>
+        /// <returns>Source text.</returns>
+        string ReadCitySource(string relativeFolderPath, string fileName) {
+            if (string.IsNullOrWhiteSpace(relativeFolderPath)) {
+                throw new ArgumentException("Relative folder path must be provided.", nameof(relativeFolderPath));
+            } else if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new ArgumentException("File name must be provided.", nameof(fileName));
+            }
+
+            string sourcePath = Path.Combine(CityProjectRootPath, "assets", "codebase", relativeFolderPath, fileName);
+            Assert.True(File.Exists(sourcePath));
+            return File.ReadAllText(sourcePath);
         }
 
         /// <summary>

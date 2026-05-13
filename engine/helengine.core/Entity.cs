@@ -104,10 +104,8 @@ namespace helengine {
         /// </summary>
         public ushort LayerMask { get; set; }
 
-        /// <summary>
-        /// Gets or sets a value indicating whether update-driven runtime component behavior should stay inactive while this entity is authored inside the editor.
-        /// </summary>
-        public bool SuppressUpdateComponentExecutionInEditor { get; set; }
+
+
 
         /// <summary>
         /// Gets the list of components attached to this entity.
@@ -332,3 +330,4 @@ namespace helengine {
         }
     }
 }
+
