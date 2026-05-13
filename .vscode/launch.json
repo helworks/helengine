@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Exported Windows Host",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "C:\\dev\\helprojs\\output\\windows\\helengine_windows.exe",
+      "cwd": "C:\\dev\\helprojs\\output\\windows",
+      "console": "integratedTerminal",
+      "stopAtEntry": false
+    }
+  ]
+}
